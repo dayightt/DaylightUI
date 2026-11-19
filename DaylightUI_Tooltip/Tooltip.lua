@@ -712,6 +712,8 @@ function Tip.AddID(tip, label, id)
     local v = Tip.ID_VALUE
     local ar, ag, ab = Style.Accent() -- label in the accent, like Daylight UI's own tooltips
     tip:AddDoubleLine(label, text, ar, ag, ab, v[1], v[2], v[3])
+    -- On the rich card it's Daylight UI's own row, never hidden with other addons' lines.
+    ns.Rich.Piece(tip, { kind = "row", label = label, value = text, color = v, labelColor = { ar, ag, ab } })
 end
 
 -- Short green stats, an idea from EasyGreenStats: an item's "Equip:" sentence in
@@ -1097,7 +1099,10 @@ end
 
 -- Plugins' lines (DaylightUI.API: me.AddTooltipLines(kind, fn(lines, data))),
 -- after Daylight UI's own, in the same look. Item tooltips refill several
--- times a second, so a line already there is never added twice.
+-- times a second, so a line already there is never added twice. Each piece
+-- is also a plain line, so one plugin works in both looks: Simple shows the
+-- line, the rich card draws the piece (Rich.Piece) and keeps the line only
+-- for its frame-only look in a fight.
 local INK = Style.INK
 local adding                                -- the tooltip lines go to while a plugin runs
 local added = false
@@ -1105,43 +1110,96 @@ local function inkOf(c, fallback)
     if type(c) == "table" and type(c[1]) == "number" then return c[1], c[2], c[3] end
     return fallback[1], fallback[2], fallback[3]
 end
+local function colorOf(c)
+    if type(c) == "table" and type(c[1]) == "number" then return { c[1], c[2], c[3] } end
+    return nil
+end
+local function str(v)
+    if v == nil or isSecret(v) then return nil end
+    return tostring(v)
+end
+local function row(left, right, color)
+    local tip = adding
+    if not tip or type(left) ~= "string" then return end
+    right = str(right) or ""
+    if Tip.HasLine(tip, left, right) then return end
+    local lr, lg, lb = inkOf(nil, INK.TEXT)
+    local r, g, b = inkOf(color, INK.VALUE)
+    tip:AddDoubleLine(left, right, lr, lg, lb, r, g, b)
+    ns.Rich.Piece(tip, { kind = "row", label = left, value = right, color = colorOf(color) })
+    added = true
+end
+local function line(text, r, g, b, piece)
+    local tip = adding
+    if not tip or type(text) ~= "string" or Tip.HasLine(tip, text) then return end
+    tip:AddLine(text, r, g, b, true)
+    ns.Rich.Piece(tip, piece)
+    added = true
+end
 Tip.PLUGIN_LINES = {
     -- A label and its value: label soft white, value white unless colored.
-    Line = function(left, right, color)
-        local tip = adding
-        if not tip or type(left) ~= "string" then return end
-        right = right ~= nil and tostring(right) or ""
-        if Tip.HasLine(tip, left, right) then return end
-        local lr, lg, lb = inkOf(nil, INK.TEXT)
-        local r, g, b = inkOf(color, INK.VALUE)
-        tip:AddDoubleLine(left, right, lr, lg, lb, r, g, b)
-        added = true
-    end,
+    Line = row,
+    Row = row,
     -- A sentence, wrapped.
     Text = function(text, color)
-        local tip = adding
-        if not tip or type(text) ~= "string" or Tip.HasLine(tip, text) then return end
         local r, g, b = inkOf(color, INK.TEXT)
-        tip:AddLine(text, r, g, b, true)
-        added = true
+        line(text, r, g, b, { kind = "text", text = text, color = colorOf(color) })
     end,
     -- What a click does, in the accent.
     Hint = function(text)
-        local tip = adding
-        if not tip or type(text) ~= "string" or Tip.HasLine(tip, text) then return end
         local r, g, b = Style.Accent()
-        tip:AddLine(text, r, g, b, true)
-        added = true
+        line(text, r, g, b, { kind = "hint", text = text })
     end,
     Gap = function()
         local tip = adding
         if not tip then return end
         tip:AddLine(" ")
+        ns.Rich.Piece(tip, { kind = "gap" })
         added = true
+    end,
+    -- A label, its value out of max and a thin bar (1.12). Simple: "12 / 20".
+    Bar = function(label, value, max, color)
+        if type(label) ~= "string" or type(value) ~= "number" or type(max) ~= "number" or isSecret(value) or isSecret(max) then return end
+        local shown, most = str(value), str(max)
+        local text = string.format(L["%s / %s"], shown, most)
+        local tip = adding
+        if not tip or Tip.HasLine(tip, label, text) then return end
+        local lr, lg, lb = inkOf(nil, INK.TEXT)
+        local r, g, b = inkOf(color, INK.VALUE)
+        tip:AddDoubleLine(label, text, lr, lg, lb, r, g, b)
+        ns.Rich.Piece(tip, { kind = "bar", label = label, value = math.max(0, math.min(value, max)), max = max,
+            shown = shown, shownMax = most, color = colorOf(color) })
+        added = true
+    end,
+    -- A tag in the card's header (1.12). Simple: a line of its own.
+    Tag = function(text, color)
+        local r, g, b = inkOf(color, INK.LABEL)
+        line(text, r, g, b, { kind = "tag", text = text, color = colorOf(color) })
+    end,
+    -- A small heading in the accent (1.12).
+    Section = function(title)
+        local r, g, b = Style.Accent()
+        line(title, r, g, b, { kind = "section", text = title })
+    end,
+    -- Value tiles side by side, { { value, caption }, ... } (1.12). Simple:
+    -- one line, "value caption · value caption".
+    Tiles = function(list)
+        if type(list) ~= "table" then return end
+        local tiles, words = {}, {}
+        for _, t in ipairs(list) do
+            local value, caption = type(t) == "table" and str(t[1]), type(t) == "table" and str(t[2])
+            if value then
+                tiles[#tiles + 1] = { value, caption or "", colorOf(t[3]) }
+                words[#words + 1] = caption and (value .. " " .. caption) or value
+            end
+        end
+        if #tiles == 0 then return end
+        line(table.concat(words, L[" · "]), INK.TEXT[1], INK.TEXT[2], INK.TEXT[3], { kind = "tiles", tiles = tiles })
     end,
 }
 
--- kind = "unit" | "item" | "spell". Returns whether anything was added.
+-- kind = "unit" | "item" | "spell" | "world" | "compare". Returns whether
+-- anything was added.
 function Tip.Plugins(kind, tip, data)
     local R = DUI.APIReport
     if not (skinned[tip] and type(R) == "table" and R.TooltipLines) then return false end
@@ -1153,20 +1211,29 @@ function Tip.Plugins(kind, tip, data)
     return added
 end
 
+-- Which look a tooltip is in, for plugins: "rich" or "simple".
+function Tip.StyleOf(tip) return ns.Rich.On(tip) and "rich" or "simple" end
+
 -- What a plugin's function is told about the tooltip: plain values only (nil
 -- when the game keeps one secret).
 function Tip.PluginData(kind, tip, data)
+    local style = Tip.StyleOf(tip)
     if kind == "unit" then
         local _, unit = tip.GetUnit and tip:GetUnit()
-        return { unit = plain(unit) }
+        return { unit = plain(unit), style = style }
     end
-    if kind == "item" then
+    if kind == "item" or kind == "compare" then
         local link = Tip.ItemLink and Tip.ItemLink(tip, data) or nil
         local id = type(data) == "table" and plain(data.id) or nil
-        return { link = plain(link), itemID = type(id) == "number" and id or nil }
+        return { link = plain(link), itemID = type(id) == "number" and id or nil, style = style }
+    end
+    if kind == "world" then
+        local first = Tip.Line(tip, 1)
+        local name = first and first.GetText and plain(first:GetText())
+        return { name = type(name) == "string" and name or nil, style = style }
     end
     local id = type(data) == "table" and plain(data.id) or nil
-    return { spellID = type(id) == "number" and id or nil }
+    return { spellID = type(id) == "number" and id or nil, style = style }
 end
 
 -- Runs the plugins for a tooltip already on show and fits it to the new lines
@@ -1658,7 +1725,17 @@ function Tip.Build(mod)
                     Tip.Settle(tip)
                     DUI.SafeCall(Tip.OnItemLines, tip, data)
                     DUI.SafeCall(Tip.PluginsShown, "item", tip, data)
+                    -- A compare tooltip's item (what you have on) also runs "compare" (1.12).
+                    if type(tip.CompareHeader) == "table" then DUI.SafeCall(Tip.PluginsShown, "compare", tip, data) end
                 end)
+            end
+            -- Things in the world that aren't units: nodes, chests, a mailbox (1.12).
+            for _, kind in ipairs({ "Object", "Corpse" }) do
+                if types and types[kind] then
+                    TDP.AddTooltipPostCall(types[kind], function(tip, data)
+                        DUI.SafeCall(Tip.PluginsShown, "world", tip, data)
+                    end)
+                end
             end
             for _, kind in ipairs(Tip.SPELL_KINDS) do
                 if types and types[kind] then
@@ -1783,6 +1860,10 @@ function Tip.Refresh(mod)
         ns.Rich.Refresh(tip)
     end
     ns.RichPill.Layout()
+    -- Plugins hear when the look switches (API 1.12), not at the first load.
+    local style = cfg.style == "rich" and "rich" or "simple"
+    if Tip.style and Tip.style ~= style and DUI.APIReport then DUI.APIReport.Event("TooltipStyleChanged", style) end
+    Tip.style = style
     -- Following the cursor, there's nothing to place, so no handle.
     DUI.Movers.Suspend(Tip.MOVER_KEY, cfg.anchor == "cursor")
 end

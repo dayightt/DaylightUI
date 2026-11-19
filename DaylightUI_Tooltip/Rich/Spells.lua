@@ -157,12 +157,12 @@ local DESC_TYPE = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType
 function Spells.Read(n, lines, own)
     local Tips, P = DUI.Tips, Spells.Patterns()
     local first = lines[1]
-    local r = { title = first and first.left or "", desc = {}, facts = {}, other = {} }
+    local r = { title = first and first.left or "", desc = {}, facts = {} }
     if first and first.right then r.rank = bare(first.right) end
     for i = 2, n do
         local line = lines[i]
         if i > own then
-            r.other[#r.other + 1] = i
+            -- Another addon's (or the Spell ID line): Rich/Foreign.lua's.
         else
             for _, side in ipairs({ "left", "right" }) do
                 local t = line[side] and bare(line[side])
@@ -622,10 +622,8 @@ function Spells.Card(p, tip, r, lines, school, id, light, hasMath)
         Panel.Text(p, Tips.Numbers(t, numbers), INK.TEXT)
     end
     for _, f in ipairs(r.facts) do Panel.Text(p, f[1], f[2], SIZE.small) end
-    if #r.other > 0 then
-        Panel.Rule(p)
-        for _, i in ipairs(r.other) do ns.Rich.Lines(p, i, lines, i) end
-    end
+    ns.RichForeign.Place(p, "mixed")
+    ns.RichForeign.Place(p, "own")
     if hasMath then
         Panel.Gap(p, Spells.BEFORE_HINT)
         Panel.Hints(p, { { SHIFT_KEY_TEXT or L["Shift"], L["the math"], school and school.color or nil } })
@@ -637,8 +635,7 @@ end
 -- down, the math while Shift is held, else the card. Returns what the
 -- tooltip's update needs to know ({ canMath, math, ends }).
 function Spells.Build(p, tip, data, n, lines)
-    local own = type(data) == "table" and type(data.lines) == "table" and #data.lines or n
-    own = math.min(own, n)
+    local own = ns.Rich.Own(data, n)
     p.ready = nil
     local r = Spells.Read(n, lines, own)
     local school = Spells.School(table.concat(r.desc, " "))

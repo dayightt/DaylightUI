@@ -57,7 +57,9 @@ local function world()
     -- As the game's GameTooltip_OnShow / OnHide: the padding is cleared
     -- (GameTooltip_CalculatePadding with no embedded item, ClearPadding).
     tip:SetScript("OnShow", function(self) self:ClearPadding() end)
-    tip:SetScript("OnHide", function(self) self:ClearPadding() end)
+    tip:SetScript("OnHide", function(self) self:ClearPadding(); GameTooltip_ClearMoney(self) end)
+    -- GameTooltip.xml's OnTooltipCleared: its money frames go.
+    tip:SetScript("OnTooltipCleared", function(self) GameTooltip_ClearMoney(self) end)
     tip:Hide() -- as the game's, hidden until first filled
     -- The compare tooltips beside it (GameTooltip.xml: ShoppingTooltip1/2).
     tip.shoppingTooltips = { lined(stub.CompareTooltip("ShoppingTooltip1")), lined(stub.CompareTooltip("ShoppingTooltip2")) }
@@ -1891,5 +1893,330 @@ T.test("rich tooltip: the card fades out with the ghost, then goes home", functi
     T.eq(p:GetParent(), tip, "shown again: the card comes home first")
     T.truthy(p:IsShown(), "and is built again")
     T.eq(GameTooltipTextLeft1:GetAlpha(), 0, "the game's lines stay muted under it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the mail icon's tooltip is one line, the game putting each
+-- sender after a line break (FormatUnreadMailTooltip), and the card's title
+-- showed "Unread mail from:..." with the senders cut off.
+T.test("rich tooltip: a first line holding several lines is the title and lines under it", function()
+    local _, Panel = login("rich")
+    fill(99, { { "Unread mail from:\nThrall\nJaina", nil, 1, 0.82, 0 } })
+    local p = Panel.Get(GameTooltip)
+    T.eq(stub.Text(p.items[1].title), "Unread mail from:", "the title is the first line alone")
+    T.eq(p.items[2] and stub.Text(p.items[2].fs), "Thrall", "each sender under it")
+    T.eq(p.items[3] and stub.Text(p.items[3].fs), "Jaina")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the minimap's mail icon drew its lines twice, the second time
+-- as another addon's. Its data comes with an empty lines table and the game
+-- writes the text itself, so no line can be told to be the data's own: all
+-- of them are the card's, and line 1 is never another addon's.
+T.test("rich tooltip: data with no lines of its own puts nothing in the other addons' area", function()
+    local _, Panel = login("rich")
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip:AddLine("Unread mail from:")
+    tip:AddLine("Alliance Auction House")
+    local data = { type = 21, lines = {} }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    tip:Show()
+    local p = Panel.Get(tip)
+    T.eq(stub.Text(p.items[1].title), "Unread mail from:")
+    local texts = 0
+    for i = 1, p.count do
+        local item = p.items[i]
+        T.truthy(item.kind ~= "rule", "no other addons' area")
+        if item.kind == "text" then texts = texts + 1 end
+    end
+    T.eq(texts, 1, "the sender once")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the card's cut corner had no border: the outline and band ran
+-- along the straight edges and stopped where the corner was cut away.
+T.test("rich tooltip: the cut corner carries the border round it", function()
+    local _, Panel = login("rich")
+    fill(99, { "Unread mail from:", "Thrall" })
+    local p = Panel.Get(GameTooltip)
+    local Style = DaylightUI.Style
+    local s = Style.GetShell(p)
+    local e = s.cutEdge
+    T.truthy(e and e.outline:IsShown(), "a line along the cut in the outline's color")
+    T.truthy(e.band:IsShown(), "and the band's down its middle")
+    -- As thick as the shell's own outline, the band a pixel in from each side.
+    local T_ = e.outline:GetThickness()
+    T.truthy(T_ > 0)
+    T.truthy(e.band:GetThickness() > 0 and e.band:GetThickness() < T_, "the band inside the outline, as on the straight edges")
+    local point, rel, x, y = e.outline:GetStartPoint()
+    T.eq(point, "BOTTOMRIGHT"); T.eq(rel, s)
+    local cut = Style.GetCut(p)
+    T.near(x, -(cut + T_ / math.sqrt(2) - T_ / 2), 1e-6, "on the cut, half the border in")
+    T.near(y, T_ / 2, 1e-6)
+    local _, _, ex, ey = e.outline:GetEndPoint()
+    T.near(ex, -T_ / 2, 1e-6); T.near(ey, cut + T_ / math.sqrt(2) - T_ / 2, 1e-6)
+    local c = ({ e.outline:GetVertexColor() })
+    T.near(c[1], Style.BORDER[1], 1e-6, "the outline's color")
+    -- The fight pill and a value tile have one too.
+    local tile = DaylightUI.Widgets.Tile(UIParent)
+    T.truthy(Style.GetShell(tile).cutEdge.outline:IsShown(), "a tile's cut too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- ---------------------------------------------------------------------
+-- Other addons' lines (Rich/Foreign.lua)
+-- ---------------------------------------------------------------------
+
+local foreignPanel
+
+-- A tooltip with the data's own lines, then another addon's added after
+-- every post-call (addon(tip)), shown and laid out. Returns its card.
+local function withAddon(own, addon, kind)
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    local data = { type = kind or 99, lines = {} }
+    for i, t in ipairs(own) do
+        if type(t) == "table" then tip:AddDoubleLine(unpack(t)) else tip:AddLine(t) end
+        data.lines[i] = {}
+    end
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    if addon then addon(tip) end
+    tip:Show()
+    update()
+    return foreignPanel.Get(tip)
+end
+
+local function foreignLogin()
+    local Tip, Panel = login("rich")
+    foreignPanel = Panel
+    return Tip, Panel
+end
+
+-- The pieces after the card's last rule: the other addons' area.
+local function afterRule(p)
+    local out, seen = {}, false
+    for i = 1, p.count do
+        local item = p.items[i]
+        if seen then out[#out + 1] = item end
+        if item.kind == "rule" then
+            seen = true
+            out = {}
+        end
+    end
+    return seen and out or {}
+end
+
+local function hexOf(c) return DaylightUI.Win.Parts.Hex(c) end
+
+T.test("other addons: their own area under a rule, left soft white, right white", function()
+    foreignLogin()
+    local p = withAddon({ "Mailbox", "Your mail." }, function(t)
+        t:AddDoubleLine("Bags", "5")
+        t:AddLine("Some note from an addon")
+    end)
+    local area = afterRule(p)
+    T.eq(#area, 2, "a row and a sentence")
+    T.eq(area[1].kind, "row")
+    T.eq(stub.Text(area[1].label), "Bags")
+    T.eq(stub.Text(area[1].value), "5")
+    T.rgb(area[1].label.__textColor, DaylightUI.Style.INK.TEXT, "left soft white")
+    T.rgb(area[1].value.__textColor, DaylightUI.Style.INK.VALUE, "right white")
+    T.eq(area[2].kind, "text")
+    T.eq(GameTooltipTextLeft3:GetAlpha(), 0, "the addon's own line muted under the card")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: an unknown addon's colors, grays and icons", function()
+    foreignLogin()
+    local Style = DaylightUI.Style
+    local p = withAddon({ "Peacebloom" }, function(t)
+        t:AddLine("Dropped by |cff999999Hogger|r")
+        t:AddLine("Seen on 3 alts", 0.5, 0.5, 0.5)
+        t:AddLine("Danger", 1, 0.1, 0.1)
+        t:AddLine("Druid only", 1, 0.49, 0.04)
+        t:AddLine("|TInterface\\Icons\\INV_Misc_Bag_08:0|t In your bank")
+        t:AddLine("|TInterface\\Icons\\Role:16:16:0:0:64:64:0:19:22:41|t Tank")
+    end)
+    local area = afterRule(p)
+    T.eq(#area, 6)
+    local first = stub.Text(area[1].fs)
+    T.truthy(first:find(hexOf(Style.INK.LABEL), 1, true) and not first:find("999999", 1, true), "the typed-in gray tan: " .. first)
+    T.rgb(area[2].fs.__textColor, Style.INK.LABEL, "a gray line tan")
+    T.rgb(area[3].fs.__textColor, Style.INK.BAD, "red a warning")
+    T.near(area[4].fs.__textColor[3], 0.04, 1e-6, "its own color kept")
+    T.truthy(stub.Text(area[5].fs):find(":0:0:0:0:100:100:8:92:8:92|t", 1, true), "the icon cropped: " .. stub.Text(area[5].fs))
+    T.truthy(stub.Text(area[6].fs):find(":64:64:0:19:22:41|t", 1, true), "its own coordinates kept")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: blank lines are one gap, never first or last", function()
+    foreignLogin()
+    local p = withAddon({ "Peacebloom" }, function(t)
+        t:AddLine(" ")
+        t:AddLine("First addon")
+        t:AddLine(" ")
+        t:AddLine("")
+        t:AddLine("Second addon")
+        t:AddLine(" ")
+    end)
+    local kinds = {}
+    for _, item in ipairs(afterRule(p)) do kinds[#kinds + 1] = item.kind end
+    T.deq(kinds, { "text", "gap", "text" })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: prices (Auctionator, TSM, a money frame) as a label and the coins", function()
+    foreignLogin()
+    local W = DaylightUI.Widgets
+    local p = withAddon({ "Copper Ore", "Trade Goods" }, function(t)
+        t:AddDoubleLine("Auction x5", "|cffffffff12|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 34|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t|r")
+        t:AddDoubleLine("|cff82c5ffDBMarket:|r", "12|cffffd70ag|r 34|cffc7c7cfs|r 56|cffeda55fc|r")
+        t:AddLine("Vendor: 1|A:coin-gold:0:0|a 5|A:coin-copper:0:0|a")
+        SetTooltipMoney(t, 4321, nil, "Disenchant:")
+    end)
+    local rows = {}
+    for _, item in ipairs(afterRule(p)) do if item.kind == "row" then rows[#rows + 1] = item end end
+    T.eq(#rows, 4)
+    T.eq(stub.Text(rows[1].label), "Auction x5")
+    T.eq(stub.Text(rows[1].value), W.Money(123400), "Auctionator's coins")
+    T.eq(stub.Text(rows[2].label), "DBMarket", "the label without its color or colon")
+    T.eq(stub.Text(rows[2].value), W.Money(123456), "TSM's lettered coins")
+    T.eq(stub.Text(rows[3].label), "Vendor")
+    T.eq(stub.Text(rows[3].value), W.Money(10005))
+    T.eq(stub.Text(rows[4].label), "Disenchant", "the money frame's words")
+    T.eq(stub.Text(rows[4].value), W.Money(4321), "and its amount")
+    T.eq(GameTooltipMoneyFrame1:GetAlpha(), 0, "the game's money frame muted under the card")
+    -- Filled again without it: no money frame left over.
+    withAddon({ "Copper Ore", "Trade Goods" })
+    T.eq(#afterRule(p), 0, "nothing of the last fill")
+    T.falsy(GameTooltipMoneyFrame1:IsShown(), "the game put its money frame away")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: a score popped; Questie's rows as a quest", function()
+    foreignLogin()
+    local p = withAddon({ "Aelindra" }, function(t)
+        t:AddDoubleLine("Raider.IO M+ Score", "|cffff80002140|r")
+        t:AddLine("Southsea Shakedown")
+        t:AddLine("   |cffffffffSouthsea Pirate: 3/10|r |cff999999[37%]|r")
+    end)
+    local score
+    local kinds = {}
+    for i = 1, p.count do
+        local item = p.items[i]
+        kinds[#kinds + 1] = item.kind
+        if item.kind == "row" and stub.Text(item.label) == "Raider.IO M+ Score" then score = item end
+    end
+    T.truthy(score, "the score's row")
+    T.eq(stub.Text(score.value), "2140", "the number alone")
+    T.rgb(score.value.__textColor, { DaylightUI.Style.Pop() }, "popped")
+    T.truthy(table.concat(kinds, " "):find("section row bar", 1, true), "a heading, the objective, its bar: " .. table.concat(kinds, " "))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: a look of their own can be switched off, the plain repaint stays", function()
+    foreignLogin()
+    DaylightUI:Set("Tooltip", "addonAdapters.prices", false)
+    DaylightUI:Set("Tooltip", "addonAdapters.questie", false)
+    stub.RunTimers()
+    local p = withAddon({ "Copper Ore" }, function(t)
+        t:AddDoubleLine("|cff82c5ffDBMarket:|r", "12|cffffd70ag|r")
+        t:AddLine("Southsea Shakedown")
+        t:AddLine("   |cffffffffSouthsea Pirate: 3/10|r")
+    end)
+    local area = afterRule(p)
+    T.truthy(stub.Text(area[1].label):find("DBMarket:", 1, true), "its own words as they were")
+    T.eq(stub.Text(area[1].value), DaylightUI.Widgets.Money(120000), "money is still coins")
+    for _, item in ipairs(area) do T.truthy(item.kind ~= "bar" and item.kind ~= "section", "no quest look") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: mixed in, or hidden with Daylight UI plugins' lines still there", function()
+    foreignLogin()
+    local me = DaylightUI.API.For("Notes")
+    me.AddTooltipLines("item", function(lines) lines.Row("Fish caught", 12) end)
+    items()
+    DaylightUI:Set("Tooltip", "addonLines", "hidden")
+    stub.RunTimers()
+    fillItem(GameTooltip, "greaves", GREAVES, function(t) t:AddDoubleLine("AH price", "9") end)
+    update()
+    local p = foreignPanel.Get(GameTooltip)
+    local labels = {}
+    for i = 1, p.count do
+        local item = p.items[i]
+        if item.kind == "row" then labels[stub.Text(item.label)] = stub.Text(item.value) end
+    end
+    T.isnil(labels["AH price"], "another addon's line left out")
+    T.eq(labels["Fish caught"], "12", "a plugin's row stays")
+    DaylightUI:Set("Tooltip", "addonLines", "mixed")
+    stub.RunTimers()
+    local p2 = withAddon({ "Mailbox", "Your mail." }, function(t) t:AddLine("A note") end)
+    T.eq(#afterRule(p2), 0, "no area of their own")
+    T.eq(stub.Text(p2.items[p2.count].fs), "A note", "right after the card's own lines")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: secret in a fight, shown as they are inside the frame", function()
+    foreignLogin()
+    local p = withAddon({ "Peacebloom" }, function(t)
+        t:AddLine("A note")
+        GameTooltipTextLeft2:SetText(stub.Secret("A note"))
+    end)
+    T.truthy(p.chrome, "the frame only")
+    T.eq(GameTooltipTextLeft2:GetAlpha(), 1, "the line itself shows")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: a plugin's row, bar, tag, section and tiles on the card", function()
+    foreignLogin()
+    local me = DaylightUI.API.For("Pieces")
+    local style
+    me.AddTooltipLines("item", function(lines, data)
+        style = data.style
+        lines.Row("Fish caught", 12)
+        lines.Bar("Collected", 3, 8)
+        lines.Tag("Rare find", { 0.2, 0.6, 1 })
+        lines.Section("Fishing")
+        lines.Tiles({ { "12", "caught" }, { "3", "today" } })
+    end)
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    update()
+    T.eq(style, "rich")
+    local p = foreignPanel.Get(GameTooltip)
+    local by, collected = {}, nil
+    for i = 1, p.count do
+        local item = p.items[i]
+        by[item.kind] = (by[item.kind] or 0) + 1
+        if item.kind == "row" and stub.Text(item.label) == "Collected" then collected = stub.Text(item.value) end
+    end
+    T.eq(by.tiles, 1, "the tiles")
+    T.truthy((by.bar or 0) >= 1, "the bar")
+    T.truthy((by.section or 0) >= 1, "the heading")
+    T.eq(collected, "3 / 8", "the bar's row")
+    T.eq(#p.items[1].tags, 4, "the tag in the header, after the card's own three")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: a plugin paints the card once it's laid out, a claimed light left to it", function()
+    foreignLogin()
+    local me = DaylightUI.API.For("Painter")
+    local calls = {}
+    me.Paint("tooltip", function(_, parts, info)
+        if info then calls[#calls + 1] = { parts = parts, info = info } end
+        if parts.light then parts.light[1]:SetVertexColor(0, 1, 0, 1) end
+    end, { owns = { "light" } })
+    local p = withAddon({ "Mailbox", "Your mail." })
+    T.truthy(#calls >= 1, "painted")
+    local last = calls[#calls]
+    T.eq(last.info.kind, "other")
+    T.eq(last.info.style, "rich")
+    T.eq(stub.Text(last.parts.title), "Mailbox", "the title among the parts")
+    T.eq(last.parts.panel, p)
+    local n = #calls
+    update()
+    T.eq(#calls, n, "not on every frame")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

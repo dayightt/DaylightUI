@@ -22,6 +22,8 @@ local PROMISED = {
     "MainButton",
     -- 1.9
     "GlowStyles", "GlowAround",
+    -- 1.12
+    "TooltipStyle",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",

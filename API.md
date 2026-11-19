@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 11
+print(API.major, API.minor)   -- 1, 12
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -362,6 +362,7 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 | `"bagslot"` | `icon`, `count`, `border` (a list of textures) | each fill of the slot | `{ bag, slot, itemID, link, quality, count }` |
 | `"shoptile"` | `icon`, `name` | each fill of the shelf | `{ tab, index, id, link }` |
 | `"craftrow"` | `icon`, `name` | each fill of the list | `{ recipeID }` |
+| `"tooltip"` (1.12) | `panel`, `light`, `banner`, `icon`, `title`, `bar` | each layout of the Rich card ([Tooltips](#tooltips-17-112)) | `{ kind, style, unit, link, spellID }` |
 
 Action buttons: claims honored are `icon` (Daylight UI stops tinting, fading and graying it),
 `border` (the border and band stop changing color: read `info.border` to light it yourself),
@@ -720,20 +721,53 @@ me.Paint("meterrow", function(row, parts, info)
 end)
 ```
 
-## Tooltips (1.7)
+## Tooltips (1.7, 1.12)
+
+Daylight UI has two looks for tooltips, and the player picks one: **Rich**, its own cards drawn over
+the game's tooltip (a header with an icon and tags, rows, bars, value tiles), and **Simple**, the game's
+tooltip in Daylight UI's look. One plugin works in both: say what your lines are, and each look draws
+them its own way.
 
 ```lua
 me.AddTooltipLines("item", function(lines, data)
-    if data.itemID == 6303 then lines.Line("Fish caught", MyAddon.caught) end
+    if data.itemID ~= 6303 then return end
+    lines.Row("Fish caught", MyAddon.caught)            -- a label and its value
+    lines.Bar("Collection", MyAddon.have, MyAddon.of)   -- a row with a thin bar under it
+    lines.Tag("Rare find", { 0.3, 0.6, 1 })             -- a tag beside the card's own
 end)
 ```
 
-`kind` is `"unit"` (`data.unit`), `"item"` (`data.link`, `data.itemID`) or `"spell"` (`data.spellID`,
-auras too). Your lines go after Daylight UI's own, in its look: `lines.Line(label, value, color)`,
-`lines.Text(text, color)` (wrapped), `lines.Hint(text)` (the accent), `lines.Gap()`. A line already
-there is never added twice, so it's fine that item tooltips refill several times a second. A value
-the game keeps secret comes as `nil`. `API.Off(handle)` stops it. Nothing runs while another addon
-(PrettyTooltip) styles the tooltips instead.
+`kind` is `"unit"` (`data.unit`), `"item"` (`data.link`, `data.itemID`), `"spell"` (`data.spellID`,
+auras too), and since 1.12 `"world"` (a node, a chest, a mailbox: `data.name`) and `"compare"` (the
+compare tooltip of what you have on: `data.link`, `data.itemID`; `"item"` runs there too). `data.style`
+(1.12) is `"rich"` or `"simple"`.
+
+| Piece | Rich | Simple |
+|---|---|---|
+| `lines.Line(label, value, color)` / `lines.Row(...)` (1.12) | a row: label soft white, value white or `color` | a line with two sides |
+| `lines.Text(text, color)` | a sentence, wrapped | the same |
+| `lines.Hint(text)` | small, in the accent | a line in the accent |
+| `lines.Gap()` | a little room | a blank line |
+| `lines.Bar(label, value, max, color)` (1.12) | a row "value / max" and a thin bar in `color` (or the accent) | "label  value / max" |
+| `lines.Tag(text, color)` (1.12) | a tag in the card's header | a line |
+| `lines.Section(title)` (1.12) | a small heading in the accent | a line in the accent |
+| `lines.Tiles({ { value, caption, color }, ... })` (1.12) | value tiles side by side | one line, "value caption · value caption" |
+
+Colors are `{ r, g, b }`. A line already there is never added twice, so it's fine that item tooltips
+refill several times a second. A value the game keeps secret comes as `nil`. On the Rich card your
+pieces show even when the player hides other addons' lines, and in a fight, when the tooltip's lines
+are secret, the card is only a frame around the plain lines. `API.Off(handle)` stops it. Nothing runs
+while another addon (PrettyTooltip) styles the tooltips instead.
+
+`API.TooltipStyle()` (1.12) is `"rich"`, `"simple"`, or `nil` while Daylight UI's tooltips are off;
+the event `TooltipStyleChanged(style)` says when the player switches.
+
+**Painting the Rich card** (1.12): `me.Paint("tooltip", fn, { owns = { ... } })`, as in
+[Paint](#paint-your-look-on-daylight-uis-frames). Parts: `panel` (the card), `light` (the colored line
+along its top: a list of two textures), `banner` (the header's wash: a list of two), `icon`, `title`,
+`bar` (its first bar). `info = { kind, style, unit | link | spellID }`, `kind` being `"unit"`,
+`"item"`, `"spell"` or `"other"`. It runs each time the card is laid out for something new or its
+lines change, never on the refills that change nothing. Claims honored: `light`, `bar` and `title`.
 
 ## The setup guide (1.7)
 
@@ -973,6 +1007,11 @@ with the error said once. Call `AddGlowStyle` again with the same key to change 
 | `API.IsAfkScreen()` | The AFK screen is up. Events `AfkScreenShown`, `AfkScreenHidden`. |
 | `me.Override(scope, path, value)` | One of Daylight UI's settings changed for a while (hide the fishing water while your mode runs). Never saved: `API.Off(handle)`, logging out or the player changing it puts theirs back. One plugin per setting. |
 | `me.FilterShop(fn(item))` | Return `false` to leave an item off the vendor window's shelf (`item.index`, `name`, `link`...). `API.RefreshShop()` fills it again. |
+
+A tooltip addon needs nothing from Daylight UI: plain `GameTooltip:AddLine` and `AddDoubleLine`
+keep working in both looks. On the Rich card your lines go in their own area at the bottom, in its
+words: your left text soft white, the right white, a gray tan, money (text or `SetTooltipMoney`) as
+Daylight UI's coins, inline icons cropped. To pick the pieces yourself, see [Tooltips](#tooltips-17-112).
 
 Event `FramePlaced(key)`: a frame was put on its spot by its mover (a profile, a move). Follow a
 frame here instead of hooking its `SetPoint`.

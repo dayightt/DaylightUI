@@ -129,15 +129,8 @@ local function rows(p, unit)
     return added
 end
 
--- Lines in the tooltip beyond the game's own (another addon's), after a rule.
-function Players.OtherLines(p, n, lines, from)
-    if n < from then return end
-    ns.RichPanel.Rule(p)
-    ns.Rich.Lines(p, n, lines, from)
-end
-
 -- Builds the card. data: the unit's tooltip data (its own lines come first
--- in the tooltip; anything after them is another addon's).
+-- in the tooltip; anything after them is another addon's, in p.foreign).
 function Players.Card(p, tip, unit, data, n, lines)
     local Panel, Tip = ns.RichPanel, ns.Tooltip
     local cfg = Tip.Config()
@@ -164,6 +157,8 @@ function Players.Card(p, tip, unit, data, n, lines)
     -- health sat right on the banner, inside its wash.
     Panel.Gap(p, Players.AFTER_BANNER)
     rows(p, unit)
+    -- Other addons' lines mixed in with the rows, when set so (Rich/Foreign.lua).
+    ns.RichForeign.Place(p, "mixed")
     Panel.Gap(p, Players.BEFORE_BARS)
     Panel.Bar(p, { unit = unit, health = true, h = 7, caption = HEALTH or L["Health"],
         pct = function(fs) DUI.Health.Write(fs, "percent", unit, true) end })
@@ -182,7 +177,6 @@ function Players.Card(p, tip, unit, data, n, lines)
             Panel.Icons(p, icons, count)
         end
     end
-    local own = type(data) == "table" and type(data.lines) == "table" and #data.lines or n
-    Players.OtherLines(p, n, lines, own + 1)
+    ns.RichForeign.Place(p, "own")
     Panel.Finish(p)
 end

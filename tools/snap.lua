@@ -450,7 +450,7 @@ local RECIPES = {
             w:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
             return w
         end },
-    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on] [spell: a spell's card] [math: the spell with Shift held] [cooldown: the spell cooling down on an action button] [loner: a player with no guild or target] [mob: a creature with a quest] [node: an herb you can pick]",
+    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only] [player: a player's card] [pill: a mob in a fight] [compare: the item and what you have on] [spell: a spell's card] [math: the spell with Shift held] [cooldown: the spell cooling down on an action button] [loner: a player with no guild or target] [mob: a creature with a quest] [node: an herb you can pick] [mail: the minimap's mail icon, plain lines] [addons: the item with other addons' lines: prices, a score, quest rows, an unknown addon]",
         before = function()
             _G.SNAP_TIP_POST = {}
             Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
@@ -520,6 +520,14 @@ local RECIPES = {
             tip:SetOwner(UIParent, "ANCHOR_NONE")
             tip:ClearAllPoints()
             tip:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+            if look == "mail" then
+                -- As the minimap's mail icon writes it: plain lines, no data.
+                tip:AddLine("Unread mail from:", 1, 0.82, 0)
+                tip:AddLine("Thrall")
+                tip:Show()
+                tip:GetScript("OnUpdate")(tip, 0.02)
+                return tip
+            end
             local loner = look == "loner"
             if loner then look = "player" end
             if look == "player" or look == "pill" then
@@ -628,6 +636,19 @@ local RECIPES = {
             local data = { type = 0, hyperlink = "greaves", lines = own }
             for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(tip, data) end
             for _, fn in ipairs(SNAP_TIP_POST[0] or {}) do fn(tip, data) end
+            if look == "addons" then
+                -- Other addons' lines as they write them, after the game's.
+                tip:AddLine(" ")
+                tip:AddDoubleLine("Auction x3", "|cffffffff4|TInterface\\MoneyFrame\\UI-GoldIcon:0:0:2:0|t 12|TInterface\\MoneyFrame\\UI-SilverIcon:0:0:2:0|t|r")
+                tip:AddDoubleLine("|cff82c5ffDBMarket:|r", "3|cffffd70ag|r 87|cffc7c7cfs|r 50|cffeda55fc|r")
+                tip:AddDoubleLine("Raider.IO M+ Score", "|cffff80002140|r")
+                tip:AddLine(" ")
+                tip:AddLine("[58] The Dawnforged Oath")
+                tip:AddLine("   |cffffffffDawnforged Greaves: 0/1|r |cff999999[12%]|r")
+                tip:AddLine(" ")
+                tip:AddDoubleLine("|TInterface\\Icons\\INV_Misc_Bag_08:0|t Bags: 1", "Bank: 2")
+                tip:AddLine("|cff999999Also on|r Aelindra, Moonvale")
+            end
             tip:Show()
             tip:GetScript("OnUpdate")(tip, 0.02)
             if look ~= "compare" then return tip end

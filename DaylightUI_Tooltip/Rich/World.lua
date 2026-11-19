@@ -35,10 +35,7 @@ local function hex(c) return DUI.Win.Parts.Hex(c) end
 
 local function word(w, fallback) return type(w) == "string" and w ~= "" and w or fallback end
 
-local function ownCount(data, n)
-    local own = type(data) == "table" and type(data.lines) == "table" and #data.lines or n
-    return math.min(own, n)
-end
+local function ownCount(data, n) return ns.Rich.Own(data, n) end
 
 -- ---------------------------------------------------------------------
 -- The game's words and colors
@@ -142,48 +139,18 @@ end
 -- Lines the card doesn't lay out itself
 -- ---------------------------------------------------------------------
 
-local function questKey(t)
-    return (ns.Rich.Bare(t):gsub("^%[[^%]]*%]%s*", "")):lower()
-end
-
--- Sorts the lines from 2 on into the quest lines (the game's own, then another
--- addon's that aren't a quest the game's lines already show) and the rest.
--- taken: own lines the card has used. Returns notQuest and notOther (each a
--- set of lines to pass over when drawing the one or the other) and whether
--- any line is left for each.
-function World.Sort(n, lines, own, taken)
+-- The quest lines from 2 on: the game's own, then another addon's that
+-- aren't a quest the game's lines already show (Rich/Foreign.lua's quest
+-- adapter). taken: own lines the card has used. Returns the set of lines to
+-- pass over when drawing them (Rich.Lines' skip) and whether there's any.
+function World.Sort(p, lines, own, taken)
     local Rich = ns.Rich
-    local notQuest, notOther = {}, {}
-    local shown, anyQuest, anyOther = {}, false, false
+    local notQuest, anyQuest = ns.RichForeign.QuestLines(p)
     for i = 2, own do
         local kind = not taken[i] and Rich.QuestLine(lines, i, own) or nil
-        if kind then
-            anyQuest = true
-            if kind == "title" then shown[questKey(lines[i].left)] = true end
-        else
-            notQuest[i] = true
-        end
-        notOther[i] = true
+        if kind then anyQuest = true else notQuest[i] = true end
     end
-    local dropping = false
-    for i = own + 1, n do
-        local kind = Rich.QuestLine(lines, i, n)
-        if kind == "title" then
-            dropping = shown[questKey(lines[i].left)] == true
-        elseif not kind then
-            dropping = false
-        end
-        if kind and not dropping then
-            anyQuest = true
-            notOther[i] = true
-        elseif kind then
-            notQuest[i], notOther[i] = true, true
-        else
-            notQuest[i] = true
-            anyOther = true
-        end
-    end
-    return notQuest, notOther, anyQuest, anyOther
+    return notQuest, anyQuest
 end
 
 local function rule(p)
@@ -308,19 +275,19 @@ function World.Mob(p, tip, unit, data, n, lines, light)
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
     Panel.Gap(p, World.BEFORE_BAR)
     Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
-    local notQuest, notOther, anyQuest, anyOther = World.Sort(n, lines, own, r.taken)
+    local notQuest, anyQuest = World.Sort(p, lines, own, r.taken)
     if anyQuest then Rich.Lines(p, n, lines, 2, notQuest) end
     local cfg = ns.Tooltip.Config()
     local target = cfg.showTarget and ns.RichPlayers.Target(unit) or nil
-    if #r.facts > 0 or target then
+    local Foreign = ns.RichForeign
+    -- Its facts, other addons' lines when they're mixed in, who it's targeting.
+    if #r.facts > 0 or target or Foreign.Has(p, "mixed") then
         rule(p)
         for _, i in ipairs(r.facts) do fact(p, lines[i]) end
+        Foreign.Place(p, "mixed")
         if target then Panel.Row(p, L["Targeting"], target[1], target[2]) end
     end
-    if anyOther then
-        rule(p)
-        Rich.Lines(p, n, lines, own + 1, notOther)
-    end
+    Foreign.Place(p, "own")
     Panel.Finish(p)
 end
 
@@ -368,16 +335,12 @@ function World.Object(p, tip, data, n, lines, light)
     end
     -- Its own lines, quests among them, in the game's order.
     Rich.Lines(p, own, lines, 2, taken)
-    -- Then other addons' lines, but not a quest its own lines already show.
-    local notQuest, notOther = World.Sort(n, lines, own, taken)
-    local repeats, more = {}, false
-    for i = own + 1, n do
-        repeats[i] = (notQuest[i] and notOther[i]) or nil
-        if not repeats[i] then more = true end
-    end
-    if more then
-        rule(p)
-        Rich.Lines(p, n, lines, own + 1, repeats)
-    end
+    -- Then another addon's quests (not one its own lines already show), and
+    -- the rest of other addons' lines.
+    local Foreign = ns.RichForeign
+    local notQuest, anyQuest = Foreign.QuestLines(p)
+    if anyQuest then Rich.Lines(p, n, lines, own + 1, notQuest) end
+    Foreign.Place(p, "mixed")
+    Foreign.Place(p, "own")
     Panel.Finish(p)
 end

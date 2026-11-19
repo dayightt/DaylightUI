@@ -88,6 +88,36 @@ end
 
 function Panel.Get(tip) return panels[tip] end
 
+-- Plugins painting the card (API Paint kind "tooltip"): its pieces by name,
+-- and whether one claimed a piece (then Daylight UI leaves its color alone).
+function Panel.Owned(part)
+    local R = DUI.APIReport
+    return R ~= nil and R.Owned ~= nil and R.Owned("tooltip", part)
+end
+
+function Panel.Parts(p)
+    local parts = p.parts or {}
+    p.parts = parts
+    parts.panel, parts.light, parts.banner = p, p.light, p.wash
+    parts.icon, parts.title, parts.bar = nil, nil, nil
+    for i = 1, p.count do
+        local item = p.items[i]
+        if item.kind == "header" and not parts.title then
+            parts.title = item.title
+            parts.icon = item.icon and item.icon.art or nil
+        elseif item.kind == "bar" and not parts.bar then
+            parts.bar = item.bar
+        end
+    end
+    return parts
+end
+
+if DUI.APIReport and DUI.APIReport.Parts then
+    DUI.APIReport.Parts("tooltip", Panel.Parts)
+    -- A claim began or ended: the card is laid out again before the next draw.
+    DUI.APIReport.Repainter("tooltip", function(p) ns.Rich.Refresh(p.tip) end)
+end
+
 function Panel.For(tip)
     local p = panels[tip]
     if p then return p end
@@ -132,6 +162,7 @@ function Panel.For(tip)
     p.items, p.count = {}, 0
     panels[tip] = p
     Panel.Level(p)
+    if DUI.APIReport then DUI.APIReport.Made("tooltip", p) end
     return p
 end
 
@@ -251,6 +282,7 @@ function Panel.PaintBar(bar, spec)
         bar:SetValue(spec.value or 0)
     end
     local fill = bar:GetStatusBarTexture()
+    if spec.card and Panel.Owned("bar") then return end
     if unit and spec.health and not spec.pair and DUI.Health.GradientCurve() then
         fill:SetVertexColor(1, 1, 1, 1)
         DUI.Health.ApplyGradient(bar, unit)
@@ -369,12 +401,16 @@ function Panel.Header(p, spec)
         item.sub = text(p, Style.SIZE.small, Style.INK.LABEL)
         item.sub:SetText(spec.sub)
     end
-    if spec.tags then
+    -- A Daylight UI plugin's tags (lines.Tag) after the card's own.
+    local extra = p.extraTags
+    if spec.tags or extra then
         item.tags = {}
-        for i, t in ipairs(spec.tags) do
-            local tag = take(p, "tag")
-            tag.Set(t[1], t[2])
-            item.tags[i] = tag
+        for _, list in ipairs({ spec.tags or false, extra or false }) do
+            for _, t in ipairs(list or {}) do
+                local tag = take(p, "tag")
+                tag.Set(t[1], t[2])
+                item.tags[#item.tags + 1] = tag
+            end
         end
     end
     p.washColor = spec.wash
@@ -440,6 +476,7 @@ end
 -- (above, right: text, or fn(fs) that writes it, secret or not).
 function Panel.Bar(p, spec)
     local item = add(p, { kind = "bar", h = spec.h or 4, spec = spec })
+    spec.card = true -- a card's bar (the pill's are its own), for a plugin's claim
     local bar = take(p, spec.duration and "timer" or "bar")
     Panel.PaintBar(bar, spec)
     item.bar = bar
@@ -801,6 +838,8 @@ end
 function Panel.PaintLight(p)
     local pair = p.lightPair
     local a, b = p.light[1], p.light[2]
+    -- A plugin painting the light (API Paint "tooltip", owns "light") colors it.
+    if Panel.Owned("light") then return end
     if not pair then
         a:Hide()
         b:Hide()
@@ -991,9 +1030,11 @@ function Panel.Mute(p)
     local tip = p.tip
     p.muted = p.muted or setmetatable({}, { __mode = "k" })
     muteRegions(p.muted, tip:GetRegions())
-    local money = tip.shownMoneyFrames
-    if type(money) == "table" then
-        for _, f in pairs(money) do muteRegions(p.muted, f) end
+    -- The game keeps a count of them (SetTooltipMoney), each named
+    -- <tooltip>MoneyFrame<n>.
+    local money, name = tip.shownMoneyFrames, tip:GetName()
+    if type(money) == "number" and not isSecret(money) and type(name) == "string" then
+        for k = 1, money do muteRegions(p.muted, _G[name .. "MoneyFrame" .. k]) end
     end
     -- A compare tooltip's "Equipped" tab: the card says it in its own tag.
     if type(tip.CompareHeader) == "table" then muteRegions(p.muted, tip.CompareHeader) end

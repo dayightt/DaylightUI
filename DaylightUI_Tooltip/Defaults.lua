@@ -14,6 +14,12 @@ ns.DEFAULTS = {
     richAlpha = 0.95, -- the rich card's background opacity
     pill = "combat", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
     pillKey = "shift", -- held, the full card in the pill's place: "shift", "ctrl", "alt", "none"
+    -- Other addons' lines on the rich card (Rich/Foreign.lua): "own" (their
+    -- own area at the bottom), "mixed" (in with the card's rows), "hidden".
+    addonLines = "own",
+    -- Which kinds of other addons' lines get a look of their own; off, they're
+    -- repainted like any other line.
+    addonAdapters = { questie = true, prices = true, score = true },
     anchor = "game", -- "game": at Daylight UI's unlock handle (near the game's spot); "cursor": follows the mouse
     cursorX = 12, -- offset of the cursor tooltip's bottom-left corner from the cursor
     cursorY = 12,

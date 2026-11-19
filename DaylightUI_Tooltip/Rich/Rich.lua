@@ -57,7 +57,24 @@ end
 -- addon's own AddLine tooltip has no data).
 function Rich.Cleared(tip)
     local s = state[tip]
-    if s then s.data, s.dirty = nil, true end
+    if s then
+        s.data, s.dirty = nil, true
+        if s.pieces then
+            for k in pairs(s.pieces) do s.pieces[k] = nil end
+        end
+    end
+end
+
+-- A Daylight UI plugin's piece (API 1.12: lines.Row, Bar, Tag...) for the
+-- line just added for it: the card draws the piece, the frame-only look in a
+-- fight keeps the plain line.
+function Rich.Piece(tip, piece)
+    if not Rich.On(tip) then return end
+    local n = tip.NumLines and tip:NumLines()
+    if isSecret(n) or type(n) ~= "number" or n < 1 then return end
+    local s = stateOf(tip)
+    s.pieces = s.pieces or {}
+    s.pieces[n] = piece
 end
 
 -- The frame only, around the game's own lines (a secret line): its lines come
@@ -400,7 +417,7 @@ function Rich.Lines(p, n, lines, from, skip)
             -- Under a quest's title: a party member's name, small; yours, nothing.
             if not Rich.OwnName(line) then Panel.Text(p, Rich.Bare(line.left), Style.INK.LABEL, Style.SIZE.small) end
         elseif title or name then
-            if not inQuest and p.count > 0 then Panel.Rule(p) end
+            if not inQuest and p.count > 0 and p.items[p.count].kind ~= "rule" then Panel.Rule(p) end
             inQuest = true
             if title then
                 Panel.Section(p, Rich.Bare(line.left), Rich.QuestColor(line.id, line.left))
@@ -426,9 +443,11 @@ function Rich.Lines(p, n, lines, from, skip)
     end
 end
 
--- Any tooltip without a card of its own: the first line as the title, the
--- rest as Rich.Lines.
+-- Any tooltip without a card of its own: the first line as the title, its
+-- own lines as Rich.Lines, then other addons' (Rich/Foreign.lua).
 function Rich.Generic(p, n, lines)
+    local Foreign = ns.RichForeign
+    local own = p.foreign and p.foreign.from - 1 or n
     local first = lines[1]
     if n >= 1 and first.left then
         local color = first.hasLC and rgb(first.lc) or nil
@@ -436,10 +455,50 @@ function Rich.Generic(p, n, lines)
         -- a color of its own (quality, class) stays.
         local kind = color and DUI.Tips.GameColor(color[1], color[2], color[3])
         if kind == "white" or kind == "yellow" then color = nil end
-        Panel.Header(p, { title = first.left, titleColor = color,
+        -- A first line holding several (the mail icon's "Unread mail from:"
+        -- with each sender under it): the first is the title, the rest lines.
+        local title, rest = first.left:match("^([^\n]*)\n(.*)$")
+        Panel.Header(p, { title = title or first.left, titleColor = color,
             right = first.right, rightColor = first.hasRC and rgb(first.rc) or nil })
+        if rest then
+            for part in rest:gmatch("[^\n]+") do Panel.Text(p, DUI.Tips.GameSide(part, first.hasLC and first.lc or nil)) end
+        end
     end
-    Rich.Lines(p, n, lines, 2)
+    Rich.Lines(p, own, lines, 2)
+    Foreign.Place(p, "mixed")
+    Foreign.Place(p, "own")
+end
+
+-- How many of the tooltip's n lines are the data's own (the game's): the rest
+-- are other addons'. Data with no lines of its own (the minimap's mail icon:
+-- an empty list, the game writing the text itself), or none at all (an
+-- addon's own tooltip), can't tell them apart: all are the card's. The first
+-- line, the title, is always the card's.
+function Rich.Own(data, n)
+    local list = type(data) == "table" and data.lines or nil
+    local own = type(list) == "table" and #list or 0
+    if own == 0 then own = n end
+    return math.max(1, math.min(own, n))
+end
+
+-- Plugins painting the card (API Paint kind "tooltip"): after each time
+-- Daylight UI lays it out, never on the refills that change nothing.
+function Rich.Painted(tip, s, p)
+    local R = DUI.APIReport
+    if not (R and R.Painting and R.Painting("tooltip")) then return end
+    local info = p.paintInfo or {}
+    p.paintInfo = info
+    for k in pairs(info) do info[k] = nil end
+    info.kind, info.style, info.unit = s.kind, "rich", s.unit
+    if s.kind == "item" then
+        local link = ns.Tooltip.ItemLink(tip, s.data)
+        if not isSecret(link) then info.link = link end
+    elseif s.kind == "spell" and type(s.data) == "table" then
+        local id = s.data.id
+        if not isSecret(id) and type(id) == "number" then info.spellID = id end
+    end
+    R.SetInfo(p, info)
+    R.Painted("tooltip", p, info)
 end
 
 -- An epic item's light sweeps once as its card shows: not again on the
@@ -504,6 +563,14 @@ function Rich.Build(tip)
     end
     if secret then s.seen.n = nil else Read.Keep(s.seen, n, lines) end
     local light, fade = Rich.Light(tip, s.data, kind)
+    -- Other addons' lines: everything after the data's own (an addon's own
+    -- tooltip with no data has none). Read before the card, which places them;
+    -- a plugin's tags join the header's.
+    p.extraTags = nil
+    if not secret then
+        local f = ns.RichForeign.Read(p, tip, n, lines, Rich.Own(s.data, n), s.pieces)
+        p.extraTags = #f.tags > 0 and f.tags or nil
+    end
     -- Something new while the card shows (not a refill of the same thing):
     -- its words fade in.
     local key = not secret and n >= 1 and lines[1].left and (kind .. "|" .. lines[1].left) or nil
@@ -538,6 +605,7 @@ function Rich.Build(tip)
         else
             if item then Rich.Sweep(tip, s, p, item) end
             if fresh then Panel.FadeBody(p) end
+            Rich.Painted(tip, s, p)
         end
     end
     Tip.ShowShell(tip, false)

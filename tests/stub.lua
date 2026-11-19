@@ -1101,8 +1101,9 @@ function Widget:GetStringWidth()
     if isSecret(self.__text) then error("attempt to measure secret text") end
     if type(self.__text) ~= "string" then return 0 end
     if stub.measure then return (stub.measure(self)) end
-    -- Color codes take no room.
-    local shown = self.__text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    -- Color codes take no room; an inline icon (|T...|t, |A...|a) is one
+    -- square about the text's height, as the client draws it.
+    local shown = self.__text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "ii"):gsub("|A.-|a", "ii")
     return #shown * 7
 end
 function Widget:GetUnboundedStringWidth()
@@ -3161,6 +3162,56 @@ function stub.SetItems(list)
     end
 end
 
+-- A tooltip's text lines, as GameTooltipTemplate names them.
+function Widget:GetLeftLine(i)
+    local name = self:GetName()
+    return name and _G[name .. "TextLeft" .. i] or nil
+end
+
+-- Money on a tooltip as the game puts it there (Blizzard_MoneyFrame
+-- MoneyFrame.lua SetTooltipMoney, GameTooltip_ClearMoney): a blank line, then
+-- <tooltip>MoneyFrame<n> (TooltipMoneyFrameTemplate: PrefixText, SuffixText)
+-- anchored to that line's left text, its amount in staticMoney.
+-- shownMoneyFrames is a count, cleared to nil on OnTooltipCleared and OnHide.
+_G.GameTooltip_AddBlankLinesToTooltip = function(tooltip, numLines)
+    for _ = 1, numLines or 0 do tooltip:AddLine(" ") end
+end
+_G.MoneyFrame_Update = function(frameName, money)
+    local frame = type(frameName) == "table" and frameName or _G[frameName]
+    if frame then frame.staticMoney = money end
+end
+_G.SetTooltipMoney = function(frame, money, kind, prefixText, suffixText)
+    GameTooltip_AddBlankLinesToTooltip(frame, 1)
+    local numLines = frame:NumLines()
+    frame.numMoneyFrames = frame.numMoneyFrames or 0
+    frame.shownMoneyFrames = frame.shownMoneyFrames or 0
+    local name = frame:GetName() .. "MoneyFrame" .. (frame.shownMoneyFrames + 1)
+    local moneyFrame = _G[name]
+    if not moneyFrame then
+        frame.numMoneyFrames = frame.numMoneyFrames + 1
+        moneyFrame = new("Frame", name, frame)
+        moneyFrame:SetSize(128, 13)
+        moneyFrame.PrefixText = moneyFrame:CreateFontString(name .. "PrefixText", "ARTWORK")
+        moneyFrame.SuffixText = moneyFrame:CreateFontString(name .. "SuffixText", "ARTWORK")
+    end
+    moneyFrame.PrefixText:SetText(prefixText)
+    moneyFrame.SuffixText:SetText(suffixText)
+    moneyFrame:ClearAllPoints()
+    moneyFrame:SetPoint("LEFT", frame:GetLeftLine(numLines), "LEFT", prefixText and 4 or 0, 0)
+    moneyFrame:Show()
+    frame.shownMoneyFrames = frame.shownMoneyFrames + 1
+    MoneyFrame_Update(moneyFrame:GetName(), money)
+    frame.hasMoney = 1
+end
+_G.GameTooltip_ClearMoney = function(self)
+    if not self.shownMoneyFrames then return end
+    for i = 1, self.shownMoneyFrames do
+        local moneyFrame = _G[self:GetName() .. "MoneyFrame" .. i]
+        if moneyFrame then moneyFrame:Hide() end
+    end
+    self.shownMoneyFrames = nil
+end
+
 -- A compare tooltip as the game's ShoppingTooltipTemplate makes it: an
 -- "Equipped" tab (CompareHeader, with its Label) on its top edge, hidden again
 -- whenever the tooltip is cleared, and no GetItem (TooltipDataHandlerMixin only).
@@ -3175,7 +3226,10 @@ function stub.CompareTooltip(name)
     h.Label = h:CreateFontString(nil, "ARTWORK")
     h:Hide()
     tip.CompareHeader = h
-    tip:SetScript("OnTooltipCleared", function(self) self.CompareHeader:Hide() end)
+    tip:SetScript("OnTooltipCleared", function(self)
+        GameTooltip_ClearMoney(self)
+        self.CompareHeader:Hide()
+    end)
     tip:Hide()
     return tip
 end

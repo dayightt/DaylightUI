@@ -161,7 +161,7 @@ end
 -- Sorts the item's own lines (2 to own) into the card's groups. Each group
 -- is a list of functions that add their pieces; the footer's two sides are
 -- returned as they are.
-local function sort(n, lines, own, info, groups, skip)
+local function sort(n, lines, own, info, groups)
     local P, Tip, Tips = Items.Patterns(), ns.Tooltip, DUI.Tips
     local foot = {}
     local inSet = false
@@ -181,13 +181,14 @@ local function sort(n, lines, own, info, groups, skip)
             -- Another addon may have rewritten it with the coins on the right
             -- ("Vendor price"), so they're taken from there when it has them.
             local at = left:find(sellWord, 1, true)
+            if not mine then groups.taken[i] = true end
             if right then
                 foot.money = right
             elseif at then
                 foot.money = (left:sub(at + #sellWord):gsub("^%s*:%s*", ""))
             end
         elseif not mine then
-            if not (skip and skip[i]) then groups.other[#groups.other + 1] = i end
+            -- Another addon's: drawn by Rich/Foreign.lua.
         elseif isBadge(line, t) then
             info.badges[#info.badges + 1] = t
         elseif info.slot and t == info.slot then
@@ -283,10 +284,10 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     p.padTop, p.rowGap, p.ruleGap = Items.PAD_TOP, Items.ROW_GAP, Items.RULE_GAP
     p.washDown = true
     local first = lines[1]
-    local own = type(data) == "table" and type(data.lines) == "table" and #data.lines or n
-    local groups = { list = {}, effects = {}, set = {}, facts = {}, quote = {}, other = {} }
+    local own = ns.Rich.Own(data, n)
+    local groups = { list = {}, effects = {}, set = {}, facts = {}, quote = {}, taken = {} }
     info.badges = {}
-    local foot = sort(n, lines, math.min(own, n), info, groups, compare and compare.skip)
+    local foot = sort(n, lines, own, info, groups)
     if compare then
         Panel.Tags(p, { { compare.label, Style.INK.LABEL } })
         Panel.Gap(p, Items.AFTER_TAG)
@@ -330,9 +331,18 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
             end
         end
     end
-    -- The foot: other addons' lines (a price), then durability and sell price.
-    local other = {}
-    for _, i in ipairs(groups.other) do other[#other + 1] = function() ns.Rich.Lines(p, i, lines, i) end end
+    -- Other addons' lines (Rich/Foreign.lua): their own area is the foot,
+    -- first (a price), then durability and sell price; mixed in, they go with
+    -- what the card says in words. An item's card keeps to two or three rules.
+    -- Lines the card drew itself (a sell price, a compare's changes) aren't
+    -- theirs.
+    local Foreign, taken = ns.RichForeign, groups.taken
+    if compare then
+        for i in pairs(compare.skip) do taken[i] = true end
+    end
+    local mixed, other = {}, {}
+    if Foreign.Has(p, "mixed", taken) then mixed[1] = function() Foreign.Place(p, "mixed", taken) end end
+    if Foreign.Has(p, "own", taken) then other[1] = function() Foreign.Place(p, "own", taken) end end
     if foot.durability or foot.money then
         -- A sell price alone (a quest reward has no durability) says what it is.
         local label = foot.durability or (type(SELL_PRICE) == "string" and SELL_PRICE or L["Sell price"])
@@ -341,7 +351,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         end
     end
     part(groups.list)
-    part(groups.effects, groups.set, groups.facts, groups.quote)
+    part(groups.effects, groups.set, groups.facts, groups.quote, mixed)
     part(other)
     -- A compare's chips: what changes if you swap, last.
     if compare and #compare.chips > 0 then
@@ -417,7 +427,7 @@ function Items.Build(p, tip, data, n, lines, light, fade)
     if type(h) ~= "table" then return Items.Card(p, tip, data, n, lines, light, fade) end
     local label = type(h.Label) == "table" and plain(h.Label:GetText())
     if type(label) ~= "string" or label == "" then label = EQUIPPED or L["Equipped"] end
-    local own = type(data) == "table" and type(data.lines) == "table" and math.min(#data.lines, n) or n
+    local own = ns.Rich.Own(data, n)
     local chips, skip = Items.Changes(lines, own + 1, n)
     return Items.Card(p, tip, data, n, lines, light, fade, { label = label, chips = chips, skip = skip })
 end

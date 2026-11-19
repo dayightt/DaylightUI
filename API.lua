@@ -51,7 +51,9 @@ local OWN_EVENTS = { CraftShown = true, CraftHidden = true, CraftProfessionChang
     -- The damage meter's (1.6).
     MeterFightStarted = true, MeterFightEnded = true, MeterReset = true,
     -- The Cooldown Manager's (1.7): spellID, piece key.
-    CooldownReady = true, CooldownStarted = true }
+    CooldownReady = true, CooldownStarted = true,
+    -- The tooltips' look switched (1.12): "rich" or "simple".
+    TooltipStyleChanged = true }
 
 local lists = {} -- event -> array of listeners { fn, owner, event, dead }
 local counts = {} -- event -> listeners still alive
@@ -811,6 +813,16 @@ end
 
 -- Unlock mode on (/dui unlock).
 function API.IsUnlocked() return DUI.Movers ~= nil and DUI.Movers.unlocked == true end
+
+-- The tooltips' look (1.12): "rich" (Daylight UI's own cards) or "simple" (the
+-- game's tooltip in Daylight UI's look); nil while the Tooltip module is off
+-- or another addon draws the tooltips.
+function API.TooltipStyle()
+    local mod = DUI:GetModule("Tooltip")
+    if not (mod and mod.enabled) then return nil end
+    if DUI.PrettyAside and DUI.PrettyAside.Draws() then return nil end
+    return DUI:Get("Tooltip", "style") == "rich" and "rich" or "simple"
+end
 
 -- Whether the player lets Daylight UI animate (General > Motion).
 function API.MotionOn() return not (DUI.Motion and DUI.Motion.On) or DUI.Motion.On() ~= false end
@@ -1597,14 +1609,17 @@ end
 
 -- Tooltip lines (1.7): me.AddTooltipLines(kind, fn(lines, data)), kind
 -- "unit" (data.unit), "item" (data.link, data.itemID) or "spell"
--- (data.spellID). lines.Line(label, value, color), lines.Text(text, color),
--- lines.Hint(text), lines.Gap(). Runs after Daylight UI's own lines.
-local tooltipLines = { unit = {}, item = {}, spell = {} }
+-- (data.spellID); 1.12 adds "world" (data.name) and "compare" (an equipped
+-- item's compare tooltip, as item), and data.style ("rich" or "simple").
+-- lines.Line(label, value, color), lines.Text(text, color), lines.Hint(text),
+-- lines.Gap(); 1.12: lines.Row, Bar, Tag, Section, Tiles. Runs after
+-- Daylight UI's own lines.
+local tooltipLines = { unit = {}, item = {}, spell = {}, world = {}, compare = {} }
 function Report.TooltipLines(kind) return tooltipLines[kind] end
 function View.AddTooltipLines(v, kind, fn)
     local list = tooltipLines[kind]
     if not list or type(fn) ~= "function" then
-        chat(L["%s: tooltip lines need a kind (unit, item or spell) and a function."], v.name)
+        chat(L["%s: tooltip lines need a kind (unit, item, spell, world or compare) and a function."], v.name)
         return nil
     end
     local e = { fn = fn, owner = v.name, kind = kind, tooltipLines = true }
