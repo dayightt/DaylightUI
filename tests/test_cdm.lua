@@ -8574,3 +8574,208 @@ T.test("cdm bars: each bar can have its own animation, unset follows the shared 
     T.eq(Data.SetSpellValue(set, 21, "fxSpeed", 2), set.pieces[21].shape == "bar", "bars only")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- One piece per totem element (fire, earth, water, air): it shows whichever totem
+-- stands in its slot, then a cooldown totem's cooldown, and hides with nothing to show.
+local function elementWorld()
+    local DUI, AB, set, w = barsWorld()
+    stub.SetUnits({ player = { class = "SHAMAN" } })
+    set = AB.CdmData.Current()
+    AB.CdmSpells.SHAMAN = {
+        { 2484, cd = true, aura = true },       -- Earthbind
+        { 8071, 8154, aura = true },            -- Stoneskin
+        { 8512, 10613, aura = true },           -- Windfury
+        { 3599, 6363, aura = true },            -- Searing
+    }
+    stub.knownSpells = { [2484] = true, [8071] = true, [8154] = true, [8512] = true, [10613] = true,
+        [3599] = true, [6363] = true }
+    C_Spell.GetSpellTexture = function(sid) return "tex" .. tostring(sid) end
+    AB.CdmCustom.Forget()
+    AB.CdmOwn.Forget()
+    return DUI, AB, set, w
+end
+
+local elementCasts = 0
+local function dropTotem(slot, sid, combat)
+    if combat then stub.combat = true end
+    stub.totems[slot] = sid and { spell = sid, duration = { sid = sid } } or nil
+    if sid then
+        elementCasts = elementCasts + 1
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "element-" .. elementCasts, sid)
+    end
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", slot); stub.RunTimers()
+    if combat then stub.combat = false end
+end
+
+T.test("cdm custom: a shaman gets a piece per totem element, with the element's name and icon", function()
+    local AB, C = customWorld("SHAMAN")
+    AB.CdmSpells.SHAMAN = {
+        { 2484, cd = true, aura = true },       -- Earthbind
+        { 8071, 8154, aura = true },            -- Stoneskin
+        { 3599, aura = true },                  -- Searing
+    }
+    stub.knownSpells = { [2484] = true, [8071] = true, [3599] = true }
+    C.Forget()
+    for _, k in ipairs({ "fire", "earth", "water", "air" }) do T.truthy(C.Is(k), k) end
+    T.eq((C.Look("earth")), "Earth totem")
+    T.eq(select(2, C.Look("earth")), C.TOTEM_ELEMENTS.earth.icon, "the element's icon, not one totem's")
+    T.eq(C.TOTEM_ELEMENTS.air.icon, "Interface/Icons/INV_Elemental_Primal_Air")
+    T.eq(AB.CdmEditor.SpellTexture("earth"), C.TOTEM_ELEMENTS.earth.icon, "the editor shows the element")
+    local tray = {}
+    for _, e in ipairs(C.Tray()) do tray[e.id] = true end
+    T.truthy(tray.earth, "earth in the tray"); T.truthy(tray.fire, "fire in the tray")
+    T.falsy(tray.water, "no water totem known: not offered")
+    local r = C.Ranks("earth")
+    T.truthy(r[2484] and r[8071] and r[8154], "every earth totem, cooldown totems too")
+    T.falsy(r[3599], "not a fire totem")
+    T.falsy(C.CanTrack("earth"), "no What it shows")
+    T.eq(C.KeyOfSpell(8071), "s8071", "each totem keeps its own piece")
+    T.eq(select(2, C.Totem(8154)), "s8071")
+    T.isnil(C.Totem(2484), "a cooldown totem stays off the timed list")
+    T.eq(C.SlotOf(2484), 2); T.eq(C.SlotOf(8154), 2); T.eq(C.SlotOf(3599), 1)
+    local _, W = customWorld("PALADIN")
+    T.isnil(W.Family("earth"), "only shamans")
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece follows the totem in its slot (Stoneskin, then Earthbind)", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx, C = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects, AB.CdmCustom
+    D.AddPiece(set, "earth", "icon", 0, 0)
+    D.AddPiece(set, "s8071", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(Own.Track("earth", set.pieces.earth), "both", "Totem and buff")
+    T.eq(R.DrawnBy("earth"), "totem and buff icon")
+    local icon = Own.Frame("earth")
+    T.eq(icon.Icon:GetTexture(), C.TOTEM_ELEMENTS.earth.icon, "nothing yet: the element's icon")
+    T.isnil(icon.Cooldown.__duration)
+    T.truthy(Fx.Gone(icon), "empty slot: hidden")
+    dropTotem(2, 8154)
+    T.eq(icon.Icon:GetTexture(), "tex8154", "Stoneskin's icon, its standing rank")
+    T.eq(icon.Cooldown.__duration, stub.totems[2].duration, "Stoneskin's time")
+    T.falsy(Fx.Gone(icon), "shown")
+    local r, g, b = DUI.Style.Accent()
+    local tint = icon.Cooldown.__swipeColor
+    T.truthy(tint and tint[1] == r and tint[2] == g and tint[3] == b, "totem time: the accent swipe")
+    T.eq(Own.Frame("s8071").Cooldown.__duration, stub.totems[2].duration, "Stoneskin's own piece too")
+    dropTotem(2, 2484)
+    T.eq(icon.Icon:GetTexture(), "tex2484", "Earthbind took the slot")
+    T.eq(icon.Cooldown.__duration, stub.totems[2].duration, "Earthbind's time")
+    T.isnil(Own.Frame("s8071").Cooldown.__duration, "Stoneskin's piece: not Earthbind's time")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece dims under a known totem buff and grays per Gray out (Windfury)", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, A = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmAuras
+    DUI.DB.Character().cdmAuraIDs = { [8512] = { [8515] = true } }
+    D.AddPiece(set, "air", "icon", 0, 0)
+    D.AddPiece(set, "fire", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.truthy(A.SpellIDs("air")[8515], "watches the taught buff")
+    dropTotem(4, 10613)
+    local icon = Own.Frame("air")
+    T.truthy(A.Frame("air") and A.Frame("air"):IsShown(), "the buff's button over the icon")
+    T.eq(icon.Icon:GetAlpha(), Own.TOTEM_DIM, "dimmed while you lack the buff")
+    T.falsy(icon.Icon:IsDesaturated(), "Gray out unset: in color")
+    T.truthy(D.SetSpellValue(set, "air", "desat", "grey"))
+    R.Refresh(); stub.RunTimers()
+    T.truthy(icon.Icon:IsDesaturated(), "Gray out: grayed while it stands")
+    dropTotem(1, 6363)
+    T.eq(Own.Frame("fire").Icon:GetAlpha(), 1, "a totem with no buff: just its time")
+    T.eq(Own.Frame("fire").Cooldown.__duration, stub.totems[1].duration)
+    DUI.DB.Character().cdmAuraIDs = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece shows a cooldown totem's cooldown after it ends, then hides", function()
+    local DUI, AB, set, w = elementWorld()
+    local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+    D.AddPiece(set, "earth", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    local icon = Own.Frame("earth")
+    w.cds[2484] = { isActive = true, isOnGCD = false, duration = 15 }
+    w.durs[2484] = { cd = 2484 }
+    dropTotem(2, 2484)
+    T.falsy(icon.Icon:IsDesaturated(), "standing: in color")
+    dropTotem(2, nil)
+    T.eq(icon.Icon:GetTexture(), "tex2484", "Earthbind's icon")
+    T.eq(icon.Cooldown.__duration, w.durs[2484], "its cooldown")
+    T.truthy(icon.Icon:IsDesaturated(), "grayed on cooldown")
+    T.deq(icon.Cooldown.__swipeColor, AB.Skin.SWIPE, "the skin's cooldown swipe, not the accent")
+    T.falsy(Fx.Gone(icon), "shown while it cools down")
+    w.cds[2484] = { isActive = false, isOnGCD = false, duration = 0 }
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers()
+    T.truthy(Fx.Gone(icon), "ready and no totem: hidden")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an empty element piece hides, and shows its element in test mode", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx, C = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects, AB.CdmCustom
+    stub.knownSpells[5394] = true
+    AB.CdmSpells.SHAMAN[#AB.CdmSpells.SHAMAN + 1] = { 5394, aura = true }   -- Healing Stream
+    C.Forget()
+    D.AddPiece(set, "water", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    local icon = Own.Frame("water")
+    T.truthy(Fx.Gone(icon), "nothing cast: hidden")
+    T.eq(icon:GetAlpha(), 0)
+    DUI.SetTestMode(true); stub.RunTimers()
+    T.falsy(Fx.Gone(icon), "test mode: shown")
+    T.eq(icon.Icon:GetTexture(), C.TOTEM_ELEMENTS.water.icon, "with the element's icon")
+    DUI.SetTestMode(false); stub.RunTimers()
+    T.truthy(Fx.Gone(icon), "test mode off: hidden again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece follows a totem dropped in a fight by its cast", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+    D.AddPiece(set, "earth", "icon", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    dropTotem(2, 8154, true)
+    local icon = Own.Frame("earth")
+    T.eq(icon.Icon:GetTexture(), "tex8154", "the cast says which totem")
+    T.eq(icon.Cooldown.__duration, stub.totems[2].duration)
+    T.falsy(Fx.Gone(icon))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm: an element piece as a bar runs on the totem's time", function()
+    local DUI, AB, set = elementWorld()
+    local D, R = AB.CdmData, AB.CdmRows
+    D.AddPiece(set, "earth", "bar", 0, 0)
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.DrawnBy("earth"), "totem bar")
+    local bar = AB.CdmBars.CooldownFrame("earth")
+    T.isnil(bar.Timer.__duration, "nothing yet")
+    dropTotem(2, 8071)
+    T.eq(bar.Timer.__duration, stub.totems[2].duration, "the totem's time")
+    T.eq(bar.Icon.Icon:GetTexture(), "tex8071", "the totem's icon")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+T.test("cdm: a slot update in a fight keeps the totems your casts placed", function()
+    local DUI, AB, set = elementWorld()
+    local D, R, Own, Fx = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmEffects
+    D.AddPiece(set, "fire", "icon", 0, 0)
+    D.AddPiece(set, "earth", "icon", 40, 0)
+    D.AddPiece(set, "s8071", "icon", 80, 0)
+    R.Refresh(); stub.RunTimers()
+    dropTotem(2, 8154)
+    dropTotem(1, 6363)
+    stub.Advance(5); stub.RunTimers()
+    -- In a fight Searing runs out, and the game updates the earth slot as well.
+    stub.combat = true
+    stub.totems[1] = nil
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 1)
+    stub.FireEvent("PLAYER_TOTEM_UPDATE", 2)
+    stub.RunTimers()
+    T.truthy(Fx.Gone(Own.Frame("fire")), "fire gone")
+    T.falsy(Fx.Gone(Own.Frame("earth")), "earth still up")
+    T.eq(Own.Frame("earth").Icon:GetTexture(), "tex8154", "still Stoneskin")
+    T.eq(Own.Frame("s8071").Cooldown.__duration, stub.totems[2].duration, "Stoneskin's own piece keeps its time")
+    stub.combat = false
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
