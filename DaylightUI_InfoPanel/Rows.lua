@@ -94,12 +94,13 @@ function Rows.Layout(row, cfg)
     row.bar:ClearAllPoints()
     row.bar:SetPoint("TOPLEFT", row, "TOPLEFT", x, -T)
     row.bar:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -T, T)
-    -- The fill's angled leading edge, unless switched off (cfg.angled).
-    if cfg.angled == false then
-        Style.AngleFill(row.bar, nil)
-    else
-        Style.AngleFill(row.bar, "right", math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5)))
-    end
+    -- The fill's angled leading edge, and the track's end at the same angle,
+    -- unless switched off (cfg.angled).
+    local cut = cfg.angled ~= false and math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5)) or nil
+    Style.AngleFill(row.bar, cut and "right", cut)
+    Style.AngleBack(row.bar, cut and "right", cut)
+    -- The amount ends where the slant crosses the middle of the bar.
+    row.amount:SetPoint("RIGHT", row.bar, "RIGHT", -4 - (cut and math.floor(cut / 2) or 0), 0)
 end
 
 -- How solid the empty track is (0: the fill alone).

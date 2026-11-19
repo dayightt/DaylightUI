@@ -2449,6 +2449,16 @@ end
 
 function Style.BarBack(bar) return barBack[bar] end
 
+-- Cuts the track behind a bar's fill at the bar's own end, at the angle the
+-- fill wears (Style.AngleFill, same arguments). A full bar then ends in one
+-- clean slant instead of the fill's cut lying over a square corner of track.
+local backMask = setmetatable({}, { __mode = "k" })
+function Style.AngleBack(bar, side, cut, under)
+    local back = barBack[bar]
+    if not back then return end
+    backMask[bar] = angleEdge(bar, back, bar, backMask[bar], side, cut, under)
+end
+
 -- Fills a bar with the Daylight gradient (the logo's blue to orange across it,
 -- the empty part in its purple), or back to Daylight UI's fill (on = false, and the
 -- caller colors it again). The texture survives a bar texture change, and a
