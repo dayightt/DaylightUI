@@ -95,8 +95,8 @@ for _, s in ipairs(ns.Spots.ORDER) do
 end
 -- The level badge: its own spot at the portrait's foot, or any spot.
 local LEVEL_STYLES = { badge = "Badge", number = "Number only" }
-local LEVEL_COLORS = { difficulty = "By difficulty", class = "Class color", white = "White", custom = "Custom" }
-local LEVEL_RINGS = { custom = "Custom" }
+local LEVEL_COLORS = { difficulty = "By difficulty", class = "Class color", white = "White", custom = "One color" }
+local LEVEL_RINGS = { custom = "One color" }
 local LEVEL_RING_ORDER = {}
 for _, key in ipairs(ns.UF.RING_COLOR_ORDER) do
     LEVEL_RINGS[key] = ns.UF.RING_COLORS[key]
@@ -2058,20 +2058,20 @@ local function framePage(id, label, desc, opts)
             { type = "dropdown", key = k("levelShape"), label = "Level shape", values = ns.UF.PORTRAIT_SHAPES, order = ns.UF.PORTRAIT_SHAPE_ORDER,
               desc = "A round badge, a square, or a square with its outer side angled like the frame's end.", disabled = numberOnly },
             { type = "dropdown", key = k("levelRing"), label = "Level ring color", values = LEVEL_RINGS, order = LEVEL_RING_ORDER,
-              desc = "The badge's ring, like the portrait's: gray, dark, the unit's class gradient, your accent, the Daylight gradient, or a color you pick.", disabled = numberOnly },
+              desc = "The badge's ring, like the portrait's: light, dark, the unit's class gradient, your accent, the Daylight gradient, or a color you pick.", disabled = numberOnly },
             { type = "color", key = k("levelRingCustom"), label = "Custom level ring color", hidden = notCustom(k("levelRing")),
-              desc = "The badge's ring color when Level ring color is Custom.", disabled = numberOnly },
+              desc = "The badge's ring color when Level ring color is One color.", disabled = numberOnly },
             { type = "dropdown", key = k("levelRingWidth"), label = "Level ring thickness", values = ns.UF.RING_WIDTH_NAMES, order = ns.UF.RING_WIDTH_ORDER,
               desc = "How thick the badge's ring is.", disabled = numberOnly },
             levelPx("levelWidthPx", 1, "Level width", 6, 80, "How wide the level badge is.", numberOnly),
             levelPx("levelHeightPx", 2, "Level height", 6, 80, "How tall the level badge is.", numberOnly),
             levelPx("levelTextPx", 3, "Level text size", 6, 40, "How big the level's number is.", levelOff),
-            fontRow(m("levelFont"), "Level font", "The level's number", levelOff),
+            mediaRow("font", m("levelFont"), "Level font", "The level's number. General uses the name's font.", levelOff),
             { type = "dropdown", key = k("levelColor"), label = "Level color", values = LEVEL_COLORS,
               order = { "difficulty", "class", "white", "custom" },
               desc = "The number's color: by how hard the unit is for you, its class, plain white, or one you pick.", disabled = levelOff },
             { type = "color", key = k("levelCustom"), label = "Custom level color", hidden = notCustom(k("levelColor")),
-              desc = "The number's color when Level color is Custom.", disabled = levelOff },
+              desc = "The number's color when Level color is One color.", disabled = levelOff },
         }
         iconRow({ type = "toggle", key = k("showLeader"), label = "Leader crown",
             desc = "A crown on top of the portrait ring (or over the name tab) for the party or raid leader.", disabled = shown })

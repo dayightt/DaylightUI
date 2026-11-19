@@ -3363,7 +3363,7 @@ local function levelInk(f, u, sample, level)
     end
     if mode == "class" then
         if sample then
-            if sample.portraitClass then return { Style.ClassColor(sample.portraitClass) } end
+            if sample.portraitClass then return { Style.ClassTextColor(sample.portraitClass) } end
         elseif u then
             return { UF.UnitColor(u) }
         end
@@ -3444,7 +3444,7 @@ function UF.FitLevelBox(f)
     if type(es) ~= "number" or es <= 0 or not text.GetStringWidth then return end
     local ok, tw = pcall(text.GetStringWidth, text)
     if not ok or type(tw) ~= "number" or isSecret(tw) or tw <= 0 then return end
-    local bw = math.floor(box:GetWidth() * es + 0.5)
+    local bw = math.floor((f.levelBaseW or box:GetWidth()) * es + 0.5)
     local aw = math.floor(tw * es + 0.5)
     if (bw - aw) % 2 == 0 then bw = bw + 1 end
     box:SetWidth(bw / es)
@@ -3555,7 +3555,9 @@ function UF.LayoutStatus(f, cfg)
     local lw, lh = icons.level:GetSize()
     -- The portrait's size leaves the level's as it is.
     lw, lh = lw / (f.portraitScale or 1), lh / (f.portraitScale or 1)
-    icons.level:SetSize(look.wPx and look.wPx > 0 and look.wPx or lw, look.hPx and look.hPx > 0 and look.hPx or lh)
+    local bw = look.wPx and look.wPx > 0 and look.wPx or lw
+    icons.level:SetSize(bw, look.hPx and look.hPx > 0 and look.hPx or lh)
+    f.levelBaseW = bw   -- what UF.FitLevelBox starts from, so it never builds on its own pixel
     st.levelText:ClearAllPoints()
     st.levelText:SetPoint("CENTER", icons.level, "CENTER", 0, 0)
     UF.FitLevelBox(f)
