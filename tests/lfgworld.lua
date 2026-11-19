@@ -408,6 +408,9 @@ local function install()
         local c = classes[id]
         return c and { className = c[1], classFile = c[2], classID = id } or nil
     end
+    -- The classes the game's own who filter lists; 3 is one the client has no info for.
+    _G.C_SpecializationInfo = _G.C_SpecializationInfo or {}
+    C_SpecializationInfo.GetAllClassIDs = function() return { 1, 3, 8, 9 } end
 end
 
 -- spec: results (default LW.Sample()), level (14), roles, enabled (the module's

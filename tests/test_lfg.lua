@@ -892,11 +892,18 @@ T.test("lfg: Who filters by race, class and zone in the /who itself, each a labe
     end
     T.eq(page.race.text:GetText(), "All", "no filter: everyone")
     T.eq(W.Query(""), "14", "nothing set: your level, as before")
-    -- Several of each may be ticked; each pick is a term of the /who text (checked in game: the
-    -- same term repeated asks for either).
+    T.isnil(W.Filters(), "nothing set: no filter lists")
+    -- Several of each may be ticked. SendWho's lists are the game's own: the races and classes
+    -- to leave out (the unticked), the zones to keep.
     W.races, W.classes, W.zones = { [2] = true, [1] = true }, { [9] = true }, { [1411] = true, [1454] = true }
-    T.eq(W.Query("dae"), 'dae r-"Human" r-"Orc" c-"Warlock" z-"Durotar" z-"Orgrimmar"')
-    T.eq(W.Query(""), 'r-"Human" r-"Orc" c-"Warlock" z-"Durotar" z-"Orgrimmar"', "filters and no text: no level search")
+    T.eq(W.Query("dae"), "dae")
+    T.eq(W.Query(""), "", "filters and no text: no level search")
+    local f = W.Filters()
+    T.deq(f.raceIDs, { 4 }, "the race left out")
+    T.deq(f.classIDs, { 8, 1 }, "the classes left out, only ones the client lists (not 3)")
+    T.deq(f.uiMapIDs, { 1411, 1454 }, "the zones kept")
+    W.classes = { [8] = true, [9] = true, [1] = true }
+    T.deq(W.Filters().classIDs, {}, "every class ticked leaves none out")
     W.races, W.classes, W.zones = {}, {}, {}
     -- Picking a race only sets it: nothing goes to the game until Search.
     local before = #LW.Calls("SendWho")
@@ -908,8 +915,8 @@ T.test("lfg: Who filters by race, class and zone in the /who itself, each a labe
     stub.Key(function() page.go:GetScript("OnClick")(page.go) end)
     T.eq(#LW.Calls("SendWho"), before + 1, "Search asks once, with both filters")
     local sent1 = LW.Calls("SendWho")[before + 1]
-    T.eq(sent1[1], 'r-"Orc" c-"Warlock"', "the picks as terms")
-    T.isnil(sent1[3], "nothing in SendWho's third argument: the game ignores it")
+    T.eq(sent1[1], "", "no text")
+    T.deq(sent1[3], { raceIDs = { 1, 4 }, classIDs = { 8, 1 } }, "the lists left out, in SendWho's third argument")
     W.classes = {}
     T.eq(page.race.text:GetText(), "Orc", "the drop-down shows what is picked")
     W.races[4] = true; W.Changed()

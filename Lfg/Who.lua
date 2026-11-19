@@ -42,7 +42,7 @@ local function Data() return ns.Data end
 local function friends() return type(C_FriendList) == "table" and C_FriendList or nil end
 
 -- The filters: any number of races, classes and zones, as the game's own who filter lets you
--- tick. They go in the /who text, one term for each pick, so the server's 50 are all of that kind. Each is a set of the game's ids (Who.races[2] = true).
+-- tick. Each is a set of the game's ids (Who.races[2] = true).
 Who.races, Who.classes, Who.zones = {}, {}, {}
 
 -- The three filters: the drop-down's key and the set it edits.
@@ -61,30 +61,34 @@ function Who.Picked(key)
     end
 end
 
--- The picked filters as /who terms, the same one repeated for each pick (r-"Dwarf" r-"Human"
--- asks for either): the game's server takes them in the text; SendWho's own filter lists are
--- ignored (checked in game).
-function Who.Terms()
-    local out = {}
-    local sources = { race = Who.Races, class = Who.Classes, zone = function() return Who.ZoneTree().all end }
-    local letter = { race = "r", class = "c", zone = "z" }
+-- SendWho's filter lists, built as the game's own WhoList.lua does: classIDs and raceIDs are the
+-- ones to leave out (the unticked), uiMapIDs the zones to keep. Nil when nothing is picked.
+function Who.Filters()
+    local out
+    local sources = { race = Who.Races, class = Who.Classes }
     for _, f in ipairs(Who.FILTERS) do
         local set = Who[f[2]]
         if next(set) ~= nil then
-            for _, it in ipairs(sources[f[1]]()) do
-                if set[it[1]] then out[#out + 1] = letter[f[1]] .. '-"' .. it[2]:gsub('"', "") .. '"' end
+            out = out or {}
+            if f[1] == "zone" then
+                out.uiMapIDs = ids(set)
+            else
+                local left = {}
+                for _, it in ipairs(sources[f[1]]()) do
+                    if not set[it[1]] then left[#left + 1] = it[1] end
+                end
+                out[f[3]] = left
             end
         end
     end
     return out
 end
 
+-- The text of the /who: what was typed, or your level when there is neither text nor filter.
 function Who.Query(text)
     text = type(text) == "string" and text:gsub("^%s+", ""):gsub("%s+$", "") or ""
-    local parts = Who.Terms()
-    if text ~= "" then table.insert(parts, 1, text) end
-    if #parts == 0 then return tostring(Data().Level()) end
-    return table.concat(parts, " ")
+    if text == "" and not Who.AnyFilter() then return tostring(Data().Level()) end
+    return text
 end
 
 function Who.AnyFilter()
@@ -120,7 +124,7 @@ function Who.Send(text)
     Who.token = (Who.token or 0) + 1
     local mine = Who.token
     local origin = Enum and Enum.SocialWhoOrigin and Enum.SocialWhoOrigin.Social
-    pcall(F.SendWho, text, origin)
+    pcall(F.SendWho, text, origin, Who.Filters())
     C_Timer.After(Who.COOL, function() Who.Render() end)
     -- The game may let nothing through (a search it refused leaves no answer): stop waiting.
     C_Timer.After(Who.WAIT, function()
@@ -267,14 +271,18 @@ function Who.Races()
     return out
 end
 
--- The classes of this client: the game's class ids until one is missing.
+-- The classes of this client: the ones the game's own who filter lists
+-- (C_SpecializationInfo.GetAllClassIDs), each named by its class info.
 function Who.Classes()
     local out = {}
     local info = (C_CreatureInfo and C_CreatureInfo.GetClassInfo) or (C_ClassInfo and C_ClassInfo.GetClassInfo)
-    if info then
-        for id = 1, 30 do
-            local ok, c = pcall(info, id)
-            if ok and type(c) == "table" and type(c.className) == "string" then out[#out + 1] = { c.classID or id, c.className } end
+    local all = C_SpecializationInfo and C_SpecializationInfo.GetAllClassIDs
+    local ok, list = false, nil
+    if all then ok, list = pcall(all) end
+    if info and ok and type(list) == "table" then
+        for _, id in ipairs(list) do
+            local good, c = pcall(info, id)
+            if good and type(c) == "table" and type(c.className) == "string" then out[#out + 1] = { c.classID or id, c.className } end
         end
     end
     table.sort(out, function(a, b) return a[2] < b[2] end)
