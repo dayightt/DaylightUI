@@ -275,11 +275,17 @@ function Motion.FadeIn(frame)
         fadeWired[frame] = true
         frame:HookScript("OnHide", endFade)
     end
-    local s = { target = target, last = frame:GetAlpha() }
+    local s = { target = target, last = frame:GetAlpha(), steps = 0 }
     fading[frame] = s
     Motion.Tween(s, 0, target, Motion.NORMAL, function(a)
         if s.over then return end
-        if math.abs(frame:GetAlpha() - s.last) > ALPHA_SLACK then
+        s.steps = s.steps + 1
+        local now = frame:GetAlpha()
+        -- Another addon's OnShow running after this one may put the window back
+        -- to its own alpha in the same frame (OpenMap does on its first open).
+        -- That's where the fade is heading anyway, so it carries on.
+        local putBack = s.steps == 2 and not DUI.IsSecret(now) and math.abs(now - target) <= ALPHA_SLACK
+        if not putBack and math.abs(now - s.last) > ALPHA_SLACK then
             s.over = true -- someone else owns it now
             fading[frame] = nil
             return

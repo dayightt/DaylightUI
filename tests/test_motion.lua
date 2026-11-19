@@ -284,6 +284,28 @@ T.test("motion: FadeIn gives way when something else sets the window's alpha", f
     T.eq(f:GetAlpha(), 0.8, "and stays")
 end)
 
+-- OpenMap sets the world map back to full alpha once, in the OnShow of the first
+-- open after a reload, right after the fade started: the map popped in instead.
+T.test("motion: FadeIn keeps fading when the window is set back to its own alpha before the first step", function()
+    local DUI = stub.Load()
+    local M = DUI.Motion
+    local f = CreateFrame("Frame", nil, UIParent)
+    M.FadeIn(f)
+    f:SetAlpha(1)                   -- another addon's OnShow, same frame
+    tickAll(0.05)
+    T.truthy(f:GetAlpha() > 0 and f:GetAlpha() < 1, "still fading in")
+    T.eq(M.FadingIn(f), true)
+    tickAll(1)
+    T.eq(f:GetAlpha(), 1, "ends at its own alpha")
+    -- Set to something else before the first step, theirs still wins.
+    local g = CreateFrame("Frame", nil, UIParent)
+    M.FadeIn(g)
+    g:SetAlpha(0.5)
+    tickAll(0.05)
+    T.eq(g:GetAlpha(), 0.5, "theirs wins")
+    T.eq(M.FadingIn(g), false)
+end)
+
 T.test("motion: FadeIn started just before a fight snaps to its alpha as the fight starts", function()
     local DUI = stub.Load()
     local M = DUI.Motion
