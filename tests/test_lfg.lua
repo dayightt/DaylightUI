@@ -156,6 +156,25 @@ T.test("lfg: the game's window's link switches back to Daylight UI's, no reload"
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("lfg: the tabs are named with the game's own words, ours only when it has none", function()
+    local ns = load()
+    local f = open(ns)
+    T.eq(f.tabs[1].text:GetText(), "List yourself", "without the game's word: ours")
+    T.eq(f.tabs[2].text:GetText(), "Find a group")
+    T.eq(f.tabs[3].text:GetText(), "Who")
+    _G.LFG_LIST_TAB_1, _G.LFG_LIST_TAB_2, _G.LFG_LIST_TAB_3 = "Crear actividad", "Buscador de grupo", "Lista de personas"
+    local ok, err = pcall(function()
+        local ns2 = load()
+        local f2 = open(ns2)
+        T.eq(f2.tabs[1].text:GetText(), "Crear actividad", "the game's, in the player's language")
+        T.eq(f2.tabs[2].text:GetText(), "Buscador de grupo")
+        T.eq(f2.tabs[3].text:GetText(), "Lista de personas")
+    end)
+    _G.LFG_LIST_TAB_1, _G.LFG_LIST_TAB_2, _G.LFG_LIST_TAB_3 = nil, nil, nil
+    if not ok then error(err, 0) end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("lfg: the game's key opens ours in its place, on List yourself (the first tab), without searching", function()
     local ns = load()
     local f = open(ns)

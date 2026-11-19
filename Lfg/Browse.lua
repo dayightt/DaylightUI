@@ -341,7 +341,7 @@ function Browse.Spec(r)
     end
     if r.delisted then add(nil, L["No longer listed"], ink.WARN) end
     if r.newcomers then add(nil, L["New players welcome"], ink.GOOD) end
-    add(L["Activity"], r.text, nil, 3)
+    add(Browse.ActWord(), r.text, nil, 3)
     add(LEVEL or L["Level"], r.leader.level)
     add(L["Zone"], r.leader.zone)
     add(GROUP_FINDER_FILTER_PLAYSTYLE or L["Playstyle"], r.style, r.styleInk)

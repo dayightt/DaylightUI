@@ -321,7 +321,7 @@ function Rows.Tip(owner, r)
     T.Sub(table.concat(bits, " · "))
     if r.mine then T.Text(r.text) end
     if r.leader.zone then T.Line(L["Zone"], r.leader.zone, Style.INK.WARN) end
-    if r.style then T.Line(L["Playstyle"], r.style, r.styleInk) end
+    if r.style then T.Line(GROUP_FINDER_FILTER_PLAYSTYLE or L["Playstyle"], r.style, r.styleInk) end
     if r.note then T.Text(r.note) end
     if r.newcomers then T.Text(L["New players welcome"], Style.INK.GOOD) end
     if r.delisted then T.Text(L["No longer listed"], Style.INK.WARN) end
