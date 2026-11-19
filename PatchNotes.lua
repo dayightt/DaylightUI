@@ -18,6 +18,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
         { "Tooltip", "Tooltips fade out softly when the mouse leaves instead of vanishing at once" },
+        { "Tooltip", "Quests in an NPC's tooltip mark dungeon and elite quests with a short D or E, so long quest names fit" },
     }, fixed = {
         { "Action bars", "Bars that switch page while you hold Shift can be rearranged: with your spellbook open, just drag a spell, no Shift needed" },
         { "Action bars", "Druids: the main bar switches to its Prowl page while you prowl, like the game's own bar" },

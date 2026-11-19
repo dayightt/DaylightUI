@@ -2,7 +2,7 @@
 -- Questie). A "?" line for each quest ready to turn in to them, a "!" line for each
 -- one available, then one for each quest in progress that ends with them (with its
 -- progress, drawn like the NPC window does). Name and level in the quest log's
--- difficulty color, type (Elite, Dungeon, Repeatable...) in tan. Available quests
+-- difficulty color, its kind as a letter (E elite, D dungeon...). Available quests
 -- come from Questie's own list (Bridge.NpcQuests, not worked out here); quests
 -- ending with them come from QuestieDB's finishedBy for quests in the log.
 -- Questie's own NPC tooltip lines step aside meanwhile (QuestieAside in the core).
@@ -19,8 +19,9 @@ local GT = {
     ICON = 14,      -- size of the ! and ? at the start of a line, px
     -- The game's map atlases (quest offer pin, turn-in pin). ART_ELSE is used when the
     -- client doesn't have the first.
-    ART = { ["!"] = "QuestNormal", ["?"] = "QuestTurnin" },
-    ART_ELSE = { ["?"] = "UI-QuestIcon-TurnIn-Normal" },
+    -- A repeatable quest wears the game's blue "!", as on its map.
+    ART = { ["!"] = "QuestNormal", ["?"] = "QuestTurnin", rep = "QuestDaily" },
+    ART_ELSE = { ["?"] = "UI-QuestIcon-TurnIn-Normal", rep = "QuestNormal" },
 }
 ns.GiverTips = GT
 
@@ -124,13 +125,16 @@ function GT.Art(kind)
     return art
 end
 
--- Quest type in the game's own words: Elite, Dungeon, Raid, PvP, Repeatable.
+-- A quest's kind as one short mark before its level (D 45), so a long name
+-- keeps its room: the letter in the tracker's own color for that kind.
+GT.SHORT = { elite = "E", dungeon = "D", raid = "R", pvp = "PvP" }
 function GT.Kind(q)
     local kind = q.kind == "!" and ns.Data and ns.Data.Tag and ns.Data.Tag(q.quest)
-    local word = kind and ns.Look and ns.Look.TAG_WORDS[kind]
-    if word then return word() end
-    if q.rep then return L["Repeatable"] end
-    return nil
+    local short = kind and GT.SHORT[kind]
+    if not short then return nil end
+    local look = mod and mod.db and ns.Look and ns.Look.Get(mod.db)
+    local c = look and type(look.c) == "table" and { ns.Look.Color(look, kind) } or Style.INK.LABEL
+    return L[short], c
 end
 
 -- The NPC window's in-progress icon (Npc/Window.lua, `Window.BUSY`), in its color.
@@ -165,7 +169,7 @@ function GT.Add(tip, list)
         if q.kind == "~" then
             icon, c = GT.BusyIcon(), DUI.Npc.Window.BUSY
         else
-            icon = string.format("|A:%s:%d:%d|a ", GT.Art(q.kind), GT.ICON, GT.ICON)
+            icon = string.format("|A:%s:%d:%d|a ", GT.Art(q.rep and "rep" or q.kind), GT.ICON, GT.ICON)
             c = DUI.Npc.Data.QuestColor(q.quest, q.level, q.low)
         end
         local right, rc
@@ -176,12 +180,15 @@ function GT.Add(tip, list)
         elseif q.kind == "?" then
             right, rc = L["Ready"], INK.GOOD
         else
-            local kind = GT.Kind(q)
-            right = (q.level or 0) > 0 and tostring(q.level) or ""
-            if kind then right = hex(INK.LABEL) .. kind .. "|r" .. (right ~= "" and "  " .. right or "") end
+            local kind, kc = GT.Kind(q)
+            right = (q.level or 0) > 0 and (hex(c) .. q.level .. "|r") or ""
+            if kind then right = hex(kc) .. kind .. "|r" .. (right ~= "" and " " .. right or "") end
             rc = c
         end
-        tip:AddDoubleLine(icon .. (q.name or "?"), right, c[1], c[2], c[3], rc[1], rc[2], rc[3])
+        -- The colors go in the text too: a tooltip that redraws the lines (the
+        -- rich card) reads the game's quest yellow as plain text and drops it.
+        local name = hex(c) .. (q.name or "?") .. "|r"
+        tip:AddDoubleLine(icon .. name, right, c[1], c[2], c[3], rc[1], rc[2], rc[3])
     end
     -- Refit to the new lines, but only if it's already showing (showing it from here
     -- would run its show handlers tainted). Same as Tooltip.lua.
