@@ -1834,6 +1834,25 @@ T.test("character reputation: factions under their groups, standing and bar", fu
     T.eq(items[4].folded, true)
 end)
 
+T.test("character reputation: hovering a row shows its numbers on the bar", function()
+    local _, ns = load({ factions = factions() })
+    local items = ns.Reputation.Items(ns.Reputation.Read())
+    T.eq(items[2].barText, "3,600 / 12,000")
+    T.isnil(ns.Reputation.BarText({ reaction = 8, value = 999, min = 999, max = 999 }), "no span: no text")
+    local page = openPage(ns, "ReputationFrame")
+    local r = page.list.rows[2]
+    T.eq(r.item.key, items[2].key)
+    T.eq(r.barText:IsShown(), false, "hidden until hovered")
+    r:GetScript("OnEnter")(r)
+    T.eq(r.barText:IsShown(), true)
+    T.eq(r.barText:GetText(), "3,600 / 12,000")
+    r:GetScript("OnLeave")(r)
+    T.eq(r.barText:IsShown(), false)
+    local head = page.list.rows[1]
+    head:GetScript("OnEnter")(head)
+    T.eq(head.barText:IsShown(), false, "a header has no bar")
+end)
+
 T.test("character reputation: how far to the next standing", function()
     local _, ns = load({ factions = factions() })
     local f = ns.Reputation.Read()[2]

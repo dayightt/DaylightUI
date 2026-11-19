@@ -29,7 +29,8 @@ Panel.XP_MAX = { 2500, 60 }
 Panel.GRIP = 16
 Panel.SLIDE = 0.3            -- seconds the panel takes to open or fold the meter
 -- The XP frame's border: lighter than the panel's, it's a thin strip.
-Panel.XP_BORDER = function(px) return math.max(3, math.floor(px * 0.5 + 0.5)) end
+-- Never thicker than the general border (px): at 2 it stays 2, not 3.
+Panel.XP_BORDER = function(px) return math.min(px, math.max(3, math.floor(px * 0.5 + 0.5))) end
 -- Default spot for the detached XP bar, under the main action bar. Updated on
 -- every layout; the mover keeps this table, so an unmoved bar follows along.
 Panel.xpDefault = { "BOTTOM", nil, "BOTTOM", 0, 6 }
@@ -363,15 +364,26 @@ end
 
 -- How solid a box is, and whether it has a border (0 shows none); laid
 -- out by its owner afterwards.
-function Panel.Look(f, alpha, border)
+-- own: a bar's own border, corners and shadow (its shell setting with own on),
+-- else the box follows the panel's border switch and General > Appearance.
+function Panel.Look(f, alpha, border, shell)
     local s = Style.GetShell(f)
     if s then
+        local own = type(shell) == "table" and shell.own == true and shell or nil
         s.opts.bgAlpha, s.opts.panel = alpha, true
-        s.opts.noBorder = border == false
+        s.opts.noBorder = not own and border == false
         -- The shadow traces the frame's edge, so it reads as a ghost border.
-        s.opts.shadowAlpha = border == false and 0 or nil
+        s.opts.shadowAlpha = not own and border == false and 0 or nil
         -- And the 1px light and dark lines along the box's top and bottom.
-        s.opts.noBevel = border == false
+        s.opts.noBevel = not own and border == false
+        if own then
+            s.opts.borderPx = tonumber(own.borderPx) or Panel.XP_BORDER
+            s.opts.cornerPx = tonumber(own.cornerPx)
+            s.opts.shadowPx = tonumber(own.shadowPx)
+            s.opts.noBevel = (tonumber(own.borderPx) or 1) <= 0
+        elseif shell ~= nil then   -- a bar that can have its own look, now without it
+            s.opts.borderPx, s.opts.cornerPx, s.opts.shadowPx = Panel.XP_BORDER, nil, nil
+        end
     end
 end
 
@@ -398,7 +410,7 @@ end
 
 function Panel.ApplyAlpha(db)
     local set, back = Panel.Look, Panel.BackAlpha(db)
-    set(Panel.xp, back, db.panelBorder)
+    set(Panel.xp, back, db.panelBorder, db.xp.shell)
     local boxBack, boxBorder = Panel.BoxLook(db)
     set(Panel.panel, boxBack, boxBorder)
     set(Panel.arrow, boxBack, boxBorder)
@@ -692,7 +704,7 @@ function ns.Build(mod)
             return list
         end }
     local xpList = {}
-    DUI.Fade.Register{ key = "InfoPanel.xp", scope = "InfoPanel", path = "xp.fade", page = "InfoPanel.panel", whole = true,
+    DUI.Fade.Register{ key = "InfoPanel.xp", scope = "InfoPanel", path = "xp.fade", page = "InfoPanel.xp", whole = true,
         frames = function()
             xpList[1] = mod.db.xp.ownFade and Panel.xp:IsShown() and Panel.xp or nil
             return xpList

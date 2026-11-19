@@ -295,6 +295,7 @@ function Engine.Start(c)
     cfg = c
     if started then return end
     started = true
+    ns.Kit.WatchFocusGlows()
     for _, def in ipairs(Engine.skins) do Engine.Try(def) end
     DUI.RegisterEvent("ADDON_LOADED", function(_, name)
         if ns.Kit.Profiling then Engine.ProfileHookAll() end

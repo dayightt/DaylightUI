@@ -109,6 +109,8 @@ end
 function Own.Track(id, p, known)
     local C = ns.CdmCustom
     local custom = C ~= nil and C.Is(id)
+    -- An element piece: Totem and buff, whichever totem stands.
+    if custom and C.Element(id) then return "both" end
     if C and not (custom and C.IsPet(id)) and C.Totem(Own.SpellOf(id)) then
         if not custom and not (known or Own.Known())[id] then return nil end
         return totemTrack(Own.SpellOf(id), p, custom)
@@ -514,22 +516,44 @@ function Own.Frame(id) return frames[id] end
 Own.TOTEM_DIM = 0.3          -- icon alpha while a totem stands and you lack its buff
 Own.TOTEM_TIME_LEVEL = 20    -- the totem's time over the buff's button (CdmAuras.Over: +10)
 
+-- An element piece's icon and spell follow its slot (CdmCustom.SlotNow): the totem
+-- or cooldown totem there, else the element's icon. Returns the phase and the
+-- totem's duration. f.slotSpell and f.slotPhase say what's drawn (CdmEffects).
+function Own.FollowSlot(f, icon)
+    local C = ns.CdmCustom
+    local sid, phase, d = C.SlotNow(f.cooldownID)
+    f.cooldownInfo.spellID = sid or C.SpellOf(f.cooldownID)
+    f.slotSpell, f.slotPhase = sid, phase
+    local tex = sid and C_Spell.GetSpellTexture(sid)
+    if type(tex) == "nil" then tex = C.Element(f.cooldownID).icon end
+    icon:SetTexture(tex)
+    return phase, d
+end
+
 function Own.Update(f)
+    local C = ns.CdmCustom
+    local element = f.totem and C ~= nil and C.Element(f.cooldownID) ~= nil
+    local phase, slotDur
+    if element then phase, slotDur = Own.FollowSlot(f, f.Icon) end
     local sid = f.cooldownInfo and f.cooldownInfo.spellID
     if not sid or type(f.Cooldown) ~= "table" then return end
     local ok, dur
-    local C = ns.CdmCustom
     -- Totem and buff lifts the time over the buff's button; anything else has it
     -- back at its own level, at full opacity.
     f.cdLevel = f.cdLevel or (f.Cooldown:GetFrameLevel() - f:GetFrameLevel())
     local buffed = f.totem == true and f.totemBuff == true
     f.Cooldown:SetFrameLevel(f:GetFrameLevel() + (buffed and Own.TOTEM_TIME_LEVEL or f.cdLevel))
     if not buffed then f.Icon:SetAlpha(1) end
-    if f.totem and C then                  -- a totem: its time while it stands
-        ok, dur = true, C.TotemUp(sid)
+    if phase == "cooldown" then            -- an element's cooldown totem, gone: its cooldown
+        ok, dur = pcall(C_Spell.GetSpellCooldownDuration, sid)
+    elseif f.totem and C then              -- a totem: its time while it stands
+        ok = true
+        if element then dur = slotDur else dur = C.TotemUp(sid) end
         -- Totem and buff: dimmed while the totem stands, under the buff's button,
         -- which covers it in full color while you have the buff. The time stays on top.
-        f.Icon:SetAlpha(f.totemBuff and type(dur) ~= "nil" and Own.TOTEM_DIM or 1)
+        -- An element dims only for a standing totem whose buff is known.
+        local dims = f.totemBuff and (not element or C.TotemBuffKnown(sid))
+        f.Icon:SetAlpha(dims and type(dur) ~= "nil" and Own.TOTEM_DIM or 1)
     elseif C and C.ItemOf(f.cooldownID) then   -- an item added by ID: the item's cooldown and count
         local _, d = C.ItemCooldown(f.cooldownID)
         ok, dur = true, d

@@ -687,11 +687,47 @@ local AXIS = { right = "x", left = "x", down = "y", up = "y" }
 -- Direction each side grows along its axis: right is +x, down is -y (y up).
 local SIGN = { right = 1, left = -1, down = -1, up = 1 }
 
--- The side a root's chain runs to: its first child in SIDES order.
-local function runSide(set, id)
-    local k = Data.Index(set).kids[id]
-    if not k then return nil end
-    for _, side in ipairs(Data.SIDES) do if k[side] then return side end end
+-- The straight run from a root along its run side: root, child, its child...
+local function run(set, root, side)
+    local list, p = { root }, root
+    while true do
+        local c = Data.Child(set, p, side)
+        if not c then break end
+        list[#list + 1] = c
+        p = c
+    end
+    return list
+end
+
+local OPPOSITE = { right = "left", left = "right", down = "up", up = "down" }
+
+-- How many pieces of root's chain hang off their parent along an axis.
+local function hooks(set, root, axis)
+    local n = 0
+    for _, id in ipairs(Data.Subtree(set, root)) do
+        local p = set.pieces[id]
+        if id ~= root and p and AXIS[p.side] == axis then n = n + 1 end
+    end
+    return n
+end
+
+-- The axis a chain's rows run along: the longer straight run out of its first
+-- piece (a group of two rows started from its right end has the second row under
+-- that first piece, and only the run to its left says the rows are across). Runs
+-- of the same length, as in a 2x2, go by which axis more pieces hang along: a
+-- grid built in rows hangs each row's pieces across, one built in columns down.
+local function rowAxis(set, root)
+    local best, axis = 0, nil
+    for _, side in ipairs(Data.SIDES) do
+        if Data.Child(set, root, side) then
+            local n = #run(set, root, side) + #run(set, root, OPPOSITE[side]) - 1
+            if n > best or (n == best and AXIS[side] ~= axis
+                and hooks(set, root, AXIS[side]) > hooks(set, root, axis)) then
+                best, axis = n, AXIS[side]
+            end
+        end
+    end
+    return axis
 end
 
 local function lay(set, shown, out)
@@ -703,7 +739,10 @@ local function lay(set, shown, out)
     -- parent's, side, align, gap, empty }. A piece hung beside it (across its side)
     -- takes that place. Centering it on the hidden piece's flat box put it on top of
     -- the chain (Thunder Clap beside a hidden Charge, on bars).
-    local function place(id, b, hidden, empty, spacing, slot)
+    -- keep (a hidden first piece's) = its full box and the axis it closes along.
+    -- The pieces across that axis hang off the full box, so the other rows of a
+    -- grid stay where they are.
+    local function place(id, b, hidden, empty, spacing, slot, keep)
         out[id] = b
         b.hidden = hidden or nil
         local k = index.kids[id]
@@ -727,12 +766,13 @@ local function lay(set, shown, out)
                     place(c, taker, off, off and slot.empty, spacing, off and slot or nil)
                 else
                     -- A second piece beside the hidden one hangs off the first.
-                    local base = across and taker or b
+                    local held = keep ~= nil and AXIS[side] ~= keep.axis
+                    local base = across and taker or held and keep or b
                     -- A hidden piece takes no room along its side and no gap, so
                     -- the pieces after it close up.
                     if off then if AXIS[side] == "x" then w = 0 else h = 0 end end
                     local align = p.align or "center"
-                    local empty = empty and not started[AXIS[side]]
+                    local empty = empty and not held and not started[AXIS[side]]
                     started[AXIS[side]] = true
                     local gap = (off or empty) and 0 or tonumber(p.gap) or spacing
                     place(c, Data.ChildBox(base, side, w, h, align, gap), off, off and empty, spacing,
@@ -748,32 +788,22 @@ local function lay(set, shown, out)
         local w, h = Data.Dims(set, id)
         local off = shown ~= nil and not shown[id]
         local x, y = tonumber(p.x) or 0, tonumber(p.y) or 0
+        local keep
         if off then
-            -- The saved spot is the top-left corner. A chain growing up or left
-            -- starts from the bottom or right edge, so it closes up onto that edge,
-            -- or the first piece's room stays empty under the rest.
-            local side = runSide(set, id)
-            if side == "up" then y = y - h elseif side == "left" then x = x + w end
-            if side and AXIS[side] == "x" then w = 0 elseif side then h = 0 else w, h = 0, 0 end
+            -- A hidden first piece closes along its rows only. The saved spot is
+            -- the top-left corner, so a row growing up or left closes onto the
+            -- bottom or right edge instead, or the piece's room stays empty.
+            local axis = rowAxis(set, id)
+            keep = { x = x, y = y, w = w, h = h, axis = axis }
+            local k = index.kids[id]
+            if k and axis == "y" and k.up and not k.down then y = y - h
+            elseif k and axis == "x" and k.left and not k.right then x = x + w end
+            if axis == "x" then w = 0 elseif axis then h = 0 else w, h = 0, 0 end
         end
         local spacing = tonumber(Data.ChainValue(set, id, "spacing")) or Data.GAP
-        place(id, { x = x, y = y, w = w, h = h }, off, off, spacing)
+        place(id, { x = x, y = y, w = w, h = h }, off, off, spacing, nil, keep)
     end
 end
-
--- The straight run from a root along its run side: root, child, its child...
-local function run(set, root, side)
-    local list, p = { root }, root
-    while true do
-        local c = Data.Child(set, p, side)
-        if not c then break end
-        list[#list + 1] = c
-        p = c
-    end
-    return list
-end
-
-local OPPOSITE = { right = "left", left = "right", down = "up", up = "down" }
 
 -- The low and high edge of the boxes along an axis. skipHidden leaves out pieces
 -- that are down, so a collapsed one can't pull the edge.
@@ -798,27 +828,12 @@ local function lineSide(set, id, axis)
     for _, side in ipairs(Data.SIDES) do if k[side] and AXIS[side] == axis then return side end end
 end
 
--- The axis a chain's rows run along: the longer straight run out of its first
--- piece (a group of two rows started from its right end has the second row under
--- that first piece, and only the run to its left says the rows are across).
-local function rowAxis(set, root)
-    local best, axis = 0, nil
-    for _, side in ipairs(Data.SIDES) do
-        if Data.Child(set, root, side) then
-            local n = #run(set, root, side) + #run(set, root, OPPOSITE[side]) - 1
-            if n > best then best, axis = n, AXIS[side] end
-        end
-    end
-    return axis
-end
-
--- Every piece's box, { [id] = { x, y, w, h, hidden } }. shown = { [id] = true } for
--- the pieces currently up (nil = all). A hidden piece collapses along its side. In a
--- chain growing from its middle or end, each row (a straight line of pieces along
--- the chain's row axis) shifts so its middle or far end stays where it would be with
--- everything shown. The pieces hung off a row move with it, then line up their own
--- row the same way.
-function Data.Layout(set, shown)
+-- The boxes with the shown pieces up and the rest closed. In a chain growing from
+-- its middle or end, each row (a straight line of pieces along the chain's row
+-- axis) shifts so its middle or far end stays where it would be with everything
+-- shown. The pieces hung off a row move with it, then line up their own row the
+-- same way.
+local function arrange(set, shown)
     local out = {}
     lay(set, shown, out)
     if shown == nil then return out end
@@ -853,6 +868,82 @@ function Data.Layout(set, shown)
                         end
                     end
                 end
+            end
+        end
+    end
+    return out
+end
+
+local function covers(a, b)
+    return a.x < b.x + b.w and b.x < a.x + a.w and a.y - a.h < b.y and b.y - b.h < a.y
+end
+
+-- Two shown pieces of one chain on top of each other, or nil. With full (every
+-- piece up), only two that closing up put there.
+local function stacked(set, out, full, shown)
+    for _, root in ipairs(Data.Index(set).roots) do
+        local ids = Data.Subtree(set, root)
+        for i = 1, #ids do
+            local a = ids[i]
+            if shown[a] then
+                for j = i + 1, #ids do
+                    local b = ids[j]
+                    if shown[b] and covers(out[a], out[b]) and not (full and covers(full[a], full[b])) then
+                        return a, b, root
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- The nearest closed piece id hangs below.
+local function closedAbove(set, shown, id)
+    local p = set.pieces[id]
+    for _ = 1, Data.ROOT_WALK do
+        local parent = p and p.parent
+        if parent == nil or not set.pieces[parent] then return nil end
+        if not shown[parent] then return parent end
+        p = set.pieces[parent]
+    end
+end
+
+-- Every piece's box, { [id] = { x, y, w, h, hidden } }. shown = { [id] = true } for
+-- the pieces currently up (nil = all). A hidden piece collapses along its side. A
+-- chain that wraps back on itself (a grid snapped as one snaking line) can close up
+-- onto its own pieces. Then the closed piece above one of them keeps its spot,
+-- nearest first, until nothing shown covers anything.
+function Data.Layout(set, shown)
+    local out = arrange(set, shown)
+    if shown == nil then return out end
+    local full, kept
+    for _ = 1, Data.ROOT_WALK do
+        local a, b, root = stacked(set, out, full, shown)
+        if a and not full then
+            full = arrange(set, nil)
+            a, b, root = stacked(set, out, full, shown)
+        end
+        if not a then break end
+        local keep = closedAbove(set, kept or shown, a) or closedAbove(set, kept or shown, b)
+        if not keep then
+            for _, id in ipairs(Data.Subtree(set, root)) do
+                if not (kept or shown)[id] then keep = id; break end
+            end
+        end
+        if not keep then break end
+        if not kept then kept = {}; for id in pairs(shown) do kept[id] = true end end
+        kept[keep] = true
+        out = arrange(set, kept)
+    end
+    if kept then
+        -- A kept piece is still down: a closed box at its spot, as lay gives one.
+        for id in pairs(kept) do
+            local b = out[id]
+            if not shown[id] then
+                local side = set.pieces[id].side
+                b.hidden = true
+                if side == "up" then b.y = b.y - b.h elseif side == "left" then b.x = b.x + b.w end
+                if AXIS[side] == "x" then b.w = 0 elseif AXIS[side] == "y" then b.h = 0 end
             end
         end
     end
