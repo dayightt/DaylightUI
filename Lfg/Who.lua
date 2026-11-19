@@ -42,7 +42,7 @@ local function Data() return ns.Data end
 local function friends() return type(C_FriendList) == "table" and C_FriendList or nil end
 
 -- The filters: any number of races, classes and zones, as the game's own who filter lets you
--- tick. Each is a set of the game's ids (Who.races[2] = true).
+-- tick. They go in the /who text, one term for each pick, so the server's 50 are all of that kind. Each is a set of the game's ids (Who.races[2] = true).
 Who.races, Who.classes, Who.zones = {}, {}, {}
 
 -- The three filters: the drop-down's key and the set it edits.
@@ -61,34 +61,34 @@ function Who.Picked(key)
     end
 end
 
--- SendWho's filter lists, built as the game's own WhoList.lua does: classIDs and raceIDs are the
--- ones to leave out (the unticked), uiMapIDs the zones to keep. Nil when nothing is picked.
-function Who.Filters()
-    local out
-    local sources = { race = Who.Races, class = Who.Classes }
+-- The picked filters as /who terms, the same one repeated for each pick (r-"Dwarf" r-"Human"
+-- asks for either): the game's server takes them in the text; SendWho's own filter lists do not
+-- filter (checked in game: classIDs and raceIDs as the ones to leave out brought other classes).
+function Who.Terms()
+    local out = {}
+    local sources = { race = Who.Races, class = Who.Classes, zone = function() return Who.ZoneTree().all end }
+    local letter = { race = "r", class = "c", zone = "z" }
     for _, f in ipairs(Who.FILTERS) do
         local set = Who[f[2]]
-        if next(set) ~= nil then
-            out = out or {}
-            if f[1] == "zone" then
-                out.uiMapIDs = ids(set)
-            else
-                local left = {}
-                for _, it in ipairs(sources[f[1]]()) do
-                    if not set[it[1]] then left[#left + 1] = it[1] end
-                end
-                out[f[3]] = left
+        local items = sources[f[1]]()
+        local picked = 0
+        for _, it in ipairs(items) do if set[it[1]] then picked = picked + 1 end end
+        -- Everything ticked (Check All) asks the same as nothing ticked: no terms.
+        if picked > 0 and picked < #items then
+            for _, it in ipairs(items) do
+                if set[it[1]] then out[#out + 1] = letter[f[1]] .. '-"' .. it[2]:gsub('"', "") .. '"' end
             end
         end
     end
     return out
 end
 
--- The text of the /who: what was typed, or your level when there is neither text nor filter.
 function Who.Query(text)
     text = type(text) == "string" and text:gsub("^%s+", ""):gsub("%s+$", "") or ""
-    if text == "" and not Who.AnyFilter() then return tostring(Data().Level()) end
-    return text
+    local parts = Who.Terms()
+    if text ~= "" then table.insert(parts, 1, text) end
+    if #parts == 0 then return tostring(Data().Level()) end
+    return table.concat(parts, " ")
 end
 
 function Who.AnyFilter()
@@ -124,7 +124,7 @@ function Who.Send(text)
     Who.token = (Who.token or 0) + 1
     local mine = Who.token
     local origin = Enum and Enum.SocialWhoOrigin and Enum.SocialWhoOrigin.Social
-    pcall(F.SendWho, text, origin, Who.Filters())
+    pcall(F.SendWho, text, origin)
     C_Timer.After(Who.COOL, function() Who.Render() end)
     -- The game may let nothing through (a search it refused leaves no answer): stop waiting.
     C_Timer.After(Who.WAIT, function()
