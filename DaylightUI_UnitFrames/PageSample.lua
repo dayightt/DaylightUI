@@ -99,7 +99,7 @@ PageSample.PARTS = {
     { label = "Raid marker", at = at("marker"), keys = { "%s.showMarker", "%s.markerSize", "%s.markerPos" },
       move = { spot = "%s.markerPos", x = "%s.markerX", y = "%s.markerY" }, size = { s = "%s.markerSize" } },
     { label = "Elite crest", at = at("crest"), keys = { "%s.showClassification" } },
-    { label = "Level", at = status("level"), keys = { "%s.showLevel", "%s.levelPos" },
+    { label = "Level", at = status("level"), keys = { "%s.showLevel", "%s.levelPos", "%s.levelStyle", "%s.levelShape", "%s.levelRingWidth", "%s.levelWidthPx", "%s.levelHeightPx", "%s.levelTextPx", "%s.levelColor", "%s.levelRing" },
       move = { spot = "%s.levelPos", x = "%s.levelX", y = "%s.levelY" } },
     -- With the name or portrait. A party button's moves to a spot (UF.IconSpot).
     { label = "Leader crown", at = status("leader"), keys = { "%s.showLeader", "%s.leaderSize", "%s.leaderPos" },
