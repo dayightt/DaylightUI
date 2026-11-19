@@ -667,7 +667,7 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     local lines = kinds(p, "line")
     local Tip = stub.tooltip.Tooltip
     local hex = DaylightUI.Win.Parts.Hex
-    T.eq(stub.Text(lines[1].fs), hex(DaylightUI.Style.INK.VALUE) .. "742|r Armor")
+    T.eq(stub.Text(lines[1].fs), hex({ DaylightUI.Style.Pop() }) .. "742|r Armor", "a plain number in the accent")
     T.eq(stub.Text(lines[2].fs), hex(Tip.STAT_COLORS.Strength) .. "+24|r Strength", "the number in its stat's color")
     T.eq(stub.Text(lines[3].fs), hex(Tip.STAT_COLORS.Stamina) .. "+31|r Stamina")
     T.eq(stub.Text(lines[4].fs), hex(Tip.STAT_COLORS.Crit) .. "+1%|r Crit")
@@ -699,17 +699,44 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("rich tooltip: an item's number lines sit evenly, armor and block on one line", function()
+    local _, Panel = login("rich")
+    items()
+    _G.SHIELD_BLOCK_TEMPLATE, _G.BLOCK = "%d Block", "Block"
+    -- Seen in game: each row measured from its own text came out a few pixels
+    -- taller or shorter, so the stats sat at uneven gaps. Here every text
+    -- measures a different height by its letters.
+    stub.measure = function(fs)
+        local t = fs.__text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        return #t * 7, 14 + (#t % 4)
+    end
+    fillItem(GameTooltip, "greaves", { { "Chromite Shield", nil, { 0, 0.44, 0.87 } }, "1436 Armor", "21 Block",
+        "+9 Strength", "+5 Stamina", "+12 Agility" })
+    local p = Panel.Get(GameTooltip)
+    local row = kinds(p, "row")[1]
+    local ys = { row and row.y }
+    for _, l in ipairs(kinds(p, "line")) do ys[#ys + 1] = l.y end
+    stub.measure = nil
+    T.truthy(row and stub.Text(row.label):find("1436|r Armor", 1, true), "armor on the left")
+    T.truthy(row and stub.Text(row.value):find("21|r Block", 1, true), "block on the same line")
+    T.eq(#ys, 4)
+    for i = 3, #ys do T.near(ys[i] - ys[i - 1], ys[2] - ys[1], 1e-6, "row " .. i .. " the same step") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: a weapon's damage and speed as rows, a plain item's card", function()
     local _, Panel = login("rich")
     items()
     fillItem(GameTooltip, "sword", { { "Thunderforge Blade", nil, { 0, 0.44, 0.87 } }, { "One-Hand", "Sword" },
         { "41 - 77 Damage", "Speed 2.60" }, "(22.7 damage per second)", "+5 Agility" })
     local p = Panel.Get(GameTooltip)
+    local function bare(fs) return (stub.Text(fs):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
     local said = {}
-    for _, l in ipairs(kinds(p, "line")) do said[#said + 1] = stub.Text(l.fs):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end
-    T.eq(said[1], "41 - 77 Damage", "number first")
-    T.eq(said[2], "2.60 Speed")
-    T.eq(said[3], "22.7 Damage per second")
+    for _, l in ipairs(kinds(p, "line")) do said[#said + 1] = bare(l.fs) end
+    local row = kinds(p, "row")[1]
+    T.eq(bare(row.label), "41 - 77 Damage", "number first")
+    T.eq(bare(row.value), "2.60 Speed", "speed on the damage's line, at the right")
+    T.eq(said[1], "(22.7 damage per second)", "the game's own brackets, under them")
     T.eq(stub.Text(p.items[1].tags[2].text), "ONE-HAND · SWORD", "the slot line's own word")
     -- Linen Cloth: common, no level, no slot.
     fillItem(GameTooltip, "cloth", { "Linen Cloth", "Max Stack: 20" })

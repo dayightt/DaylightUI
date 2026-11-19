@@ -65,9 +65,31 @@ end
 
 local function size(s) return s end
 
-local function lineHeight(fs, s)
-    local h = fs:GetStringHeight()
-    if type(h) == "number" and not isSecret(h) and h > 0 then return h end
+-- A one-line text's height comes from its size alone, measured once per
+-- layout on a hidden ruler in the same font. Read from each row's own text it
+-- came out a few pixels different line to line, so a list of stats sat at
+-- uneven gaps.
+Panel.RULER = "Ag"
+local measuring -- the panel being laid out, while Finish runs
+local function lineHeight(s)
+    local p = measuring
+    if p then
+        local cache = p.heights
+        if cache[s] then return cache[s] end
+        local r = p.ruler
+        if not r then
+            r = Style.Text(p.body or p, s, "LEFT", font())
+            r:SetWordWrap(false)
+            r:Hide()
+            p.ruler = r
+        end
+        Style.SetTextSize(r, s)
+        r:SetText(Panel.RULER)
+        local h = r:GetStringHeight()
+        if type(h) ~= "number" or isSecret(h) or h <= 0 then h = s + Panel.LINE_EXTRA end
+        cache[s] = h
+        return h
+    end
     return s + Panel.LINE_EXTRA
 end
 
@@ -619,9 +641,9 @@ function place.header(p, item, y, inner)
         x = x + s + (spec.iconGap or 12)
         h = s
     end
-    local th = lineHeight(item.title, item.title.size)
+    local th = lineHeight(item.title.size)
     local col = th
-    if item.sub then col = col + 2 + lineHeight(item.sub, item.sub.size) end
+    if item.sub then col = col + 2 + lineHeight(item.sub.size) end
     local tagGap = spec.tagGap or 5
     local tagRows = 0
     if item.tags and #item.tags > 0 then
@@ -646,12 +668,12 @@ function place.header(p, item, y, inner)
     if widthOf(item.title) > room + 1 then item.title:SetWidth(room) end
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
-        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + th - lineHeight(item.right, item.right.size)))
+        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + th - lineHeight(item.right.size)))
     end
     local ty = top + th
     if item.sub then
         item.sub:SetPoint("TOPLEFT", p, "TOPLEFT", x, -(ty + 2))
-        ty = ty + 2 + lineHeight(item.sub, item.sub.size)
+        ty = ty + 2 + lineHeight(item.sub.size)
     end
     if tagRows > 0 then
         for _, tag in ipairs(item.tags) do
@@ -669,12 +691,12 @@ end
 Panel.ROW_GAP_X = 16
 function place.row(p, item, y, inner)
     item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
-    local h = lineHeight(item.label, item.label.size)
+    local h = lineHeight(item.label.size)
     if item.value then
         item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
         local room = inner - widthOf(item.value) - Panel.ROW_GAP_X
         if widthOf(item.label) > room + 1 then item.label:SetWidth(math.max(1, room)) end
-        h = math.max(h, lineHeight(item.value, item.value.size))
+        h = math.max(h, lineHeight(item.value.size))
     end
     return h
 end
@@ -692,7 +714,7 @@ end
 
 function place.section(p, item, y)
     item.fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
-    return lineHeight(item.fs, item.fs.size)
+    return lineHeight(item.fs.size)
 end
 
 function place.line(p, item, y, inner)
@@ -700,11 +722,11 @@ function place.line(p, item, y, inner)
     fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local room = inner - (tail and (4 + widthOf(tail)) or 0)
     if widthOf(fs) > room + 1 then fs:SetWidth(math.max(1, room)) end
-    local h = lineHeight(fs, fs.size)
+    local h = lineHeight(fs.size)
     if tail then
         -- On the line's baseline.
         tail:SetPoint("BOTTOMLEFT", fs, "BOTTOMRIGHT", 4, 0)
-        h = math.max(h, lineHeight(tail, tail.size))
+        h = math.max(h, lineHeight(tail.size))
     end
     return h
 end
@@ -798,7 +820,7 @@ function place.hints(p, item, y)
     for i, fs in ipairs(item.list) do
         fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + (i - 1) * Panel.HINT_H))
     end
-    return #item.list * Panel.HINT_H - (Panel.HINT_H - lineHeight(item.list[1], item.list[1].size))
+    return #item.list * Panel.HINT_H - (Panel.HINT_H - lineHeight(item.list[1].size))
 end
 
 local SPACED = { rule = false, gap = false }
@@ -815,6 +837,9 @@ function Panel.Finish(p)
     local inner = w - 2 * padX(p)
     local y, last = p.padTop or Panel.PAD_TOP, nil
     local rowGap = p.rowGap or Panel.ROW_GAP
+    -- Measured again each layout: the font or the size settings may have changed.
+    p.heights = {}
+    measuring = p
     for i = 1, p.count do
         local item = p.items[i]
         -- Rows sit ROW_GAP apart; a rule or a gap brings its own room.
@@ -823,6 +848,7 @@ function Panel.Finish(p)
         y = y + place[item.kind](p, item, y, inner)
         last = item.kind
     end
+    measuring = nil
     local h = math.floor(y + Panel.PAD_BOTTOM + 0.5)
     p.wantW, p.wantH = w, h
     Panel.Pin(p)

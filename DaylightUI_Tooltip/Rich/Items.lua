@@ -136,9 +136,17 @@ end
 -- number in the accent, or a stat's in its color, so it stands out from the
 -- word in the sentence color. One from an Equip line says so after it, small.
 local function popHex() return hex({ Style.Pop() }) end
+local function numText(num, word, color) return (color and hex(color) or popHex()) .. num .. "|r " .. word end
 local function numLine(p, num, word, color, equip)
-    ns.RichPanel.Line(p, (color and hex(color) or popHex()) .. num .. "|r " .. word, Style.INK.TEXT, nil,
-        equip and L["Equip"] or nil, Style.INK.GOOD)
+    ns.RichPanel.Line(p, numText(num, word, color), Style.INK.TEXT, nil, equip and L["Equip"] or nil, Style.INK.GOOD)
+end
+
+-- Two base numbers that belong together share a line, as the game shows a
+-- weapon's damage and speed: "46 - 86 Damage" on the left, "2.20 Speed" at
+-- the right edge. A shield's armor and block go the same way.
+local function pairLine(p, a, b)
+    if not b then return numLine(p, a[1], a[2]) end
+    ns.RichPanel.Row(p, numText(a[1], a[2]), numText(b[1], b[2]), Style.INK.TEXT, Style.INK.TEXT)
 end
 
 -- The game's binding lines and Unique: facts about the item itself, shown
@@ -200,20 +208,23 @@ local function sort(n, lines, own, info, groups)
         elseif t:find(P.durability) then
             foot.durability = t
         elseif t:find(P.armor) then
-            local v = t:match(P.armor)
-            groups.list[#groups.list + 1] = function(p) numLine(p, v, ARMOR or L["Armor"]) end
+            local armor = { t:match(P.armor), ARMOR or L["Armor"] }
+            groups.armor = armor
+            groups.list[#groups.list + 1] = function(p) pairLine(p, armor, armor.block) end
         elseif t:find(P.block) then
-            local v = t:match(P.block)
-            groups.list[#groups.list + 1] = function(p) numLine(p, v, BLOCK or L["Block"]) end
+            local block = { t:match(P.block), BLOCK or L["Block"] }
+            if groups.armor and not groups.armor.block then
+                -- Drawn on the armor's line.
+                groups.armor.block = block
+            else
+                groups.list[#groups.list + 1] = function(p) numLine(p, block[1], block[2]) end
+            end
         elseif t:find(P.damage) then
             local lo, hi = t:match(P.damage)
-            groups.list[#groups.list + 1] = function(p)
-                numLine(p, string.format(L["%s - %s"], lo, hi), DAMAGE or L["Damage"])
-            end
+            local damage = { string.format(L["%s - %s"], lo, hi), DAMAGE or L["Damage"] }
             local words, num = wordsAndNumber(right and Items.Words(right) or "")
-            if words then
-                groups.list[#groups.list + 1] = function(p) numLine(p, num, words) end
-            end
+            local speed = words and { num, words } or nil
+            groups.list[#groups.list + 1] = function(p) pairLine(p, damage, speed) end
         elseif t:find(P.dps) then
             -- Kept in the game's own brackets: they set it apart from the
             -- damage and speed lines above it.
