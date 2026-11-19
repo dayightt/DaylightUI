@@ -130,12 +130,37 @@ function Buttons.Make(def, holder)
                 Buttons.Queue(self)
             end
         end)
+        btn:HookScript("OnDragStart", Buttons.DragStart)
         Buttons.SlotsChanged()
         made[i] = btn
         DUI.Fire("ActionButtonMade", btn, def)
         DUI.APIReport.Made("actionbutton", btn, def.num .. ":" .. i, false)
     end
     return made
+end
+
+-- With the game's bars locked, picking up a spell takes the pick-up key, Shift by
+-- default. A bar that pages on Shift flips the moment it's held, so the spells on
+-- its normal page could never be picked up. While a spellbook is open out of a
+-- fight, a plain drag picks the spell up, as it does on unlocked bars. Holding
+-- Shift still flips the bar, so its Shift page can be arranged too.
+Buttons.BOOKS = { "DaylightUIBook", "PlayerSpellsFrame" }
+
+function Buttons.Arranging()
+    if InCombatLockdown() then return false end
+    for _, name in ipairs(Buttons.BOOKS) do
+        local f = _G[name]
+        if type(f) == "table" and f:IsShown() then return true end
+    end
+    return false
+end
+
+-- Runs after the template's own drag, which already picked the spell up when
+-- the bars are unlocked or the pick-up key is held.
+function Buttons.DragStart(self)
+    if type((GetCursorInfo())) ~= "nil" or not Buttons.Arranging() then return end
+    local slot = Buttons.SlotOf(self)
+    if slot then PickupAction(slot) end
 end
 
 -- The action bar kind (bars 1-8), used by Bars.lua.

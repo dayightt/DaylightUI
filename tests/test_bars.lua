@@ -2728,3 +2728,24 @@ T.test("keys: a rebound controller button shows its new key", function()
     stub.slots[200] = nil
     _G.C_GamepadUI, _G.GamepadMode, _G.InputUtil = nil, nil, nil
 end)
+
+T.test("drag: with a spellbook open a plain drag picks a spell up off locked bars", function()
+    login()
+    -- The fake game lends PickupAction only to the game's own code.
+    local oldSettings, oldPickup = _G.Settings, _G.PickupAction
+    _G.Settings = { GetValue = function(k) return k == "lockActionBars" end }
+    _G.PickupAction = function(slot) stub.pickedAction = slot end
+    local b = btn("main", 3)
+    local function drag() stub.pickedAction = nil; b:GetScript("OnDragStart")(b); return stub.pickedAction end
+    T.eq(drag(), nil, "locked with no book open: the pick-up key is needed")
+    local book = CreateFrame("Frame", "PlayerSpellsFrame")
+    book:Show()
+    T.eq(drag(), 3, "the spell on the page shown, not the Shift page")
+    stub.combat = true
+    T.eq(drag(), nil, "never in a fight")
+    stub.combat = false
+    book:Hide()
+    T.eq(drag(), nil, "book closed")
+    _G.PlayerSpellsFrame = nil
+    _G.Settings, _G.PickupAction = oldSettings, oldPickup
+end)
