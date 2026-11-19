@@ -415,7 +415,7 @@ end
 -- can be; painted with Fx.PaintButtonGlow once restrictions lift.
 function Fx.ButtonGlow(btn)
     local g = glowOf(btn)
-    pcall(btn.AddAuraShownAnimation, btn, g.anim)
+    DUI.SafeCall(btn.AddAuraShownAnimation, btn, g.anim)
     return g
 end
 

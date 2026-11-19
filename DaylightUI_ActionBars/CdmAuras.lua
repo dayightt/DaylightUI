@@ -284,11 +284,8 @@ local function initButton(h, btn)
     if btn.SetMouseMotionEnabled then try(btn.SetMouseMotionEnabled, btn, false) end
     ns.CdmEffects.MakeSlide(btn, h)
     -- Glow while up (Fx.ButtonGlow): the client shows it with the button, in a fight too.
-    local okG, glow = pcall(ns.CdmEffects.ButtonGlow, btn)
-    if okG then
-        parts.glow = glow
-        try(ns.CdmEffects.PaintButtonGlow, btn, h.upGlow, h.upGlowColor)
-    end
+    DUI.SafeCall(function() parts.glow = ns.CdmEffects.ButtonGlow(btn) end)
+    if parts.glow then try(ns.CdmEffects.PaintButtonGlow, btn, h.upGlow, h.upGlowColor) end
 end
 
 -- h.layoutFor and h.init let other holders (CdmBars' aura bars) use their own button
@@ -963,8 +960,8 @@ function A.AuraWord(id)
     local sid = info and plain(info.spellID)
     local self_ = info and info.selfAura
     if not sid or isSecret(self_) or self_ == true then return "buff" end
-    local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
-    return ok and not isSecret(harmful) and harmful == true and "debuff" or "buff"
+    local harmful = type(C_Spell.IsSpellHarmful) == "function" and C_Spell.IsSpellHarmful(sid)
+    return not isSecret(harmful) and harmful == true and "debuff" or "buff"
 end
 
 local function learn(h, a, unit)
