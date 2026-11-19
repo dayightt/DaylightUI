@@ -868,6 +868,48 @@ T.test("chat: speech bubbles are left to the game inside an instance, and handed
     T.truthy(Bubbles.OverlayOf(b2) and Bubbles.OverlayOf(b2):IsShown(), "drawn again outside")
 end)
 
+-- The client can lock a pooled bubble on a zone change before the loading screen's
+-- event reaches Daylight UI. Its balloon can't be given its alpha back then, so it
+-- stays owed and is given back once the bubble can be touched again.
+T.test("chat: a bubble locked while handed back gets its balloon back once it can", function()
+    login()
+    local b1, art = makeBubble("Mind the gap")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0, "faded while Daylight UI's frame stands in")
+    art.__forbidden = true
+    stub.FireEvent("LOADING_SCREEN_ENABLED")
+    stub.RunTimers()
+    art.__forbidden = nil
+    T.eq(art:GetAlpha(), 0, "locked: the hand-back couldn't reach it")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    T.eq(art:GetAlpha(), 1, "given back on arriving")
+    -- Owed again, then paid on the next chat line's pass instead.
+    local b2, art2 = makeBubble("Again")
+    stub.SetBubbles({ b2 })
+    stub.Advance(1)
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(art2:GetAlpha(), 0, "the second one drawn by Daylight UI")
+    art2.__forbidden = true
+    b2:Hide()
+    art2.__forbidden = nil
+    T.eq(art2:GetAlpha(), 0, "locked as it went: still owed")
+    stub.SetBubbles({})
+    stub.Advance(1)
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(art2:GetAlpha(), 1, "given back on the next pass")
+    -- A balloon Daylight UI stands in for again is no longer owed: it stays faded.
+    stub.SetBubbles({ b2 })
+    b2:Show()
+    stub.RunTimers()
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    T.eq(art2:GetAlpha(), 0, "standing in again: stays faded under Daylight UI's frame")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat: logging out hands every bubble back", function()
     login()
     local Bubbles = stub.chatModule.Bubbles
@@ -1960,6 +2002,49 @@ T.test("chat: the game's time stamp goes tan; the rest of the line is untouched"
     T.isnil(Tags.Shorten("Moonwell: no time here", nil), "no stamp: left alone")
 end)
 
+-- Prat (and chat addons built like it) draws the channel as "[G] " with the space
+-- inside the link and puts the name's brackets outside its link, so no "]|h" closes
+-- the channel's words. The tag's pattern then ran on to the next "]|h" in the line,
+-- the end of an item link, and the whole line up to it became "[G]": players saw
+-- "[G]" alone (link at the end) or "[G]?" (a word after it), and two links kept the
+-- second one. Seen with Russian words and English ones alike.
+local PRAT_GUILD = "|Hchannel:GUILD|h[G] |h[|Hplayer:Arrling Wildheart:4612:GUILD|h29:Arrling Wildheart|h]: "
+local PRAT_TRADE = "|Hchannel:channel:2|h[2. Trade] |h[|Hplayer:Kaylly Abaddon:284:CHANNEL:2|h19:Kaylly Abaddon|h]: "
+local BLUNDERBUSS = "|cnIQ3:|Hitem:2099::::::::29:1485:::::::::|h[Deadly Blunderbuss]|h|r"
+local SCORPID = "|cnIQ2:|Hitem:8399::::::::46:1485:::::::::|h[Pattern: Tough Scorpid Boots]|h|r"
+local PRAT_LINES = {
+    PRAT_GUILD .. "Всім привіт, хтось може зробити рушницю? " .. BLUNDERBUSS,
+    PRAT_GUILD .. SCORPID .. "?",
+    PRAT_GUILD .. SCORPID .. " and " .. BLUNDERBUSS,
+    PRAT_TRADE .. "WTB " .. BLUNDERBUSS .. " 7g",
+}
+
+T.test("chat: a channel tag never runs into the item link of a line another chat addon drew", function()
+    login()
+    local Tags = stub.chatModule.Tags
+    for _, line in ipairs(PRAT_LINES) do
+        local event = line:find("channel:2", 1, true) and "CHAT_MSG_CHANNEL" or "CHAT_MSG_GUILD"
+        local out = Tags.Shape(line, event) or line
+        T.eq(out, line, "the line keeps every word and link")
+    end
+    -- The game's own lines are still shortened, link and all.
+    local game = "|Hchannel:GUILD|h[Guild]|h |Hplayer:Bob:1:GUILD|h[Bob]|h: " .. BLUNDERBUSS
+    T.eq(Tags.Shape(game, "CHAT_MSG_GUILD"), "|Hchannel:GUILD|h[G]|h |Hplayer:Bob:1:GUILD|h[Bob]|h: " .. BLUNDERBUSS)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat: those lines keep their words and links in the Classic window", function()
+    login()
+    stub.chatModule.Chat.Pass()
+    local cf = ChatFrame1
+    for _, line in ipairs(PRAT_LINES) do cf:AddMessage(line, 0.25, 1, 0.25, 3) end
+    cf:FakeRefresh()
+    for i, line in ipairs(PRAT_LINES) do
+        T.eq(cf.visibleLines[#PRAT_LINES + 1 - i]:GetText(), line, "drawn whole")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat: channel numbers kept with short tags when asked", function()
     login()
     local Tags = stub.chatModule.Tags
@@ -2244,6 +2329,24 @@ local function boxTexts(box)
     for i = 1, box:GetNumMessages() do out[i] = (box:GetMessageInfo(i)) end
     return out
 end
+
+-- The same lines (Prat's shape, test above) in the box: the words and every link stay.
+T.test("chat daylight: a line another chat addon drew keeps its words and links in the box", function()
+    local _, box = daylight()
+    for _, line in ipairs(PRAT_LINES) do ChatFrame1:AddMessage(line, 0.25, 1, 0.25, 3) end
+    local texts = boxTexts(box)
+    for i, line in ipairs(PRAT_LINES) do
+        local got = texts[#texts - #PRAT_LINES + i] or ""
+        T.truthy(got:find(line:match("|h%]: (.*)$"), 1, true), "the words and links: " .. got)
+        T.truthy(got:find("[G] |h", 1, true) or got:find("[2. Trade] |h", 1, true), "and the addon's own tag")
+    end
+    -- A name whose "]" isn't right before its link's end keeps its brackets.
+    local odd = "|Hchannel:GUILD|h[Guild]|h |Hplayer:Bob:1:GUILD|h[Bob] |h: hi " .. SCORPID
+    ChatFrame1:AddMessage(odd, 0.25, 1, 0.25, 3, nil, nil, "CHAT_MSG_GUILD", { "hi", "Bob", n = 14 })
+    texts = boxTexts(box)
+    T.truthy(texts[#texts]:find("[Bob] |h: hi " .. SCORPID, 1, true), texts[#texts])
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 -- An NPC's emote is its text with the name apart (arg 2). A line the game made without
 -- the name gets it in the box, after the timestamp.

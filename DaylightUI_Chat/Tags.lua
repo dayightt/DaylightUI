@@ -203,8 +203,15 @@ function Tags.OfName(name)
     return standardByName((string.gsub(string.gsub(base, "%s+%d+$", ""), "%s", "")))
 end
 
+-- The channel's words, as far as the "]|h" that closes them. A chat addon like Prat
+-- draws "[G] |h" with the space inside the link, so the first "]|h" in the line
+-- can belong to an item link further on: then the match holds a "|h" and the line
+-- is left as it is, or the tag would swallow everything up to that link.
+local function crossesLink(inner) return string.find(inner, "|h", 1, true) ~= nil end
+
 -- "[1. General - Zone]"
 local function channel(open, inner, close)
+    if crossesLink(inner) then return nil end
     local num, name = string.match(inner, "^(%d+)%. (.+)$")
     name = name or inner
     local base = string.gsub(string.gsub(string.match(name, "^(.-) %- ") or name, "%s+%d+$", ""), "%s", "")
@@ -214,7 +221,8 @@ local function channel(open, inner, close)
 end
 
 -- "[Guild]", "[Party Leader]"...
-local function group(open, ctype, _, close)
+local function group(open, ctype, inner, close)
+    if crossesLink(inner) then return nil end
     local kind = Tags.TYPE_KINDS[ctype]
     if not kind then return nil end
     local base = Tags.own[kind] or Tags.Default(kind)

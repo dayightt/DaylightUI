@@ -21,6 +21,9 @@ local overlay = setmetatable({}, WEAK)  -- the game's bubble -> the frame drawin
 local hooked = setmetatable({}, WEAK)
 local shown = setmetatable({}, WEAK)    -- bubbles drawn by a frame right now
 local childOf = setmetatable({}, WEAK)  -- the bubble's balloon, kept to hand it back
+-- Balloons left faded because they were locked when handed back. The client
+-- unlocks pooled bubbles again outside instances, so they're given back then.
+local owed = setmetatable({}, WEAK)
 
 -- Inside an instance the client makes its bubbles forbidden, so they're left to
 -- the game there, even pooled ones hooked outside before.
@@ -55,7 +58,18 @@ local function parts(outer)
 end
 
 local function setGameAlpha(child, a)
-    if child then pcall(child.SetAlpha, child, a) end
+    return child ~= nil and pcall(child.SetAlpha, child, a)
+end
+
+-- Gives a balloon its alpha back, or remembers it for later if it's locked now.
+local function giveBack(child)
+    if not child then return end
+    owed[child] = not setGameAlpha(child, 1) or nil
+end
+
+-- Tries every balloon still owed its alpha.
+function Bubbles.PayBack()
+    for child in pairs(owed) do giveBack(child) end
 end
 
 local function face(f)
@@ -125,7 +139,7 @@ end
 local function release(outer, child)
     local f = overlay[outer]
     shown[outer] = nil
-    setGameAlpha(child or childOf[outer], 1)
+    giveBack(child or childOf[outer])
     if not f then return end
     if not f:IsShown() then return hide(f) end
     f.token = (f.token or 0) + 1
@@ -177,6 +191,7 @@ local function draw(outer)
     childOf[outer] = child
     if not was then Motion.Fade(f, 0, 1, Motion.FAST) end
     setGameAlpha(child, 0)
+    owed[child] = nil
 end
 
 local function hook(outer)
@@ -187,6 +202,7 @@ local function hook(outer)
 end
 
 function Bubbles.DressAll()
+    if next(owed) then Bubbles.PayBack() end
     if not on() then return end
     if type(C_ChatBubbles) ~= "table" or type(C_ChatBubbles.GetAllChatBubbles) ~= "function" then return end
     -- Without forbidden ones: those can't be read or faded.
@@ -214,6 +230,7 @@ end
 
 function Bubbles.ReleaseAll()
     for outer in pairs(shown) do release(outer) end
+    Bubbles.PayBack()
 end
 
 -- For the tests: the frame drawing a game bubble.
@@ -244,7 +261,7 @@ function Bubbles.Build(mod)
     inside = inInstance()
     DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function()
         inside = inInstance()
-        if inside then Bubbles.ReleaseAll() end
+        if inside then Bubbles.ReleaseAll() else Bubbles.PayBack() end
     end)
     -- A pooled bubble can outlive a reload: never leave one faded out.
     DUI.RegisterEvent("PLAYER_LOGOUT", Bubbles.ReleaseAll)

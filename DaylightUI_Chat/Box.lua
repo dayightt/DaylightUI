@@ -169,6 +169,11 @@ local function named(text, event, args)
     return name .. " " .. text
 end
 
+local function unbracket(link, name, close)
+    if string.find(name, "|h", 1, true) then return nil end
+    return link .. name .. close
+end
+
 -- The box's copy of the line, with short tags and levels when enabled and chat
 -- isn't locked down.
 local function shape(text, event)
@@ -176,8 +181,10 @@ local function shape(text, event)
     if secret(event) or type(event) ~= "string" then event = nil end
     text = ns.Tags.Shape(text, event) or text
     if not ns.Tags.enabled then return text end
-    -- Drop the brackets around names: [Name] -> Name (the link still works).
-    return (string.gsub(text, "(|H[Bb]?[Nn]?player:[^|]*|h)%[(.-)%](|h)", "%1%2%3"))
+    -- Drop the brackets around names: [Name] -> Name (the link still works). A name
+    -- whose "]" isn't right before its link's end is left alone, so the match can't
+    -- run on to an item link later in the line.
+    return (string.gsub(text, "(|H[Bb]?[Nn]?player:[^|]*|h)%[(.-)%](|h)", unbracket))
 end
 
 -- Does this tab show this line? By kind, or as an answer to a query made from it.
