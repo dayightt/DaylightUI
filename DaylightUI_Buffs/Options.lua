@@ -319,10 +319,21 @@ local function attachItem(debuff)
             .. ", following it as the minimap or damage meter changes size. Turn it off to move the bar yourself in unlock mode." }
 end
 
+-- Something along the top of the screen can sit where an attached bar goes,
+-- so it can be nudged up or down from there.
+local function attachNudge(debuff)
+    local p = debuff and "settings.debuff." or "settings."
+    return { type = "slider", key = p .. "attachY", label = debuff and "Debuff bar up / down" or "Buff bar up / down",
+        min = -200, max = 200, step = 1, unit = "px", since = "1.9.6",
+        disabled = function(get) return get(p .. "attach") == false end,
+        desc = "Nudges the bar up or down from its spot beside the info panel, in pixels. Only while it's attached to the panel." }
+end
+
 local function barItems(debuff)
     local p = debuff and "settings.debuff." or "settings."
     local items = {
         attachItem(debuff),
+        attachNudge(debuff),
         { type = "slider", key = p .. "iconSize", label = "Icon size", min = 12, max = 64, step = 1, unit = "px",
           desc = "Each icon's width and height." },
         { type = "slider", key = p .. "borderPx", label = "Border thickness", min = 0, max = 6, step = 1, unit = "px",

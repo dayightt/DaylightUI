@@ -4654,6 +4654,17 @@ T.test("nameplates: plates on the game's plates flatten their layers, as Ellesme
     local p = added("nameplate1")
     T.eq(flat[p], true)
     T.eq(flat[p.hp], nil, "only the plate itself")
+    DaylightUI.RunCommand("flatoff")
+    T.eq(flat[p], false, "the player command switches the visible plate off")
+    local nextPlate = added("nameplate2")
+    T.eq(flat[nextPlate], false, "a plate taken from the spare pool stays off")
+    stub.EnterCombat()
+    DaylightUI.RunCommand("flatoff")
+    T.eq(flat[p], false, "combat leaves the toggle alone")
+    stub.LeaveCombat()
+    DaylightUI.RunCommand("flatoff")
+    T.eq(flat[p], true)
+    T.eq(flat[nextPlate], true)
 end)
 
 

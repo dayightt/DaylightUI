@@ -138,8 +138,16 @@ local function install()
         -- PlayerSpellsUtil.TogglePlayerSpellsFrame(tab): open on that tab, or
         -- close if it's already open on it.
         TogglePlayerSpellsFrame = function(tab) BW.Toggle(tab) end,
-        OpenToSpellBookTab = function() BW.Open(BW.SPELLBOOK) end,
-        OpenToClassTalentsTab = function() BW.Open(BW.TALENTS) end,
+        -- Called from addon code these run with its taint: the book fills its spell
+        -- slots under it, and their secret cooldowns are refused in the next fight.
+        OpenToSpellBookTab = function()
+            if (S().game or 0) == 0 then record("TaintedOpen", BW.SPELLBOOK) end
+            BW.Open(BW.SPELLBOOK)
+        end,
+        OpenToClassTalentsTab = function()
+            if (S().game or 0) == 0 then record("TaintedOpen", BW.TALENTS) end
+            BW.Open(BW.TALENTS)
+        end,
     }
     -- The game's keys (Bindings_Camelot.xml): P, Shift-P, N, Escape.
     stub.bindings.TOGGLESPELLBOOK = { "P" }
@@ -164,15 +172,34 @@ function BW.Key(key) stub.PressKey(key) end
 -- The key (P = 3, N = 2): load, set the tab, show. Like the game's TrySetTab
 -- (Blizzard_PlayerSpellsFrame.lua, Camelot's AreaAttributeForTab), the panel area
 -- goes first, and the talents tab is a "center" panel that closes every other one.
+--
+-- With another panel open (the world map, BW.OtherPanel(true)) the book is shown
+-- minimized: ShowUIPanel's EvaluateAutoMinimize calls its SetMinimized(true), and
+-- talents can't be minimized, so it switches to the spellbook tab
+-- (GetDefaultMinimizableTab) and shows that. Asking for talents again while it's
+-- minimized maximizes it (ForceMaximize) as a center panel, which closes the map.
 function BW.Open(tab)
     asGame(function()
         local f = bookFrame()
         tab = tab or BW.SPELLBOOK
         SetUIPanelAttribute(f, "area", tab == BW.SPELLBOOK and "centerOrLeft" or "center")
+        if f.isMinimized and tab ~= BW.SPELLBOOK then
+            f.isMinimized = false
+            S().otherPanel = false
+        end
         f:SetTab(tab)
+        if S().otherPanel and not f.isMinimized then
+            f.isMinimized = true
+            if f:GetTab() ~= BW.SPELLBOOK then f:SetTab(BW.SPELLBOOK) end
+        elseif not S().otherPanel then
+            f.isMinimized = false
+        end
         ShowUIPanel(f)
     end)
 end
+
+-- Another UI panel open beside the book (the world map).
+function BW.OtherPanel(on) S().otherPanel = on == true end
 
 function BW.Toggle(tab)
     local f = _G.PlayerSpellsFrame

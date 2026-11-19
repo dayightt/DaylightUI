@@ -405,6 +405,31 @@ T.test("buffs: the anchors make room at the bars' drawn size, wheel included", f
     T.near(a[5], W.Height(36) * 1.5, 0.001)
 end)
 
+T.test("buffs: an attached bar can be nudged up or down from its spot by the panel", function()
+    login({ infopanel = true })
+    local b0, d0 = { DaylightUIBuffsAnchor:GetPoint(1) }, { DaylightUIDebuffsAnchor:GetPoint(1) }
+    DaylightUI:Set("Buffs", "settings.attachY", -40)
+    stub.RunTimers()
+    local b, d = { DaylightUIBuffsAnchor:GetPoint(1) }, { DaylightUIDebuffsAnchor:GetPoint(1) }
+    T.near(b[5], b0[5] - 40, 0.001, "the buffs moved down")
+    T.eq(b[2], b0[2], "still by the panel")
+    T.near(d[5], d0[5], 0.001, "the debuffs keep their own spot")
+    DaylightUI:Set("Buffs", "settings.debuff.attachY", 15)
+    stub.RunTimers()
+    d = { DaylightUIDebuffsAnchor:GetPoint(1) }
+    T.near(d[5], d0[5] + 15, 0.001, "the debuffs moved up")
+end)
+
+T.test("buffs: without the info panel, the buffs' nudge leaves the debuffs where they are", function()
+    login()
+    local d0 = { DaylightUIDebuffsAnchor:GetPoint(1) }
+    DaylightUI:Set("Buffs", "settings.attachY", -30)
+    stub.RunTimers()
+    local b, d = { DaylightUIBuffsAnchor:GetPoint(1) }, { DaylightUIDebuffsAnchor:GetPoint(1) }
+    T.eq(b[2], UIParent)
+    T.near(d[5], d0[5] + 30, 0.001, "hung off the buffs' anchor, the nudge is taken back out")
+end)
+
 T.test("buffs: attached, a moved bar still follows the panel; detached, it keeps its spot", function()
     login({ infopanel = true, before = function()
         DaylightUIDB = { positions = { ["buffs.buff"] = { 100, 200 } } }

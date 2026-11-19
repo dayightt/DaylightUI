@@ -233,9 +233,10 @@ local tipTitle, gap, hint, person = Tips.Title, Tips.Gap, Tips.Hint, Tips.Person
 local function line(left, right, rc) Tips.Line(left, right, rc or DT.VALUE) end
 
 function DT.FlushTip() Tips.Flush(GameTooltip) end
+-- A name's class color as a table, nil for an unknown class (the row keeps its own color).
 local function classColor(token)
-    local c = token and Style.ClassColor(token)
-    if type(c) == "table" then return { c.r or c[1] or 1, c.g or c[2] or 1, c.b or c[3] or 1 } end
+    if not Style.RawClassColor(token) then return nil end
+    return { Style.ClassTextColor(token) }
 end
 -- Class token from a localized class name. The friends list only gives the name.
 function DT.ClassToken(name)

@@ -59,6 +59,12 @@ function Details.Rewards(id)
     return out
 end
 
+-- The quest's story from the log, or nil.
+function Details.Text(q)
+    local text = call(GetQuestLogQuestText, q.logIndex)
+    if plain(text) then return text end
+end
+
 -- Every line on the card, top to bottom: { text, size, color, gapBefore }.
 function Details.Lines(q)
     local look = ns.Tracker.Look()
@@ -67,8 +73,8 @@ function Details.Lines(q)
     local r, g, b = ns.Look.TitleColor(look, q)
     add(q.title, Details.SIZES.title, { r, g, b })
     add(ns.Look.LevelLine(q), Details.SIZES.sub, Details.GREY, 2)
-    local text = call(GetQuestLogQuestText, q.logIndex)
-    if plain(text) then add(text, Details.SIZES.text, Details.TEXT, Details.GAP) end
+    local text = Details.Text(q)
+    if text then add(text, Details.SIZES.text, Details.TEXT, Details.GAP) end
     if #q.objs > 0 then
         add(Details.HEAD.objectives, Details.SIZES.head, { Style.Pop() }, Details.GAP)
         for _, o in ipairs(q.objs) do

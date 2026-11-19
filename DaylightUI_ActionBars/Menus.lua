@@ -152,7 +152,18 @@ function Menus.PaintMicro()
     local standing = type(bar) == "table" and bar.isHorizontal == false
     local per = #list
     if type(bar) == "table" and bar.isStacked then per = math.ceil(per / 2) end
-    local function at(t) return { Style.AccentAt(t) } end
+    -- The icon color setting, read now so an accent change shows at once.
+    local db = ns.db or {}
+    local mode = db.microIconColor
+    local one
+    if mode == "class" then
+        one = ns.Skin.ModeColor("class")
+    elseif mode == "custom" and type(db.microIconCustom) == "table" then
+        local c = db.microIconCustom
+        one = { c[1] or 1, c[2] or 1, c[3] or 1 }
+    end
+    local function at(t) return one or { Style.AccentAt(t) } end
+    local tiles = db.microBackgrounds ~= false and 1 or 0
     for i, btn in ipairs(list) do
         local spot = (i - 1) % per
         local parts = skinned[btn]
@@ -166,6 +177,11 @@ function Menus.PaintMicro()
             parts.standing = standing
             parts.open = nil        -- a style change rebuilt the shell's colors
             settle(btn)
+            if parts.tiles ~= tiles then
+                local box = parts.box
+                DUI.Motion.Tween(box, parts.tiles or 1, tiles, DUI.Motion.FAST, function(a) box:SetAlpha(a) end)
+                parts.tiles = tiles
+            end
             if parts.flash then Style.PaintAccent(parts.flash) end
             if parts.dot then Style.PaintAccent(parts.dot) end
         end
