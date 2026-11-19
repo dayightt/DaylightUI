@@ -2326,22 +2326,29 @@ T.test("nameplates: the frame the game hands a plate after our handler is taken 
     T.eq(np.__hit, stub.nameplates.Manager.clickOf[np])
 end)
 
-T.test("nameplates: the game's driver no longer redoes every plate on display or option changes", function()
+T.test("nameplates: the game's driver keeps its events and our plates are taken back after it", function()
     local NP = login(driver)
-    T.falsy(NamePlateDriverFrame:IsEventRegistered("DISPLAY_SIZE_CHANGED"), "switched off, as Platynator does")
-    T.falsy(NamePlateDriverFrame:IsEventRegistered("CVAR_UPDATE"))
-    T.truthy(NamePlateDriverFrame:IsEventRegistered("NAME_PLATE_UNIT_REMOVED"), "the rest left to the game")
+    for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "CVAR_UPDATE", "NAME_PLATE_UNIT_REMOVED" }) do
+        T.truthy(NamePlateDriverFrame:IsEventRegistered(e), e .. " left to the game")
+    end
     added("nameplate1")
     added("nameplate2")
-    -- VARIABLES_LOADED still runs it once: every frame gets its events and click
-    -- area back, and is taken off again right after.
-    driverEvent("VARIABLES_LOADED")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    for i = 1, 2 do
-        T.falsy(plates[i].UnitFrame:IsEventRegistered("UNIT_HEALTH"), i .. ": quiet again")
-        T.eq(plates[i].__hit, NP.Manager.clickOf[plates[i]], i .. ": clicked on ours again")
-        T.falsy(plates[i].UnitFrame:GetParent() == plates[i], i .. ": still off its plate")
+    -- Each options update gives every frame its click area back, and it's taken off again right after.
+    for _, args in ipairs({ { "VARIABLES_LOADED" }, { "DISPLAY_SIZE_CHANGED" }, { "CVAR_UPDATE", "nameplateShowClassColor" } }) do
+        driverEvent(unpack(args))
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+        for i = 1, 2 do
+            T.falsy(plates[i].UnitFrame:IsEventRegistered("UNIT_HEALTH"), args[1] .. " " .. i .. ": quiet again")
+            T.eq(plates[i].__hit, NP.Manager.clickOf[plates[i]], args[1] .. " " .. i .. ": clicked on ours again")
+            T.falsy(plates[i].UnitFrame:GetParent() == plates[i], args[1] .. " " .. i .. ": still off its plate")
+        end
     end
+    -- Any other CVar leaves the plates alone.
+    local reclaim, ran = NP.Manager.Reclaim, 0
+    NP.Manager.Reclaim = function() ran = ran + 1 end
+    driverEvent("CVAR_UPDATE", "cameraDistanceMaxZoomFactor")
+    NP.Manager.Reclaim = reclaim
+    T.eq(ran, 0, "not taken back for a CVar the driver ignores")
 end)
 
 T.test("nameplates: the screen or UI scale changing keeps the plate size, written once", function()
