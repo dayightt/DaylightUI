@@ -660,23 +660,19 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     T.eq(stub.Text(head.tags[3].text), "BINDS WHEN EQUIPPED", "its binding a tag under its name, as the game puts it")
     T.truthy(p.washDown and p.wash[1]:IsShown(), "the quality washing down from the top")
     T.truthy(p.lightFade, "the light fades out along its right part")
-    -- One list of numbers, all rows: armor, then each stat.
-    local rows = kinds(p, "row")
-    local Tip = stub.tooltip.Tooltip
-    local function row(i, label, value, color)
-        T.eq(stub.Text(rows[i].label), label)
-        T.eq(stub.Text(rows[i].value), value)
-        if color then T.near(({ rows[i].value:GetTextColor() })[1], color[1], 1e-6, label .. " in its stat's color") end
-    end
-    row(1, "Armor", "742")
-    row(2, "Strength", "+24", Tip.STAT_COLORS.Strength)
-    row(3, "Stamina", "+31", Tip.STAT_COLORS.Stamina)
-    row(4, "Crit", "+1%", Tip.STAT_COLORS.Crit)
-    T.eq(stub.Text(rows[4].note), "Equip", "an Equip line's stat says so before its value")
-    T.isnil(rows[2].note)
+    -- One column of numbers, number first at the left edge, as the game
+    -- writes them: armor, then each stat in its color.
     local lines = kinds(p, "line")
-    T.truthy(stub.Text(lines[1].fs):find("^DAWNFORGED BATTLEGEAR "), "the set's name")
-    T.truthy(stub.Text(lines[1].fs):find("2/5", 1, true), "its count")
+    local Tip = stub.tooltip.Tooltip
+    local hex = DaylightUI.Win.Parts.Hex
+    T.eq(stub.Text(lines[1].fs), hex(DaylightUI.Style.INK.VALUE) .. "742|r Armor")
+    T.eq(stub.Text(lines[2].fs), hex(Tip.STAT_COLORS.Strength) .. "+24|r Strength", "the number in its stat's color")
+    T.eq(stub.Text(lines[3].fs), hex(Tip.STAT_COLORS.Stamina) .. "+31|r Stamina")
+    T.eq(stub.Text(lines[4].fs), hex(Tip.STAT_COLORS.Crit) .. "+1%|r Crit")
+    T.eq(stub.Text(lines[4].tail), "Equip", "an Equip line's stat says so after it")
+    T.isnil(lines[2].tail)
+    T.truthy(stub.Text(lines[5].fs):find("^DAWNFORGED BATTLEGEAR "), "the set's name")
+    T.truthy(stub.Text(lines[5].fs):find("2/5", 1, true), "its count")
     local texts = kinds(p, "text")
     local said = {}
     for _, t in ipairs(texts) do said[#said + 1] = stub.Text(t.fs) end
@@ -690,6 +686,7 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
         T.falsy(t:find("Dawnforged Helm", 1, true), "the set's pieces left out: the count says it")
         T.falsy(t:find("Item Level", 1, true), "item level only in its tag")
     end
+    local rows = kinds(p, "row")
     local foot = rows[#rows]
     T.eq(stub.Text(foot.label), "Durability 98 / 100")
     T.truthy(stub.Text(foot.value):find("3", 1, true) and stub.Text(foot.value):find("42", 1, true), "the sell price")
@@ -706,11 +703,11 @@ T.test("rich tooltip: a weapon's damage and speed as rows, a plain item's card",
     fillItem(GameTooltip, "sword", { { "Thunderforge Blade", nil, { 0, 0.44, 0.87 } }, { "One-Hand", "Sword" },
         { "41 - 77 Damage", "Speed 2.60" }, "(22.7 damage per second)", "+5 Agility" })
     local p = Panel.Get(GameTooltip)
-    local rows = {}
-    for _, r in ipairs(kinds(p, "row")) do rows[stub.Text(r.label)] = stub.Text(r.value) end
-    T.eq(rows.Damage, "41 - 77")
-    T.eq(rows.Speed, "2.60")
-    T.eq(rows["Damage per second"], "22.7")
+    local said = {}
+    for _, l in ipairs(kinds(p, "line")) do said[#said + 1] = stub.Text(l.fs):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end
+    T.eq(said[1], "41 - 77 Damage", "number first")
+    T.eq(said[2], "2.60 Speed")
+    T.eq(said[3], "22.7 Damage per second")
     T.eq(stub.Text(p.items[1].tags[2].text), "ONE-HAND · SWORD", "the slot line's own word")
     -- Linen Cloth: common, no level, no slot.
     fillItem(GameTooltip, "cloth", { "Linen Cloth", "Max Stack: 20" })
@@ -819,11 +816,9 @@ T.test("rich tooltip: a compare tooltip is the same card as the item's, its chan
     T.truthy(head.icon and head.icon:IsShown(), "its icon")
     T.eq(stub.Text(head.tags[1].text), "ILVL 58")
     T.eq(stub.Text(head.tags[2].text), "LEGS · PLATE")
-    local rows = kinds(p, "row")
-    T.eq(stub.Text(rows[1].label), "Armor", "the same rows as the item's")
-    T.eq(stub.Text(rows[1].value), "646")
-    T.eq(stub.Text(rows[2].label), "Strength", "and the same stat rows")
-    T.eq(stub.Text(rows[2].value), "+16")
+    local lines = kinds(p, "line")
+    T.truthy(stub.Text(lines[1].fs):find("646|r Armor", 1, true), "the same number lines as the item's")
+    T.truthy(stub.Text(lines[2].fs):find("+16|r Strength", 1, true))
     local last = p.items[p.count]
     T.eq(last.kind, "tags", "the changes last")
     T.eq(#last.list, 4)
@@ -1746,7 +1741,7 @@ T.test("rich tooltip: an item's effects sit a little apart from its stats", func
         { "Equip: When struck in melee combat, has a 10% chance of stealing 39 life from the target enemy.", nil, { 0.1, 1, 0.1 } } })
     local p = Panel.Get(GameTooltip)
     local stat
-    for i = 1, p.count do if p.items[i].kind == "row" then stat = i end end
+    for i = 1, p.count do if p.items[i].kind == "line" then stat = i end end
     T.eq(p.items[stat + 1].kind, "rule", "a rule after the stats")
     T.eq(p.items[stat + 2].kind, "text", "then the effect")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -1767,5 +1762,18 @@ T.test("rich tooltip: an item's binding and Unique tags wrap onto a second row",
     T.truthy(head.tags[4].row > 1, "the last ones on another row")
     local room = 290 - 2 * 16 - 44 - 12
     for _, tag in ipairs(head.tags) do T.truthy(tag.at + tag:GetWidth() <= room + 0.5, "never past the edge") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: an Equip sentence's wrapped lines ran into each other.
+T.test("rich tooltip: a wrapped sentence on the card has room between its lines", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Maw of Min'loth", nil, { 0, 0.44, 0.87 } }, "+8 Stamina",
+        { "Equip: When struck in melee combat, has a 10% chance of stealing 39 life from the target enemy.", nil, { 0.1, 1, 0.1 } } })
+    local text = kinds(Panel.Get(GameTooltip), "text")[1]
+    T.eq(text.fs:GetSpacing(), stub.tooltip.RichPanel.LINE_SPACING)
+    local line = kinds(Panel.Get(GameTooltip), "line")[1]
+    T.eq(line.fs:GetSpacing(), 0, "a one-line number keeps none")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

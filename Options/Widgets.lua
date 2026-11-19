@@ -3951,7 +3951,7 @@ end
 -- Neither takes clicks. font: a font slot (Media.RegisterSlot) the text follows,
 -- or nil for the Appearance font.
 
-W.TAG_H, W.TAG_PAD, W.TAG_SLANT = 16, 9, 4
+W.TAG_H, W.TAG_PAD, W.TAG_SLANT = 18, 9, 4
 W.TAG_FILL = { 1, 1, 1 }
 
 -- A tag: a short fact in small capitals inside a slanted outline, its text in
@@ -3965,7 +3965,8 @@ function W.Tag(parent, font)
         borderColor = Style.BAND_LIT, bgColor = W.TAG_FILL, bgAlpha = 0.04 })
     -- Top-left and bottom-right corners cut: a parallelogram.
     Style.Slant(t, "both", W.TAG_SLANT, nil, "left")
-    t.text = Style.Text(t, SIZE.tiny, "CENTER", font)
+    -- Small, not tiny: in a tooltip's card at its scale, tiny was hard to read.
+    t.text = Style.Text(t, SIZE.small, "CENTER", font)
     t.text:SetPoint("CENTER", t, "CENTER", 0, 0)
     t.text:SetWordWrap(false)
     function t.Set(text, color)

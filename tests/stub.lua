@@ -957,6 +957,13 @@ function Widget:SetMultiLine(on) self.__multiLine = on and true or false end
 function Widget:IsMultiLine() return self.__multiLine == true end
 function Widget:SetJustifyH(j) self.__justifyH = j end
 function Widget:GetJustifyH() return self.__justifyH or "CENTER" end
+-- The room between a wrapped text's lines (FontString:SetSpacing; the docs
+-- say it refuses a secret).
+function Widget:SetSpacing(v)
+    if isSecret(v) then error("SetSpacing: secret argument") end
+    self.__spacing = v
+end
+function Widget:GetSpacing() return self.__spacing or 0 end
 function Widget:SetFormattedText(fmt, ...)
     local args = { ... }
     for i = 1, select("#", ...) do args[i] = stub.Plain(args[i]) end

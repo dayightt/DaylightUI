@@ -45,6 +45,7 @@ Panel.WASH_DOWN = 0.16 -- an item's wash, top to bottom
 Panel.SWEEP_W = 70     -- the quality light's sweep
 -- Lines measured with no font metrics (the tests) are this tall per size.
 Panel.LINE_EXTRA = 3
+Panel.LINE_SPACING = 3 -- between the lines of a wrapped sentence
 
 local panels = setmetatable({}, { __mode = "k" }) -- tooltip -> panel
 
@@ -286,6 +287,8 @@ local function text(p, s, c, wrap)
     fs.size = size(s)
     fs:SetWidth(0)
     fs:SetWordWrap(wrap and true or false)
+    -- A wrapped sentence's lines ran into each other without it.
+    fs:SetSpacing(wrap and Panel.LINE_SPACING or 0)
     fs:SetJustifyH("LEFT")
     paint(fs, c)
     return fs
@@ -378,8 +381,7 @@ function Panel.Header(p, spec)
 end
 
 -- A label on the left, its value on the right. s: their text size (body).
--- note: a small word right before the value, in noteColor (a stat's "Equip").
-function Panel.Row(p, label, value, valueColor, labelColor, s, note, noteColor)
+function Panel.Row(p, label, value, valueColor, labelColor, s)
     local item = add(p, { kind = "row" })
     item.label = text(p, s or Style.SIZE.body, labelColor or Style.INK.LABEL)
     item.label:SetText(label or "")
@@ -387,10 +389,6 @@ function Panel.Row(p, label, value, valueColor, labelColor, s, note, noteColor)
         item.value = text(p, s or Style.SIZE.body, valueColor or Style.INK.VALUE)
         item.value:SetText(value)
         item.value:SetJustifyH("RIGHT")
-        if note then
-            item.note = text(p, Style.SIZE.tiny, noteColor or Style.INK.LABEL)
-            item.note:SetText(note)
-        end
     end
 end
 
@@ -534,7 +532,6 @@ local function natural(item)
         return icon + w
     elseif k == "row" then
         return widthOf(item.label) + (item.value and (16 + widthOf(item.value)) or 0)
-            + (item.note and (Panel.NOTE_GAP + widthOf(item.note)) or 0)
     elseif k == "text" or k == "section" then
         return widthOf(item.fs)
     elseif k == "line" then
@@ -626,18 +623,12 @@ function place.header(p, item, y, inner)
     return item.h
 end
 
-Panel.NOTE_GAP = 6
 function place.row(p, item, y)
     item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local h = lineHeight(item.label, item.label.size)
     if item.value then
         item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
-        if item.note then
-            -- The value as wide as its text, the note on its baseline before it.
-            item.note:SetPoint("BOTTOMRIGHT", item.value, "BOTTOMLEFT", -Panel.NOTE_GAP, 0)
-        else
-            item.value:SetPoint("LEFT", item.label, "RIGHT", 16, 0)
-        end
+        item.value:SetPoint("LEFT", item.label, "RIGHT", 16, 0)
         h = math.max(h, lineHeight(item.value, item.value.size))
     end
     return h
@@ -651,7 +642,7 @@ function place.text(p, item, y, inner)
     if type(h) == "number" and not isSecret(h) and h > 0 then return h end
     -- No metrics (the tests): as many lines as the width needs.
     local lines = math.max(1, math.ceil(widthOf(fs) / math.max(1, inner)))
-    return lines * (fs.size + Panel.LINE_EXTRA)
+    return lines * (fs.size + Panel.LINE_EXTRA) + (lines - 1) * Panel.LINE_SPACING
 end
 
 function place.section(p, item, y)

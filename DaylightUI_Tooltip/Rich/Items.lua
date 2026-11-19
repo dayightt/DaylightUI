@@ -131,10 +131,13 @@ local function trigger(t)
     end
 end
 
--- A stat as a row like every other number on the card: its name the label,
--- the number in its stat's color; one from an Equip line says so before it.
-local function statRow(p, num, name, color, equip)
-    ns.RichPanel.Row(p, name, num, color, Style.INK.LABEL, nil, equip and L["Equip"] or nil, Style.INK.GOOD)
+-- Every number on the card the way the game writes it, number first at the
+-- left edge ("1,287 Armor", "+8 Stamina"): one column the eye runs down. The
+-- number white, or a stat's in its color; the word in the sentence color.
+-- One from an Equip line says so after it, small.
+local function numLine(p, num, word, color, equip)
+    ns.RichPanel.Line(p, hex(color or Style.INK.VALUE) .. num .. "|r " .. word, Style.INK.TEXT, nil,
+        equip and L["Equip"] or nil, Style.INK.GOOD)
 end
 
 -- The game's binding lines and Unique: facts about the item itself, shown
@@ -196,22 +199,22 @@ local function sort(n, lines, own, info, groups, skip)
             foot.durability = t
         elseif t:find(P.armor) then
             local v = t:match(P.armor)
-            groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, ARMOR or L["Armor"], v) end
+            groups.list[#groups.list + 1] = function(p) numLine(p, v, ARMOR or L["Armor"]) end
         elseif t:find(P.block) then
             local v = t:match(P.block)
-            groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, BLOCK or L["Block"], v) end
+            groups.list[#groups.list + 1] = function(p) numLine(p, v, BLOCK or L["Block"]) end
         elseif t:find(P.damage) then
             local lo, hi = t:match(P.damage)
             groups.list[#groups.list + 1] = function(p)
-                ns.RichPanel.Row(p, DAMAGE or L["Damage"], string.format(L["%s - %s"], lo, hi))
+                numLine(p, string.format(L["%s - %s"], lo, hi), DAMAGE or L["Damage"])
             end
             local words, num = wordsAndNumber(right and Items.Words(right) or "")
             if words then
-                groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, words, num) end
+                groups.list[#groups.list + 1] = function(p) numLine(p, num, words) end
             end
         elseif t:find(P.dps) then
             local v = t:match(P.dps)
-            groups.list[#groups.list + 1] = function(p) ns.RichPanel.Row(p, L["Damage per second"], v) end
+            groups.list[#groups.list + 1] = function(p) numLine(p, v, L["Damage per second"]) end
         elseif t:find(P.setName) then
             local name, have, total = t:match(P.setName)
             inSet = true
@@ -242,7 +245,7 @@ local function sort(n, lines, own, info, groups, skip)
                     local num, name = Items.Stat(part)
                     if num then
                         local color = Tip.StatColor(name) or Style.INK.GOOD
-                        groups.list[#groups.list + 1] = function(p) statRow(p, num, name, color, true) end
+                        groups.list[#groups.list + 1] = function(p) numLine(p, num, name, color, true) end
                     end
                 end
             elseif word then
@@ -255,7 +258,7 @@ local function sort(n, lines, own, info, groups, skip)
         elseif Items.Stat(t) and not right and not isRed(c) then
             local num, name = Items.Stat(t)
             local color = Tip.StatColor(name) or (num:sub(1, 1) == "-" and Style.INK.DAMAGE) or Style.INK.VALUE
-            groups.list[#groups.list + 1] = function(p) statRow(p, num, name, color) end
+            groups.list[#groups.list + 1] = function(p) numLine(p, num, name, color) end
         elseif ns.Rich.IsFlavor(line) then
             groups.quote[#groups.quote + 1] = function(p) ns.Rich.Flavor(p, line) end
         else
