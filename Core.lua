@@ -915,7 +915,11 @@ end)
 
 DUI.RegisterEvent("PLAYER_LOGIN", function()
     -- The talent set is known now, so pick its profile before anything is built.
-    if DUI.DB.OnLogin() then DUI.Style.PickFont() end
+    -- The font is picked again even when the profile stays: a shared font from an
+    -- addon that loads after Daylight UI only exists from now on, and aura numbers
+    -- and the game's text take the font once, at login.
+    DUI.DB.OnLogin()
+    DUI.Style.PickFont()
     -- Migrate old fade settings before any module merges its defaults.
     if DUI.FadeUpgrade then DUI.SafeCall(DUI.FadeUpgrade.Run, DUI.DB.Active()) end
     local missing = DUI.MissingParts(DUI, DUI.CORE_PARTS)
