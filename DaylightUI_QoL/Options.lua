@@ -15,6 +15,12 @@ local QUALITY = { poor = "Poor (gray) and up", common = "Common (white) and up",
 local QUALITY_ORDER = { "poor", "common", "uncommon", "rare", "epic" }
 local GROW = { up = "Up: newest at the bottom", down = "Down: newest on top" }
 local NAME_COLOR = { quality = "Quality color", white = "White" }
+local STYLE = { fade = "Fade away", log = "Keep as a log" }
+local function logOn(get) return get("lootFeedStyle") == "log" end
+-- Only a log stays on screen, so only a log fades like the rest of the UI.
+local function logFadeOff(get) return lootOff(get) or not logOn(get) end
+local logFade = DaylightUI.Fade.Card("lootFeedFade.", nil, logFadeOff, "Loot feed")
+for _, item in ipairs(logFade.items) do item.hidden = logFadeOff end
 local BORDER_COLOR = { normal = "Daylight UI", quality = "Quality color", accent = "Accent color", custom = "One color" }
 local backRows = DaylightUI.Options.BackAlphaRows("lootFeedAlpha", "Loot feed",
     function(get) return get("lootFeed") ~= true or get("lootFeedBack") == false end)
@@ -175,11 +181,20 @@ ns.OPTIONS = { pages = {
               desc = "A skill going up shows its new rank, out of its cap: Tailoring 152 / 225. More skill-ups move the same line on." },
         } },
         { label = "Timing", items = {
+            { type = "dropdown", key = "lootFeedStyle", label = "Loot feed style", values = STYLE, order = { "fade", "log" },
+              disabled = lootOff,
+              desc = "Fade away: each line leaves a few seconds after your last loot of it. Keep as a log: lines stay, like a chat window for your loot. Scroll over it with the mouse wheel to see older loot; it goes back to the newest a few seconds after your mouse leaves. The last 50 are kept for this character, after a reload too." },
             { type = "slider", key = "lootFeedHold", label = "Loot feed line time", min = 2, max = 20, step = 1,
-              desc = "How many seconds each line stays after your last loot of it.", disabled = lootOff },
-            { type = "toggle", key = "lootFeedTogether", label = "Loot feed lines leave together", disabled = lootOff,
+              desc = "How many seconds each line stays after your last loot of it. In a log, more of the same within this time adds to its line instead of a new one.", disabled = lootOff },
+            { type = "toggle", key = "lootFeedTogether", label = "Loot feed lines leave together",
+              disabled = function(get) return lootOff(get) or logOn(get) end,
               desc = "Every line stays until the newest one's time is up, then they all go. When off, each line leaves on its own." },
+            { type = "button", label = "Clear the loot log", text = "Clear", confirm = true, disabled = lootOff,
+              hidden = function(get) return not logOn(get) end,
+              desc = "Empties the loot log for this character.",
+              func = function() if ns.LootFeed then ns.LootFeed.Clear() end end },
         } },
+        logFade,
         { label = "Size", items = {
             { type = "slider", label = "Loot feed scale", min = 0.5, max = 2, step = 0.05, unit = "x", disabled = lootOff,
               desc = "The whole feed. Also the mouse wheel over its handle in /dui unlock.",
