@@ -1394,3 +1394,74 @@ T.test("rich tooltip: in a fight a world object is the pill too, so it never swa
     stub.shift = false
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The tooltip's own Show is hooked once Rich is in use: a refill of a tooltip
+-- already showing builds its card at the Show, not a frame later.
+T.test("rich tooltip: a refill's Show builds the card at once, before any update", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local p = Panel.Get(GameTooltip)
+    fillItem(GameTooltip, "legplates", LEGPLATES) -- shown already: no OnShow
+    T.eq(stub.Text(p.items[1].title), "Tarnished Legplates", "built at the Show")
+    T.eq(GameTooltipTextLeft1:GetAlpha(), 0)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a muted tooltip goes back to alpha 0 whatever sets it", function()
+    local Tip = login("rich")
+    stub.units.mouseover = { name = "Southsea Swashbuckler", isPlayer = false, reaction = 2, health = 87, maxHealth = 100 }
+    stub.EnterCombat()
+    hover("mouseover", { "Southsea Swashbuckler" })
+    T.eq(Tip.Muted(GameTooltip), "pill")
+    GameTooltip:SetAlpha(0.6) -- the game's own fade
+    T.eq(GameTooltip:GetAlpha(), 0, "back to 0 at once")
+    GameTooltip:Show()
+    T.eq(GameTooltip:GetAlpha(), 0, "and after a Show")
+    -- Not muted: left alone.
+    stub.LeaveCombat()
+    update()
+    GameTooltip:SetAlpha(0.6)
+    T.eq(GameTooltip:GetAlpha(), 0.6)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: the Simple look never gets the method hooks", function()
+    login()
+    local raw = rawget(GameTooltip, "Show")
+    hover("mouseover", { "Jaina" })
+    T.eq(rawget(GameTooltip, "Show"), raw, "no hook on Show")
+    T.isnil(rawget(GameTooltip, "SetAlpha"), "nor on SetAlpha")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: "RAGING DAYLIGHT" (the player's own name) under each quest on
+-- a creature's card. The game names whose progress it is, for a group.
+T.test("rich tooltip: your own name under a quest is left out, a party member's stays", function()
+    local _, Panel = login("rich")
+    stub.units.player.name = "Daylight"
+    stub.units.mouseover = { name = "Southsea Pirate", isPlayer = false, reaction = 2, health = 50, maxHealth = 100 }
+    local data = { type = Enum.TooltipDataType.Unit, lines = { {}, { type = 17 }, { type = 18 }, { type = 8 }, { type = 18 }, { type = 8 } } }
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip.__unit = "mouseover"
+    tip:AddLine("Southsea Pirate")
+    tip:AddLine("Pirate Hats Ahoy!", 1, 0.82, 0)
+    tip:AddLine("Daylight", 1, 0.82, 0)
+    tip:AddLine(" - 15/20 Southsea Pirate Hat")
+    tip:AddLine("Thrall", 1, 0.82, 0)
+    tip:AddLine(" - 3/20 Southsea Pirate Hat")
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    tip:Show()
+    local p = Panel.Get(tip)
+    local said = {}
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "section" or it.kind == "text" then said[#said + 1] = stub.Text(it.fs) end
+    end
+    T.eq(said[1], "PIRATE HATS AHOY!", "the quest")
+    T.eq(said[2], "Thrall", "a party member's name, small")
+    for _, t in ipairs(said) do T.falsy(t:upper():find("DAYLIGHT", 1, true), "never your own") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

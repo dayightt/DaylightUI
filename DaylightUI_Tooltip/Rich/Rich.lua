@@ -48,6 +48,7 @@ end
 -- draw when the tooltip is already up (a refill), after every other post-call.
 function Rich.Filled(tip, data)
     if not Rich.On(tip) then return end
+    Rich.Hook(tip)
     local s = stateOf(tip)
     s.data, s.dirty = data, true
 end
@@ -69,8 +70,45 @@ local function frameOnly(tip, s, p)
 end
 
 -- Shown: built now if a fill is waiting, then fitted.
+-- Post-hooks on the tooltip's own Show, SetShown and SetAlpha, put on once
+-- Rich is first in use (a tooltip in the Simple look never gets them). The
+-- client's Show puts a refilled tooltip back at full opacity and its size,
+-- and waiting for the next update let one frame of the game's own tooltip
+-- draw; the client's own fade sets the alpha of a muted one back up. So: a
+-- fill waiting is built at the Show, and a muted tooltip goes back to alpha 0
+-- the moment anything sets it. PrettyTooltip hooks the same methods on this
+-- client.
+local hooked = setmetatable({}, { __mode = "k" })
+local holding = false
+local function nativeShown(tip)
+    if not Rich.On(tip) then return end
+    local s = state[tip]
+    if s and s.dirty and tip:IsShown() then DUI.SafeCall(Rich.Build, tip) end
+    if ns.Tooltip.Muted(tip) and not holding then
+        holding = true
+        tip:SetAlpha(0)
+        holding = false
+    end
+end
+function Rich.Hook(tip)
+    if hooked[tip] or type(tip) ~= "table" or type(tip.Show) ~= "function" then return end
+    hooked[tip] = true
+    hooksecurefunc(tip, "Show", nativeShown)
+    hooksecurefunc(tip, "SetShown", function(self, on)
+        if not isSecret(on) and on then nativeShown(self) end
+    end)
+    hooksecurefunc(tip, "SetAlpha", function(self, a)
+        if holding or not ns.Tooltip.Muted(self) then return end
+        if not isSecret(a) and a == 0 then return end
+        holding = true
+        self:SetAlpha(0)
+        holding = false
+    end)
+end
+
 function Rich.Shown(tip)
     if not Rich.On(tip) then return Rich.Off(tip) end
+    Rich.Hook(tip)
     local s = state[tip]
     if s and s.dirty then Rich.Build(tip) end
     local p = Panel.Get(tip)
@@ -91,7 +129,16 @@ function Rich.Step(tip)
         local want = (s.unit and Pill.Wanted(tip, s.unit)) or (s.world and Pill.WantedWorld(tip)) or false
         if (s.pill == true) ~= want then return Rich.Build(tip) end
     end
-    if s.pill then return Pill.Step(tip, s.unit) end
+    if s.pill then
+        -- A line another addon adds under the pill is muted too.
+        local n = tip.NumLines and tip:NumLines()
+        if not isSecret(n) and n ~= s.lines then
+            s.lines = n
+            local p = Panel.Get(tip)
+            if p then Panel.Mute(p) end
+        end
+        return Pill.Step(tip, s.unit)
+    end
     local p = Panel.Get(tip)
     -- Showing with no card and no pill (nothing marked it for a build): one now.
     if not (p and p:IsShown()) then return Rich.Build(tip) end
@@ -224,6 +271,16 @@ end
 local LT = Enum and Enum.TooltipDataLineType
 Rich.QUEST_TITLE = LT and LT.QuestTitle or 17
 Rich.QUEST_OBJECTIVE = LT and LT.QuestObjective or 8
+Rich.QUEST_PLAYER = LT and LT.QuestPlayer or 18
+
+-- The game names whose progress a quest's lines are under its title, for a
+-- group. Your own name says nothing; a party member's does.
+function Rich.OwnName(line)
+    if not (line and line.left and line.type == Rich.QUEST_PLAYER) then return false end
+    local me = UnitName("player")
+    if isSecret(me) or type(me) ~= "string" then return false end
+    return Rich.Bare(line.left) == me
+end
 
 -- A line's words alone: no color codes, icons, leading spaces or dash.
 function Rich.Bare(t)
@@ -303,9 +360,13 @@ function Rich.Lines(p, n, lines, from)
     for i = from, n do
         local line = lines[i]
         local name, have, need, chance, done = Rich.Objective(line)
-        local title = not name and line.left and not line.right
+        local who = line.type == Rich.QUEST_PLAYER
+        local title = not name and not who and line.left and not line.right
             and (line.type == Rich.QUEST_TITLE or (i < n and Rich.Objective(lines[i + 1]) ~= nil))
-        if title or name then
+        if who then
+            -- Under a quest's title: a party member's name, small; yours, nothing.
+            if not Rich.OwnName(line) then Panel.Text(p, Rich.Bare(line.left), Style.INK.LABEL, Style.SIZE.small) end
+        elseif title or name then
             if not inQuest and p.count > 0 then Panel.Rule(p) end
             inQuest = true
             if title then
@@ -382,7 +443,15 @@ function Rich.Build(tip)
     s.world = not unit and worldThing(s.data) or nil
     if (unit and ns.RichPill.Wanted(tip, unit)) or (s.world and ns.RichPill.WantedWorld(tip)) then
         if p:IsShown() then Panel.Release(p) end
+        -- Nothing of the tooltip itself may draw under the pill: the client
+        -- puts its alpha back on its own (its fade as the mouse leaves, a
+        -- refill's Show), and its lines showed for a frame each time.
+        Panel.Mute(p)
+        Tip.ShowShell(tip, false)
+        showBar(tip, false)
         s.pill = true
+        s.lines = tip.NumLines and tip:NumLines() or nil
+        if isSecret(s.lines) then s.lines = nil end
         ns.RichPill.Show(tip, unit)
         return
     end

@@ -15,6 +15,17 @@ return {
         ["DaylightUI_ActionBars/PadSkin.lua|GamepadActionBarStyleUtil|ApplyExpandedActionBarStyle"] = "a controller bar grows when its trigger is held: our look back on",
         ["DaylightUI_ActionBars/PadSkin.lua|GamepadActionBarStyleUtil|ApplyCollapsedActionBarStyle"] = "a controller bar shrinks again: our look back on",
 
+        -- The rich tooltip, put on only once that look is in use (Rich.Hook). The
+        -- client's Show and its own fade put a muted tooltip back at full opacity
+        -- between two updates, and the game's own tooltip drew for a frame (seen in
+        -- a frame by frame recording). PrettyTooltip hooks these same methods on
+        -- Forever and works; the old "call a nil value" from the Tooltip module's
+        -- hooks (2026-10-04) was never traced to hooking itself. Post-hooks: they
+        -- build the card and set the alpha back to 0, nothing else.
+        ["DaylightUI_Tooltip/Rich/Rich.lua|tip|Show"] = "a refill's Show: the waiting card is built before the draw, a muted tooltip stays at alpha 0",
+        ["DaylightUI_Tooltip/Rich/Rich.lua|tip|SetShown"] = "the comparison manager shows its tooltips with SetShown, never Show: the same",
+        ["DaylightUI_Tooltip/Rich/Rich.lua|tip|SetAlpha"] = "a muted tooltip (the fight pill, a world thing left behind) goes back to alpha 0 when the game sets it",
+
         -- Daylight UI's own
         ["Motion.lua|frame|Show"] = "ours: Motion.Window is only called on our own windows (all 9 callers checked)",
         ["Motion.lua|frame|SetShown"] = "ours: Motion.Window is only called on our own windows (all 9 callers checked)",
