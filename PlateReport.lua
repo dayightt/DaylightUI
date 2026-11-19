@@ -12,6 +12,17 @@ local L = DUI.L
 local R = {}
 DUI.PlateReport = R
 
+DUI.RegisterCommand("flatoff", function()
+    local mod = DUI:GetModule("Nameplates")
+    if not (mod and mod.enabled) then return DUI.Print(L["flatoff: Nameplates is off"]) end
+    if InCombatLockdown() then return DUI.Print(L["flatoff: try again out of combat"]) end
+    if mod.ns.Manager.ToggleFlattening() then
+        DUI.Print(L["flatoff: plates no longer flatten their layers (until /reload)"])
+    else
+        DUI.Print(L["flatoff: plates flatten their layers again"])
+    end
+end, L["/dui flatoff - switch nameplate layer flattening off and on"])
+
 local function plain(v)
     if DUI.IsSecret(v) then return nil end
     return v

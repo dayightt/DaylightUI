@@ -12,6 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased",
+        new = {
+            { "Nameplates", "/dui flatoff toggles layer flattening until reload to help diagnose disappearing nameplates" },
+        },
         fixed = {
             { "Nameplates", "Long /dui platefix reports keep the details of the missing plate and the latest events before the check" },
             { "Nameplates", "Nameplates and speech bubbles come back after loading screens, flights, cinematics and the AFK screen when they had gone missing, and the last /dui platefix step brings them back without a /reload" },
