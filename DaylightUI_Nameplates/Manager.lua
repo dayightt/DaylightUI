@@ -373,10 +373,8 @@ function Manager.Abandon(p)
 end
 
 -- Takes every frame under a Daylight UI plate off its plate again and sets each
--- click area again. The game's options update (UpdateNamePlateOptions) gives
--- every frame its unit, events and click area back; Manager.Start switches off
--- the two driver events that run it in play (DISPLAY_SIZE_CHANGED, CVAR_UPDATE),
--- and VARIABLES_LOADED still does once.
+-- click area again. The game's options update (UpdateNamePlateOptions) puts its
+-- own plate size and click area back on every plate.
 Manager.RECLAIM_EVENTS = { DISPLAY_SIZE_CHANGED = true, VARIABLES_LOADED = true, CVAR_UPDATE = true }
 function Manager.Reclaim()
     -- The game's options update also put its own plate size on: Daylight UI's
@@ -860,7 +858,6 @@ function Manager.PlateSize()
     return (c.width + 2 * pad) * scale, 2 * half * scale
 end
 
-Manager.DRIVER_OFF = { "DISPLAY_SIZE_CHANGED", "CVAR_UPDATE" }
 -- The aura scale and debuff padding settings (lower case, as CVAR_UPDATE is compared).
 Manager.SIZE_CVARS = { nameplateaurascale = true, nameplatedebuffpadding = true }
 -- Written only when the size changed, unless force says the game has just put
@@ -968,15 +965,11 @@ function Manager.Start()
     if type(driver) == "table" and type(driver.HookScript) == "function" then
         driver:HookScript("OnEvent", function(_, event, unit)
             if event == "NAME_PLATE_UNIT_ADDED" then DUI.SafeCall(Manager.FrameHandedOut, unit)
-            elseif Manager.RECLAIM_EVENTS[event] then DUI.SafeCall(Manager.Reclaim) end
+            -- Only for the CVars the driver itself redoes plates on (its optionCVars).
+            elseif Manager.RECLAIM_EVENTS[event] and (event ~= "CVAR_UPDATE" or (driver.optionCVars or EMPTY)[unit]) then
+                DUI.SafeCall(Manager.Reclaim)
+            end
         end)
-    end
-    -- The game's driver redoes every plate's frame, size and click area on these
-    -- (UpdateNamePlateOptions), handing its frames their unit and events again
-    -- under the Daylight UI plates. Platynator switches them off on this client;
-    -- the plate size is set here instead.
-    if type(driver) == "table" and type(driver.UnregisterEvent) == "function" then
-        for _, e in ipairs(Manager.DRIVER_OFF) do pcall(driver.UnregisterEvent, driver, e) end
     end
     for _, e in ipairs({ "DISPLAY_SIZE_CHANGED", "UI_SCALE_CHANGED" }) do
         DUI.RegisterEvent(e, function() Manager.ApplySize() end)
