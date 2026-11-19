@@ -280,7 +280,8 @@ local function rollInfo(f)
     return quality, bop
 end
 
-local function qualityColor(quality)
+-- An item quality's color { r, g, b }, or nil.
+function LootRoll.QualityColor(quality)
     if type(quality) ~= "number" then return nil end
     local getColor = (C_Item and C_Item.GetItemQualityColor) or GetItemQualityColor
     if type(getColor) ~= "function" then return nil end
@@ -308,8 +309,18 @@ local function slotText(f)
     return ok and LootRoll.Words(link) or nil
 end
 
+-- The line under the item's name: its slot, and "BoP" in the warn color.
+function LootRoll.Sub(slot, bop)
+    if bop ~= true then return slot or "" end
+    local Style, L = DUI.Style, DUI.L
+    local Parts = DUI.Win and DUI.Win.Parts
+    local bopText = Parts and (Parts.Hex(Style.INK.WARN) .. L["BoP"] .. "|r") or L["BoP"]
+    return slot and (slot .. "  ·  " .. bopText) or bopText
+end
+
 -- Timer colors: the accent pair, or the warn color's pair near the end.
-local function paintTimer(r)
+-- r holds the bar and whether time is low.
+function LootRoll.PaintTimer(r)
     local W = DUI.Widgets
     if r.low then
         local c = DUI.Style.INK.WARN
@@ -318,18 +329,20 @@ local function paintTimer(r)
         W.BarAccent(r.bar)
     end
 end
+local paintTimer = LootRoll.PaintTimer
 
 -- Near the end the fill pulses its alpha down and back while low and shown.
 -- With motion off it stays steady.
-local function breathe(r, down)
+function LootRoll.Breathe(r, down)
     local M = DUI.Motion
     if not (r.low and M and M.On() and r.bar:IsVisible()) then
         r.bar.fill:SetAlpha(1)
         return
     end
     M.Tween(r, down and 1 or 0.45, down and 0.45 or 1, M.SLOW, function(a) r.bar.fill:SetAlpha(a) end,
-        function() breathe(r, not down) end)
+        function() LootRoll.Breathe(r, not down) end)
 end
+local breathe = LootRoll.Breathe
 
 local function followTimer(r, timer)
     local ok, lo, hi = pcall(timer.GetMinMaxValues, timer)
@@ -359,19 +372,11 @@ local function openRoll(Kit, f)
     if not r then return end
     local Style, M = DUI.Style, DUI.Motion
     local quality, bop = rollInfo(f)
-    local color = qualityColor(quality)
+    local color = LootRoll.QualityColor(quality)
     if type(f.IconFrame) == "table" then Kit.Paint(Kit.ShellOf(f.IconFrame), color) end
     local lo, hi = DUI.Gradients.PairFrom(color or { Style.Accent() })
     DUI.Gradients.PaintPair(r.line, lo, hi)
-    local slot = slotText(f)
-    local L = DUI.L
-    local sub = slot or ""
-    if bop == true then
-        local Parts = DUI.Win and DUI.Win.Parts
-        local bopText = Parts and (Parts.Hex(Style.INK.WARN) .. L["BoP"] .. "|r") or L["BoP"]
-        sub = slot and (slot .. "  ·  " .. bopText) or bopText
-    end
-    r.sub:SetText(sub)
+    r.sub:SetText(LootRoll.Sub(slotText(f), bop))
     r.secs, r.low = nil, nil
     r.bar.fill:SetAlpha(1)
     paintTimer(r)
@@ -523,7 +528,10 @@ end
 -- For tests.
 function LootRoll.Of(f) return rolls[f] end
 
-Engine.Register({ key = "lootroll", pack = "system", apply = function(Kit)
+-- With Daylight UI's own roll window on (Rolls/Stack.lua) the popups are only
+-- kept running, unseen, so this skin stays off.
+Engine.Register({ key = "lootroll", pack = "system", skip = function() return ns.RollStack ~= nil and ns.RollStack.On() end,
+    apply = function(Kit)
     local function all()
         for i = 1, 8 do skinRoll(Kit, _G["GroupLootFrame" .. i]) end
         local c = _G.GroupLootContainer

@@ -21,4 +21,27 @@ ns.DEFAULTS = {
     addonSkins = {}, -- [switch key] = true (filled by Engine.AddonSwitch); false leaves that addon unskinned
     windowScales = {}, -- [game window name] = scale set with Ctrl + mouse wheel (WindowScale.lua)
     windowSpots = {}, -- [game window name] = dragged position (WindowMove.lua)
+    rolls = {
+        enabled = true,       -- Daylight UI's own roll window; off = the game's popups in Daylight UI style (Rolls/)
+        list = "auto",        -- auto | always | hover | off: when a roll shows who picked what
+        compact = true,       -- several rolls up: compact cards
+        fightCompact = true,  -- in a fight: compact, lists only under the mouse
+        linger = 5,           -- seconds a result stays up
+        holdOnHover = true,
+        maxShown = 4,
+        grow = "up",          -- up | down from the Loot Rolls handle
+        width = 300,
+        spacing = 6,
+        buttonSize = 30,
+        buttonWords = true,
+        icons = "daylight",   -- daylight | game
+        sort = "best",        -- best | picked
+        showPass = true,
+        rollBars = true,
+        ticks = true,
+        twins = true,
+        timerText = true,
+        qualityLine = true,
+        winShine = true,
+    },
 }

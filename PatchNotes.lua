@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Nameplates", "Friendly players can show their class icon by their name, in the icon style you picked for each class (Nameplates, Friendly)" },
+        { "Loot", "Loot rolls in Daylight UI style that show who picked Need, Greed or Pass, everyone's roll and who won. Several drops stack small, and two of the same item are marked" },
     }, changed = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
     }, fixed = {

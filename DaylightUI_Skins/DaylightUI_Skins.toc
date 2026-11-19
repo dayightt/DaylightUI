@@ -22,6 +22,11 @@ Packs\Collections.lua
 Packs\System.lua
 Packs\Breath.lua
 Packs\LossOfControl.lua
+Rolls\Chat.lua
+Rolls\Data.lua
+Rolls\Card.lua
+Rolls\Sample.lua
+Rolls\Stack.lua
 Packs\Game\Spellbook.lua
 Packs\Game\Character.lua
 Packs\Game\Npc.lua

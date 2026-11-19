@@ -1484,37 +1484,19 @@ T.test("skins: the game's quest window keeps its dark text after the map lit the
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- A roll popup as the game's template makes it (GroupLootFrame.xml, forever).
+-- A roll popup as the game's template makes it (tests/rollworld.lua).
 local function rollPopup()
-    local roll = CreateFrame("Frame", "GroupLootFrame1", UIParent)
-    roll:SetSize(277, 67)
-    roll.Background = roll:CreateTexture(); roll.Background:SetTexture("gold frame")
+    require("rollworld").GameFrames()
+    local roll = _G.GroupLootFrame1
     roll.rollID = 7
-    roll.IconFrame = CreateFrame("Button", nil, roll)
-    roll.IconFrame:SetSize(34, 34)
-    roll.IconFrame.Icon = roll.IconFrame:CreateTexture()
-    roll.IconFrame.Border = roll.IconFrame:CreateTexture()
-    roll.Name = roll:CreateFontString()
-    roll.Timer = CreateFrame("StatusBar", nil, roll)
-    roll.Timer:SetMinMaxValues(0, 60000)
-    local box = CreateFrame("Frame", nil, roll)
-    roll.LootButtonContainer = box
-    for _, key in ipairs({ "NeedButton", "GreedButton", "PassButton", "TransmogButton" }) do
-        local b = CreateFrame("Button", nil, box)
-        b:SetSize(32, 32)
-        local art, glow = b:CreateTexture(), b:CreateTexture()
-        art:SetTexture("dice"); glow:SetTexture("dice glow")
-        function b:GetNormalTexture() return art end
-        function b:GetHighlightTexture() return glow end
-        box[key] = b
-    end
-    roll:Hide()
     return roll
 end
 
 T.test("skins: a loot roll popup gets our look: quality line and icon outline, the buttons in a row, our timer", function()
     local roll
     local S = login(function()
+        -- This skin dresses the game's popups only with Daylight UI's roll window off.
+        DaylightUIDB.modules.Skins = { rolls = { enabled = false } }
         roll = rollPopup()
         _G.GetLootRollItemInfo = function(id) if id == 7 then return "icon", "Sword", 1, 3, true end end
         _G.GetItemQualityColor = function(q) return 0, 0.44, 0.87 end

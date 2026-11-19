@@ -1,0 +1,782 @@
+local stub = require("stub")
+
+-- Two epics and the group from the mockups, used by every roll test below.
+local RING = "|cffa335ee|Hitem:17063|h[Band of Accuria]|h|r"
+local ROBE = "|cffa335ee|Hitem:19145|h[Robe of Volatile Power]|h|r"
+local SEVEN = {
+    { name = "Bram Holloway", class = "WARRIOR" },
+    { name = "Kaelith Dawnmere", class = "MAGE" },
+    { name = "Mira Calloway", class = "HUNTER", self = true },
+    { name = "Tomas Reed", class = "ROGUE" },
+    { name = "Sera Voss", class = "PRIEST" },
+    { name = "Ilyra Fenwick", class = "DRUID" },
+    { name = "Doran Ashby", class = "PALADIN" },
+}
+
+-- Logs in with the skins and a fake loot roll world. opts.history = false is the
+-- world where C_LootHistory knows nothing; opts.enabled = false switches the
+-- Daylight UI roll window off before load.
+local function rollsLogin(opts)
+    opts = opts or {}
+    local RW = require("rollworld")
+    stub.Load({ skins = true, before = function()
+        RW.Install()
+        RW.GameFrames()
+        if opts.history == false then RW.UseHistory(false) end
+        if opts.enabled == false then
+            _G.DaylightUIDB = { modules = { Skins = { rolls = { enabled = false } } } }
+        end
+        if opts.before then opts.before() end
+    end })
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    return stub.skins, RW
+end
+
+T.test("rollworld: a drop starts a roll the way the game does", function()
+    local RW = require("rollworld")
+    stub.Load({ skins = true, before = function() RW.Install(); RW.GameFrames() end })
+    local rollID, historyID = RW.Drop({ name = "Band of Accuria", link = "|cffa335ee|Hitem:17063::::::::60:::::|h[Band of Accuria]|h|r", quality = 4, bop = true,
+        players = { { name = "Bram", class = "WARRIOR" }, { name = "Mira", class = "HUNTER", self = true } } })
+    local _, name, _, quality, bop, canNeed = GetLootRollItemInfo(rollID)
+    T.eq(name, "Band of Accuria"); T.eq(quality, 4); T.eq(bop, true); T.eq(canNeed, true)
+    T.eq(GetActiveLootRollIDs()[1], rollID)
+    T.eq(C_LootHistory.GetSortedInfoForDrop(1, historyID).rollInfos[1].state, Enum.EncounterLootDropRollState.NoRoll)
+    RollOnLoot(rollID, 1)
+    T.eq(RW.rolled[1].id, 1, "Need is 1")
+end)
+
+
+T.test("rolls quiet: the game's popups are unseen and take no mouse", function()
+    local S, RW = rollsLogin()
+    RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local f = _G.GroupLootFrame1
+    T.truthy(f:IsShown(), "the game's popup still runs")
+    T.eq(f:GetAlpha(), 0)
+    T.eq(f:IsMouseEnabled(), false)
+    T.eq(f.LootButtonContainer.NeedButton:IsMouseEnabled(), false)
+    T.eq(f.LootButtonContainer.PassButton:IsMouseEnabled(), false)
+    T.eq(f.IconFrame:IsMouseEnabled(), false)
+    stub.RunTimers()
+    T.isnil(S.LootRoll.Of(f), "the old popup skin stays off")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls quiet: with the switch off the game's popups are skinned as before", function()
+    local S, RW = rollsLogin({ enabled = false })
+    RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    stub.RunTimers()
+    T.eq(_G.GroupLootFrame1:IsMouseEnabled(), true)
+    T.truthy(S.LootRoll.Of(_G.GroupLootFrame1))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls quiet: the controller UI keeps the game's own roll window", function()
+    local S = rollsLogin({ before = function()
+        _G.InputUtil = _G.InputUtil or {}
+        InputUtil.IsGamepadUIEnabled = function() return true end
+    end })
+    T.eq(S.RollStack.On(), false)
+    InputUtil.IsGamepadUIEnabled = function() return false end
+    T.eq(S.RollStack.On(), true)
+end)
+T.test("rolls chat: every English roll line parses with its drop id", function()
+    local C = rollsLogin().RollChat
+    local link = RING
+    local l = C.Parse(LOOT_ROLL_NEED:format(41, "Bram Holloway", link))
+    T.eq(l.kind, "pick"); T.eq(l.pick, "need"); T.eq(l.who, "Bram Holloway"); T.eq(l.link, link); T.eq(l.historyID, 41)
+    l = C.Parse(LOOT_ROLL_ROLLED_GREED:format(41, 98, link, "Sera Voss"))
+    T.eq(l.kind, "roll"); T.eq(l.pick, "greed"); T.eq(l.roll, 98); T.eq(l.who, "Sera Voss")
+    l = C.Parse(LOOT_ROLL_YOU_WON:format(41, link)); T.eq(l.kind, "won"); T.eq(l.self, true); T.isnil(l.who)
+    l = C.Parse(LOOT_ROLL_WON:format(41, "Kaelith Dawnmere", link)); T.eq(l.kind, "won"); T.eq(l.who, "Kaelith Dawnmere")
+    l = C.Parse(LOOT_ROLL_WON_NO_SPAM_NEED:format(41, "Bram Holloway", 91, link)); T.eq(l.kind, "won"); T.eq(l.pick, "need"); T.eq(l.roll, 91)
+    l = C.Parse(LOOT_ROLL_YOU_WON_NO_SPAM_GREED:format(41, 55, link)); T.eq(l.kind, "won"); T.eq(l.self, true); T.eq(l.pick, "greed"); T.eq(l.roll, 55)
+    l = C.Parse(LOOT_ROLL_PASSED_AUTO:format("Doran", link)); T.eq(l.pick, "pass"); T.isnil(l.historyID); T.eq(l.who, "Doran")
+    l = C.Parse(LOOT_ROLL_PASSED_SELF_AUTO:format(41, link)); T.eq(l.pick, "pass"); T.eq(l.self, true)
+    l = C.Parse(LOOT_ROLL_PASSED:format(41, "Doran Ashby", link)); T.eq(l.pick, "pass"); T.eq(l.who, "Doran Ashby")
+    l = C.Parse(LOOT_ROLL_NEED_SELF:format(41, link)); T.eq(l.kind, "pick"); T.eq(l.pick, "need"); T.eq(l.self, true)
+    l = C.Parse(LOOT_ROLL_ROLLED_DE:format(12, link, "Ilyra Fenwick")); T.eq(l.kind, "roll"); T.eq(l.pick, "disenchant"); T.eq(l.roll, 12)
+    l = C.Parse(LOOT_ROLL_LOST_ROLL:format(41, NEED, 37, link)); T.eq(l.kind, "roll"); T.eq(l.self, true); T.eq(l.pick, "need"); T.eq(l.roll, 37)
+    l = C.Parse(LOOT_ROLL_ALL_PASSED:format(41, link)); T.eq(l.kind, "allpassed"); T.eq(l.historyID, 41)
+    l = C.Parse(LOOT_ROLL_STARTED:format(41, link)); T.eq(l.kind, "started"); T.eq(l.link, link)
+    l = C.Parse(LOOT_ROLL_NEED:format(41, "Bram Holloway-Stormrage", link)); T.eq(l.who, "Bram Holloway", "the realm is cut")
+    T.isnil(C.Parse("Bram receives loot: " .. link), "a loot line is not a roll line")
+end)
+
+T.test("rolls chat: positional holes in another language", function()
+    local C = rollsLogin().RollChat
+    _G.LOOT_ROLL_ROLLED_NEED = "|HlootHistory:%1$d|h[Beute]|h: Bedarf - %2$d für %3$s von %4$s"
+    _G.LOOT_ROLL_WON = "|HlootHistory:%1$d|h[Beute]|h: %3$s gewonnen von %2$s"
+    C.Build()
+    local l = C.Parse("|HlootHistory:7|h[Beute]|h: [Ring] gewonnen von Bram")
+    T.eq(l.kind, "won"); T.eq(l.who, "Bram"); T.eq(l.link, "[Ring]"); T.eq(l.historyID, 7)
+    l = C.Parse("|HlootHistory:7|h[Beute]|h: Bedarf - 64 für [Ring] von Bram")
+    T.eq(l.roll, 64); T.eq(l.who, "Bram")
+end)
+
+T.test("rolls chat: a secret line is skipped without an error", function()
+    local C = rollsLogin().RollChat
+    T.isnil(C.Parse(stub.Secret(LOOT_ROLL_NEED:format(1, "Bram", "[Ring]"))))
+    T.isnil(C.Parse(nil))
+    T.eq(#stub.errors, 0)
+end)
+
+T.test("rolls chat: a name's first word", function()
+    local C = rollsLogin().RollChat
+    local first, full = C.Names("Bram Holloway")
+    T.eq(first, "Bram"); T.eq(full, "Bram Holloway")
+    T.eq((C.Names("Doran")), "Doran")
+end)
+T.test("rolls data: picks, rolls and the winner from chat", function()
+    local S, RW = rollsLogin({ history = false })
+    local D = S.RollData
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(id, "Bram Holloway", "need"); RW.Pick(id, "Sera Voss", "greed"); RW.Pick(id, "Doran Ashby", "pass")
+    local d = D.drops[id]
+    T.truthy(d, "the roll is held")
+    T.eq(d.name, "Band of Accuria"); T.eq(d.duration, 60)
+    T.eq(d.players.Bram.pick, "need"); T.eq(d.players.Sera.pick, "greed"); T.eq(d.players.Doran.pick, "pass")
+    RW.Roll(id, "Bram Holloway", 91); RW.Roll(id, "Sera Voss", 98)
+    T.eq(d.players.Bram.roll, 91)
+    RW.Win(id, "Bram Holloway")
+    T.eq(d.winner, "Bram"); T.eq(d.done, true); T.eq(d.players.Bram.won, true)
+    local order = D.Sorted(d, "best")
+    T.eq(order[1].first, "Bram", "Need 91 beats Greed 98")
+    T.eq(order[2].first, "Sera")
+    T.eq(order[3].pick, "pass", "a pass below the rolls")
+    T.eq(#order, 4, "chat alone knows only who spoke, and you")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls data: two copies keep their own picks by history id", function()
+    local S, RW = rollsLogin({ history = false })
+    local D = S.RollData
+    local a = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local b = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(b, "Bram Holloway", "need"); RW.Pick(a, "Bram Holloway", "pass")
+    T.eq(D.drops[a].players.Bram.pick, "pass"); T.eq(D.drops[b].players.Bram.pick, "need")
+    T.eq((D.TwinIndex(D.drops[a])), 1); T.eq((D.TwinIndex(D.drops[b])), 2)
+    T.eq(select(2, D.TwinIndex(D.drops[a])), 2)
+    T.eq(D.Twins(D.drops[a])[1], D.drops[b])
+    RW.Win(a, "Kaelith Dawnmere")
+    T.eq(D.drops[b].players.Kaelith.hasOne, true, "her twin knows she has one")
+end)
+
+T.test("rolls data: the history path fills states, rolls and the winner", function()
+    local S, RW = rollsLogin()
+    local D = S.RollData
+    -- The picks below change only the history, with no chat line.
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local d = D.drops[id]
+    T.eq(d.lootListKey, RW.drops[id].historyID, "paired with its history drop")
+    T.eq(d.players.Mira.self, true, "you, from the history")
+    T.eq(d.players.Kaelith.class, "MAGE")
+    RW.drops[id].players[1].state = Enum.EncounterLootDropRollState.NeedOffSpec
+    RW.drops[id].players[5].state = Enum.EncounterLootDropRollState.Greed
+    stub.FireEvent("LOOT_HISTORY_UPDATE_DROP", 1, RW.drops[id].historyID)
+    T.eq(d.players.Bram.pick, "need"); T.eq(d.players.Bram.offSpec, true); T.eq(d.players.Sera.pick, "greed")
+    T.isnil(d.players.Tomas.pick, "still choosing")
+    RW.drops[id].players[1].roll = 91; RW.drops[id].players[1].won = true
+    stub.FireEvent("LOOT_HISTORY_UPDATE_DROP", 1, RW.drops[id].historyID)
+    T.eq(d.players.Bram.roll, 91); T.eq(d.winner, "Bram"); T.eq(d.done, true)
+end)
+
+T.test("rolls data: a history drop with a bare [Name] pairs by the name", function()
+    local S, RW = rollsLogin()
+    local D = S.RollData
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local d = D.drops[id]
+    d.lootListKey = nil
+    RW.drops[id].link = "[Band of Accuria]"
+    RW.drops[id].historyID = 900
+    RW.drops[id].players[2].state = Enum.EncounterLootDropRollState.Greed
+    stub.FireEvent("LOOT_HISTORY_UPDATE_DROP", 1, 900)
+    T.eq(d.lootListKey, 900); T.eq(d.players.Kaelith.pick, "greed")
+end)
+
+T.test("rolls data: a reload rebuilds open rolls from the game", function()
+    local S, RW = rollsLogin({ history = false })
+    local D = S.RollData
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    stub.Advance(20)
+    for k in pairs(D.drops) do D.drops[k] = nil end
+    D.Rebuild(GetTime())
+    local d = D.drops[id]
+    T.truthy(d, "back")
+    T.near(d.start + d.duration - GetTime(), 40, 0.5, "the time left is the game's")
+end)
+
+T.test("rolls data: a secret chat line is skipped", function()
+    local S, RW = rollsLogin({ history = false })
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    -- The game's docs don't mark CHAT_MSG_LOOT secret in chat lockdown; a secret
+    -- line handed over anyway must still be skipped quietly.
+    stub.FireEvent("CHAT_MSG_LOOT", stub.Secret(LOOT_ROLL_NEED:format(RW.drops[id].historyID, "Bram Holloway", RING)), "")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local p = S.RollData.drops[id].players.Bram
+    T.isnil(p and p.pick)
+end)
+
+T.test("rolls data: a roll with no result expires", function()
+    local S, RW = rollsLogin({ history = false })
+    local D = S.RollData
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN, time = 60000 })
+    stub.Advance(60 + D.GRACE - 1)
+    D.Expire(GetTime())
+    T.falsy(D.drops[id].done)
+    stub.Advance(1.1)
+    D.Expire(GetTime())
+    T.eq(D.drops[id].done, true); T.eq(D.drops[id].expired, true)
+end)
+
+T.test("rolls data: your Need number shows before the chat line", function()
+    local S, RW = rollsLogin({ history = false })
+    local D = S.RollData
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN, myNeed = 64 })
+    D.Mine(id, "need")
+    RollOnLoot(id, D.ID.need)
+    T.eq(D.drops[id].myRoll, 64)
+    T.eq(D.drops[id].mine, "need"); T.falsy(D.drops[id].timedOut)
+end)
+
+T.test("rolls data: time running out passes for you", function()
+    local S, RW = rollsLogin({ history = false })
+    local D = S.RollData
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    stub.FireEvent("CANCEL_LOOT_ROLL", id)
+    T.eq(D.drops[id].mine, "pass"); T.eq(D.drops[id].timedOut, true)
+end)
+
+T.test("rolls data: leaving the group ends every roll", function()
+    local S, RW = rollsLogin({ history = false })
+    local D = S.RollData
+    local a = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local b = RW.Drop({ name = "Robe of Volatile Power", link = ROBE, players = SEVEN })
+    RW.CancelAll()
+    T.eq(D.drops[a].done, true); T.eq(D.drops[b].done, true)
+end)
+
+T.test("rolls data: every change is told", function()
+    local S, RW = rollsLogin({ history = false })
+    local seen = {}
+    DaylightUI.On("RollChanged", function(id, what) seen[#seen + 1] = what end)
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91); RW.Win(id, "Bram Holloway")
+    local text = table.concat(seen, " ")
+    T.truthy(text:find("start", 1, true)); T.truthy(text:find("pick", 1, true))
+    T.truthy(text:find("roll", 1, true)); T.truthy(text:find("won", 1, true))
+end)
+T.test("widgets: a button with an icon keeps the icon's colors and centers the pair", function()
+    rollsLogin()
+    local W = DaylightUI.Widgets
+    local b = W.Button(UIParent, NEED, 30)
+    b:SetWidth(120)
+    W.ButtonIcon(b, "roll-need.png")
+    T.truthy(b.icon, "an icon on it")
+    T.truthy(b.icon:GetTexture():find("roll%-need%.png"), "our art")
+    T.eq(select(1, b.icon:GetVertexColor()), 1, "no tint")
+    T.eq(b.icon:GetWidth(), 22, "the button's height less 8")
+    -- The pair sits in the middle: icon left of the word, the word right of it.
+    local _, _, _, ix = b.icon:GetPoint(1)
+    local _, _, _, tx = b.text:GetPoint(1)
+    T.truthy(ix < 0 and tx > 0, "icon left, word right, around the middle")
+    b.SetOff(true)
+    T.eq(b.icon:IsDesaturated(), true, "off grays it")
+    T.eq(b.icon:GetAlpha(), 0.5)
+    b.SetOff(false)
+    T.eq(b.icon:IsDesaturated(), false)
+    -- No word: the icon alone in the middle.
+    b.SetWords("")
+    local _, _, _, alone = b.icon:GetPoint(1)
+    T.eq(alone, 0)
+    T.eq(b.text:GetText(), "")
+    -- The game's own icon by its atlas.
+    b.SetIcon("lootroll-toast-icon-need-up", true)
+    T.eq(b.icon:GetAtlas(), "lootroll-toast-icon-need-up")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("widgets: a button's icon grows and tilts under the mouse, and settles back", function()
+    rollsLogin()
+    local W = DaylightUI.Widgets
+    local b = W.Button(UIParent, GREED, 30)
+    W.ButtonIcon(b, "roll-greed.png")
+    local function settle() local d = DaylightUI.Motion.Driver(); if d then stub.RunOnUpdate(d, 1) end end
+    stub.MouseEnter(b)
+    settle()
+    T.near(b.icon:GetWidth(), 22 * W.BUTTON_ICON_HOVER, 0.01)
+    T.truthy((b.icon.__rotation or 0) ~= 0, "tilted")
+    stub.MouseLeave(b)
+    settle()
+    T.near(b.icon:GetWidth(), 22, 0.01); T.near(b.icon.__rotation or 0, 0, 1e-6)
+end)
+-- One card filled from a held roll, the way the stack draws it.
+local function cardOf(S, id, look)
+    local card = S.RollCard.New(UIParent)
+    look = look or {}
+    look.mode = look.mode or "full"
+    look.settings = look.settings or S.RollStack.Settings()
+    S.RollCard.Fill(card, S.RollData.drops[id], look)
+    return card, look
+end
+local function settle()
+    for _ = 1, 30 do
+        local d = DaylightUI.Motion.Driver()
+        if d then stub.RunOnUpdate(d, 0.1) end
+    end
+end
+local function rgbOf(fs) local c = fs.__textColor or {}; return { c[1], c[2], c[3] } end
+
+T.test("rolls card: buttons follow what the game lets you roll", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Robe of Volatile Power", link = ROBE, canNeed = false, reasonNeed = 2, players = SEVEN })
+    local card = cardOf(S, id)
+    T.eq(card.buttons.need.off, true, "Need off")
+    T.eq(card.buttons.need.reason, LOOT_ROLL_INELIGIBLE_REASON2, "and why, for its tooltip")
+    T.truthy(card.buttons.greed:IsShown()); T.falsy(card.buttons.transmog:IsShown())
+    T.falsy(card.buttons.disenchant:IsShown())
+    T.truthy(card.buttons.pass:IsShown())
+    T.eq(card.name:GetText(), "Robe of Volatile Power")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls card: Transmog takes Greed's place when the game offers it", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, canTransmog = true, players = SEVEN })
+    local card = cardOf(S, id)
+    T.truthy(card.buttons.transmog:IsShown()); T.falsy(card.buttons.greed:IsShown())
+end)
+
+T.test("rolls card: a press rolls with the game's number and folds the buttons", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card, look = cardOf(S, id)
+    local before = S.RollCard.Height(card, look)
+    card.buttons.greed:Click()
+    T.eq(RW.rolled[1].rollID, id); T.eq(RW.rolled[1].id, 2, "Greed is 2")
+    local d = S.RollData.drops[id]
+    T.eq(d.mine, "greed"); T.falsy(d.timedOut, "a pick, not a timeout")
+    T.eq(card.buttons.greed.active, true)
+    settle()
+    T.near(card.buttonBox:GetHeight(), 0, 0.01, "the buttons fold away")
+    T.truthy(S.RollCard.Height(card, look) < before, "the card is shorter")
+    T.truthy(card.sum:GetText():find(GREED, 1, true), "says what you picked")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls card: rows sort best first and the winner wears the accent", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local picks = { { "Bram Holloway", "need", 91 }, { "Kaelith Dawnmere", "need", 64 }, { "Mira Calloway", "need", 72 },
+        { "Tomas Reed", "greed", 37 }, { "Sera Voss", "greed", 98 }, { "Ilyra Fenwick", "greed", 22 }, { "Doran Ashby", "pass" } }
+    for _, p in ipairs(picks) do RW.Pick(id, p[1], p[2]) end
+    for _, p in ipairs(picks) do if p[3] then RW.Roll(id, p[1], p[3]) end end
+    RW.Win(id, "Bram Holloway")
+    local card = cardOf(S, id, { open = true })
+    T.eq(card.rows[1].name:GetText(), "Bram", "first names unless asked for full ones")
+    T.eq(card.rows[2].name:GetText(), "Mira")
+    T.eq(card.rows[4].name:GetText(), "Sera", "Greed 98 under every Need")
+    T.eq(card.rows[7].name:GetText(), "Doran")
+    T.eq(card.rows[1].lit, true, "the winner lit")
+    T.rgb(rgbOf(card.rows[1].num), { DaylightUI.Style.Pop() }, "the winning number pops")
+    T.eq(card.rows[1].num:GetText(), "91")
+    T.eq(card.rows[2].tag:GetText(), DaylightUI.L["you"])
+    T.near(card.rows[7].frame:GetAlpha(), 0.6, 0.01, "a pass is dimmed")
+    T.truthy(card.sum:GetText():find("Bram", 1, true))
+    DaylightUI:Set("general", "lastNames.rolls", true)
+    S.RollCard.Fill(card, S.RollData.drops[id], { mode = "full", open = true, settings = S.RollStack.Settings() })
+    T.eq(card.rows[1].name:GetText(), "Bram Holloway", "full names when asked")
+end)
+
+T.test("rolls card: text colors follow the look rules", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91)
+    local card = cardOf(S, id, { open = true })
+    local Style = DaylightUI.Style
+    T.rgb(rgbOf(card.rows[1].name), { Style.ClassTextColor("WARRIOR") }, "a name in its class color")
+    T.rgb(rgbOf(card.sum), Style.INK.LABEL, "the summary is a label")
+    T.rgb(rgbOf(card.rows[1].num), Style.INK.VALUE, "a number is a value")
+    T.rgb(rgbOf(card.time), { Style.Pop() }, "time left pops")
+    stub.Advance(50)
+    S.RollCard.Tick(card, GetTime())
+    T.rgb(rgbOf(card.time), Style.INK.WARN, "the last quarter warns")
+end)
+
+T.test("rolls card: everyone passed, a tie and no result each say so", function()
+    local S, RW = rollsLogin()
+    local C = S.RollCard
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.AllPass(id)
+    local card = cardOf(S, id)
+    T.eq(card.sum:GetText(), DaylightUI.L[C.TEXT.allPassed])
+    local d = S.RollData.drops[id]
+    d.allPassed, d.tied, d.done = nil, true, nil
+    C.Fill(card, d, { mode = "full", settings = S.RollStack.Settings() })
+    T.eq(card.sum:GetText(), DaylightUI.L[C.TEXT.tied])
+    d.tied, d.done, d.expired = nil, true, true
+    C.Fill(card, d, { mode = "full", settings = S.RollStack.Settings() })
+    T.eq(card.sum:GetText(), DaylightUI.L[C.TEXT.noResult])
+end)
+
+T.test("rolls card: compact shows ticks, not rows, unless open", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(id, "Bram Holloway", "need"); RW.Pick(id, "Sera Voss", "greed")
+    local card, look = cardOf(S, id, { mode = "compact" })
+    T.truthy(card.ticks:IsShown(), "a row of ticks")
+    T.falsy(card.rows[1] and card.rows[1].frame:IsShown(), "no rows")
+    local shut = S.RollCard.Height(card, look)
+    look.open = true
+    S.RollCard.Fill(card, S.RollData.drops[id], look)
+    T.truthy(S.RollCard.Height(card, look) > shut, "open adds the list")
+end)
+
+T.test("rolls card: motion off snaps every change", function()
+    local S, RW = rollsLogin()
+    DaylightUI:Set("general", "motion", false)
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardOf(S, id)
+    card.buttons.need:Click()
+    T.eq(card.buttonBox:GetHeight(), 0, "folded at once")
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91)
+    S.RollCard.Fill(card, S.RollData.drops[id], { mode = "full", open = true, settings = S.RollStack.Settings() })
+    T.eq(card.rows[1].num:GetText(), "91", "the number at once")
+end)
+local function cardFor(S, id)
+    for i, d in ipairs(S.RollStack.Shown()) do
+        if d.rollID == id then return S.RollStack.Cards()[i] end
+    end
+end
+local function tick(S, seconds)
+    local steps = math.max(1, math.floor(seconds / 0.1 + 0.5))
+    for _ = 1, steps do
+        stub.Advance(seconds / steps)
+        local f = S.RollStack.frame
+        if f and f:GetScript("OnUpdate") then stub.RunOnUpdate(f, seconds / steps) end
+    end
+end
+
+T.test("rolls stack: one roll shows in full with its list", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local St = S.RollStack
+    T.eq(St.Mode(), "full"); T.eq(St.Open(), S.RollData.drops[id])
+    T.truthy(St.frame:IsShown())
+    T.eq(#St.Cards(), 1)
+    T.truthy(St.Cards()[1]:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls stack: four drops go compact with one list open at a time", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local ids = {}
+    for i = 1, 4 do ids[i] = RW.Drop({ name = "Item " .. i, link = "|cffa335ee|Hitem:" .. (900 + i) .. "|h[Item " .. i .. "]|h|r", players = SEVEN }) end
+    T.eq(St.Mode(), "compact")
+    T.isnil(St.Open(), "no list until one is won or hovered")
+    RW.Pick(ids[3], "Bram Holloway", "need"); RW.Roll(ids[3], "Bram Holloway", 50); RW.Win(ids[3], "Bram Holloway")
+    T.eq(St.Open(), S.RollData.drops[ids[3]], "the one just won")
+    stub.MouseEnter(cardFor(S, ids[1]))
+    T.eq(St.Open(), S.RollData.drops[ids[1]], "the one under the mouse")
+    stub.MouseLeave(cardFor(S, ids[1]))
+end)
+
+T.test("rolls stack: a fifth drop waits its turn", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local ids = {}
+    for i = 1, 5 do ids[i] = RW.Drop({ name = "Item " .. i, link = "|cffa335ee|Hitem:" .. (900 + i) .. "|h[Item " .. i .. "]|h|r", players = SEVEN }) end
+    T.eq(#St.Shown(), 4); T.eq(St.Waiting(), 1)
+    T.truthy(St.waiting:IsShown()); T.eq(St.waiting:GetText(), DaylightUI.L["%d more waiting"]:format(1))
+    RW.AllPass(ids[1])
+    tick(S, St.Settings().linger + 0.5)
+    T.isnil(S.RollData.drops[ids[1]], "the finished one left")
+    T.eq(St.Shown()[4].rollID, ids[5], "the fifth shows")
+    T.eq(St.Waiting(), 0)
+end)
+
+T.test("rolls stack: twins sit together with a bracket", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local a = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local b = RW.Drop({ name = "Robe of Volatile Power", link = ROBE, players = SEVEN })
+    local a2 = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local order = St.Shown()
+    T.eq(order[1].rollID, a); T.eq(order[2].rollID, a2); T.eq(order[3].rollID, b)
+    T.eq(cardFor(S, a).dup:GetText(), DaylightUI.L["%d of %d"]:format(1, 2))
+    T.truthy(St.brackets[1] and St.brackets[1]:IsShown(), "a bracket joins them")
+end)
+
+T.test("rolls stack: a finished roll stays for its linger, longer under the mouse", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91); RW.Win(id, "Bram Holloway")
+    tick(S, 4.9)
+    T.truthy(S.RollData.drops[id], "still up")
+    local card = cardFor(S, id)
+    stub.MouseEnter(card)
+    tick(S, 3)
+    T.truthy(S.RollData.drops[id], "held under the mouse")
+    stub.MouseLeave(card)
+    tick(S, 0.3)
+    T.isnil(S.RollData.drops[id], "gone once the mouse leaves")
+end)
+
+T.test("rolls stack: an expired roll leaves", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardFor(S, id)
+    tick(S, 60 + S.RollData.GRACE + 0.3)
+    T.eq(card.sum:GetText(), S.RollCard.TEXT.noResult)
+    tick(S, S.RollStack.Settings().linger + 0.3)
+    T.isnil(S.RollData.drops[id])
+end)
+
+T.test("rolls stack: in a fight rolls stay compact and lists open only on hover", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    stub.EnterCombat()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    T.eq(St.Mode(), "compact"); T.isnil(St.Open())
+    stub.MouseEnter(cardFor(S, id))
+    T.eq(St.Open(), S.RollData.drops[id])
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls stack: cards come back after PLAYER_ENTERING_WORLD", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    stub.Advance(20)
+    for k in pairs(S.RollData.drops) do S.RollData.drops[k] = nil end
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, true)
+    local d = S.RollData.drops[id]
+    T.truthy(d, "back")
+    T.near(d.start + d.duration - GetTime(), 40, 0.5)
+    T.truthy(cardFor(S, id), "with its card")
+end)
+
+T.test("rolls stack: no driver while nothing is open", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    T.truthy(St.frame:GetScript("OnUpdate"), "running while a roll is up")
+    RW.AllPass(id)
+    tick(S, St.Settings().linger + 0.5)
+    T.isnil(St.frame:GetScript("OnUpdate"), "stopped")
+end)
+
+T.test("rolls stack: follows the Loot Rolls handle's scale", function()
+    local S, RW = rollsLogin()
+    RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local want = DaylightUI.Movers.Scale("game.GroupLootContainer")
+    T.near(S.RollStack.frame:GetScale(), want, 0.001)
+    local gm = false
+    for _, spec in ipairs(DaylightUI.GameMovers.FRAMES) do
+        if spec.name == "GroupLootContainer" then
+            for _, n in ipairs(spec.pieces) do if n == "DaylightUIRollStack" then gm = true end end
+        end
+    end
+    T.truthy(gm, "a piece of the Loot Rolls handle, so its wheel and the master Scale reach it")
+end)
+
+T.test("rolls stack: grow down puts new rolls under the handle", function()
+    local S, RW = rollsLogin()
+    DaylightUI:Set("Skins", "rolls.grow", "down")
+    RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local point = S.RollStack.frame:GetPoint(1)
+    T.eq(point, "TOP")
+    DaylightUI:Set("Skins", "rolls.grow", "up")
+    stub.RunTimers()
+    T.eq((S.RollStack.frame:GetPoint(1)), "BOTTOM")
+end)
+
+T.test("rolls stack: the game's popup clicks pass through where no card sits", function()
+    local S, RW = rollsLogin()
+    RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    T.eq(S.RollStack.frame:IsMouseEnabled(), false, "the stack's own frame takes no mouse")
+end)
+T.test("rolls options: every setting changes the window", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(id, "Doran Ashby", "pass"); RW.Pick(id, "Bram Holloway", "need")
+    local St = S.RollStack
+    local card = St.Cards()[1]
+    local function set(key, v) DaylightUI:Set("Skins", "rolls." .. key, v); stub.RunTimers() end
+    set("width", 360); T.near(card:GetWidth(), 360, 0.5, "width")
+    set("buttonWords", false); T.eq(card.buttons.need.text:GetText(), "", "button words")
+    set("icons", "game"); T.eq(card.buttons.need.icon:GetAtlas(), "lootroll-toast-icon-need-up", "the game's icons")
+    set("buttonSize", 36); T.eq(card.buttons.need:GetHeight(), 36, "button size")
+    set("timerText", false); T.falsy(card.time:IsShown(), "seconds left")
+    set("qualityLine", false); T.falsy(card.line:IsShown(), "quality line")
+    set("showPass", false)
+    for _, row in ipairs(card.rows) do T.falsy(row.name:GetText() == "Doran", "a pass left out") end
+    set("showPass", true)
+    set("sort", "picked"); T.eq(card.rows[1].name:GetText(), "Doran", "as they picked")
+    set("list", "off"); T.eq(#card.rows, 0, "no list")
+    set("list", "auto")
+    set("rollBars", false); RW.Roll(id, "Bram Holloway", 50); T.falsy(card.rows[2].bar:IsShown(), "no roll bars")
+    set("grow", "down"); T.eq((St.frame:GetPoint(1)), "TOP", "grow direction")
+    set("spacing", 12)
+    RW.Drop({ name = "Robe of Volatile Power", link = ROBE, players = SEVEN })
+    T.eq(St.Mode(), "compact")
+    set("compact", false); T.eq(St.Mode(), "full", "compact off")
+    set("maxShown", 1); T.eq(#St.Shown(), 1); T.eq(St.Waiting(), 1, "max shown")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls options: the page and its sample", function()
+    local S = rollsLogin()
+    local page
+    for _, p in ipairs(S.OPTIONS and S.OPTIONS.pages or {}) do if p.id == "rolls" then page = p end end
+    T.truthy(page, "an options page")
+    local keys = {}
+    for _, g in ipairs(page.groups) do for _, it in ipairs(g.items) do if it.key then keys[it.key] = it end end end
+    for key in pairs(S.DEFAULTS.rolls) do T.truthy(keys["rolls." .. key], "a row for rolls." .. key) end
+    local s = S.RollSample.New(UIParent)
+    local h = s.Refresh(400, 600)
+    T.truthy(h > 100, "it has a height")
+    for _, part in ipairs(s.Parts()) do
+        T.truthy(part.region, "a part's region")
+        for _, k in ipairs(part.keys) do T.truthy(keys[k], "the part's key is a row: " .. k) end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls test mode: the sample plays and a real roll ends it", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    DaylightUI.testMode = true
+    DaylightUI.Fire("TestModeChanged", true)
+    T.truthy(#St.Shown() >= 2, "the sample's rolls")
+    T.truthy(St.frame:IsShown())
+    T.truthy(St.frame:GetScript("OnUpdate"), "it plays")
+    tick(S, 6)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    T.eq(#St.Shown(), 1, "a real roll ends the sample"); T.eq(St.Shown()[1].rollID, id)
+    DaylightUI.testMode = false
+    DaylightUI.Fire("TestModeChanged", false)
+end)
+-- Fixes from the review.
+T.test("rolls stack: a roll still waiting on your pick always shows", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local ids = {}
+    for i = 1, 5 do ids[i] = RW.Drop({ name = "Item " .. i, link = "|cffa335ee|Hitem:" .. (900 + i) .. "|h[Item " .. i .. "]|h|r", players = SEVEN }) end
+    for i = 1, 4 do cardFor(S, ids[i]).buttons.greed:Click() end
+    local shown = {}
+    for _, d in ipairs(St.Shown()) do shown[d.rollID] = true end
+    T.truthy(shown[ids[5]], "the fifth, not picked yet, takes a place before picked ones still rolling")
+    T.eq(#St.Shown(), 4)
+end)
+
+T.test("rolls card: cancelling the game's bind box keeps your buttons", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, bop = true, players = SEVEN })
+    local card = cardFor(S, id)
+    card.buttons.need:Click()
+    T.eq(RW.confirming, id, "the game asks first: it binds")
+    settle()
+    T.truthy(card.buttonBox:GetHeight() > 0, "the buttons stay until the game takes the pick")
+    T.eq(card.buttons.need.active, true, "Need shows as pressed")
+    card.buttons.greed:Click()
+    T.eq(RW.rolled[2].id, 2, "you can pick again after saying no")
+    RW.Confirm(id)
+    local d = S.RollData.drops[id]
+    T.eq(d.mine, "greed"); T.falsy(d.timedOut)
+    settle()
+    T.near(card.buttonBox:GetHeight(), 0, 0.01, "folded once the game took it")
+end)
+
+T.test("rolls data: your own line from the game wins over what you pressed", function()
+    local S, RW = rollsLogin()
+    local D = S.RollData
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, bop = true, players = SEVEN })
+    D.Press(id, "need")
+    stub.FireEvent("CANCEL_LOOT_ROLL", id)    -- time ran out with the bind box still open
+    RW.Pick(id, "Mira Calloway", "pass")
+    T.eq(D.drops[id].mine, "pass")
+end)
+
+T.test("rolls data: two copies' history records pair in order, whichever comes first", function()
+    local S, RW = rollsLogin()
+    local D = S.RollData
+    local a = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local b = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    for _, id in ipairs({ a, b }) do D.drops[id].lootListKey, D.drops[id].encounterID, D.drops[id].historyID = nil, nil, nil end
+    RW.drops[b].players[1].state = Enum.EncounterLootDropRollState.Greed
+    stub.FireEvent("LOOT_HISTORY_UPDATE_DROP", 1, RW.drops[b].historyID)
+    T.eq(D.drops[b].lootListKey, RW.drops[b].historyID, "the second record to the second copy")
+    T.eq(D.drops[b].players.Bram.pick, "greed"); T.isnil(D.drops[a].players.Bram and D.drops[a].players.Bram.pick)
+end)
+
+T.test("rolls stack: a roll you already picked comes back after a reload", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    cardFor(S, id).buttons.need:Click()
+    for k in pairs(S.RollData.drops) do S.RollData.drops[k] = nil end
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, true)
+    local back
+    for _, d in pairs(S.RollData.drops) do back = d end
+    T.truthy(back, "back from the Loot History")
+    T.eq(back.mine, "need", "with your pick")
+    T.eq(back.name, "Band of Accuria")
+    T.eq(#S.RollStack.Cards(), 1)
+end)
+
+T.test("rolls stack: if a card can't be drawn the game's popup comes back", function()
+    local S, RW = rollsLogin()
+    local fill = S.RollCard.Fill
+    S.RollCard.Fill = function() error("broken") end
+    RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    S.RollCard.Fill = fill
+    T.truthy(#stub.errors > 0, "the error is reported")
+    for k in pairs(stub.errors) do stub.errors[k] = nil end
+    T.eq(_G.GroupLootFrame1:GetAlpha(), 1, "the game's popup in sight again")
+    T.eq(_G.GroupLootFrame1:IsMouseEnabled(), true)
+    T.eq(_G.GroupLootFrame1.LootButtonContainer.NeedButton:IsMouseEnabled(), true, "its buttons work")
+end)
+
+T.test("rolls data: two players with one first name keep their own rows", function()
+    local S, RW = rollsLogin()
+    local players = { { name = "Bram Holloway", class = "WARRIOR" }, { name = "Bram Stone", class = "MAGE" },
+        { name = "Mira Calloway", class = "HUNTER", self = true } }
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = players })
+    RW.Pick(id, "Bram Holloway", "need"); RW.Pick(id, "Bram Stone", "pass")
+    local d, n = S.RollData.drops[id], 0
+    for _ in pairs(d.players) do n = n + 1 end
+    T.eq(n, 3, "two Brams")
+    local picks = {}
+    for _, p in pairs(d.players) do if p.name then picks[p.name] = p.pick end end
+    T.eq(picks["Bram Holloway"], "need"); T.eq(picks["Bram Stone"], "pass")
+end)
+T.test("rolls card: a roll that ends while time is low stops its timer's pulse", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardFor(S, id)
+    stub.Advance(50)
+    S.RollCard.Tick(card, GetTime())
+    T.eq(card.timer.low, true)
+    RW.AllPass(id)
+    T.falsy(card.timer.low, "no longer low once done")
+    T.eq(card.bar.fill:GetAlpha(), 1)
+end)
+
+T.test("rolls card: a reused card keeps no rows for players it no longer shows", function()
+    local S, RW = rollsLogin()
+    local card = S.RollCard.New(UIParent)
+    local look = { mode = "full", open = true, settings = S.RollStack.Settings() }
+    for i = 1, 3 do
+        local players = {}
+        for j = 1, 5 do players[j] = { name = "Player" .. i .. "x" .. j .. " Name", class = "MAGE" } end
+        local id = RW.Drop({ name = "Item " .. i, link = "|cffa335ee|Hitem:" .. (900 + i) .. "|h[Item " .. i .. "]|h|r", players = players })
+        for j = 1, 5 do RW.Pick(id, players[j].name, "greed") end
+        S.RollCard.Fill(card, S.RollData.drops[id], look)
+    end
+    local n = 0
+    for _ in pairs(card.rowOf) do n = n + 1 end
+    T.truthy(n <= 6, "rows reused, not one per name ever seen: " .. n)
+end)

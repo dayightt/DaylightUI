@@ -144,6 +144,15 @@ local ALLOW = {
     ["Kaladin"] = "a sample party/raid member (names aren't translated)",
     ["Lift"] = "a sample party member (names aren't translated)",
     ["Bridge Four"] = "the nameplate preview's sample guild (names aren't translated)",
+    ["Band of Accuria"] = "the loot roll sample's item (the game's own name in game, its English one in the tests)",
+    ["Robe of Volatile Power"] = "the loot roll sample's other item (as above)",
+    ["Bram"] = "a loot roll sample player (names aren't translated)",
+    ["Kaelith"] = "a loot roll sample player (names aren't translated)",
+    ["Mira"] = "a loot roll sample player (names aren't translated)",
+    ["Tomas"] = "a loot roll sample player (names aren't translated)",
+    ["Sera"] = "a loot roll sample player (names aren't translated)",
+    ["Ilyra"] = "a loot roll sample player (names aren't translated)",
+    ["Doran"] = "a loot roll sample player (names aren't translated)",
 }
 
 local function leftover(text)

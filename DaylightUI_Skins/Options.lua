@@ -12,6 +12,86 @@ for _, spec in ipairs(ns.Engine.ADDON_SWITCHES) do
         desc = spec.desc, hidden = function() return not ns.Engine.Installed(spec) end }
 end
 
+-- Daylight UI's loot roll window (Rolls/). Every row but the switch rests while
+-- the window is off.
+local function rollsPage()
+    local NEW = "1.9.7"
+    local function off(get) return get("rolls.enabled") == false end
+    local function row(t)
+        t.since = NEW
+        if t.key ~= "rolls.enabled" then t.disabled = t.disabled or off end
+        return t
+    end
+    return { id = "rolls", label = "Loot rolls",
+      desc = "Need, Greed and Pass in Daylight UI's own roll window: who picked what, every roll and the winner.",
+      sample = function(parent) return ns.RollSample.New(parent) end,
+      groups = {
+        { label = "Loot rolls", tab = "Basics", items = {
+            row({ type = "toggle", key = "rolls.enabled", label = "Daylight UI loot rolls", reload = true,
+              desc = "Loot rolls in a window of Daylight UI's own that shows who picked Need, Greed or Pass, every roll and who won. When off, the game's own roll popups show, in Daylight UI style." }),
+            row({ type = "dropdown", key = "rolls.list", label = "Group list",
+              values = { auto = "With one roll", always = "Always", hover = "On mouseover", off = "Never" },
+              order = { "auto", "always", "hover", "off" },
+              desc = "When a roll shows who picked what and everyone's rolls. With one roll, the list shows while only one roll is up, and with several, on the one under your mouse or the one just won." }),
+            row({ type = "toggle", key = "rolls.compact", label = "Compact rolls when several drop",
+              desc = "With more than one roll up, each shows just the item, your buttons and a row of ticks for who has picked, so several rolls fit on screen at once. When off, every roll shows in full." }),
+            row({ type = "toggle", key = "rolls.fightCompact", label = "Compact rolls in a fight",
+              desc = "In a fight, rolls stay compact and their lists open only under your mouse, so they never cover more of the screen than they need." }),
+            row({ type = "slider", key = "rolls.linger", label = "Result time", min = 0, max = 15, step = 1,
+              desc = "How many seconds a roll stays up after someone wins it. At 0 it leaves as soon as the winner is known." }),
+            row({ type = "toggle", key = "rolls.holdOnHover", label = "Keep results under the mouse",
+              desc = "A finished roll stays up while your mouse is on it, and leaves once you move away." }),
+        } },
+        { label = "Layout", tab = "Layout", items = {
+            row({ type = "slider", key = "rolls.maxShown", label = "Max shown", min = 1, max = 8, step = 1,
+              desc = "How many rolls show at once. Rolls past this wait their turn, with a line saying how many are waiting." }),
+            row({ type = "dropdown", key = "rolls.grow", label = "Grow direction", values = { up = "Up", down = "Down" },
+              order = { "up", "down" },
+              desc = "Which way new rolls stack from the Loot Rolls handle." }),
+            row({ type = "slider", key = "rolls.width", label = "Width", min = 240, max = 420, step = 10, unit = "px",
+              desc = "How wide each roll is." }),
+            row({ type = "slider", key = "rolls.spacing", label = "Spacing", min = 0, max = 20, step = 1, unit = "px",
+              desc = "The gap between rolls." }),
+            { type = "text", label = "Move the rolls with the Loot Rolls handle in unlock mode (/dui unlock). The mouse wheel over the handle sets their size." },
+        } },
+        { label = "Roll buttons", items = {
+            row({ type = "slider", key = "rolls.buttonSize", label = "Roll button size", min = 24, max = 40, step = 1, unit = "px",
+              desc = "The height of the Need, Greed and Pass buttons, and the size of their icons." }),
+            row({ type = "toggle", key = "rolls.buttonWords", label = "Roll button words",
+              desc = "Need, Greed and Pass written beside their icons. When off, the buttons show only their icons. Hover one for its name." }),
+            row({ type = "dropdown", key = "rolls.icons", label = "Roll button icons", values = { daylight = "Daylight UI", game = "The game's" },
+              order = { "daylight", "game" },
+              desc = "Daylight UI's die, coin and cross, each in its own color, or the game's own dice and coins." }),
+        } },
+        { label = "Group list", tab = "List", items = {
+            row({ type = "dropdown", key = "rolls.sort", label = "List order", values = { best = "Best roll first", picked = "As they picked" },
+              order = { "best", "picked" },
+              desc = "Best roll first puts Need above Greed above Pass, highest roll on top, so the winner leads. As they picked keeps the order people chose in." }),
+            row({ type = "toggle", key = "rolls.showPass", label = "Show players who passed",
+              desc = "Players who passed stay in the list, dimmed. When off, they're left out." }),
+            row({ type = "toggle", key = "rolls.rollBars", label = "Roll bars",
+              desc = "A thin bar beside each roll, as long as the number, to compare rolls at a glance." }),
+            row({ type = "toggle", key = "rolls.ticks", label = "Pick ticks",
+              desc = "A row of small ticks on a compact roll, one per player: tall for a high roll, faint for Greed, flat for Pass." }),
+            row({ type = "toggle", key = "lastNames.rolls", label = "First and last names",
+              desc = "Players' full names in the roll list. When off, first names only.",
+              get = function() return DaylightUI:Get("general", "lastNames.rolls") == true end,
+              set = function(v) DaylightUI:Set("general", "lastNames.rolls", v) end,
+              default = function() return false end }),
+            row({ type = "toggle", key = "rolls.twins", label = "Mark duplicate drops",
+              desc = "Two of the same item are tagged 1 of 2 and 2 of 2 and joined by a line. Once one is won, its winner is tagged \"has one\" on the other." }),
+        } },
+        { label = "Look", tab = "Look", items = {
+            row({ type = "toggle", key = "rolls.timerText", label = "Seconds left",
+              desc = "The seconds left to pick, beside the timer bar." }),
+            row({ type = "toggle", key = "rolls.qualityLine", label = "Quality color line",
+              desc = "A line in the item's quality color along the top of each roll." }),
+            row({ type = "toggle", key = "rolls.winShine", label = "Shine on a win",
+              desc = "A light sweeps across the roll when someone wins it, twice when it's you. Needs Motion effects (General > Appearance)." }),
+        } },
+      } }
+end
+
 ns.OPTIONS = { pages = {
     { id = "skins", label = "Game window skins",
       desc = "The game's own windows in Daylight UI style: Daylight UI borders, window background, font, controls and scroll bars.",
@@ -65,4 +145,5 @@ ns.OPTIONS = { pages = {
               desc = "How solid the world map's symbols are. Lower it to see more of the map under them." },
         } },
     } },
+    rollsPage(),
 } }

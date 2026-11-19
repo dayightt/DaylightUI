@@ -27,7 +27,7 @@ DUI.GameMovers = GM
 GM.FRAMES = {
     { name = "GroupLootContainer", label = "Loot Rolls", minW = 280, minH = 100,
       pieces = { "GroupLootFrame1", "GroupLootFrame2", "GroupLootFrame3", "GroupLootFrame4",
-                 "BonusRollLootWonFrame", "BonusRollMoneyWonFrame" } },
+                 "BonusRollLootWonFrame", "BonusRollMoneyWonFrame", "DaylightUIRollStack" } },
     -- Every toast stacks up from it, including the "You won" loot ones.
     { name = "AlertFrame", label = "Alerts & Loot Won", minW = 280, minH = 80, toasts = true },
     { name = "UIWidgetTopCenterContainerFrame", label = "Top Center Status", minW = 200, minH = 40 },

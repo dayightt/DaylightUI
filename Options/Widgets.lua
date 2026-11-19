@@ -1251,6 +1251,75 @@ function W.IconButton(parent, icon, tip, onClick, size, desc)
     return b
 end
 
+-- An icon beside a button's word, the pair centered (the loot roll buttons'
+-- die, coin and cross). b is a W.Button or W.DressButton. The icon keeps its
+-- own colors, unlike W.IconButton's; under the mouse it grows a little and
+-- tilts, and an off button grays it.
+-- file is a Media file, or the game's atlas with opts.atlas. opts.size is the
+-- icon's size (default the button's height less 8).
+-- b.SetIcon(file, atlas) swaps it, b.SetWords(text) changes the word (""
+-- leaves the icon alone in the middle), b.LayIcon(size) resizes it.
+W.BUTTON_ICON_GAP = 6
+W.BUTTON_ICON_HOVER = 1.12   -- the icon's size under the mouse
+W.BUTTON_ICON_TILT = 6       -- degrees it turns under the mouse
+function W.ButtonIcon(b, file, opts)
+    opts = opts or {}
+    local icon = b:CreateTexture(nil, "ARTWORK")
+    b.icon = icon
+    icon:SetVertexColor(1, 1, 1, 1)
+    local size, over = 0, 0
+    local function shape(p)
+        over = p
+        local s = size * (1 + (W.BUTTON_ICON_HOVER - 1) * p)
+        icon:SetSize(s, s)
+        icon:SetRotation(math.rad(W.BUTTON_ICON_TILT) * p)
+    end
+    local function lay()
+        local words = b.text:GetText() or ""
+        icon:ClearAllPoints()
+        if words == "" then
+            icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+            return
+        end
+        local w = b.text:GetStringWidth()
+        if type(w) ~= "number" then w = 0 end
+        local total = size + W.BUTTON_ICON_GAP + w
+        icon:SetPoint("CENTER", b, "CENTER", math.floor(size / 2 - total / 2 + 0.5), 0)
+        b.text:ClearAllPoints()
+        b.text:SetPoint("CENTER", b, "CENTER", math.floor(total / 2 - w / 2 + 0.5), 0)
+    end
+    function b.LayIcon(px)
+        size = px or math.max(8, (b:GetHeight() or 24) - 8)
+        shape(over)
+        lay()
+    end
+    function b.SetIcon(what, atlas)
+        if atlas or opts.atlas then icon:SetAtlas(what) else icon:SetTexture(MEDIA .. what) end
+    end
+    function b.SetWords(words)
+        b.text:SetText(words or "")
+        lay()
+    end
+    local function ease(on)
+        local M = DUI.Motion
+        local to = (on and not b.off) and 1 or 0
+        M.Tween(icon, over, to, M.FAST, shape)
+    end
+    b:HookScript("OnEnter", function() ease(true) end)
+    b:HookScript("OnLeave", function() ease(false) end)
+    b:HookScript("OnHide", function() DUI.Motion.Tween(icon, over, 0, 0, shape) end)
+    local setOff = b.SetOff
+    function b.SetOff(on)
+        setOff(on)
+        icon:SetDesaturated(on and true or false)
+        icon:SetAlpha(on and 0.5 or 1)
+        if on then ease(false) end
+    end
+    b.SetIcon(file)
+    b.LayIcon(opts.size)
+    return b
+end
+
 -- The standard text box for searches, names and numbers: rounded dark box,
 -- outline easing to the accent (half on hover, full while focused).
 -- opts: height (W.INPUT_H), size (13), justify ("LEFT"), hint (placeholder),
