@@ -48,6 +48,13 @@ local function backAlpha()
 end
 local skinned = setmetatable({}, { __mode = "k" }) -- tooltip -> its shell
 
+function Tip.Config() return cfg end
+
+-- The background opacity of the skinned look, or of the rich card ("rich").
+function Tip.BackAlpha(which)
+    return Style.BackAlpha(cfg and cfg.bgAlphaOwn, cfg and (which == "rich" and cfg.richAlpha or cfg.bgAlpha))
+end
+
 -- To get rid of a tooltip, set alpha 0, never Hide(). Hiding the game's
 -- tooltip from Daylight UI's code runs its hide handlers tainted, and the game's tooltip
 -- code (SetWorldCursor first) then errors on secret values. It comes back the
@@ -133,12 +140,17 @@ function Tip.Skin(tip)
     if type(tip.CloseButton) == "table" then DUI.Widgets.DressClose(tip.CloseButton) end
     tip:HookScript("OnShow", keepUnder)
     tip:HookScript("OnShow", function(self) Tip.Settle(self); Tip.HideArt(self); Tip.KeepMuted(self); Tip.Place(self); Tip.OnCompareShown(self) end)
+    tip:HookScript("OnShow", function(self) DUI.SafeCall(ns.Rich.Shown, self) end)
     tip:HookScript("OnShow", Tip.FadeIn)
-    tip:HookScript("OnHide", function(self) Tip.OnFadeHide(self); Tip.ResetColors(self); Tip.Unmute(self) end)
+    tip:HookScript("OnHide", function(self)
+        Tip.OnFadeHide(self); Tip.ResetColors(self); Tip.Unmute(self)
+        DUI.SafeCall(ns.Rich.Hidden, self)
+    end)
     tip:HookScript("OnTooltipCleared", function(self)
         Tip.ResetColors(self, Tip.Refilling(self))
         Tip.HideArt(self)
         Tip.OnCleared(self)
+        ns.Rich.Cleared(self)
     end)
     -- Runs right after the tooltip's own update and before it's drawn. Puts
     -- back placement, art, and a muted tooltip's alpha.
@@ -173,6 +185,15 @@ function Tip.SkinHeader(tip)
     Style.LayoutShell(s)
     headers[tip] = s
     if type(h.Label) == "table" then Style.InkText(h.Label, "LABEL") end
+end
+
+-- The skinned look's shell and header tab, shown or not: the rich card
+-- draws its own.
+function Tip.ShowShell(tip, on)
+    local s = skinned[tip]
+    if s and s:IsShown() ~= on then s:SetShown(on) end
+    local hs = headers[tip]
+    if hs and hs:IsShown() ~= on then hs:SetShown(on) end
 end
 
 -- Border colors for a tooltip and its header tab (nil = normal).
@@ -1453,6 +1474,7 @@ function Tip.OnUpdate(tip)
     Tip.KeepMuted(tip)
     Tip.FadeStep(tip)
     Tip.Place(tip)
+    DUI.SafeCall(ns.Rich.Step, tip)
 end
 
 -- Driven from Daylight UI's own frame because the game stops the tooltip's OnUpdate while
@@ -1526,6 +1548,7 @@ function Tip.Build(mod)
                 DUI.SafeCall(Tip.OnData, tip, data)
                 local kind = type(data) == "table" and plain(data.type) or nil
                 if kind == nil or not tinted[kind] then Tip.Settle(tip) end
+                ns.Rich.Filled(tip, data)
             end) end
             if types and types.Unit then
                 TDP.AddTooltipPostCall(types.Unit, function(tip, data)
@@ -1656,6 +1679,13 @@ function Tip.Refresh(mod)
     for _, s in pairs(headers) do
         s.opts.bgAlpha = backAlpha()
         Style.LayoutShell(s)
+    end
+    -- The look switched, or the card's settings changed: built again (or
+    -- put away) before the next draw.
+    for tip in pairs(skinned) do
+        local p = ns.RichPanel.Get(tip)
+        if p then ns.RichPanel.Repaint(p) end
+        ns.Rich.Refresh(tip)
     end
     -- Following the cursor, there's nothing to place, so no handle.
     DUI.Movers.Suspend(Tip.MOVER_KEY, cfg.anchor == "cursor")

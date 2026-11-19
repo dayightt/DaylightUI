@@ -436,6 +436,80 @@ local RECIPES = {
             w:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
             return w
         end },
+    tooltip = { about = "the main tooltip on an item, Rich [simple: the skinned look] [secret: a line secret, the frame only]",
+        before = function()
+            _G.SNAP_TIP_POST = {}
+            Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
+            _G.TooltipDataProcessor = { AllTypes = "ALL", AddTooltipPostCall = function(kind, fn)
+                SNAP_TIP_POST[kind] = SNAP_TIP_POST[kind] or {}
+                table.insert(SNAP_TIP_POST[kind], fn)
+            end }
+            local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
+            tip.NineSlice = CreateFrame("Frame", nil, tip)
+            tip.__n = 0
+            local function line(side, i)
+                local key = "GameTooltipText" .. side .. i
+                if not _G[key] then
+                    local fs = tip:CreateFontString(key)
+                    fs:SetFontObject(_G.GameTooltipText)
+                    if i == 1 and side == "Left" then fs:SetPoint("TOPLEFT", tip, "TOPLEFT", 10, -10)
+                    elseif side == "Left" then fs:SetPoint("TOPLEFT", _G["GameTooltipTextLeft" .. (i - 1)], "BOTTOMLEFT", 0, -2)
+                    else fs:SetPoint("RIGHT", _G["GameTooltipTextLeft" .. i], "RIGHT", 40, 0) end
+                    _G[key] = fs
+                end
+                return _G[key]
+            end
+            function tip:NumLines() return self.__n end
+            function tip:ClearLines()
+                for i = 1, self.__n do line("Left", i):SetText(nil); line("Right", i):SetText(nil) end
+                self.__n = 0
+            end
+            function tip:AddDoubleLine(l, r, lr, lg, lb, rr, rg, rb)
+                self.__n = self.__n + 1
+                local left, right = line("Left", self.__n), line("Right", self.__n)
+                left:SetText(l); left:SetTextColor(lr or 1, lg or 1, lb or 1)
+                right:SetText(r); right:SetTextColor(rr or 1, rg or 1, rb or 1)
+            end
+            function tip:AddLine(t, r, g, b) self:AddDoubleLine(t, nil, r, g, b) end
+            function tip:GetItem() return nil, "epic" end
+            function tip:SetOwner(owner, anchor)
+                self.__owner, self.__anchor = owner, anchor
+                self:ClearLines()
+                local cleared = self:GetScript("OnTooltipCleared")
+                if cleared then cleared(self) end
+            end
+            function tip:GetOwner() return self.__owner end
+            function tip:GetAnchorType() return self.__anchor end
+            tip:SetScript("OnShow", function(self) self:ClearPadding() end)
+            stub.TooltipSizes(tip)
+            tip:Hide()
+            C_Item.GetItemQualityByID = function() return 4 end
+            C_Item.GetItemQualityColor = function() return 0.64, 0.21, 0.93 end
+        end,
+        open = function(DUI, look)
+            DUI:Set("Tooltip", "style", look == "simple" and "simple" or "rich")
+            stub.RunTimers()
+            local tip = GameTooltip
+            tip:SetOwner(UIParent, "ANCHOR_NONE")
+            tip:ClearAllPoints()
+            tip:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+            tip:AddLine("Dawnforged Greaves", 0.64, 0.21, 0.93)
+            tip:AddLine("Binds when equipped")
+            tip:AddDoubleLine("Legs", "Plate")
+            tip:AddLine("742 Armor")
+            tip:AddLine("+24 Strength")
+            tip:AddLine("+31 Stamina")
+            tip:AddLine("Equip: Improves your chance to get a critical strike by 1%.", 0, 1, 0)
+            tip:AddLine("Durability 98 / 100")
+            tip:AddDoubleLine("Requires Level 58", "")
+            if look == "secret" then GameTooltipTextLeft4:SetText(stub.Secret("742 Armor")) end
+            local data = { type = 0 }
+            for _, fn in ipairs(SNAP_TIP_POST.ALL or {}) do fn(tip, data) end
+            for _, fn in ipairs(SNAP_TIP_POST[0] or {}) do fn(tip, data) end
+            tip:Show()
+            tip:GetScript("OnUpdate")(tip, 0.02)
+            return tip
+        end },
     npc = { about = "the NPC window's sample talk [immersive: the whole screen]", open = function(DUI, look)
         DUI:Set("NPC", "look", look == "immersive" and "immersive" or "window")
         DUI.Npc.Window.Sample()

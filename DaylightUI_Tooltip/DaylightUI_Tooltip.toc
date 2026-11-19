@@ -14,5 +14,8 @@
 
 Defaults.lua
 Tooltip.lua
+Rich\Read.lua
+Rich\Panel.lua
+Rich\Rich.lua
 Options.lua
 Module.lua

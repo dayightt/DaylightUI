@@ -10,6 +10,12 @@ ns.OPTIONS = { pages = {
       -- With PrettyTooltip on this module is off (Module.lua), so none of this would apply.
       hidden = function() return DaylightUI.PrettyAside.Draws() end,
       groups = {
+        { label = "Style", items = {
+            { type = "dropdown", key = "style", label = "Tooltip style", since = "1.9.7",
+              values = { rich = "Rich", simple = "Simple" }, order = { "rich", "simple" },
+              desc = "Rich: Daylight UI's own cards, with a colored light along the top and everything laid out as rows. "
+                  .. "Simple: the game's tooltips in the Daylight UI look. In a fight Rich keeps its frame around the game's own lines." },
+        } },
         { label = "Placement", items = {
             { type = "dropdown", key = "anchor", label = "Tooltip position",
               values = { game = "Default position", cursor = "At the cursor" }, order = { "game", "cursor" },

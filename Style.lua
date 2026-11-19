@@ -1779,6 +1779,58 @@ function Style.Near(frame, tex, end_)
     end
 end
 
+-- A square bottom-right corner cut off at 45 degrees (the tooltip cards, their
+-- value tiles and icons). One mask per frame, sized to the cut and pinned to
+-- that corner; stretched with CLAMP its solid top row and left column carry on
+-- along the frame, so only the corner is cut. Each texture handed in takes the
+-- mask once (a texture holds at most three). size 0 or less: no cut.
+Style.CUT_MASK = DUI.MEDIA .. "mask-cut-br.png"
+local cutOf = setmetatable({}, { __mode = "k" }) -- frame -> { mask, on = { [tex] = true } }
+
+function Style.CutCorner(frame, size, ...)
+    local c = cutOf[frame]
+    if not c then
+        c = { mask = frame:CreateMaskTexture(), on = setmetatable({}, { __mode = "k" }) }
+        cutOf[frame] = c
+    end
+    for i = 1, select("#", ...) do
+        local tex = select(i, ...)
+        if type(tex) == "table" and not c.on[tex] then
+            c.on[tex] = true
+            tex:AddMaskTexture(c.mask)
+        end
+    end
+    local m = c.mask
+    m:ClearAllPoints()
+    if type(size) == "number" and size > 0 then
+        m:SetTexture(Style.CUT_MASK, "CLAMP", "CLAMP")
+        m:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+        m:SetSize(size, size)
+    else
+        -- Solid white cuts nothing (a zero-size mask cut everything in game).
+        m:SetTexture(WHITE, "CLAMP", "CLAMP")
+        m:SetAllPoints(frame)
+    end
+    c.size = size
+    return m
+end
+
+function Style.GetCut(frame)
+    local c = cutOf[frame]
+    return c and c.size or 0
+end
+
+-- The same cut on a frame's shell: every piece that reaches that corner,
+-- its shadow included, so the shadow stops where the cut starts.
+function Style.CutShell(frame, size)
+    local s = shellOf[frame]
+    if not s then return end
+    local b, band, sh, f = s.border, s.band, s.shadow, s.fillet
+    Style.CutCorner(frame, size, s.bg, s.bevelBottom, s.slantFill and s.slantFill.right,
+        b.BOTTOM, b.RIGHT, b.BOTTOMRIGHT, band.BOTTOM, band.RIGHT, band.BOTTOMRIGHT,
+        sh.BOTTOM, sh.RIGHT, sh.BOTTOMRIGHT, f.BOTTOMRIGHT)
+end
+
 -- One mask per owner, kind ("clip": a clip's own line; "stop": a strip's far
 -- side), line and end, found without building a key string since this runs
 -- for every clip at every layout.

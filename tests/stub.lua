@@ -373,6 +373,7 @@ function Widget:Show()
     if self.__type == "GameTooltip" then self.__alpha = 1 end
     local was = self.__shown
     self.__shown = true
+    if self.__type == "GameTooltip" then stub.SizeTooltip(self) end
     if not was and parentsShown(self) then
         if self.__scripts.OnShow then self.__scripts.OnShow(self) end
         cascade(self, "OnShow")
@@ -445,8 +446,56 @@ function Widget:IsIgnoringParentAlpha() return self.__ignoreParentAlpha == true 
 function Widget:SetSize(w, h) guard(self, "SetSize"); self.__w, self.__h = w, h end
 function Widget:SetWidth(w) guard(self, "SetWidth"); self.__w = w end
 function Widget:SetHeight(h) guard(self, "SetHeight"); self.__h = h end
-function Widget:GetWidth() return self.__w or 0 end
-function Widget:GetHeight() return self.__h or 0 end
+-- A tooltip whose lines show a secret has secret anchoring, so its size reads
+-- back secret too (GetWidth/GetHeight are "SecretWhenAnchoringSecret").
+function Widget:GetWidth()
+    if rawget(self, "__tipSecret") then return stub.Secret(self.__w or 0) end
+    return self.__w or 0
+end
+function Widget:GetHeight()
+    if rawget(self, "__tipSecret") then return stub.Secret(self.__h or 0) end
+    return self.__h or 0
+end
+-- Tooltip sizing like the client's (FrameAPITooltipDocumentation, the game's
+-- GameTooltip.lua): padding and a minimum width are kept on the tooltip, the
+-- game's own OnShow and OnHide clear the padding (GameTooltip_CalculatePadding,
+-- ClearPadding), and SetPadding resizes a shown tooltip at once. A test opts a
+-- tooltip into being sized from its lines with stub.TooltipSizes(tip): Show then
+-- sizes it to its widest line and its line count, plus TIP_EDGE on each side,
+-- at least its minimum width, plus the padding.
+stub.TIP_EDGE, stub.TIP_LINE, stub.TIP_SPACING = 10, 12, 2
+function Widget:SetPadding(r, b, l, t)
+    self.__pad = { r or 0, b or 0, l or 0, t or 0 }
+    if self.__shown then stub.SizeTooltip(self) end
+end
+function Widget:GetPadding()
+    local p = self.__pad or { 0, 0, 0, 0 }
+    return p[1], p[2], p[3], p[4]
+end
+function Widget:ClearPadding() self:SetPadding(0, 0, 0, 0) end
+function Widget:SetMinimumWidth(w, force) self.__minWidth, self.__minForced = w, force == true end
+function Widget:GetMinimumWidth() return self.__minWidth or 0, self.__minForced == true end
+function stub.TooltipSizes(tip) tip.__sizes = true end
+function stub.SizeTooltip(tip)
+    if not rawget(tip, "__sizes") or type(tip.NumLines) ~= "function" then return end
+    local name, n = tip:GetName(), tip:NumLines()
+    local widest, secret = 0, false
+    for i = 1, n do
+        local w = 0
+        for _, side in ipairs({ "Left", "Right" }) do
+            local fs = _G[name .. "Text" .. side .. i]
+            local t = fs and rawget(fs, "__text")
+            if isSecret(t) then secret = true
+            elseif type(t) == "string" and t ~= "" then w = w + #t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") * 7 + (side == "Right" and 20 or 0) end
+        end
+        widest = math.max(widest, w)
+    end
+    local pad = tip.__pad or { 0, 0, 0, 0 }
+    local inside = tip.__minForced and (tip.__minWidth or 0) or math.max(widest, tip.__minWidth or 0)
+    tip.__w = inside + 2 * stub.TIP_EDGE + pad[1] + pad[3]
+    tip.__h = n * stub.TIP_LINE + math.max(0, n - 1) * stub.TIP_SPACING + 2 * stub.TIP_EDGE + pad[2] + pad[4]
+    tip.__tipSecret = secret or nil
+end
 -- A resizable frame's limits as set. The client returns 0s before any are set.
 function Widget:SetResizeBounds(a, b, c, d) self.__bounds = { a, b, c, d } end
 function Widget:GetResizeBounds()
@@ -3655,7 +3704,7 @@ function stub.Load(opts)
     end
     if opts.tooltip then
         local TT = {}
-        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
+        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Rich.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Tooltip")
         stub.tooltip = TT
     end

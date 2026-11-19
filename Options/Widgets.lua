@@ -3878,6 +3878,72 @@ function W.Page(parent, page, width)
     return p
 end
 
+-- Tags and value tiles: small read-only facts on a card (the rich tooltips).
+-- Neither takes clicks. font: a font slot (Media.RegisterSlot) the text follows,
+-- or nil for the Appearance font.
+
+W.TAG_H, W.TAG_PAD, W.TAG_SLANT = 16, 9, 4
+W.TAG_FILL = { 1, 1, 1 }
+
+-- A tag: a short fact in small capitals inside a slanted outline, its text in
+-- the color of what it means (a class, a quality, a school; LABEL for a plain
+-- fact). t.Set(text, color) fills it and fits its width.
+function W.Tag(parent, font)
+    local t = CreateFrame("Frame", nil, parent)
+    t:SetHeight(W.TAG_H)
+    t:EnableMouse(false)
+    Style.Shell(t, { borderPx = 1, flat = true, noBevel = true, cornerPx = 0, shadowPx = 0, shadowAlpha = 0,
+        borderColor = Style.BAND_LIT, bgColor = W.TAG_FILL, bgAlpha = 0.04 })
+    -- Top-left and bottom-right corners cut: a parallelogram.
+    Style.Slant(t, "both", W.TAG_SLANT, nil, "left")
+    t.text = Style.Text(t, SIZE.tiny, "CENTER", font)
+    t.text:SetPoint("CENTER", t, "CENTER", 0, 0)
+    t.text:SetWordWrap(false)
+    function t.Set(text, color)
+        t.text:SetText(Style.Upper(text or ""))
+        local c = color or Style.INK.LABEL
+        t.text:SetTextColor(c[1], c[2], c[3])
+        t.FitWidth()
+    end
+    function t.FitWidth()
+        local w = t.text:GetStringWidth()
+        if type(w) ~= "number" or DUI.IsSecret(w) then w = 60 end
+        t:SetWidth(math.floor(w + 2 * W.TAG_PAD + 0.5))
+        return t:GetWidth()
+    end
+    return t
+end
+
+W.TILE_H, W.TILE_CUT, W.TILE_PAD = 40, 5, 8
+
+-- A value tile: a value over its caption (CAST, COST, RANGE), in a faint box
+-- with its bottom-right corner cut. t.Set(value, caption, color); color is the
+-- value's (white when nil).
+function W.Tile(parent, font)
+    local t = CreateFrame("Frame", nil, parent)
+    t:SetHeight(W.TILE_H)
+    t:EnableMouse(false)
+    Style.Shell(t, { borderPx = 1, flat = true, noBevel = true, cornerPx = 0, shadowPx = 0, shadowAlpha = 0,
+        borderColor = Style.BAND_LIT, bgColor = W.TAG_FILL, bgAlpha = 0.035 })
+    Style.CutShell(t, W.TILE_CUT)
+    t.value = Style.Text(t, SIZE.body, "LEFT", font)
+    t.value:SetPoint("TOPLEFT", t, "TOPLEFT", W.TILE_PAD, -7)
+    t.value:SetPoint("TOPRIGHT", t, "TOPRIGHT", -W.TILE_PAD, -7)
+    t.value:SetWordWrap(false)
+    t.caption = Style.Text(t, SIZE.tiny, "LEFT", font)
+    t.caption:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", W.TILE_PAD, 6)
+    t.caption:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -W.TILE_PAD, 6)
+    t.caption:SetWordWrap(false)
+    function t.Set(value, caption, color)
+        t.value:SetText(value or "")
+        local c = color or Style.INK.VALUE
+        t.value:SetTextColor(c[1], c[2], c[3])
+        t.caption:SetText(Style.Upper(caption or ""))
+        Style.InkText(t.caption, "LABEL")
+    end
+    return t
+end
+
 -- Chips: a page's cards by name, "All" first, the visible one lit
 
 W.CHIP_HEIGHT, W.CHIP_GAP, W.CHIP_PAD = 24, 6, 11
