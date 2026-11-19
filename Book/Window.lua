@@ -180,22 +180,42 @@ function Book.Changed(_, shown)
     local f = Book.frame
     if ns.Fight and ns.Fight.Holds() then return end   -- the secure layer is in charge
     if not shown then
+        Book.minimizedFrom = nil
         if Win.IsOpen(f) then shut(f) end
         return
     end
     local g = Book.Game()
     if not g then return end
+    if ns.Fight then ns.Fight.DropKeys() end   -- its own keys close it again
     if not Book.Ours(g) then return lend() end
-    Book.Open(Book.PageOf(g:GetTab()))
+    Book.Open(Book.PageNow(g))
+end
+
+-- The page the game's book stands for. With another panel open (the world map) the
+-- game shows its book minimized, and since only the spellbook tab can be minimized
+-- it turns from talents to the spellbook in the same call. Daylight UI's window
+-- never minimizes, so it keeps the talents that were asked for.
+function Book.PageNow(g, tabID)
+    local page = Book.PageOf(tabID or g:GetTab())
+    if page == "spells" and Book.minimizedFrom and g.isMinimized == true then return Book.minimizedFrom end
+    return page
 end
 
 -- The game switched tabs, from a key press or an inspect.
 function Book.OnTabSet(_, _, tabID)
+    local g, t = Book.Game(), GetTime()
+    local last = Book.lastTab
+    Book.lastTab = { id = tabID, at = t }
+    if g and tabID == g.spellBookTabID and g.isMinimized == true and last and last.at == t
+        and Book.PageOf(last.id) == "talents" then
+        Book.minimizedFrom = "talents"
+    else
+        Book.minimizedFrom = nil
+    end
     if ns.Fight and ns.Fight.Holds() then return end
     if not (Book.follow and Win.Followers.Shown(Book.follow, "book")) then return end
-    local g = Book.Game()
     if g and not Book.Ours(g) then return lend() end
-    local page = Book.PageOf(tabID)
+    local page = g and Book.PageNow(g, tabID) or Book.PageOf(tabID)
     if not page then return end
     if not Win.IsOpen(Book.frame) then return Book.Open(page) end   -- closed by its X in combat while the game frame stayed up
     if page ~= Book.frame.current then Book.Show(page) end
@@ -213,16 +233,13 @@ function Book.FightStarts()
 end
 
 -- A window opened in combat by the secure keys has no game frame behind it.
--- Reopen the game frame (hidden) on the same page so its keys and Escape
--- close both again.
+-- The game's keys and Escape stay with it (Fight.KeepKeys) until it closes:
+-- opening the game's book from here would taint it.
 function Book.FightEnds()
     if not (ns.Fight and ns.Fight.Disarm()) then return end
     local f, g = Book.frame, Book.Game()
     if not Win.IsOpen(f) or (g and g:IsShown()) then return end
-    local U = _G.PlayerSpellsUtil
-    if type(U) ~= "table" then return end
-    local open = f.current == "talents" and U.OpenToClassTalentsTab or U.OpenToSpellBookTab
-    if type(open) == "function" then pcall(open) end
+    ns.Fight.KeepKeys()
 end
 
 -- ---------------------------------------------------------------------

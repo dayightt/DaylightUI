@@ -88,6 +88,26 @@ T.test("book: P opens ours on the spellbook, N on talents", function()
     T.eq(B.frame.title:GetText(), TALENTS or "Talents")
 end)
 
+-- With the world map open the game shows its book minimized, and only the
+-- spellbook can be minimized, so it turns to that tab itself. Daylight UI's window
+-- never minimizes: N must still open talents.
+T.test("book: N with the world map open opens talents, not the spellbook", function()
+    local B = load()
+    BW.OtherPanel(true)
+    BW.Toggle(BW.TALENTS)
+    frame()
+    T.eq(PlayerSpellsFrame:GetTab(), BW.SPELLBOOK, "the game turned to its spellbook")
+    T.eq(open(B), true)
+    T.eq(B.frame.current, "talents", "ours shows what N asked for")
+    BW.Toggle(BW.TALENTS)   -- the game's book maximizes on talents, the map closes
+    frame()
+    T.eq(PlayerSpellsFrame:GetTab(), BW.TALENTS)
+    T.eq(B.frame.current, "talents")
+    BW.Toggle(BW.TALENTS)
+    settle()
+    T.eq(open(B), false, "N again closes both")
+end)
+
 T.test("book: the game's tab switching while open switches our page; our tab leaves the game's", function()
     local B = load()
     BW.Open(BW.SPELLBOOK)

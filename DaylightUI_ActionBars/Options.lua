@@ -141,6 +141,8 @@ local LIT = { accent = "Accent color", class = "Class color", custom = "One colo
 local LIT_ORDER = { "accent", "class", "custom" }
 local EDGE = { off = "None", accent = "Accent color", class = "Class color", custom = "One color" }
 local EDGE_ORDER = { "off", "accent", "class", "custom" }
+-- The micro menu's own look rows do nothing without its Daylight UI style.
+local function microLook(get) return get("skinMenus") ~= true or get("microMenu") ~= "shown" end
 
 -- A text's offset in px from its spot. cdm = the Cooldown Manager has it too.
 local function nudge(field, label, cdm, show)
@@ -364,6 +366,15 @@ local look = {
         menuSize("microMenu", "Micro menu size"),
         { type = "toggle", key = "skinMenus", label = "Daylight UI style bag bar and micro menu", reload = true,
           desc = "Gives the micro menu and bag bar the Daylight UI look: square frames in your action button border style." },
+        { type = "dropdown", key = "microIconColor", label = "Micro menu icon color", values = LIT, order = LIT_ORDER,
+          desc = "The color of the micro menu's icons in the Daylight UI style. Accent color runs your accent along the row, gradient and all.",
+          disabled = microLook },
+        { type = "color", key = "microIconCustom", label = "Custom micro menu icon color",
+          desc = "The micro menu's icon color when Micro menu icon color is One color.",
+          hidden = custom("microIconColor"), disabled = microLook },
+        { type = "toggle", key = "microBackgrounds", label = "Micro menu button backgrounds",
+          desc = "The dark square behind each micro menu icon. When off, the icons sit on their own.",
+          disabled = microLook },
     } },
     { label = "Bag bar fade", desc = "When the shown bag bar fades and how far.",
       items = DaylightUI.Fade.Items("bagBarFade.", nil, unless("bagBar", "shown"), "Bag bar") },
