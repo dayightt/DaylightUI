@@ -163,6 +163,7 @@ end
 local function busy()
     if ns.LevelUp and ns.LevelUp.Showing() then return true end
     if ns.RepBanner and ns.RepBanner.Showing() then return true end
+    if ns.Flight and ns.Flight.Welcoming() then return true end
     local m = _G.EventToastManagerFrame
     return type(m) == "table" and type(m.IsCurrentlyToasting) == "function" and m:IsShown()
         and m:IsCurrentlyToasting() ~= nil

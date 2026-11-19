@@ -19,9 +19,17 @@ local Flight = {
     LINE = 3,           -- the route line's thickness
     DOT = 7,            -- a stop on the line
     SPARK = 26,         -- the light at the front of the fill
-    FLARE = 90,         -- the flash over the name on landing
+    HEIGHT = 74,        -- from the top of "Flying to" to under the time
+    PAD_X = 18,         -- room inside the box at the sides
+    PAD_Y = 12,         -- and at the top and bottom
     RISE = 10,          -- px it glides down as it comes in
-    LANDED = 1.4,       -- seconds "Arrived" holds before it leaves
+    -- The welcome on landing.
+    WELCOME_Y = -250,   -- its middle from the screen's top, under the flight timer
+    WELCOME_NAME = 30,
+    WELCOME_W = 380,    -- its line at full spread
+    WELCOME_RISE = 18,  -- px it slides up as it comes in
+    WELCOME_HOLD = 2.6, -- seconds it stays
+    WELCOME_DRIFT = 8,  -- px it rises as it fades
     TICK = 0.1,         -- seconds between updates while flying
     START_WAIT = 10,    -- seconds after picking a flight point to wait for take-off
     MIN_LEARN = 5,      -- a shorter "flight" is a hiccup, not a route: not learned
@@ -30,6 +38,8 @@ local Flight = {
     GLOW = DUI.MEDIA .. "char-glow.png",
     CIRCLE = DUI.MEDIA .. "shape-circle.png",
     MOVER = "qol.flight",
+    WELCOME_MOVER = "qol.welcome",
+    FONT = "qol.flight.font",   -- its font's Media slot (flightFont)
     GRADIENT = "TIMER_FLIGHT",
     TEST_PART = "flight",
     -- The test-mode sample.
@@ -44,12 +54,21 @@ if DUI.Gradients then
         lo = { 0.40, 0.30, 0.55 }, hi = { 1.00, 0.78, 0.55 } })
 end
 
+DUI.Media.RegisterSlot(Flight.FONT, "QoL", "flightFont", "font")
+
 local mod, wired, holder
 local nodes, here = {}, nil   -- the open taxi map's points: slot -> { name, id }; where you are
 local pending                  -- { key, back, name, from, guess, stops, at }: picked, not in the air yet
 local flight                   -- { key, name, from, start, total?, stops, early? }: in the air
 local vis = 0                  -- 0 hidden .. 1 fully in
-local landing = 0              -- each landing's id: a new flight stops the old one's timer
+local welcome                  -- the landing splash
+local welcomeRun = 0           -- each splash's id: a newer one stops the older one's timers
+local welcomeSample = false    -- the welcome is up as the unlock / test mode sample
+
+local function db(key) return mod and mod.db and mod.db[key] end
+-- A piece's switch: on unless it was turned off.
+local function on(key) return db(key) ~= false end
+local function width() return tonumber(db("flightWidth")) or Flight.WIDTH end
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.flightTimer == true end
 
@@ -172,45 +191,114 @@ local function paint()
     local f = holder.f
     unsnap(f)
     f.spark:SetVertexColor(Style.SplashAt(0.85))
-    f.flare:SetVertexColor(Style.SplashAt(0.85))
+    Style.PaintAccent(f.box.topLine, 0.7)
     Style.PaintAccentText(f.label, Style.Upper(L["Flying to"]))
+end
+
+-- Its border: the Daylight UI one, the accent or the player's own color.
+local function paintBorder(s)
+    local mode, c = db("flightBorderColor"), db("flightBorderCustom")
+    if mode == "accent" then
+        Style.LightShell(s)
+    elseif mode == "custom" and type(c) == "table" then
+        Style.SetShellColors(s, { c[1], c[2], c[3] })
+    else
+        Style.SetShellColors(s, nil)
+    end
+end
+
+-- Lays the banner out from its settings: what shows, the sizes, the width,
+-- the background and border. Each piece turned off gives its room back.
+local function layout()
+    if not holder then return end
+    local f, w = holder.f, width()
+    local nameSize = tonumber(db("flightNameSize")) or Flight.NAME
+    local textSize = tonumber(db("flightTextSize")) or Style.SIZE.small
+    local timeSize = tonumber(db("flightTimeSize")) or Style.SIZE.head
+    Style.SetTextSize(f.label, textSize)
+    Style.SetTextSize(f.name, nameSize)
+    Style.SetTextSize(f.from, textSize)
+    Style.SetTextSize(f.time, timeSize)
+
+    local y = 0
+    f.label:ClearAllPoints()
+    f.label:SetShown(on("flightLabel"))
+    if on("flightLabel") then
+        f.label:SetPoint("TOP", f, "TOP", 0, 0)
+        y = textSize + 3
+    end
+    f.name:ClearAllPoints()
+    f.name:SetPoint("TOP", f, "TOP", 0, -y)
+    f.name:SetWidth(w)
+    y = y + nameSize + 8
+
+    local line = on("flightLine")
+    holder.lineOn = line
+    f.bar:SetShown(line)
+    f.start:SetShown(line)
+    f.finish:SetShown(line)
+    if line then
+        y = y + 4
+        f.bar:ClearAllPoints()
+        f.bar:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -y)
+        f.bar:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -y)
+        y = y + Flight.LINE + 7
+    end
+
+    local from, time = on("flightFrom"), on("flightTime")
+    f.from:SetShown(from)
+    f.time:SetShown(time)
+    f.from:ClearAllPoints()
+    f.from:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(y + 2))
+    f.from:SetPoint("RIGHT", f, "CENTER", -8, 0)
+    f.time:ClearAllPoints()
+    f.time:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -y)
+    if from or time then y = y + math.max(from and textSize + 2 or 0, time and timeSize or 0) end
+
+    holder:SetSize(w, y)
+    f:SetSize(w, y)
+    local back, border = on("flightBack"), on("flightBorder")
+    f.box.shell = Style.Shell(f.box, { noBackground = not back, noBorder = not border, noBevel = not back,
+        shadowAlpha = (not back and not border) and 0 or nil,
+        bgAlpha = Style.BackAlpha(db("flightAlphaOwn"), db("flightAlpha")) })
+    paintBorder(f.box.shell)
+    f.box.topLine:SetShown(on("flightAccentLine"))
 end
 
 local function build()
     if holder then return end
     holder = CreateFrame("Frame", "DaylightUIFlightTimer", UIParent)
-    holder:SetSize(Flight.WIDTH, 80)
+    holder:SetSize(Flight.WIDTH, Flight.HEIGHT)
     holder:EnableMouse(false)
     holder:Hide()
     local f = CreateFrame("Frame", nil, holder)
     holder.f = f
-    f:SetSize(Flight.WIDTH, 80)
+    f:SetSize(Flight.WIDTH, Flight.HEIGHT)
     f:SetPoint("TOP", holder, "TOP", 0, 0)
 
-    f.label = Style.Text(f, Style.SIZE.small, "CENTER")
-    f.label:SetPoint("TOP", f, "TOP", 0, 0)
-    f.name = Style.Text(f, Flight.NAME, "CENTER")
-    f.name:SetPoint("TOP", f.label, "BOTTOM", 0, -3)
-    f.name:SetWidth(Flight.WIDTH)
-    f.name:SetWordWrap(false)
-    Style.InkText(f.name, "TITLE")
-
-    f.flare = f:CreateTexture(nil, "BACKGROUND")
-    f.flare:SetTexture(Flight.GLOW)
-    f.flare:SetSize(Flight.FLARE * 2.4, Flight.FLARE)
-    f.flare:SetPoint("CENTER", f.name, "CENTER", 0, 0)
-    f.flare:SetBlendMode("ADD")
-    f.flare:Hide()
-
-    f.bar = Style.Bar(f)
-    f.bar:SetHeight(Flight.LINE)
-    f.bar:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(Flight.NAME + 30))
-    f.bar:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -(Flight.NAME + 30))
+    -- The box behind it all, so it reads over bright ground: the window shell
+    -- with the windows' accent line along its top.
+    f.box = CreateFrame("Frame", nil, f)
+    f.box:SetFrameLevel(f:GetFrameLevel())
+    f.box:SetPoint("TOPLEFT", f, "TOPLEFT", -Flight.PAD_X, Flight.PAD_Y)
+    f.box:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", Flight.PAD_X, -Flight.PAD_Y)
+    f.box.shell = Style.Shell(f.box)
+    DUI.Win.Lines(f.box)
 
     local over = CreateFrame("Frame", nil, f)
     over:SetAllPoints(f)
-    over:SetFrameLevel(f.bar:GetFrameLevel() + 3)
+    over:SetFrameLevel(f:GetFrameLevel() + 8)
     f.over = over
+
+    f.label = Style.Text(over, Style.SIZE.small, "CENTER", Flight.FONT)
+    f.name = Style.Text(over, Flight.NAME, "CENTER", Flight.FONT)
+    f.name:SetWordWrap(false)
+    Style.InkText(f.name, "TITLE")
+
+    f.bar = Style.Bar(f)
+    f.bar:SetFrameLevel(f:GetFrameLevel() + 4)
+    f.bar:SetHeight(Flight.LINE)
+
     f.start = dot(over, Flight.DOT)
     f.start:SetPoint("CENTER", f.bar, "LEFT", 0, 0)
     f.finish = dot(over, Flight.DOT + 3)
@@ -220,19 +308,17 @@ local function build()
     f.spark:SetTexture(Flight.GLOW)
     f.spark:SetBlendMode("ADD")
     f.spark:SetSize(Flight.SPARK, Flight.SPARK)
-    f.spark:SetPoint("CENTER", f.bar:GetStatusBarTexture(), "RIGHT", 0, 0)
+    f.spark:SetPoint("CENTER", f.bar, "LEFT", 0, 0)
     f.head = dot(over, Flight.DOT)
-    f.head:SetPoint("CENTER", f.bar:GetStatusBarTexture(), "RIGHT", 0, 0)
+    f.head:SetPoint("CENTER", f.bar, "LEFT", 0, 0)
     f.head:SetVertexColor(1, 1, 1, 1)
 
-    f.from = Style.Text(f, Style.SIZE.small, "LEFT")
-    f.from:SetPoint("TOPLEFT", f.bar, "BOTTOMLEFT", 0, -8)
-    f.from:SetPoint("RIGHT", f, "CENTER", -8, 0)
+    f.from = Style.Text(over, Style.SIZE.small, "LEFT", Flight.FONT)
     f.from:SetWordWrap(false)
     Style.InkText(f.from, "LABEL")
-    f.time = Style.Text(f, Style.SIZE.head, "RIGHT")
-    f.time:SetPoint("TOPRIGHT", f.bar, "BOTTOMRIGHT", 0, -6)
+    f.time = Style.Text(over, Style.SIZE.head, "RIGHT", Flight.FONT)
     f.time.tone = nil
+    layout()
     paint()
     DUI.Movers.Register(holder, Flight.MOVER, "Flight timer", { "TOP", nil, "TOP", 0, -88 },
         { active = enabled })
@@ -262,7 +348,7 @@ local function placeStops(stops, p)
             if not d then d = dot(f.over, Flight.DOT - 1); f.stops[i] = d end
             d:ClearAllPoints()
             -- The fixed width, not GetWidth: the line may not be laid out yet on its first show.
-            d:SetPoint("CENTER", f.bar, "LEFT", at * Flight.WIDTH, 0)
+            d:SetPoint("CENTER", f.bar, "LEFT", at * width(), 0)
             d:Show()
         elseif d then
             d:Hide()
@@ -278,6 +364,17 @@ local function placeStops(stops, p)
     light(f.finish, p >= 1)
 end
 
+-- The front of the line at p (0..1). The fill's own edge is hard, so on screen
+-- it can only step a whole pixel at a time; the soft light and dot over it are
+-- placed at the exact spot every frame and glide between pixels.
+local function setFront(p)
+    local f = holder.f
+    f.bar:SetValue(p)
+    local x = p * width()
+    f.spark:SetPoint("CENTER", f.bar, "LEFT", x, 0)
+    f.head:SetPoint("CENTER", f.bar, "LEFT", x, 0)
+end
+
 -- What the banner shows: where to, from where, how far along, the time.
 local function show(name, from, elapsed, total, stops)
     local f = holder.f
@@ -289,8 +386,8 @@ local function show(name, from, elapsed, total, stops)
         local left = total - elapsed
         setText(f.time, left > 0 and Flight.FormatTime(left) or L["Almost there"])
         tone(f.time, (left > 0 and left < Flight.SOON) and "WARN" or "pop")
-        f.spark:Show()
-        f.head:Show()
+        f.spark:SetShown(holder.lineOn == true)
+        f.head:SetShown(holder.lineOn == true)
     else
         -- No time to count down from: the clock counts up, the line waits empty.
         p = 0
@@ -300,8 +397,8 @@ local function show(name, from, elapsed, total, stops)
         f.head:Hide()
     end
     f.bar:SetMinMaxValues(0, 1)
-    f.bar:SetValue(p)
-    placeStops(stops, p)
+    setFront(p)
+    placeStops((holder.lineOn and on("flightStops")) and stops or nil, p)
 end
 
 -- The glide: alpha and a short drop from above, from wherever it is.
@@ -337,37 +434,171 @@ function Flight.Update()
     end
     build()
     if flight then
-        landing = landing + 1
         show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops)
-    elseif landing < 0 then
-        return  -- "Arrived" is up; it leaves by itself
     elseif sampleWanted() then
         local s = Flight.SAMPLE
         show(s.name, s.from, s.elapsed, s.total, s.stops)
     else
         glide(false)
+        Flight.WelcomeSample(false)
         return
     end
     glide(true)
+    Flight.WelcomeSample(sampleWanted() and on("flightWelcome"))
 end
 
--- Landed: the line fills, the name flares, "Arrived", then it leaves.
-local function arrive()
-    if not (holder and holder:IsShown()) then return Flight.Update() end
-    local f = holder.f
-    f.bar:SetValue(1)
-    placeStops(nil, 1)
-    for _, d in ipairs(f.stops) do d:Hide() end
-    setText(f.time, L["Arrived"])
-    tone(f.time, "GOOD")
-    Motion.Flash(f.flare, Motion.SLOW * 2)
-    landing = -1
-    C_Timer.After(Flight.LANDED, function()
-        if landing ~= -1 then return end
-        landing = 0
-        Flight.Update()
+-- ---------------------------------------------------------------------
+-- The welcome on landing
+-- ---------------------------------------------------------------------
+
+local function buildWelcome()
+    if welcome then return welcome end
+    -- The holder stays put for the unlock handle; the splash drifts inside it.
+    local wh = CreateFrame("Frame", "DaylightUIFlightWelcomeHolder", UIParent)
+    wh:SetSize(Flight.WELCOME_W, 80)
+    wh:EnableMouse(false)
+    local w = CreateFrame("Frame", "DaylightUIFlightWelcome", wh)
+    w.holder = wh
+    w:SetSize(Flight.WELCOME_W, 1)
+    w:SetFrameStrata("HIGH")
+    w:EnableMouse(false)
+    w:Hide()
+    -- The top is free again: a zone or reputation change that waited plays now.
+    w:SetScript("OnHide", function()
+        if ns.ZoneTitle then ns.ZoneTitle.Resume() end
+        if ns.RepBanner then ns.RepBanner.Resume() end
+    end)
+    w.haze = w:CreateTexture(nil, "BACKGROUND")
+    w.haze:SetTexture(Flight.GLOW)
+    w.haze:SetBlendMode("ADD")
+    w.haze:SetPoint("CENTER", w, "CENTER", 0, 10)
+    w.haze:SetSize(Flight.WELCOME_W * 1.1, 90)
+    -- The line: two halves from the middle out, gone at the ends.
+    w.left = w:CreateTexture(nil, "ARTWORK")
+    w.left:SetColorTexture(1, 1, 1, 1)
+    w.left:SetPoint("RIGHT", w, "CENTER", 0, 0)
+    w.left:SetHeight(1)
+    w.right = w:CreateTexture(nil, "ARTWORK")
+    w.right:SetColorTexture(1, 1, 1, 1)
+    w.right:SetPoint("LEFT", w, "CENTER", 0, 0)
+    w.right:SetHeight(1)
+    w.body = CreateFrame("Frame", nil, w)
+    w.body:SetSize(Flight.WELCOME_W, 80)
+    w.label = Style.Text(w.body, Style.SIZE.body, "CENTER", Flight.FONT)
+    w.name = Style.Text(w.body, Flight.WELCOME_NAME, "CENTER", Flight.FONT)
+    w.name:SetPoint("BOTTOM", w.body, "BOTTOM", 0, 6)
+    w.name:SetWidth(Flight.WELCOME_W)
+    w.name:SetWordWrap(false)
+    Style.InkText(w.name, "TITLE")
+    welcome = w
+    DUI.Movers.Register(wh, Flight.WELCOME_MOVER, "Flight welcome", { "TOP", nil, "TOP", 0, Flight.WELCOME_Y + 40 },
+        { active = function() return enabled() and on("flightWelcome") end })
+    return w
+end
+
+-- Its text size from the setting; the label sits just above the name.
+local function sizeWelcome(w)
+    local size = tonumber(db("flightWelcomeSize")) or Flight.WELCOME_NAME
+    Style.SetTextSize(w.name, size)
+    w.label:ClearAllPoints()
+    w.label:SetPoint("BOTTOM", w.body, "BOTTOM", 0, size + 10)
+end
+
+local function paintWelcome(w)
+    local r1, g1, b1 = Style.SplashAt(0)
+    local rm, gm, bm = Style.SplashAt(0.5)
+    local r2, g2, b2 = Style.SplashAt(1)
+    w.left:SetGradient("HORIZONTAL", CreateColor(r1, g1, b1, 0), CreateColor(rm, gm, bm, 1))
+    w.right:SetGradient("HORIZONTAL", CreateColor(rm, gm, bm, 1), CreateColor(r2, g2, b2, 0))
+    w.haze:SetVertexColor(Style.SplashAt(0.85))
+    Style.PaintAccentText(w.label, Style.Upper(L["Welcome to"]))
+end
+
+-- p 0..1: in from below, the line drawing out from the middle.
+local function welcomeIn(w, p)
+    w.body:ClearAllPoints()
+    w.body:SetPoint("BOTTOM", w, "CENTER", 0, -Flight.WELCOME_RISE * (1 - p))
+    w.body:SetAlpha(p)
+    local half = math.max(0.5, Flight.WELCOME_W * p / 2)
+    w.left:SetWidth(half)
+    w.right:SetWidth(half)
+    w.haze:SetAlpha(0.35 * p)
+end
+
+local function welcomePlace(w, drift)
+    w:ClearAllPoints()
+    w:SetPoint("CENTER", w.holder, "CENTER", 0, drift)
+end
+
+-- "Welcome to Stormwind": slides gently up into place, holds, and fades away
+-- rising. It takes no clicks and steps aside for a level-up.
+function Flight.Welcome(name)
+    name = Flight.ShortName(name)
+    if not on("flightWelcome") then return end
+    if name == "" or (ns.LevelUp and ns.LevelUp.Showing()) then return end
+    if ns.ZoneTitle then ns.ZoneTitle.Stop() end
+    if ns.RepBanner then ns.RepBanner.Stop() end
+    local w = buildWelcome()
+    paintWelcome(w)
+    sizeWelcome(w)
+    welcomeSample = false
+    welcomeRun = welcomeRun + 1
+    local id = welcomeRun
+    w.name:SetText(name)
+    welcomePlace(w, 0)
+    welcomeIn(w, 0)
+    w:SetAlpha(1)
+    w:Show()
+    Motion.Tween("qol:welcome", 0, 1, Motion.SLOW, function(p)
+        if id == welcomeRun then welcomeIn(w, p) end
+    end)
+    C_Timer.After(Motion.SLOW + Flight.WELCOME_HOLD, function()
+        if id ~= welcomeRun then return end
+        Motion.Tween("qol:welcome", 0, 1, Motion.SLOW, function(p)
+            if id ~= welcomeRun then return end
+            welcomePlace(w, Flight.WELCOME_DRIFT * p)
+            w:SetAlpha(1 - p)
+        end, function() if id == welcomeRun then w:Hide() end end)
     end)
 end
+
+-- Up on screen (the zone title and reputation banner wait for it). The
+-- sample in unlock or test mode doesn't hold them up.
+function Flight.Welcoming() return welcome ~= nil and welcome:IsShown() and not welcomeSample end
+
+-- The welcome standing still as a sample while unlock or test mode wants it.
+function Flight.WelcomeSample(want)
+    want = want == true and enabled()
+    if want then
+        if Flight.Welcoming() then return end
+        local w = buildWelcome()
+        paintWelcome(w)
+        sizeWelcome(w)
+        welcomeSample = true
+        welcomeRun = welcomeRun + 1
+        w.name:SetText(Flight.ShortName(Flight.SAMPLE.name))
+        welcomePlace(w, 0)
+        welcomeIn(w, 1)
+        w:SetAlpha(1)
+        w:Show()
+    elseif welcomeSample and welcome then
+        welcomeSample = false
+        welcomeRun = welcomeRun + 1
+        welcome:Hide()
+    end
+end
+
+-- Steps aside at once (a level-up takes the spot, or it was switched off).
+function Flight.StopWelcome()
+    if not Flight.Welcoming() then return end
+    welcomeRun = welcomeRun + 1
+    local id, w = welcomeRun, welcome
+    Motion.Tween("qol:welcome", 0, 1, Motion.FAST, function(p)
+        if id == welcomeRun then w:SetAlpha(1 - p) end
+    end, function() if id == welcomeRun then w:Hide() end end)
+end
+
+function Flight.PreviewWelcome() Flight.Welcome(L["Stormwind"]) end
 
 -- ---------------------------------------------------------------------
 -- Following a flight
@@ -378,7 +609,7 @@ local driver, acc = nil, 0
 -- Every frame in the air, the line alone moves on; the text waits for the tick.
 local function moveLine()
     if not (flight and flight.total and flight.total > 0 and holder and holder:IsShown()) then return end
-    holder.f.bar:SetValue(math.min(1, (GetTime() - flight.start) / flight.total))
+    setFront(math.min(1, (GetTime() - flight.start) / flight.total))
 end
 
 local function stopDriver() if driver then driver:Hide() end end
@@ -392,7 +623,8 @@ local function land()
     if f.key and not f.early and took >= Flight.MIN_LEARN then
         Flight.Routes()[f.key] = math.floor(took + 0.5)
     end
-    if f.early then Flight.Update() else arrive() end
+    Flight.Update()
+    if not f.early then Flight.Welcome(f.name) end
 end
 
 -- Your own last flight of the route first; then the game's paths; then the
@@ -540,11 +772,13 @@ function Flight.Enable(m)
             Flight.Resume(isLogin == true)
         end)
         DUI.RegisterTestPart(Flight.TEST_PART, "Flight timer", 95, enabled)
+        DUI.RegisterCommand("landing", Flight.PreviewWelcome, L["/dui landing - preview the welcome on landing"])
         DUI.On("TestModeChanged", Flight.Update)
         DUI.On("TestPartChanged", function(key) if key == Flight.TEST_PART then Flight.Update() end end)
         DUI.On("UnlockChanged", Flight.Update)
-        DUI.On("StyleChanged", paint)
-        DUI.On("SettingChanged", function(scope) if scope == "general" then paint() end end)
+        local function restyle() layout() paint() end
+        DUI.On("StyleChanged", restyle)
+        DUI.On("SettingChanged", function(scope) if scope == "general" then restyle() end end)
     end
     if enabled() then build() end
     Flight.Resume()
@@ -555,9 +789,12 @@ function Flight.Refresh(m)
     if not enabled() then
         pending = nil
         if flight then flight = nil stopDriver() end
-        landing = 0
+        Flight.StopWelcome()
     else
         Flight.Resume()
     end
+    if not on("flightWelcome") then Flight.StopWelcome() Flight.WelcomeSample(false) end
+    layout()
+    paint()
     Flight.Update()
 end
