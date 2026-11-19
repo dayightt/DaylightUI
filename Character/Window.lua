@@ -19,7 +19,6 @@ Window.NAME = "DaylightUICharacter"
 Window.HEADER = DUI.Win.HEADER
 Window.W, Window.W_ICONS, Window.H = 960, 740, 540 + Window.HEADER
 Window.EDGE = DUI.Win.EDGE
-Window.GAP = 20            -- space before the next window (Follow.WriteWidth)
 Window.TAB_MIN = 30
 Window.WHITE = "Interface\\Buttons\\WHITE8X8"
 
@@ -371,7 +370,6 @@ function Window.Apply()
     Window.LayoutTabs()
     Window.PaintTabs()
     if f:IsShown() then Window.Refresh() end
-    if ns.Follow then DUI.AfterCombat(ns.Follow.WriteWidth, "characterWidth") end
 end
 
 function Window.Build(mod)

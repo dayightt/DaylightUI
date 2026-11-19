@@ -209,6 +209,69 @@ _G.issecurevariable = function(t, k)
     if by then return false, by end
     return true, nil
 end
+
+-- The game's panel layout (UIParentPanelManager.lua), put in place by a test
+-- that needs it. Each panel keeps its layout in "UIPanelLayout-*" attributes,
+-- copied from UIPanelWindows the first time anything reads or writes one, and an
+-- attribute keeps its writer's taint. ShowUIPanel here runs as the game's own
+-- code (a key press, TOGGLESOCIAL), reads the width of the new panel and of
+-- every open one (CanShowRightUIPanel, UpdateUIPanelPositions), then hides the
+-- open panel in the same area (SetUIPanel), whose OnHide runs inside it. Once
+-- it reads an attribute an addon wrote, the rest of the run is tainted, so a
+-- protected call in that OnHide is blocked in a fight (seen in game: the
+-- spellbook's OnHide, MultiBarBottomLeftButton1:SetShown()).
+function stub.PanelManager(windows)
+    _G.UIPanelWindows = windows or _G.UIPanelWindows or {}
+    local open, clean = {}, nil
+    local function setFrameAttributes(frame, attributes)
+        frame:SetAttributeNoHandler("UIPanelLayout-defined", true)
+        for name, value in pairs(attributes) do frame:SetAttributeNoHandler("UIPanelLayout-" .. name, value) end
+    end
+    local function get(frame, name)
+        if not frame:GetAttribute("UIPanelLayout-defined") then
+            local attributes = UIPanelWindows[frame:GetName()]
+            if not attributes then return end
+            setFrameAttributes(frame, attributes)
+        end
+        local key = "UIPanelLayout-" .. name
+        local by = stub.marks[frame.__attrs] and stub.marks[frame.__attrs][key]
+        if by and clean then clean = false; stub.inSecure = stub.inSecure - 1 end
+        return frame:GetAttribute(key)
+    end
+    _G.SetUIPanelAttribute = function(frame, name, value)
+        local attributes = UIPanelWindows[frame:GetName()]
+        if not attributes then return end
+        if not frame:GetAttribute("UIPanelLayout-defined") then setFrameAttributes(frame, attributes) end
+        frame:SetAttributeNoHandler("UIPanelLayout-" .. name, value)
+    end
+    _G.GetUIPanelWidth = function(frame)
+        local extra = get(frame, "extraWidth")
+        if not extra then
+            local fn = get(frame, "extraWidthFunc")
+            if fn then extra = fn(frame) end
+        end
+        return ((get(frame, "width") or frame:GetWidth()) + (extra or 0)) * frame:GetScale()
+    end
+    _G.ShowUIPanel = function(frame)
+        stub.inSecure, clean = (stub.inSecure or 0) + 1, true
+        local ok, err = pcall(function()
+            local area = get(frame, "area")
+            GetUIPanelWidth(frame)
+            for i = #open, 1, -1 do
+                local o = open[i]
+                if o ~= frame and o:IsShown() then
+                    GetUIPanelWidth(o)
+                    if get(o, "area") == area then table.remove(open, i); o:Hide() end
+                end
+            end
+            open[#open + 1] = frame
+            frame:Show()
+        end)
+        if clean then stub.inSecure = stub.inSecure - 1 end
+        clean = nil
+        if not ok then error(err, 0) end
+    end
+end
 _G.EnumerateFrames = function(prev)
     local i = prev and frameIndex[prev] or 0
     return frames[i + 1]
@@ -1143,7 +1206,13 @@ function newAuraButton(c, initializeFrame)
     end
     function btn:SetIcon(t) inbound(self, t, "Texture"); self.__icon = t end
     function btn:SetDurationCooldown(cd) inbound(self, cd, "Cooldown"); self.__cooldown = cd end
-    function btn:SetApplicationCount(fs) inbound(self, fs, "FontString"); self.__count = fs end
+    -- The client writes the count into the text at once, so a text with no font
+    -- yet is refused (seen in game) like any SetText.
+    function btn:SetApplicationCount(fs)
+        inbound(self, fs, "FontString")
+        if stub.FontRule and not fs.__font then error("FontString:SetText(): Font not set", 2) end
+        self.__count = fs
+    end
     function btn:SetDurationText(fs, opts) inbound(self, fs, "FontString"); self.__time, self.__timeOpts = fs, opts end
     function btn:SetDurationBar(bar, opts) inbound(self, bar, "StatusBar"); self.__bar, self.__barOpts = bar, opts end
     -- Played by the client as the button comes up for a new aura. Kept in __shownAnims.
@@ -1986,8 +2055,21 @@ end
 -- SECURE_ACTIONS.attribute: the name and value go onto attribute-frame (else the
 -- button itself) in the secure world. The button's OnClick scripts and hooks run
 -- either way, as a wrapped script's snippet does. PreClick and PostClick run
--- around it, as the client's Click does. Type "macro" runs its macrotext; only /reload is
--- known here (ReloadUI, which a secure click may call).
+-- around it, as the client's Click does. Type "macro" runs its macrotext: /reload
+-- (ReloadUI, which a secure click may call), else a one-line command through
+-- SlashCmdList and its SLASH_<KEY>n words, inside the secure world. Attributes
+-- read the button's own first (type1/macrotext1 for the left button).
+local function slashLine(text)
+    local cmd, rest = string.match(text, "^(/%S+)%s*(.-)$")
+    if not cmd then return end
+    for key, fn in pairs(_G.SlashCmdList or {}) do
+        for n = 1, 9 do
+            local word = _G["SLASH_" .. key .. n]
+            if word == nil then break end
+            if string.lower(word) == string.lower(cmd) then return fn(rest) end
+        end
+    end
+end
 function stub.SecureClick(b, button, down)
     button = button or "LeftButton"
     down = down == true
@@ -1998,8 +2080,16 @@ function stub.SecureClick(b, button, down)
     local acts = (down and keyDown) or (not down and not keyDown)
     stub.inSecure = (stub.inSecure or 0) + 1
     local ok, err = pcall(function()
-        if acts and b:GetAttribute("type") == "macro" and b:GetAttribute("macrotext") == "/reload" then
-            ReloadUI()
+        local suffix = button == "RightButton" and "2" or "1"
+        local function attr(name)
+            local v = b:GetAttribute(name .. suffix)
+            if v == nil then v = b:GetAttribute(name) end
+            return v
+        end
+        if acts and attr("type") == "macro" then
+            local text = attr("macrotext")
+            if text == "/reload" then ReloadUI()
+            elseif type(text) == "string" then slashLine(text) end
         end
         if acts and b:GetAttribute("type") == "attribute" then
             local frame = b:GetAttribute("attribute-frame") or b
@@ -2119,7 +2209,7 @@ local BUTTON_FRAMES = { "AutoCastOverlay", "TextOverlayContainer", "InterruptDis
 -- Parts and flags the game's code only creates when needed (`if not self.X`).
 -- They read nil on these buttons rather than as the stub's no-op method.
 local BUTTON_LAZY = { ProfessionQualityOverlayFrame = true, TypeIconOverlayFrame = true,
-                      AssistedCombatRotationFrame = true, UpdateTooltip = true, HasPopup = true }
+                      AssistedCombatRotationFrame = true, UpdateTooltip = true }
 local ButtonMT = { __index = function(t, k)
     if BUTTON_LAZY[k] then return nil end
     return WidgetMT.__index(t, k)
@@ -2203,7 +2293,7 @@ local function actionButton(b, onLoad)
     function b:UpdatePingAttributes() self:SetAttribute("ping-receiver", nil) end
     -- The client's CalculateAction: the slot from the "action" attribute.
     function b:CalculateAction() return tonumber(self.__attrs.action) or 1 end
-    Mixin(b, Blizz.FAKES.QuickKeybindButtonTemplateMixin, BaseActionButtonMixin,
+    Mixin(b, Blizz.FAKES.QuickKeybindButtonTemplateMixin, Blizz.FAKES.FlyoutButtonMixin, BaseActionButtonMixin,
           ActionBarActionButtonDerivedMixin, ActionBarButtonMixin)
     for script, method in pairs(BUTTON_SCRIPTS) do b:SetScript(script, asTainted(b[method])) end
     asTainted(onLoad or b.ActionBarButtonMixin_OnLoad)(b)
@@ -2273,6 +2363,48 @@ local BASE_TEMPLATES = {
 -- UIPanelTemplates.lua, line for line (hasIconHyperlinks is never set here).
 _G.InlineHyperlinkFrame_OnClick = function(self, link, text, button)
     SetItemRef(link, text, button)
+end
+
+-- The chat box Enter and the REPLY key open (Blizzard_ChatFrameBase: ChatFrameUtil.lua,
+-- ChatFrameEditBox.lua). LAST_ACTIVE_CHAT_EDIT_BOX is a plain global. Written
+-- while an addon's code is on the stack (its click ran the game's OpenChat, or it
+-- hid a chat window and the box's OnHide picked another), it keeps that addon's
+-- taint until the game's own code writes it again. ReplyTell reads it first
+-- (ChooseBoxForSend), so GetLastTellTarget then compares the last whisperer's
+-- name tainted, and in a battleground that name is a secret.
+local function addonOnStack()
+    for level = 2, 80 do
+        local info = debug.getinfo(level, "S")
+        if not info then return nil end
+        local src = info.source or ""
+        if string.sub(src, 1, 1) == "@" and not string.find(src, "^@%.?/?tests[/\\]") then
+            return string.match(src, "(DaylightUI_%a+)") or "DaylightUI"
+        end
+    end
+end
+stub.AddonOnStack = addonOnStack
+function stub.SetLastActiveWindow(eb)
+    _G.LAST_ACTIVE_CHAT_EDIT_BOX = eb
+    stub.Mark(nil, "LAST_ACTIVE_CHAT_EDIT_BOX", addonOnStack())
+end
+-- ChatFrameEditBoxMixin:OnHide: the last active box, hidden with its window,
+-- hands over to the dock's selected window's box.
+function stub.ChatEditBoxOnHide(eb)
+    eb:SetScript("OnHide", function(self)
+        if _G.LAST_ACTIVE_CHAT_EDIT_BOX == self and self:IsShown() then
+            local sel = FCFDock_GetSelectedWindow(GENERAL_CHAT_DOCK)
+            stub.SetLastActiveWindow(sel and sel.editBox)
+        end
+    end)
+end
+-- ChatFrameUtil.ReplyTell, from the REPLY key: lastTell is the newest whisperer.
+function stub.ReplyTell(lastTell)
+    local _, by = issecurevariable("LAST_ACTIVE_CHAT_EDIT_BOX")
+    if by and isSecret(lastTell) then
+        error("Blizzard_ChatFrameBase/Shared/ChatFrameUtil.lua:638: attempt to compare local 'value' "
+            .. "(a secret string value, while execution tainted by '" .. by .. "')", 0)
+    end
+    return _G.LAST_ACTIVE_CHAT_EDIT_BOX
 end
 
 -- Key bindings: stub.bindings[command] = { key, ... }. Override bindings are kept
@@ -2659,6 +2791,7 @@ C_Secrets.ShouldUnitThreatStateBeSecret = function(u, mob) return stub.ThreatSec
 _G.UnitGetIncomingHeals = function(u) local x = U(u); return x and x.incoming end
 _G.UnitGetTotalAbsorbs = function(u) local x = U(u); return x and x.absorbs end
 _G.UnitIsDead = function(u) local x = U(u); if x then return x.dead == true end return false end
+_G.UnitIsDeadOrGhost = function(u) local x = U(u); if x then return x.dead == true or x.ghost == true end return false end
 -- The engine keeps a plate on a corpse you can loot (the loot sparkle and the
 -- interact icon need one). The game's plate then shows only its widgets
 -- (UpdateWidgetsOnlyMode in Blizzard_NamePlateUnitFrame, read at SetUnit).

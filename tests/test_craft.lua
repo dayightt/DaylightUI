@@ -632,10 +632,9 @@ T.test("craft: ours in a fight: opens, switches tabs, our X closes the game's", 
     frame(20)
     T.falsy(DaylightUI.Win.IsOpen(f))
     T.falsy(ProfessionsFrame:IsShown(), "the trade skill closed, the game's frame with it")
-    local before = #PW.Calls("SetUIPanelAttribute")
     stub.LeaveCombat()
     stub.RunTimers()
-    T.truthy(#PW.Calls("SetUIPanelAttribute") > before, "the panel width written after the fight")
+    T.eq(#PW.Calls("SetUIPanelAttribute"), 0, "the game's panel layout left alone, in the fight and after")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

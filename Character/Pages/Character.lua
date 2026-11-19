@@ -151,6 +151,55 @@ local function groupHead(content, group)
     return head
 end
 
+-- On a controller the game shows no tooltip of its own on these stops: a slot
+-- is a plain frame (the game's button over its icon is skipped) and a stat row
+-- is a plain frame too. So they show it when the D-pad lands on them, as the
+-- options window's rows do (the game calls OnSmartNavSelect/Deselect).
+local function hideTip()
+    if type(GameTooltip) == "table" then GameTooltip:Hide() end
+end
+
+-- The slot's tooltip the way the game's own slot button shows it.
+function CharacterPage.SlotTip(h)
+    local id = h and ns.Gear.SlotId(h.key)
+    if not id or type(GameTooltip) ~= "table" then return end
+    local at = h.icon or h
+    GameTooltip:SetOwner(at, "ANCHOR_RIGHT")
+    if type(ItemUtil) == "table" and type(ItemUtil.DisplayEquipSlotTooltip) == "function" then
+        ItemUtil.DisplayEquipSlotTooltip(at, GameTooltip, id, true)
+    elseif not GameTooltip:SetInventoryItem("player", id) then
+        GameTooltip:SetOwner(at, "ANCHOR_RIGHT")
+        GameTooltip:SetText(ns.Gear.LABEL[h.key] or h.key)
+        GameTooltip:Show()
+    end
+end
+
+function CharacterPage.PadSlot(h)
+    h.OnSmartNavSelect = function(self)
+        self.ring:Show()
+        CharacterPage.SlotTip(self)
+    end
+    h.OnSmartNavDeselect = function(self)
+        self.ring:SetShown(self.over == true)
+        hideTip()
+    end
+end
+
+-- A plain frame is no stop for the D-pad until the game's own setter marks
+-- it, which waits for the controller code to load and for a fight to end.
+local padWaiting = setmetatable({}, { __mode = "k" })
+function CharacterPage.PadStop(r)
+    if type(SmartNavigation_MarkFrameFocusable) ~= "function" then
+        padWaiting[r] = true
+        return
+    end
+    padWaiting[r] = nil
+    DUI.AfterCombat(function() SmartNavigation_MarkFrameFocusable(r) end, r)
+end
+DUI.On("PadChanged", function()
+    for r in pairs(padWaiting) do CharacterPage.PadStop(r) end
+end)
+
 local function statRow(content, pool, i)
     if pool[i] then return pool[i] end
     local r = CreateFrame("Frame", nil, content)
@@ -168,7 +217,10 @@ local function statRow(content, pool, i)
     r.value:SetWordWrap(false)
     r:EnableMouse(true)
     r:SetScript("OnEnter", CharacterPage.StatTip)
-    r:SetScript("OnLeave", function() if type(GameTooltip) == "table" then GameTooltip:Hide() end end)
+    r:SetScript("OnLeave", hideTip)
+    r.OnSmartNavSelect = CharacterPage.StatTip
+    r.OnSmartNavDeselect = hideTip
+    CharacterPage.PadStop(r)
     pool[i] = r
     return r
 end
@@ -464,7 +516,10 @@ end
 
 function CharacterPage.Build(page)
     page.slots = ns.Slots.MakeAll(page)
-    for _, h in pairs(page.slots) do h:SetScript("OnMouseUp", swapMenu) end
+    for _, h in pairs(page.slots) do
+        h:SetScript("OnMouseUp", swapMenu)
+        CharacterPage.PadSlot(h)
+    end
     page.model = ns.Model.Build(page)
     -- The model reaches under the slot columns (Model.Spread): kept at the
     -- page's own level, below the slots and the game's lent buttons.

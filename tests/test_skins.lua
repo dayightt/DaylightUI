@@ -4614,8 +4614,8 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
     T.eq(_G.PetStableMoneyFrame.Border:GetAlpha(), 0, "the coin box gone")
     T.eq(f:GetWidth(), 448, "a little narrower than the wide pass")
     T.eq(f:GetHeight(), 570, "taller than the game's frame")
-    T.eq(panelAttr.width, 448, "the game's panel layout is told through its own call")
-    T.eq(panelAttr.height, 570, "the layout keeps that size")
+    T.isnil(panelAttr.width, "the game's panel layout keeps its own size: a write would taint it")
+    T.isnil(panelAttr.height)
     local own = type(_G.UIPanelWindows) == "table" and _G.UIPanelWindows.PetStableFrame
     T.falsy(own and (own.width or own.height), "nothing written into the game's own panel table")
     local _, _, _, _, my = f.modelScene:GetPoint(1)

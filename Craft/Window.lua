@@ -258,7 +258,6 @@ function Craft.Show(filled)
         char.craftLast = prof.id
         if ns.Key then ns.Key.Apply() end   -- the key casts this one next
     end
-    if Craft.follow then Win.Followers.WriteWidth(Craft.follow) end
     Craft.TellState()
 end
 
@@ -723,7 +722,7 @@ end
 
 -- Docked panes, left to right in request order, each the window's full height on its
 -- right edge. They're children of the window so they move, scale, open and close with
--- it; game windows beside it make room (Followers.WriteWidth counts them).
+-- it.
 Craft.PANE_GAP = 6
 Craft.panes = {}   -- { name, frame, width }
 
@@ -764,7 +763,6 @@ function Craft.DockPanes()
         pane:Show()
         prev = pane
     end
-    if Craft.follow then Win.Followers.WriteWidth(Craft.follow) end
 end
 
 -- Right-click on the header (or /dui reset): back to the game's spot and size.
@@ -788,7 +786,6 @@ function Craft.Apply()
         ns.List.Render(f.pages.recipes.list, true)   -- repaint counts and headings in the new accent
         Craft.Refreshed()
     end
-    if Craft.follow then Win.Followers.WriteWidth(Craft.follow) end
     ns.View.Apply()
 end
 
@@ -885,9 +882,10 @@ function Craft.Build(mod)
         if data and data.prof and now and now.id == data.prof.id then data.prof = now end
         header(f, data and data.prof)
     end)
+    -- No width: the game sizes its profession window itself for each page and
+    -- reads that, so resizing it here would only fight the game.
     Craft.follow = Win.Follow({ key = "craft", frames = { craft = Craft.Game }, veil = { craft = true },
-        changed = Craft.Changed, pin = Craft.Pin, leave = function() return not DUI.craftOwnWindow end,
-        width = function() return ((Craft.Size()) + Craft.PanesWidth()) * Win.Scale(ns.Setting("scale")) end })
+        changed = Craft.Changed, pin = Craft.Pin, leave = function() return not DUI.craftOwnWindow end })
     Craft.Apply()
     return f
 end

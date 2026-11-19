@@ -319,7 +319,32 @@ local function installModelAndMenus()
     _G.IsTitleKnown = function(i) return titles[i] ~= nil and titles[i].known == true end
     _G.GetTitleName = function(i) return titles[i] and titles[i].name end
     _G.GetCurrentTitle = function() return S().title or 0 end
-    _G.SetCurrentTitle = function(i) S().title = i; record("SetCurrentTitle", i) end
+    -- Only the game's own code may change your title: from addon code the
+    -- client refuses it (ADDON_ACTION_BLOCKED "SetCurrentTitle()", seen in game).
+    _G.SetCurrentTitle = function(i)
+        if (stub.inSecure or 0) == 0 then
+            stub.errors[#stub.errors + 1] = "ADDON_ACTION_BLOCKED: SetCurrentTitle()"
+            return
+        end
+        S().title = i; record("SetCurrentTitle", i)
+    end
+    -- The game's /settitle (SlashCommandsOverrides.lua) and SetTitleByName
+    -- (PaperDollFrame.lua): the first known title whose trimmed, lowered name
+    -- the text finds as a pattern from its start.
+    _G.SetTitleByName = function(name)
+        name = string.lower(name)
+        for i = 1, GetNumTitles() do
+            if IsTitleKnown(i) then
+                local title = string.lower(strtrim(GetTitleName(i)))
+                if title:find(name) == 1 then SetCurrentTitle(i); return true end
+            end
+        end
+        return false
+    end
+    _G.SLASH_SET_TITLE1 = "/settitle"
+    SlashCmdList.SET_TITLE = function(msg)
+        if msg and msg ~= "" then SetTitleByName(msg) else SetCurrentTitle(-1) end
+    end
     local sets = S().sets
     _G.C_EquipmentSet = {
         GetEquipmentSetIDs = function()

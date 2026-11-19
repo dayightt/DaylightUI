@@ -86,29 +86,85 @@ T.test("windows: a game window shown before it could be parked stays the game's"
     T.eq(Win.Followers.Parked(def, "talk"), true, "parked once it closed")
 end)
 
+local function noPanelManager()
+    _G.UIPanelWindows, _G.SetUIPanelAttribute, _G.GetUIPanelWidth, _G.ShowUIPanel = nil, nil, nil, nil
+end
+
+-- Every layout attribute on a game window, the ones Daylight UI wrote.
+local function taintedLayout(f)
+    local out = {}
+    for k in pairs(f.__attrs) do
+        if string.find(k, "^UIPanelLayout%-") and not issecurevariable(f.__attrs, k) then out[#out + 1] = k end
+    end
+    table.sort(out)
+    return table.concat(out, ", ")
+end
+
 T.test("windows: a parked window handed back for a fight gets the game's own width back, and is parked again after", function()
     local DUI = stub.Load()
     local Win = DUI.Win
+    stub.PanelManager({ TestPanelWindow = { area = "center" } })   -- no width of its own, so the frame's width is used
     local game = CreateFrame("Frame", "TestPanelWindow", UIParent)
+    game:SetWidth(338)
     game:Hide()
-    local widths = {}
-    _G.SetUIPanelAttribute = function(f, key, v) if f == game and key == "width" then widths[#widths + 1] = v or "none" end end
-    _G.UIPanelWindows = { TestPanelWindow = { area = "center" } }   -- no width of its own, so the frame's width is used
     local def = Win.Follow({ key = "fight", frames = { w = function() return game end }, veil = { w = true }, width = function() return 300 end })
     T.eq(game:GetParent(), Win.Followers.veil)
-    T.deq(widths, { 320 }, "ours, plus the gap")
+    T.eq(game:GetWidth(), 320, "ours, plus the gap")
     T.eq(Win.Followers.Unpark(def, "w"), true)
     T.eq(game:GetParent(), UIParent)
-    T.deq(widths, { 320, "none" }, "the game's own again")
+    T.eq(game:GetWidth(), 338, "the game's own again")
     stub.EnterCombat()
     Win.Followers.Tick()
     T.eq(game:GetParent(), UIParent, "not in the fight")
     stub.LeaveCombat()
     Win.Followers.Tick()
     T.eq(game:GetParent(), Win.Followers.veil, "parked again after it")
-    game:Show()
+    T.eq(game:GetWidth(), 320)
+    ShowUIPanel(game)
     T.eq(Win.Followers.Unpark(def, "w"), false, "a shown one stays")
-    _G.UIPanelWindows = nil
+    T.eq(taintedLayout(game), "", "no layout attribute written by Daylight UI")
+    T.eq(GetUIPanelWidth(game), 320, "the game places the next window by it")
+    noPanelManager()
+end)
+
+T.test("windows: a game window with a layout width of its own keeps its size", function()
+    local DUI = stub.Load()
+    local Win = DUI.Win
+    stub.PanelManager({ TestWidePanel = { area = "left", width = 605 } })
+    local game = CreateFrame("Frame", "TestWidePanel", UIParent)
+    game:SetWidth(590)
+    game:Hide()
+    Win.Follow({ key = "wide", frames = { w = function() return game end }, width = function() return 700 end })
+    T.eq(game:GetParent(), Win.Followers.hidden)
+    T.eq(game:GetWidth(), 590, "the game reads its layout width, not the frame")
+    noPanelManager()
+end)
+
+T.test("windows: a covered game window opened by a key in a fight still lets the game close the spellbook", function()
+    local DUI = stub.Load()
+    local Win = DUI.Win
+    stub.secure = true
+    stub.PanelManager({ TestSocialFrame = { area = "left", pushable = 0 }, TestBookFrame = { area = "left", pushable = 0 } })
+    local social = CreateFrame("Frame", "TestSocialFrame", UIParent)
+    social:SetWidth(338)
+    social:Hide()
+    local book = CreateFrame("Frame", "TestBookFrame", UIParent)
+    book:Hide()
+    -- The spellbook's OnHide hides the action bar grids, protected buttons.
+    local grid = CreateFrame("Button", "TestBarButton1", UIParent)
+    grid.__protected = true
+    book:SetScript("OnHide", function() grid:SetShown(false) end)
+    Win.Follow({ key = "panel", frames = { social = function() return social end }, width = function() return 600 end })
+    T.eq(social:GetParent(), Win.Followers.hidden)
+    ShowUIPanel(book)
+    stub.EnterCombat()
+    local ok, err = pcall(ShowUIPanel, social)
+    T.truthy(ok, tostring(err))
+    T.eq(book:IsShown(), false, "the game moved the book aside")
+    T.eq(grid:IsShown(), false, "and its OnHide ran untainted")
+    T.eq(GetUIPanelWidth(social), 620, "the next window still opens beside Daylight UI's")
+    stub.LeaveCombat()
+    noPanelManager()
 end)
 
 T.test("windows: header tabs: the picked one lit, a click picks and tells, the title stops short of them", function()

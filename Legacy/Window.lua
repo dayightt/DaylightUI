@@ -132,7 +132,6 @@ function Legacy.Open(page)
     place(f)
     Legacy.ShowTab(Legacy.page)
     Win.Open(f)
-    if Legacy.follow then Win.Followers.WriteWidth(Legacy.follow) end
 end
 
 -- Closing under the mouse: the hovered piece never gets OnLeave.
@@ -285,7 +284,6 @@ function Legacy.Apply()
         local P = pageOf(f.current)
         if P and P.Render then P.Render(true) end
     end
-    if Legacy.follow then Win.Followers.WriteWidth(Legacy.follow) end
 end
 
 local hooked
@@ -359,9 +357,10 @@ function Legacy.Build(mod)
     end
     hookAsk()
     DUI.RegisterEvent("ADDON_LOADED", function() hookAsk() end)
+    -- No width: the game's Legacy window has a wider panel width of its own,
+    -- and that is what the game reads.
     Legacy.follow = Win.Follow({ key = "legacy", frames = { legacy = Legacy.Game }, changed = Legacy.Changed,
-        leave = function() return not Legacy.Ours() end,
-        width = function() return (Legacy.sizer and Legacy.sizer.Size(Legacy.page) or Legacy.W) * Win.Scale(ns.Setting("scale")) end })
+        leave = function() return not Legacy.Ours() end })
     Legacy.Apply()
     return f
 end

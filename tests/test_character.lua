@@ -533,12 +533,12 @@ local function openGame(F, page)
     F.Tick()
 end
 
-T.test("character follow: at login the game's window is parked and told our width", function()
+T.test("character follow: at login the game's window is parked, its panel layout left to the game", function()
     local F, ns = following()
     T.eq(CharacterFrame:GetParent(), F.hidden)
     T.eq(F.hidden:GetParent(), UIParent, "under UIParent: keeps its scale and spot")
     T.eq(F.parked, true)
-    T.eq(CW.state.panel.width, 980)
+    T.isnil(CW.state.panel.width, "an attribute written here would taint the game's next ShowUIPanel")
 end)
 
 T.test("character follow: a /reload in combat parks once combat ends", function()
@@ -548,12 +548,12 @@ T.test("character follow: a /reload in combat parks once combat ends", function(
     T.eq(F.parked, true)
 end)
 
-T.test("character follow: icons only and scale change the width the game is told", function()
+T.test("character follow: icons only and scale write nothing to the game's panel layout", function()
     local _, _, DUI = following()
     DUI:Set("Character", "names", false)
-    T.eq(CW.state.panel.width, 760)
     DUI:Set("Character", "scale", 1.2)
-    T.eq(CW.state.panel.width, 908)
+    stub.RunTimers()
+    T.isnil(CW.state.panel.width)
 end)
 
 T.test("character follow: the game opens, ours opens on the same page", function()
@@ -1263,6 +1263,61 @@ local function rowFrame(page, group, id)
     for _, r in ipairs(page.stats.groups[group].rows) do if r.row and r.row.id == id then return r end end
 end
 
+-- On a controller the game runs a stop's OnSmartNavSelect/Deselect (SmartNavigation.lua
+-- SelectButton) and shows no tooltip of its own: a slot is a plain frame with the
+-- game's button over its icon skipped, and a stat row is a plain frame.
+T.test("character page: on a controller a slot shows its item's tooltip when the D-pad lands on it", function()
+    local _, ns = charPage({ items = { Head = CW.item("Lionheart Helm", { quality = 4, level = 66 }) } })
+    openChar(ns)
+    local shown
+    local was = _G.ItemUtil
+    _G.ItemUtil = { DisplayEquipSlotTooltip = function(owner, tip, slot, noCompare)
+        shown = { owner = owner, slot = slot, noCompare = noCompare }
+        tip:SetOwner(owner, "ANCHOR_RIGHT")
+        tip:SetText("Lionheart Helm")
+        tip:Show()
+    end }
+    local h = ns.Slots.frames.Head
+    T.truthy(h.OnSmartNavSelect, "the slot answers the D-pad")
+    h.OnSmartNavSelect(h)
+    _G.ItemUtil = was
+    T.truthy(shown, "the game's slot tooltip")
+    T.eq(shown.slot, 1)
+    T.eq(shown.owner, h.icon)
+    T.eq(shown.noCompare, true, "no compare on a slot, as the game's own")
+    T.eq(GameTooltip:IsShown(), true)
+    T.eq(h.ring:IsShown(), true, "lit like a hover")
+    h.OnSmartNavDeselect(h)
+    T.eq(GameTooltip:IsShown(), false)
+    T.eq(h.ring:IsShown(), false)
+end)
+
+T.test("character page: on a controller the stats are stops that show their tooltip", function()
+    local marked = {}
+    _G.SmartNavigation_MarkFrameFocusable = function(f) marked[f] = true end
+    local _, ns = charPage()
+    local page = openChar(ns)
+    local r = rowFrame(page, "attributes", "movespeed")
+    _G.SmartNavigation_MarkFrameFocusable = nil
+    T.truthy(marked[r], "a stop for the D-pad")
+    r.OnSmartNavSelect(r)
+    T.eq(GameTooltip:IsShown(), true)
+    r.OnSmartNavDeselect(r)
+    T.eq(GameTooltip:IsShown(), false)
+end)
+
+T.test("character page: stats built before the controller code loads become stops once it does", function()
+    local _, ns, DUI = charPage()
+    local page = openChar(ns)
+    local r = rowFrame(page, "attributes", "movespeed")
+    local marked = {}
+    _G.SmartNavigation_MarkFrameFocusable = function(f) marked[f] = true end
+    DUI.Fire("PadChanged")
+    stub.RunTimers()
+    _G.SmartNavigation_MarkFrameFocusable = nil
+    T.truthy(marked[r])
+end)
+
 T.test("character page: a reused row drops the last stat's tooltip title", function()
     local P, ns = charPage()
     local page = openChar(ns)
@@ -1377,6 +1432,27 @@ T.test("character page: icons only hides the names", function()
 end)
 local TITLES = { { name = "Private ", known = true }, { name = "Corporal", known = false }, { name = " Sergeant", known = true } }
 
+-- Picks a title the way a player does: opens the menu, the mouse comes onto
+-- the row (the secure button is laid over it) and clicks it.
+local function pickTitle(ns, key)
+    ns.Menus.Titles(ns.window.nameButton)
+    local W, row = DaylightUI.Widgets, nil
+    for i = 1, 20 do
+        local r = W.MenuRow(i)
+        if r and r:IsShown() and r.key == key then row = r end
+        if r then r.IsMouseOver = function() return r == row end end
+    end
+    assert(row, "no row " .. tostring(key))
+    -- The fake game keeps no screen rects, so the row says where it is.
+    row.GetLeft = function() return 100 end
+    row.GetBottom = function() return 200 end
+    row:GetScript("OnEnter")(row)
+    local b = _G[ns.Menus.CAST]
+    assert(b and b:IsShown(), "the secure button is over the row")
+    stub.Key(stub.SecureClick, b, "LeftButton", false)
+    return row
+end
+
 T.test("character menus: the titles you know, the current one picked", function()
     local _, ns = load({ titles = TITLES, title = 3 })
     local keys, values, current = ns.Menus.TitleList()
@@ -1385,16 +1461,51 @@ T.test("character menus: the titles you know, the current one picked", function(
     T.eq(values["1"], "Private")
     T.eq(values["3"], "Sergeant")
     T.eq(current, "3")
-    ns.Menus.PickTitle("1")
+    pickTitle(ns, "1")
     T.deq(CW.Calls("SetCurrentTitle"), { 1 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("character menus: no title shows as No title", function()
-    local _, ns = load({ titles = TITLES })
-    local _, _, current = ns.Menus.TitleList()
-    T.eq(current, "-1")
-    ns.Menus.PickTitle("-1")
+    local _, ns = load({ titles = TITLES, title = 1 })
+    T.eq(select(3, ns.Menus.TitleList()), "1")
+    pickTitle(ns, "-1")
     T.deq(CW.Calls("SetCurrentTitle"), { -1 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game lets only its own code change a title, so a plain click on the
+-- menu's row would be blocked ("the game blocked SetCurrentTitle()").
+T.test("character menus: a title click goes through the game's secure /settitle, never blocked", function()
+    local _, ns = load({ titles = TITLES })
+    local row = pickTitle(ns, "3")
+    T.deq(CW.Calls("SetCurrentTitle"), { 3 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.falsy(row:IsVisible(), "the menu closed")
+    T.falsy(_G[ns.Menus.CAST]:IsShown(), "and the secure button went with it")
+end)
+
+T.test("character menus: a title's name is matched whole, never another starting the same", function()
+    local _, ns = load({ titles = { { name = "Knight-Lieutenant ", known = true }, { name = "Knight ", known = true } } })
+    T.eq(ns.Menus.Macro("2"), "/settitle knight$")
+    T.eq(ns.Menus.Macro("1"), "/settitle knight%-lieutenant$")
+    pickTitle(ns, "2")
+    pickTitle(ns, "1")
+    T.deq(CW.Calls("SetCurrentTitle"), { 2, 1 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character menus: in a fight a title click says not in combat, with no blocked call", function()
+    local _, ns = load({ titles = TITLES })
+    ns.Menus.Titles(ns.window.nameButton)
+    stub.EnterCombat()
+    local W = DaylightUI.Widgets
+    for i = 1, 20 do
+        local r = W.MenuRow(i)
+        if r and r.key == "3" then r:Click("LeftButton") end
+    end
+    T.deq(CW.Calls("SetCurrentTitle"), {})
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- The open menu's row holding a key (W.MenuRow), clicked with a button.
@@ -1974,7 +2085,6 @@ end)
 T.test("character currency: the transfer opens the game's own page, then ours comes back", function()
     local _, ns = load({ currency = currency() })
     local page = openPage(ns, "TokenFrame")
-    CW.state.panel.width = nil
     page.pane.button:Click()
     T.eq(ns.Follow.parked, false)
     T.eq(CharacterFrame:GetParent(), UIParent)
@@ -1989,7 +2099,7 @@ T.test("character currency: the transfer opens the game's own page, then ours co
     T.eq(ns.Follow.parked, true)
     T.eq(CharacterFrame:GetParent(), ns.Follow.hidden)
     T.eq(ns.Slots.lent, true)
-    T.eq(CW.state.panel.width, 980, "our width told again")
+    T.isnil(CW.state.panel.width, "no panel layout written on the way")
 end)
 
 T.test("character currency: no transfer in combat", function()
@@ -2312,11 +2422,11 @@ T.test("character header: your title with your name, before or after it as the g
     ns.Follow.Tick()
     local me = UnitName("player")
     T.eq(ns.window.nameText:GetText(), "Private " .. me, "a title before the name")
-    ns.Menus.PickTitle("3")
+    pickTitle(ns, "3")
     ns.Window.OnEvent(nil, "UNIT_NAME_UPDATE", "player")
     stub.RunTimers()
     T.eq(ns.window.nameText:GetText(), me .. " Sergeant", "picking another shows it, after the name")
-    ns.Menus.PickTitle("-1")
+    pickTitle(ns, "-1")
     ns.Window.OnEvent(nil, "UNIT_NAME_UPDATE", "player")
     stub.RunTimers()
     T.eq(ns.window.nameText:GetText(), me, "no title: the name alone")
