@@ -449,6 +449,9 @@ def tint_gradient(img, orient, a, b):
 
 def cut(layer, clip):
     mask = Image.new("L", layer.size, 0)
+    # A clipping frame folded to nothing shows nothing of what it clips.
+    if clip[2] - 1 < clip[0] or clip[3] - 1 < clip[1]:
+        return Image.new("RGBA", layer.size, (0, 0, 0, 0))
     ImageDraw.Draw(mask).rectangle((clip[0], clip[1], clip[2] - 1, clip[3] - 1), fill=255)
     out = Image.new("RGBA", layer.size, (0, 0, 0, 0))
     out.paste(layer, (0, 0), mask)
