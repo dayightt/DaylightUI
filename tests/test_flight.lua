@@ -295,3 +295,17 @@ T.test("flight: an early landing leaves at once, with no Arrived", function()
     land(F)
     T.falsy(shown())
 end)
+
+T.test("flight: the line moves on every frame in the air, the text on the tick", function()
+    local F = login()
+    F.Routes()["2>6"] = 100
+    fly(F)
+    local box = bar().f
+    T.near(box.bar:GetValue(), 0, 0.0001)
+    stub.Advance(0.5)
+    F.Step(0.01)
+    T.near(box.bar:GetValue(), 0.005, 0.0001, "half a second along, between ticks")
+    T.eq(box.time:GetText(), "1:40", "the time waits for the tick")
+    F.Step(F.TICK)
+    T.eq(box.time:GetText(), "1:40", "rounded to the second")
+end)

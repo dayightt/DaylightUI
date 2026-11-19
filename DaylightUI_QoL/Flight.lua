@@ -202,6 +202,16 @@ local function build()
     f.head = dot(over, Flight.DOT)
     f.head:SetPoint("CENTER", f.bar:GetStatusBarTexture(), "RIGHT", 0, 0)
     f.head:SetVertexColor(1, 1, 1, 1)
+    -- A long flight moves the line well under a pixel a frame: snapped to the
+    -- pixel grid, the fill and its light would hop a pixel at a time.
+    local function free(t)
+        if t.SetSnapToPixelGrid then t:SetSnapToPixelGrid(false) end
+        if t.SetTexelSnappingBias then t:SetTexelSnappingBias(0) end
+    end
+    for _, r in ipairs({ f.bar:GetRegions() }) do free(r) end
+    free(f.bar:GetStatusBarTexture())
+    free(f.spark)
+    free(f.head)
 
     f.from = Style.Text(f, Style.SIZE.small, "LEFT")
     f.from:SetPoint("TOPLEFT", f.bar, "BOTTOMLEFT", 0, -8)
@@ -353,6 +363,12 @@ end
 
 local driver, acc = nil, 0
 
+-- Every frame in the air, the line alone moves on; the text waits for the tick.
+local function moveLine()
+    if not (flight and flight.total and flight.total > 0 and holder and holder:IsShown()) then return end
+    holder.f.bar:SetValue(math.min(1, (GetTime() - flight.start) / flight.total))
+end
+
 local function stopDriver() if driver then driver:Hide() end end
 
 local function land()
@@ -403,18 +419,22 @@ function Flight.Tick()
     end
 end
 
+-- One frame in the air: the line every frame, the rest on the tick.
+function Flight.Step(dt)
+    moveLine()
+    acc = acc + (dt or 0)
+    if acc < Flight.TICK then return end
+    acc = 0
+    Flight.Tick()
+end
+
 -- A parentless frame, so it keeps watching with the interface hidden (Alt-Z):
 -- the landing must be seen on time or the learned time would be too long.
 local function startDriver()
     if not driver then
         driver = CreateFrame("Frame")
         driver:Hide()
-        driver:SetScript("OnUpdate", function(_, dt)
-            acc = acc + (dt or 0)
-            if acc < Flight.TICK then return end
-            acc = 0
-            Flight.Tick()
-        end)
+        driver:SetScript("OnUpdate", function(_, dt) Flight.Step(dt) end)
     end
     acc = 0
     driver:Show()
