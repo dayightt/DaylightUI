@@ -785,34 +785,49 @@ local function compare(tip, changes, addon)
     end)
 end
 
-T.test("rich tooltip: a compare tooltip is the board's small card with change chips", function()
+-- Seen in game: the board's small compare card next to the full item card
+-- read as two different things. The compare is the same card, under its
+-- Equipped tag, with what changes at the bottom.
+T.test("rich tooltip: a compare tooltip is the same card as the item's, its changes at the bottom", function()
     local _, Panel = login("rich")
     items()
     fillItem(GameTooltip, "greaves", GREAVES)
     local shop = ShoppingTooltip1
     compare(shop, CHANGES)
     local p = Panel.Get(shop)
+    local main = Panel.Get(GameTooltip)
     T.truthy(p and p:IsShown(), "a card on the compare tooltip")
-    T.eq(p.kind, "compare")
-    T.near(shop:GetWidth(), 230 * p:GetScale(), 0.01, "the board's 230")
+    T.eq(p.wantW, main.wantW, "as wide as the item's card")
     T.near(shop:GetHeight(), p.wantH * p:GetScale(), 0.01)
     T.eq(p.items[1].kind, "tags")
     T.eq(stub.Text(p.items[1].list[1].text), "EQUIPPED", "the tag on top")
     T.eq(shop.CompareHeader:GetAlpha(), 0, "the game's tab out of sight")
+    local head = p.items[3]
+    T.eq(head.kind, "header", "then the item card's own header")
+    T.eq(stub.Text(head.title), "Tarnished Legplates")
+    T.near(({ head.title:GetTextColor() })[3], stub.tooltip.RichItems.Lift({ 0, 0.439, 0.867 })[3], 1e-6, "in its quality")
+    T.truthy(head.icon and head.icon:IsShown(), "its icon")
+    T.eq(stub.Text(head.tags[1].text), "ILVL 58")
+    T.eq(stub.Text(head.tags[2].text), "LEGS · PLATE")
+    local rows = kinds(p, "row")
+    T.eq(stub.Text(rows[1].label), "Armor", "the same rows as the item's")
+    T.eq(stub.Text(rows[1].value), "646")
     local lines = kinds(p, "line")
-    T.eq(stub.Text(lines[1].fs), "Tarnished Legplates")
-    T.near(({ lines[1].fs:GetTextColor() })[3], stub.tooltip.RichItems.Lift({ 0, 0.439, 0.867 })[3], 1e-6, "in its quality")
-    T.eq(stub.Text(lines[2].fs), "ilvl 58 · Legs · Plate")
-    local chips = kinds(p, "tags")[2]
-    T.eq(#chips.list, 4)
-    T.eq(stub.Text(chips.list[1].text), "+8 STR")
-    T.near(({ chips.list[1].text:GetTextColor() })[1], DaylightUI.Style.INK.GOOD[1], 1e-6, "a gain")
-    T.eq(stub.Text(chips.list[3].text), "+1% CRIT")
-    T.eq(stub.Text(chips.list[4].text), "\226\136\14696 ARMOR", "a loss with a real minus sign")
-    T.near(({ chips.list[4].text:GetTextColor() })[1], DaylightUI.Style.INK.DAMAGE[1], 1e-6)
-    T.eq(#kinds(p, "rule"), 1)
-    T.eq(#kinds(p, "row"), 0, "the item's own stats: the chips say what changes")
-    T.eq(#kinds(p, "hints"), 0)
+    T.truthy(stub.Text(lines[1].fs):find("+16|r Strength", 1, true), "and the same stat lines")
+    local last = p.items[p.count]
+    T.eq(last.kind, "tags", "the changes last")
+    T.eq(#last.list, 4)
+    T.eq(stub.Text(last.list[1].text), "+8 STR")
+    T.near(({ last.list[1].text:GetTextColor() })[1], DaylightUI.Style.INK.GOOD[1], 1e-6, "a gain")
+    T.eq(stub.Text(last.list[3].text), "+1% CRIT")
+    T.eq(stub.Text(last.list[4].text), "\226\136\14696 ARMOR", "a loss with a real minus sign")
+    T.near(({ last.list[4].text:GetTextColor() })[1], DaylightUI.Style.INK.DAMAGE[1], 1e-6)
+    T.eq(p.items[p.count - 1].kind, "rule", "under a rule")
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "text" then T.falsy(stub.Text(it.fs):find("If you replace", 1, true), "the game's change heading left out") end
+    end
+    T.eq(#kinds(p, "hints"), 0, "no key hints on a compare")
     -- Gone: the tab and its padding back for the skinned look.
     shop:Hide()
     T.eq(shop.CompareHeader:GetAlpha(), 1)
@@ -829,7 +844,9 @@ T.test("rich tooltip: change lines added while a compare tooltip shows join its 
     compare(shop, nil, { "Pawn", "+12%" })
     local p = Panel.Get(shop)
     T.eq(#kinds(p, "tags"), 1, "no chips yet")
-    T.eq(stub.Text(kinds(p, "row")[1].value), "+12%", "the addon's line in the card")
+    local pawn
+    for _, r in ipairs(kinds(p, "row")) do if stub.Text(r.label) == "Pawn" then pawn = r end end
+    T.eq(pawn and stub.Text(pawn.value), "+12%", "the addon's line in the card")
     shop:AddLine(" ")
     shop:AddLine(ITEM_DELTA_DESCRIPTION, 1, 0.82, 0)
     shop:AddLine("+3 Agility")
@@ -1463,5 +1480,19 @@ T.test("rich tooltip: your own name under a quest is left out, a party member's 
     T.eq(said[1], "PIRATE HATS AHOY!", "the quest")
     T.eq(said[2], "Thrall", "a party member's name, small")
     for _, t in ipairs(said) do T.falsy(t:upper():find("DAYLIGHT", 1, true), "never your own") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: a quest reward's card showed coins at the foot with no word
+-- beside them (it has no durability to sit on the left).
+T.test("rich tooltip: a sell price with no durability beside it says what it is", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Southsea Head Bucket", nil, { 0.118, 1, 0 } }, "Binds when picked up",
+        "Sell Price: 48|A:coin-silver:0:0|a 12|A:coin-copper:0:0|a" })
+    local rows = kinds(Panel.Get(GameTooltip), "row")
+    local foot = rows[#rows]
+    T.eq(stub.Text(foot.label), "Sell Price")
+    T.truthy(stub.Text(foot.value):find("48", 1, true))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

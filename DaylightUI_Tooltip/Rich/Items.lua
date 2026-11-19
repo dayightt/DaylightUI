@@ -25,8 +25,7 @@ Items.TAG_GAP = 6       -- between the title and its tags
 Items.ROW_GAP = 3
 Items.RULE_GAP = 13     -- a rule's 10 px each side plus the rows' own 3
 Items.EPIC = 4          -- the quality light sweeps from here up
-Items.COMPARE_PAD_X = 14
-Items.AFTER_TAG = 8     -- the compare card's tag, then the name
+Items.AFTER_TAG = 8     -- a compare card's Equipped tag, then the header
 Items.MIN_QUALITY = 2   -- uncommon and up: the name, light and outline in its color
 Items.GROUP_GAP = 8     -- between two groups that share a part (no rule)
 
@@ -149,7 +148,7 @@ end
 -- Sorts the item's own lines (2 to own) into the card's groups. Each group
 -- is a list of functions that add their pieces; the footer's two sides are
 -- returned as they are.
-local function sort(n, lines, own, info, groups)
+local function sort(n, lines, own, info, groups, skip)
     local P, Tip, Tips = Items.Patterns(), ns.Tooltip, DUI.Tips
     local foot = {}
     local inSet = false
@@ -176,7 +175,7 @@ local function sort(n, lines, own, info, groups)
                 foot.money = (left:sub(at + #sellWord):gsub("^%s*:%s*", ""))
             end
         elseif not mine then
-            groups.other[#groups.other + 1] = i
+            if not (skip and skip[i]) then groups.other[#groups.other + 1] = i end
         elseif info.slot and t == info.slot then
             -- Shown in the slot tag.
             info.slotWord = right and Items.Words(right) or nil
@@ -272,18 +271,24 @@ function Items.Hints(tip, link, info)
     return hints
 end
 
--- The item card (board "Items").
-function Items.Card(p, tip, data, n, lines, light, fade)
+-- The item card. compare (a compare tooltip's): { label, chips, skip }: the
+-- same card under its "Equipped" tag, the game's change lines as chips at the
+-- bottom (skip: their line numbers), so the two read across line for line.
+function Items.Card(p, tip, data, n, lines, light, fade, compare)
     local Panel, Tip = ns.RichPanel, ns.Tooltip
     local link = Tip.ItemLink(tip, data)
     local info = Items.Info(link)
-    Panel.Begin(p, "item", light, fade)
+    Panel.Begin(p, compare and "compare" or "item", light, fade)
     p.padTop, p.rowGap, p.ruleGap = Items.PAD_TOP, Items.ROW_GAP, Items.RULE_GAP
     p.washDown = true
     local first = lines[1]
     local own = type(data) == "table" and type(data.lines) == "table" and #data.lines or n
     local groups = { base = {}, stats = {}, effects = {}, set = {}, facts = {}, other = {} }
-    local foot = sort(n, lines, math.min(own, n), info, groups)
+    local foot = sort(n, lines, math.min(own, n), info, groups, compare and compare.skip)
+    if compare then
+        Panel.Tags(p, { { compare.label, Style.INK.LABEL } })
+        Panel.Gap(p, Items.AFTER_TAG)
+    end
     -- The header.
     local titleColor = info.light
     if not titleColor and first and first.hasLC then
@@ -329,21 +334,29 @@ function Items.Card(p, tip, data, n, lines, light, fade)
     local other = {}
     for _, i in ipairs(groups.other) do other[#other + 1] = function() ns.Rich.Lines(p, i, lines, i) end end
     if foot.durability or foot.money then
+        -- A sell price alone (a quest reward has no durability) says what it is.
+        local label = foot.durability or (type(SELL_PRICE) == "string" and SELL_PRICE or L["Sell price"])
         other[#other + 1] = function()
-            Panel.Row(p, foot.durability or "", foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small)
+            Panel.Row(p, label, foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small)
         end
     end
     part(groups.base)
     part(groups.stats, groups.facts)
     part(groups.set)
     part(other)
+    -- A compare's chips: what changes if you swap, last.
+    if compare and #compare.chips > 0 then
+        if any then Panel.Rule(p) end
+        any = true
+        Panel.Tags(p, compare.chips)
+    end
     local hints = Items.Hints(tip, link, info)
     if #hints > 0 then
         if any then Panel.Gap(p, Items.GROUP_GAP) end
         Panel.Hints(p, hints)
     end
     -- Nothing under the header: no room kept for it.
-    if not any and #hints == 0 then p.count = p.count - 1 end
+    if not any and #hints == 0 and p.items[p.count].kind == "gap" then p.count = p.count - 1 end
     Panel.Finish(p)
     return info
 end
@@ -381,75 +394,36 @@ function Items.IsChangeHead(t)
     return t ~= nil and (t == ITEM_DELTA_DESCRIPTION or t == ITEM_DELTA_MULTIPLE_COMPARISON_DESCRIPTION)
 end
 
--- The small card on a compare tooltip: what you have on and the chips for what
--- changes. The game adds its change lines after the item's own (and after any
--- other addon's), so everything past the item that isn't a change goes in
--- under a rule.
-function Items.Compare(p, tip, data, n, lines, light, fade)
-    local Panel, Tip = ns.RichPanel, ns.Tooltip
-    local link = Tip.ItemLink(tip, data)
-    local info = Items.Info(link)
-    Panel.Begin(p, "compare", light, fade)
-    p.padTop, p.padX, p.rowGap = Items.PAD_TOP, Items.COMPARE_PAD_X, 0
-    local h = tip.CompareHeader
-    local label = type(h) == "table" and type(h.Label) == "table" and plain(h.Label:GetText())
-    if type(label) ~= "string" or label == "" then label = EQUIPPED or L["Equipped"] end
-    Panel.Tags(p, { { label, Style.INK.LABEL } })
-    Panel.Gap(p, Items.AFTER_TAG)
-    local first = lines[1]
-    local nameColor = info.light
-    if not nameColor and first and first.hasLC then nameColor = { first.lc[1], first.lc[2], first.lc[3] } end
-    Panel.Line(p, first and first.left or "", nameColor or Style.INK.TITLE, Style.SIZE.head)
-    local sub = {}
-    if info.level then sub[#sub + 1] = string.format(L["ilvl %d"], math.floor(info.level + 0.5)) end
-    -- The slot line's own words ("Legs", "Plate"), else the item's kinds.
-    local own = type(data) == "table" and type(data.lines) == "table" and math.min(#data.lines, n) or n
-    local slotWord
-    for i = 2, own do
-        local line = lines[i]
-        if info.slot and line.left and Items.Words(line.left) == info.slot then
-            slotWord = line.right and Items.Words(line.right) or nil
-            break
-        end
-    end
-    if info.slot then sub[#sub + 1] = info.slot end
-    local word = slotWord or info.sub
-    if word and word ~= info.slot then sub[#sub + 1] = word end
-    if #sub > 0 then Panel.Line(p, table.concat(sub, L[" · "]), Style.INK.LABEL, Style.SIZE.small) end
-    -- Past the item: the change lines, and other addons' lines.
-    local chips, other, changes = {}, {}, false
-    for i = own + 1, n do
+-- A compare tooltip's change block: the game adds a blank line, its "If you
+-- replace this item" line and one line per change after the item's own (and
+-- after any other addon's). Returns the chips and the lines they took.
+function Items.Changes(lines, from, n)
+    local chips, skip, changes = {}, {}, false
+    for i = from, n do
         local line = lines[i]
         local t = line.left and Items.Words(line.left) or nil
         if Items.IsChangeHead(t) then
-            changes = true
-        elseif not t or t == "" then
-            -- The game's blank line before its changes.
-        else
-            local text, color = nil, nil
-            if changes and not line.right then text, color = Items.Chip(t) end
+            changes, skip[i] = true, true
+        elseif changes and t and t ~= "" and not line.right then
+            local text, color = Items.Chip(t)
             if text then
                 chips[#chips + 1] = { text, color }
-            else
-                other[#other + 1] = i
+                skip[i] = true
             end
         end
     end
-    if #chips > 0 then
-        Panel.Rule(p)
-        Panel.Tags(p, chips)
-    end
-    if #other > 0 then
-        Panel.Rule(p)
-        for _, i in ipairs(other) do ns.Rich.Lines(p, i, lines, i) end
-    end
-    Panel.Finish(p)
-    return info
+    return chips, skip
 end
 
--- Builds the card a tooltip's item gets: the compare card on a compare
--- tooltip, else the full card. Returns what it read of the item.
+-- Builds a tooltip's item card; on a compare tooltip, the same card under
+-- its "Equipped" tag with the changes at the bottom. Returns what it read of
+-- the item.
 function Items.Build(p, tip, data, n, lines, light, fade)
-    if type(tip.CompareHeader) == "table" then return Items.Compare(p, tip, data, n, lines, light, fade) end
-    return Items.Card(p, tip, data, n, lines, light, fade)
+    local h = tip.CompareHeader
+    if type(h) ~= "table" then return Items.Card(p, tip, data, n, lines, light, fade) end
+    local label = type(h.Label) == "table" and plain(h.Label:GetText())
+    if type(label) ~= "string" or label == "" then label = EQUIPPED or L["Equipped"] end
+    local own = type(data) == "table" and type(data.lines) == "table" and math.min(#data.lines, n) or n
+    local chips, skip = Items.Changes(lines, own + 1, n)
+    return Items.Card(p, tip, data, n, lines, light, fade, { label = label, chips = chips, skip = skip })
 end

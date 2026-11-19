@@ -32,7 +32,7 @@ Panel.BORDER = 4       -- outline, warm band, inner line (screen pixels)
 Panel.MIN_W = 160
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
-Panel.WIDTH = { unit = 300, item = 290, compare = 230, spell = 270, cooldown = 200, other = 280 }
+Panel.WIDTH = { unit = 300, item = 290, compare = 290, spell = 270, cooldown = 200, other = 280 }
 Panel.FIXED = { unit = true, item = true, compare = true, spell = true, cooldown = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.HINT_H = 20      -- a hint line, 12 px text at 1.7 line height
@@ -753,6 +753,7 @@ function Panel.Finish(p)
         local item = p.items[i]
         -- Rows sit ROW_GAP apart; a rule or a gap brings its own room.
         if last and SPACED[item.kind] ~= false and SPACED[last] ~= false then y = y + rowGap end
+        item.y = y
         y = y + place[item.kind](p, item, y, inner)
         last = item.kind
     end
@@ -807,7 +808,14 @@ end
 -- right edge, over the header's height.
 function Panel.PaintWash(p)
     local c, a, b = p.washColor, p.wash[1], p.wash[2]
+    -- The header: first, or under a compare card's tag.
     local header = p.items[1]
+    for i = 1, math.min(p.count, 3) do
+        if p.items[i].kind == "header" then
+            header = p.items[i]
+            break
+        end
+    end
     if not (c and header and header.kind == "header") then
         a:Hide()
         b:Hide()
@@ -818,7 +826,7 @@ function Panel.PaintWash(p)
     b:ClearAllPoints()
     if p.washDown then
         -- An item's: its quality from the top, gone by 80% of the header's height.
-        local h = ((p.padTop or Panel.PAD_TOP) + (header.h or 0)) * 0.8
+        local h = ((header.y or p.padTop or Panel.PAD_TOP) + (header.h or 0)) * 0.8
         a:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
         a:SetPoint("TOPRIGHT", p, "TOPRIGHT", 0, 0)
         a:SetHeight(h)
