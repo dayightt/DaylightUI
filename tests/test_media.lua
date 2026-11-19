@@ -390,3 +390,30 @@ T.test("media: on a Russian client, the bundled fonts with Russian letters are s
     _G.GetLocale = before
     if not ok then error(err, 0) end
 end)
+
+-- A shared font from an addon that loads after Daylight UI isn't in the shared
+-- list yet when Daylight UI loads, only at login. The unit frames' aura numbers
+-- (which the client owns, so a repaint skips them) and the game's text (set
+-- once a session) are made at login, so they must already have it.
+T.test("media: a shared font registered after Daylight UI loads is on everything made at login", function()
+    local lsm = fakeLSM()
+    local roboto = lsm.media.font.Roboto
+    lsm.media.font.Roboto = nil
+    local DUI, ns = stub.Load({ module = true, login = false, before = function()
+        _G.GameFontNormal = { face = "Fonts\\FRIZQT__.TTF", size = 12, flags = "" }
+        function GameFontNormal:GetFont() return self.face, self.size, self.flags end
+        function GameFontNormal:SetFont(a, b, c) self.face, self.size, self.flags = a, b, c end
+        _G.GetFonts = function() return { "GameFontNormal" } end
+        DaylightUIDB = { profileData = { ["DPS/Tank"] = { general = { font = "lsm:Roboto", gameText = true } } } }
+    end })
+    lsm.media.font.Roboto = roboto   -- its addon loads after Daylight UI
+    stub.FireEvent("PLAYER_LOGIN")
+    DUI.Fade.SkipIntro()
+    stub.RunTimers()
+    T.eq(DUI.Style.FONT, roboto, "the Appearance font")
+    local btn = ns.auras.buffs.__groups.buffs.buttons[1]
+    T.eq((btn.__time:GetFont()), roboto, "a target buff's time")
+    T.eq((btn.__count:GetFont()), roboto, "and its stack count")
+    T.eq(GameFontNormal.face, roboto, "the game's text, so other addons' too")
+    _G.LibStub, _G.GameFontNormal, _G.GetFonts = nil, nil, nil
+end)
