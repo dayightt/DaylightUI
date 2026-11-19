@@ -673,7 +673,7 @@ end
 -- CdmAuras) = down. "finish" and "pause" only go in the report. The last few are
 -- kept for /dui cdm report, to see which ones the client really sends in a fight
 -- or a dungeon.
-local DOWN = { stop = true, ["time out"] = true, blocked = true }
+local DOWN = { stop = true, ["time out"] = true, blocked = true, ["used up"] = true }
 function Fx.AuraHeard(h, what, btn)
     h.heard = h.heard or {}
     table.insert(h.heard, string.format("%s %.1f%s", what, GetTime(), InCombatLockdown() and " fight" or ""))

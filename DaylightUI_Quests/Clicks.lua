@@ -30,7 +30,7 @@ Clicks.ACTION_WORDS = { map = L["show on map"], details = L["quest details"], pr
                         link = L["link in chat"] }
 Clicks.BUTTONS = { "click", "shift", "ctrl", "alt" }
 Clicks.BUTTON_HINT = { click = L["Click: %s"], shift = L["Shift-click: %s"], ctrl = L["Ctrl-click: %s"], alt = L["Alt-click: %s"] }
-Clicks.DEFAULT = { click = "map", shift = "untrack", ctrl = "priority", alt = "none" }
+Clicks.DEFAULT = { click = "map", shift = "untrack", ctrl = "priority", alt = "fold" }
 Clicks.ACH_HINTS = { L["Click: open achievements"], L["Shift-click: stop tracking"] }
 Clicks.TIP_GAP = 44        -- keeps the tooltip clear of the item column (34 + 10)
 Clicks.ICON_HIT = 18       -- the icon area of a quest row, up to where the title starts
