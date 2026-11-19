@@ -3837,6 +3837,37 @@ end)
 end
 end
 
+-- In game the client's button never says where the buff came up, so Slice and
+-- Dice, a harmful cast, was guessed onto the target again and a new target still
+-- put it down (a player on 1.9.4). Where it was last seen wins over the guess.
+T.test("cdm hide up: a harmful cast whose buff was seen on you stays up after a new target", function()
+    local DUI, AB, E, D, set = auraWorld(true)
+    DUI.DB.General().motion = false
+    place(D, set, 42, 1, 2)
+    T.truthy(D.SetSpellValue(set, 41, "hideMissing", true))
+    C_Spell.IsSpellHarmful = function() return true end
+    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
+    AB.CdmRows.Refresh(); stub.RunTimers()
+    local h1 = AB.CdmAuras.Frame(41)
+    -- Seen on you once where auras can be read.
+    stub.auras.player = { HELPFUL = { { spellId = 141, duration = 21, expirationTime = GetTime() + 21 } } }
+    AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    T.eq(h1.upUnit, "player", "seen on you")
+    T.eq(DUI.DB.Character().cdmAuraOn[41], "player", "kept for this character, a reload too")
+    stub.auras.player = { HELPFUL = {} }
+    stub.Advance(22); AB.CdmAuras.AuraChanged(); stub.RunTimers()
+    stub.combat = true
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-1", 141); stub.RunTimers()
+    T.eq(h1.up, true, "cast: up")
+    stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+    T.eq(h1.up, true, "a new target: still up, it's on you")
+    stub.combat = false
+    C_Spell.IsSpellHarmful = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm hide up: a harmful spell cast in a fight is gone with the target", function()
     local DUI, AB, E, D, set = auraWorld(false)
     DUI.DB.General().motion = false

@@ -892,8 +892,18 @@ local function textCharges(sid)
 end
 
 -- Remember a found aura's duration and end time for casts in combat (A.Cast).
+-- Where each piece's aura was last seen, saved per character (cdmAuraOn[piece id]
+-- = unit), so a cast in a fight knows it after a reload too.
+local function seenOn()
+    local c = DUI.DB and DUI.DB.Character()
+    if type(c) ~= "table" then return {} end
+    if type(c.cdmAuraOn) ~= "table" then c.cdmAuraOn = {} end
+    return c.cdmAuraOn
+end
+
 local function learn(h, a, unit)
     h.upUnit = unit
+    if h.id ~= nil then seenOn()[h.id] = unit end
     local n = plain(a.applications)
     if h.selfDebuff then
         -- Read by id, so its going says it's down (a debuff that never stacks has no count).
@@ -1091,7 +1101,9 @@ end
 function A.Cast(h, sid, at)
     h.up = true
     local ok, harmful = pcall(C_Spell.IsSpellHarmful, sid)
-    h.upUnit = shownOn(h)
+    -- Where it was last seen beats the guess: Slice and Dice is a harmful cast
+    -- whose buff is on you, and the client's button never says where it came up.
+    h.upUnit = shownOn(h) or (h.id ~= nil and seenOn()[h.id])
         or ok and harmful == true and not h.selfDebuff and "target" or h.onPet and "pet" or "player"
     -- Duration: read this session, else saved, else from the spell text. Without
     -- one it would stay up forever, since the client's button says nothing in a

@@ -22,6 +22,7 @@ DUI.PatchNotes = {
             { "General", "Daylight UI no longer changes your max camera distance setting every time you log in" },
             { "Unit frames", "Rare elites wear the silver dragon on the target frame and nameplates, like in the game, instead of the gold one" },
             { "Cooldown Manager", "Lightning Shield and Touch of Weakness now count as gone mid-fight once hits use them up, so a reminder to recast them shows when it should" },
+            { "Cooldown Manager", "Slice and Dice no longer gets covered by the next buff in its group after you change target" },
             { "Buffs", "Your buffs and debuffs no longer all bounce at once when you loot something" },
             { "QoL", "The big level number on the level-up screen is no longer cut off at the top and bottom" },
             { "QoL", "Closing the AFK screen while an NPC conversation has the UI faded no longer brings the UI back early" },
