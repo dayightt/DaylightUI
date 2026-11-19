@@ -1539,7 +1539,7 @@ end
 
 local function boar(extra)
     stub.units.player.level = 22
-    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, level = 23, health = 78,
+    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, level = 23, health = 78, pct = 78,
         maxHealth = 100, creatureType = "Beast", creatureTypeID = 1 }
     stub.units.mouseovertarget = stub.units.player
     for k, v in pairs(extra or {}) do stub.units.mouseover[k] = v end
@@ -1775,5 +1775,35 @@ T.test("rich tooltip: a wrapped sentence on the card has room between its lines"
     T.eq(text.fs:GetSpacing(), stub.tooltip.RichPanel.LINE_SPACING)
     local line = kinds(Panel.Get(GameTooltip), "line")[1]
     T.eq(line.fs:GetSpacing(), 0, "a one-line number keeps none")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: the health bar flashed black as the mouse left a unit. The
+-- card and pill kept repainting from "mouseover", which then answers no
+-- health, so the bar emptied to its black track while it faded out.
+T.test("rich tooltip: a card's and the pill's health keep their last value once the unit is gone", function()
+    local _, Panel = login("rich")
+    boar()
+    local p = Panel.Get(hoverBoar())
+    local bar = itemsOf(p, "bar")[1].bar
+    T.eq(stub.Plain(bar:GetValue()), 78)
+    stub.units.mouseover = nil
+    stub.Advance(0.5)
+    update()
+    T.eq(stub.Plain(bar:GetValue()), 78, "the card's bar as it was")
+    -- The pill, in a fight.
+    boar()
+    stub.EnterCombat()
+    hoverBoar()
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(pill:IsShown())
+    T.eq(stub.Plain(pill.bar:GetValue()), 78)
+    T.eq(stub.Text(pill.pct), "78%", "its health before")
+    stub.units.mouseover = nil
+    stub.Advance(0.5)
+    update()
+    T.eq(stub.Plain(pill.bar:GetValue()), 78, "the pill's bar as it was")
+    T.eq(stub.Text(pill.pct), "78%", "and its health")
+    stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

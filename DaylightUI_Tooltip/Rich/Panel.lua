@@ -456,10 +456,13 @@ function Panel.Bar(p, spec)
 end
 
 -- The card's unit bars and their numbers again (health while it shows).
+-- Not once the unit is gone (the mouse left it): its token then answers no
+-- health, and the bar would empty to black while the card fades out.
 function Panel.UpdateBars(p)
     for i = 1, p.count do
         local item = p.items[i]
-        if item.kind == "bar" and item.spec.unit then
+        if item.kind == "bar" and item.spec.unit and not isSecret(UnitExists(item.spec.unit))
+            and UnitExists(item.spec.unit) == true then
             Panel.PaintBar(item.bar, item.spec)
             if item.pct and type(item.spec.pct) == "function" then item.spec.pct(item.pct) end
         end

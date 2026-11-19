@@ -234,13 +234,16 @@ function Pill.Step(tip, unit)
     if not (f and f:IsShown()) then return end
     Pill.Place(tip)
     if not unit then return end
+    if f.leaving then return end
+    -- Gone first: painted from a token that no longer answers, the bar would
+    -- empty to black as the pill fades out.
+    if plain(UnitExists(unit)) == false then return Pill.Leave() end
     local now = GetTime()
-    if now >= (f.next or 0) and not f.leaving then
+    if now >= (f.next or 0) then
         f.next = now + ns.Rich.BAR_EVERY
         ns.RichPanel.PaintBar(f.bar, { unit = unit, health = true, pair = f.barPair })
         DUI.Health.Write(f.pct, "percent", unit, true)
     end
-    if not f.leaving and plain(UnitExists(unit)) == false then Pill.Leave() end
 end
 
 -- The mouse left it (Tip.OnWorldCursor, or its unit is gone). As world
