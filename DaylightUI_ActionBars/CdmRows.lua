@@ -202,10 +202,17 @@ end
 
 local function touch() Rows.Refresh() end
 
+-- The moments the game's own item changes what it says about its buff: it turns
+-- active or inactive, its aura lands or ends, its cooldown comes back. The pass
+-- they ask for runs after the game's handler is done, so it reads the settled item.
+local STATE_HOOKS = { "OnActiveStateChanged", "TriggerAuraAppliedAlert", "TriggerAuraRemovedAlert",
+    "TriggerAvailableAlert" }
+
 -- The game's layout pass hides every item and shows it again before putting it in
 -- its grid (RefreshLayout releases the pool), so a held item's OnHide/OnShow is the
--- moment to claim it back. No hook on its SetPoint: hooks on the game's own methods
--- broke its calls before.
+-- moment to claim it back. A row that shows its inactive icons never hides one as
+-- its buff drops, so the item's own state changes are listened to as well. These
+-- run after the game's code and change nothing of its own.
 local function hook(item)
     if hooked[item] then return end
     hooked[item] = true
@@ -213,6 +220,21 @@ local function hook(item)
         item:HookScript("OnShow", touch)
         item:HookScript("OnHide", touch)
     end
+    for _, m in ipairs(STATE_HOOKS) do
+        if type(item[m]) == "function" then hooksecurefunc(item, m, touch) end
+    end
+end
+
+-- Whether the game's own item says its buff is up: true, false, or nil when it
+-- can't say. A buff item (Tracked Buffs, Tracked Bars) is active only while its
+-- aura is. A cooldown icon is always active and marks the aura it's showing with
+-- wasSetFromAura. Both read plain in a fight. Whether the item is shown says
+-- nothing: a row that shows inactive icons keeps it up while the buff is down.
+local function itemUp(item, auraItem)
+    local v
+    if auraItem then v = item.isActive else v = item.wasSetFromAura end
+    if isSecret(v) or type(v) ~= "boolean" then return nil end
+    return v
 end
 
 -- A shown, held item that isn't anchored to its block, because the game laid it out
@@ -275,6 +297,12 @@ local auraItems = {}
 -- instead (Lightning Shield). It stays shown, but it keeps the aura it's showing
 -- and lets go of it the moment the aura ends, in a fight too.
 local auraHolders = {}
+-- spell id -> the game's buff item for that spell, placed or not. A piece placed by
+-- its cooldown (or one of Daylight UI's own spells) has another id than the game's
+-- buff entry of the same spell, so it finds its buff's item here.
+local buffItems = {}
+-- Game items from the buff rows (the others are cooldown icons).
+local auraKind = setmetatable({}, weak)
 local usedOwn, usedHolders, usedHolds, usedBars = {}, {}, {}, {}
 local shown, downs, told = {}, {}, {}
 -- id -> Daylight UI's aura holder whose buff is down and gave up its spot (slide over).
@@ -296,6 +324,27 @@ local function knownNow()
     return passKnown
 end
 
+local INFO_SPELLS = { "spellID", "overrideSpellID", "overrideTooltipSpellID", "linkedSpellID" }
+
+-- The game's item that tells whether piece id's buff is up, and whether it's a buff
+-- item (else a cooldown icon showing its aura). nil when the game has none for it,
+-- or has one that can't see this aura (CdmAuras.GameBlind).
+local function truthItem(id, holder)
+    -- A piece Daylight UI draws from its own knowledge (the pet, a debuff on you)
+    -- isn't an aura the game's item looks for.
+    if holder and holder.face then return nil end
+    if ns.CdmAuras and ns.CdmAuras.GameBlind(id) then return nil end
+    local item = auraItems[id] or (elsewhereAura[id] and elsewhere[id]) or nil
+    if item then return item, true end
+    if auraHolders[id] then return auraHolders[id], false end
+    -- The game's cooldown icon, out of sight because the piece is a bar: it still
+    -- marks the aura it would be showing.
+    if elsewhere[id] and ns.CdmAuras and ns.CdmAuras.Follows(id) then return elsewhere[id], false end
+    for sid in pairs(holder and holder.ids or {}) do
+        if buffItems[sid] then return buffItems[sid], true end
+    end
+end
+
 -- One of the game's items (in viewer passName): held in its piece, hidden so Daylight UI's
 -- can draw it, or released.
 local function claim(item)
@@ -304,6 +353,23 @@ local function claim(item)
     local set, name = passSet, passName
     local kind = KINDS[name]
     local block = passOn and blocks[id]
+    auraKind[item] = AURA_VIEWERS[name] or nil
+    if AURA_VIEWERS[name] then
+        hook(item)
+        local info = Data.Info(id)
+        if type(info) == "table" then
+            for _, key in ipairs(INFO_SPELLS) do
+                local sid = num(info[key])
+                if sid and not buffItems[sid] then buffItems[sid] = item end
+            end
+            if type(info.linkedSpellIDs) == "table" then
+                for _, sid in ipairs(info.linkedSpellIDs) do
+                    sid = num(sid)
+                    if sid and not buffItems[sid] then buffItems[sid] = item end
+                end
+            end
+        end
+    end
     -- The game's item shows the wrong thing for the spell's Track (CdmOwn.Track):
     -- a buff item tracked as its cooldown or both (Shield Block, Charge; it hides
     -- while the buff is down), or a cooldown item the player set to Cooldown or Buff
@@ -509,7 +575,7 @@ function Rows.Update()
     end
 
     -- Claim items by piece.
-    wipe(mine); wipe(elsewhere); wipe(elsewhereAura); wipe(auraItems); wipe(auraHolders)
+    wipe(mine); wipe(elsewhere); wipe(elsewhereAura); wipe(auraItems); wipe(auraHolders); wipe(buffItems)
     for k in pairs(ours) do ours[k] = nil end
     for k in pairs(drawn) do drawn[k] = nil end
     passSet, passOn, passHide, passKnown = set, on, hide, nil
@@ -549,11 +615,11 @@ function Rows.Update()
             local away = not item and elsewhere[id]
             local awayAura = elsewhereAura[id]
             if away then
-                -- The game draws it in the other shape. An aura that's down (the
-                -- game hid its item) closes up; "Show missing buffs" keeps it, empty.
-                local up = away:IsShown()
-                if awayAura then downs[id] = not up end
-                if always or not block.collapse or not awayAura or up then
+                -- The game draws it in the other shape. An aura the game's item
+                -- says is down closes up; "Show missing buffs" keeps it, empty.
+                local up = awayAura and itemUp(away, true)
+                if awayAura and up ~= nil then downs[id] = not up end
+                if always or not block.collapse or not awayAura or up ~= false then
                     -- A cooldown set to Cooldown and buff by hand keeps the cooldown
                     -- under the aura bar even when that can't be told.
                     local both = not awayAura and Own and Own.Picked(p) == "both" and "both" or nil
@@ -573,10 +639,15 @@ function Rows.Update()
                     item = drawOurs(id, p, block, f, always, k.aura)
                 end
             elseif item and Own then
-                -- The game's buff item (a bar, or an aura family icon), shown while
-                -- the buff is up.
-                local e = k or Own.Entry(id, knownNow())
-                if block.kind == "bar" or (e and e.aura) then downs[id] = not item:IsShown() end
+                -- The game's own item: a buff item, or a cooldown icon that shows
+                -- its aura while it's up (Rend).
+                local up
+                if auraKind[item] then
+                    up = itemUp(item, true)
+                elseif ns.CdmAuras and ns.CdmAuras.Follows(id) and not ns.CdmAuras.GameBlind(id) then
+                    up = itemUp(item, false)
+                end
+                if up ~= nil then downs[id] = not up end
             end
             -- Daylight UI's aura holder (icon or bar): the missing glow and Hide (Buff up) ask
             -- CdmAuras.IsUp, unless the game's item already answered.
@@ -610,15 +681,16 @@ function Rows.Update()
                 holder.wantsUp = (hide or sound or ends or slides or glowUp or clip or cdFx or Fx.Get(p, "missingGlow") == true) or nil
                 holder.soundPiece, holder.soundItem = sound and p or nil, sound and item or nil
                 if holder.wantsUp then
-                    local seen = auraItems[id] or (awayAura and away)
+                    -- The game's own item for this buff is the only word needed, up
+                    -- or down. Without one the holder says what it can.
+                    local seen, auraItem = truthItem(id, holder)
                     local up
-                    if seen then
-                        up = ns.CdmAuras.Told(holder, seen:IsShown())
-                    elseif auraHolders[id] then
-                        -- Only whether it holds one: the id itself may be secret.
-                        up = ns.CdmAuras.Told(holder, type(auraHolders[id].auraInstanceID) ~= "nil")
+                    if seen then up = itemUp(seen, auraItem) end
+                    if up ~= nil then
+                        ns.CdmAuras.Told(holder, up)
+                    else
+                        up = ns.CdmAuras.IsUp(holder)
                     end
-                    up = up or ns.CdmAuras.IsUp(holder)
                     if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or clip or cdFx))) then downs[id] = not up end
                     if clip and up == true then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
                     -- Only a known "down"; an unknown one keeps its spot.

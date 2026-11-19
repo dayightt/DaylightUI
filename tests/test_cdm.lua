@@ -892,6 +892,49 @@ local function fakeViewer(name, ids)
             item.Bar.Name = item.Bar:CreateFontString()
             item.Bar.Duration = item.Bar:CreateFontString()
         end
+        -- The game's own rule (Blizzard_CooldownViewer CooldownViewer.lua). A buff
+        -- item is active only while its aura is up, and a row that hides inactive
+        -- icons (the default for buffs) shows it only then. A cooldown icon is
+        -- always active and says it shows its aura with wasSetFromAura.
+        local aura = name == "BuffIconCooldownViewer" or name == "BuffBarCooldownViewer"
+        item.allowHideWhenInactive = aura or nil
+        item.hideWhenInactive = aura
+        item.isActive = true
+        item.wasSetFromAura = false
+        function item:GetCooldownID() return self.cooldownID end
+        function item:IsActive() return self.isActive end
+        function item:ShouldBeShown()
+            if self:GetCooldownID() then
+                if not self.allowHideWhenInactive then return true end
+                if not self.hideWhenInactive then return true end
+                if self:IsActive() then return true end
+            end
+            return false
+        end
+        function item:UpdateShownState() self:SetShown(self:ShouldBeShown()) end
+        function item:OnActiveStateChanged() self:UpdateShownState() end
+        function item:SetIsActive(active)
+            if active ~= self.isActive then
+                self.isActive = active
+                self:OnActiveStateChanged()
+            end
+        end
+        function item:SetHideWhenInactive(hide)
+            self.hideWhenInactive = hide
+            self:UpdateShownState()
+        end
+        function item:TriggerAuraAppliedAlert() end
+        function item:TriggerAuraRemovedAlert() end
+        function item:TriggerAvailableAlert() end
+        -- A cooldown icon's aura landing or ending, as the game's viewer does it on
+        -- UNIT_AURA: the removed alert first, the item's own refresh, the applied
+        -- alert last.
+        function item:SetAura(on)
+            if not on then self:TriggerAuraRemovedAlert() end
+            self.wasSetFromAura = on and true or false
+            self.auraInstanceID = on and 7 or nil
+            if on then self:TriggerAuraAppliedAlert() end
+        end
         items[i] = item
     end
     v.itemFramePool = { EnumerateActive = function()
@@ -909,6 +952,8 @@ local function fakeViewer(name, ids)
         for i, item in ipairs(items) do
             if item.cooldownID then
                 item:Show()
+                -- (a test's own bare frame has no state of its own)
+                if item.UpdateShownState then item:UpdateShownState() end
                 item:SetPoint("TOPLEFT", self, "TOPLEFT", (i - 1) * 40, 0)
             end
         end
@@ -2602,9 +2647,9 @@ T.test("cdm sounds: a game buff item sounds as it shows, even collapsed out of t
     local DUI, AB, set, ess, bars = fxWorld()
     T.truthy(AB.CdmData.SetSpellValue(set, 21, "buffSound", "dui:done"))
     local got = listenAlerts(DUI)
-    bars[1]:Hide()
+    bars[1]:SetIsActive(false)
     pass(AB)
-    bars[1]:Show()
+    bars[1]:SetIsActive(true)
     pass(AB)
     T.deq(got, { "dui:done" })
     pass(AB)
@@ -3250,7 +3295,7 @@ T.test("cdm block options: always show - underlay on holders, placeholders for h
     withCategories({ [2] = { 31, 41 } }, { [2] = { 31, 41 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id, selfAura = false } end
     place(D, set, 31, 1, 2)
-    icons[1]:Hide()
+    icons[1]:SetIsActive(false)
     AB.CdmRows.Refresh(); stub.RunTimers()
     local h = AB.CdmAuras.Frame(41)
     T.falsy(h.under:IsShown(), "no grayed icon without Show missing buffs")
@@ -3265,9 +3310,9 @@ T.test("cdm block options: always show - underlay on holders, placeholders for h
     local parts = AB.Cooldowns.Parts(ph)
     T.truthy(parts and parts.shell, "the stand-in icon wears the layout's border")
     T.truthy(ph.Icon:IsDesaturated(), "still grayed")
-    icons[1]:Show(); stub.RunTimers()
+    icons[1]:SetIsActive(true); stub.RunTimers()
     T.falsy(ph:IsShown(), "game item showing hides its placeholder")
-    icons[1]:Hide(); AB.CdmRows.Refresh(); stub.RunTimers()
+    icons[1]:SetIsActive(false); AB.CdmRows.Refresh(); stub.RunTimers()
     T.truthy(ph:IsShown(), "back when it hides")
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -3288,7 +3333,7 @@ T.test("cdm rows: the game's buff icon of a spell whose debuff lands on you give
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 400574 or 100 + id, selfAura = true } end
     unplace(D, set, 41)
     place(D, set, 31, 1, 1)
-    icons[1]:Hide()   -- the game's item never finds the debuff
+    icons[1]:SetIsActive(false)   -- the game's item never finds the debuff
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(AB.CdmRows.DrawnBy(31), "aura icon", "drawn by ours")
     T.eq(icons[1]:GetAlpha(), 0, "the game's item out of sight")
@@ -3360,7 +3405,7 @@ T.test("cdm self debuff: a pull's cast is counted when the fight hides the debuf
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 400574 or 100 + id, selfAura = true } end
     unplace(D, set, 41)
     place(D, set, 31, 1, 1)
-    icons[1]:Hide()
+    icons[1]:SetIsActive(false)
     local function stacks(n)
         stub.auras.player = { HARMFUL = { { spellId = 400573, duration = 18, expirationTime = GetTime() + 18,
             applications = n, sourceUnit = "player", isHarmful = true, isFromPlayerOrPlayerPet = true } } }
@@ -3412,14 +3457,14 @@ T.test("cdm auras: a buff drawn by ours in place of the game's cooldown icon hea
     for _, shape in ipairs({ "icon", "bar" }) do
         if shape == "bar" then D.SetShape(set, 11, "bar") end
         stub.auras.player = { HELPFUL = { { spellId = 111, duration = 600, expirationTime = GetTime() + 600 } } }
-        ess[1].auraInstanceID = 7
+        ess[1]:SetAura(true)
         AB.CdmRows.Refresh(); stub.RunTimers()
         T.eq(AB.CdmRows.DrawnBy(11), shape == "bar" and "aura bar" or "aura icon", shape .. ": drawn by ours")
         local h = shape == "bar" and AB.CdmBars.AuraFrame(11) or AB.CdmAuras.Frame(11)
         T.eq(h.up, true, shape .. ": up")
         stub.EnterCombat()
         stub.auras.player = { HELPFUL = {} }
-        ess[1].auraInstanceID = nil      -- the game's icon let it go
+        ess[1]:SetAura(false)            -- the game's icon let it go
         stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
         AB.CdmRows.Refresh(); stub.RunTimers()
         T.eq(h.up, false, shape .. ": the charges ran out in the fight: down")
@@ -3471,7 +3516,7 @@ T.test("cdm rows: the game's buff icon of a buff on your pet gives way to ours, 
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 19574 or 100 + id, selfAura = true } end
     unplace(D, set, 41)
     place(D, set, 31, 1, 1)
-    icons[1]:Hide()   -- the game's item never finds it
+    icons[1]:SetIsActive(false)   -- the game's item never finds it
     for _, shape in ipairs({ "icon", "bar" }) do
         if shape == "bar" then D.SetShape(set, 31, "bar") end
         AB.CdmRows.Refresh(); stub.RunTimers()
@@ -3501,7 +3546,7 @@ T.test("cdm rows: a group buff someone else put on you is drawn by ours, icon an
         return { spellID = id == 31 and 6673 or id == 41 and 772 or 100 + id }
     end
     place(D, set, 31, 1, 1)
-    icons[1]:Hide()   -- the game's item never finds another warrior's shout
+    icons[1]:SetIsActive(false)   -- the game's item never finds another warrior's shout
     stub.auras.player = { HELPFUL = { { spellId = 5242, duration = 120, expirationTime = GetTime() + 100,
         sourceUnit = "party1", isFromPlayerOrPlayerPet = false } } }
     for _, shape in ipairs({ "icon", "bar" }) do
@@ -3531,7 +3576,7 @@ T.test("cdm rows: Summon Hawk's hawk is drawn by ours from your casts, icon and 
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = id == 31 and 1293241 or 100 + id, selfAura = true } end
     unplace(D, set, 41)
     place(D, set, 31, 1, 1)
-    icons[1]:Hide()
+    icons[1]:SetIsActive(false)
     for _, shape in ipairs({ "icon", "bar" }) do
         if shape == "bar" then D.SetShape(set, 31, "bar") end
         AB.CdmRows.Refresh(); stub.RunTimers()
@@ -3565,7 +3610,7 @@ T.test("cdm rows: a spell whose debuff lands on you as a bar is drawn by ours", 
     unplace(D, set, 41)
     place(D, set, 31, 1, 1)
     set.pieces[31].shape = "bar"
-    icons[1]:Hide()
+    icons[1]:SetIsActive(false)
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(AB.CdmRows.DrawnBy(31), "aura bar", "drawn as a bar")
     local h = AB.CdmBars.AuraFrame(31)
@@ -3597,7 +3642,7 @@ T.test("cdm block options: always show keeps the gap of a hidden buff; collapse 
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id, selfAura = false } end
     unplace(D, set, 41)
     place(D, set, 31, 1, 1); place(D, set, 32, 1, 2)
-    icons[1]:Hide()
+    icons[1]:SetIsActive(false)
     chainOf(set, 1).collapse = true
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.isnil(AB.CdmOwn.PlaceholderFrame(31, "icon"), "collapsed: no slot for the hidden one")
@@ -3617,7 +3662,7 @@ T.test("cdm block options: always show gives a hidden game bar an empty bar of o
     local set = D.Current()
     addBlock(D, set, "bar"); place(D, set, 21, 1, 1)
     chainOf(set, 1).always = true
-    bars[1]:Hide()
+    bars[1]:SetIsActive(false)
     AB.CdmRows.Refresh(); stub.RunTimers()
     local ph = AB.CdmOwn.PlaceholderFrame(21, "bar")
     T.truthy(ph and ph:IsShown(), "empty bar shown")
@@ -3633,7 +3678,7 @@ T.test("cdm block options: flash when inactive pulses the empty bar until the bu
     local set = D.Current()
     addBlock(D, set, "bar"); place(D, set, 21, 1, 1)
     chainOf(set, 1).always = true
-    bars[1]:Hide()
+    bars[1]:SetIsActive(false)
     AB.CdmRows.Refresh(); stub.RunTimers()
     local ph = AB.CdmOwn.PlaceholderFrame(21, "bar")
     T.falsy(AB.CdmEffects.Flashing(ph), "off by default")
@@ -3642,7 +3687,7 @@ T.test("cdm block options: flash when inactive pulses the empty bar until the bu
     T.truthy(AB.CdmEffects.Flashing(ph), "flashing while down")
     stub.RunOnUpdate(AB.CdmEffects.flashDriver, 0.3)
     T.truthy(ph.Bar:GetAlpha() < 1, "pulsing")
-    bars[1]:Show()                                -- the buff is back
+    bars[1]:SetIsActive(true)                                -- the buff is back
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.falsy(AB.CdmEffects.Flashing(ph), "stopped")
     T.eq(ph.Bar:GetAlpha(), 1, "back to full")
@@ -3671,16 +3716,16 @@ T.test("cdm missing: Battle Shout only while it's down, glowing", function()
     T.truthy(D.SetSpellValue(set, 21, "missing", true))
     T.truthy(D.SetSpellValue(set, 21, "hideActive", true))
     T.truthy(D.SetSpellValue(set, 21, "missingGlow", true))
-    bars[1]:Show()                                -- up: hidden
+    bars[1]:SetIsActive(true)                                -- up: hidden
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(bars[1]:GetAlpha(), 0, "hidden while active")
     T.falsy(AB.CdmEffects.GlowShown(bars[1]))
-    bars[1]:Hide()                                -- down: the stand-in, glowing
+    bars[1]:SetIsActive(false)                                -- down: the stand-in, glowing
     AB.CdmRows.Refresh(); stub.RunTimers()
     local ph = AB.CdmOwn.PlaceholderFrame(21, "bar")
     T.truthy(ph and ph:IsShown(), "shown while missing")
     T.truthy(AB.CdmEffects.GlowShown(ph), "glows while missing")
-    bars[1]:Show()                                -- cast again
+    bars[1]:SetIsActive(true)                                -- cast again
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.falsy(AB.CdmEffects.GlowShown(ph), "glow gone")
     T.eq(bars[1]:GetAlpha(), 0)
@@ -3700,17 +3745,17 @@ T.test("cdm hide up: the game's buff item hidden while up gives its spot up, bac
     T.truthy(D.SetChainValue(set, 21, "grow", "center"))
     T.truthy(D.SetSpellValue(set, 21, "hideActive", true))
     local full = D.Layout(set)
-    bars[1]:Show(); bars[2]:Show()
+    bars[1]:SetIsActive(true); bars[2]:SetIsActive(true)
     AB.CdmRows.Refresh(); stub.RunTimers()
     local f2 = pieceFrame(D.CurrentIndex(), 22)
     T.eq(bars[1]:GetAlpha(), 0, "up: hidden")
     local alone = D.Layout(set, { [22] = true })
     T.eq(f2.goalY, alone[22].y, "up and hidden: the other one comes to the middle")
     T.truthy(f2.goalY ~= full[22].y, "a spot that moved")
-    bars[1]:Hide()                                -- dropped: the game hides it
+    bars[1]:SetIsActive(false)                                -- dropped: the game hides it
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(f2.goalY, alone[22].y, "down: the game's own hide, closed up")
-    bars[1]:Show()                                -- cast again
+    bars[1]:SetIsActive(true)                                -- cast again
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(bars[1]:GetAlpha(), 0, "up again: hidden")
     T.eq(f2.goalY, alone[22].y, "still closed up, no flicker back")
@@ -3768,15 +3813,15 @@ T.test("cdm up glow: a buff glows while it's up, on the game's item and on our o
     addBlock(D, set, "bar"); place(D, set, 21, 1, 1)
     T.truthy(D.SetSpellValue(set, 21, "upGlow", true))
     T.truthy(D.SetSpellValue(set, 21, "upGlowColor", { 1, 1, 1 }))
-    bars[1]:Show()
+    bars[1]:SetIsActive(true)
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.truthy(AB.CdmEffects.GlowShown(bars[1]), "glows while up")
-    bars[1]:Hide()
+    bars[1]:SetIsActive(false)
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.falsy(AB.CdmEffects.GlowShown(bars[1]), "not while down")
     -- Hide (Buff up): nothing shows, so nothing glows.
     T.truthy(D.SetSpellValue(set, 21, "hideActive", true))
-    bars[1]:Show()
+    bars[1]:SetIsActive(true)
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.falsy(AB.CdmEffects.GlowShown(bars[1]), "no glow round nothing")
     noCategories()
@@ -4220,15 +4265,15 @@ T.test("cdm hide up: the game's hidden buff item says when it falls off in a fig
     local set = D.Current()
     addBlock(D, set, "icon"); place(D, set, 41, 1, 1)
     T.truthy(D.SetSpellValue(set, 41, "hideActive", true))
-    icons[1]:Show()
+    icons[1]:SetIsActive(true)
     AB.CdmRows.Refresh(); stub.RunTimers()
     T.eq(AB.CdmRows.DrawnBy(41), "aura and cooldown icon")
     local own = AB.CdmOwn.Frame(41)
     T.eq(own:GetAlpha(), 0, "up: hidden")
     stub.combat = true
-    icons[1]:Hide(); stub.RunTimers()
+    icons[1]:SetIsActive(false); stub.RunTimers()
     T.eq(own:GetAlpha(), 1, "cancelled in the fight: back")
-    icons[1]:Show(); stub.RunTimers()
+    icons[1]:SetIsActive(true); stub.RunTimers()
     T.eq(own:GetAlpha(), 0, "up again, whoever cast it")
     stub.combat = false
     _G.GetSpellBaseCooldown = nil
@@ -4616,7 +4661,7 @@ T.test("cdm rows: a cooldown the game files as a buff is ours, not the game's hi
     withCategories({ [2] = { 31, 32 } }, { [2] = { 31, 32 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
     _G.GetSpellBaseCooldown = function(sid) return sid == 131 and 15000 or 0 end
-    icons[1]:Hide()                               -- no stun up, so the game hides it
+    icons[1]:SetIsActive(false)                               -- no stun up, so the game hides it
     D.AddPiece(set, 31, "icon", 0, 0)
     D.AddPiece(set, 32, "icon", 0, -48)
     R.Refresh(); stub.RunTimers()
@@ -4625,14 +4670,14 @@ T.test("cdm rows: a cooldown the game files as a buff is ours, not the game's hi
     T.eq(own:GetParent(), frameOf(31), "in its piece")
     T.truthy(frameOf(31):IsShown(), "its piece takes its spot")
     T.eq(icons[1]:GetAlpha(), 0, "the game's buff icon out of sight")
-    icons[1]:Show()                               -- a stun lands, and it's still the addon's
+    icons[1]:SetIsActive(true)                               -- a stun lands, and it's still the addon's
     R.Refresh(); stub.RunTimers()
     T.eq(icons[1]:GetAlpha(), 0, "the game's buff icon stays out of sight")
     T.truthy(own:IsShown())
     T.isnil(AB.CdmOwn.Frame(32), "a real buff (no cooldown) stays the game's")
     T.eq(icons[2]:GetAlpha(), 1)
     -- As a bar it's a cooldown bar, not an aura bar that hides with the stun.
-    icons[1]:Hide()
+    icons[1]:SetIsActive(false)
     D.SetShape(set, 31, "bar")
     R.Refresh(); stub.RunTimers()
     T.truthy(frameOf(31):IsShown(), "the bar piece shows with the stun down")
@@ -4740,7 +4785,7 @@ T.test("cdm rows: a game buff icon placed as a bar with Hide (Buff missing) show
     T.truthy(D.SetSpellValue(set, 32, "hideMissing", true))
     T.truthy(D.SetSpellValue(set, 32, "glow", true))
     stub.auras.player = { HELPFUL = { { spellId = 232 } } }
-    icons[2]:Show()
+    icons[2]:SetIsActive(true)
     R.Refresh(); stub.RunTimers()
     T.eq(R.DrawnBy(32), "aura bar")
     T.truthy(frameOf(32):IsShown(), "its piece shows while up")
@@ -4751,12 +4796,12 @@ T.test("cdm rows: a game buff icon placed as a bar with Hide (Buff missing) show
     T.eq(btn:GetEffectiveAlpha(), 1, "and not see-through")
     -- Down out of a fight (the piece slides over), then it procs mid-fight.
     stub.auras.player = { HELPFUL = {} }
-    icons[2]:Hide()
+    icons[2]:SetIsActive(false)
     stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
     R.Refresh(); stub.RunTimers()
     stub.EnterCombat(); stub.RunTimers()
     stub.auras.player = { HELPFUL = { { spellId = 232 } } }
-    icons[2]:Show()
+    icons[2]:SetIsActive(true)
     stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = false, addedAuras = {} }); stub.RunTimers()
     R.Refresh(); stub.RunTimers()
     T.truthy(frameOf(32):IsShown(), "its piece shows when it procs in a fight")
@@ -4768,7 +4813,7 @@ T.test("cdm rows: a game buff icon placed as a bar with Hide (Buff missing) show
     -- combat while out of one) stops hearing UNIT_AURA (its OnHide in
     -- CooldownViewer.lua), so its item stays hidden with the buff up. Daylight UI
     -- draws the spell from what it reads itself.
-    icons[2]:Hide()
+    icons[2]:SetIsActive(false)
     icons[2]:GetParent():Hide(); stub.RunTimers()
     R.Refresh(); stub.RunTimers()
     T.eq(R.DrawnBy(32), "aura bar", "ours, not the hidden window's item")
@@ -4781,7 +4826,7 @@ T.test("cdm rows: a game buff icon placed as a bar with Hide (Buff missing) show
     T.eq(R.DrawnBy(31), "aura icon", "drawn by Daylight UI, not the hidden window")
     T.eq(icons[1]:GetAlpha(), 1, "the hidden window's item let go")
     -- With the window back, its items report again.
-    icons[2]:GetParent():Show(); icons[2]:Show(); stub.RunTimers()
+    icons[2]:GetParent():Show(); icons[2]:SetIsActive(true); stub.RunTimers()
     R.Refresh(); stub.RunTimers()
     T.eq(R.DrawnBy(31), "game", "the game's own icon again")
     noCategories()
@@ -4890,7 +4935,7 @@ T.test("cdm rows: Track picks what a buff spell shows (buff only, cooldown, both
     withCategories({ [2] = { 31 }, [0] = { 33 } }, { [2] = { 31 }, [0] = { 33 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
     _G.GetSpellBaseCooldown = nil                 -- no answer, so it can't tell
-    icons[1]:Hide()                               -- the buff is down, so the game hides it
+    icons[1]:SetIsActive(false)                               -- the buff is down, so the game hides it
     D.AddPiece(set, 31, "icon", 0, 0)
     R.Refresh(); stub.RunTimers()
     T.eq(Own.Track(31, set.pieces[31]), "buff", "unset and unknown: buff only")
@@ -4902,7 +4947,7 @@ T.test("cdm rows: Track picks what a buff spell shows (buff only, cooldown, both
     T.eq(R.DrawnBy(31), "aura and cooldown icon")
     T.truthy(frameOf(31):IsShown(), "both: in its spot with the buff down")
     T.eq(icons[1]:GetAlpha(), 0, "the game's buff icon out of sight")
-    icons[1]:Show()                               -- the buff lands, and it's still the addon's
+    icons[1]:SetIsActive(true)                               -- the buff lands, and it's still the addon's
     R.Refresh(); stub.RunTimers()
     T.eq(icons[1]:GetAlpha(), 0)
     T.eq(R.DrawnBy(31), "aura and cooldown icon")
@@ -4924,7 +4969,7 @@ T.test("cdm facts: a buff spell's cooldown is learned from its first real cooldo
     withCategories({ [2] = { 31 } }, { [2] = { 31 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
     _G.GetSpellBaseCooldown = nil
-    icons[1]:Hide()
+    icons[1]:SetIsActive(false)
     D.AddPiece(set, 31, "icon", 0, 0)
     R.Refresh(); stub.RunTimers()
     T.eq(Own.Track(31, set.pieces[31]), "buff", "not known yet: buff only")
@@ -5197,14 +5242,14 @@ T.test("cdm bars: a tracked buff in a bar block is the client's aura bar over an
     T.eq(btn:GetWidth(), 300, "after the match")
     -- The aura down (the game hid its icon) gets no slot in a collapsing block.
     -- "Show missing buffs" keeps the empty bar, pulsing when asked.
-    icons[1]:Hide(); stub.RunTimers()
+    icons[1]:SetIsActive(false); stub.RunTimers()
     T.falsy(h:IsShown(), "collapsed")
     chainOf(set, 1).always = true
     set.pieces[31].inactiveFlash = true
     pass(AB)
     T.truthy(h:IsShown(), "always show")
     T.truthy(AB.CdmEffects.Flashing(h), "pulses while down")
-    icons[1]:Show(); stub.RunTimers()
+    icons[1]:SetIsActive(true); stub.RunTimers()
     T.falsy(AB.CdmEffects.Flashing(h), "up again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -9266,5 +9311,110 @@ T.test("cdm facts: Prayer of Mending is watched by its buff's own ids on your fr
         stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
         T.eq(h.containers[1].unit, "target", shape .. ": a friend again")
     end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Buff state comes from the game's own item, never from a guess.
+
+-- A row set to show its inactive icons (Edit Mode's "Hide when inactive" off) keeps
+-- a buff's item on screen while the buff is down, so "is it shown" says nothing.
+T.test("cdm state: the game's buff item says up or down by its active state, shown or not (icon and bar)", function()
+    local DUI, AB, E, D, ess, bars, icons = editorWorld({ 41 })
+    DUI.DB.General().motion = false
+    withCategories({ [2] = { 41 }, [3] = { 21 } }, { [2] = { 41 }, [3] = { 21 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
+    local set = D.Current()
+    for _, case in ipairs({ { 41, icons[1], "icon" }, { 21, bars[1], "bar" } }) do
+        local id, item, shape = case[1], case[2], case[3]
+        item:SetHideWhenInactive(false)
+        D.AddPiece(set, id, shape, shape == "bar" and 100 or 0, 0)
+        T.truthy(D.SetSpellValue(set, id, "missingGlow", true))
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(AB.CdmRows.DrawnBy(id), "game", shape .. ": the game's own item")
+        T.falsy(AB.CdmEffects.GlowShown(item), shape .. ": up, no glow")
+        stub.EnterCombat()
+        -- No pass asked for here: the item's own change is heard.
+        item:SetIsActive(false); stub.RunTimers()
+        T.truthy(item:IsShown(), shape .. ": the row still shows it")
+        T.truthy(AB.CdmEffects.GlowShown(item), shape .. ": down in a fight, it glows")
+        item:SetIsActive(true); stub.RunTimers()
+        T.falsy(AB.CdmEffects.GlowShown(item), shape .. ": up again, the glow goes")
+        stub.LeaveCombat()
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game's cooldown icon shows a spell's debuff while it's up (Rend) and marks it
+-- with wasSetFromAura. Held as it is, or out of sight under Daylight UI's bar, that is
+-- the word on whether the debuff is up.
+T.test("cdm state: the game's cooldown icon says when its aura is up, as an icon and under a bar", function()
+    local DUI, AB, E, D, ess = editorWorld()
+    DUI.DB.General().motion = false
+    withCategories({ [1] = { 11, 12 } }, { [1] = { 11, 12 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id, hasAura = true } end
+    _G.GetSpellBaseCooldown = function() return 0 end
+    C_Spell.GetSpellTexture = function() return 1234 end
+    C_Spell.GetSpellCooldownDuration = function() return nil end
+    local set = D.Current()
+    D.AddPiece(set, 11, "icon", 0, 0)
+    T.truthy(D.SetSpellValue(set, 11, "upGlow", true))
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 11, "bar") end
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local lit = shape == "bar" and AB.CdmBars.AuraFrame(11) or ess[1]
+        T.eq(AB.CdmRows.DrawnBy(11), shape == "bar" and "aura bar" or "game", shape .. ": who draws it")
+        T.falsy(AB.CdmEffects.GlowShown(lit), shape .. ": down, no glow")
+        stub.EnterCombat()
+        -- Auras can't be read in the fight, and nothing was cast: only the icon knows.
+        ess[1]:SetAura(true); stub.RunTimers()
+        T.truthy(AB.CdmEffects.GlowShown(lit), shape .. ": the debuff landed, it glows")
+        ess[1]:SetAura(false); stub.RunTimers()
+        T.falsy(AB.CdmEffects.GlowShown(lit), shape .. ": it ended, the glow goes")
+        stub.LeaveCombat()
+    end
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A spell placed by its cooldown has another id than the game's buff entry of the
+-- same spell. The buff's item is still the word, and a "down" from it is final: a
+-- buff the item doesn't count (someone else's) isn't read behind its back.
+T.test("cdm state: a piece finds the game's buff item of its spell, and its down is final (icon and bar)", function()
+    local DUI, AB, E, D, ess, bars, icons = editorWorld({ 41 })
+    DUI.DB.General().motion = false
+    withCategories({ [1] = { 11, 12 }, [2] = { 41 } }, { [1] = { 11, 12 }, [2] = { 41 } })
+    -- Cooldown 11 and buff 41 are the same spell, 111.
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = (id == 41) and 111 or (100 + id) }
+    end
+    C_Spell.GetSpellTexture = function() return 1234 end
+    C_Spell.GetSpellCooldownDuration = function() return nil end
+    local set = D.Current()
+    D.AddPiece(set, 11, "icon", 0, 0)
+    set.pieces[11].track = "buff"
+    T.truthy(D.SetSpellValue(set, 11, "missingGlow", true))
+    T.truthy(D.SetSpellValue(set, 11, "missing", true))
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 11, "bar") end
+        icons[1]:SetIsActive(true)
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local h = shape == "bar" and AB.CdmBars.AuraFrame(11) or AB.CdmAuras.Frame(11)
+        T.truthy(h, shape .. ": drawn by ours")
+        T.eq(h.up, true, shape .. ": the game's buff item says up")
+        -- Still readable on you by its id, but the game's item says down.
+        stub.auras.player = { HELPFUL = { { spellId = 111, duration = 600, expirationTime = GetTime() + 600 } } }
+        icons[1]:SetIsActive(false); stub.RunTimers()
+        T.eq(h.up, false, shape .. ": down by the item, nothing else asked")
+        T.truthy(AB.CdmEffects.GlowShown(h), shape .. ": the missing glow lights")
+        stub.EnterCombat()
+        icons[1]:SetIsActive(true); stub.RunTimers()
+        T.eq(h.up, true, shape .. ": up in a fight, with no cast of yours")
+        T.falsy(AB.CdmEffects.GlowShown(h), shape .. ": the glow goes")
+        stub.LeaveCombat()
+        stub.auras.player = nil
+    end
+    noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -76,6 +76,7 @@ return {
         -- The game's, kept (KEEP)
         ["DaylightUI_ActionBars/Totems.lua|fs|SetTextColor"] = "KEEP: the game's totem time text; restyles it after the game's own updates (plain AuraButton code, not secure)",
         ["DaylightUI_ActionBars/Totems.lua|fs|SetFontObject"] = "KEEP: the game resets this font (BuffFrame.lua AuraButtonMixin calls Duration:SetFontObject); restyles it after",
+        ["DaylightUI_ActionBars/CdmRows.lua|item|m"] = "KEEP: after-hooks on the game's own Cooldown Manager items (OnActiveStateChanged, the aura applied and removed alerts, the available alert). They only ask for a layout pass, which then reads from the item whether its buff is up; seen in a fight to fire with nothing blocked. Never a hook on a viewer, and nothing here calls the game's Cooldown Manager code",
         ["DaylightUI_ActionBars/CdmEffects.lua|cd|m"] = "KEEP (opt-in): only when a spell has an active color, its glow off, no swipe or no GCD swipe; re-applies our swipe tint or swipe rule after the game's update. First suspect if CDM errors appear",
         ["DaylightUI_ActionBars/CdmEffects.lua|icon|SetDesaturated"] = "KEEP (opt-in): only when a spell's gray-out option is set; re-applies it after RefreshIconDesaturation",
         ["DaylightUI_ActionBars/CdmEffects.lua|icon|SetDesaturation"] = "KEEP (opt-in): only when a spell's gray-out option is set; re-applies it after RefreshIconDesaturation",

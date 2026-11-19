@@ -1437,11 +1437,10 @@ blocks:SetScript("OnEvent", function(_, _, _, action, flag, _, school)
     end)
 end)
 
--- Reported by the game's own aura item via CdmRows: true, or nil when down.
+-- The game's own item for this buff answered (CdmRows): up or down, and that's final.
 function A.Told(h, up)
     h.up = up
     if not up then h.endsAt = nil end
-    return up or nil
 end
 
 -- New target in combat: auras on the old one can no longer be tracked.
