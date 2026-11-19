@@ -323,7 +323,8 @@ end
 -- spellbook in Book/Fight.lua).
 function Win.Held(f)
     if not InCombatLockdown() then return false end
-    return f:IsProtected() == true or (f.held ~= nil and f.held() == true)
+    -- DaylightUI_Bags uses window.held for a table of held slots, so only call a function.
+    return f:IsProtected() == true or (type(f.held) == "function" and f.held() == true)
 end
 
 -- The window's own scale times the global scale setting.

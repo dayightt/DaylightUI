@@ -988,6 +988,10 @@ T.test("lfg: Who filters by race, class and zone in the /who itself, each a labe
     W.races, W.classes, W.zones = { [2] = true, [1] = true }, { [9] = true }, { [1411] = true, [1454] = true }
     T.eq(W.Query("dae"), 'dae r-"Human" r-"Orc" c-"Warlock" z-"Durotar" z-"Orgrimmar"')
     T.eq(W.Query(""), 'r-"Human" r-"Orc" c-"Warlock" z-"Durotar" z-"Orgrimmar"', "filters and no text: no level search")
+    -- Ticking everything asks the same as ticking nothing: no terms, and the classes are the
+    -- game's list (not id 3, which the client has no info for).
+    W.races, W.classes, W.zones = { [2] = true, [1] = true, [4] = true }, { [8] = true, [9] = true, [1] = true }, {}
+    T.eq(W.Query(""), "14", "every race and class ticked: no filter")
     W.races, W.classes, W.zones = {}, {}, {}
     -- Picking a race only sets it: nothing goes to the game until Search.
     local before = #LW.Calls("SendWho")

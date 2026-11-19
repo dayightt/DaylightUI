@@ -1150,7 +1150,7 @@ T.test("dbm: its timer bars in the player's font, bar texture and border; its si
     for _, obj in ipairs({ first, second }) do
         local bar = _G[obj.frame:GetName() .. "Bar"]
         T.eq(dbmFont(obj, "Name")[1], Style.FontFile(), "the Appearance font")
-        T.eq(dbmFont(obj, "Name")[3], Style.Outline(), "its outline")
+        T.eq(dbmFont(obj, "Name")[3], Style.Slug(Style.Outline()), "its outline")
         T.eq(dbmFont(obj, "Timer")[1], Style.FontFile(), "its time too")
         T.eq(dbmFont(obj, "Name")[2], 10 * DUI:Get("general", "fontScale"), "DBM's own size, with the font scale")
         T.eq(bar:GetStatusBarTexture():GetTexture(), Style.BarFile(), "the bar texture picked in the options")
@@ -1230,7 +1230,7 @@ T.test("bigwigs: its timer bars in the player's font, bar texture and border; it
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     T.eq(bar.candyBarLabel.__font[1], Style.FontFile(), "the Appearance font")
     T.eq(bar.candyBarDuration.__font[1], Style.FontFile(), "its time too")
-    T.eq(bar.candyBarLabel.__font[3], Style.Outline(), "its outline")
+    T.eq(bar.candyBarLabel.__font[3], Style.Slug(Style.Outline()), "its outline")
     T.eq(bar.candyBarLabel.__font[2], 10 * DaylightUI:Get("general", "fontScale"), "BigWigs' size, with the font scale")
     T.eq(bar.candyBarBar:GetStatusBarTexture():GetTexture(), Style.BarFile(), "the picked bar texture")
     T.truthy(BW.holders[bar], "our border")

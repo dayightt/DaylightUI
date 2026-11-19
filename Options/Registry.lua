@@ -1114,7 +1114,7 @@ local SHARED_PROFILES = {
         row.title:SetText(DUI.GradientText(L["Find your perfect setup"]))
         row.text = Style.Text(h, SIZE.body, "LEFT")
         row.text:SetPoint("TOPLEFT", row.title, "BOTTOMLEFT", 0, -8)
-        row.text:SetPoint("RIGHT", row.browse, "LEFT", -24, 0)
+        -- Its width is set by height(row), which runs on every layout, so it wraps at the width it gets.
         row.text:SetText(L["Ready-made profiles from other Daylight UI players, from calm questing looks to raid healer layouts. Pick one you like, copy its string, import it in a click."])
         row.site = Style.Text(h, SIZE.small, "LEFT")
         row.site:SetPoint("TOPLEFT", row.text, "BOTTOMLEFT", 0, -6)
@@ -1141,7 +1141,18 @@ local SHARED_PROFILES = {
         row.Paint()
     end,
     update = function(row) row.Paint() end,
-    height = function() return Options.HOME_PROFILES_H end,
+    -- Taller than HOME_PROFILES_H when a narrow window wraps the text to more lines.
+    height = function(row)
+        local W = DUI.Widgets
+        local w = row:GetWidth()
+        if type(w) ~= "number" or w <= 0 then w = (DUI.OptionsPanel and DUI.OptionsPanel.CONTENT_WIDTH) or 600 end
+        local tw = w - 2 * W.PAD - row.browse:GetWidth() - 24
+        if tw <= 0 then return Options.HOME_PROFILES_H end
+        row.text:SetWidth(tw)
+        local function tall(fs) local v = fs:GetStringHeight(); return type(v) == "number" and v or 0 end
+        local h = 14 + tall(row.kicker) + 6 + tall(row.title) + 8 + tall(row.text) + 6 + tall(row.site) + 14
+        return math.max(Options.HOME_PROFILES_H, math.ceil(h))
+    end,
 }
 
 Options.RegisterPage({
@@ -1187,10 +1198,11 @@ Options.RegisterPage({
               hidden = function() return not DUI.DB.NonLatinClient() end,
               desc = "Uses the game's own font in place of Daylight UI's fonts, which only have Latin letters. "
                   .. "The options window changes after /reload." },
-            { type = "toggle", key = "gameText", label = "Use this font for the game's text",
+            { type = "toggle", key = "gameText", label = "Use this font for the game's text", reload = true,
               hidden = function(get) return get("font") == "game" or DUI.DB.UseLocalFont() end,
               desc = "Puts this font on the game's own text as well: menus, tooltips, quest text, popups, nameplate names. "
-                  .. "Sizes and outlines stay the game's." },
+                  .. "Sizes and outlines stay the game's. It's put on once as you log in, so a change here, "
+                  .. "or a new font above, shows on the game's text after a /reload." },
             { type = "dropdown", key = "textOutline", label = "Text outline",
               values = { OUTLINE = "Thin", THICKOUTLINE = "Thick", [""] = "None" }, order = { "OUTLINE", "THICKOUTLINE", "" },
               desc = "A dark edge around the letters on Daylight UI's frames, so text stays readable over a busy world. Combat text has its own (General > Combat text)." },

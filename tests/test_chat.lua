@@ -26,6 +26,10 @@ local function chatWindow(i, docked)
     cf.ScrollBar = CreateFrame("Frame", nil, cf)
     cf.ScrollBar:Show()
     cf.ScrollToBottomButton = CreateFrame("Button", nil, cf)
+    -- The template's button over the whole window: in the IM chat style a click on it
+    -- makes this window's box the one you type in (FloatingChatFrameClickAnywhereButtonMixin).
+    cf.clickAnywhereButton = CreateFrame("Button", name .. "ClickAnywhereButton", cf)
+    cf.clickAnywhereButton:EnableMouse(true)
     for _, e in ipairs(SHOWN) do cf:RegisterEvent(e) end
     cf.channelList, cf.zoneChannelList = {}, {}
     -- Its lines as the window keeps them, added and rewritten in place. Each is
@@ -603,13 +607,31 @@ T.test("chat: the game's scroll bar stays out of sight; its jump arrow takes no 
     T.falsy(ChatFrame1.ScrollToBottomButton:IsMouseEnabled(), "the arrow takes no clicks at rest")
 end)
 
+-- A repaint also comes from a screen or UI scale change. With nothing about
+-- the chat changed, the game's chat window and edit box keep their anchors.
+T.test("chat: a repaint that changed nothing leaves the game's chat window anchors alone", function()
+    local DUI = login()
+    stub.RunTimers()
+    local clears = 0
+    for _, f in ipairs({ ChatFrame1, ChatFrame1EditBox }) do
+        local real = f.ClearAllPoints
+        f.ClearAllPoints = function(...) clears = clears + 1 return real(...) end
+    end
+    DUI.NotifyStyleChanged()
+    stub.RunTimers()
+    T.eq(clears, 0, "nothing placed again")
+    DUI:Set("Chat", "inputAt", "below"); DUI:Set("Chat", "boxInputAt", "top")
+    stub.RunTimers()
+    T.truthy(clears > 0, "a real change still moves the box")
+end)
+
 T.test("chat: a text size and outline for every window", function()
     local DUI = login()
     DUI:Set("Chat", "textSize", 16)
     DUI:Set("Chat", "outline", true)
     stub.RunTimers()
     T.eq(select(2, ChatFrame1:GetFont()), 16, "the size set")
-    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE")
+    T.eq(select(3, ChatFrame1:GetFont()), "OUTLINE, SLUG")
 end)
 
 T.test("chat: the input box and its \"Say:\" follow the text size, and go back at 0", function()
@@ -619,7 +641,7 @@ T.test("chat: the input box and its \"Say:\" follow the text size, and go back a
     stub.RunTimers()
     T.eq(select(2, ChatFrame1EditBox:GetFont()), 18, "the typed text at the size set")
     T.eq(select(2, ChatFrame1EditBox.header:GetFont()), 18, "the header too")
-    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE", "outlined like the lines")
+    T.eq(select(3, ChatFrame1EditBox:GetFont()), "OUTLINE, SLUG", "outlined like the lines")
     DUI:Set("Chat", "textSize", 0)
     DUI:Set("Chat", "outline", false)
     stub.RunTimers()
@@ -693,35 +715,171 @@ T.test("chat: the typing box can open under the panel, with room kept for it", f
     T.eq(DaylightUIChat:GetHeight(), h, "and the strip gone")
 end)
 
-T.test("chat: speech bubbles get our look; a forbidden one (an instance) is left alone", function()
-    login()
-    local b1 = CreateFrame("Frame", nil, UIParent)
-    local art = CreateFrame("Frame", nil, b1)   -- a bubble's art and text are on its child
+-- A speech bubble as the game hands it out: an empty holder whose one child
+-- draws the balloon and carries the text (its String key, as in the game).
+local function makeBubble(text)
+    local outer = CreateFrame("Frame", nil, UIParent)
+    local art = CreateFrame("Frame", nil, outer)
     local tex = art:CreateTexture()
     tex:SetTexture("bubble art")
     local fs = art:CreateFontString()
     fs:SetFont("GameFont", 12, "")
+    fs:SetText(text or "Hello there")
+    fs:SetTextColor(1, 1, 0.5)
+    art.String = fs
+    return outer, art, tex, fs
+end
+
+T.test("chat: a speech bubble is drawn by a frame of Daylight UI's own, the game's frame is only faded", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art, tex, fs = makeBubble("Hello there")
     local b2 = CreateFrame("Frame", nil, UIParent)
     b2.__forbidden = true
     stub.SetBubbles({ b1, b2 })
+    -- The client refuses text on a font string with no font yet.
+    stub.FontRule = true
+    local errs = 0
+    local onError = DaylightUI.SafeCall
+    DaylightUI.SafeCall = function(fn, ...)
+        local ok = pcall(fn, ...)
+        if not ok then errs = errs + 1 end
+    end
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
-    T.eq(tex.__texture, nil, "the bubble's own art cleared")
-    T.eq(fs:GetFont(), DaylightUI.Style.FONT, "our font")
-    T.truthy(DaylightUI.Style.GetShell(art), "our shell")
-    T.isnil(DaylightUI.Style.GetShell(b2), "forbidden: left alone")
+    DaylightUI.SafeCall, stub.FontRule = onError, nil
+    T.eq(errs, 0, "no error drawing a new bubble")
+    local mine = Bubbles.OverlayOf(b1)
+    T.truthy(mine, "drawn")
+    T.eq(mine:GetParent(), UIParent, "on UIParent, outside the world layer")
+    T.truthy(mine:IsShown(), "shown")
+    T.eq(mine.text:GetText(), "Hello there", "the bubble's own words")
+    T.eq(mine.text:GetFont(), DaylightUI.Style.FONT, "Daylight font")
+    T.truthy(DaylightUI.Style.GetShell(mine), "Daylight frame")
+    T.eq(art:GetAlpha(), 0, "the game's balloon faded out")
+    T.eq(tex.__texture, "bubble art", "its art left as it is")
+    T.eq(fs:GetFont(), "GameFont", "its text left as it is")
+    T.isnil(DaylightUI.Style.GetShell(art), "nothing built on the game's frame")
+    T.eq(select(2, mine:GetPoint(1)), art, "follows the balloon")
+    T.isnil(Bubbles.OverlayOf(b2), "forbidden (an instance): left alone")
 end)
 
-T.test("chat: speech bubbles can be turned off", function()
-    local DUI = login()
-    DUI:Set("Chat", "bubbles", false)
-    local b1 = CreateFrame("Frame", nil, UIParent)
-    local art = CreateFrame("Frame", nil, b1)
-    art:CreateTexture():SetTexture("art")
+T.test("chat: a bubble that goes out of sight takes its look along and gets it back", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Over here")
     stub.SetBubbles({ b1 })
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
-    T.isnil(DaylightUI.Style.GetShell(art), "off: not skinned")
+    b1:Hide()
+    stub.Advance(1)
+    stub.RunTimers()
+    T.falsy(Bubbles.OverlayOf(b1):IsShown(), "gone with it")
+    T.eq(art:GetAlpha(), 1, "the game's frame handed back")
+    b1:Show()
+    stub.RunTimers()
+    T.truthy(Bubbles.OverlayOf(b1):IsShown(), "back with it")
+    T.eq(art:GetAlpha(), 0)
+    art.String:SetText("Something new")
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(Bubbles.OverlayOf(b1).text:GetText(), "Something new", "a new line in the same bubble")
+end)
+
+T.test("chat: a bubble's stand-in lets go of the game's frame as it goes", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Over here")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    local mine = Bubbles.OverlayOf(b1)
+    T.eq(select(2, mine:GetPoint(1)), art, "follows the balloon while it talks")
+    b1:Hide()
+    for i = 1, mine:GetNumPoints() do
+        local _, rel = mine:GetPoint(i)
+        T.truthy(rel ~= art and rel ~= b1, "fading out, no longer hung on the game's world frame")
+    end
+    stub.Advance(1)
+    stub.RunTimers()
+    T.falsy(mine:IsShown())
+    T.eq(mine:GetNumPoints(), 0, "hidden with no anchor left on the game's frame")
+end)
+
+T.test("chat: speech bubbles are left to the game inside an instance, and handed back on the way in", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Outside")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.truthy(Bubbles.OverlayOf(b1):IsShown())
+    stub.SetInstance("party")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 1, "the game's own bubble back")
+    T.falsy(Bubbles.OverlayOf(b1):IsShown())
+    local b2, art2 = makeBubble("Inside")
+    stub.SetBubbles({ b2 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    b1:Hide(); b1:Show()
+    stub.RunTimers()
+    T.isnil(Bubbles.OverlayOf(b2), "not drawn inside")
+    T.eq(art2:GetAlpha(), 1)
+    T.eq(art:GetAlpha(), 1, "a hooked one showing again inside is left alone too")
+    stub.SetInstance("none")
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    stub.Advance(1)
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.truthy(Bubbles.OverlayOf(b2) and Bubbles.OverlayOf(b2):IsShown(), "drawn again outside")
+end)
+
+T.test("chat: logging out hands every bubble back", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Bye")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0)
+    stub.FireEvent("PLAYER_LOGOUT")
+    T.eq(art:GetAlpha(), 1, "the game's balloon back before the reload")
+end)
+
+T.test("chat: a bubble with secret words is left to the game", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art, _, fs = makeBubble("x")
+    fs:SetText(stub.Secret("hidden"))
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    local mine = Bubbles.OverlayOf(b1)
+    T.truthy(not mine or not mine:IsShown(), "not drawn")
+    T.eq(art:GetAlpha(), 1, "the game's own bubble shows")
+end)
+
+T.test("chat: speech bubbles can be turned off, and turning them off hands shown ones back", function()
+    local DUI = login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("Hi")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0)
+    DUI:Set("Chat", "bubbles", false)
+    stub.Advance(1)
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 1, "handed back at once")
+    T.falsy(Bubbles.OverlayOf(b1):IsShown())
+    local b2, art2 = makeBubble("Hi again")
+    stub.SetBubbles({ b2 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    T.isnil(Bubbles.OverlayOf(b2), "off: not drawn")
+    T.eq(art2:GetAlpha(), 1)
 end)
 
 T.test("chat: history is saved at logout, newest lines only, secret and combat log lines left out", function()
@@ -2841,13 +2999,12 @@ T.test("chat daylight: group lines get role icons and no whisper or invite links
     local _, box = daylight(function()
         _G.C_PartyInfo = _G.C_PartyInfo or {}
         _G.C_PartyInfo.InviteUnit = function(n) invited = n end
-        -- The game's own (TextureUtil in Blizzard_SharedXMLBase): an inline atlas.
-        _G.CreateAtlasMarkup = function(atlas, w, h) return ("|A:%s:%d:%d|a"):format(atlas, h or 0, w or 0) end
     end)
     channelLine(ChatFrame1, "LF2M SFM need tank and healer", "Torvik", 1, "LookingForGroup")
     local text = boxTexts(box)[1]
     T.isnil(string.find(text, "daylightchat:", 1, true), "no links of ours on the line")
-    local _, icons = string.gsub(text, "|A:", "")
+    -- Daylight UI's own role art (Media/roles.png), inline as a texture.
+    local _, icons = string.gsub(text, "|T[^|]-roles%.png", "")
     T.eq(icons, 2, "one role icon each for tank and healer (never one inside another's name)")
     T.truthy(string.find(text, "|cff%x%x%x%x%x%xtank|r"), "tank in its color")
     T.truthy(string.find(text, "|cff%x%x%x%x%x%xhealer|r"), "healer in its color")
@@ -2960,45 +3117,122 @@ T.test("chat daylight: a tab moved or removed with its Show window open stays th
     T.falsy(DaylightUI.Win.IsOpen(Filter.Frame()), "its tab removed: the window closes")
 end)
 
-T.test("chat daylight: a tab's Show has a tag box on each channel, not on Other channels", function()
+-- The short tags are set in the chat options, for the whole chat; a tab's Show window
+-- only holds switches and colors.
+T.test("chat daylight: the short tags page has a box per chat kind and channel, a tab's Show has none", function()
     daylight()
     local Tabs, Filter, Tags = stub.chatModule.Tabs, stub.chatModule.Filter, stub.chatModule.Tags
     local list = _G.GetChannelList
     _G.GetChannelList = function() return 1, "General", false, 5, "Heroes", false end
     Tabs.ShowMenu(UIParent, 2)
-    local rows = {}
-    for _, b in ipairs(Filter.Rows()) do
-        if b.tag and b:IsShown() then rows[b.kind] = b end
+    for _, b in ipairs(Filter.Rows()) do T.isnil(b.tag, "no tag box in a tab's Show window") end
+    Filter.Close()
+    -- The options row.
+    local item
+    for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, it in ipairs(card.items) do if it.label == "Your own short tags" then item = it end end
+        end
     end
-    T.truthy(rows["general"] and rows["ch:heroes"], "a box beside each channel")
-    T.eq(rows["general"].tag.hint:GetText(), "G", "the box shows the standard tag until you type")
-    T.eq(rows["ch:heroes"].tag.hint:GetText(), "5", "a channel with no standard tag shows its number")
-    T.truthy(rows["general"].tag:IsShown())
-    T.falsy(rows["channel"].tag:IsShown(), "Other channels are many channels: no one tag")
-    T.eq(rows["guild"].tag.hint:GetText(), "G", "a kind of chat has one too")
-    T.truthy(rows["guild"].tag:IsShown())
-    local emote
-    for _, b in ipairs(Filter.Rows()) do
-        if b.kind == "emote" then emote = b end
+    T.truthy(item, "the options have the row")
+    local row = CreateFrame("Frame")
+    item.build(row); item.update(row)
+    local boxes = {}
+    for side = 1, 2 do
+        for _, line in ipairs(row.columns[side]) do
+            if line:IsShown() then boxes[line.kind] = line end
+        end
     end
-    T.falsy(emote.tag:IsShown(), "emotes have no tag to change")
-    local box = rows["ch:heroes"].tag
+    T.truthy(boxes["general"] and boxes["ch:heroes"], "a box for each channel")
+    T.eq(boxes["general"].box.hint:GetText(), "G", "the box shows the standard tag until you type")
+    T.eq(boxes["ch:heroes"].box.hint:GetText(), "5", "a channel with no standard tag shows its number")
+    T.eq(boxes["guild"].box.hint:GetText(), "G", "a kind of chat has one too")
+    T.isnil(boxes["channel"], "Other channels are many channels: no one tag")
+    T.isnil(boxes["emote"], "emotes have no tag to change")
+    local box = boxes["ch:heroes"].box
     box:SetText("HE")
     box:GetScript("OnTextChanged")(box, true)
     T.eq(Tags.Own("ch:heroes"), "HE", "typing sets it")
     box:SetText("")
     box:GetScript("OnTextChanged")(box, false)
     T.eq(Tags.Own("ch:heroes"), "HE", "only typing does")
-    Tabs.ShowMenu(UIParent, 2)
-    T.eq(box:GetText(), "HE", "opened again it shows your tag")
-    Filter.Close()
-    DaylightUI:Set("Chat", "shortTags", false)
-    Tabs.ShowMenu(UIParent, 2)
-    T.falsy(box:IsShown(), "no short tags: no tag boxes")
-    DaylightUI:Set("Chat", "shortTags", true)
+    item.update(row)
+    T.eq(box:GetText(), "HE", "listed again it shows your tag")
+    T.truthy(item.hidden(function() return false end), "hidden with Short tags off")
+    T.falsy(item.hidden(function() return true end), "shown with Short tags on")
     Tags.SetOwn("ch:heroes", "")
-    Filter.Close()
     _G.GetChannelList = list
+end)
+
+-- A sent whisper's tag is the word the game puts before the name; a whole phrase is too long for one.
+T.test("chat daylight: the sent-whisper tag falls back to To when the game's word is longer than a few letters", function()
+    daylight()
+    local Tags = stub.chatModule.Tags
+    local old = _G.CHAT_WHISPER_INFORM_GET
+    DaylightUI:Set("Chat", "tagLetters", "native")
+    stub.RunTimers()
+    local chinese = "你悄悄地对%s:"   -- the whole phrase before the name on a Chinese client
+    for fmt, want in pairs({ ["A %s:"] = "A", ["To %s:"] = "To", ["An %s:"] = "An", [chinese] = "To" }) do
+        _G.CHAT_WHISPER_INFORM_GET = fmt
+        Tags.ResetDefaults()
+        T.eq(Tags.Default("to"), want, fmt)
+    end
+    _G.CHAT_WHISPER_INFORM_GET = old
+    Tags.ResetDefaults()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The letters of the short tags: English ones, or the game's words in the player's language.
+T.test("chat daylight: Tag letters starts in the player's language on a new profile, can be switched, and its boxes show a tooltip", function()
+    daylight()
+    local Tags = stub.chatModule.Tags
+    T.eq(Tags.letters, "native", "a new profile starts on the player's language")
+    local item
+    for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, it in ipairs(card.items) do if it.key == "tagLetters" then item = it end end
+        end
+    end
+    T.truthy(item, "the options have the drop-down")
+    T.deq(item.order, { "english", "native" })
+    for _, k in ipairs(item.order) do T.truthy(item.values[k], "a label for " .. k) end
+    T.truthy(item.disabled(function() return false end), "off with Short tags off")
+    T.falsy(item.disabled(function() return true end), "on with Short tags on")
+    local old = { CHAT_MSG_SAY = _G.CHAT_MSG_SAY }
+    _G.CHAT_MSG_SAY = "Decir"
+    DaylightUI:Set("Chat", "tagLetters", "native")
+    stub.RunTimers()
+    T.eq(Tags.letters, "native", "a change reaches the tags at once")
+    T.eq(Tags.Default("say"), "D", "the game's word, in the player's language")
+    DaylightUI:Set("Chat", "tagLetters", "english")
+    stub.RunTimers()
+    T.eq(Tags.Default("say"), "S", "back to the English letters")
+    _G.CHAT_MSG_SAY = old.CHAT_MSG_SAY
+    -- The tooltip on a tag box shows (it was only filled before).
+    local tip = GameTooltip
+    local shown = false
+    local owned
+    GameTooltip = { SetOwner = function(_, o) owned = o end, Show = function() shown = true end, Hide = function() end,
+                    IsOwned = function() return true end }
+    local tips = DaylightUI.Tips
+    local saved = { Title = tips.Title, Text = tips.Text, Flush = tips.Flush, Clear = tips.Clear }
+    tips.Title, tips.Text, tips.Flush, tips.Clear = function() end, function() end, function() end, function() end
+    local tagItem
+    for _, page in ipairs(stub.chatModule.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, it in ipairs(card.items) do if it.label == "Your own short tags" then tagItem = it end end
+        end
+    end
+    local row = CreateFrame("Frame")
+    tagItem.build(row); tagItem.update(row)
+    local line
+    for side = 1, 2 do for _, l in ipairs(row.columns[side]) do if l:IsShown() and not line then line = l end end end
+    T.truthy(line, "a tag box")
+    line.box:GetScript("OnEnter")(line.box)
+    T.truthy(shown, "its tooltip is shown, not only filled")
+    GameTooltip = tip
+    tips.Title, tips.Text, tips.Flush, tips.Clear = saved.Title, saved.Text, saved.Flush, saved.Clear
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("chat daylight: a tab's Show lists the channels you're in, each its own switch", function()
@@ -3241,6 +3475,8 @@ end)
 -- The game's own channel id names a world channel, whatever the language calls it.
 T.test("chat daylight: world channels are known by the game's id, not their name", function()
     daylight()
+    DaylightUI:Set("Chat", "tagLetters", "english")
+    stub.RunTimers()
     local CH = stub.chatModule
     local Kinds, Tags = CH.Kinds, CH.Tags
     local ids = { DefensaLocal = 22, BuscarGrupo = 26, ["Comercio local"] = 46, Comercio = 2, ["General: Vallefresno"] = 1 }
@@ -3276,6 +3512,84 @@ T.test("chat daylight: world channels are known by the game's id, not their name
     T.eq(asked, false, "the game was not asked about a secret name")
     _G.C_ChatInfo = old
     Kinds.ChannelsChanged()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- In the player's language the letters come from the name the game gives the channel.
+T.test("chat daylight: world channels take the letters of their own name when asked for", function()
+    daylight()
+    local CH = stub.chatModule
+    local Kinds, Tags = CH.Kinds, CH.Tags
+    local ids = { DefensaLocal = 22, BuscarGrupo = 26, ["Comercio local"] = 46, Comercio = 2, ["General: Vallefresno"] = 1 }
+    local old = _G.C_ChatInfo
+    _G.C_ChatInfo = { GetChannelInfoFromIdentifier = function(n) return ids[n] and { zoneChannelID = ids[n] } or nil end }
+    Kinds.ChannelsChanged()
+    Tags.Apply({ shortTags = true, tagLetters = "native" })
+    T.eq(Tags.Standard("DefensaLocal", 3), "DL", "its tag, not the bare number: the name's letters")
+    T.eq(Tags.Standard("Comercio local", 4), "CL")
+    T.eq(Tags.Standard("Comercio", 2), "C")
+    T.eq(Tags.Standard("BuscarGrupo", 5), "BG")
+    T.eq(Tags.Standard("General: Vallefresno", 1), "G")
+    T.eq(Tags.Initials("Defensa de la ciudad"), "DC", "short words left out")
+    T.eq(Tags.Initials("LocalDefense"), "LD")
+    T.eq(Tags.Initials("Trade (Local)"), "TL")
+    T.eq(Tags.Initials("公会"), "公", "the first character of a Chinese name")
+    -- Back to the English letters, which is what the setting starts as.
+    Tags.Apply({ shortTags = true })
+    T.eq(Tags.Standard("DefensaLocal", 3), "LD", "English letters again")
+    T.eq(Tags.Standard("Comercio", 2), "T")
+    _G.C_ChatInfo = old
+    Kinds.ChannelsChanged()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- In the player's language a chat kind's tag comes from the game's own word for it, the first in
+-- the order keeping the short one when two start the same.
+T.test("chat daylight: chat kinds take their default tag from the game's words when asked for", function()
+    daylight()
+    local Tags = stub.chatModule.Tags
+    Tags.Apply({ shortTags = true, tagLetters = "native" })
+    local saved = {}
+    local names = { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "WHISPER", "CHAT_MSG_PARTY", "CHAT_MSG_RAID", "CHAT_MSG_GUILD",
+        "CHAT_MSG_OFFICER", "CHAT_MSG_INSTANCE_CHAT", "CHAT_MSG_RAID_WARNING", "CHAT_WHISPER_INFORM_GET", "CHAT_SAY_GET" }
+    for _, n in ipairs(names) do saved[n] = _G[n] end
+    local function words(t) for n, v in pairs(t) do _G[n] = v end; Tags.ResetDefaults() end
+    -- Spanish, as the game gives it.
+    words({ CHAT_MSG_SAY = "Decir", CHAT_MSG_YELL = "Gritar", WHISPER = "Susurrar", CHAT_MSG_PARTY = "Grupo",
+        CHAT_MSG_RAID = "Banda", CHAT_MSG_GUILD = "Hermandad", CHAT_MSG_OFFICER = "Oficial",
+        CHAT_MSG_INSTANCE_CHAT = "Estancia", CHAT_MSG_RAID_WARNING = "Aviso de la banda",
+        CHAT_WHISPER_INFORM_GET = "A %s: ", CHAT_SAY_GET = "%s dice: " })
+    local got = {}
+    for _, k in ipairs({ "guild", "party", "raid", "say", "whisper", "yell", "instance", "officer", "warning", "bnet", "to" }) do
+        got[#got + 1] = Tags.Default(k)
+    end
+    T.eq(table.concat(got, " "), "H G B D S Gr E O AB S A", "Spanish")
+    T.eq(Tags.Shorten("|Hplayer:Bob|h[Bob]|h dice: hola", "CHAT_MSG_SAY"), "[D] |Hplayer:Bob|h[Bob]|h: hola", "a say line")
+    -- English gives the letters it always had.
+    words({ CHAT_MSG_SAY = "Say", CHAT_MSG_YELL = "Yell", WHISPER = "Whisper", CHAT_MSG_PARTY = "Party",
+        CHAT_MSG_RAID = "Raid", CHAT_MSG_GUILD = "Guild", CHAT_MSG_OFFICER = "Officer",
+        CHAT_MSG_INSTANCE_CHAT = "Instance", CHAT_MSG_RAID_WARNING = "Raid Warning",
+        CHAT_WHISPER_INFORM_GET = "To %s: " })
+    got = {}
+    for _, k in ipairs({ "guild", "party", "raid", "say", "whisper", "yell", "instance", "officer", "warning", "bnet", "to" }) do
+        got[#got + 1] = Tags.Default(k)
+    end
+    T.eq(table.concat(got, " "), "G P R S W Y I O RW W To", "English")
+    -- Nothing from the game: the English letters.
+    for _, n in ipairs(names) do _G[n] = nil end
+    Tags.ResetDefaults()
+    T.eq(Tags.Default("say"), "S")
+    T.eq(Tags.Default("warning"), "RW")
+    T.eq(Tags.Default("to"), "To")
+    for _, n in ipairs(names) do _G[n] = saved[n] end
+    -- In English letters the game's words don't matter: the letters it always had.
+    Tags.Apply({ shortTags = true })
+    words({ CHAT_MSG_PARTY = "Grupo", CHAT_MSG_YELL = "Gritar", CHAT_WHISPER_INFORM_GET = "A %s: " })
+    T.eq(Tags.Default("party"), "P", "English letters, in a Spanish client")
+    T.eq(Tags.Default("yell"), "Y")
+    T.eq(Tags.Default("to"), "To")
+    for _, n in ipairs(names) do _G[n] = saved[n] end
+    Tags.ResetDefaults()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -3473,7 +3787,7 @@ T.test("chat daylight: a tab's Text size menu sets the size and outline; the sli
     W.OpenMenu = open
     T.eq(DUI:Get("Chat", "textSize"), 18)
     T.eq(select(2, box:GetFont()), 18, "the box at the new size")
-    T.eq(select(3, box:GetFont()), "OUTLINE")
+    T.eq(select(3, box:GetFont()), "OUTLINE, SLUG")
     T.truthy(menu.opts.checked(18) and menu.opts.checked("outline") and not menu.opts.checked(14), "ticks follow")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -4316,6 +4630,27 @@ T.test("chat daylight: the header's icons and the footer: counts on tabs, lock, 
     CH.Chat.Hold(true)
     local _, rel = ChatFrame1EditBox:GetPoint(1)
     T.eq(rel, Box.Field(), "the game's box over the footer's field")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A window pulled out of the dock before the Daylight box was on stays parked out of
+-- sight, but in the IM chat style its invisible click-anywhere button still made its
+-- own box the one you type in, and that box opened over the lines where the old
+-- window sat.
+T.test("chat box: a pulled-out window's typing box opens in the footer, and its click-anywhere is parked", function()
+    local Box = daylight()
+    local CH = stub.chatModule
+    stub.RunTimers()
+    CH.Chat.Pass()
+    T.falsy(ChatFrame3.isDocked, "set up undocked")
+    T.eq(select(2, ChatFrame3EditBox:GetPoint(1)), Box.Field(), "its box over the footer's field")
+    T.falsy(ChatFrame3.clickAnywhereButton:IsMouseEnabled(), "its click-anywhere takes no clicks")
+    T.falsy(ChatFrame1.clickAnywhereButton:IsMouseEnabled(), "nor the main window's")
+    DaylightUI:Set("Chat", "style", "classic")
+    stub.RunTimers()
+    CH.Chat.Pass()
+    T.eq(select(2, ChatFrame3EditBox:GetPoint(1)), ChatFrame3, "Classic: back under its own window")
+    T.truthy(ChatFrame3.clickAnywhereButton:IsMouseEnabled(), "and its click-anywhere is the game's again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

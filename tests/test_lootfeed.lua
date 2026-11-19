@@ -536,3 +536,143 @@ T.test("loot feed: the coin shows the biggest coin in the amount", function()
     money("You loot 1 Gold")
     T.eq(live(F)[1].icon:GetTexture(), stub.COIN_ICONS.gold, "past a gold: a gold coin")
 end)
+
+-- As a log (lootFeedStyle "log"): lines stay, the wheel scrolls back.
+
+local function thing(i) loot("You receive loot: |cffffffff|Hitem:" .. (100 + i) .. "::|h[Thing " .. i .. "]|h|r.") end
+
+local function names(F)
+    local out = {}
+    for _, r in ipairs(live(F)) do out[#out + 1] = r.entry.name end
+    return table.concat(out, ",")
+end
+
+local function asLog()
+    local F = login()
+    DaylightUI:Set("QoL", "lootFeedStyle", "log")
+    settle()
+    return F
+end
+
+T.test("loot feed log: lines never time out, and the ticker rests", function()
+    local F = asLog()
+    loot("You receive loot: " .. SILK .. ".")
+    stub.Advance(F.HOLD * 4)
+    F.Tick()
+    settle()
+    T.eq(#live(F), 1, "still there")
+    T.isnil(_G.DaylightUILootFeed:GetScript("OnUpdate"), "nothing ticks while it just sits there")
+    T.truthy(live(F)[1].__wheel, "the wheel is taken over a log line")
+end)
+
+T.test("loot feed log: the same item adds up within the line time, later it's a new line", function()
+    local F = asLog()
+    loot("You receive loot: " .. SILK .. ".")
+    stub.Advance(1)
+    loot("You receive loot: " .. SILK .. "x2.")
+    T.eq(#F.Log(), 1)
+    T.eq(live(F)[1].count:GetText(), "x3")
+    stub.Advance(F.HOLD + 1)
+    loot("You receive loot: " .. SILK .. ".")
+    T.eq(#F.Log(), 2, "a new line once its time was up")
+end)
+
+T.test("loot feed log: keeps more than it shows, the wheel scrolls back and it comes back to the newest", function()
+    local F = asLog()
+    for i = 1, F.MAX + 3 do thing(i) end
+    settle()
+    T.eq(#F.Log(), F.MAX + 3)
+    T.eq(#live(F), F.MAX)
+    T.eq(live(F)[1].entry.name, "Thing " .. (F.MAX + 3), "the newest in view")
+    local row = live(F)[1]
+    row:GetScript("OnEnter")(row)
+    row:GetScript("OnMouseWheel")(row, 1)   -- up: older, the newest is at the bottom
+    settle()
+    T.eq(F.Offset(), 1)
+    T.eq(live(F)[1].entry.name, "Thing " .. (F.MAX + 2))
+    T.eq(live(F)[F.MAX].entry.name, "Thing 3", "an older one scrolled in")
+    for _ = 1, 10 do row:GetScript("OnMouseWheel")(row, 1) end
+    settle()
+    T.eq(F.Offset(), 3, "no further than the oldest")
+    -- Scrolled back, new loot doesn't move the view.
+    local before = names(F)
+    thing(99)
+    settle()
+    T.eq(names(F), before, "the view stays put")
+    T.eq(F.Offset(), 4)
+    -- The mouse leaves: a few seconds later it's back at the newest.
+    local over = live(F)[1]
+    over:GetScript("OnLeave")(over)
+    T.truthy(_G.DaylightUILootFeed:GetScript("OnUpdate"), "ticks while waiting to go back")
+    stub.Advance(F.BACK + 0.1)
+    F.Tick()
+    settle()
+    T.eq(F.Offset(), 0)
+    T.eq(live(F)[1].entry.name, "Thing 99")
+    F.Tick()
+    T.isnil(_G.DaylightUILootFeed:GetScript("OnUpdate"), "and rests again")
+end)
+
+T.test("loot feed log: kept for the character after a reload, the preview's lines dropped, Clear empties it", function()
+    local F = asLog()
+    for i = 1, F.KEEP + 5 do thing(i) end
+    T.eq(#F.Log(), F.KEEP, "only the last ones are kept")
+    F.Add({ name = "Preview Thing", quality = 1, icon = 1, preview = true })
+    local sv = DaylightUIDB
+    stub.Load({ qol = true, before = function() world(); DaylightUIDB = sv end })
+    F = stub.qol.LootFeed
+    T.eq(#F.Log(), F.KEEP - 1, "back after the reload, without the preview's line")
+    T.eq(F.Log()[1].name, "Thing " .. (F.KEEP + 5))
+    T.eq(#live(F), F.MAX, "shown at login")
+    F.Clear()
+    settle()
+    T.eq(#F.Log(), 0)
+    T.eq(#F.Rows(), 0)
+end)
+
+T.test("loot feed log: unlock mode shows the sample, then the log again", function()
+    local F = asLog()
+    loot("You receive loot: " .. SILK .. ".")
+    T.eq(#stub.errors, 0)
+    DaylightUI.Movers.unlocked = true
+    DaylightUI.Fire("UnlockChanged")
+    settle()
+    T.eq(#live(F), math.min(#F.SAMPLE, F.MAX))
+    loot("You receive loot: " .. FANG .. ".")
+    T.eq(#F.Log(), 2, "loot meanwhile still goes in the log")
+    DaylightUI.Movers.unlocked = false
+    DaylightUI.Fire("UnlockChanged")
+    settle()
+    T.eq(names(F), "Large Spider Fang,Tough Spider Silk")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("loot feed log: back to fading, the lines leave and the wheel is the camera's again", function()
+    local F = asLog()
+    loot("You receive loot: " .. SILK .. ".")
+    DaylightUI:Set("QoL", "lootFeedStyle", "fade")
+    settle()
+    T.eq(#F.Rows(), 0)
+    loot("You receive loot: " .. FANG .. ".")
+    T.falsy(live(F)[1].__wheel)
+    T.truthy(_G.DaylightUILootFeed:GetScript("OnUpdate"), "fading ticks again")
+end)
+
+T.test("loot feed log: its options are on the loot page, the clear button and fade only for a log", function()
+    login()
+    local page = DaylightUI.Options.GetPage("QoL.loot")
+    local style, clear, fade
+    for _, g in ipairs(page.groups) do
+        for _, item in ipairs(g.items) do
+            if item.key == "lootFeedStyle" then style = item end
+            if item.label == "Clear the loot log" then clear = item end
+            if item.key == "lootFeedFade.mode" then fade = item end
+        end
+    end
+    T.truthy(style and clear and fade)
+    T.truthy(DaylightUI.Options.IsHidden(page, clear), "no clear button while it fades")
+    T.truthy(DaylightUI.Options.IsHidden(page, fade))
+    DaylightUI:Set("QoL", "lootFeedStyle", "log")
+    T.falsy(DaylightUI.Options.IsHidden(page, clear))
+    T.falsy(DaylightUI.Options.IsHidden(page, fade))
+end)

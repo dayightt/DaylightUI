@@ -41,7 +41,7 @@ ns.DEFAULTS = {
     sound = true,             -- when a quest is ready to turn in
     tracker = true,           -- with Questie on: this tracker (off = Questie's tracker; Choice.lua)
     -- What each click on a quest does (Clicks.ACTIONS). Right-click is always the menu.
-    clicks = { click = "map", shift = "untrack", ctrl = "priority", alt = "none" },
+    clicks = { click = "map", shift = "untrack", ctrl = "priority", alt = "fold" },
     journal = true,           -- replace the world map's quest log with the journal (Journal.lua)
     journalTipBeside = true,  -- journal row tooltip beside the panel like the game's (off = at the mouse)
     journalHoverIcons = true, -- hovering a quest name or Questie icon grows its icons and fades the others

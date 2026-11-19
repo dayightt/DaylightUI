@@ -11,7 +11,64 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased",
+        fixed = {
+            { "Nameplates", "Long /dui platefix reports keep the details of the missing plate and the latest events before the check" },
+            { "Nameplates", "Nameplates and speech bubbles come back after loading screens, flights, cinematics and the AFK screen when they had gone missing, and the last /dui platefix step brings them back without a /reload" },
+        },
+    },
+    { version = "1.9.5", date = "2026-11-18", summary = "A scrollable loot log, crisper outlined text, and a batch of fixes.",
+        new = {
+            { "QoL", "The loot feed can stay on screen as a log of your recent loot you can scroll back through (Loot feed style)" },
+        },
+        changed = {
+            { "General", "Outlined text looks crisper, drawn the way the game draws its own" },
+            { "Chat", "The second chat panel can be made narrower, down to 150 px" },
+            { "Quests", "Alt-click a quest in the tracker to fold it up" },
+            { "Quests", "Little touches: the tracker's scroll bar only shows when you hover it, and a quest's item button goes away once it's ready to hand in" },
+        },
+        fixed = {
+            { "General", "\"Use this font for the game's text\" no longer changes the combat text over you, names over heads, or the range dot on hotkeys" },
+            { "General", "Alt-tabbing, loading screens and UI scale changes no longer make Daylight UI redo the nameplates, minimap, chat and tooltips" },
+            { "General", "Daylight UI no longer changes your max camera distance every time you log in" },
+            { "Unit frames", "Rare elites wear the silver dragon on the target frame and nameplates, like in the game" },
+            { "Cooldown Manager", "Lightning Shield and Touch of Weakness count as gone once hits use them up, so the recast reminder shows on time" },
+            { "Cooldown Manager", "Slice and Dice no longer gets covered by the next buff in its group when you change target" },
+            { "Buffs", "Your buffs and debuffs no longer all bounce at once when you loot something" },
+            { "QoL", "The big number on the level-up screen is no longer cut off" },
+            { "QoL", "Closing the AFK screen during an NPC conversation no longer brings the UI back early" },
+        },
+    },
+    { version = "1.9.4.4", date = "2026-11-18", summary = "A small fix for using your font on the game's text.",
+        fixed = {
+            { "General", "\"Use this font for the game's text\" now applies once as you log in and asks for a reload when switched" },
+            { "General", "With it on, Russian, Korean and Chinese letters in the game's text keep drawing" },
+        },
+    },
+    { version = "1.9.4.3", date = "2026-11-18", summary = "Name and Cast bar tabs on every unit frame page, aura icons per row, chat tags in your language, and a round of fixes.",
+        new = {
+            { "Unit frames", "Choose how many buff and debuff icons sit in each row, on every frame" },
+            { "Chat", "Short chat tags in your game's language, and each tag can be changed in the chat options" },
+            { "Plugins", "Other addons can add their own choices to a quest's right-click menu" },
+        },
+        changed = {
+            { "Unit frames", "Each unit frame's page has its own Name and Cast bar tabs, with the cast bar in the preview" },
+            { "Group finder", "Role badges in the group finder, the raid page and chat match the party and raid frames" },
+            { "Profiles", "The Immersive preset shows the micro menu in the corner, faded until you mouse over it" },
+            { "Chat", "Speech bubbles in the Daylight look are now laid over the game's own instead of reshaping them" },
+            { "Languages", "Many more German texts thanks to WalAffe, and more Simplified Chinese thanks to Levis" },
+        },
+        fixed = {
+            { "Unit frames", "Party and raid frames show an angel while a dead player is being rezzed, like the game's" },
+            { "Nameplates", "Fixed a rare nameplate that showed nothing at all: the game's own plate shows there now" },
+            { "Chat", "The typing box no longer opens over your messages in the middle of the chat box" },
+            { "Cooldown Manager", "Weakened Soul added to the Cooldown Manager shows again after you shield yourself" },
+            { "Quests", "The quest tracker stays shown when a quest item pulls you into a fight with what you used it on" },
+            { "Controller", "Walking away from a vendor with your bags open no longer leaves the D-pad stuck" },
+            { "Controller", "The focus glow keeps your Focus Opacity and Color after a reload, and no empty box covers the game menu's title" },
+            { "General", "Little touches: the options window stays tidy when narrow, and finished Legacy challenges no longer open when clicked" },
+        },
+    },
     { version = "1.9.4", date = "2026-11-18", summary = "Zone levels on the world map, a wide group finder, timers on every totem, a PvP crest on nameplates, and a big round of fixes.",
         new = {
             { "World map", "Hover a zone on the world map to see its level range, colored by how hard it is for you" },

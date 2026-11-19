@@ -62,16 +62,20 @@ function Who.Picked(key)
 end
 
 -- The picked filters as /who terms, the same one repeated for each pick (r-"Dwarf" r-"Human"
--- asks for either): the game's server takes them in the text; SendWho's own filter lists are
--- ignored (checked in game).
+-- asks for either): the game's server takes them in the text; SendWho's own filter lists do not
+-- filter (checked in game: classIDs and raceIDs as the ones to leave out brought other classes).
 function Who.Terms()
     local out = {}
     local sources = { race = Who.Races, class = Who.Classes, zone = function() return Who.ZoneTree().all end }
     local letter = { race = "r", class = "c", zone = "z" }
     for _, f in ipairs(Who.FILTERS) do
         local set = Who[f[2]]
-        if next(set) ~= nil then
-            for _, it in ipairs(sources[f[1]]()) do
+        local items = sources[f[1]]()
+        local picked = 0
+        for _, it in ipairs(items) do if set[it[1]] then picked = picked + 1 end end
+        -- Everything ticked (Check All) asks the same as nothing ticked: no terms.
+        if picked > 0 and picked < #items then
+            for _, it in ipairs(items) do
                 if set[it[1]] then out[#out + 1] = letter[f[1]] .. '-"' .. it[2]:gsub('"', "") .. '"' end
             end
         end
@@ -267,14 +271,18 @@ function Who.Races()
     return out
 end
 
--- The classes of this client: the game's class ids until one is missing.
+-- The classes of this client: the ones the game's own who filter lists
+-- (C_SpecializationInfo.GetAllClassIDs), each named by its class info.
 function Who.Classes()
     local out = {}
     local info = (C_CreatureInfo and C_CreatureInfo.GetClassInfo) or (C_ClassInfo and C_ClassInfo.GetClassInfo)
-    if info then
-        for id = 1, 30 do
-            local ok, c = pcall(info, id)
-            if ok and type(c) == "table" and type(c.className) == "string" then out[#out + 1] = { c.classID or id, c.className } end
+    local all = C_SpecializationInfo and C_SpecializationInfo.GetAllClassIDs
+    local ok, list = false, nil
+    if all then ok, list = pcall(all) end
+    if info and ok and type(list) == "table" then
+        for _, id in ipairs(list) do
+            local good, c = pcall(info, id)
+            if good and type(c) == "table" and type(c.className) == "string" then out[#out + 1] = { c.classID or id, c.className } end
         end
     end
     table.sort(out, function(a, b) return a[2] < b[2] end)

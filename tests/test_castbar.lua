@@ -507,8 +507,13 @@ end)
 T.test("the cast bar 'Where' choice offers each bar its own spots", function()
     local DUI = stub.Load({ module = true })
     local items = {}
-    for _, g in ipairs(DUI.Options.GetPage("UnitFrames.castbars").groups) do
-        for _, item in ipairs(g.items) do if item.key then items[item.key] = item end end
+    -- Each bar's rows are on its frame's page, under the Cast bar tab.
+    for _, id in ipairs({ "player", "target", "focus", "party" }) do
+        for _, g in ipairs(DUI.Options.GetPage("UnitFrames." .. id).groups) do
+            if g.tab == "Cast bar" then
+                for _, item in ipairs(g.items) do if item.key then items[item.key] = item end end
+            end
+        end
     end
     local p, t = items["playerCastbar.at"], items["targetCastbar.at"]
     T.eq(p.type, "dropdown"); T.isnil(p.values.power, "the player's has no 'inside'")

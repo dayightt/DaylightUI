@@ -59,6 +59,23 @@ local function restore(f, o)
     for _, pt in ipairs(o.points) do f:SetPoint(unpack(pt, 1, 5)) end
 end
 
+-- True when the frame already stands where place() would put it. These are
+-- placed again after every loading screen and every toast, and most of the
+-- time the game hasn't touched them, so nothing needs writing. A secret
+-- answer counts as "not there" and the frame is written as before.
+local function near(a, b)
+    return type(a) == "number" and not DUI.IsSecret(a) and math.abs(a - b) < 0.01
+end
+local function standsAt(f, x, y, w, h)
+    if f:GetNumPoints() ~= 1 then return false end
+    local p, rel, rp, px, py = f:GetPoint(1)
+    if DUI.IsSecret(p) or DUI.IsSecret(rel) or DUI.IsSecret(rp) then return false end
+    if p ~= "CENTER" or rel ~= UIParent or rp ~= "CENTER" then return false end
+    if not (near(px, x) and near(py, y)) then return false end
+    if w and not (near(f:GetWidth(), w) and near(f:GetHeight(), h)) then return false end
+    return true
+end
+
 -- Puts a frame at its moved spot if it has one. One that was moved but no
 -- longer has a spot (reset) goes back to where the game had it.
 local function place(spec)
@@ -86,12 +103,16 @@ local function place(spec)
     -- shows) so the column's layout skips it.
     if f.isManagedFrame and f:GetParent() ~= UIParent then f:SetParent(UIParent) end
     local r = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    local w, h
     if spec.fit then
         local s = DUI.Movers.Scale(GM.Key(name))
-        f:SetSize(spec.minW * s / r, spec.minH * s / r)
+        w, h = spec.minW * s / r, spec.minH * s / r
     end
+    local x, y = saved[1] / r, saved[2] / r
+    if standsAt(f, x, y, w, h) then return end
+    if w then f:SetSize(w, h) end
     f:ClearAllPoints()
-    f:SetPoint("CENTER", UIParent, "CENTER", saved[1] / r, saved[2] / r)
+    f:SetPoint("CENTER", UIParent, "CENTER", x, y)
 end
 
 -- An unmoved fit frame's handle stands where its toast will show: on the

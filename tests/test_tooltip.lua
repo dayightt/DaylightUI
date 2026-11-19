@@ -212,6 +212,26 @@ T.test("tooltip: our font on the game's tooltip fonts, sized by the option", fun
     T.eq(GameTooltipText.__font[1], DaylightUI.Style.FONT)
 end)
 
+-- A repaint also comes from a screen or UI scale change (an alt-tab can bring
+-- one). With nothing about the tooltip changed, the game's own tooltip fonts,
+-- its health bar and the tooltips' scale are left as they are.
+T.test("tooltip: a repaint that changed nothing leaves the game's tooltip pieces alone", function()
+    login()
+    local writes = 0
+    local function count(obj, method)
+        local real = obj[method]
+        obj[method] = function(...) writes = writes + 1 return real(...) end
+    end
+    count(GameTooltipText, "SetFont"); count(GameTooltipText, "SetShadowOffset")
+    count(GameTooltipStatusBar, "ClearAllPoints"); count(GameTooltip, "SetScale")
+    DaylightUI.NotifyStyleChanged()
+    stub.RunTimers()
+    T.eq(writes, 0, "nothing set again")
+    DaylightUI:Set("Tooltip", "textSize", 15)
+    stub.RunTimers()
+    T.eq(GameTooltipText.__font[2], 15, "a real change still goes on")
+end)
+
 T.test("tooltip: a player's name, border and health bar take their class color", function()
     local Tip = login()
     show(GameTooltip, Enum.TooltipDataType.Unit, function(t) t.__unitName, t.__unit = "Jaina", "mouseover" end)

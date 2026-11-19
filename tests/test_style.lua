@@ -184,7 +184,7 @@ end)
 T.test("text is outlined with a soft drop shadow", function()
     local DUI = stub.Load()
     local fs = DUI.Style.Text(UIParent, 12)
-    T.eq(fs.__font[3], "OUTLINE")
+    T.eq(fs.__font[3], "OUTLINE, SLUG")
     T.eq(fs.__shadowOffset[1], 1); T.eq(fs.__shadowOffset[2], -1)
     T.near(fs.__shadowColor[4], 0.6)
 end)
@@ -258,13 +258,13 @@ end)
 
 T.test("the local font replaces ours on a Korean client only", function()
     local real = _G.GetLocale
-    _G.STANDARD_TEXT_FONT = "Fonts\2002.TTF"
+    _G.STANDARD_TEXT_FONT = "Fonts\\2002.TTF"
     _G.GetLocale = function() return "koKR" end
     local DUI = stub.Load()
     DUI:Set("general", "font", "fira")
     DUI:Set("general", "localFont", true)
     DUI.Style.PickFont()
-    T.eq(DUI.Style.FONT, "Fonts\2002.TTF")
+    T.eq(DUI.Style.FONT, "Fonts\\2002.TTF")
     DUI:Set("general", "localFont", false)
     DUI.Style.PickFont()
     T.eq(DUI.Style.FONT, DUI.Style.FONTS.fira.file)
@@ -284,50 +284,253 @@ local function fakeFont(face, size, flags)
     return f
 end
 
-T.test("game text: the font goes on the game's font objects and comes back off", function()
-    _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
-    _G.DAMAGE_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
-    _G.GameFontNormal = fakeFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    _G.LaterFont = fakeFont("Fonts\\ARIALN.TTF", 10, "")
-    local names = { "GameFontNormal", "NotAFont" }
-    _G.GetFonts = function() return names end
+-- A /reload: the same saved settings loaded again. setup() puts the game's
+-- fonts back as the client makes them on a fresh load.
+local function relog(setup, opts)
+    local sv = DaylightUIDB
+    opts = opts or {}
+    opts.before = function() setup(); DaylightUIDB = sv end
+    local DUI = stub.Load(opts)
+    stub.RunTimers()
+    return DUI
+end
+
+-- The game's text takes the font once, at login, as EllesmereUI's "Apply to
+-- All Game Text" does: the game's fonts never change under its frames while
+-- they draw, so a change waits for a /reload.
+T.test("game text: the font goes on the game's font objects at login, once", function()
+    local names
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+        _G.NAMEPLATE_FONT = "Fonts\\FRIZQT__.TTF"
+        _G.GameFontNormal = fakeFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+        _G.LaterFont = fakeFont("Fonts\\ARIALN.TTF", 10, "")
+        names = { "GameFontNormal", "NotAFont" }
+        _G.GetFonts = function() return names end
+    end
+    setup()
     local DUI = stub.Load()
     local fira = DUI.Style.FONTS.fira.file
     DUI:Set("general", "font", "fira")
-    stub.RunTimers()
-    T.eq(GameFontNormal.face, "Fonts\\FRIZQT__.TTF", "off by default")
-
     DUI:Set("general", "gameText", true)
     stub.RunTimers()
-    T.eq(GameFontNormal.face, fira, "face swapped")
+    T.eq(GameFontNormal.face, "Fonts\\FRIZQT__.TTF", "switched on mid-session: waits for a reload")
+    T.eq(STANDARD_TEXT_FONT, "Fonts\\FRIZQT__.TTF")
+
+    DUI = relog(setup)
+    T.eq(GameFontNormal.face, fira, "after the reload: face swapped")
     T.eq(GameFontNormal.size, 12, "size kept")
     T.eq(GameFontNormal.flags, "OUTLINE", "outline kept")
     T.eq(STANDARD_TEXT_FONT, fira)
-    T.eq(DAMAGE_TEXT_FONT, fira, "combat numbers")
+    T.eq(NAMEPLATE_FONT, "Fonts\\FRIZQT__.TTF", "the nameplate global stays the game's")
     T.eq(DUI.GameFonts.ClientFont(), "Fonts\\FRIZQT__.TTF", "the client's own is remembered")
 
+    local sets = 0
+    local real = GameFontNormal.SetFont
+    GameFontNormal.SetFont = function(...) sets = sets + 1 return real(...) end
     names[#names + 1] = "LaterFont"   -- a game window loads its own fonts
-    stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI"); stub.RunTimers()   -- walked the frame after
-    T.eq(LaterFont.face, fira, "late font objects too")
-
-    DUI:Set("general", "font", "game")   -- the game's own font: nothing to put on
+    stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI"); stub.RunTimers()
+    T.eq(LaterFont.face, "Fonts\\ARIALN.TTF", "fonts that load later keep the game's until a reload")
+    DUI:Set("general", "font", "barlow")   -- a repaint of everything
     stub.RunTimers()
-    T.eq(DUI.Style.FONT, "Fonts\\FRIZQT__.TTF", "Game font is still the client's")
-    T.eq(GameFontNormal.face, "Fonts\\FRIZQT__.TTF", "put back")
-    T.eq(LaterFont.face, "Fonts\\ARIALN.TTF", "each to its own")
-    T.eq(STANDARD_TEXT_FONT, "Fonts\\FRIZQT__.TTF")
+    T.eq(sets, 0, "never set again in the session")
+    T.eq(GameFontNormal.face, fira)
 
-    DUI:Set("general", "font", "fira")
-    stub.RunTimers()
     DUI:Set("general", "gameText", false)
     stub.RunTimers()
-    T.eq(GameFontNormal.face, "Fonts\\FRIZQT__.TTF", "off puts it back")
-    T.eq(DAMAGE_TEXT_FONT, fira, "damage numbers on Automatic keep the Appearance font")
-    DUI:Set("general", "damage.font", "game")
-    stub.RunTimers()
-    T.eq(DAMAGE_TEXT_FONT, "Fonts\\FRIZQT__.TTF", "their own Game font pick puts the client's back")
-    _G.STANDARD_TEXT_FONT, _G.DAMAGE_TEXT_FONT, _G.GetFonts = nil, nil, nil
+    T.eq(GameFontNormal.face, fira, "switched off: stays until the reload")
+    relog(setup)
+    T.eq(GameFontNormal.face, "Fonts\\FRIZQT__.TTF", "after it the game's own")
+    T.eq(STANDARD_TEXT_FONT, "Fonts\\FRIZQT__.TTF")
+    _G.STANDARD_TEXT_FONT, _G.NAMEPLATE_FONT, _G.DAMAGE_TEXT_FONT, _G.GetFonts = nil, nil, nil, nil
     _G.GameFontNormal, _G.LaterFont = nil, nil
+end)
+
+T.test("game text: the switch asks for a reload", function()
+    local DUI = stub.Load()
+    local item
+    for _, g in ipairs(DUI.Options.GetPage("appearance").groups) do
+        for _, it in ipairs(g.items) do if it.key == "gameText" then item = it end end
+    end
+    T.truthy(item, "the row is there")
+    T.truthy(item.reload, "a change asks for a /reload")
+end)
+
+-- The game's nameplate and speech bubble fonts are families (one font per
+-- alphabet, Blizzard_Fonts_Shared GameFonts.xml), made with "slug" rendering
+-- for text drawn in the world. Each member keeps its own flags, an alphabet the
+-- picked font can't draw keeps the game's face, the way EllesmereUI's game text
+-- pass does it.
+T.test("game text: a font family changes member by member and keeps its flags", function()
+    local members, fam
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+        members = {
+            roman = fakeFont("Fonts\\FRIZQT__.TTF", 9, "SLUG"),
+            russian = fakeFont("Fonts\\FRIZQT___CYR.TTF", 9, "SLUG"),
+            korean = fakeFont("Fonts\\2002.TTF", 9, "SLUG"),
+        }
+        fam = fakeFont("Fonts\\FRIZQT__.TTF", 9, "SLUG")
+        function fam:GetFontObjectForAlphabet(a) return members[a] end
+        _G.SystemFont_NamePlate = fam
+        _G.GetFonts = function() return { "SystemFont_NamePlate" } end
+    end
+    setup()
+    local DUI = stub.Load()
+    local quick = DUI.Style.FONTS.quicksand.file
+    DUI:Set("general", "font", "quicksand")
+    DUI:Set("general", "gameText", true)
+    relog(setup)
+    T.eq(members.roman.face, quick, "Latin letters in the picked font")
+    T.eq(members.roman.flags, "SLUG", "the member's own flags kept")
+    T.eq(members.roman.size, 9)
+    T.eq(members.russian.face, "Fonts\\FRIZQT___CYR.TTF", "no Russian letters in it: the game's face stays")
+    T.eq(members.korean.face, "Fonts\\2002.TTF", "other alphabets keep theirs")
+    T.eq(fam.face, quick, "the family's own font too")
+
+    DUI = relog(setup)
+    DUI:Set("general", "font", "fira")   -- has Russian letters
+    relog(setup)
+    T.eq(members.russian.face, DUI.Style.FONTS.fira.file, "a font with Russian letters draws them")
+    T.eq(members.russian.flags, "SLUG")
+    _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.SystemFont_NamePlate = nil, nil, nil
+end)
+
+-- A game font family as Blizzard_Fonts_Shared builds one: a member per alphabet,
+-- and the family's own font, which GetFont reads and copies take.
+local function fakeFamily(faces, size, flags)
+    local members = {}
+    for alphabet, face in pairs(faces) do members[alphabet] = fakeFont(face, size, flags) end
+    local fam = fakeFont(faces.roman, size, flags)
+    function fam:GetFontObjectForAlphabet(a) return members[a] end
+    return fam, members
+end
+
+local GAME_FACES = { roman = "Fonts\\FRIZQT__.TTF", russian = "Fonts\\FRIZQT___CYR.TTF", korean = "Fonts\\2002.TTF" }
+
+-- CombatTextFont inherits SystemFont_World and CombatTextFontOutline inherits
+-- SystemFont_World_ThickOutline (Blizzard_Fonts_Shared GameFontStyles.xml), so
+-- the combat text over the player draws through those families' members. The
+-- game text pass leaves CombatTextFont and SystemFont_World whole, as
+-- EllesmereUI's does: the combat text has its own font pick.
+T.test("game text: the world text family and the combat text font stay the game's", function()
+    local world, worldMembers, combat
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+        _G.UNIT_NAME_FONT = "Fonts\\FRIZQT__.TTF"
+        world, worldMembers = fakeFamily(GAME_FACES, 24, "FILTER, FIXEDHEIGHT")
+        combat = fakeFont("Fonts\\FRIZQT__.TTF", 120, "FILTER, FIXEDHEIGHT")
+        _G.SystemFont_World, _G.CombatTextFont = world, combat
+        _G.SystemFont_Fixed = fakeFont("Fonts\\FRIZQT__.TTF", 20, "FIXEDHEIGHT")
+        _G.GetFonts = function() return { "SystemFont_World", "CombatTextFont", "SystemFont_Fixed" } end
+    end
+    setup()
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "fira")
+    DUI:Set("general", "gameText", true)
+    DUI:Set("general", "damage.sctFont", "game")
+    relog(setup)
+    local fira = DUI.Style.FONTS.fira.file
+    T.eq(worldMembers.roman.face, "Fonts\\FRIZQT__.TTF", "the world family's members keep the game's face")
+    T.eq(worldMembers.roman.flags, "FILTER, FIXEDHEIGHT")
+    T.eq(world.face, "Fonts\\FRIZQT__.TTF", "and the family's own font")
+    T.eq(combat.face, "Fonts\\FRIZQT__.TTF", "the combat text follows its own pick, not the game text")
+    T.eq(SystemFont_Fixed.face, fira, "other fonts take the face")
+    T.eq(SystemFont_Fixed.flags, "FIXEDHEIGHT", "and keep their own flags")
+    T.eq(UNIT_NAME_FONT, "Fonts\\FRIZQT__.TTF", "the names over heads keep the game's font")
+    T.eq(STANDARD_TEXT_FONT, fira)
+    _G.STANDARD_TEXT_FONT, _G.UNIT_NAME_FONT, _G.GetFonts = nil, nil, nil
+    _G.SystemFont_World, _G.CombatTextFont, _G.SystemFont_Fixed = nil, nil, nil
+end)
+
+-- On a Russian client every Russian text draws with a family's own font, so it
+-- takes a face only when that face has Russian letters.
+T.test("game text: on a Russian client a family keeps its own font for a face without Russian", function()
+    local real = _G.GetLocale
+    _G.GetLocale = function() return "ruRU" end
+    local fam, members
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT___CYR.TTF"
+        fam, members = fakeFamily({ roman = "Fonts\\FRIZQT___CYR.TTF", russian = "Fonts\\FRIZQT___CYR.TTF" }, 12, "")
+        _G.GameFontNormal = fam
+        _G.GetFonts = function() return { "GameFontNormal" } end
+    end
+    -- A shared-media font with no Russian letters (Daylight UI's own picks swap
+    -- in a stand-in that has them on this client).
+    local lsm = { font = { Roboto = "Interface\\Roboto.ttf" } }
+    function lsm:Fetch(kind, name) return self[kind] and self[kind][name] end
+    function lsm:List(kind) local out = {} for n in pairs(self[kind] or {}) do out[#out + 1] = n end return out end
+    function lsm:Register() return true end
+    function lsm.RegisterCallback() end
+    _G.LibStub = function(name) return name == "LibSharedMedia-3.0" and lsm or nil end
+    setup()
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "lsm:Roboto")
+    DUI:Set("general", "gameText", true)
+    relog(setup)
+    T.eq(members.roman.face, "Interface\\Roboto.ttf", "Latin letters take it")
+    T.eq(members.russian.face, "Fonts\\FRIZQT___CYR.TTF", "Russian letters keep the game's")
+    T.eq(fam.face, "Fonts\\FRIZQT___CYR.TTF", "the family's own font keeps Russian letters")
+    _G.GetLocale, _G.LibStub = real, nil
+    _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.GameFontNormal = nil, nil, nil
+end)
+
+-- The hotkey text draws the range dot (U+25CF), which most bundled fonts can't
+-- draw. NumberFontNormalSmallGray draws through the members it shares with
+-- NumberFontNormalSmall, so it's moved onto a family of the same faces first
+-- and keeps the dot, while NumberFontNormalSmall takes the face.
+T.test("game text: the hotkey font keeps its faces for the range dot", function()
+    _G.CreateFontFamily = function(_, list)
+        local faces = {}
+        for _, m in ipairs(list) do faces[m.alphabet] = m.file end
+        local fam, members = fakeFamily(faces, list[1].height, list[1].flags)
+        for _, m in ipairs(list) do members[m.alphabet].size, members[m.alphabet].flags = m.height, m.flags end
+        return fam
+    end
+    local small, smallMembers, gray
+    local function setup()
+        _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
+        small, smallMembers = fakeFamily(GAME_FACES, 12, "OUTLINE")
+        gray = fakeFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
+        function gray:GetFontObjectForAlphabet(a) return (self.fontObject or small):GetFontObjectForAlphabet(a) end
+        function gray:SetFontObject(f) self.fontObject = f end
+        function gray:GetTextColor() return 0.5, 0.5, 0.5, 1 end
+        function gray:SetTextColor(r, g, b) self.color = { r, g, b } end
+        _G.NumberFontNormalSmall, _G.NumberFontNormalSmallGray = small, gray
+        _G.GetFonts = function() return { "NumberFontNormalSmall", "NumberFontNormalSmallGray" } end
+    end
+    setup()
+    local DUI = stub.Load()
+    DUI:Set("general", "font", "fira")
+    DUI:Set("general", "gameText", true)
+    relog(setup)
+    local fira = DUI.Style.FONTS.fira.file
+    T.eq(smallMembers.roman.face, fira, "the shared font takes the face")
+    T.truthy(gray.fontObject and gray.fontObject ~= small, "the hotkey font moved onto a family of its own")
+    T.eq(gray:GetFontObjectForAlphabet("roman"):GetFont(), "Fonts\\FRIZQT__.TTF", "with the game's face")
+    T.eq(select(3, gray:GetFontObjectForAlphabet("roman"):GetFont()), "OUTLINE", "and its flags")
+    T.deq(gray.color, { 0.5, 0.5, 0.5 }, "its color kept")
+    _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.CreateFontFamily = nil, nil, nil
+    _G.NumberFontNormalSmall, _G.NumberFontNormalSmallGray = nil, nil
+end)
+
+-- The tooltip fonts are set from a setting, so they change in the session: on a
+-- family member by member, and only what differs (a SetFont redraws every text).
+T.test("game fonts: SetObjectFont sets a family member by member, once", function()
+    local DUI = stub.Load()
+    local fam, members = fakeFamily(GAME_FACES, 12, "OUTLINE")
+    local fira = DUI.Style.FONTS.fira.file
+    local sets = 0
+    local real = members.roman.SetFont
+    members.roman.SetFont = function(...) sets = sets + 1 return real(...) end
+    DUI.GameFonts.SetObjectFont(fam, fira, 14, "")
+    T.eq(members.roman.face, fira)
+    T.eq(members.roman.size, 14)
+    T.eq(members.russian.face, DUI.Style.HasCyrillic(fira) and fira or "Fonts\\FRIZQT___CYR.TTF")
+    T.eq(members.korean.face, "Fonts\\2002.TTF", "Korean keeps the game's face")
+    T.eq(members.korean.size, 14, "at the new size")
+    DUI.GameFonts.SetObjectFont(fam, fira, 14, "")
+    T.eq(sets, 1, "nothing set again when nothing changed")
 end)
 
 -- The scrolling combat text over the player: the client makes CombatTextFont at
@@ -360,32 +563,6 @@ T.test("game text: combat text drops the client's fixed-height flags and gets th
     T.eq(CombatTextFont.face, "Fonts\\FRIZQT__.TTF", "the Game font pick puts it back")
     T.eq(CombatTextFont.flags, "FILTER, FIXEDHEIGHT", "with the client's flags")
     _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.CombatTextFont, _G.GameFontNormal = nil, nil, nil, nil
-end)
-
-T.test("game text: a font object already wearing ours isn't set again when a window loads", function()
-    _G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
-    _G.GameFontNormal = fakeFont("Fonts\\FRIZQT__.TTF", 12, "OUTLINE")
-    _G.CombatTextFont = fakeFont("Fonts\\FRIZQT__.TTF", 120, "FILTER, FIXEDHEIGHT")
-    _G.GetFonts = function() return { "GameFontNormal", "CombatTextFont" } end
-    local DUI = stub.Load()
-    DUI:Set("general", "font", "fira")
-    DUI:Set("general", "gameText", true)
-    stub.RunTimers()
-    local fira = DUI.Style.FONTS.fira.file
-    T.eq(GameFontNormal.face, fira)
-    local sets = 0
-    for _, f in ipairs({ GameFontNormal, CombatTextFont }) do
-        local real = f.SetFont
-        f.SetFont = function(...) sets = sets + 1 return real(...) end
-    end
-    stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI"); stub.RunTimers()
-    T.eq(sets, 0, "nothing set again")
-    GameFontNormal.face = "Fonts\\ARIALN.TTF"   -- someone put another face on it
-    stub.FireEvent("ADDON_LOADED", "Blizzard_Calendar"); stub.RunTimers()
-    T.eq(sets, 1, "that one is put right")
-    T.eq(GameFontNormal.face, fira)
-    T.eq(GameFontNormal.flags, "OUTLINE")
-    _G.STANDARD_TEXT_FONT, _G.GetFonts, _G.GameFontNormal, _G.CombatTextFont = nil, nil, nil, nil
 end)
 
 T.test("game text: the local font on a Korean client keeps the game's text alone", function()
@@ -879,12 +1056,26 @@ end)
 T.test("style: the text outline and shadow are settings", function()
     local DUI = stub.Load()
     local fs = DUI.Style.Text(UIParent, 12)
-    T.eq(fs.__font[3], "OUTLINE", "thin by default")
+    T.eq(fs.__font[3], "OUTLINE, SLUG", "thin by default, drawn with the game's slug text")
     DUI:Set("general", "textOutline", "THICKOUTLINE")
     DUI:Set("general", "textShadow", false)
     stub.RunTimers()
-    T.eq(fs.__font[3], "THICKOUTLINE")
+    T.eq(fs.__font[3], "THICKOUTLINE, SLUG")
     T.eq(fs.__shadowColor and fs.__shadowColor[4] or 0, 0, "no shadow")
+end)
+
+-- Outlined text draws with the game's slug renderer, as the game's own world
+-- text and EllesmereUI's outlines do. Text with no outline gets none.
+T.test("style: Slug adds the slug flag to an outline only", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    T.eq(S.Slug("OUTLINE"), "OUTLINE, SLUG")
+    T.eq(S.Slug("THICKOUTLINE"), "THICKOUTLINE, SLUG")
+    T.eq(S.Slug("OUTLINE, SLUG"), "OUTLINE, SLUG", "never twice")
+    T.eq(S.Slug(""), "", "no outline, no slug")
+    T.eq(S.Slug(nil), "")
+    T.eq(S.Slug("MONOCHROME"), "MONOCHROME")
+    T.eq(S.Outline(), "OUTLINE", "the setting itself stays the plain outline")
 end)
 
 T.test("style: DressText puts our font on someone else's text and keeps it up with the settings", function()
@@ -896,13 +1087,13 @@ T.test("style: DressText puts our font on someone else's text and keeps it up wi
     S.DressText(eb, 12, { outline = "" })
     local locked = UIParent:CreateFontString()
     S.DressText(locked, 9, { untracked = true })
-    T.eq(fs.__font[1], S.FONT); T.eq(fs.__font[2], 10); T.eq(fs.__font[3], "OUTLINE")
+    T.eq(fs.__font[1], S.FONT); T.eq(fs.__font[2], 10); T.eq(fs.__font[3], "OUTLINE, SLUG")
     T.eq(eb.__font[3], "", "an edit box gets no outline")
     DUI:Set("general", "fontScale", 1.5)
     DUI:Set("general", "textShadow", false)
     DUI:Set("general", "textOutline", "THICKOUTLINE")
     stub.RunTimers()
-    T.eq(fs.__font[2], 15, "Text size followed"); T.eq(fs.__font[3], "THICKOUTLINE")
+    T.eq(fs.__font[2], 15, "Text size followed"); T.eq(fs.__font[3], "THICKOUTLINE, SLUG")
     T.eq(fs.__shadowColor[4], 0, "Shadow followed")
     T.eq(eb.__font[2], 18); T.eq(eb.__font[3], "", "still none")
     T.eq(locked.__font[2], 9, "an untracked one is left alone")
@@ -1337,15 +1528,17 @@ T.test("game text: Daylight UI's own font families keep their font", function()
     local names = { "GameFontNormal" }
     _G.GetFonts = function() return names end
     local DUI = stub.Load()
+    DUI:Set("general", "font", "fira")
+    DUI:Set("general", "gameText", true)
+    local sv = DaylightUIDB
+    DUI = stub.Load({ login = false, before = function() DaylightUIDB = sv end })
     fontFamilies()
     local Style = DUI.Style
     local comfortaa = Style.FONTS.comfortaa.file
     local fam = Style.FontFamily(comfortaa, 12, "", 0.9)
     names[#names + 1] = fam:GetName()
-    DUI:Set("general", "font", "fira")
-    DUI:Set("general", "gameText", true)
+    stub.FireEvent("PLAYER_LOGIN")
     stub.RunTimers()
-    stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI"); stub.RunTimers()
     T.eq(GameFontNormal.face, Style.FONTS.fira.file, "the game's text takes the font")
     T.eq(fam:GetFont(), comfortaa, "the chat's family keeps its own")
     _G.STANDARD_TEXT_FONT, _G.DAMAGE_TEXT_FONT, _G.GetFonts, _G.GameFontNormal = nil, nil, nil, nil

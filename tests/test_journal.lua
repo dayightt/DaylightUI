@@ -896,3 +896,45 @@ T.test("journal on a controller: the game's see-through pieces under it are skip
     T.eq(next(marked), nil, "switched off: the game's pieces are stops again")
     _G.SmartNavigation_MarkFrameIgnored, _G.SmartNavigation_ClearIgnoreStatus = nil, nil
 end)
+
+-- The game's rule, taught here: with the controller on, a frame created in a
+-- fight under a window its controller code manages (the world map) makes that
+-- code rescan the window, and the rescan is refused. Moving a frame in with
+-- SetParent doesn't rescan.
+T.test("journal on a controller: lighting a quest in a fight builds the ring and area without a refused rescan", function()
+    local function padOn()
+        _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+        _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    end
+    local J = load(nil, { before = padOn })
+    local f = open(J)
+    local refused = 0
+    local create = _G.CreateFrame
+    local function underMap(parent)
+        while parent do
+            if parent == WorldMapFrame then return true end
+            parent = parent.GetParent and parent:GetParent()
+        end
+        return false
+    end
+    _G.CreateFrame = function(kind, name, parent, ...)
+        if InCombatLockdown() and underMap(parent) then refused = refused + 1 end
+        return create(kind, name, parent, ...)
+    end
+    stub.EnterCombat()
+    row(f, 3):GetScript("OnEnter")(row(f, 3))   -- the first quest lit, in the fight
+    _G.CreateFrame = create
+    T.truthy(J.ring, "a ring, even in a fight")
+    T.eq(J.ring:IsShown(), true)
+    T.eq(underMap(J.ring:GetParent()), true, "on the map's canvas")
+    if not J.noBlob then
+        T.truthy(J.blob, "and the quest's area")
+        T.eq(underMap(J.blob:GetParent()), true)
+    end
+    T.eq(refused, 0, "nothing created under the map in the fight")
+    stub.LeaveCombat()
+    row(f, 3):GetScript("OnLeave")(row(f, 3))
+    _G.GamepadMode, _G.InputUtil = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+

@@ -90,13 +90,20 @@ end
 -- several of these functions in a row).
 local pending = false
 function OC.Follow()
+    -- The game closed its bags (walking away from a merchant): tell it now, inside
+    -- its own close, while the NPC window is still listed. A frame later the bag
+    -- would be the last window listed and emptying the list gets refused.
+    local w = ns.window
+    if w and w:IsShown() and not OC.held and DUI.Pad and not OC.AnyOpen() then DUI.Pad.Leaving(w) end
     if pending then return end
     pending = true
     C_Timer.After(0, function()
         pending = false
         local f = ns.window
         if not f then return end
-        if OC.AnyOpen() or OC.held then f:Show()
+        if OC.AnyOpen() or OC.held then
+            f:Show()
+            if DUI.Pad then DUI.Pad.Returning(f) end   -- closed and reopened in one frame
         elseif DUI.Motion then DUI.Motion.Vanish(f)
         else f:Hide() end
         if f:IsShown() then OC.MoveTips() end

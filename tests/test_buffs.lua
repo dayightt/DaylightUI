@@ -124,6 +124,40 @@ T.test("buffs: every buff and debuff button slides in as the client shows it", f
     end
 end)
 
+-- A full refresh (the client's full UNIT_AURA, or a group's filters changed) hides
+-- every button and shows it again (ResetFrameAssignments releases them all), which
+-- would replay every slide at once: the whole bar bounced each time loot came in.
+T.test("buffs: a full aura refresh shows the icons again without sliding them in", function()
+    local BL = login({ before = auras })
+    stub.Advance(3)
+    local btn = group("priest").button
+    local dbtn = DaylightUIDebuffs.__groups.debuffs.button
+    local function reshow(b) stub.AuraVisible(b, false); stub.AuraVisible(b, true) end
+    local function sliding(b) return b.__shownAnims[1]:IsPlaying() end
+    reshow(btn)
+    T.eq(sliding(btn), true, "a new aura slides in")
+
+    stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true })
+    reshow(btn); reshow(dbtn)
+    T.eq(sliding(btn), false, "the client's full refresh: buffs stay put")
+    T.eq(sliding(dbtn), false, "debuffs too")
+
+    stub.Advance(1)
+    BL.Bar:ApplyGroups()
+    reshow(btn)
+    T.eq(sliding(btn), false, "a group's filters set again: no slide")
+
+    stub.Advance(1)
+    reshow(btn)
+    T.eq(sliding(btn), true, "a new aura after it slides again")
+
+    stub.SetRestriction("PvPMatch", true)
+    BL.Bar:ApplyGroups()
+    reshow(btn)
+    T.eq(#stub.errors, 0, "a locked button is left alone: " .. tostring(stub.errors[1]))
+    stub.SetRestriction("PvPMatch", false)
+end)
+
 T.test("buffs: setting or motion off tunes the slide to nothing, once auras are plain", function()
     local BL = login({ before = auras })
     local btn = group("priest").button
@@ -803,11 +837,11 @@ T.test("buffs: the time and count can wear their own outline, apart from General
     DaylightUI:Set("Buffs", "settings.textOutline", "thick")
     stub.RunTimers()
     W.Font(btn.Duration, 12)
-    T.eq(flags(btn.Duration), "THICKOUTLINE", "its own: thick while General has none")
+    T.eq(flags(btn.Duration), "THICKOUTLINE, SLUG", "its own: thick while General has none")
     DaylightUI:Set("Buffs", "settings.textOutline", "thin")
     stub.RunTimers()
     W.Font(btn.Count, 10)
-    T.eq(flags(btn.Count), "OUTLINE", "the stack count too")
+    T.eq(flags(btn.Count), "OUTLINE, SLUG", "the stack count too")
     DaylightUI:Set("Buffs", "settings.textOutline", "general")
     DaylightUI:Set("general", "textOutline", "OUTLINE")
     stub.RunTimers()

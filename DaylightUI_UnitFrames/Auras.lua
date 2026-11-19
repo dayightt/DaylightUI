@@ -732,6 +732,7 @@ function Auras.Apply(set, cfg)
         buff = set.buffs and pickedWant(set, "buff", cfg.buffFilter, cfg.buffs and cfg.maxBuffs or 0) or {},
     }
     set.rows = { debuff = cfg.debuffRows, buff = cfg.buffRows }
+    set.perRow = { debuff = tonumber(cfg.debuffPerRow) or 0, buff = tonumber(cfg.buffPerRow) or 0 }
     Auras.Limit(set)
 end
 
@@ -802,6 +803,18 @@ function Auras.Height(set, kind)
     return rows * s[2] + (rows - 1) * (gap + 4) + (textOf(set[kind .. "s"], kind)) * 0.6 + 2
 end
 
+-- How wide a row of n icons is.
+local function lineFor(set, kind, n)
+    local s, gap = rowDims(set, kind)
+    return math.max(1, n) * (s[1] + gap) - gap
+end
+
+-- The row's width when its icons per row are set, nil when it fits the frame.
+local function fixedLine(set, kind)
+    local n = set.perRow and set.perRow[kind] or 0
+    if n > 0 then return lineFor(set, kind, math.floor(n)) end
+end
+
 -- Above or below the frame (off a corner too). Rows there stack and push that
 -- side's reach.
 local function sideOf(spot)
@@ -854,14 +867,14 @@ function Auras.Place(set, frame, frameCfg)
             if paired and line then
                 local full = fw - box[sp.spot .. "InL"] - box[sp.spot .. "InR"]
                 if kind == "buff" then
-                    local s, gap = rowDims(set, "buff")
-                    local per = math.ceil(total(set.want.buff) / math.max(1, set.rows and set.rows.buff or 1))
-                    buffLine = math.min(math.floor(full / 2) - Auras.GAP, per * (s[1] + gap) - gap)
+                    buffLine = fixedLine(set, "buff") or math.min(math.floor(full / 2) - Auras.GAP,
+                        lineFor(set, "buff", math.ceil(total(set.want.buff) / math.max(1, set.rows and set.rows.buff or 1))))
                     line = buffLine
                 else
                     line = full - buffLine - 2 * Auras.GAP
                 end
             end
+            line = fixedLine(set, kind) or line
             local L = ns.Spots.Layout(sp.spot, sp.grow, box, { x = sp.x, y = sp.y, line = line })
             line = math.max(rowDims(set, kind)[1], L.line)
             -- The time sits on each icon's top edge, so leave room for it under the frame.

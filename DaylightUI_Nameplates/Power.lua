@@ -154,9 +154,9 @@ local function listen(p, on)
     if on == (p.powerEvents == true) then return end
     for event in pairs(Power.EVENTS) do
         if on then
-            pcall(p.RegisterUnitEvent, p, event, p.unit)
+            DUI.SafeCall(p.RegisterUnitEvent, p, event, p.unit)
         else
-            pcall(p.UnregisterEvent, p, event)
+            DUI.SafeCall(p.UnregisterEvent, p, event)
         end
     end
     p.powerEvents = on or nil

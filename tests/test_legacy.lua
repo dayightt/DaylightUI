@@ -259,6 +259,24 @@ T.test("legacy challenges: a click opens its steps; the track switch tracks it",
     clean()
 end)
 
+T.test("legacy challenges: a row with nothing more to show does not open", function()
+    local ns = load()
+    LW.state.untrackable = { [1103] = true }   -- no track switch to show either
+    open(ns, "challenges")
+    local C = ns.Challenges
+    C.Pick(11)
+    frame(2)
+    local function row(name)
+        for _, b in ipairs(shownOf(C.page.list, "ch")) do if b.ch.name == name then return b end end
+    end
+    local plain = row("Ice Is Nice")
+    T.falsy(plain.expandable, "no steps, nothing to track, one line: nothing to open")
+    plain:GetScript("OnClick")(plain)
+    T.isnil(C.opened, "a click opens nothing")
+    T.truthy(row("Portal Master").expandable, "steps: it opens")
+    clean()
+end)
+
 T.test("legacy challenges: one the game can't track has no track switch", function()
     local ns = load()
     LW.state.untrackable = { [1102] = true }
