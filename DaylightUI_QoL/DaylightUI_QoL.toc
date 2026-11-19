@@ -35,5 +35,8 @@ RepBanner.lua
 Campfire.lua
 Fishing.lua
 CursorRing.lua
+RollData.lua
+RollTally.lua
+RollSample.lua
 Options.lua
 Module.lua
