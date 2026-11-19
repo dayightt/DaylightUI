@@ -1,4 +1,4 @@
--- Find a group: category buttons and an activity button with Refresh on top, then the
+-- Find a group: category buttons, an activity drop-down and the roles in one filter panel, then the
 -- last search's listings in the game's order. The player's own first, then groups and
 -- solo players (reversed while in a group). Hovering a listing shows the whole party in
 -- a tooltip. Clicking picks it and opens a detail card beside the list (Social's,
@@ -21,21 +21,29 @@ local Browse = {}
 ns.Browse = Browse
 
 Browse.EDGE = 16
-Browse.CHIPS_Y = 10
-Browse.TOOLS_Y = 42
-Browse.TOP = 76
+Browse.PANEL_Y = 10      -- the filters' panel
+Browse.LABEL_Y = 22      -- the small word over the category buttons
+Browse.CHIPS_Y = 36      -- the category buttons' first row
+Browse.PANEL_PAD = 12    -- under the panel's last row
+Browse.TOP_GAP = 10      -- from the panel to the list
+Browse.TOP = 170         -- the list's top before the bar is laid out (one row of categories)
 Browse.SEEK = 0.8        -- s for the searching bar to fill, repeated
 Browse.SEEK_W = 140
 Browse.SPLIT_W = 800      -- list width from which groups and solo players sit side by side
 Browse.WAIT = 3          -- s to wait for the game's own search first
+Browse.LOST = 6          -- s without an answer to our own search before it counts as lost
 Browse.need = {}         -- role -> true: only the groups that still want it (or the players who offer it)
 Browse.EVENTS = { "LFG_LIST_SEARCH_RESULTS_RECEIVED", "LFG_LIST_SEARCH_FAILED", "LFG_LIST_SEARCH_RESULT_UPDATED",
     "LFG_LIST_AVAILABILITY_UPDATE", "GROUP_ROSTER_UPDATE", "LFG_LIST_ACTIVE_ENTRY_UPDATE" }
 
+-- The words over the buttons and the drop-down: the game's own where it has them.
+function Browse.CatWord() return _G.CATEGORY or L["Category"] end
+function Browse.ActWord() return _G.LFG_LIST_ACTIVITY or L["Activity"] end
+
 local function W() return DUI.Widgets end
 local function Data() return ns.Data end
 local function Card() return DUI.Social.Detail end
-local ROLE_ICON = 16   -- a role square's badge
+local ROLE_ICON, ROLE_GAP = 16, 6   -- a role button's badge, and the space before its word
 
 -- Searching
 
@@ -54,6 +62,8 @@ end
 -- Like LFGBrowse_DoSearch: every activity in the category at the player's level.
 -- Picking an activity only narrows what's shown (Browse.Render) and never searches
 -- again, because the game blocked a search from the menu's click.
+local received
+
 function Browse.Search(only)
     local cat = Browse.PickCategory()
     Browse.cat = cat
@@ -62,6 +72,12 @@ function Browse.Search(only)
     Browse.searching, Browse.failed, Browse.open = true, false, nil
     Browse.searched, Browse.ours, Browse.narrow, Browse.stale = true, true, only, nil
     Data().Ask("Search", cat, 0, 0, nil, false, nil, acts)
+    -- The game may let nothing through (a search it refused leaves no answer): stop waiting.
+    Browse.token = (Browse.token or 0) + 1
+    local mine = Browse.token
+    C_Timer.After(Browse.LOST, function()
+        if Browse.token == mine and Browse.searching and Browse.ours then received(true) end
+    end)
     Browse.Render()
 end
 
@@ -106,7 +122,7 @@ function Browse.Listed(acts)
     Browse.Render()
 end
 
-local function received(failed)
+function received(failed)
     Browse.searching = false
     Browse.failed = failed == true
     Browse.waitFor = (Browse.waitFor or 0) + 1
@@ -136,45 +152,81 @@ function Browse.Soon()
     end)
 end
 
--- Chips: categories, activity, Refresh
+-- The bar: the category buttons with their word over them (a click picks one and searches it),
+-- under them the Activity drop-down with its word, and under that the Roles buttons on the left
+-- and, on the right, Show all (while narrowed to the listing's activities), Reset and Refresh.
 
 -- Page width (the target width while the window is resizing).
 function Browse.Width(page)
     return page.stack:Width() + 2 * Win.Parts.EDGE
 end
 
--- Category buttons wrap to another row when out of room (long French names), like List
--- yourself. The activity row and list sit under however many rows that takes.
-local function layoutChips(page)
+-- width is the page's width while the window is being dragged (a size change), else the one
+-- it is going to.
+local function layoutBar(page, width)
     local W_ = W()
-    local x, y = Browse.EDGE, Browse.CHIPS_Y
-    local right = Browse.Width(page) - Browse.EDGE
+    local R = ns.Rows
+    local room = Browse.room or 0
+    local x = Browse.EDGE + R.PANEL_IN          -- inside the panel
+    local inner = (width or Browse.Width(page)) - room - 2 * Browse.EDGE - 2 * R.PANEL_IN
+    local h, gap = W_.CHIP_HEIGHT, W_.CHIP_GAP
+    page.panel:ClearAllPoints()
+    page.panel:SetPoint("TOPLEFT", page, "TOPLEFT", Browse.EDGE, -Browse.PANEL_Y)
+    page.panel:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - room, -Browse.PANEL_Y)
+    -- The category buttons wrap onto more rows as the window narrows.
+    page.catLabel:ClearAllPoints()
+    page.catLabel:SetPoint("TOPLEFT", page, "TOPLEFT", x + 2, -Browse.LABEL_Y)
+    local cx, cy = 0, Browse.CHIPS_Y
     for _, b in ipairs(page.chips) do
         if b:IsShown() then
             b.FitWidth(0)
-            local w = b:GetWidth()
-            if x > Browse.EDGE and x + w > right then
-                x, y = Browse.EDGE, y + W_.CHIP_HEIGHT + W_.CHIP_GAP
-            end
+            local w = math.min(b:GetWidth(), inner)
+            b:SetWidth(w)
+            if cx > 0 and cx + w > inner then cx, cy = 0, cy + h + gap end
             b:ClearAllPoints()
-            b:SetPoint("TOPLEFT", page, "TOPLEFT", x, -y)
-            x = x + w + W_.CHIP_GAP
+            b:SetPoint("TOPLEFT", page, "TOPLEFT", x + cx, -cy)
+            cx = cx + w + gap
         end
     end
-    local down = y - Browse.CHIPS_Y
-    Browse.down = down
+    -- Under them, the activity (its word over it), then the roles and the buttons.
+    local actLabelY = cy + h + 12
+    local actY = actLabelY + 14
+    local toolsY = actY + h + 10
+    page.actLabel:ClearAllPoints()
+    page.actLabel:SetPoint("TOPLEFT", page, "TOPLEFT", x + 2, -actLabelY)
+    page.act:SetWidth(math.min(inner, math.max(180, math.floor((inner - gap) / 2))))
     page.act:ClearAllPoints()
-    page.act:SetPoint("TOPLEFT", page, "TOPLEFT", Browse.EDGE, -(Browse.TOOLS_Y + down))
+    page.act:SetPoint("TOPLEFT", page, "TOPLEFT", x, -actY)
+    -- The roles and the three buttons share one row while they fit; when the window is too
+    -- narrow the buttons drop to a row of their own under the roles, and the panel grows.
+    local rolesW = (page.rolesLabel:GetStringWidth() or 0) + W_.CHIP_GAP * 2
+    for _, b in ipairs(page.needs) do
+        local tw = b.text:GetStringWidth()
+        if type(tw) ~= "number" or tw <= 0 then tw = 40 end
+        b:SetWidth(math.floor(tw + 2 * W_.CHIP_PAD + ROLE_ICON + ROLE_GAP + 0.5))
+        rolesW = rolesW + b:GetWidth() + W_.CHIP_GAP
+    end
+    local btnsW = page.refresh:GetWidth() + page.reset:GetWidth() + page.all:GetWidth() + 3 * W_.CHIP_GAP
+    local drop = rolesW + btnsW > inner and (W_.CHIP_HEIGHT + W_.CHIP_GAP) or 0
+    Browse.below = drop > 0
+    local panelH = toolsY + drop + h + Browse.PANEL_PAD - Browse.PANEL_Y
+    page.panel:SetHeight(panelH)
+    local listTop = Browse.PANEL_Y + panelH + Browse.TOP_GAP
     page.refresh:ClearAllPoints()
-    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - (Browse.room or 0), -(Browse.TOOLS_Y + down))
-    local after = page.refresh
-    for i = #page.needs, 1, -1 do
-        local b = page.needs[i]
+    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - R.PANEL_IN - room, -(toolsY + drop))
+    page.reset:ClearAllPoints()
+    page.reset:SetPoint("RIGHT", page.refresh, "LEFT", -W_.CHIP_GAP, 0)
+    page.all:ClearAllPoints()
+    page.all:SetPoint("RIGHT", page.reset, "LEFT", -W_.CHIP_GAP, 0)
+    page.rolesLabel:ClearAllPoints()
+    page.rolesLabel:SetPoint("LEFT", page, "TOPLEFT", x + 2, -(toolsY + h / 2))
+    local after = page.rolesLabel
+    for _, b in ipairs(page.needs) do
         b:ClearAllPoints()
-        b:SetPoint("RIGHT", after, "LEFT", -(after == page.refresh and W_.CHIP_GAP * 2 or W_.CHIP_GAP / 2), 0)
+        b:SetPoint("LEFT", after, "RIGHT", after == page.rolesLabel and W_.CHIP_GAP * 2 or W_.CHIP_GAP, 0)
         after = b
     end
-    page.stack.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", Win.Parts.EDGE, -(Browse.TOP + down))
+    page.stack.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", Win.Parts.EDGE, -listTop)
 end
 
 function Browse.PaintChips(page)
@@ -193,26 +245,41 @@ function Browse.PaintChips(page)
         b:Show()
     end
     for i = #cats + 1, #page.chips do page.chips[i]:Hide() end
-    layoutChips(page)
+    layoutBar(page)
     local narrow = not Browse.act and Browse.narrow
-    local name = Browse.act and Data().ActivityName(Browse.act)
+    local actName = Browse.act and Data().ActivityName(Browse.act)
     if narrow then
-        name = #narrow == 1 and Data().ActivityName(narrow[1]) or string.format(L["%d activities"], #narrow)
+        actName = #narrow == 1 and Data().ActivityName(narrow[1]) or string.format(L["%d activities"], #narrow)
     end
-    page.act.text:SetText(name or L["All activities"])
-    page.act.FitWidth(0)
-    page.act.SetActive(name ~= nil)
+    -- Through SetLabel so the word fades when the pick changes; the button keeps the width the
+    -- layout gave it.
+    local aw = page.act:GetWidth()
+    page.act.SetLabel(actName or L["All activities"])
+    page.act:SetWidth(aw)
+    page.act.SetActive(actName ~= nil)
     page.act:SetShown(Browse.cat ~= nil)
+    page.actLabel:SetShown(Browse.cat ~= nil)
     DUI.Motion.AlphaTo(page.all, (narrow and Browse.cat) and 1 or 0, DUI.Motion.FAST, true)
     page.all.SetOff(Browse.searching == true)
+    page.reset.SetOff(Browse.searching == true)
     page.refresh.SetOff(Browse.searching == true or Browse.cat == nil)
-    page.refresh.SetActive(Browse.stale == true)   -- the level filter changed since the search: searching again shows the change
+    -- Lit when what is set is not what was searched (the level filter changed): searching
+    -- again shows the change.
+    page.refresh.SetActive(Browse.stale == true)
 end
 
--- Category chip: search that category (clicking the lit one refreshes).
+-- A category button picks it and searches it (clicking the lit one refreshes).
 function Browse.PickCat(id)
-    if id ~= Browse.cat then Browse.act = nil end
+    if id ~= Browse.cat then Browse.act, Browse.narrow, Browse.open = nil, nil, nil end
     Browse.cat = id
+    Browse.Search()
+end
+
+-- Back to the first category with nothing narrowed, and search it at once.
+function Browse.Reset()
+    Browse.cat, Browse.act, Browse.narrow = nil, nil, nil
+    Browse.need = {}
+    for _, b in ipairs(Browse.page and Browse.page.needs or {}) do b.SetActive(false) end
     Browse.Search()
 end
 
@@ -232,7 +299,8 @@ function Browse.ActivityMenu(owner)
         end
     end
     local narrow = Browse.narrow
-    W().OpenMenu(owner, keys, values, Browse.act or (narrow and #narrow == 1 and narrow[1]) or 0, function(k) Browse.PickActivity(k ~= 0 and k or nil) end, 180)
+    W().OpenMenu(owner, keys, values, Browse.act or (narrow and #narrow == 1 and narrow[1]) or 0,
+        function(k) Browse.PickActivity(k ~= 0 and k or nil) end, owner:GetWidth())
 end
 
 -- The list
@@ -266,8 +334,9 @@ local function rowOf(s, r)
     if r.style then sub = sub .. "  ·  " .. hex(r.styleInk or Style.INK.LABEL) .. r.style .. "|r" end
     return ns.Rows.Row(s, { kind = "group", height = r.note and ns.Rows.GROUP_NOTE or ns.Rows.GROUP, result = r, sep = true,
         text = r.mine and (L["Your listing"] .. ": " .. r.text) or r.text,
-        color = Style.INK.VALUE,
-        sub = sub, note = r.note, roles = ns.Rows.Badges(r), age = ns.Rows.Age(r.age), dim = r.delisted,
+        color = Style.INK.VALUE, icon = ns.Rows.ClassIcon(r.leader.class),
+        sub = sub, note = r.note and (Win.Parts.Hex(Style.INK.LABEL) .. (LABEL_NOTE or L["Note"]) .. ":|r " .. r.note) or nil,
+        roles = ns.Rows.Badges(r), age = ns.Rows.Age(r.age), dim = r.delisted,
         picked = Browse.open == r.id,
         onEnter = function(b) ns.Rows.Tip(b, r) end,
         onClick = function() Browse.Toggle(r.id) end,
@@ -292,8 +361,8 @@ function Browse.Spec(r)
     add(L["Activity"], r.text, nil, 3)
     add(LEVEL or L["Level"], r.leader.level)
     add(L["Zone"], r.leader.zone)
-    add(L["Playstyle"], r.style, r.styleInk)
-    add(L["Note"], r.note)
+    add(GROUP_FINDER_FILTER_PLAYSTYLE or L["Playstyle"], r.style, r.styleInk)
+    add(LABEL_NOTE or L["Note"], r.note)
     -- Who is in, one to a line (a role badge, the name, the level), the open spots after them
     -- as rings of the role; a player listed alone shows the roles they can be.
     local people = {}
@@ -351,7 +420,7 @@ function Browse.Fit(page, p)
     local room = ns.Window.Span() * p
     Browse.room = room
     page.refresh:ClearAllPoints()
-    page.refresh:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Browse.EDGE - room, -(Browse.TOOLS_Y + (Browse.down or 0)))
+    layoutBar(page)
     page.stack.scroll:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -page.stack.side - room, Card().REST)
 end
 
@@ -447,26 +516,51 @@ end
 
 function Browse.Build(page)
     Browse.page = page
-    page.chips = {}
-    page.act = W().Button(page, L["All activities"], W().CHIP_HEIGHT)
-    page.act:SetScript("OnClick", function(self) Browse.ActivityMenu(self) end)
-    page.all = W().Button(page, L["Show all"], W().CHIP_HEIGHT)
-    page.all.FitWidth(0)
-    page.all:SetPoint("LEFT", page.act, "RIGHT", W().CHIP_GAP, 0)
-    page.all:SetScript("OnClick", function() Browse.ShowAll() end)
-    page.all:Hide()
+    page.panel = ns.Rows.Panel(page)
+    -- Its width is set by the bar's layout.
+    local function dropdown(onClick)
+        local b = W().MenuButton(page, "", W().CHIP_HEIGHT)
+        b.text:SetPoint("RIGHT", b.chevron, "LEFT", -6, 0)
+        b.text:SetWordWrap(false)
+        b:SetScript("OnClick", onClick)
+        return b
+    end
+    local function word(text)
+        local fs = Style.Text(page, Style.SIZE.small, "LEFT")
+        fs:SetText(text)
+        Style.InkText(fs, "LABEL")
+        return fs
+    end
+    page.catLabel = word(Browse.CatWord())
+    page.chips = {}   -- one button per category, made as they are first shown
+    page.actLabel = word(Browse.ActWord())
+    page.rolesLabel = word(_G.ROLES or L["Roles"])
+    page.act = dropdown(function(self) Browse.ActivityMenu(self) end)
     page.refresh = W().Button(page, REFRESH or L["Refresh"], W().CHIP_HEIGHT)
     page.refresh.FitWidth(80)
     page.refresh:SetScript("OnClick", function() Browse.Refresh() end)
-    -- Role squares: show only the groups that still want a tank, a healer or damage (any of
-    -- those lit), or the players who offer it.
+    page.reset = W().Button(page, _G.RESET or L["Reset"], W().CHIP_HEIGHT)
+    page.reset.FitWidth(80)
+    page.reset:SetScript("OnClick", function() Browse.Reset() end)
+    page.all = W().Button(page, L["Show all"], W().CHIP_HEIGHT)
+    page.all.FitWidth(0)
+    page.all:SetScript("OnClick", function() Browse.ShowAll() end)
+    page.all:Hide()
+    -- The buttons and the drop-down follow the window while it is dragged.
+    page:HookScript("OnSizeChanged", function(self, width) layoutBar(self, width) end)
+    -- Role buttons, each with its badge and its word as on List yourself: show only the
+    -- groups that still want a tank, a healer or damage (any of those lit), or the
+    -- players who offer it.
     page.needs = {}
     for i, role in ipairs(Data().ROLES) do
         local b = W().Button(page, "", W().CHIP_HEIGHT)
-        b:SetWidth(W().CHIP_HEIGHT + 6)
         b.icon = W().Role(b, ROLE_ICON)
-        b.icon:SetPoint("CENTER", b, "CENTER", 0, 0)
+        b.icon:SetPoint("LEFT", b, "LEFT", W().CHIP_PAD, 0)
         b.icon.Set(role)
+        b.text:SetText(ns.Listing.ROLE_WORD[role]())
+        b.text:ClearAllPoints()
+        b.text:SetPoint("LEFT", b.icon, "RIGHT", ROLE_GAP, 0)
+        b.text:SetJustifyH("LEFT")
         b.role = role
         b:SetScript("OnClick", function(self)
             Browse.need[role] = (not Browse.need[role]) or nil
@@ -522,10 +616,15 @@ end
 -- Lift-in order: chips, then visible rows.
 function Browse.Pieces(page)
     local out = {}
-    for _, b in ipairs(page.chips) do if b:IsShown() then out[#out + 1] = b end end
+    out[#out + 1] = page.panel
+    for _, b in ipairs(page.chips) do
+        if b:IsShown() then out[#out + 1] = b end
+    end
     out[#out + 1] = page.act
-    if page.all:IsShown() then out[#out + 1] = page.all end
+    out[#out + 1] = page.rolesLabel
     for _, b in ipairs(page.needs) do out[#out + 1] = b end
+    if page.all:IsShown() then out[#out + 1] = page.all end
+    out[#out + 1] = page.reset
     out[#out + 1] = page.refresh
     for i, p in ipairs(page.pieces or {}) do
         if i > 10 then break end

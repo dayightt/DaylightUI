@@ -1,12 +1,12 @@
--- List yourself page. The settings sit in one soft panel, a row to each with its accent
--- label beside it and a thin line between them; the note is one line; the current
--- listing shows in the header and footer rather than a separate box. Rows: role
--- buttons (the class's possible roles), playstyle (required for a new listing), the
--- note, New player friendly, category buttons, and the selected category's activities
--- to tick (16 max, levels in the game's trivial/difficult colors). Footer: List me
--- (Update while listed) and Clear (Unlist while listed). Rules from LFGListingMixin:
--- only the leader lists a group, a category that selects every activity needs a note,
--- and a group as big as an activity's max can't list for it.
+-- List yourself page. The filters sit in one soft panel, each a row of buttons with its
+-- word over it: playstyle (required for a new listing) and Sort by side by side while they
+-- fit, the category buttons, and the role buttons (the class's possible roles). Under it, the
+-- selected category's activities to tick (16 max, levels in the game's trivial/difficult
+-- colors); at the bottom, the note and the New player friendly switch. The current listing
+-- shows in the header and footer rather than a separate box. Footer: List me (Update while
+-- listed) and Clear (Unlist while listed). Rules from LFGListingMixin: only the leader lists a
+-- group, a category that selects every activity needs a note, and a group as big as an
+-- activity's max can't list for it.
 --
 -- The note box is the game's own LFGListingComment, because the client reads the
 -- listing note from it and addon code can't fill it. It's borrowed into this page while
@@ -23,13 +23,16 @@ local Listing = {}
 ns.Listing = Listing
 
 Listing.EDGE = 16
-Listing.NOTE_H = 30      -- one line; the game's box scrolls longer notes
-Listing.LABEL_W = 72     -- label column (Roles, Playstyle, Note)
+Listing.NOTE_H = 44      -- two lines; the game's box scrolls longer notes
+Listing.NPF_Y, Listing.NPF_H = 62, 22   -- the new-player switch's row, up from the window's bottom (over the footer)
+Listing.NOTE_Y = Listing.NPF_Y + Listing.NPF_H + 12   -- the note box's bottom
+Listing.LIST_AIR = 18    -- between the list and the note's word
+Listing.CELL_GAP = 24    -- between two filters on one row of the panel
 Listing.ROW_GAP = 10
 Listing.IN = 12          -- inside the settings panel, from its edges
 Listing.ROLE_ICON, Listing.ROLE_GAP = 16, 6   -- a role button's badge, and the space before its word
+Listing.DROP_LABEL = 14  -- room for the word over a row of buttons
 Listing.PANEL = { 1, 1, 1, 0.035 }
-Listing.RULE = { 1, 1, 1, 0.07 }
 Listing.COUNT_W = 60     -- the "0 / 255" counter on the note box's right
 Listing.MAX_NOTE = 255
 Listing.EVENTS = { "LFG_LIST_ACTIVE_ENTRY_UPDATE", "LFG_LIST_ROLE_UPDATE", "GROUP_ROSTER_UPDATE", "PARTY_LEADER_CHANGED",
@@ -60,6 +63,7 @@ function Listing.Load()
     Listing.npf = e.newPlayerFriendly == true
     local style = Data().Plain(e.generalPlaystyle)
     if Data().PlaystyleWord(style) then Listing.style = style end
+    Listing.voice = Data().Plain(e.voiceMode)
     return true
 end
 
@@ -82,6 +86,7 @@ function Listing.Changed()
     for _, id in ipairs(ids) do if not was[id] then return true end end
     if (e.newPlayerFriendly == true) ~= (Listing.npf == true) then return true end
     if Data().Plain(e.generalPlaystyle) ~= Listing.style then return true end
+    if (Data().Plain(e.voiceMode) or 0) ~= (Listing.voice or 0) then return true end
     local note = Data().Plain(e.comment)
     if type(note) == "string" and note ~= Listing.NoteText() then return true end
     return false
@@ -132,7 +137,8 @@ function Listing.Post()
     local ids = picked()
     local e = Data().Entry()
     if e and #ids == 0 then return Listing.Unlist() end
-    local spec = { activityIDs = ids, newPlayerFriendly = Listing.npf == true, generalPlaystyle = Listing.style }
+    local spec = { activityIDs = ids, newPlayerFriendly = Listing.npf == true, generalPlaystyle = Listing.style,
+        voiceMode = Listing.voice or 0 }
     Listing.posting = e and "update" or "create"
     Data().Ask(e and "UpdateListing" or "CreateListing", spec)
     Data().SetRoles(Listing.Roles())
@@ -203,6 +209,13 @@ function Listing.PickStyle(id)
     Listing.Paint()
 end
 
+-- Voice chat (kept for the session; a listing loads its own).
+function Listing.PickVoice(mode)
+    if not Data().CanEdit() then return end
+    Listing.voice = mode
+    Listing.Paint()
+end
+
 -- The note: the game's box, borrowed
 
 local home   -- the game's original spot: { parent, points }
@@ -233,6 +246,17 @@ function Listing.LendNote(page)
         end
     end
     Listing.FitNote()
+    -- The game's own fonts are tiny for what you type and its placeholder ("More details about your
+    -- group (optional)") is faint: what you type in the body size, the placeholder a little smaller
+    -- in the label color.
+    local eb, ins = sf.EditBox, sf.EditBox.Instructions
+    Style.DressText(eb, Style.SIZE.body, { outline = "" })
+    if type(ins) == "table" and ins.SetFont then
+        if not Listing.hintColor and ins.GetTextColor then Listing.hintColor = { ins:GetTextColor() } end
+        Style.DressText(ins, Style.SIZE.small, { outline = "" })
+        local c = Style.INK.LABEL
+        ins:SetTextColor(c[1], c[2], c[3], 0.9)
+    end
     if not Listing.hooked then
         Listing.hooked = true
         sf.EditBox:HookScript("OnTextChanged", function() Listing.NoteChanged() end)
@@ -258,6 +282,8 @@ function Listing.ReturnNote()
     for _, p in ipairs(home.points) do sf:SetPoint(unpack(p)) end
     for r in pairs(lentArt) do r:SetAlpha(1) end
     lentArt = {}
+    local was, ins = Listing.hintColor, sf.EditBox and sf.EditBox.Instructions
+    if type(ins) == "table" and was and was[1] then ins:SetTextColor(was[1], was[2], was[3], was[4]) end
     Listing.lent = nil
 end
 
@@ -298,11 +324,11 @@ end
 
 -- A row of buttons from (x0, y), wrapping to a second line when out of room. Returns
 -- the height used.
-local function layoutRow(list, y, x0, room, pad)
+local function layoutRow(list, y, x0, room, pad, width)
     x0 = x0 or Listing.EDGE
     local x, top = x0, y
     local page = Listing.page
-    local wide = (page:GetWidth() or 0) + (Win.GoalGrowth and Win.GoalGrowth(page) or 0)
+    local wide = width or ((page:GetWidth() or 0) + (Win.GoalGrowth and Win.GoalGrowth(page) or 0))
     local right = wide - Listing.EDGE - (pad or 0) - (room or 0)
     for _, b in ipairs(list) do
         if b:IsShown() then
@@ -340,12 +366,61 @@ local function label(page, key, text, y)
     return fs
 end
 
--- Top part: roles, playstyle and note (labels on the left), the switch, and the category
--- buttons as the list's heading. The listing itself shows in the header ("Listed: ...")
--- and footer (Update / Unlist). Returns where the activities start.
-local function top(page)
+-- A word over a control, at (x, y) from the page's top left.
+local function above(page, key, text, x, y)
+    local fs = page[key]
+    if text then fs:SetText(text) end
+    Style.InkText(fs, "LABEL")
+    fs:ClearAllPoints()
+    fs:SetPoint("TOPLEFT", page, "TOPLEFT", x + 2, -y)
+    fs:Show()
+    return fs
+end
+
+-- A row of buttons for a list of choices (playstyles, categories, sorts), made as they are first
+-- needed. items: { { id, text, lit } }; onPick(id) is what a click does; off dims them.
+local function choiceChips(page, key, items, onPick, off)
+    local list = page[key]
+    for i, it in ipairs(items) do
+        local b = list[i]
+        if not b then
+            b = pickButton(page, function(self) self.pick(self.id) end)
+            list[i] = b
+        end
+        b.id, b.pick = it.id, onPick
+        b.text:SetText(it.text)
+        b.SetActive(it.lit == true)
+        b.SetOff(off == true)
+        b:Show()
+    end
+    for i = #items + 1, #list do list[i]:Hide() end
+    return list
+end
+
+-- The width a row of buttons takes on one line.
+local function rowWidth(list)
+    local w, n = 0, 0
+    for _, b in ipairs(list) do
+        if b:IsShown() then
+            local tw = b.text:GetStringWidth()
+            if type(tw) ~= "number" or tw <= 0 then tw = 60 end
+            w = w + math.floor(tw + 2 * W().CHIP_PAD + (b.extraW or 0) + 0.5)
+            n = n + 1
+        end
+    end
+    return w + math.max(0, n - 1) * W().CHIP_GAP
+end
+
+-- Top part, one panel of filters, each a row of buttons with its word over it: playstyle and Sort
+-- by (side by side while they fit), category (wrapping), then the roles. The note and the
+-- new-player switch are the window's last blocks. The listing itself shows in the header
+-- ("Listed: ...") and footer (Update / Unlist). Returns where the activities start.
+-- width is the page's width while the window is being dragged (a size change), else the one it
+-- is going to.
+local function top(page, width)
     local y = 10
-    local x0 = Listing.EDGE + Listing.IN + Listing.LABEL_W
+    local wide = width or ((page:GetWidth() or 0) + (Win.GoalGrowth and Win.GoalGrowth(page) or 0))
+    local fx = Listing.EDGE + Listing.IN
     local canEdit = Data().CanEdit()
     page.canEdit = canEdit
     page.locked:SetShown(not canEdit)
@@ -357,22 +432,57 @@ local function top(page)
     end
     local y0 = y
     y = y + Listing.IN
-    local rule = 0
-    -- A thin line between two rows of the panel, in the middle of the gap under the one above.
-    local function divide(at)
-        rule = rule + 1
-        local t = page.rules[rule]
-        t:ClearAllPoints()
-        t:SetPoint("TOPLEFT", page, "TOPLEFT", Listing.EDGE + Listing.IN, -at)
-        t:SetPoint("TOPRIGHT", page, "TOPRIGHT", -(Listing.EDGE + Listing.IN), -at)
-        t:Show()
+    local inner = math.max(1, wide - 2 * fx)
+    local gap = W().CHIP_GAP
+    -- The choices, each as a row of buttons.
+    local styles = {}
+    for _, id in ipairs(Data().PLAYSTYLES) do
+        local word = Data().PlaystyleWord(id)
+        if word then styles[#styles + 1] = { id = id, text = word, lit = Listing.style == id } end
     end
-    for _, t in ipairs(page.rules) do t:Hide() end
-    -- Roles: solo, the ones listed with; in a group, the single role (leader or not). All
-    -- three are offered to everyone like the game's page; ones not recommended for the
-    -- class are just dimmer, with the game's text on hover.
+    local cats = {}
+    for _, c in ipairs(Data().Categories()) do cats[#cats + 1] = { id = c.id, text = c.name, lit = c.id == Listing.cat } end
+    local sorts = {}
+    for _, k in ipairs(Data().SORTS) do sorts[#sorts + 1] = { id = k, text = Listing.SORT_WORD[k](), lit = k == Data().SortMode() } end
+    choiceChips(page, "styleChips", styles, Listing.PickStyle, not canEdit)
+    local voices, modes = {}, Data().VoiceModes()
+    for _, m in ipairs(modes) do voices[#voices + 1] = { id = m, text = Data().VOICE_WORD[m](), lit = (Listing.voice or 0) == m } end
+    choiceChips(page, "voiceChips", voices, Listing.PickVoice, not canEdit)
+    page.voiceHead:SetShown(canEdit and #modes > 0)
+    for _, b in ipairs(page.voiceChips) do if not canEdit then b:Hide() end end
+    choiceChips(page, "catChips", cats, Listing.PickCat)
+    choiceChips(page, "sortChips", sorts, Listing.PickSort)
+    page.styleHead:SetShown(canEdit)
+    for _, b in ipairs(page.styleChips) do if not canEdit then b:Hide() end end
+    -- One row of the panel: its cells (word, buttons) side by side. A cell is { head, chips }.
+    local function place(cells)
+        local x, tall = fx, 0
+        for _, c in ipairs(cells) do
+            above(page, c[1], nil, x, y)
+            local h = Listing.DROP_LABEL + layoutRow(c[2], y + Listing.DROP_LABEL, x, 0, Listing.IN, wide)
+            tall = math.max(tall, h)
+            x = x + rowWidth(c[2]) + Listing.CELL_GAP
+        end
+        y = y + tall + Listing.ROW_GAP
+    end
+    local style, sort = { "styleHead", page.styleChips }, { "sortByLabel", page.sortChips }
+    if canEdit and rowWidth(page.styleChips) + Listing.CELL_GAP + rowWidth(page.sortChips) <= inner then
+        place({ style, sort })
+    else
+        if canEdit then place({ style }) end
+        place({ sort })
+    end
+    local cat, voice = { "catLabel", page.catChips }, { "voiceHead", page.voiceChips }
+    if canEdit and #modes > 0 and rowWidth(page.catChips) + Listing.CELL_GAP + rowWidth(page.voiceChips) <= inner then
+        place({ cat, voice })
+    else
+        place({ cat })
+        if canEdit and #modes > 0 then place({ voice }) end
+    end
+    -- Roles, under the filters: solo, the ones listed with; in a group, the single role (leader
+    -- or not). All three are offered to everyone like the game's page; ones not recommended for
+    -- the class are just dimmer, with the game's text on hover.
     local grouped = Data().Grouped()
-    label(page, "rolesHead", L["Roles"], y)
     local roles, advised, mine = Listing.Roles(), Data().Recommended(), Data().GroupRole()
     for i, role in ipairs(Data().ROLES) do
         local b = page.roleChips[i]
@@ -386,77 +496,26 @@ local function top(page)
         b.icon:SetAlpha((b.notAdvised and not lit) and 0.5 or 1)
         if b.notAdvised and not lit then Style.InkText(b.text, "OFF") end
     end
-    y = y + layoutRow(page.roleChips, y, x0, 0, Listing.IN) + Listing.ROW_GAP
-    divide(y - Listing.ROW_GAP / 2)
-    -- Playstyle: one of four, required to list (for whoever can edit the listing).
-    page.styleHead:SetShown(canEdit)
-    for i, b in ipairs(page.styleChips) do
-        local word = Data().PlaystyleWord(Data().PLAYSTYLES[i])
-        b.text:SetText(word or "")
-        b.SetActive(Listing.style == Data().PLAYSTYLES[i])
-        b:SetShown(canEdit and word ~= nil)
-    end
-    if canEdit then
-        label(page, "styleHead", L["Playstyle"], y)
-        y = y + layoutRow(page.styleChips, y, x0, 0, Listing.IN) + Listing.ROW_GAP
-        divide(y - Listing.ROW_GAP / 2)
-    end
-    label(page, "noteHead", L["Note"], y + (Listing.NOTE_H - W().CHIP_HEIGHT) / 2)
-    page.noteBox:ClearAllPoints()
-    page.noteBox:SetPoint("TOPLEFT", page, "TOPLEFT", x0, -y)
-    page.noteBox:SetPoint("TOPRIGHT", page, "TOPRIGHT", -(Listing.EDGE + Listing.IN), -y)
-    y = y + Listing.NOTE_H + Listing.ROW_GAP + 2
-    divide(y - Listing.ROW_GAP / 2 - 1)
-    local npfH = page.npf:GetHeight()
-    if type(npfH) ~= "number" or npfH <= 0 then npfH = 18 end
-    page.npfText:ClearAllPoints()
-    page.npfText:SetPoint("LEFT", page, "TOPLEFT", Listing.EDGE + Listing.IN, -(y + npfH / 2))
-    page.npf:ClearAllPoints()
-    page.npf:SetPoint("TOPRIGHT", page, "TOPRIGHT", -(Listing.EDGE + Listing.IN), -y)
+    above(page, "rolesHead", ROLES or L["Roles"], fx, y)
+    y = y + Listing.DROP_LABEL
+    y = y + layoutRow(page.roleChips, y, fx, 0, Listing.IN, wide) + Listing.IN
     page.npf.SetOn(Listing.npf == true)
     page.npf:SetEnabled(canEdit)
-    y = y + npfH + Listing.IN
     -- The panel behind the settings; after an update, a shine sweeps it.
     page.saved:ClearAllPoints()
     page.saved:SetPoint("TOPLEFT", page, "TOPLEFT", Listing.EDGE, -y0)
     page.saved:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Listing.EDGE, -y0)
     page.saved:SetHeight(math.max(1, y - y0))
     page.saved.shine:SetHeight(math.max(1, y - y0))
-    y = y + 12   -- air between the panel and the categories
-    -- Categories: the list's heading.
-    local cats = Data().Categories()
-    for i, c in ipairs(cats) do
-        local b = page.catChips[i]
-        if not b then
-            b = pickButton(page, function(self) Listing.PickCat(self.cat) end)
-            page.catChips[i] = b
-        end
-        b.cat = c.id
-        b.text:SetText(c.name)
-        b.SetActive(c.id == Listing.cat)
-        b:Show()
-    end
-    for i = #cats + 1, #page.catChips do page.catChips[i]:Hide() end
-    -- Sort (level or A to Z) to the right of the categories, like Who.
-    local word = Listing.SORT_WORD[Data().SortMode()]()
-    page.sort.text:SetText(string.format(L["Sort: %s"], word))
-    page.sort.FitWidth(0)
-    page.sort:ClearAllPoints()
-    page.sort:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Listing.EDGE, -y)
-    y = y + layoutRow(page.catChips, y, nil, page.sort:GetWidth() + W().CHIP_GAP) + 4
+    y = y + 12   -- air between the panel and the activities
     return y
 end
 
 Listing.SORT_WORD = { level = function() return LEVEL or L["Level"] end, name = function() return NAME or L["Name"] end }
 
--- Only two orders, so a click flips between them (no menu).
-function Listing.ToggleSort()
-    local sorts, cur = Data().SORTS, Data().SortMode()
-    local nextKey = sorts[1]
-    for i, k in ipairs(sorts) do
-        if k == cur then nextKey = sorts[i % #sorts + 1] end
-    end
-    DUI:Set("GroupFinder", "activitySort", nextKey)
+function Listing.PickSort(mode)
+    if mode == Data().SortMode() then return end
+    DUI:Set("GroupFinder", "activitySort", mode)
     Listing.Render()
 end
 
@@ -558,15 +617,12 @@ function Listing.Build(page)
     page.saved.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
     page.saved.fill:SetVertexColor(Listing.PANEL[1], Listing.PANEL[2], Listing.PANEL[3], Listing.PANEL[4])
     page.saved.fill:SetAllPoints(page.saved)
-    page.rules = {}
-    for i = 1, 3 do
-        local t = page:CreateTexture(nil, "BORDER")
-        t:SetTexture("Interface\\Buttons\\WHITE8X8")
-        t:SetVertexColor(Listing.RULE[1], Listing.RULE[2], Listing.RULE[3], Listing.RULE[4])
-        t:SetHeight(1)
-        t:Hide()
-        page.rules[i] = t
-    end
+    page.saved.edge = page.saved:CreateTexture(nil, "BORDER")
+    page.saved.edge:SetTexture("Interface\\Buttons\\WHITE8X8")
+    page.saved.edge:SetWidth(ns.Rows.EDGE_W)
+    page.saved.edge:SetPoint("TOPLEFT", page.saved, "TOPLEFT", 0, 0)
+    page.saved.edge:SetPoint("BOTTOMLEFT", page.saved, "BOTTOMLEFT", 0, 0)
+    Style.PaintAccent(page.saved.edge, 0.9)
     page.saved.shine = page.saved:CreateTexture(nil, "OVERLAY", nil, 7)
     page.saved.shine:SetTexture("Interface\\Buttons\\WHITE8X8")
     page.saved.shine:SetBlendMode("ADD")
@@ -592,15 +648,15 @@ function Listing.Build(page)
         b:HookScript("OnLeave", function() W().HideTooltip() end)
         page.roleChips[i] = b
     end
-    page.styleHead = Style.Text(page, Style.SIZE.small, "LEFT")
-    page.styleChips = {}
-    for i, id in ipairs(Data().PLAYSTYLES) do
-        local b = pickButton(page, function() Listing.PickStyle(id) end)
-        page.styleChips[i] = b
-    end
     -- Note box: same look as W.Input, with the game's box inside.
     page.noteBox = CreateFrame("Frame", nil, page)
     page.noteBox:SetHeight(Listing.NOTE_H)
+    -- The window's last block, above the footer: its word over it, the box under, as wide as the panel.
+    page.noteBox:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Listing.EDGE, Listing.NOTE_Y)
+    page.noteBox:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -Listing.EDGE, Listing.NOTE_Y)
+    page.noteHead:SetText(LABEL_NOTE or L["Note"])
+    Style.InkText(page.noteHead, "LABEL")
+    page.noteHead:SetPoint("BOTTOMLEFT", page.noteBox, "TOPLEFT", 2, 3)
     page.noteBg = W().Round(page.noteBox, "BACKGROUND")
     page.noteBg:SetAllPoints(page.noteBox)
     W().Tint(page.noteBg, C.control)
@@ -618,10 +674,10 @@ function Listing.Build(page)
     page.noteMissing:SetText(L["The note box shows after the fight."])
     Style.InkText(page.noteMissing, "OFF")
     page.noteMissing:Hide()
-    page.npfText = Style.Text(page, Style.SIZE.small, "LEFT")   -- like the other labels of the panel
-    page.npfText:SetText(LFG_LIST_NEW_PLAYER_FRIENDLY or L["New player friendly"])
-    Style.InkText(page.npfText, "LABEL")
+    -- The new-player switch, under the note: the switch with its short word beside it, and the
+    -- game's own sentence as the tooltip of either.
     page.npf = W().Switch(page)
+    page.npf:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Listing.EDGE, Listing.NPF_Y)
     page.npf:SetScript("OnClick", function()
         Listing.npf = not Listing.npf
         -- A game setting, so it's written out of a fight only.
@@ -632,21 +688,57 @@ function Listing.Build(page)
         page.npf.SetOn(Listing.npf)
         Listing.PaintFooter()
     end)
-    page.catChips = {}
-    page.sort = W().Button(page, L["Sort"], W().CHIP_HEIGHT)
-    page.sort:SetScript("OnClick", function() Listing.ToggleSort() end)
-    page.stack = Win.Parts.Stack(page, { top = 200, bottom = 74 })
+    page.npfText = Style.Text(page, Style.SIZE.small, "LEFT")
+    page.npfText:SetText(LFG_LIST_NEW_PLAYER_FRIENDLY or L["New player friendly"])
+    page.npfText:SetPoint("LEFT", page.npf, "RIGHT", 10, 0)
+    page.npfText:SetJustifyH("LEFT")
+    Style.InkText(page.npfText, "LABEL")
+    local function npfTip(owner)
+        W().Tooltip(owner, LFG_LIST_NEW_PLAYER_FRIENDLY or L["New player friendly"],
+            LFG_LIST_NEW_PLAYER_FRIENDLY_TOOLTIP or L["Indicates that you accept new players in your group and that you are willing to guide them."])
+    end
+    page.npf:HookScript("OnEnter", npfTip)
+    page.npf:HookScript("OnLeave", function() W().HideTooltip() end)
+    page.npfHit = CreateFrame("Frame", nil, page)
+    page.npfHit:SetPoint("TOPLEFT", page.npfText, "TOPLEFT", -2, 2)
+    page.npfHit:SetPoint("BOTTOMRIGHT", page.npfText, "BOTTOMRIGHT", 2, -2)
+    page.npfHit:EnableMouse(true)
+    page.npfHit:SetScript("OnEnter", npfTip)
+    page.npfHit:SetScript("OnLeave", function() W().HideTooltip() end)
+    -- Each filter's word, and the lists its buttons go in (made as they are first needed).
+    local function word(key, text)
+        local fs = Style.Text(page, Style.SIZE.small, "LEFT")
+        fs:SetText(text)
+        Style.InkText(fs, "LABEL")
+        page[key] = fs
+    end
+    word("styleHead", GROUP_FINDER_FILTER_PLAYSTYLE or L["Playstyle"])
+    word("catLabel", _G.CATEGORY or L["Category"])
+    word("voiceHead", _G.VOICE_CHAT or L["Voice chat"])
+    word("sortByLabel", _G.WHO_SORT_LABEL or L["Sort by"])
+    page.styleChips, page.catChips, page.sortChips, page.voiceChips = {}, {}, {}, {}
+    page.stack = Win.Parts.Stack(page, { top = 200, bottom = Listing.NOTE_Y + Listing.NOTE_H + Listing.DROP_LABEL + Listing.LIST_AIR })
     page.note = Style.Text(page, Style.SIZE.body, "CENTER")
-    page.note:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 40, 110)
-    page.note:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -40, 110)
+    page.note:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", 40, Listing.NOTE_Y + Listing.NOTE_H + Listing.DROP_LABEL + 40)
+    page.note:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -40, Listing.NOTE_Y + Listing.NOTE_H + Listing.DROP_LABEL + 40)
     Style.InkText(page.note, "LABEL")
     page.note:Hide()
     page.why = Style.Text(page, Style.SIZE.small, "LEFT")
-    page.why:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Listing.EDGE, 56)
-    page.why:SetPoint("RIGHT", page, "RIGHT", -Listing.EDGE, 0)
+    -- On the switch's row, at the right: the reason List me is off.
+    page.why:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -Listing.EDGE, Listing.NPF_Y + 4)
+    page.why:SetJustifyH("RIGHT")
+    page.why:SetWidth(280)
     Style.InkText(page.why, "WARN")
     page.foot = Win.Parts.Footer(page)
     page:HookScript("OnHide", Listing.ReturnNote)
+    -- The buttons, the filters and the switch's sentence follow the window while it is dragged
+    -- (the layout otherwise goes by the width it is going to have).
+    page:HookScript("OnSizeChanged", function(self, width)
+        if not self:IsVisible() then return end
+        local y = top(self, width)
+        self.stack.scroll:SetPoint("TOPLEFT", self, "TOPLEFT", Win.Parts.EDGE, -y)
+        Listing.FitNote()
+    end)
     for _, e in ipairs(Listing.EVENTS) do
         DUI.RegisterEvent(e, function(event, ...)
             if event == "LFG_LIST_ACTIVE_ENTRY_UPDATE" then return Listing.EntryChanged(...) end
@@ -673,10 +765,10 @@ end
 function Listing.Pieces(page)
     local out = {}
     for _, b in ipairs(page.roleChips) do if b:IsShown() then out[#out + 1] = b end end
-    for _, b in ipairs(page.styleChips) do if b:IsShown() then out[#out + 1] = b end end
+    for _, list in ipairs({ page.styleChips, page.voiceChips, page.catChips, page.sortChips }) do
+        for _, b in ipairs(list) do if b:IsShown() then out[#out + 1] = b end end
+    end
     out[#out + 1] = page.noteBox
-    for _, b in ipairs(page.catChips) do if b:IsShown() then out[#out + 1] = b end end
-    out[#out + 1] = page.sort
     for i, p in ipairs(page.pieces or {}) do
         if i > 8 then break end
         out[#out + 1] = p

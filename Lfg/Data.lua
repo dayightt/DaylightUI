@@ -291,6 +291,25 @@ function Data.PlaystyleWord(id)
     return DUI.L[({ "Learning", "Relaxed", "Competitive", "Carry Offered" })[id]]
 end
 
+-- Voice chat (Enum.LFGEntryVoiceMode): what a listing says its group talks on. The words are the
+-- game's own (VOICE_CHAT_MODE_*). nil when the client has no voice mode at all.
+Data.VOICE_WORD = {
+    [0] = function() return _G.VOICE_CHAT_MODE_NONE or DUI.L["None"] end,
+    [1] = function() return _G.VOICE_CHAT_MODE_LEGACY or DUI.L["Voice chat (Legacy)"] end,
+    [2] = function() return _G.VOICE_CHAT_MODE_DISCORD or DUI.L["Voice chat (Discord)"] end,
+    [3] = function() return _G.VOICE_CHAT_MODE_CUSTOM or DUI.L["Other"] end,
+}
+
+function Data.VoiceModes()
+    local e = type(Enum) == "table" and Enum.LFGEntryVoiceMode
+    if type(e) ~= "table" then return {} end
+    local out = {}
+    for _, v in ipairs({ e.None, e.Legacy, e.Discord, e.Custom }) do
+        if type(v) == "number" and Data.VOICE_WORD[v] then out[#out + 1] = v end
+    end
+    return out
+end
+
 -- Playstyle color by meaning: easygoing green, serious soft red, carry gold. Unknown
 -- ones get none.
 local STYLE_INK = { "GOOD", "GOOD", "DAMAGE", "MONEY" }

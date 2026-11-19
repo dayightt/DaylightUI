@@ -200,12 +200,13 @@ local function entryInfo()
     local e = S().entry
     if not e then return nil end
     return { activityIDs = { unpack(e.activityIDs) }, comment = e.comment, newPlayerFriendly = e.newPlayerFriendly,
-        generalPlaystyle = e.generalPlaystyle, duration = 1800 }
+        generalPlaystyle = e.generalPlaystyle, voiceMode = e.voiceMode or 0, duration = 1800 }
 end
 
 local function setEntry(t, created)
     local style = (t.generalPlaystyle and t.generalPlaystyle ~= 0) and t.generalPlaystyle or (S().entry and S().entry.generalPlaystyle)
-    S().entry = { activityIDs = { unpack(t.activityIDs) }, comment = LW.Note(), newPlayerFriendly = t.newPlayerFriendly == true, generalPlaystyle = style }
+    S().entry = { activityIDs = { unpack(t.activityIDs) }, comment = LW.Note(), newPlayerFriendly = t.newPlayerFriendly == true, generalPlaystyle = style,
+        voiceMode = t.voiceMode or 0 }
     local me = { id = 99, activityIDs = S().entry.activityIDs, age = 0, comment = S().entry.comment, hasSelf = true, generalPlaystyle = style,
         members = { { name = "Sunwalker", classFilename = "SHAMAN", level = 14, assignedRole = "DAMAGER", lfgRoles = S().roles } } }
     for i, r in ipairs(S().results) do if r.id == 99 then table.remove(S().results, i); break end end
@@ -336,7 +337,7 @@ local function install()
             if not stub.HardwareOnly("C_LFGList.Search") then return end
             record("Search", cat, acts)
             S().searched = { cat = cat, acts = acts }
-            C_Timer.After(0, function() stub.FireEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED") end)
+            if not S().silentSearch then C_Timer.After(0, function() stub.FireEvent("LFG_LIST_SEARCH_RESULTS_RECEIVED") end) end
         end,
         GetFilteredSearchResults = function()
             local q = S().searched
@@ -373,17 +374,45 @@ local function install()
     }
     local who = keep(_G, "C_FriendList")
     _G.C_FriendList = setmetatable({
-        SendWho = function(text, origin)
+        SendWho = function(text, origin, filters)
             if not stub.HardwareOnly("C_FriendList.SendWho") then return end
-            record("SendWho", text, origin)
-            C_Timer.After(0, function() stub.FireEvent("WHO_LIST_UPDATE") end)
+            record("SendWho", text, origin, filters)
+            if not S().silentWho then C_Timer.After(0, function() stub.FireEvent("WHO_LIST_UPDATE") end) end
         end,
         GetNumWhoResults = function() return #LW.WHO, #LW.WHO end,
+        -- The game's own race filter list (what its who page's race menu shows).
+        GetWhoRaceFilters = function()
+            return { { name = "Orc", ID = 2 }, { name = "Night Elf", ID = 4 }, { name = "Human", ID = 1 } }
+        end,
         GetWhoInfo = function(i) return LW.WHO[i] end,
         SetWhoToUi = function(on) record("SetWhoToUi", on); S().whoToUi = on end,
         SortWho = function(mode, up) record("SortWho", mode, up) end,
     }, { __index = who or nil })
+    Enum.LFGEntryVoiceMode = Enum.LFGEntryVoiceMode or { None = 0, Legacy = 1, Discord = 2, Custom = 3 }
     Enum.SocialWhoOrigin = Enum.SocialWhoOrigin or { Unknown = 0, Social = 1, Chat = 2, Item = 3 }
+    -- The game's world map (zones for Who's zone filter) and its classes.
+    Enum.UIMapType = Enum.UIMapType or { Cosmic = 0, World = 1, Continent = 2, Zone = 3 }
+    _G.C_Map = _G.C_Map or {}
+    local maps = {
+        [947] = { { mapID = 1414, name = "Kalimdor", mapType = 2 }, { mapID = 1415, name = "Eastern Kingdoms", mapType = 2 },
+                  { mapID = 1500, name = "Zephras", mapType = 3 } },
+        [1414] = { { mapID = 1411, name = "Durotar", mapType = 3 }, { mapID = 1454, name = "Orgrimmar", mapType = 3 } },
+        [1415] = { { mapID = 1429, name = "Elwynn Forest", mapType = 3 } },
+    }
+    C_Map.GetMapChildrenInfo = function(id, kind)
+        local out = {}
+        for _, m in ipairs(maps[id] or {}) do if kind == nil or m.mapType == kind then out[#out + 1] = m end end
+        return out
+    end
+    _G.C_CreatureInfo = _G.C_CreatureInfo or {}
+    local classes = { [1] = { "Warrior", "WARRIOR" }, [8] = { "Mage", "MAGE" }, [9] = { "Warlock", "WARLOCK" } }
+    C_CreatureInfo.GetClassInfo = function(id)
+        local c = classes[id]
+        return c and { className = c[1], classFile = c[2], classID = id } or nil
+    end
+    -- The classes the game's own who filter lists; 3 is one the client has no info for.
+    _G.C_SpecializationInfo = _G.C_SpecializationInfo or {}
+    C_SpecializationInfo.GetAllClassIDs = function() return { 1, 3, 8, 9 } end
 end
 
 -- spec: results (default LW.Sample()), level (14), roles, enabled (the module's
