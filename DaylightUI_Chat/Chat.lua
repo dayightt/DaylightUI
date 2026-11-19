@@ -53,6 +53,7 @@ Chat.TAB_TEXT = Style.SIZE.body -- tab label size before settings load (tabSize 
 Chat.GRIP = 16 -- resize grip size
 Chat.MIN = { 250, 100 } -- resize limits (same range as the Width and Height sliders)
 Chat.MAX = { 1000, 600 }
+Chat.SIDE_MIN = { 150, 100 } -- the second panel has no typing box, so it can be narrower
 Chat.AWAKE = 1.5 -- floating: seconds the panel stays after the mouse leaves
 Chat.INPUT = { borderPx = 2, flat = true, noBevel = true, bgAlpha = 0.9 } -- edit box backdrop, solid over the tabs
 Chat.TAB_ART = { "Left", "Middle", "Right", "ActiveLeft", "ActiveMiddle", "ActiveRight",
@@ -93,7 +94,7 @@ local function font(obj, size, flags)
     if type(obj) ~= "table" or not obj.GetFont then return end
     local file, current, currentFlags = obj:GetFont()
     size = size or current
-    flags = flags or ""
+    flags = Style.Slug(flags)
     if type(size) ~= "number" then return end
     local want = Style.FontFile(ns.MEDIA.font)
     if file ~= want or size ~= current or (currentFlags or "") ~= flags then obj:SetFont(want, size, flags) end
@@ -615,10 +616,13 @@ function Chat.Hold(force)
     -- whole block ("below").
     local at = Chat.InputAt()
     local rel = at == "below" and holder or panel
+    -- The Daylight box hides every game window, pulled-out ones too, so whichever
+    -- window's box the game opens has to land in the footer.
+    local all = ns.Box.On()
     for _, w in ipairs(Chat.Frames()) do
         local eb = _G[w:GetName() .. "EditBox"] or w.editBox
         if type(eb) == "table" then
-            if w == cf or w.isDocked then placeInput(eb, at, rel, force)
+            if w == cf or w.isDocked or all then placeInput(eb, at, rel, force)
             elseif ebAt[eb] then giveBack(eb, w) end
         end
     end
@@ -663,9 +667,12 @@ function Chat.Layout()
     ns.Copy.Place(panel, inset, Chat.TAB_ROOM)
     ns.Tiles.Place(panel, inset, Chat.TAB_ROOM)
     ns.Box.Layout()
-    -- Put it back in the new spot.
-    if type(_G.ChatFrame1) == "table" then _G.ChatFrame1:ClearAllPoints() end
-    Chat.Hold(true)
+    -- The main window hangs on the chat's spot and follows it by itself. The edit
+    -- boxes sit at an inset, so they're placed again only when it or their spot
+    -- changed: the game's chat frames aren't touched on a repaint that changed nothing.
+    local laid = inset .. "|" .. Chat.InputAt()
+    Chat.Hold(Chat.laid ~= laid)
+    Chat.laid = laid
 end
 
 -- ---------------------------------------------------------------------
@@ -1287,8 +1294,8 @@ end
 -- The game's own settings behind the chat settings
 -- ---------------------------------------------------------------------
 
--- Class-colored names, timestamps and the typing-only ("IM") edit box are game
--- settings; only set when the chat setting differs.
+-- Class-colored names, timestamps and whisper tabs are game settings; only set
+-- when the chat setting differs.
 local function setCVar(name, value)
     if type(GetCVar) ~= "function" or type(SetCVar) ~= "function" then return end
     local ok, current = pcall(GetCVar, name)
@@ -1300,9 +1307,8 @@ function Chat.ApplySettings()
     if not cfg then return end
     setCVar("chatClassColorOverride", cfg.classColors and "0" or "1")
     if cfg.timestamps and cfg.timestamps ~= "game" then setCVar("showTimestamps", cfg.timestamps) end
-    -- The edit box sits over the tab row, so it's only up while typing. Chat.Input
-    -- fades it; never Hide() the game's box, its OnHide would run tainted.
-    setCVar("chatStyle", "im")
+    -- The game's Chat Style (Classic or IM) is the player's own pick and is never
+    -- changed here: Chat.Input shows the edit box only while typing in either one.
     -- Whispers: each person in their own docked tab (flashing on new ones) plus the
     -- main tab, or only the main tab. The Daylight chat box shows whispers itself,
     -- so inline only.

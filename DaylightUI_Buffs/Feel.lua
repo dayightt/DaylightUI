@@ -60,8 +60,22 @@ end
 Feel.SLIDE = 6 -- px an icon drops in from and lifts out by
 Feel.GHOSTS = 8 -- max leaving copies at once; extras are skipped
 Feel.SETTLE = 2 -- seconds after entering the world with no copies (a reload isn't news)
+Feel.HUSH = 0.25 -- seconds a full refresh keeps the slides still
 Feel.ghosts = {}
-local settleUntil = 0
+local settleUntil, hushUntil = 0, 0
+
+-- A full refresh (the client's full UNIT_AURA, or a group's filters set again)
+-- hides every button and shows it again, which would replay every slide at once.
+-- The client applies it on its next update, so the slides stay still for a moment.
+function Feel.Hush()
+    hushUntil = GetTime() + Feel.HUSH
+end
+
+-- The client's buttons, and the slide made on them, are locked while auras are
+-- secret, so a slide that starts then plays out.
+local function stillSlide(ag)
+    if GetTime() < hushUntil and not (InCombatLockdown() or DUI.Restricted()) then ag:Stop() end
+end
 
 local function plain(v) return not isSecret(v) and v or nil end
 
@@ -83,6 +97,7 @@ function Feel.MakeSlide(btn)
     s.down:SetOrder(2); s.down:SetSmoothing("OUT")
     s.show = ag:CreateAnimation("Alpha")
     s.show:SetOrder(2); s.show:SetSmoothing("OUT"); s.show:SetToAlpha(1)
+    ag:SetScript("OnPlay", stillSlide)
     btn.slide = s
     Feel.TuneSlide(btn)
     btn:AddAuraShownAnimation(ag)
@@ -216,6 +231,7 @@ function Feel.OnAura(unit, info)
     end
     if type(info) ~= "table" then return end
     local full = not issecretvalue(info.isFullUpdate) and info.isFullUpdate
+    if full then Feel.Hush() end
     local removed = not full and type(info.removedAuraInstanceIDs) == "table" and info.removedAuraInstanceIDs or nil
     if removed and GetTime() >= settleUntil and not BL.Preview.Active() then
         for bar, snap in pairs(Feel.snaps) do

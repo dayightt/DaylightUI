@@ -92,7 +92,7 @@ UF.BIG_NUMBER_INSET = 3   -- gap from the angled end
 UF.BIG_NUMBER_DROP = 1.5  -- below center, since the digits sit high in their line
 -- Elite, rare and boss units get a crest on the name tab's outer corner: a
 -- dark disc with a ring and a horned helm emblem, gold or silver, glowing.
-UF.CREST = { elite = "gold", worldboss = "gold", rareelite = "gold", rare = "silver" }
+UF.CREST = { elite = "gold", worldboss = "gold", rareelite = "silver", rare = "silver" }
 UF.CREST_COLORS = { gold = { 0.94, 0.77, 0.31 }, silver = { 0.84, 0.86, 0.90 } }
 -- With neither a portrait nor a name tab, the frame's own border carries the
 -- crest's color instead, and the status icons stand this far off its outer end.
@@ -300,6 +300,13 @@ UF.READY_SIZE = 14
 UF.SUMMON = { [1] = "pop", [2] = "GOOD", [3] = "BAD" }
 UF.SUMMON_FILE = "status-summon.png"
 UF.SUMMON_SIZE = 18
+-- A rez on its way to a dead member (UF.UpdateRez): the angel in the accent
+-- while it's cast, then green while they have the offer to accept.
+UF.REZ = { cast = "pop", offer = "GOOD" }
+UF.REZ_FILE = "status-rez.png"
+UF.REZ_SIZE = 18
+-- How long the game leaves a rez offer open, in seconds.
+UF.REZ_OFFER = 60
 UF.READY_HOLD = 10
 UF.TAB_MAX = 0.6  -- fraction of the frame; longer names are cut short with "..."
 -- The name tab's border: half the frame's, but never too thin for the band.
@@ -753,6 +760,9 @@ function UF.Build(f, spec)
         f.summonIcon = overlay:CreateTexture(nil, "OVERLAY", nil, 3)
         f.summonIcon:SetTexture(DUI.MEDIA .. UF.SUMMON_FILE)
         f.summonIcon:Hide()
+        f.rezIcon = overlay:CreateTexture(nil, "OVERLAY", nil, 3)
+        f.rezIcon:SetTexture(DUI.MEDIA .. UF.REZ_FILE)
+        f.rezIcon:Hide()
     end
     -- A tile has no portrait to hang the role icon from, so it gets its own
     -- badge in a free corner. A portrait frame's lives in the status set below,
@@ -1468,6 +1478,13 @@ function UF.Layout(f, cfg, text, keepSize)
         local pos = cfg.summonPos or "center"
         UF.PlaceSpot(f.summonIcon, f, f.health, pos, UF.CornerPad(f, pos), 0, cfg.summonX, cfg.summonY)
         f.showSummon = cfg.showSummon ~= false
+    end
+    if f.rezIcon then
+        local size = cfg.rezSize or UF.REZ_SIZE
+        f.rezIcon:SetSize(size, size)
+        local pos = cfg.rezPos or "left"
+        UF.PlaceSpot(f.rezIcon, f, f.health, pos, UF.CornerPad(f, pos), 0, cfg.rezX, cfg.rezY)
+        f.showRez = cfg.showRez ~= false
     end
     f.showRole = cfg.showRole ~= false
     f.roleHideDamage, f.roleHideFight = cfg.roleHideDamage == true, cfg.roleHideInCombat == true
@@ -3601,6 +3618,71 @@ function UF.UpdateSummon(f, sample)
     end
 end
 
+-- The rez icon's state for this member: "cast" while someone is casting a rez
+-- on them, then "offer" once it lands, while they're still dead. The game only
+-- says a rez is being cast, so its end is read as the offer, kept until they
+-- come back to life or the offer runs out. A cast stopped early reads the same,
+-- and clears the same way.
+local function rezState(f)
+    local u = f.unitToken
+    if plain(UnitHasIncomingResurrection, u) == true then
+        f.rezCast, f.rezUntil = true, nil
+        return "cast"
+    end
+    local state = UF.UnitState(u)
+    local dead = state == "dead" or state == "ghost"
+    if f.rezCast then
+        f.rezCast = nil
+        if dead then
+            local untilAt = GetTime() + UF.REZ_OFFER
+            f.rezUntil = untilAt
+            C_Timer.After(UF.REZ_OFFER + 0.1, function()
+                if f.rezUntil == untilAt then UF.UpdateRez(f) end
+            end)
+        end
+    end
+    if f.rezUntil and (not dead or GetTime() >= f.rezUntil) then f.rezUntil = nil end
+    return f.rezUntil and "offer" or nil
+end
+
+-- A rez on its way to this member: the angel fades in, in the accent while
+-- it's cast, bumps to green when it lands, and eases away once they accept.
+function UF.UpdateRez(f, sample)
+    local icon = f.rezIcon
+    if not icon then return end
+    local status
+    if sample then status = sample.rez else status = rezState(f) end
+    local ink = f.showRez ~= false and status and UF.REZ[status]
+    if not ink then
+        if f.rezStatus and icon:IsShown() and not sample and DUI.Motion.On() then
+            f.rezStatus = nil
+            -- Its own alpha as last set: a range-faded tile reads GetAlpha as secret.
+            DUI.Motion.Tween(icon, f.rezAlpha or 1, 0, DUI.Motion.NORMAL, function(a) f.rezAlpha = a; icon:SetAlpha(a) end,
+                function() if not f.rezStatus then icon:Hide() end end)
+        else
+            f.rezStatus = nil
+            icon:Hide()
+        end
+        return
+    end
+    if f.rezStatus == status and icon:IsShown() then return end
+    local fresh = not icon:IsShown() or not f.rezStatus
+    f.rezStatus = status
+    local c = ink == "pop" and { Style.Pop() } or Style.INK[ink]
+    icon:SetVertexColor(c[1], c[2], c[3], 1)
+    icon:Show()
+    if sample or not DUI.Motion.On() then
+        f.rezAlpha = 1
+        icon:SetAlpha(1)
+    elseif fresh then
+        DUI.Motion.Tween(icon, 0, 1, DUI.Motion.FAST, function(a) f.rezAlpha = a; icon:SetAlpha(a) end)
+    else
+        f.rezAlpha = 1
+        icon:SetAlpha(1)
+        DUI.Motion.Bump(icon, 1.3)
+    end
+end
+
 -- Tank, healer or damage, from the role the member picked. Unknown or "NONE"
 -- shows nothing. Uses f.roleIcon (tiles) or f.status.icons.role (party frames),
 -- whichever this frame has.
@@ -3678,6 +3760,8 @@ function UF.UpdateHealth(f, instant)
     if state ~= f.state then
         f.state = state
         UF.UpdateIdentity(f)
+        -- Back on their feet: the rez offer is over.
+        if f.rezIcon then UF.UpdateRez(f) end
     end
     ns.Texts.Update(f, "health")
     -- DEAD fades in with the breath. With motion off (no breath) it just shows.
@@ -4401,6 +4485,7 @@ function UF.ShowSample(f)
     UF.UpdateLeader(f, s)
     UF.UpdateReady(f, s)
     UF.UpdateSummon(f, s)
+    UF.UpdateRez(f, s)
     UF.UpdateRole(f, s)
     ns.Texts.ShowSample(f, s)
     f:SetAlpha(1)
@@ -4429,6 +4514,7 @@ function UF.UpdateAll(f, instant)
     UF.UpdateLeader(f)
     UF.UpdateReady(f)
     UF.UpdateSummon(f)
+    UF.UpdateRez(f)
     UF.UpdateRole(f)
 end
 

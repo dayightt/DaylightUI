@@ -54,13 +54,14 @@ function Raid.SampleFor(i)
 end
 
 -- The Raid page's single preview tile. Every piece that can show is on (marker,
--- crown, role, dispel, ready check, summon), but no aggro border, and a mana bar.
+-- crown, role, dispel, ready check, summon, rez), but no aggro border, and a mana bar.
 function Raid.FullSample()
     local s = Raid.SampleFor(1)
     s.class, s.portraitClass, s.powerToken = "PALADIN", "PALADIN", "MANA"
     s.health, s.healthValue = 70, 2100
     s.threat, s.dispel, s.target, s.ready = nil, "Magic", true, "ready"
     s.summon = Enum.SummonStatus and Enum.SummonStatus.Pending or 1
+    s.rez = "cast"
     return s
 end
 

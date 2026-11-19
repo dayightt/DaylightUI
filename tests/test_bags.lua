@@ -4492,6 +4492,106 @@ T.test("bank: the categories view, empty slots and all", function()
     T.eq(#empty.entries, 1, "or one tile"); T.eq(empty.entries[1].free, 11)
 end)
 
+T.test("bank: categories view open, one stack of a combined pile taken out: the rest still shows", function()
+    local function spot(btn)
+        local _, _, _, x, y = btn:GetPoint(1)
+        return x, y
+    end
+    local ns = bankLogin()
+    categoryWorld()
+    world.maxStack[70] = 20
+    for slot, n in pairs({ [2] = 20, [3] = 20, [4] = 20, [5] = 4 }) do
+        world.items[6][slot] = { iconFileID = 700, stackCount = n, quality = 1, hyperlink = "|Hitem:70|h", itemID = 70, itemName = "Clam" }
+    end
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local set = ns.Bank.set
+    local shown
+    for slot = 2, 5 do
+        local b = set.buttons[6][slot]
+        if b:IsShown() then T.falsy(shown, "one tile for the pile"); shown = b end
+    end
+    T.truthy(shown, "the pile shows")
+    T.eq(shown.calls.count, 64, "all 64 on it")
+    local x, y = spot(shown)
+    -- The game moves only that slot's 20 into the bags.
+    local taken = shown:GetID()
+    world.items[6][taken] = nil
+    world.items[1][5] = { iconFileID = 700, stackCount = 20, quality = 1, hyperlink = "|Hitem:70|h", itemID = 70, itemName = "Clam" }
+    world.items[6][taken] = { iconFileID = 700, stackCount = 20, quality = 1, hyperlink = "|Hitem:70|h", itemID = 70, itemName = "Clam", isLocked = true }
+    stub.FireEvent("ITEM_LOCK_CHANGED", 6, taken)
+    world.items[6][taken] = nil
+    stub.FireEvent("BAG_UPDATE", 6)
+    stub.FireEvent("BAG_UPDATE", 1)
+    stub.FireEvent("ITEM_LOCK_CHANGED", 6, taken)
+    stub.FireEvent("PLAYERBANKSLOTS_CHANGED", taken)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    local now
+    for slot = 2, 5 do
+        local b = set.buttons[6][slot]
+        if b:IsShown() and world.items[6][slot] then now = b end
+    end
+    T.truthy(now, "another stack of it shows in the bank")
+    T.eq(now.calls.count, 44, "with the 44 left")
+    T.deq({ spot(now) }, { x, y }, "in the same spot")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bank: stacks that only combine on a later eased layout, one taken out: the next one shows", function()
+    local function spot(btn)
+        local _, _, _, x, y = btn:GetPoint(1)
+        return x, y
+    end
+    local ns = bankLogin()
+    categoryWorld()
+    for slot, n in pairs({ [2] = 20, [3] = 20, [4] = 20, [5] = 4 }) do
+        world.items[6][slot] = { iconFileID = 700, stackCount = n, quality = 1, hyperlink = "|Hitem:70|h", itemID = 70, itemName = "Clam" }
+    end
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    local set = ns.Bank.set
+    local function shownClams()
+        local out = {}
+        for slot = 2, 5 do
+            local b = set.buttons[6][slot]
+            if b:IsShown() and world.items[6][slot] then out[#out + 1] = b end
+        end
+        return out
+    end
+    T.eq(#shownClams(), 4, "stack size not known yet: four stacks apart")
+    -- The stack size loads, and something new lands in the bank: one eased layout.
+    world.maxStack[70] = 20
+    world.items[6][6] = { iconFileID = 113, stackCount = 1, quality = 1, hyperlink = "|Hitem:13|h", itemID = 13 }
+    stub.FireEvent("BAG_UPDATE", 6)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    local list = shownClams()
+    local pile
+    for _, b in ipairs(list) do if b.calls.count == 64 then pile = b end end
+    T.truthy(pile, "now combined: 64 on one tile")
+    local x, y = spot(pile)
+    world.items[6][pile:GetID()] = nil
+    world.items[1][5] = { iconFileID = 700, stackCount = 20, quality = 1, hyperlink = "|Hitem:70|h", itemID = 70, itemName = "Clam" }
+    stub.FireEvent("BAG_UPDATE", 6)
+    stub.FireEvent("BAG_UPDATE", 1)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 2)
+    local now
+    for _, b in ipairs(shownClams()) do
+        local bx, by = spot(b)
+        if bx == x and by == y then now = b end
+    end
+    T.truthy(now, "another stack takes the spot")
+    T.eq(now.calls.count, 44, "with the 44 left")
+    T.eq(now:GetAlpha(), 1, "and it can be seen")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: junk you've just looted is sold too", function()
     local ns = catLogin()
     local sold = {}
@@ -8229,3 +8329,59 @@ T.test("bags: the search tooltip shows the player's own keywords, the ones the b
     T.truthy(all:find("boe & q>común, comida | poción, gear & !conjunto", 1, true), "the example uses them")
     for k, v in pairs(saved) do rawset(S.WORD, k, v) end
 end)
+
+-- A stand-in for the game's controller list (FrameControlsManager): the windows
+-- it lists, and for each close whether it left the list empty. Emptying it from
+-- addon code is what the game refuses.
+local function padList()
+    local m = { shown = {}, emptied = {} }
+    function m:GetActiveFrame() return self.shown[#self.shown] end
+    function m:FrameShown(frame)
+        for _, f in ipairs(self.shown) do if f == frame then return end end
+        table.insert(self.shown, frame)
+    end
+    function m:FrameHidden(frame)
+        for i, f in ipairs(self.shown) do
+            if f == frame then table.remove(self.shown, i); break end
+        end
+        self.emptied[frame] = #self.shown == 0
+    end
+    _G.GamepadMode = { FrameControlsManager = m }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    return m
+end
+local function listed(m, frame)
+    for _, f in ipairs(m.shown) do if f == frame then return true end end
+    return false
+end
+local function noPad() _G.GamepadMode, _G.InputUtil = nil, nil end
+
+T.test("bags: walking away from a merchant with the bag open tells the controller while the merchant is still listed", function()
+    local ns = login()
+    local m = padList()
+    local merchant = CreateFrame("Frame", nil, UIParent)
+    local f = open(ns)
+    stub.RunTimers()
+    T.eq(listed(m, f), true, "the bag is listed")
+    -- Only the two windows that matter: the game's merchant window and the bag.
+    m.shown = { merchant, f }
+    -- Walking away: the game closes its bags first, then its merchant window.
+    CloseAllBags()
+    m:FrameHidden(merchant)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(listed(m, f), false, "the bag left the list")
+    T.eq(m.emptied[f], false, "it left while the merchant was still listed, so its close never emptied the list")
+    noPad()
+end)
+
+T.test("bags: in a fight, Win.Held reads the bag's table of held slots without calling it", function()
+    local ns = login()
+    local f = open(ns)
+    T.eq(type(f.held), "table", "the bag keeps its held slots in a table")
+    stub.EnterCombat()
+    local ok, held = pcall(DaylightUI.Win.Held, f)
+    T.eq(ok, true, "no error grabbing the bag in a fight")
+    T.eq(held, f:IsProtected() == true)
+    stub.LeaveCombat()
+end)
+

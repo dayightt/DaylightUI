@@ -432,8 +432,9 @@ function layoutContent()
     header:ClearAllPoints()
     header:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -top)
     header:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -(T + 48), -top)
-    top = top + Panel.HEADER - Panel.TOP
-    header:SetHeight(Panel.HEADER - Panel.TOP)
+    local tall = Panel.HEADER - Panel.TOP + Panel.HeaderExtra()
+    top = top + tall
+    header:SetHeight(tall)
     top = top + 12   -- space under the rule, matches Parts.Stack
     sampleStrip:ClearAllPoints()
     sampleStrip:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -top)
@@ -509,6 +510,7 @@ end
 -- Support buttons only show on the home page. The description always gets
 -- the full line.
 local function placeDonators(on)
+    header.supportOn = on
     header.donators:SetShown(on)
     header.tip:SetShown(on)
     header.vip:SetShown(on)
@@ -562,8 +564,27 @@ local function dropSearch()
     if nav and (nav.searchBox:GetText() or "") ~= "" then nav.searchBox:SetText("") end
 end
 
--- Header buttons, right to left: Reset page, Test frame, Design mode, then
--- the home page's support buttons. All centered on the 24 px button row.
+-- Header buttons, right to left: Reset page, Test frame, Design mode, all
+-- centered on the 24 px button row. The home page's support buttons have a row
+-- of their own under the description, from the left edge, so they never crowd
+-- the title whatever the window's width; the header grows to hold it.
+Panel.SUPPORT_ROW_GAP = 6   -- between the description and the support buttons' row
+Panel.SUPPORT_H = 24
+
+-- The description's bottom, down from the header's top.
+local function descBottom()
+    local th, dh = header.title:GetStringHeight(), header.desc:GetStringHeight()
+    th = type(th) == "number" and th > 0 and th or SIZE.title
+    dh = type(dh) == "number" and dh > 0 and dh or SIZE.small
+    return th + 4 + dh
+end
+
+-- How much taller the header is while it holds the support buttons' row.
+function Panel.HeaderExtra()
+    if not (header and header.supportOn) then return 0 end
+    return math.max(0, descBottom() + Panel.SUPPORT_ROW_GAP + Panel.SUPPORT_H - (Panel.HEADER - Panel.TOP))
+end
+
 local function placeHeaderButtons()
     testSwitch:ClearAllPoints()
     local x = resetPage:IsShown() and -(resetPage:GetWidth() + 16) or 0
@@ -571,14 +592,20 @@ local function placeHeaderButtons()
     if testSwitch:IsShown() then x = x - testSwitch:GetWidth() - 16 end
     designSwitch:ClearAllPoints()
     designSwitch:SetPoint("TOPRIGHT", header, "TOPRIGHT", x, 0)
-    if designSwitch:IsShown() then x = x - designSwitch:GetWidth() - 16 end
-    header.donators:ClearAllPoints()
-    header.donators:SetPoint("RIGHT", header, "TOPRIGHT", x, -12)
-    header.tip:ClearAllPoints()
-    header.tip:SetPoint("RIGHT", header.donators, "LEFT", -10, 0)
     header.vip:ClearAllPoints()
-    header.vip:SetPoint("RIGHT", header.tip, "LEFT", -10, 0)
+    header.vip:SetPoint("TOPLEFT", header, "TOPLEFT", 0, -(descBottom() + Panel.SUPPORT_ROW_GAP))
+    header.tip:ClearAllPoints()
+    header.tip:SetPoint("LEFT", header.vip, "RIGHT", 10, 0)
+    header.donators:ClearAllPoints()
+    header.donators:SetPoint("LEFT", header.tip, "RIGHT", 10, 0)
+    -- The header's height follows the row coming or going, so the page below moves too.
+    local on = header.supportOn == true
+    if header.laidSupport ~= on then
+        header.laidSupport = on
+        if current then layoutContent() end
+    end
 end
+Panel.PlaceHeaderButtons = placeHeaderButtons
 
 -- ---------------------------------------------------------------------
 -- Pages

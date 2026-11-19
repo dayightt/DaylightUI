@@ -143,6 +143,61 @@ T.test("npc: gossip into a quest hands off in one window: no close, the page swa
     T.eq(page:GetAlpha(), 1, "the dim ends as the next page comes")
 end)
 
+T.test("npc: Back on a quest picked from a list talks to the NPC again and the list comes back", function()
+    local N = load()
+    NW.Gossip(GOSSIP)
+    frame(); settle()
+    N.rows[1]:Click()
+    NW.CloseGossip(true)
+    NW.Quest("DETAIL", NW.Candles())
+    frame(); settle()
+    local back = N.frame.pages.talk.foot.buttons[2]
+    T.eq(back.text:GetText(), "Back", "between Accept and Decline")
+    back:Click()
+    T.deq(NW.Calls("InteractUnit"), { { "npc", true } })
+    T.eq(#NW.Calls("DeclineQuest") + #NW.Calls("CloseQuest"), 0, "the talk isn't ended first")
+    frame(); settle()
+    T.eq(N.state.mode, "gossip")
+    T.eq(DaylightUI.Win.IsOpen(N.frame), true, "the same window, never closed in between")
+    T.eq(#N.rows, 3)
+end)
+
+T.test("npc: no Back when there was no list: one quest, an offer straight from the NPC, or restricted", function()
+    local N = load()
+    NW.Quest("DETAIL", NW.Candles())
+    frame()
+    T.isnil(N.state.fromList)
+    T.eq(N.CanGoBack(), false)
+    NW.Gossip({ text = "Hi.", available = { { title = "Kobold Candles", questLevel = 6, questID = 60 } } })
+    frame(); settle()
+    N.rows[1]:Click()
+    NW.CloseGossip(true)
+    NW.Quest("DETAIL", NW.Candles())
+    frame()
+    T.eq(N.CanGoBack(), false, "a list of one has nothing to go back to")
+    NW.Gossip(GOSSIP)
+    frame(); settle()
+    N.rows[1]:Click()
+    NW.CloseGossip(true)
+    NW.Quest("DETAIL", NW.Candles())
+    frame()
+    T.eq(N.CanGoBack(), true)
+    stub.SetRestriction("Encounter", true)
+    T.eq(N.CanGoBack(), false, "held back under the client's restrictions")
+    stub.SetRestriction("Encounter", false)
+end)
+
+T.test("npc: the sample's Back returns to the sample list", function()
+    local N = load()
+    N.Sample()
+    settle()
+    N.OnKey("1")
+    T.eq(N.state.mode, "detail")
+    N.Back()
+    T.eq(N.state.mode, "gossip")
+    T.eq(#NW.state.calls, 0)
+end)
+
 T.test("npc: a held hand-off that never comes closes softly", function()
     local N = load()
     local t = 100
@@ -1673,7 +1728,39 @@ T.test("npc immersive: the camera comes in over your shoulder, the warning quiet
     T.eq(cv.test_cameraTargetFocusInteractEnable, "0")
     T.eq(DaylightUIDB.npcCamera, nil)
     stub.RunTimers()
-    T.eq(handlers.EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED, _G.GameEvent.HandleExperimentalCVarConfirmationNeeded, "the game's warning handed back")
+    -- Registering the game's handler from addon code would leave it tainted, and the
+    -- warning would then open the game's pop-up under that taint.
+    T.isnil(handlers.EXPERIMENTAL_CVAR_CONFIRMATION_NEEDED, "the game's warning never registered back from addon code")
+    local quieted = handlers.quieted
+    NW.Gossip(GOSSIP)
+    frame(); settle()
+    N.Goodbye(); settle()
+    stub.RunTimers()
+    T.eq(handlers.quieted, quieted, "silenced once, not around every change")
+end)
+
+T.test("npc: the plain window look leaves the game's camera calls alone", function()
+    -- Other modules (the personal resource display) hook these too, so count only
+    -- the NPC window's own hooks.
+    local hooked = {}
+    local realHook = _G.hooksecurefunc
+    _G.hooksecurefunc = function(a, b, c)
+        local src = debug.getinfo(2, "S").source or ""
+        if type(a) == "string" and src:find("Npc.Scene%.lua") then hooked[a] = true end
+        return realHook(a, b, c)
+    end
+    local ok, err = pcall(function()
+        local N = load()
+        local _, handlers = camera({})
+        NW.Gossip(GOSSIP)
+        frame(); settle()
+        N.Goodbye(); settle()
+        stub.FireEvent("PLAYER_REGEN_DISABLED")
+        T.isnil(next(hooked), "no camera call hooked")
+        T.isnil(handlers.quieted, "the game's warning untouched")
+    end)
+    _G.hooksecurefunc = realHook
+    if not ok then error(err, 0) end
 end)
 
 T.test("npc immersive: a fight or a logout mid-talk puts your camera back at once", function()

@@ -444,7 +444,9 @@ function CharacterPage.More(h)
         if k == "unequip" then
             CharacterPage.Unequip(id)
         elseif k == "compare" then
-            C_CVar.SetCVar("alwaysCompareItems", C_CVar.GetCVarBool("alwaysCompareItems") and 0 or 1)
+            -- A game setting, so it's written out of a fight only.
+            local on = not C_CVar.GetCVarBool("alwaysCompareItems")
+            DUI.AfterCombat(function() pcall(C_CVar.SetCVar, "alwaysCompareItems", on and "1" or "0") end, "character:compare")
         elseif k == "bind" then
             CharacterPage.Bind(item, id)
         else

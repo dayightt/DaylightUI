@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 10
+print(API.major, API.minor)   -- 1, 11
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -907,6 +907,23 @@ Daylight UI's chat box only (the Chat module in Daylight style). Your function g
 Daylight UI's own touches: return a new text, `false` to leave it out, or nothing to keep it. `info`
 has `event`, `kind`, `sender`, `guid`, `body` (what they typed), `channel` and `line`. Lines the game
 keeps secret never reach you. A click on a link made by `me.ChatLink` calls your `OnChatLink`.
+
+## Quest menu rows (1.11)
+
+```lua
+me.AddQuestMenu("route", {
+    label = "Route to this quest",            -- or function(quest) return "..." end
+    show = function(quest) return MyAddon.CanRoute(quest.questID) end,   -- optional
+    onClick = function(quest) MyAddon.Route(quest.questID) end,
+})
+```
+
+Your row shows in the right-click menu of a quest, in the quest tracker and in the quest journal,
+just above Stop tracking and Abandon. `quest` has `questID`, `title`, `level`, `zone` and `state`
+(`"active"`, `"ready"` or `"failed"`). `show` returning `false` leaves the row out for that quest; a
+`label` function returning nothing does too. The menu is asked fresh each time it opens.
+`me.RemoveQuestMenu(key)` takes the row away. An error in your functions leaves your row out and
+the rest of the menu keeps working.
 
 ## Glow styles (1.9)
 

@@ -165,17 +165,25 @@ end
 -- ignored (isOnGCD and isActive are never secret). With charge lines on (the
 -- default), one piece per charge.
 function B.UpdateCooldown(f)
+    local C = ns.CdmCustom
+    -- An element piece follows its slot, its icon grayed for a cooldown totem's cooldown.
+    local element = f.totem and C ~= nil and C.Element(f.cooldownID) ~= nil
+    local phase, slotDur
+    if element and f.cooldownInfo then
+        phase, slotDur = ns.CdmOwn.FollowSlot(f, f.Icon.Icon)
+        f.Icon.Icon:SetDesaturated(phase == "cooldown")
+    end
     local sid = f.cooldownInfo and f.cooldownInfo.spellID
     if not sid then return end
     local d, active, count = nil, false, ""
-    local C = ns.CdmCustom
     local item = C and C.ItemOf(f.cooldownID)
     local charges = not item and not f.totem and spellAPI("GetSpellCharges")
+    local totem = f.totem and phase ~= "cooldown"
     local okC, ch = false, nil
     if charges then okC, ch = pcall(charges, sid) end
     local most = okC and type(ch) == "table" and plainNum(ch.maxCharges)
-    if f.totem and C then   -- a totem: its time while it stands
-        d = C.TotemUp(sid)
+    if totem and C then   -- a totem: its time while it stands
+        if element then d = slotDur else d = C.TotemUp(sid) end
         active = type(d) ~= "nil"
     elseif most and most > 1 then
         active = plainBool(ch.isActive) == true
@@ -410,7 +418,7 @@ local function layoutShield(h)
     s.fx = s.fx or {}
     CD.TrackFx(h, s, s.fx, true)
     local t = CD.BarText(block)
-    s.text:SetFont(Style.FontFile(ns.MEDIA.font), t.timeSize, Style.Outline())
+    s.text:SetFont(Style.FontFile(ns.MEDIA.font), t.timeSize, Style.Slug(Style.Outline()))
     CD.Ink(s.text, t.timeColor)
     s.text:SetAlpha(ns.CdmEffects.Get(h.button, "shieldAmount") ~= false and 1 or 0)
     local Fx = ns.CdmEffects
@@ -537,10 +545,10 @@ function B.LayoutButton(h, btn, parts)
     local back, v = CD.BackOf(h.button, block)
     if back then CD.PaintBack(parts.backTex, back, v) end
     local text = CD.BarText(block)
-    parts.time:SetFont(Style.FontFile(ns.MEDIA.font), text.timeSize, Style.Outline())
+    parts.time:SetFont(Style.FontFile(ns.MEDIA.font), text.timeSize, Style.Slug(Style.Outline()))
     CD.Ink(parts.time, text.timeColor)
     parts.time:SetAlpha((not block or Look(block, "time") ~= false) and 1 or 0)
-    parts.count:SetFont(Style.FontFile(ns.MEDIA.font), Skin.COUNT, Style.Outline())
+    parts.count:SetFont(Style.FontFile(ns.MEDIA.font), Skin.COUNT, Style.Slug(Style.Outline()))
     local cc = Skin.COUNT_COLOR
     parts.count:SetTextColor(cc[1], cc[2], cc[3])
     -- The fill: bar texture, then the block's or spell's color.

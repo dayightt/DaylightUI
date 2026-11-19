@@ -267,14 +267,19 @@ Tip.FONTS = {
     { name = "GameTooltipTextSmall", delta = -1 },
 }
 
+local shadowed = setmetatable({}, { __mode = "k" })
 function Tip.ApplyFonts()
     local scale = DUI.DB.General().fontScale or 1
     for _, f in ipairs(Tip.FONTS) do
         local obj = _G[f.name]
         if type(obj) == "table" and obj.SetFont then
-            obj:SetFont(Style.FontFile(ns.MEDIA.font), (cfg.textSize + f.delta) * scale, "")
-            obj:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
-            obj:SetShadowColor(0, 0, 0, 0.9)
+            DUI.GameFonts.SetObjectFont(obj, Style.FontFile(ns.MEDIA.font), (cfg.textSize + f.delta) * scale, "")
+            -- Every tooltip draws with these, so they're only touched once.
+            if not shadowed[obj] then
+                shadowed[obj] = true
+                obj:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+                obj:SetShadowColor(0, 0, 0, 0.9)
+            end
         end
     end
 end
@@ -307,14 +312,20 @@ function Tip.StyleBar()
             elseif barR then self:SetStatusBarColor(barR, barG, barB) end
         end)
     end
-    bar:ClearAllPoints()
-    bar:SetPoint("TOPLEFT", GameTooltip, "BOTTOMLEFT", 0, -Tip.BAR_GAP)
-    bar:SetPoint("TOPRIGHT", GameTooltip, "BOTTOMRIGHT", 0, -Tip.BAR_GAP)
-    bar:SetHeight(cfg.barHeight)
+    -- The game's own bar: placed again only when its height or a pixel's size
+    -- changed, never on a repaint that changed nothing.
     local px = DUI.Pixel.Px(bar, 1)
-    Tip.barEdge:ClearAllPoints()
-    Tip.barEdge:SetPoint("TOPLEFT", bar, "TOPLEFT", -px, px)
-    Tip.barEdge:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", px, -px)
+    local laid = cfg.barHeight .. "|" .. px
+    if Tip.barLaid ~= laid then
+        Tip.barLaid = laid
+        bar:ClearAllPoints()
+        bar:SetPoint("TOPLEFT", GameTooltip, "BOTTOMLEFT", 0, -Tip.BAR_GAP)
+        bar:SetPoint("TOPRIGHT", GameTooltip, "BOTTOMRIGHT", 0, -Tip.BAR_GAP)
+        bar:SetHeight(cfg.barHeight)
+        Tip.barEdge:ClearAllPoints()
+        Tip.barEdge:SetPoint("TOPLEFT", bar, "TOPLEFT", -px, px)
+        Tip.barEdge:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", px, -px)
+    end
     bar:SetAlpha(cfg.healthBar and 1 or 0)
 end
 
@@ -1633,7 +1644,8 @@ function Tip.Refresh(mod)
         local tip = _G[name]
         if type(tip) == "table" and tip.SetScale then
             scaled[tip] = true
-            tip:SetScale(Tip.Size())
+            local size = Tip.Size()
+            if math.abs((tip:GetScale() or 1) - size) > 0.0001 then tip:SetScale(size) end
         end
     end
     for tip, s in pairs(skinned) do

@@ -1522,6 +1522,79 @@ function View.ShowInstaller(v)
     return DUI.InstallerPlugins.Show(v.name)
 end
 
+-- Quest menu rows (1.11): me.AddQuestMenu(key, { label, onClick, show? })
+-- adds a row to the right-click menu of a quest, in the tracker and in the
+-- quest journal. label is a string or fn(quest) -> string; show(quest) -> false
+-- leaves it out for that quest; onClick(quest) runs on a click. quest =
+-- { questID, title, level, zone, state ("active", "ready", "failed") }, a
+-- fresh copy each time.
+local questMenu = {}
+function View.AddQuestMenu(v, key, spec)
+    local label = type(spec) == "table" and spec.label
+    if not str(key) or not (str(label) or type(label) == "function") or type(spec.onClick) ~= "function"
+            or (spec.show ~= nil and type(spec.show) ~= "function") then
+        chat(L["%s: a quest menu row needs a key, a label and an onClick function."], v.name)
+        return false
+    end
+    local full = "plugin:" .. v.name .. ":" .. key
+    local e = { key = full, label = label, onClick = spec.onClick, show = spec.show, owner = v.name }
+    for i, x in ipairs(questMenu) do
+        if x.key == full then questMenu[i] = e; return true end
+    end
+    questMenu[#questMenu + 1] = e
+    Report.Count(v.name, "questmenu")
+    return true
+end
+function View.RemoveQuestMenu(v, key)
+    local full = "plugin:" .. v.name .. ":" .. tostring(key)
+    for i, x in ipairs(questMenu) do
+        if x.key == full then
+            table.remove(questMenu, i)
+            Report.Count(v.name, "questmenu", nil, -1)
+            return true
+        end
+    end
+    return false
+end
+
+local function questFacts(q)
+    return { questID = q.id, title = q.title, level = q.level, zone = q.zone, state = q.state }
+end
+
+-- Adds the plugins' rows for quest q to a menu's keys and text (each plugin's
+-- answer guarded, a broken one just left out). Returns true when it added any.
+function Report.QuestMenu(q, keys, text)
+    local added = false
+    for _, e in ipairs(questMenu) do
+        local ok, shown = true, true
+        if e.show then ok, shown = callAs(e.owner, e.show, questFacts(q)) end
+        if ok and shown ~= false then
+            local label = e.label
+            if type(label) == "function" then
+                local fine, got = callAs(e.owner, label, questFacts(q))
+                label = fine and str(got) or nil
+            end
+            if label then
+                keys[#keys + 1] = e.key
+                text[e.key] = label
+                added = true
+            end
+        end
+    end
+    return added
+end
+
+-- A click on a plugin's row: false when the key isn't one.
+function Report.QuestMenuClick(k, q)
+    for _, e in ipairs(questMenu) do
+        if e.key == k then
+            callAs(e.owner, e.onClick, questFacts(q))
+            return true
+        end
+    end
+    return false
+end
+
 -- Tooltip lines (1.7): me.AddTooltipLines(kind, fn(lines, data)), kind
 -- "unit" (data.unit), "item" (data.link, data.itemID) or "spell"
 -- (data.spellID). lines.Line(label, value, color), lines.Text(text, color),

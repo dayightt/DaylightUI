@@ -1754,6 +1754,41 @@ T.test("action bars: the micro icons run along the accent, one sweep through the
     T.eq(standing, "VERTICAL")
 end)
 
+T.test("action bars: the micro icons take a class or picked color, and the tiles can go", function()
+    local DUI = stub.Load({ actionbars = true, before = function() world(); menuButtons() end })
+    local Menus, Style = stub.actionbars.Menus, DUI.Style
+    local db = DUI:GetModule("ActionBars").db
+    T.eq(db.microIconColor, "accent", "the accent sweep by default")
+    T.eq(db.microBackgrounds, true, "tiles by default")
+    local function settle()
+        stub.RunTimers()
+        if DUI.Motion.Driver() then stub.RunOnUpdate(DUI.Motion.Driver(), 1) end
+    end
+    local function first(btn) return Menus.Parts(btn).icon.__gradient[2] end
+    DUI:Set("ActionBars", "microIconColor", "custom")
+    DUI:Set("ActionBars", "microIconCustom", { 0.2, 0.4, 0.6 })
+    settle()
+    for _, btn in ipairs({ CharacterMicroButton, QuestLogMicroButton }) do
+        local c = first(btn)
+        T.near(c.r, 0.2, 0.001, btn:GetName() .. ": one color")
+        T.near(c.b, 0.6, 0.001)
+    end
+    DUI:Set("ActionBars", "microIconColor", "class")
+    settle()
+    local _, token = UnitClass("player")
+    local r = Style.ClassColor(token)
+    T.near(first(QuestLogMicroButton).r, r, 0.001, "class color")
+
+    local box = Menus.Parts(QuestLogMicroButton).box
+    T.eq(box:GetAlpha(), 1)
+    DUI:Set("ActionBars", "microBackgrounds", false)
+    settle()
+    T.eq(box:GetAlpha(), 0, "tiles gone")
+    DUI:Set("ActionBars", "microBackgrounds", true)
+    settle()
+    T.eq(box:GetAlpha(), 1, "and back")
+end)
+
 T.test("action bars: any bar can fade", function()
     local DUI = login()
     local Fade = DUI.Fade

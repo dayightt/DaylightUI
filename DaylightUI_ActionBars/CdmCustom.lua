@@ -12,6 +12,7 @@ ns.CdmCustom = Custom
 
 local index        -- [key] = { ids, cd, aura, group }, class spells then GROUP
 local totemRanks   -- [any rank id] = { slot, key, noBuff } for TOTEMS and TOTEM_SLOTS (build)
+local slotRanks    -- [any rank id] = { slot, cools } for every totem on the three lists (build)
 local order        -- keys in list order
 local learned = {} -- [key] = highest known rank, or false
 local entries = {} -- [key] = cached Custom.Entry table
@@ -88,9 +89,20 @@ Custom.PETS = {
     WARLOCK = { 691, 712, 697, 688 },       -- Felhunter, Succubus, Voidwalker, Imp
 }
 
--- Addon-made keys: "seal", "aura", "blessing", "pet", "s<spell id>" (a list family
--- or a spell added by ID in the editor) and "i<item id>" (an item added by ID).
-Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true }
+-- Shaman element pieces: one per totem slot, showing whichever totem stands there,
+-- then a cooldown totem's cooldown once it's gone (Custom.SlotNow).
+Custom.TOTEM_ELEMENTS = {
+    fire = { slot = 1, name = "Fire totem", icon = "Interface/Icons/Spell_Fire_Elemental_Totem" },
+    earth = { slot = 2, name = "Earth totem", icon = "Interface/Icons/Spell_Nature_EarthElemental_Totem" },
+    water = { slot = 3, name = "Water totem", icon = "Interface/Icons/Spell_Frost_SummonWaterElemental_2" },
+    air = { slot = 4, name = "Air totem", icon = "Interface/Icons/INV_Elemental_Primal_Air" },
+}
+Custom.ELEMENT_ORDER = { "fire", "earth", "water", "air" }
+
+-- Addon-made keys: "seal", "aura", "blessing", "pet", the elements, "s<spell id>" (a
+-- list family or a spell added by ID in the editor) and "i<item id>" (an item added by ID).
+Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true,
+                 fire = true, earth = true, water = true, air = true }
 function Custom.Is(id)
     return type(id) == "string" and (Custom.NAMED[id] == true or id:match("^[si]%d+$") ~= nil)
 end
@@ -152,10 +164,21 @@ Custom.TOTEM_SLOTS = {
     [8184] = 3, [5675] = 3,                         -- Fire Resistance, Mana Spring
     [8835] = 4, [10595] = 4, [8512] = 4, [15107] = 4, -- Grace of Air, Nature Resistance, Windfury, Windwall
 }
+-- Totems with a cooldown, by rank 1 id, with their slot. Only the element pieces
+-- time them from the slot; their own pieces show the cooldown.
+Custom.TOTEM_COOLDOWNS = {
+    [2484] = 2, [5730] = 2,     -- Earthbind, Stoneclaw
+    [16190] = 3,                -- Mana Tide
+    [8177] = 4,                 -- Grounding
+}
 -- Spells that put a debuff on yourself, by the family's rank 1 id. CdmAuras draws
 -- them from your own casts, never from the target. Duration and stacks come from
 -- the game's data and cover the case where the spell text isn't loaded yet.
-Custom.SELF_DEBUFF = { [400574] = { lasts = 18, stacks = 4 } }
+Custom.SELF_DEBUFF = {
+    [400574] = { lasts = 18, stacks = 4 },
+    -- Weakened Soul, added by its ID: put on you by your own Power Word: Shield (`from`).
+    [6788] = { lasts = 15, stacks = 1, from = { 17, 592, 600, 3747, 6065, 6066, 10898, 10899, 10900, 10901 } },
+}
 
 -- Duration and stacks for a SELF_DEBUFF piece, or nil.
 function Custom.SelfDebuffFacts(key)
@@ -211,6 +234,22 @@ local function auraFamily()
     return { ids = ids, aura = true, self = true, name = DUI.L["Aura"], icon = Custom.AURA_ICON }
 end
 
+-- Every rank of every totem in the slot, from the class list.
+local function elementFamily(list, key)
+    local e = Custom.TOTEM_ELEMENTS[key]
+    local ids = {}
+    for _, f in ipairs(list) do
+        local first = type(f) == "table" and f[1]
+        if type(first) == "number" and (Custom.TOTEMS[first] or Custom.TOTEM_SLOTS[first]
+            or Custom.TOTEM_COOLDOWNS[first]) == e.slot then
+            for _, s in ipairs(f) do ids[#ids + 1] = s end
+        end
+    end
+    if #ids == 0 then return nil end
+    return { ids = ids, cd = true, aura = true, self = true, merged = true, element = e,
+             name = DUI.L[e.name], icon = e.icon }
+end
+
 local function build()
     if index then return end
     index, order = {}, {}
@@ -244,6 +283,12 @@ local function build()
             index.blessing = blessing; order[#order + 1] = "blessing"
         end
     end
+    if class == "SHAMAN" then
+        for _, key in ipairs(Custom.ELEMENT_ORDER) do
+            local f = elementFamily(S.SHAMAN or {}, key)
+            if f then index[key] = f; order[#order + 1] = key end
+        end
+    end
     if type(class) == "string" and Custom.PETS[class] then
         index.pet = { ids = Custom.PETS[class], aura = true, self = true, pet = true, name = DUI.L["Pet"] }
         order[#order + 1] = "pet"
@@ -252,21 +297,26 @@ local function build()
         for _, f in ipairs(S[class] or {}) do add(f, false) end
     end
     for _, f in ipairs(S.GROUP or {}) do add(f, true) end
-    -- Every rank of every totem, for a one-lookup Custom.Totem.
-    totemRanks = {}
+    -- Every rank of every totem, for a one-lookup Custom.Totem and Custom.SlotOf.
+    totemRanks, slotRanks = {}, {}
     for k, f in pairs(index) do
-        local first = f.ids and f.ids[1]
+        local first = not f.element and f.ids and f.ids[1]
         local slot = first and (Custom.TOTEMS[first] or Custom.TOTEM_SLOTS[first])
         if slot then
             local t = { slot = slot, key = k, noBuff = Custom.TOTEMS[first] ~= nil }
             for _, s in ipairs(f.ids) do totemRanks[s] = t end
+        end
+        local cools = first and Custom.TOTEM_COOLDOWNS[first]
+        if slot or cools then
+            local t = { slot = slot or cools, cools = cools ~= nil }
+            for _, s in ipairs(f.ids) do slotRanks[s] = t end
         end
     end
 end
 
 -- Rebuild everything when spells or talents change.
 function Custom.Forget()
-    index, order, auraKeys, classSpells, totemRanks = nil, nil, nil, nil, nil
+    index, order, auraKeys, classSpells, totemRanks, slotRanks = nil, nil, nil, nil, nil, nil
     for k in pairs(learned) do learned[k] = nil end
     for k in pairs(added) do added[k] = nil end
 end
@@ -318,7 +368,9 @@ local function addedFamily(id)
     else
         local sid = tonumber(id:match("^s(%d+)$"))
         if not sid then return nil end
-        f = { ids = { sid }, cd = true, aura = true, user = true, onYou = not classSpell(sid) or nil }
+        local harm = Custom.SELF_DEBUFF[sid] ~= nil or nil
+        f = { ids = { sid }, cd = true, aura = true, user = true, onYou = not classSpell(sid) or nil,
+              self = harm, harm = harm }
     end
     added[id] = f
     return f
@@ -364,6 +416,20 @@ function Custom.Totem(sid)
     if t then return t.slot, t.key end
 end
 
+-- Any rank of any totem, cooldown totems too: its slot, and whether it has a cooldown.
+function Custom.SlotOf(sid)
+    if type(sid) ~= "number" or isSecret(sid) then return nil end
+    build()
+    local t = slotRanks[sid]
+    if t then return t.slot, t.cools end
+end
+
+-- An element piece's TOTEM_ELEMENTS entry, else nil.
+function Custom.Element(id)
+    local f = type(id) == "string" and Custom.TOTEM_ELEMENTS[id] and Custom.Family(id)
+    return f and f.element or nil
+end
+
 -- Whether a cast of any rank of this totem has taught its buff (CdmOwn.AuraOf).
 -- Until then its buff's id isn't known, so nothing could show it.
 function Custom.TotemBuffKnown(sid)
@@ -387,8 +453,26 @@ end
 -- Which totem stands in each slot: [slot] = family key. The slot's spell is
 -- secret in a fight, but your own casts aren't, so a cast says which totem went in.
 local standing = {}
+local slotSpell = {}  -- [slot] = the rank standing there, false when not one of ours
+local cooling = {}    -- [slot] = { sid, ends } for the last cooldown totem cast there
 local castAt = {}   -- [slot] = when a totem was last cast into it
 Custom.TOTEM_CAST_WINDOW = 1   -- seconds from the cast to its slot's update
+
+-- The slot's spell: a totem of that slot, false for any other, nil when it can't
+-- be read (secret in a fight). An unreadable slot keeps what the casts said.
+local function readSlot(slot)
+    if type(GetTotemInfo) ~= "function" then return nil end
+    local okI, _, _, _, _, _, _, spell = pcall(GetTotemInfo, slot)
+    spell = okI and plain(spell) or nil
+    if type(spell) ~= "number" then return nil end
+    return Custom.SlotOf(spell) == slot and spell or false
+end
+
+-- What a read slot holds: its timed totem's key, else false.
+local function keyOf(spell)
+    local _, key = Custom.Totem(spell or nil)
+    return key or false
+end
 
 -- The totem's duration while this spell's totem stands, else nil. Whether the
 -- slot returns a duration at all is never secret.
@@ -397,13 +481,40 @@ function Custom.TotemUp(sid)
     if not slot or type(GetTotemDuration) ~= "function" then return nil end
     local ok, d = pcall(GetTotemDuration, slot)
     if not ok or type(d) == "nil" then return nil end
-    if standing[slot] == nil and type(GetTotemInfo) == "function" then
+    if standing[slot] == nil then
         -- After a reload with a totem down: its spell, where it can be read.
-        local okI, _, _, _, _, _, _, spell = pcall(GetTotemInfo, slot)
-        local _, key = Custom.Totem(okI and plain(spell) or nil)
-        standing[slot] = key or false
+        local spell = readSlot(slot)
+        if spell ~= nil then standing[slot] = keyOf(spell) end
     end
     if standing[slot] == k then return d end
+end
+
+-- When a cooldown cast now ends, from the spell's base cooldown. nil when the
+-- game won't say.
+local function coolEnd(sid)
+    local get = _G.GetSpellBaseCooldown
+    if type(get) ~= "function" then return nil end
+    local ok, ms = pcall(get, sid)
+    if not ok or type(ms) ~= "number" or isSecret(ms) or ms <= 0 then return nil end
+    return GetTime() + ms / 1000
+end
+
+-- What an element piece shows now: the standing rank, "totem" and the totem's
+-- duration; else the last cooldown totem cast there, "cooldown"; else nil. A
+-- cooldown past its base length is over. CdmEffects asks the game whether the
+-- cooldown still runs.
+function Custom.SlotNow(id)
+    local e = Custom.Element(id)
+    if not e or type(GetTotemDuration) ~= "function" then return nil end
+    local slot = e.slot
+    local ok, d = pcall(GetTotemDuration, slot)
+    if ok and type(d) ~= "nil" then
+        -- After a reload with a totem down: its spell, where it can be read.
+        if slotSpell[slot] == nil then slotSpell[slot] = readSlot(slot) end
+        if slotSpell[slot] then return slotSpell[slot], "totem", d end
+    end
+    local c = cooling[slot]
+    if c and (c.ends == nil or GetTime() < c.ends) then return c.sid, "cooldown" end
 end
 
 local totems = CreateFrame("Frame")
@@ -411,23 +522,26 @@ totems:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 totems:RegisterEvent("PLAYER_TOTEM_UPDATE")
 totems:SetScript("OnEvent", function(_, event, a, _, sid)
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
-        local slot, k = Custom.Totem(sid)
-        if slot then standing[slot], castAt[slot] = k, GetTime() end
+        local slot, cools = Custom.SlotOf(sid)
+        if not slot then return end
+        -- A cooldown totem stands as none of the timed ones.
+        local _, k = Custom.Totem(sid)
+        standing[slot], slotSpell[slot], castAt[slot] = k or false, sid, GetTime()
+        if cools then cooling[slot] = { sid = sid, ends = coolEnd(sid) } end
         return
     end
     local slot = plain(a)
     if type(slot) ~= "number" then return end
     local ok, d = pcall(GetTotemDuration, slot)
     if not ok or type(d) == "nil" then
-        standing[slot] = nil
+        standing[slot], slotSpell[slot] = nil, nil
         return
     end
-    -- A totem went in with no cast of ours just before it: read its spell where it
-    -- can be, else it isn't one we know.
+    -- An update with no cast of ours just before it: read its spell where it can
+    -- be. A secret read keeps what the casts said.
     if GetTime() - (castAt[slot] or 0) > Custom.TOTEM_CAST_WINDOW then
-        local okI, _, _, _, _, _, _, spell = pcall(GetTotemInfo, slot)
-        local _, key = Custom.Totem(okI and plain(spell) or nil)
-        standing[slot] = key or false
+        local spell = readSlot(slot)
+        if spell ~= nil then standing[slot], slotSpell[slot] = keyOf(spell), spell end
     end
 end)
 
@@ -525,9 +639,12 @@ end
 
 -- Spell to time and show: highest known rank (ranks share a cooldown), else
 -- rank 1 for group buffs and unlearned spells.
+-- An element piece's is the totem in its slot now (Custom.SlotNow), if any.
 function Custom.SpellOf(id)
     local f = Custom.Family(id)
-    return f and (Custom.Learned(id) or f.ids[1]) or nil
+    if not f then return nil end
+    local now = f.element and Custom.SlotNow(id)
+    return now or Custom.Learned(id) or f.ids[1]
 end
 
 -- Every rank, for the aura filter: a lower rank someone else cast still shows.
@@ -592,6 +709,8 @@ end
 -- Name and icon. The seal piece uses a generic name because which seal is up
 -- can't be read in combat. The client draws the active seal's icon over this one.
 function Custom.Look(id)
+    local e = Custom.Element(id)
+    if e then return DUI.L[e.name], e.icon end
     local item = Custom.ItemOf(id)
     if item and type(C_Item) == "table" then
         local okN, name = false, nil
@@ -615,7 +734,7 @@ function Custom.Look(id)
 end
 
 -- The card's What it shows can pick its cooldown, its buff or both. Not for
--- someone else's buff on you, the merged families (seal, aura, blessing) or the pet,
+-- someone else's buff on you, the merged families (seal, aura, blessing, elements) or the pet,
 -- which have no cooldown of yours to show.
 function Custom.CanTrack(id)
     local f = Custom.Family(id)

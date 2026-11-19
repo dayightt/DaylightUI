@@ -194,6 +194,17 @@ T.test("combat text: the game's switch turned off later is turned back on, so th
     done()
 end)
 
+T.test("combat text: the game's switch turned off in a fight is turned back on after it", function()
+    local DUI, _, cvars = load()
+    stub.EnterCombat()
+    cvars.enableFloatingCombatText = "0"
+    stub.FireEvent("CVAR_UPDATE", "enableFloatingCombatText", "0")
+    T.eq(cvars.enableFloatingCombatText, "0", "never written in a fight")
+    stub.LeaveCombat()
+    T.eq(cvars.enableFloatingCombatText, "1", "on again once it ends")
+    done()
+end)
+
 T.test("combat text: something that keeps turning the game's switch off doesn't start a loop", function()
     local DUI, _, cvars = load()
     local writes = 0
@@ -316,6 +327,30 @@ T.test("combat text: a setting's change repaints nothing else, and the preview's
     CT.Set("streams.hits.size", 40)
     s.Refresh(600, 300)
     T.truthy(select(2, line.fs:GetFont()) > before, "the line on screen grew")
+    done()
+end)
+
+T.test("combat text: a hit wears the picked font and size and lands where its stream was placed", function()
+    local DUI, send = load(nil, { before = function()
+        DaylightUIDB = { positions = { ["combattext.hits"] = { 200, -100 } } }
+    end })
+    local CT, Style = DUI.CombatText, DUI.Style
+    local anchor = CT.Stage().streams.hits.anchor
+    local _, rel, _, x, y = anchor:GetPoint(1)
+    T.eq(rel, UIParent); T.eq(x, 200); T.eq(y, -100)
+    local key = Style.FONT_ORDER[2]
+    DUI:Set("general", "damage.sctFont", key)
+    CT.Set("streams.hits.size", 30)
+    stub.RunTimers()
+    send("DAMAGE", 1234)
+    local line = live(DUI, "hits")[1]
+    T.truthy(line, "the hit shows")
+    local face, size = line.fs:GetFont()
+    T.eq(face, DUI.GameFonts.CombatTextWanted(), "the font picked for combat text, not the game's")
+    T.truthy(face ~= DUI.GameFonts.ClientFont(), "never the game's own")
+    T.near(size, 30 * (tonumber(DUI.DB.General().fontScale) or 1), 0.01, "its stream's size")
+    local _, on = line.frame:GetPoint(1)
+    T.eq(on, anchor, "carried by the placed stream")
     done()
 end)
 

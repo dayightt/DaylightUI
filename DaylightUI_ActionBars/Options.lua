@@ -141,6 +141,8 @@ local LIT = { accent = "Accent color", class = "Class color", custom = "One colo
 local LIT_ORDER = { "accent", "class", "custom" }
 local EDGE = { off = "None", accent = "Accent color", class = "Class color", custom = "One color" }
 local EDGE_ORDER = { "off", "accent", "class", "custom" }
+-- The micro menu's own look rows do nothing without its Daylight UI style.
+local function microLook(get) return get("skinMenus") ~= true or get("microMenu") ~= "shown" end
 
 -- A text's offset in px from its spot. cdm = the Cooldown Manager has it too.
 local function nudge(field, label, cdm, show)
@@ -351,9 +353,12 @@ local look = {
           desc = "The game's own setting: how many empty slots you have left, written on the backpack button, so you can see your bag space without opening your bags.",
           get = function() return type(GetCVar) == "function" and GetCVar("displayFreeBagSlots") == "1" end,
           set = function(v)
-              if type(SetCVar) == "function" then SetCVar("displayFreeBagSlots", v and "1" or "0") end
-              -- Not one of Daylight UI's settings, so tell the options window directly.
-              DUI.Fire("SettingChanged", "ActionBars", "displayFreeBagSlots", v)
+              -- A game setting, so it's written out of a fight only.
+              DUI.AfterCombat(function()
+                  if type(SetCVar) == "function" then pcall(SetCVar, "displayFreeBagSlots", v and "1" or "0") end
+                  -- Not one of Daylight UI's settings, so tell the options window directly.
+                  DUI.Fire("SettingChanged", "ActionBars", "displayFreeBagSlots", v)
+              end, "actionbars:freeslots")
           end,
           disabled = function(get) return get("bagBar") == "hidden" end },
         { type = "dropdown", key = "microMenu", label = "Micro menu", values = SHOW, order = SHOW_ORDER,
@@ -361,6 +366,15 @@ local look = {
         menuSize("microMenu", "Micro menu size"),
         { type = "toggle", key = "skinMenus", label = "Daylight UI style bag bar and micro menu", reload = true,
           desc = "Gives the micro menu and bag bar the Daylight UI look: square frames in your action button border style." },
+        { type = "dropdown", key = "microIconColor", label = "Micro menu icon color", values = LIT, order = LIT_ORDER,
+          desc = "The color of the micro menu's icons in the Daylight UI style. Accent color runs your accent along the row, gradient and all.",
+          disabled = microLook },
+        { type = "color", key = "microIconCustom", label = "Custom micro menu icon color",
+          desc = "The micro menu's icon color when Micro menu icon color is One color.",
+          hidden = custom("microIconColor"), disabled = microLook },
+        { type = "toggle", key = "microBackgrounds", label = "Micro menu button backgrounds",
+          desc = "The dark square behind each micro menu icon. When off, the icons sit on their own.",
+          disabled = microLook },
     } },
     { label = "Bag bar fade", desc = "When the shown bag bar fades and how far.",
       items = DaylightUI.Fade.Items("bagBarFade.", nil, unless("bagBar", "shown"), "Bag bar") },

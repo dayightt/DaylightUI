@@ -4,7 +4,7 @@
 -- Each timer has its own ring, so none of them muddies the cursor's: the global
 -- cooldown is a thin ring just outside that drains away, and your casts fill a
 -- ring further out with a spark at their tip. Both are the client's Cooldown
--- swipe fed with the game's duration objects (spell 61304, UnitCastingDuration,
+-- swipe fed with the game's duration objects (spell 29515, UnitCastingDuration,
 -- UnitChannelDuration), so nothing secret is timed or compared in Lua. The spark
 -- reads your own cast times, which stay plain in every fight.
 --
@@ -23,7 +23,9 @@ Ring.ART = DUI.MEDIA .. "cursor-ring.png"          -- one flat line at RADIUS of
 Ring.THIN_ART = DUI.MEDIA .. "cursor-ring-thin.png" -- the same circle, a thinner line
 Ring.BLOOM_ART = DUI.MEDIA .. "cursor-ring-glow.png" -- soft light peaking at half its half
 Ring.DOT_ART = DUI.MEDIA .. "glow.png"
-Ring.GCD_SPELL = 61304       -- the game's global cooldown
+-- The global cooldown's spell. Forever answers on 29515 (Classic's), and on
+-- 61304, the one newer versions use, it reports nothing at all.
+Ring.GCD_SPELL = 29515
 Ring.RADIUS = 0.41           -- where the line sits, in frame widths (the art's own)
 Ring.BLOOM = 1.64            -- the glow's size, in frame widths: its peak on the line
 Ring.A_BLOOM = 0.4

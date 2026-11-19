@@ -38,11 +38,13 @@ local area
 local places = {}            -- frame -> its place function
 
 -- Places a frame now, and again the frame after the game's layout may have
--- moved it (Edit Mode layouts, the frame showing, group changes, spec changes).
--- Never hook its SetPoint: the game calls it from protected layout code and a
--- hook there made it fail with "attempt to call a nil value" thousands of times.
+-- moved it (Edit Mode layouts, the frame showing, spec changes). A group change
+-- moves none of them: the game's queue eye re-anchors only with the map's scale
+-- and Edit Mode, and shows through OnShow. Never hook its SetPoint: the game
+-- calls it from protected layout code and a hook there made it fail with
+-- "attempt to call a nil value" thousands of times.
 Map.PLACE_EVENTS = { "EDIT_MODE_LAYOUTS_UPDATED", "PLAYER_SPECIALIZATION_CHANGED", "PLAYER_ENTERING_WORLD",
-                    "UPDATE_PENDING_MAIL", "GROUP_ROSTER_UPDATE" }
+                    "UPDATE_PENDING_MAIL" }
 
 -- A protected frame can't be moved in combat (the map can become protected
 -- through a child). Those wait for combat to end; the rest move now.
@@ -74,6 +76,45 @@ local function pin(frame, place)
     placeOne(frame, place)
 end
 Map.Pin = pin
+
+-- Setters that skip a frame already as asked. The game's frames here are
+-- re-placed after many events and every style repaint; writing them again
+-- unchanged is work in the game's own layout for nothing, and on the map
+-- itself it dropped its picture.
+local function near(a, b) return math.abs((a or 0) - (b or 0)) < 0.01 end
+
+function Map.IsAt(f, point, rel, relPoint, x, y)
+    if f:GetNumPoints() ~= 1 then return false end
+    local p, r, rp, px, py = f:GetPoint(1)
+    -- An anchor that went secret can't be compared: place it again.
+    if isSecret(px) or isSecret(py) then return false end
+    return p == point and r == rel and rp == relPoint and near(px, x) and near(py, y)
+end
+
+function Map.PlaceAt(f, point, rel, relPoint, x, y)
+    x, y = x or 0, y or 0
+    if Map.IsAt(f, point, rel, relPoint, x, y) then return end
+    f:ClearAllPoints()
+    f:SetPoint(point, rel, relPoint, x, y)
+end
+
+function Map.ParentTo(f, parent)
+    if f:GetParent() ~= parent then f:SetParent(parent) end
+end
+
+function Map.SizeTo(f, w, h)
+    local fw, fh = f:GetSize()
+    if isSecret(fw) or isSecret(fh) or not (near(fw, w) and near(fh, h)) then f:SetSize(w, h) end
+end
+
+function Map.ScaleTo(f, scale)
+    local s = f:GetScale()
+    if isSecret(s) or not near(s, scale) then f:SetScale(scale) end
+end
+
+function Map.LevelTo(f, level)
+    if f:GetFrameLevel() ~= level then f:SetFrameLevel(level) end
+end
 
 function Map.Turning()
     return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true
@@ -555,10 +596,8 @@ function Map.PlaceDurability()
             spot:SetSize(1, 1)
             Map.durabilitySpot = spot
         end
-        spot:ClearAllPoints()
-        spot:SetPoint("TOPRIGHT", panel, "BOTTOMLEFT", -Map.DURABILITY_GAP, -ns.Panel.GAP)
-        f:ClearAllPoints()
-        f:SetPoint("TOPRIGHT", spot, "TOPRIGHT")
+        Map.PlaceAt(spot, "TOPRIGHT", panel, "BOTTOMLEFT", -Map.DURABILITY_GAP, -ns.Panel.GAP)
+        Map.PlaceAt(f, "TOPRIGHT", spot, "TOPRIGHT")
     end)
 end
 
@@ -886,9 +925,11 @@ function Map.DressHybrid()
     local strata, level = mm:GetFrameStrata(), math.max(0, mm:GetFrameLevel() - 1)
     for _, f in ipairs({ h, type(h.MapCanvas) == "table" and h.MapCanvas or nil }) do
         -- Fixed in the game's XML: unfixed to move it, fixed again after (as the drawer's buttons).
-        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(false) end
-        if f:GetFrameStrata() ~= strata then f:SetFrameStrata(strata) end
-        if f.SetFixedFrameStrata then f:SetFixedFrameStrata(true) end
+        if f:GetFrameStrata() ~= strata then
+            if f.SetFixedFrameStrata then f:SetFixedFrameStrata(false) end
+            f:SetFrameStrata(strata)
+            if f.SetFixedFrameStrata then f:SetFixedFrameStrata(true) end
+        end
     end
     if h:GetFrameLevel() ~= level then
         if h.SetFixedFrameLevel then h:SetFixedFrameLevel(false) end
@@ -914,11 +955,20 @@ end)
 -- left on it (zone text, border) is moved to the hidden frame instead.
 function Map.QuietCluster(cluster)
     if type(cluster) ~= "table" or not cluster.GetChildren then return end
-    if cluster:GetParent() ~= UIParent then cluster:SetParent(UIParent) end
-    cluster:SetAlpha(0)
-    if cluster.EnableMouse then cluster:EnableMouse(false) end
+    Map.ParentTo(cluster, UIParent)
+    if cluster:GetAlpha() ~= 0 then cluster:SetAlpha(0) end
+    if cluster.EnableMouse and cluster:IsMouseEnabled() then cluster:EnableMouse(false) end
     for _, child in ipairs({ cluster:GetChildren() }) do
         if child ~= Minimap then ns.Panel.Park(child) end
+    end
+end
+
+-- The wheel zooms the map: one function, so it's set once and found again.
+function Map.Wheel(self, delta)
+    if delta > 0 then
+        if self:GetZoom() < self:GetZoomLevels() - 1 then self:SetZoom(self:GetZoom() + 1) end
+    elseif self:GetZoom() > 0 then
+        self:SetZoom(self:GetZoom() - 1)
     end
 end
 
@@ -931,14 +981,9 @@ function Map.Apply(cfg)
     -- again, even unchanged, can blank it (it went black on roster changes in
     -- a group). Events mostly re-place the buttons; the map itself rarely moves.
     pin(mm, function(f)
-        if f:GetParent() ~= area then f:SetParent(area) end
-        local p, rel, rp, x, y = f:GetPoint(1)
-        if f:GetNumPoints() ~= 1 or p ~= "TOPLEFT" or rel ~= area or rp ~= "TOPLEFT" or (x or 0) ~= 0 or (y or 0) ~= 0 then
-            f:ClearAllPoints()
-            f:SetPoint("TOPLEFT", area, "TOPLEFT")
-        end
-        local w, h = f:GetSize()
-        if math.abs(w - size) > 0.01 or math.abs(h - size) > 0.01 then f:SetSize(size, size) end
+        Map.ParentTo(f, area)
+        Map.PlaceAt(f, "TOPLEFT", area, "TOPLEFT")
+        Map.SizeTo(f, size, size)
         local mask = Map.Round() and Map.ROUND_MASK or Map.MASK
         if f.SetMaskTexture and Map.maskSet ~= mask then
             f:SetMaskTexture(mask)
@@ -946,45 +991,41 @@ function Map.Apply(cfg)
         end
     end)
     -- The map's layer first: the ring (+2) and texts (+TEXT_LIFT) go over it.
-    if mm:GetFrameLevel() ~= area:GetFrameLevel() + 1 then mm:SetFrameLevel(area:GetFrameLevel() + 1) end
+    Map.LevelTo(mm, area:GetFrameLevel() + 1)
     Map.DressHybrid()
     Map.PaintRing(Map.Round(), Map.Turning())
     for _, key in ipairs({ "location", "coords", "clock", "fps" }) do
         local t = Map[key]
         if t then t:SetFrameLevel(mm:GetFrameLevel() + Map.TEXT_LIFT) end
     end
-    for _, kind in ipairs(Map.BLOB_RINGS) do
-        for _, part in ipairs({ "RingScalar", "RingAlpha" }) do
-            local set = mm["Set" .. kind .. part]
-            if type(set) == "function" then pcall(set, mm, 0) end
+    -- The game never sets the blob rings itself, so once is enough.
+    if not Map.blobsSet then
+        Map.blobsSet = true
+        for _, kind in ipairs(Map.BLOB_RINGS) do
+            for _, part in ipairs({ "RingScalar", "RingAlpha" }) do
+                local set = mm["Set" .. kind .. part]
+                if type(set) == "function" then pcall(set, mm, 0) end
+            end
         end
     end
-    mm:EnableMouseWheel(true)
-    mm:SetScript("OnMouseWheel", function(self, delta)
-        if delta > 0 then
-            if self:GetZoom() < self:GetZoomLevels() - 1 then self:SetZoom(self:GetZoom() + 1) end
-        elseif self:GetZoom() > 0 then
-            self:SetZoom(self:GetZoom() - 1)
-        end
-    end)
+    if not mm:IsMouseWheelEnabled() then mm:EnableMouseWheel(true) end
+    if mm:GetScript("OnMouseWheel") ~= Map.Wheel then mm:SetScript("OnMouseWheel", Map.Wheel) end
 
     -- Keep what's useful, then park the rest of the cluster.
     local cluster = MinimapCluster
     local indicators = cluster and (cluster.IndicatorFrame or cluster.MailFrame)
     pin(indicators, function(f)
-        f:SetParent(mm)
-        f:ClearAllPoints()
-        f:SetPoint("TOPLEFT", mm, "TOPLEFT", Map.BUTTON_INSET, -Map.BUTTON_INSET)
+        Map.ParentTo(f, mm)
+        Map.PlaceAt(f, "TOPLEFT", mm, "TOPLEFT", Map.BUTTON_INSET, -Map.BUTTON_INSET)
         -- The mouse's spot for the game's tooltip: the square's size, not its 32 x 24.
-        if type(f.MailFrame) == "table" then f.MailFrame:SetSize(ns.Drawer.SIZE, ns.Drawer.SIZE) end
+        if type(f.MailFrame) == "table" then Map.SizeTo(f.MailFrame, ns.Drawer.SIZE, ns.Drawer.SIZE) end
     end)
     if type(indicators) == "table" then Map.DressMail(indicators.MailFrame, mm) end
     -- The game's queue eye is big for a square map: half size.
     pin(QueueStatusButton, function(f)
-        f:SetParent(mm)
-        f:SetScale(Map.QUEUE_SCALE)
-        f:ClearAllPoints()
-        f:SetPoint("BOTTOMLEFT", mm, "BOTTOMLEFT", 0, 0)
+        Map.ParentTo(f, mm)
+        Map.ScaleTo(f, Map.QUEUE_SCALE)
+        Map.PlaceAt(f, "BOTTOMLEFT", mm, "BOTTOMLEFT", 0, 0)
     end)
     -- The calendar and the tracking button, down the map's right edge. They
     -- are the game's own (their clicks and menus unchanged). Switched off,
@@ -999,26 +1040,24 @@ function Map.Apply(cfg)
             ns.Panel.Park(f)
             return
         end
-        f:SetParent(mm)
-        f:SetSize(square, square)
-        f:SetFrameLevel(mm:GetFrameLevel() + 5)
-        f:ClearAllPoints()
-        f:SetPoint("TOPRIGHT", mm, "TOPRIGHT", -Map.BUTTON_INSET, -Map.BUTTON_INSET)
+        Map.ParentTo(f, mm)
+        Map.SizeTo(f, square, square)
+        Map.LevelTo(f, mm:GetFrameLevel() + 5)
+        Map.PlaceAt(f, "TOPRIGHT", mm, "TOPRIGHT", -Map.BUTTON_INSET, -Map.BUTTON_INSET)
     end)
     pin(tracking, function(f)
         if not Map.cfg.buttons then
             ns.Panel.Park(f)
             return
         end
-        f:SetParent(mm)
-        f:SetFrameLevel(mm:GetFrameLevel() + 5)
-        f:SetSize(square, square)
-        if trackButton ~= f then trackButton:SetSize(square, square) end
-        f:ClearAllPoints()
+        Map.ParentTo(f, mm)
+        Map.LevelTo(f, mm:GetFrameLevel() + 5)
+        Map.SizeTo(f, square, square)
+        if trackButton ~= f then Map.SizeTo(trackButton, square, square) end
         if type(calendar) == "table" then
-            f:SetPoint("TOP", calendar, "BOTTOM", 0, -Map.BUTTON_GAP)
+            Map.PlaceAt(f, "TOP", calendar, "BOTTOM", 0, -Map.BUTTON_GAP)
         else
-            f:SetPoint("TOPRIGHT", mm, "TOPRIGHT", -Map.BUTTON_INSET, -Map.BUTTON_INSET)
+            Map.PlaceAt(f, "TOPRIGHT", mm, "TOPRIGHT", -Map.BUTTON_INSET, -Map.BUTTON_INSET)
         end
     end)
     Map.DressButton(calendar, calendar, "calendar")
@@ -1035,10 +1074,9 @@ function Map.Apply(cfg)
             ns.Panel.Park(f)
             return
         end
-        f:SetParent(mm)
-        f:SetFrameLevel(mm:GetFrameLevel() + 5)
-        f:ClearAllPoints()
-        f:SetPoint("BOTTOMRIGHT", mm, "BOTTOMRIGHT", -Map.BUTTON_INSET, Map.BUTTON_INSET)
+        Map.ParentTo(f, mm)
+        Map.LevelTo(f, mm:GetFrameLevel() + 5)
+        Map.PlaceAt(f, "BOTTOMRIGHT", mm, "BOTTOMRIGHT", -Map.BUTTON_INSET, Map.BUTTON_INSET)
     end)
     for _, key in ipairs({ "ZoomIn", "ZoomOut", "ZoomHitArea" }) do ns.Panel.Park(mm[key]) end
     for _, name in ipairs(Map.DECOR) do ns.Panel.Park(_G[name]) end

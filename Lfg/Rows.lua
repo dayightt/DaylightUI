@@ -306,10 +306,20 @@ function Rows.Counts(r)
 end
 
 -- Party tooltip on mouseover.
+-- A row spans the whole window, so its tooltip opens on whichever side of the window
+-- has more room: on the right half of the screen, right of the row would run off it.
+function Rows.TipSide(owner)
+    local l, r = owner:GetLeft(), owner:GetRight()
+    local edge = UIParent and UIParent:GetRight()
+    if type(l) ~= "number" or type(r) ~= "number" or type(edge) ~= "number" then return "ANCHOR_RIGHT" end
+    local scale = owner:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    return (edge - r * scale) < l * scale and "ANCHOR_LEFT" or "ANCHOR_RIGHT"
+end
+
 function Rows.Tip(owner, r)
     if not (GameTooltip and r) then return end
     local T = DUI.Tips
-    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:SetOwner(owner, Rows.TipSide(owner))
     T.Clear()
     T.Title(r.mine and L["Your listing"] or r.text)
     local who = Rows.Named(r.leader.name, r.leader.class)

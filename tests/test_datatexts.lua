@@ -596,6 +596,18 @@ T.test("data texts: with the Daylight gradient accent the words run down the swe
     T.truthy(ellie.lc[1] ~= ellie.rc[1] or ellie.lc[3] ~= ellie.rc[3], "a friend's name stays its class color, the place the sweep")
 end)
 
+-- Style.ClassColor hands back r, g, b (not a table), so names came out white.
+T.test("data texts: friends, guild members and alts wear their class colors", function()
+    local DUI = login()
+    local S = DUI.Style
+    socialIn4(DUI)
+    hover(4)
+    T.rgb(tipLine("Bram 60").lc, { S.ClassTextColor("WARRIOR") }, "a guild member in their class color")
+    T.rgb(tipLine("Cass 60").lc, { S.ClassTextColor("MAGE") }, "each by their own class")
+    T.rgb(tipLine("Ellie 60").lc, { S.ClassTextColor("MAGE") }, "a friend by the class name the list gives")
+    T.rgb(tipLine("Sam (Thorn)").lc, { S.ClassTextColor("WARRIOR") }, "a Battle.net friend too")
+end)
+
 -- The game's guild window (Blizzard_Communities) is load-on-demand and pulls in
 -- Blizzard_GuildControlUI (a dependency in its .toc), whose OnLoad calls the
 -- protected C_Discord.IsUserOAuthed. ToggleGuildFrame from addon code loads them
@@ -1376,4 +1388,31 @@ T.test("data texts: speed shows how fast you go, your run speed standing still, 
     DT().Update(true)
     T.eq(shown()[3], "Speed 67%", "a secret is never shown or compared: the last plain one stays")
     _G.GetUnitSpeed, _G.IsSwimming, _G.IsFlying = nil, nil, nil
+end)
+
+-- A style repaint (any General change, a UI scale or window size change) lays
+-- the strip out again, but the texts and their events are the same: asking
+-- the server for the guild roster and re-registering every event then was
+-- needless work in play. Only a change to which texts show does that.
+T.test("data texts: a style repaint lays out again without asking for the roster or re-registering", function()
+    local DUI = login()
+    socialIn4(DUI)
+    local asks = stub.rosterAsks
+    local regs = 0
+    local W = stub.Widget
+    local reg, unreg = W.RegisterEvent, W.UnregisterAllEvents
+    W.RegisterEvent = function(self, ...) regs = regs + 1; return reg(self, ...) end
+    W.UnregisterAllEvents = function(self, ...) regs = regs + 1; return unreg(self, ...) end
+    DUI.NotifyStyleChanged()
+    stub.RunTimers()
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.RunTimers()
+    W.RegisterEvent, W.UnregisterAllEvents = reg, unreg
+    T.eq(stub.rosterAsks, asks, "no roster request on a repaint")
+    T.eq(regs, 0, "events left as they were")
+    T.eq(shown()[4] ~= nil, true, "the strip still shows its texts")
+    -- A real change of texts still registers and asks.
+    DUI:Set("InfoPanel", "data.slot3", "guild")
+    stub.RunTimers()
+    T.truthy(stub.rosterAsks > asks, "a new guild text asks for the roster")
 end)

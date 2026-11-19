@@ -19,6 +19,12 @@
 --     457 "Please enter a full character name.". A send fires MAIL_SEND_SUCCESS,
 --     MAIL_SUCCESS, then PLAYER_MONEY minus postage (30 a letter, 30 an item)
 --     and the gold attached.
+--   * A letter to someone not on your friends list or in your guild first asks in
+--     the client's own secure transfer box (Blizzard_SecureTransferUI): SendMail
+--     fires SECURE_TRANSFER_CONFIRM_SEND_MAIL and nothing more. Okay sends it
+--     (C_SecureTransfer.SendMail); Cancel or Escape only hides the box, whose
+--     OnHide securecalls SendMailFrame_EnableSendMailButton. No MAIL_FAILED.
+--     MW.world{ strangers = true } plays that, MW.Transfer(true|false) answers it.
 --   * The auction house is played by the test, since any addon's call looks the
 --     same from outside (only the client's events): MW.BuyCommodity, MW.BuyItem,
 --     MW.Post, MW.Cancel, MW.Sold, MW.Expired. Their letters arrive with
@@ -459,6 +465,12 @@ local function install()
         -- The game's Send button stays off without a subject (SendMailFrame_CanSend).
         if type(subject) ~= "string" or subject == "" then record("Refused", "SendMail"); return end
         if S().pending then record("Refused", "SendMail"); return end
+        if S().strangers and not S().confirmed then
+            S().asking = { to, subject, body }
+            fire("SECURE_TRANSFER_CONFIRM_SEND_MAIL")
+            return
+        end
+        S().confirmed = nil
         S().pending = true
         local cost = GetSendMailPrice() + (S().send.money or 0)
         local sent = { to = to, subject = subject, body = body, money = S().send.money or 0, cod = S().send.cod or 0, items = S().send.items }
@@ -493,6 +505,20 @@ local function install()
 end
 
 -- The player holds an item on the cursor (picked from the bags).
+-- The secure transfer box's answer: Okay sends the letter, Cancel hides the box,
+-- which hands the game's Send button back and nothing else.
+function MW.Transfer(okay)
+    local ask = S().asking
+    S().asking = nil
+    if not ask then return end
+    if okay then
+        S().confirmed = true
+        SendMail(ask[1], ask[2], ask[3])
+    end
+    -- securecall("SendMailFrame_EnableSendMailButton"): the global, looked up when called.
+    _G.SendMailFrame_EnableSendMailButton()
+end
+
 function MW.Cursor(item) S().cursor = item end
 function MW.Sent() return S().sent end
 function MW.Bags() return S().bags end
@@ -509,9 +535,12 @@ function MW.world(spec)
     spec = spec or {}
     return function()
         MW.state = { calls = {}, queue = {}, inbox = {}, incoming = {}, sent = {}, bags = {}, auctions = {},
-            money = spec.money or 1000000, bagFree = spec.bagFree or 16, send = { items = {} }, beyond = spec.beyond }
+            money = spec.money or 1000000, bagFree = spec.bagFree or 16, send = { items = {} }, beyond = spec.beyond,
+            strangers = spec.strangers }
         _G.MailFrame, _G.InboxFrame, _G.SendMailFrame, _G.OpenMailFrame = nil, nil, nil, nil
         _G.SendMailNameEditBox, _G.SendMailSubjectEditBox = nil, nil
+        -- Blizzard_MailFrame's global: it enables the game's own Send button.
+        _G.SendMailFrame_EnableSendMailButton = function() record("EnableSendMailButton") end
         install()
         for _, l in ipairs(spec.letters or {}) do table.insert(MW.state.inbox, MW.Letter(copy(l))) end
         frames()

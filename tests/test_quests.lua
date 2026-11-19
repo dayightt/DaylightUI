@@ -177,6 +177,13 @@ T.test("quests data: items and timers ride on their quest", function()
     T.eq(q[2].timer, 252)
 end)
 
+T.test("quests data: a ready quest drops its item button", function()
+    local s = snap({ quests = {
+        QW.quest(1, "A", { complete = true, item = { link = "|Hitem:5862:|h[Seaforium]|h", icon = 1234, charges = 3 } }),
+    } })
+    T.isnil(s.groups[1].quests[1].item)
+end)
+
 T.test("quests data: tracked achievements with their unfinished criteria", function()
     local s = snap({ achievements = { { id = 9, title = "Explore Westfall", criteria = {
         { text = "Moonbrook", done = true }, { text = "Jangolode Mine" }, { text = "Murlocs", have = 2, need = 10 },
@@ -1472,6 +1479,108 @@ T.test("quests items: out of range tints the icon", function()
     T.rgb(ns.Items.buttons[1].icon.__vertex, ns.Items.OUT_OF_RANGE)
 end)
 
+-- Fade's check, then two seconds of frames.
+local function faded()
+    local F = DaylightUI.Fade
+    F.Step()
+    for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
+    return DaylightUIQuestTracker:GetAlpha()
+end
+
+local function fadeInCombat()
+    DaylightUI:Set("Quests", "fade.mode", "combat")
+    DaylightUI:Set("Quests", "fade.alpha", 0)
+    DaylightUI:Set("Quests", "fade.delay", 0)
+end
+
+-- Seen in game: the salve for the sickly gazelles puts the player in combat with
+-- the gazelle for about 30 s, and an "In combat" fade hid the whole tracker until
+-- it ended.
+local GAZELLE = "Sickly Gazelle"
+local SALVE_SPELL = 4321
+
+-- The item's spell, cast on target (UNIT_SPELLCAST_SENT names it).
+local function useItem(target)
+    stub.FireEvent("UNIT_SPELLCAST_SENT", "player", target, "Cast-1", SALVE_SPELL)
+end
+
+-- A unit in a fight with the player (in combat, the player on its threat list).
+local function foe(name) return { name = name, combat = true, threat = 0 } end
+
+local function itemWorld(units)
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = ITEM }) } })
+    local spell = C_Item.GetItemSpell
+    C_Item.GetItemSpell = function(id) if id == 5862 then return "Salve", SALVE_SPELL end end
+    stub.SetUnits(units)
+    fadeInCombat()
+    return Tr, ns, function() C_Item.GetItemSpell = spell end
+end
+
+T.test("quests items: fighting what the item was used on keeps the tracker shown", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    T.eq(faded(), 1, "out of combat: shown")
+    useItem(GAZELLE)
+    stub.EnterCombat()
+    T.eq(faded(), 1, "the gazelle's fight: still shown")
+    stub.LeaveCombat()
+    T.eq(faded(), 1, "after it")
+    stub.EnterCombat()
+    T.eq(faded(), 0, "the next fight, without a use: fades as usual")
+    stub.LeaveCombat()
+    done()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests items: something else joining the fight fades the tracker", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.EnterCombat()
+    T.eq(faded(), 1)
+    stub.units.nameplate1 = foe("Kolkar Bloodcharger")
+    T.eq(faded(), 0, "a Kolkar attacks: a real fight")
+    stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: a fight with something other than what the item was used on fades it", function()
+    local Tr, ns, done = itemWorld({ target = foe("Kolkar Bloodcharger") })
+    useItem(GAZELLE)
+    stub.EnterCombat()
+    T.eq(faded(), 0)
+    stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: a use with no fight after it is forgotten, so a later fight with the same name fades", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.Advance(ns.Items.FORGET + 1); stub.RunTimers()   -- no fight followed
+    stub.EnterCombat()
+    T.eq(faded(), 0, "a later gazelle fight fades as usual")
+    stub.LeaveCombat()
+    done()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests items: a fight that starts a moment after the use still keeps the tracker shown", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    useItem(GAZELLE)
+    stub.EnterCombat()   -- the salve's fight starts before the forget timer is due
+    stub.RunTimers()     -- the stub runs every pending timer here: it fires mid-fight
+    T.eq(faded(), 1, "still shown: the timer leaves a fight alone")
+    stub.LeaveCombat()
+    done()
+end)
+
+T.test("quests items: another spell's cast doesn't count as the item's use", function()
+    local Tr, ns, done = itemWorld({ target = foe(GAZELLE) })
+    stub.FireEvent("UNIT_SPELLCAST_SENT", "player", GAZELLE, "Cast-2", 133)
+    stub.EnterCombat()
+    T.eq(faded(), 0)
+    stub.LeaveCombat()
+    done()
+end)
+
 local function click(Tr, key, button)
     local f = Tr.frames[key]
     f:GetScript("OnClick")(f, button or "LeftButton")
@@ -1835,6 +1944,33 @@ T.test("quests clicks: rowTips off, a quest under the mouse shows no tooltip but
     f:GetScript("OnEnter")(f)
     T.eq(GameTooltip:IsShown(), true, "on again: the tooltip")
     f:GetScript("OnLeave")(f)
+end)
+
+T.test("quests clicks: rowTipKind details puts the quest's story and every reward in the hover tooltip", function()
+    local q = QW.quest(1, "Westfall Stew", { text = "Salma needs meat for her stew.", xp = 450, objs = {
+        { text = "4/5 Stringy Vulture Meat", have = 4, need = 5 },
+    } })
+    local Tr = tracker({ quests = { q } })
+    local f = Tr.frames["quest:1"]
+    local function shown()
+        f:GetScript("OnEnter")(f)
+        local all = table.concat(GameTooltip.lines, "\n")
+        f:GetScript("OnLeave")(f)
+        return all
+    end
+    local short = shown()
+    T.eq(DaylightUI:Get("Quests", "rowTipKind"), "short", "the short tooltip by default")
+    T.falsy(short:find("Salma", 1, true), "short: no story")
+    T.truthy(short:find("Stringy Vulture Meat", 1, true), "short: the objectives")
+    DaylightUI:Set("Quests", "rowTipKind", "details")
+    local full = shown()
+    T.truthy(full:find("Salma needs meat", 1, true), "details: the story")
+    T.truthy(full:find("Stringy Vulture Meat", 1, true), "details: the objectives too")
+    T.truthy(full:find("450 XP", 1, true), "details: the experience reward")
+    T.truthy(full:find("Right-click", 1, true), "details: the click hints stay")
+    DaylightUI:Set("Quests", "rowTipKind", "short")
+    local O = DaylightUI.Options
+    T.eq(O.CountMatches(O.GetPage("Quests.tracker"), "quest tooltip detail"), 1, "options search finds the setting")
 end)
 
 T.test("quests clicks: the tooltip's words are calm, a hint's click wears the accent; progress reads amber, done reads green", function()
@@ -2580,13 +2716,14 @@ T.test("clicks: ctrl makes it the priority", function()
     T.eq(#QW.Calls("map"), 0, "not the map")
 end)
 
-T.test("clicks: alt set to fold folds", function()
+T.test("clicks: alt-click folds by default, again unfolds", function()
     local Tr, ns = tracker({ quests = { STEW } })
-    DaylightUI:Set("Quests", "clicks.alt", "fold")
     QW.state.alt = true
     click(Tr, "quest:1")
-    QW.state.alt = false
     T.eq(ns.Tracker.Folds()["q1"], true)
+    click(Tr, "quest:1")
+    QW.state.alt = false
+    T.falsy(ns.Tracker.Folds()["q1"])
 end)
 
 T.test("clicks: a plain click set to nothing does nothing", function()

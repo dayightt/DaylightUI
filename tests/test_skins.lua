@@ -242,6 +242,39 @@ T.test("skins: a button keeps the Daylight font under the mouse, after it and wh
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A style change (every General change, every UI scale or window size change)
+-- put the three font objects back on every skinned game button of the session,
+-- even when each already had them. Only a button whose font really changed is written.
+T.test("skins: a style change with nothing new leaves a button's state fonts alone", function()
+    login(function()
+        local big = CreateFont("GameFontHighlightLarge")
+        big:SetFont("Fonts\\FRIZQT__.TTF", 16, "")
+        local b = TradeFrameTradeButton
+        b:SetNormalFontObject(big)
+        b:SetHighlightFontObject(big)
+        b:SetDisabledFontObject(big)
+    end)
+    local b = TradeFrameTradeButton
+    local face = b:GetNormalFontObject()
+    T.truthy(face and face ~= _G.GameFontHighlightLarge, "dressed")
+    local writes = 0
+    for _, m in ipairs({ "SetNormalFontObject", "SetHighlightFontObject", "SetDisabledFontObject" }) do
+        local real = b[m]
+        rawset(b, m, function(self, f) writes = writes + 1; return real(self, f) end)
+    end
+    DaylightUI.Fire("StyleChanged")
+    T.eq(writes, 0, "already wearing the Daylight face")
+    b:Disable(); b:Enable()
+    T.eq(writes, 0, "nor on enable and disable")
+    DaylightUI:Set("general", "font", "fira")
+    stub.RunTimers()
+    T.truthy(writes > 0, "a new font is still written")
+    T.truthy(b:GetNormalFontObject() ~= face, "the new face")
+    for _, m in ipairs({ "SetNormalFontObject", "SetHighlightFontObject", "SetDisabledFontObject" }) do rawset(b, m, nil) end
+    DaylightUI:Set("general", "font", nil)
+    stub.RunTimers()
+end)
+
 -- The game menu's buttons come from a pool. Each time the menu opens, AddButton
 -- (MainMenuFrameTemplates.lua) clears their OnEnter/OnLeave before showing them.
 -- That removed the skin's hooks, so from the second opening on hover lit nothing.
@@ -2152,6 +2185,93 @@ T.test("skins: the game menu's header title goes in the title row", function()
     T.eq(title.__font[1], DaylightUI.Style.FONT, "our font")
 end)
 
+-- The controller's focus glow on the game menu (FrameGlowMixin): its piece
+-- around the dialog header framed nothing once the header was gone, and the
+-- game set the glow's opacity and color only when the setting changed, so after
+-- a login it showed at full strength even at 0, in the art's own color.
+T.test("skins: the game menu's controller focus glow has no header piece and keeps its opacity and color", function()
+    local getCVar, opacity = _G.GetCVar, "0"
+    _G.GetCVar = function(k)
+        if k == "GamepadFocusStateOpacity" then return opacity end
+        if k == "GamepadFocusStateColor" then return "3" end
+    end
+    login(function()
+        local f = window("GameMenuFrame")
+        f.TitleContainer = nil
+        f.Header = CreateFrame("Frame", nil, f)
+        f.Header.Text = f.Header:CreateFontString()
+        f.FrameGlow = CreateFrame("Frame", nil, f)
+        f.FrameGlow.GlowTexture = f.FrameGlow:CreateTexture()
+        f.FrameGlow.HeaderGlowTexture = f.FrameGlow:CreateTexture()
+        f.FrameGlow:Hide()
+        f:Hide()
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local glow = GameMenuFrame.FrameGlow
+    T.eq(glow.HeaderGlowTexture:GetAlpha(), 0, "no outline where the game's header was")
+    T.eq(glow.GlowTexture:GetAlpha(), 1, "the window's own glow stays")
+    T.eq(glow:GetAlpha(), 0, "the saved opacity, from the start")
+    local r, g, b = glow.GlowTexture:GetVertexColor()
+    T.eq(r, 0.3); T.eq(g, 0.5); T.eq(b, 1, "the saved Focus Color (blue), from the start")
+    opacity = "0.6"
+    GameMenuFrame:Show(); glow:Show()
+    T.eq(glow:GetAlpha(), 0.6, "read again as it shows")
+    _G.GetCVar = getCVar
+end)
+
+-- The world map keeps its focus glow on its BorderFrame (FocusFrameParent in
+-- Blizzard_WorldMap.xml), so it stayed at full strength with Focus Opacity at 0.
+T.test("skins: a glow kept on a child (the world map's BorderFrame) keeps the opacity too", function()
+    local getCVar = _G.GetCVar
+    _G.GetCVar = function(k) if k == "GamepadFocusStateOpacity" then return "0" end end
+    login()
+    local Kit = stub.skins.Kit
+    local f = CreateFrame("Frame", nil, UIParent)
+    f.FocusFrameParent = "BorderFrame"
+    f.BorderFrame = CreateFrame("Frame", nil, f)
+    f.BorderFrame.FrameGlow = CreateFrame("Frame", nil, f.BorderFrame)
+    f.BorderFrame.FrameGlow.GlowTexture = f.BorderFrame.FrameGlow:CreateTexture()
+    Kit.FocusGlow(f)
+    T.eq(f.BorderFrame.FrameGlow:GetAlpha(), 0, "the saved opacity on the child's glow")
+    _G.GetCVar = getCVar
+end)
+
+-- Glows on windows no skin dresses (the minimap's tracking menu, the shop) kept
+-- full strength too. Every glow registers for the opacity setting with
+-- CVarCallbackRegistry, so they're all found there: at start, and each time the
+-- controller's focus moves (a menu's glow is made when it first opens).
+T.test("skins: every controller focus glow keeps the saved opacity, made before or after login", function()
+    local getCVar, registry, events = _G.GetCVar, _G.CVarCallbackRegistry, _G.EventRegistry
+    local listeners = {}
+    _G.EventRegistry = { RegisterCallback = function(_, event, fn, owner) listeners[event] = function() fn(owner) end end }
+    _G.GetCVar = function(k)
+        if k == "GamepadFocusStateOpacity" then return "0" end
+        if k == "GamepadFocusStateColor" then return "3" end
+    end
+    local glows = {}
+    _G.CVarCallbackRegistry = { GetCallbacksByEvent = function(_, kind, event)
+        if kind == 2 and event == "GamepadFocusStateOpacity" then return glows end
+    end }
+    local function glow()
+        local g = CreateFrame("Frame", nil, UIParent)
+        g.GlowTexture = g:CreateTexture()
+        g.glowTextures = { g.GlowTexture }
+        glows[g] = function() end
+        return g
+    end
+    local early = glow()
+    login()
+    T.eq(early:GetAlpha(), 0, "a glow made before login")
+    local r, g, b = early.GlowTexture:GetVertexColor()
+    T.eq(r, 0.3); T.eq(g, 0.5); T.eq(b, 1, "and its saved color")
+    local menu = glow()
+    T.eq(menu:GetAlpha(), 1, "a menu's glow, made later, starts at full strength")
+    T.truthy(listeners["Gamepad.RefreshFrameFocus"], "listens for the controller's focus moving")
+    listeners["Gamepad.RefreshFrameFocus"]()
+    T.eq(menu:GetAlpha(), 0, "fixed when the controller's focus moves")
+    _G.GetCVar, _G.CVarCallbackRegistry, _G.EventRegistry = getCVar, registry, events
+end)
+
 -- The achievements title sits in its header art's plaque (Header.Title in
 -- Blizzard_AchievementUI.xml) and is moved into the title row too.
 T.test("skins: the achievements' header title goes in the title row", function()
@@ -2495,6 +2615,34 @@ T.test("skins: unexplored areas show dimmed on the map, from the game's pieces l
     DaylightUI:Set("Skins", "mapReveal", false)
     stub.RunTimers()
     T.eq(R.frame:IsShown(), false)
+end)
+
+-- The client draws the game's quest area pin (a Blob) at its own alpha, so it
+-- stayed at full strength while the map faded as you moved (seen in game).
+T.test("skins: the game's quest area on the world map fades with the map", function()
+    local f, blob, fill, border
+    login(function()
+        f = window("WorldMapFrame")
+        blob = CreateFrame("Frame", nil, f)
+        blob.SetFillAlpha = function(_, v) fill = v end
+        blob.SetBorderAlpha = function(_, v) border = v end
+        blob:SetScript("OnUpdate", function() end)    -- QuestBlobPinMixin:OnUpdate
+        f.EnumeratePinsByTemplate = function(_, template)
+            local done = template ~= "QuestBlobPinTemplate"
+            return function() if not done then done = true; return blob end end
+        end
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    f:Show()
+    local tick = blob:GetScript("OnUpdate")
+    f:SetAlpha(0.5)                                    -- the game's map fade while moving
+    tick(blob, 0.016)
+    T.eq(fill, 64, "half faded map: half the fill")
+    T.eq(border, 96, "and half the outline")
+    f:SetAlpha(1)
+    tick(blob, 0.016)
+    T.eq(fill, 128, "back with the map")
+    T.eq(border, 192)
 end)
 
 -- The world map's pins (MapPins.lua). Entrances and flight masters placed by the
@@ -3094,6 +3242,34 @@ T.test("skins: the game's pop-up menus, every level, are dressed as they show (E
         T.truthy(ours, "our look behind it")
         T.eq(m.text.__textColor[1], 0.5, "the game's colors kept")
     end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The barber shop hides UIParent and makes its own frame the top one
+-- (SetAlternateTopLevelParent, Blizzard_BarberShopUI). Its menus have no parent,
+-- so a look parented to UIParent was hidden and the list drew over the rows.
+T.test("skins: a menu opened in the barber shop gets its look on the barber shop's frame", function()
+    local callbacks = {}
+    login(function()
+        _G.EventRegistry = {
+            RegisterCallback = function(_, event, fn, owner) callbacks[event] = function(...) fn(owner, ...) end end,
+        }
+    end)
+    local Kit = stub.skins.Kit
+    local barber = CreateFrame("Frame", "BarberShopFrame")
+    _G.GetAppropriateTopLevelParent = function() return barber end
+    UIParent:Hide()
+    local menu = CreateFrame("Frame")                  -- the game's menus have no parent
+    menu.bg = menu:CreateTexture()
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    local holder
+    for _, c in ipairs({ barber:GetChildren() }) do if Kit.ShellOf(c) then holder = c end end
+    local seen = holder and holder:IsVisible()
+    UIParent:Show()
+    _G.GetAppropriateTopLevelParent = nil
+    T.truthy(holder, "our look on the barber shop's frame, not the hidden UIParent")
+    T.truthy(seen, "and seen")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

@@ -355,6 +355,8 @@ function BarMixin:ApplyGroups()
     local c = self.frame
     if not c then return end
     self:InvalidateMembers()
+    -- Setting a group's filters makes the client show every icon again.
+    BL.Feel.Hush()
     if self:IsDebuff() then
         self:ApplyDebuffGroups()
         self:Restyle()
@@ -1310,17 +1312,21 @@ function BL.PlaceAnchor()
     local room = textRoom(setting("iconSize")) * scale
     local dScale = BL.DB and DUI.Movers.Scale("buffs.debuff") or 1
     local dHeight = W.Height(setting("iconSize", "debuff")) * dScale
+    -- The player's nudge for each attached bar.
+    local buffY = tonumber(setting("attachY")) or 0
+    local debuffY = tonumber(setting("attachY", "debuff")) or 0
     anchor:ClearAllPoints()
     debuffAnchor:ClearAllPoints()
     if panel then
         -- The buffs follow the panel's edge as the info panel reports it,
         -- pushed out past its threat meter while that's slid out.
         local edge = _G[BL.PANEL_EDGE] or panel
-        anchor:SetPoint("TOPRIGHT", edge, "TOPLEFT", -BL.ANCHOR_GAP, -room)
-        debuffAnchor:SetPoint("TOPRIGHT", panel, "BOTTOMLEFT", -BL.ANCHOR_GAP, dHeight)
+        anchor:SetPoint("TOPRIGHT", edge, "TOPLEFT", -BL.ANCHOR_GAP, buffY - room)
+        debuffAnchor:SetPoint("TOPRIGHT", panel, "BOTTOMLEFT", -BL.ANCHOR_GAP, dHeight + debuffY)
     else
-        anchor:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -BL.ANCHOR_EDGE, -(BL.ANCHOR_EDGE + room))
-        debuffAnchor:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 0, -BL.DEBUFF_DROP)
+        anchor:SetPoint("TOPRIGHT", UIParent, "TOPRIGHT", -BL.ANCHOR_EDGE, buffY - (BL.ANCHOR_EDGE + room))
+        -- Hung off the buffs' anchor, so the buffs' nudge is taken back out.
+        debuffAnchor:SetPoint("TOPRIGHT", anchor, "TOPRIGHT", 0, debuffY - buffY - BL.DEBUFF_DROP)
     end
 end
 BL.PlaceAnchor()
@@ -1621,6 +1627,7 @@ BL.On("SETTINGS_CHANGED", function(key, scope)
         if bar and bar.frame then bar:ApplyAttach() end
         return
     end
+    if key == "attachY" then return end -- the anchors moved (Module.lua), the bar follows them
     local bar = (scope == "debuff") and BL.DebuffBar or BL.Bar
     if bar and bar.frame then bar:ApplyAll() end
 end)

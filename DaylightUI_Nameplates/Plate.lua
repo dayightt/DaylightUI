@@ -276,6 +276,14 @@ end
 -- Building
 -- ---------------------------------------------------------------------
 
+-- Live plates normally draw as one batch. /dui flatoff can switch that off
+-- for the session when a player is checking why plates disappear.
+function Plate.ApplyFlattening(p)
+    if p.SetFlattensRenderLayers and not p.isSample then
+        p:SetFlattensRenderLayers(not Plate.flatteningOff)
+    end
+end
+
 -- Built away from the game's plates (under the manager's own parent), then moved onto one
 -- when needed (Plate.Attach): a frame created as a child of a game plate in combat
 -- comes out forbidden to addons.
@@ -287,6 +295,7 @@ function Plate.Create(parent, sample)
     -- The game scales each plate its own way (simplified ones way down). This one
     -- is the UI scale times the Scale setting (Plate.ApplyScale).
     if p.SetIgnoreParentScale and not p.isSample then p:SetIgnoreParentScale(true) end
+    Plate.ApplyFlattening(p)
     p:SetSize(1, 1)
 
     local hp = CreateFrame("Frame", nil, p)
@@ -595,8 +604,8 @@ function Plate.LayoutRing(ring, frame, depth, topCut, bottomCut, radius)
     -- of the cut.
     local lean = bottomCut - topCut
     if e.RIGHT.SetVertexOffset then
-        pcall(e.RIGHT.SetVertexOffset, e.RIGHT, 2, -lean, 0)   -- lower left
-        pcall(e.RIGHT.SetVertexOffset, e.RIGHT, 4, -lean, 0)   -- lower right
+        DUI.SafeCall(e.RIGHT.SetVertexOffset, e.RIGHT, 2, -lean, 0)   -- lower left
+        DUI.SafeCall(e.RIGHT.SetVertexOffset, e.RIGHT, 4, -lean, 0)   -- lower right
     end
     -- A sweep in progress keeps its position (a target switch re-lays out the plate
     -- just after the sweep starts).
@@ -706,7 +715,7 @@ function Plate.PlaceStack(p)
     if not s then return end
     if Plate.NoStack() then
         s:Hide()
-        if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, np) end
+        if np.SetStackingBoundsFrame then DUI.SafeCall(np.SetStackingBoundsFrame, np, np) end
         return
     end
     -- Only what changed is set: every new size makes the game space its plates again.
@@ -725,7 +734,7 @@ function Plate.PlaceStack(p)
         s:SetPoint("CENTER", np, "CENTER", 0, y)
     end
     s:Show()
-    if np.SetStackingBoundsFrame then pcall(np.SetStackingBoundsFrame, np, s) end
+    if np.SetStackingBoundsFrame then DUI.SafeCall(np.SetStackingBoundsFrame, np, s) end
 end
 
 -- ---------------------------------------------------------------------
@@ -921,10 +930,10 @@ local function filledCalc(p, u)
         if not ok or not made then return nil end
         calc = made
         local mode = Enum.UnitDamageAbsorbClampMode and Enum.UnitDamageAbsorbClampMode.MissingHealth
-        if type(mode) == "number" and calc.SetDamageAbsorbClampMode then pcall(calc.SetDamageAbsorbClampMode, calc, mode) end
+        if type(mode) == "number" and calc.SetDamageAbsorbClampMode then DUI.SafeCall(calc.SetDamageAbsorbClampMode, calc, mode) end
         local heal = Enum.UnitIncomingHealClampMode and Enum.UnitIncomingHealClampMode.MissingHealth
-        if type(heal) == "number" and calc.SetIncomingHealClampMode then pcall(calc.SetIncomingHealClampMode, calc, heal) end
-        if calc.SetIncomingHealOverflowPercent then pcall(calc.SetIncomingHealOverflowPercent, calc, 1) end
+        if type(heal) == "number" and calc.SetIncomingHealClampMode then DUI.SafeCall(calc.SetIncomingHealClampMode, calc, heal) end
+        if calc.SetIncomingHealOverflowPercent then DUI.SafeCall(calc.SetIncomingHealOverflowPercent, calc, 1) end
         p.healCalc = calc
     end
     if not pcall(UnitGetDetailedHealPrediction, u, nil, calc) then return nil end
@@ -1007,7 +1016,7 @@ function Plate.ExecuteFill(p)
     end
     local fm = Style.GetFillMask(p.health)
     if fm and e.fillMask ~= fm then
-        if pcall(e.fill.AddMaskTexture, e.fill, fm) then e.fillMask = fm end
+        if DUI.SafeCall(e.fill.AddMaskTexture, e.fill, fm) then e.fillMask = fm end
     end
     return e.fill
 end
@@ -1088,7 +1097,7 @@ function Plate.ExecuteCurve(pct)
         if C_CurveUtil and C_CurveUtil.CreateCurve then
             local ok, made = pcall(C_CurveUtil.CreateCurve)
             if ok and made then
-                if Enum.LuaCurveType and made.SetType then pcall(made.SetType, made, Enum.LuaCurveType.Linear) end
+                if Enum.LuaCurveType and made.SetType then DUI.SafeCall(made.SetType, made, Enum.LuaCurveType.Linear) end
                 made:AddPoint(0, 1)
                 made:AddPoint(pct, 1)
                 made:AddPoint(math.min(1, pct + 0.001), 0)
@@ -1170,7 +1179,7 @@ function Plate.LayoutExecute(p, show)
         t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
         t:SetWidth(math.max(x, 1))
         t:SetTexture(file)
-        if t.SetVertexOffset then pcall(t.SetVertexOffset, t, 3, lean, 0) end
+        if t.SetVertexOffset then DUI.SafeCall(t.SetVertexOffset, t, 3, lean, 0) end
     end
     local l = e.line
     local px = tonumber(c.executeLineSize) or 2
@@ -1179,8 +1188,8 @@ function Plate.LayoutExecute(p, show)
     l:SetPoint("BOTTOM", bar, "BOTTOMLEFT", x, 0)
     l:SetWidth(Pixel.Px(bar, math.max(px, 1)))
     if l.SetVertexOffset then
-        pcall(l.SetVertexOffset, l, 1, lean, 0)
-        pcall(l.SetVertexOffset, l, 3, lean, 0)
+        DUI.SafeCall(l.SetVertexOffset, l, 1, lean, 0)
+        DUI.SafeCall(l.SetVertexOffset, l, 3, lean, 0)
     end
     l:SetShown(px > 0)
     local strength = tonumber(c.executeStrength) or 0.45
@@ -1562,7 +1571,7 @@ function Plate.ApplyThreatPulse(p, t)
         end
         local fm = Style.GetFillMask(p.health)
         if fm and p.threatLightMask ~= fm then
-            if pcall(p.threatLight.AddMaskTexture, p.threatLight, fm) then p.threatLightMask = fm end
+            if DUI.SafeCall(p.threatLight.AddMaskTexture, p.threatLight, fm) then p.threatLightMask = fm end
         end
         p.threatLight:SetVertexColor(t[1], t[2], t[3], P.strength)
         p.threatLight:Show()
@@ -1763,7 +1772,7 @@ Plate.DRAGON = { file = DUI.MEDIA .. "plate-dragon.png", tex = 128, px = 32,
                  w = 3.15625, h = 2.4375, endX = 2.2636, topY = 1.1636 }
 -- The unit frames' elite colors (UF.ELITE_RING_COLORS); bosses are gold too.
 Plate.DRAGON_COLORS = { gold = { 1.0, 0.8, 0.33 }, silver = { 0.84, 0.87, 0.92 } }
-Plate.DRAGON_KIND = { elite = "gold", rareelite = "gold", worldboss = "gold", rare = "silver" }
+Plate.DRAGON_KIND = { elite = "gold", rareelite = "silver", worldboss = "gold", rare = "silver" }
 
 function Plate.LayoutDragon(p, h, allowed)
     local D, t = Plate.DRAGON, p.dragon
@@ -3028,13 +3037,13 @@ local function listen(p, unit)
     p.powerEvents = nil -- the power bar's own, re-registered by Power.Refresh
     for event in pairs(Plate.UNIT_EVENTS) do
         if event == "UNIT_FACTION" then -- your own changing counts too (a duel, PvP), as on the game's plate
-            pcall(p.RegisterUnitEvent, p, event, unit, "player")
+            DUI.SafeCall(p.RegisterUnitEvent, p, event, unit, "player")
         else
-            pcall(p.RegisterUnitEvent, p, event, unit)
+            DUI.SafeCall(p.RegisterUnitEvent, p, event, unit)
         end
     end
     if not p.friendly then
-        for event in pairs(ns.Cast.EVENTS) do pcall(p.RegisterUnitEvent, p, event, unit) end
+        for event in pairs(ns.Cast.EVENTS) do DUI.SafeCall(p.RegisterUnitEvent, p, event, unit) end
     end
 end
 

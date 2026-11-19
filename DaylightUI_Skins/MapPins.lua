@@ -335,6 +335,43 @@ ns.Engine.Register({ key = "worldmap.pins", apply = function()
     Pins.Draw()
 end })
 
+-- The game's own quest area on the map (QuestBlobPinTemplate, a Blob frame) is
+-- drawn at its own fill and outline alpha whatever the map's alpha is, so it
+-- stayed at full strength while the map faded as you moved. It follows the
+-- map's alpha here, through the pin's own fill and outline alpha.
+Pins.BLOB_FILL, Pins.BLOB_BORDER = 128, 192   -- the pin's own (QuestBlobPinMixin:OnLoad)
+local blobAlpha = setmetatable({}, { __mode = "k" })
+function Pins.BlobFollow(b)
+    -- Nothing of the game's fades in a fight: the outline keeps the game's strength then.
+    if InCombatLockdown() then return end
+    local f = _G.WorldMapFrame
+    local a = type(f) == "table" and f.GetEffectiveAlpha and f:GetEffectiveAlpha()
+    -- With a secret alpha above it the client answers nothing: drawn as the game does.
+    if DUI.IsSecret(a) or type(a) ~= "number" then a = 1 end
+    a = math.floor(math.max(0, math.min(1, a)) * 100 + 0.5) / 100
+    if blobAlpha[b] == a then return end
+    blobAlpha[b] = a
+    b:SetFillAlpha(math.floor(Pins.BLOB_FILL * a + 0.5))
+    b:SetBorderAlpha(math.floor(Pins.BLOB_BORDER * a + 0.5))
+end
+
+local blobsHooked = setmetatable({}, { __mode = "k" })
+ns.Engine.Register({ key = "worldmap.questblob", apply = function()
+    local f = _G.WorldMapFrame
+    if type(f) ~= "table" or type(f.EnumeratePinsByTemplate) ~= "function" then return false end
+    local found = false
+    for b in f:EnumeratePinsByTemplate("QuestBlobPinTemplate") do
+        found = true
+        if not blobsHooked[b] and type(b.SetFillAlpha) == "function" and b.HookScript then
+            blobsHooked[b] = true
+            -- The pin runs its own OnUpdate while the map is shown.
+            b:HookScript("OnUpdate", Pins.BlobFollow)
+            Pins.BlobFollow(b)
+        end
+    end
+    if not found then return false end
+end })
+
 function Pins.Start(c)
     cfg = c
     if frame then

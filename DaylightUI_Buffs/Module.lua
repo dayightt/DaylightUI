@@ -31,7 +31,7 @@ DUI:RegisterModule(BL.MODULE, {
         if not key then return end
         -- The anchors follow the icon size: room for the time above the buffs'
         -- first row, and the debuffs' first row resting on the panel.
-        if key == "iconSize" then BL.PlaceAnchor() end
+        if key == "iconSize" or key == "attachY" then BL.PlaceAnchor() end
         BL.Fire("SETTINGS_CHANGED", key, scope)
     end,
     OnStyleChanged = function()

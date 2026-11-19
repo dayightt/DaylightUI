@@ -204,8 +204,9 @@ end)
 T.test("defaults, resets and dependencies", function()
     local DUI = stub.Load({ module = true })
     local O = DUI.Options
-    local page = O.GetPage("UnitFrames.castbars")
-    local items = page.groups[1].items
+    local page = O.GetPage("UnitFrames.player")
+    local items
+    for _, g in ipairs(page.groups) do if g.label == "Player cast bar" then items = g.items end end
     local by = {}
     for _, item in ipairs(items) do by[item.key] = item end
     local attach, width = by["playerCastbar.at"], by["playerCastbar.width"]
@@ -261,10 +262,10 @@ end)
 T.test("frame pages carry a live sample; other pages don't", function()
     local DUI = stub.Load({ module = true })
     local O = DUI.Options
-    for _, id in ipairs({ "player", "target", "focus", "targettarget", "pet", "party", "raid" }) do
+    for _, id in ipairs({ "player", "target", "focus", "targettarget", "pet", "party", "raid", "castbars" }) do
         T.eq(type(O.GetPage("UnitFrames." .. id).sample), "function", id)
     end
-    for _, id in ipairs({ "UnitFrames.colors", "UnitFrames.castbars", "appearance" }) do
+    for _, id in ipairs({ "UnitFrames.colors", "appearance" }) do
         T.isnil(O.GetPage(id).sample, id)
     end
 end)
@@ -381,7 +382,7 @@ T.test("dropdowns pick from their list", function()
 end)
 
 T.test("disabled rows ignore input", function()
-    local DUI, pf = open("UnitFrames.castbars")
+    local DUI, pf = open("UnitFrames.player")
     local width = rowFor(pf, "playerCastbar.width")
     T.truthy(width.disabled)
     local s = width.control.slider
@@ -869,4 +870,24 @@ T.test("questions: Reload is a secure /reload click, and waits out a fight", fun
     stub.LeaveCombat()
     T.eq(W.Asking() and W.Asking().key, "reload")
     W.Answer(false)
+end)
+
+-- The role badges are Daylight UI's own art, the same sheet the party frames use.
+T.test("role badges use Media/roles.png, as a badge and inline in text", function()
+    local DUI = stub.Load()
+    local W = DUI.Widgets
+    local b = W.Role(UIParent, 16)
+    T.eq(b.art:GetTexture(), DUI.MEDIA .. "roles.png", "the sheet")
+    b.Set("TANK")
+    T.truthy(b:IsShown(), "a role shows")
+    local l, r, t, bt = b.art:GetTexCoord()
+    T.deq({ l, r, t, bt }, { 0, 0.5, 0, 0.5 }, "tank is the top left quarter")
+    b.Set("HEALER", true)
+    T.truthy(b.art:IsDesaturated(), "an open spot is gray")
+    T.near(b.art:GetAlpha(), W.ROLE_OPEN, 0.001, "and faint")
+    b.Set("NONE")
+    T.falsy(b:IsShown(), "anything else hides it")
+    local text = W.RoleText("DAMAGER", 12)
+    T.eq(text, "|T" .. DUI.MEDIA .. "roles.png:12:12:0:0:128:128:0:64:64:128|t", "inline, the bottom left quarter")
+    T.eq(W.RoleText("NONE"), "", "no art for anything else")
 end)
