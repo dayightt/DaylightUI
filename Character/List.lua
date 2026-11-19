@@ -127,6 +127,11 @@ local function rowFrame(L, i)
     r.bar = newBar(r)
     r.bar:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", 0, 3)
     r.bar:SetPoint("BOTTOMRIGHT", r, "BOTTOMRIGHT", -2, 3)
+
+    -- item.barText: shown on the bar while the row is hovered.
+    r.barText = Style.Text(r.bar, List.SMALL, "CENTER")
+    r.barText:SetPoint("CENTER", r.bar, "CENTER", 0, 0)
+    r.barText:Hide()
     r:SetScript("OnClick", function(self) List.Click(L, self.item) end)
     -- Only visible rows exist, so the D-pad reaching the last one scrolls the
     -- list (List.PadEdge).
@@ -135,11 +140,25 @@ local function rowFrame(L, i)
     -- A list with nothing to open (opts.static: the skills, a statistics category's numbers) lights no row:
     -- a hover or a pick would promise a click that does nothing. Headers still fold.
     r:SetScript("OnEnter", function(self)
+        self.hovered = true
+        List.ShowBarText(self)
         if self.item and self.item.kind ~= "head" and not L.opts.static then Light(self.hi, true) end
     end)
-    r:SetScript("OnLeave", function(self) Light(self.hi, false) end)
+    r:SetScript("OnLeave", function(self)
+        self.hovered = false
+        List.ShowBarText(self)
+        Light(self.hi, false)
+    end)
     L.rows[i] = r
     return r
+end
+
+-- A hovered row with a bar and item.barText shows that text on its bar.
+function List.ShowBarText(r)
+    local item = r.item
+    local text = r.hovered and item and item.kind ~= "head" and item.bar and item.barText
+    r.barText:SetText(text or "")
+    r.barText:SetShown(text ~= nil and text ~= false)
 end
 
 -- opts: onPick(item) for rows, onFold(item) for headers, row = row height
@@ -331,6 +350,7 @@ function List.Draw(L)
                 r.barKey = item.key
                 List.PaintBar(r.bar, b.key, b.rgb)
             end
+            List.ShowBarText(r)
             local sel = not head and item.key == L.selectedKey
             r.pick:SetShown(sel)
             r.mark:SetShown(sel)
