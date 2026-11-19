@@ -88,6 +88,21 @@ Custom.PETS = {
     WARLOCK = { 691, 712, 697, 688 },       -- Felhunter, Succubus, Voidwalker, Imp
 }
 
+-- Skyborne racials, by the racial's spell id. Each cast puts up a short buff, and on
+-- a ley line or convergence also an hour-long one. The game links both to the
+-- racial's own piece, where the hour-long one hid the short one and the cooldown.
+-- Each buff gets a piece of its own, and the racial's piece leaves the node buff out.
+Custom.RACIALS = {
+    [1259686] = { cast = 1259688, node = 1270893 },   -- Skysight: Elemental Blessing, Charged
+    [1259705] = { cast = 1270842, node = 1259691 },   -- Read Leyline: Energized, Attuned
+}
+
+-- The node buff to leave off this racial's piece, or nil.
+function Custom.RacialNodeBuff(sid)
+    local r = sid ~= nil and Custom.RACIALS[sid]
+    return r and r.node or nil
+end
+
 -- Addon-made keys: "seal", "aura", "blessing", "pet", "s<spell id>" (a list family
 -- or a spell added by ID in the editor) and "i<item id>" (an item added by ID).
 Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true }
@@ -254,6 +269,20 @@ local function build()
     end
     if type(class) == "string" then
         for _, f in ipairs(S[class] or {}) do add(f, false) end
+    end
+    local known = type(C_SpellBook) == "table" and C_SpellBook.IsSpellKnown
+    for racial, r in pairs(Custom.RACIALS) do
+        local ok, yes = false, nil
+        if type(known) == "function" then ok, yes = pcall(known, racial) end
+        if ok and plain(yes) == true then
+            for _, b in ipairs({ r.node, r.cast }) do
+                local k = "s" .. b
+                if not index[k] then
+                    index[k] = { ids = { b }, aura = true, self = true, racial = true }
+                    order[#order + 1] = k
+                end
+            end
+        end
     end
     for _, f in ipairs(S.GROUP or {}) do add(f, true) end
     -- Every rank of every totem, for a one-lookup Custom.Totem.
@@ -512,8 +541,8 @@ function Custom.Learned(id)
     local f = Custom.Family(id)
     if not f then return nil end
     -- Items count as known even when not in your bags. CdmEffects grays the
-    -- icon while it can't be used.
-    if f.item then return f.ids[1] end
+    -- icon while it can't be used. A racial's buffs are only listed when you know the racial.
+    if f.item or f.racial then return f.ids[1] end
     local v = learned[id]
     if v == nil then
         v = false
@@ -621,11 +650,11 @@ function Custom.Look(id)
 end
 
 -- The card's What it shows can pick its cooldown, its buff or both. Not for
--- someone else's buff on you, the merged families (seal, aura, blessing) or the pet,
--- which have no cooldown of yours to show.
+-- someone else's buff on you, the merged families (seal, aura, blessing), the pet or
+-- a racial's buff, which have no cooldown of yours to show.
 function Custom.CanTrack(id)
     local f = Custom.Family(id)
-    return f ~= nil and not (f.group or f.merged or f.pet) and not worn(id, f)
+    return f ~= nil and not (f.group or f.merged or f.pet or f.racial) and not worn(id, f)
 end
 
 -- "cooldown", "aura" or "both": the piece's saved choice (Data.SetTrack) if the

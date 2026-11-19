@@ -91,7 +91,11 @@ function A.SpellIDs(id)
             end
         end
     end
-    return withLearned(ids)
+    withLearned(ids)
+    -- A Skyborne racial's hour-long node buff has a piece of its own (CdmCustom.RACIALS).
+    local node = C and C.RacialNodeBuff(base)
+    if node then ids[node] = nil end
+    return ids
 end
 
 -- Spells that put a debuff on you (Arcane Blast's stack). The game's item only
@@ -139,10 +143,15 @@ end
 -- The game's own item can't show this aura: it looks on you and your target only,
 -- by the ids its data links (a trap's first rank, never your pet, never a summon),
 -- and only for auras you cast, so a group buff or a one-copy debuff from someone
--- else stays dark. CdmRows hands such a spell to Daylight UI's holder whenever its
--- aura is wanted.
+-- else stays dark. A Skyborne racial's item would show the node buff its data links,
+-- which Daylight UI's holder leaves out. CdmRows hands such a spell to Daylight UI's
+-- holder whenever its aura is wanted.
 function A.GameBlind(id)
     local own, C = ownKey(id), ns.CdmCustom
+    if C and not C.Is(id) then
+        local info = infoOf(id)
+        if info and C.RacialNodeBuff(plain(info.spellID)) then return true end
+    end
     return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil
         or C.Shared(own) or C.Unique(own))
 end
