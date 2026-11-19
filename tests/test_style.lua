@@ -597,6 +597,25 @@ T.test("corner caps round the contents only when the curve is wider than the bor
     T.near(x, 4 * u); T.near(y, -4 * u)
 end)
 
+T.test("a big rounding on a thick border keeps the inner curve off thin bars", function()
+    local DUI = stub.Load()
+    local f = CreateFrame("Frame", nil, UIParent)
+    local s = DUI.Style.Shell(f, { borderPx = 8, cornerPx = 24 })
+    s:SetSize(186, 42)   -- the fake game doesn't size a frame from its anchors
+    DUI.Style.LayoutShell(s)
+    local u = 768 / 1080
+    local T8 = DUI.Pixel.Px(s, 8)
+    T.near(s.border.TOPLEFT:GetWidth(), 24 * u, 1e-6, "the outline keeps its rounding")
+    T.near(s.fillet.TOPLEFT:GetWidth(), (42 - 2 * T8) / 4, 1e-6, "the inner curve is a quarter of the inside")
+    -- The ring's hole is centered on the inner curve's center.
+    local _, _, _, x, y = s.holes[s.border.TOPLEFT]:GetPoint(1)
+    T.near(x, T8 + (42 - 2 * T8) / 4); T.near(y, -(T8 + (42 - 2 * T8) / 4))
+    -- A tall frame keeps the full curve.
+    s:SetSize(300, 300)
+    DUI.Style.LayoutShell(s)
+    T.near(s.fillet.TOPLEFT:GetWidth(), 24 * u - T8, 1e-6)
+end)
+
 T.test("a zero corner curve hides the corner pieces instead of sizing them 0", function()
     local DUI = stub.Load()
     local s = DUI.Style.Shell(CreateFrame("Frame", nil, UIParent))

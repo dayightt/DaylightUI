@@ -1290,6 +1290,14 @@ function Style.LayoutShell(s)
     -- the curve, so the curve stops growing there.
     if T > 0 then R = math.min(R, T * 3.4) end
     local F = math.max(0, R - T)
+    -- The inner curve rounds off the contents' corners. With a thick border
+    -- and a big rounding it grew past a thin bar's height and ate its ends, so
+    -- it stays within a quarter of the inside's smaller side. Its center (C)
+    -- then sits nearer the corner than the outline's.
+    if ok and not secret and type(w) == "number" and type(h) == "number" and w > 0 and h > 0 then
+        F = math.min(F, math.max(0, math.min(w, h) - 2 * T) / 4)
+    end
+    local C = T + F
     s.radius = R -- the angled end's masks stay clear of the curve (LayoutSlant)
     -- A shell's own shadow size, color and strength (a glow is a colored shadow),
     -- or the general ones.
@@ -1326,7 +1334,7 @@ function Style.LayoutShell(s)
         c:SetShown(R > 0 and not sharpAt(angled, key))
         -- Only the ring of border shows; inside the curve (radius F) is the
         -- frame's own contents.
-        hole(s, c, key, R, F)
+        hole(s, c, key, C, F)
     end
     -- Edges run between the corner curves and are the full border thickness,
     -- so together they also fill the square part of each corner.
@@ -1374,7 +1382,7 @@ function Style.LayoutShell(s)
         c:SetShown(heavy and Rb > 0 and not sharpAt(angled, key))
         -- The band's ring stops a pixel short of the contents (its inner
         -- black line is the outline's ring).
-        hole(s, c, key, R, F > 0 and (F + one) or 0)
+        hole(s, c, key, C, F > 0 and (F + one) or 0)
     end
     local e = one + Rb
     -- Like the outline: at a sharp end the band's top and bottom run out to the
