@@ -2424,6 +2424,10 @@ end
 _G.GetBindingText = function(key) return key end
 _G.GetCurrentBindingSet = function() return 1 end
 _G.SaveBindings = function() end
+-- The game's own Settings rows set these (ModifiedClickSettingMixin).
+stub.modifiedClicks = {}
+_G.GetModifiedClick = function(action) return stub.modifiedClicks[action] or "NONE" end
+_G.SetModifiedClick = function(action, key) stub.modifiedClicks[action] = key end
 _G.SetOverrideBindingClick = function(owner, _, key, name, button)
     blockedInCombat("SetOverrideBindingClick")
     stub.overrides[key] = { owner = owner, click = name, button = button }
@@ -3188,7 +3192,7 @@ function stub.Reset()
     for i = #timers, 1, -1 do timers[i] = nil end
     stub.tickers = {}
     stub.ResetTimers()
-    stub.chat, stub.errors = {}, {}
+    stub.chat, stub.errors, stub.modifiedClicks = {}, {}, {}
     stub.units, stub.loadedAddOns, stub.unknownEvents = {}, {}, {}
     stub.spells = {}
     stub.keyDownCVar = nil
