@@ -264,7 +264,6 @@ return {
         ["Legacy/Trees.lua"] = 1,
         ["Lfg/Data.lua"] = 7,
         ["Lfg/Listing.lua"] = 1,
-        ["Lfg/Who.lua"] = 4,
         ["Lfg/Window.lua"] = 2,
         ["Mail/Inbox.lua"] = 2,
         ["Mail/Ledger.lua"] = 1,
