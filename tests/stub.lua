@@ -3017,9 +3017,10 @@ _G.C_UnitAuras = {
     end,
     -- The first aura on the unit with that spell id (helpful, then harmful), or
     -- nil. While auras are secret it quietly returns nothing, like the client
-    -- (RequiresNonSecretAura).
+    -- (RequiresNonSecretAura), except for an aura the game never hides
+    -- (stub.neverSecretAuras), which isn't secret in a fight either.
     GetUnitAuraBySpellID = function(unit, spellID)
-        if stub.AurasRestricted() then return nil end
+        if stub.AurasRestricted() and not stub.neverSecretAuras[spellID] then return nil end
         for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
             local list = stub.auras[unit] and stub.auras[unit][filter]
             for _, a in ipairs(list or {}) do

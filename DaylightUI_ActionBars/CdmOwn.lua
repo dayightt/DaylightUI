@@ -22,8 +22,7 @@ local holds = {}    -- [id .. kind] = placeholder frame
 -- (game not ready at login) or one read in combat or under restrictions (ids may
 -- come back secret) isn't cached.
 local known
-local unsure, unsureFor   -- Own.Learn's list, and the layout (set, Data.version) it was built for
-function Own.Forget() known, unsure = nil, nil end
+function Own.Forget() known = nil end
 function Own.Known()
     if known then return known end
     local out = Own.Read()
@@ -72,14 +71,34 @@ function Own.Read()
     return out
 end
 
--- Every placed spell rests on two facts: does it have a real cooldown
--- (Own.HasCooldown), and does it have a buff or debuff (the aura family, or a cooldown
--- the game shows by its aura, CdmAuras.Follows). One rule turns those into its Track
--- (card Behavior tab; the piece's own `track` wins): both -> "both" (the buff while
--- up, then the cooldown), a buff from the game's buff rows alone -> "buff" (shown only
--- while up), no aura -> nil (a plain cooldown, nothing to pick). A cooldown-row spell
--- left unset stays like the game's own icon, shown all the time with its aura while
--- up, cooldown or not (Rend, Moonfire). Own.Picked tells a real pick from the guess.
+-- What a placed spell shows, and who draws it, follow from things that stay put
+-- while you play: the game's data about the spell (does it have a real cooldown,
+-- does it have a buff or debuff, does that buff hold a count), the row the game
+-- files it in, and the player's own "What it shows" pick. No other option and
+-- nothing picked up along the way may change either, or a spell could swap drawers
+-- in the middle of a session.
+--
+-- Own.Track says what it shows. The player's pick wins. Left unset:
+--   no buff or debuff                           nil, a plain cooldown
+--   a buff row spell                            "both" with a real cooldown, else "buff"
+--   a cooldown whose icon shows its buff        "both" (Rend, Thunder Clap)
+--   a cooldown whose icon never shows its buff  "cooldown" (Bloodrage), or "both" when
+--                                               the buff holds a count or there is no
+--                                               real cooldown to show (Slice and Dice)
+--
+-- Own.GameDraws says who draws it. The game's own item does when it already shows
+-- exactly that; Daylight UI's icons, buff buttons and bars draw the rest:
+--   shows                the game's cooldown icon         the game's buff item
+--   nothing to pick      the game's                       the game's
+--   "cooldown"           the game's if the icon never     Daylight UI's
+--                        shows the buff, else Daylight UI's
+--   "buff"               Daylight UI's                    the game's
+--   "both"               the game's if the icon shows     Daylight UI's
+--                        the buff, else Daylight UI's
+-- Always Daylight UI's: a totem, a buff that holds a count (the game's cooldown icon
+-- can't show one), a buff the game's item can't see (CdmAuras.GameBlind), a spell
+-- placed in the other shape than the game's item, and a spell the game has no item
+-- for at all.
 Own.TRACKS = { "both", "cooldown", "buff" }
 local function valid(t) return t == "both" or t == "cooldown" or t == "buff" end
 
@@ -129,20 +148,34 @@ function Own.Track(id, p, known)
     end
     local t = Own.Picked(p)
     if t then return t end
-    -- The game's icon never shows a quiet aura, so left alone it stays a cooldown
-    -- until a Buff up or Buff missing row needs the buff. With no real cooldown
-    -- (Slice and Dice) there's nothing to stay as. A buff that holds charges
-    -- (Shield Block, Holy Shield; Own.Stacks) shows them while up, since the count
-    -- is why it's placed.
+    -- The game's icon never shows a quiet aura, so left alone it stays a cooldown.
+    -- The Buff up and Buff missing rows still work on it: the game's buff item of
+    -- the same spell says whether the buff is up. With no real cooldown (Slice and
+    -- Dice) there's nothing to stay as. A buff that holds a count (Shield Block,
+    -- Holy Shield; Own.Stacks) shows it while up, since the count is why it's placed.
     local hasCooldown = Own.HasCooldown(Own.SpellOf(id))
     if hasCooldown and not AURA[k.cat] and Own.QuietAura(id) then
-        return (Own.Stacks(id) or type(p) == "table" and (p.hideActive == true or p.missingGlow == true or p.upGlow == true))
-            and "both" or "cooldown"
+        return Own.Stacks(id) and "both" or "cooldown"
     end
     -- A cooldown-row spell with no cooldown of its own (Rend, Moonfire) stays up
     -- like the game's icon: its aura while up, else ready. Only spells from the buff
     -- rows show just while up.
     return (hasCooldown or not AURA[k.cat]) and "both" or "buff"
+end
+
+-- Whether the game's own item draws a placed spell that shows t (Own.Track's
+-- answer), or Daylight UI draws it and the game's item stays out of sight. auraRow
+-- = the item sits in one of the game's buff rows, else it's a cooldown icon.
+function Own.GameDraws(id, t, auraRow)
+    if t == nil then return true end
+    local C, A = ns.CdmCustom, ns.CdmAuras
+    -- A totem is timed by Daylight UI from its slot.
+    if t == "totem" or (C ~= nil and C.Totem(Own.SpellOf(id)) ~= nil) then return false end
+    if A ~= nil and A.GameBlind(id) then return false end
+    -- A buff item shows the buff and hides while it's down, nothing else.
+    if auraRow then return t == "buff" end
+    if A ~= nil and A.Follows(id) then return t == "both" and not Own.Stacks(id) end
+    return t == "cooldown"
 end
 
 -- Shows only its buff, never its cooldown.
@@ -160,66 +193,18 @@ function Own.Picked(p)
     if valid(t) then return t end
 end
 
--- Spells seen on a real cooldown, per character (DB.Character().cdmCooldowns[spellID]
--- = true). The game doesn't always say (Forever's API docs lack
--- GetSpellBaseCooldown), so the first press outside restrictions teaches it.
-local function learned()
-    local c = DUI.DB and DUI.DB.Character()
-    if type(c) ~= "table" then return {} end
-    if type(c.cdmCooldowns) ~= "table" then c.cdmCooldowns = {} end
-    return c.cdmCooldowns
-end
-function Own.Learned(sid) return sid ~= nil and learned()[sid] == true end
-
--- Placed spells with an aura whose cooldown is still unknown, checked on each
--- cooldown update (a short list, usually empty). Rebuilt after a layout change
--- (Data.version) or a talent set swap.
-local function plainNum(v) if type(v) == "number" and not isSecret(v) then return v end end
-function Own.Learn()
-    if not (ns.Cooldowns and ns.Cooldowns.enabled) then return end
-    local set = ns.CdmData and ns.CdmData.Current()
-    local stamp = set and tostring(set) .. ":" .. tostring(ns.CdmData.version)
-    if unsure == nil or unsureFor ~= stamp then
-        unsure, unsureFor = {}, stamp
-        local known = Own.Known()
-        for id in pairs(set and set.pieces or {}) do
-            local sid = Own.SpellOf(id)
-            if sid and Own.HasAura(id, known[id]) and not Own.HasCooldown(sid) then unsure[#unsure + 1] = sid end
-        end
-    end
-    if #unsure == 0 or not (C_Spell and C_Spell.GetSpellCooldown) then return end
-    local got = false
-    for i = #unsure, 1, -1 do
-        local sid = unsure[i]
-        local ok, cd = pcall(C_Spell.GetSpellCooldown, sid)
-        local dur = ok and type(cd) == "table" and plainNum(cd.duration)
-        local gcd = ok and type(cd) == "table" and cd.isOnGCD
-        if dur and dur > 1.6 and not isSecret(gcd) and gcd ~= true then
-            learned()[sid] = true
-            table.remove(unsure, i)
-            got = true
-        end
-    end
-    if got then
-        known = nil   -- Own.Read's "filed as a buff, but a cooldown" check changes
-        if ns.CdmRows then ns.CdmRows.Refresh() end
-    end
-end
-DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function() DUI.SafeCall(Own.Learn) end)
-
--- The spell has a real cooldown (longer than the global cooldown): the game's base
--- cooldown, else one it was seen to run.
+-- The spell has a real cooldown (longer than the global cooldown), by the game's
+-- base cooldown call, else by its own spell data, which also counts a cooldown
+-- shared by a group of spells (the shocks, Charge, Kick). Never by watching a
+-- cooldown run: a wand shot puts every spell on one, and a spell would then be
+-- drawn one way before its first cast and another way after.
 function Own.HasCooldown(sid)
     if not sid then return false end
-    if Own.Learned(sid) then return true end
     local get = _G.GetSpellBaseCooldown or (C_Spell and C_Spell.GetSpellBaseCooldown)
     if type(get) == "function" then
         local ok, ms = pcall(get, sid)
         if ok and type(ms) == "number" and not isSecret(ms) and ms > 1500 then return true end
     end
-    -- Where the call is missing or says none, the game's own spell data. It counts
-    -- a cooldown shared by a group of spells (the shocks, Charge, Kick), so such a
-    -- spell isn't drawn one way before its first cast and another way after.
     local fact = ns.CdmCustom and ns.CdmCustom.Fact(sid)
     return fact ~= nil and fact.cd ~= nil
 end
@@ -295,13 +280,16 @@ function Own.QuietAura(id)
     if info and not isSecret(info.hasAura) and info.hasAura == true then return true end
     local sid = info and plainNumber(info.spellID)
     if sid ~= nil and Own.RACIAL_AURAS[sid] then return true end
-    return sid ~= nil and ((C ~= nil and C.KeyOfAuraSpell(sid) ~= nil) or Own.AuraOf(sid) ~= nil)
+    return sid ~= nil and C ~= nil and C.KeyOfAuraSpell(sid) ~= nil
 end
 
--- Buffs and debuffs learned from your own casts, per character:
--- DB.Character().cdmAuraIDs[cast spell id] = { [aura spell id] = true }. Nothing
--- lists every spell's aura, so a placed spell's cast where auras can be read looks
--- for it, by id and by name (the aura's id can differ from the cast's).
+-- Buffs and debuffs seen from your own casts, per character:
+-- DB.Character().cdmAuraIDs[cast spell id] = { [aura spell id] = true }. The game's
+-- data has no aura id for some spells (a totem's buff comes from the totem, a
+-- trinket's from its use), so a placed spell's cast where auras can be read looks
+-- for it, by id and by name. These ids only widen what a buff button watches
+-- (CdmAuras.SpellIDs) and tell a totem's icon its buff is known. They never decide
+-- what a spell shows or who draws it.
 local function auraBook()
     local c = DUI.DB and DUI.DB.Character()
     if type(c) ~= "table" then return {} end
@@ -384,7 +372,6 @@ function Own.LearnAura(sid)
     if type(book[sid]) == "table" and book[sid][found] then return end
     book[sid] = type(book[sid]) == "table" and book[sid] or {}
     book[sid][found] = true
-    known = nil
     A.Rebuild()
     if ns.CdmRows then ns.CdmRows.Refresh() end
 end
@@ -423,17 +410,65 @@ function Own.LearnAfterCombat()
 end
 DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() DUI.SafeCall(Own.LearnAfterCombat) end)
 
--- Cooldowns whose buff holds charges, every rank. The game's cooldown icon shows the
--- buff but never its count (its cooldown items only draw spell charges, see
--- CooldownViewer.lua), so Daylight UI draws them, with the client's aura button counting
--- the charges left.
-local STACKS = {
-    [2565] = true,                                 -- Shield Block
-    [20925] = true, [20927] = true, [20928] = true, -- Holy Shield
-}
+-- A spell whose buff holds a count, by the game's spell data: charges that get used
+-- up (Shield Block, Holy Shield) or stacks that build (Prayer of Mending). The
+-- game's cooldown icon shows the buff but never its count (its cooldown items only
+-- draw spell charges, see CooldownViewer.lua), so Daylight UI draws these, with the
+-- client's aura button counting.
 function Own.Stacks(id)
-    local sid = Own.SpellOf(id)
-    return sid ~= nil and STACKS[sid] == true
+    local fact = ns.CdmCustom and ns.CdmCustom.Fact(Own.SpellOf(id))
+    if not fact then return false end
+    return (fact.charges or 0) > 1 or (fact.stacks or 0) > 1
+end
+
+-- A layout saved before a spell's options stopped deciding who draws it. Two old
+-- rules changed what an unset spell shows: Hide (Buff up) or a buff glow turned a
+-- cooldown whose icon never shows its buff into Cooldown and buff, and a spell once
+-- seen on a cooldown counted as having one. Each such piece gets what it showed
+-- written down as its pick, once per layout, so nothing on screen changes.
+function Own.KeepOldTracks(set)
+    if type(set) ~= "table" or set.tracksKept or type(set.pieces) ~= "table" then return end
+    -- The spell list is whole only out of a fight, once the game has it.
+    if InCombatLockdown() or (DUI.Restricted and DUI.Restricted()) then return end
+    local known = Own.Known()
+    if next(known) == nil then return end
+    set.tracksKept = true
+    local c = DUI.DB and DUI.DB.Character()
+    local seenCd = type(c) == "table" and type(c.cdmCooldowns) == "table" and c.cdmCooldowns or {}
+    local C, A = ns.CdmCustom, ns.CdmAuras
+    local changed = false
+    for id, p in pairs(set.pieces) do
+        local sid = Own.SpellOf(id)
+        local learnedCd = sid ~= nil and seenCd[sid] == true and not Own.HasCooldown(sid)
+        if type(p) ~= "table" or Own.Picked(p) ~= nil or p.track ~= nil then
+            -- The player picked; nothing to keep.
+        elseif C and C.Is(id) then
+            -- A spell added by ID showed its cooldown once one was seen.
+            if learnedCd and C.IsAdded(id) and not C.ItemOf(id) and C.Track(id, set) == "aura" and C.CanTrack(id) then
+                p.track, changed = "cooldown", true
+            end
+        elseif known[id] then
+            local k = known[id]
+            local follows = A ~= nil and A.Follows(id)
+            local quiet = Own.QuietAura(id) or (not follows and Own.AuraOf(sid) ~= nil)
+            if AURA[k.cat] or follows or quiet then
+                local hadCd = learnedCd or Own.HasCooldown(sid)
+                local old
+                if hadCd and not AURA[k.cat] and quiet then
+                    old = (Own.Stacks(id) or p.hideActive == true or p.missingGlow == true or p.upGlow == true)
+                        and "both" or "cooldown"
+                else
+                    old = (hadCd or not AURA[k.cat]) and "both" or "buff"
+                end
+                local now = Own.Track(id, p, known)
+                -- Unset and "cooldown" are the same picture for a spell with no buff known.
+                if old ~= now and not (old == "cooldown" and now == nil) then
+                    p.track, changed = old, true
+                end
+            end
+        end
+    end
+    if changed and ns.CdmData then ns.CdmData.Changed() end
 end
 
 -- A gear slot cooldown (trinkets) with nothing equipped there. The game lists one on

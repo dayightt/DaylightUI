@@ -333,7 +333,25 @@ local function knownNow()
     return passKnown
 end
 
+-- What each placed spell shows (CdmOwn.Track), worked out once per pass.
+local tracks = {}
+local function trackOf(id, p)
+    local t = tracks[id]
+    if t == nil then
+        t = ns.CdmOwn.Track(id, p, knownNow()) or false
+        tracks[id] = t
+    end
+    return t or nil
+end
+
 local INFO_SPELLS = { "spellID", "overrideSpellID", "overrideTooltipSpellID", "linkedSpellID" }
+
+-- The game's buff item for any of these spell ids, placed or not.
+local function buffItemOf(ids)
+    for sid in pairs(ids or {}) do
+        if buffItems[sid] then return buffItems[sid] end
+    end
+end
 
 -- The game's item that tells whether piece id's buff is up, and whether it's a buff
 -- item (else a cooldown icon showing its aura). nil when the game has none for it,
@@ -354,9 +372,8 @@ local function truthItem(id, holder)
     -- The game's cooldown icon, out of sight because the piece is a bar: it still
     -- marks the aura it would be showing.
     if elsewhere[id] and ns.CdmAuras and ns.CdmAuras.Follows(id) then return elsewhere[id], false end
-    for sid in pairs(holder and holder.ids or {}) do
-        if buffItems[sid] then return buffItems[sid], true end
-    end
+    local item = buffItemOf(holder and holder.ids)
+    if item then return item, true end
 end
 
 -- One of the game's items (in viewer passName): held in its piece, hidden so Daylight UI's
@@ -384,42 +401,20 @@ local function claim(item)
             end
         end
     end
-    -- The game's item shows the wrong thing for the spell's Track (CdmOwn.Track):
-    -- a buff item tracked as its cooldown or both (Shield Block, Charge; it hides
-    -- while the buff is down), or a cooldown item the player set to Cooldown or Buff
-    -- only (Rend, Thunder Clap). Daylight UI draws it below and the game's stays hidden.
+    -- The game's item doesn't show what the spell is set to show (CdmOwn.GameDraws
+    -- has the whole rule): a buff item tracked as its cooldown or both (Shield
+    -- Block, Charge; it hides while the buff is down), or a cooldown icon set to
+    -- Cooldown or Buff only (Rend, Thunder Clap). Daylight UI draws it below and the
+    -- game's stays hidden. Only the spell's facts and the player's What it shows
+    -- pick decide this. Hide (Buff up), the glows and the sounds never do: they
+    -- work on whichever draws the spell.
     local cooldown = false
     local Own = ns.CdmOwn
     -- An aura the game's item can't see (a buff on your pet, a trap's debuff past
     -- its first rank, a summoned hawk): Daylight UI's holder shows it instead.
     local blind = block and ns.CdmAuras ~= nil and ns.CdmAuras.GameBlind(id)
     if block and Own then
-        local p = set.pieces[id]
-        if AURA_VIEWERS[name] then
-            local t = Own.Track(id, p, knownNow())
-            -- The recast glow needs the aura's end, which only Daylight UI's holder keeps.
-            cooldown = t == "cooldown" or t == "both" or t == "totem" or (t ~= nil and Fx.Get(p, "clipGlow") == true)
-                or (t ~= nil and blind)
-        else
-            -- Left unset it stays the game's icon (Rend, Moonfire too: shown all
-            -- the time, with its aura while up).
-            local t = Own.Track(id, p, knownNow())
-            local pick = Own.Picked(p)
-            -- Also moved to Daylight UI's holder: Hide (Buff up) and the recast glow, since the game's
-            -- icon can't say when it's showing the aura or when it ends; any buff request for an aura the game's
-            -- icon never shows (Bloodrage, one learned from a cast, or one picked
-            -- before any is known); a buff sound, since only Daylight UI's holder hears the aura
-            -- land or end; and a buff's charges (Shield Block, Holy Shield;
-            -- Own.Stacks).
-            local follows = ns.CdmAuras ~= nil and ns.CdmAuras.Follows(id)
-            -- A totem (Track "totem", or "both" for Totem and buff) is timed by Daylight UI from its slot.
-            local C = ns.CdmCustom
-            local totem = t == "totem" or (t == "both" and C ~= nil and C.Totem(Own.SpellOf(id)) ~= nil)
-            cooldown = t ~= nil and (totem or pick == "cooldown" or pick == "buff" or (pick == nil and t == "buff")
-                or Fx.Get(p, "hideActive") == true or Fx.Get(p, "buffSound") ~= "none"
-                or Fx.Get(p, "buffEndSound") ~= "none" or Fx.Get(p, "clipGlow") == true
-                or (t == "both" and (not follows or Own.Stacks(id) or blind)))
-        end
+        cooldown = not Own.GameDraws(id, trackOf(id, set.pieces[id]), AURA_VIEWERS[name] == true)
     end
     if block and ns.CdmAuras and ns.CdmAuras.SelfDebuff(id) then
         -- The debuff lands on you (Arcane Blast's stack). The game's item never
@@ -472,6 +467,40 @@ local function claim(item)
     end
 end
 
+
+-- Starts or ends a pass for claim() and drawOurs().
+local function setPass(set, on, hide)
+    passSet, passOn, passHide, passKnown = set, on, hide, nil
+    wipe(tracks)
+end
+
+-- A placed spell the game's own item draws: whether its buff is up, and its recast
+-- glow. A buff item answers for itself, and so does a cooldown icon that shows its
+-- aura while it's up (Rend). A cooldown icon that never shows its aura (Bloodrage)
+-- asks the game's buff item of the same spell.
+local function heldState(id, p, item)
+    local A = ns.CdmAuras
+    local t = trackOf(id, p)
+    local up
+    if auraKind[item] then
+        up = itemUp(item, true)
+    elseif A and A.Follows(id) and not A.GameBlind(id) then
+        up = itemUp(item, false)
+    elseif A and t then
+        local seen = buffItemOf(A.Watch(id).ids)
+        if seen then up = itemUp(seen, true) end
+        -- With no such item nothing can tell, and the card leaves its state rows out.
+        tracked[id] = false
+    end
+    if up ~= nil then downs[id], tracked[id] = not up, true end
+    -- Glow to recast runs on your own cast's clock, whoever draws the spell.
+    if A and t and Fx.ClipGlows(p) then
+        local w = A.Watch(id)
+        w.wantsClip = true
+        A.Told(w, up)
+        if up ~= false then clips[id] = A.Clip(w, ns.CdmOwn.SpellOf(id)) end
+    end
+end
 
 -- drawOurs results that are aura holders themselves.
 local HOLDS = { ["aura icon"] = true, ["aura bar"] = true, ["aura and cooldown bar"] = true }
@@ -573,6 +602,8 @@ function Rows.Update()
     -- With the layout on, the game's own items stay hidden even when the set has no
     -- pieces yet (the game keeps adding newly learned spells).
     local hide = Data.Switch("on") and Data.Switch("hideUnplaced")
+    -- An older layout's unset spells keep what they showed, before anything reads it.
+    if on and not set.tracksKept and ns.CdmOwn then ns.CdmOwn.KeepOldTracks(set) end
 
     -- A block comes from the saved layout alone, and every write to it goes through
     -- Data.Changed. Passes run on every aura change in a fight, so the blocks are
@@ -599,7 +630,7 @@ function Rows.Update()
     wipe(mine); wipe(elsewhere); wipe(elsewhereAura); wipe(auraItems); wipe(auraHolders); wipe(buffItems)
     for k in pairs(ours) do ours[k] = nil end
     for k in pairs(drawn) do drawn[k] = nil end
-    passSet, passOn, passHide, passKnown = set, on, hide, nil
+    setPass(set, on, hide)
     for name in pairs(KINDS) do
         local v = _G[name]
         if type(v) == "table" then
@@ -651,7 +682,7 @@ function Rows.Update()
                     end
                 end
             elseif not item and k then
-                local track = Own.Track(id, p, knownNow())
+                local track = trackOf(id, p)
                 if track == "buff" then
                     item = drawOurs(id, p, block, f, always, true)
                 elseif track then
@@ -660,15 +691,7 @@ function Rows.Update()
                     item = drawOurs(id, p, block, f, always, k.aura)
                 end
             elseif item and Own then
-                -- The game's own item: a buff item, or a cooldown icon that shows
-                -- its aura while it's up (Rend).
-                local up
-                if auraKind[item] then
-                    up = itemUp(item, true)
-                elseif ns.CdmAuras and ns.CdmAuras.Follows(id) and not ns.CdmAuras.GameBlind(id) then
-                    up = itemUp(item, false)
-                end
-                if up ~= nil then downs[id], tracked[id] = not up, true end
+                heldState(id, p, item)
             end
             -- Daylight UI's aura holder (icon or bar). Whether its buff is up is the
             -- game's own item's to say, else the holder's where it really knows
@@ -840,7 +863,7 @@ function Rows.Update()
 
     -- The chain's show rules (out of combat, group, target, mounted, where).
     lastItems, lastExtra, lastOn = items, extra, on
-    passSet, passKnown = nil, nil
+    setPass(nil, false, false)
     Rows.Away()
 
     -- Anything released waits for the game's own next layout pass. Never call the

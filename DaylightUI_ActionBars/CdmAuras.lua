@@ -30,7 +30,8 @@ local function nameOf(sid)
     if ok and type(n) == "string" and not isSecret(n) then return n end
 end
 
--- Add the auras your casts of these spells were seen to put up (CdmOwn.AuraOf).
+-- Add the auras your casts of these spells were seen to put up (CdmOwn.AuraOf),
+-- for the spells the game's data has no aura id for (a totem's buff, a trinket's).
 local function withLearned(ids)
     local Own = ns.CdmOwn
     if not (Own and Own.AuraOf) then return ids end
@@ -429,9 +430,25 @@ A.Setup = setup
 local others = setmetatable({}, { __mode = "k" })
 function A.Track(h) others[h] = true end
 
+-- A spell the game's own item draws has no holder. Two things still need its aura
+-- ids: finding the game's buff item of the same spell, and the recast glow's clock,
+-- which runs on your own casts whoever draws the spell. A watch is that much of a
+-- holder and no frame: the ids, and where a read may find the aura.
+local watches = {}   -- [id] = watch
+local WATCH_UNITS = { { unit = "player" }, { unit = "target" } }
+function A.Watch(id)
+    local w = watches[id]
+    if not w then
+        w = { id = id, ids = A.SpellIDs(id), units = WATCH_UNITS, watch = true }
+        watches[id] = w
+    end
+    return w
+end
+
 local function each(fn)
     for _, h in pairs(holders) do fn(h) end
     for h in pairs(others) do fn(h) end
+    for _, w in pairs(watches) do fn(w) end
 end
 
 -- The grayed icon inside its border, using the action bars' border width.
@@ -839,7 +856,7 @@ local ON_YOU = { { unit = "player" } }   -- self debuffs have no container (make
 local function found(h)
     local get = C_UnitAuras and C_UnitAuras.GetUnitAuraBySpellID
     if type(get) ~= "function" or type(h.ids) ~= "table" then return false end
-    for _, k in ipairs(h.selfDebuff and ON_YOU or h.containers or {}) do
+    for _, k in ipairs(h.selfDebuff and ON_YOU or h.units or h.containers or {}) do
         for sid in pairs(h.ids) do
             local ok, a = pcall(get, k.unit, sid)
             -- On the target, only your own debuff counts (HARMFUL|PLAYER), unless
@@ -1186,7 +1203,11 @@ end
 
 A.ClipCheck = function() if next(clipWatch) ~= nil then clipCheck() end end
 
-function A.ClipPass() for h in pairs(clipWatch) do clipWatch[h] = nil end end
+function A.ClipPass()
+    for h in pairs(clipWatch) do clipWatch[h] = nil end
+    -- A watch only keeps a clock while the pass asks for one.
+    for _, w in pairs(watches) do w.wantsClip = nil end
+end
 
 -- From the pass: the recast glow's answer for this holder now.
 function A.Clip(h, sid)
@@ -1267,7 +1288,9 @@ end
 -- Spells changed, so ranks may have too.
 function A.Rebuild()
     each(function(h)
-        if not InCombatLockdown() and h.containers and h.id then
+        if h.watch then
+            h.ids = A.SpellIDs(h.id)
+        elseif not InCombatLockdown() and h.containers and h.id then
             h.ids = A.SpellIDs(h.id)
             for _, k in ipairs(h.containers) do
                 local filters = { includeSpellIDs = h.ids }

@@ -134,7 +134,7 @@ return {
         ["DaylightUI_ActionBars/CdmEditor.lua"] = 3,
         ["DaylightUI_ActionBars/CdmEffects.lua"] = 15,
         ["DaylightUI_ActionBars/CdmImport.lua"] = 11,
-        ["DaylightUI_ActionBars/CdmOwn.lua"] = 14,
+        ["DaylightUI_ActionBars/CdmOwn.lua"] = 13,
         ["DaylightUI_ActionBars/CdmRows.lua"] = 2,
         ["DaylightUI_ActionBars/Cooldowns.lua"] = 11,
         ["DaylightUI_ActionBars/Diag.lua"] = 1,

@@ -5,12 +5,9 @@ local stub = require("stub")
 -- cooldowns and buffs. So a test's world loads without the facts, unless it asks
 -- for them with realFacts().
 local theFacts
-local realLookup
 local function loadWorld(opts)
     stub.neverSecretAuras = {}
     local DUI = stub.Load(opts)
-    -- A test's plainAuras() ends with its world.
-    if realLookup then C_UnitAuras.GetUnitAuraBySpellID = realLookup end
     local S = stub.actionbars and stub.actionbars.CdmSpells
     if S then
         theFacts = S.FACTS
@@ -26,23 +23,10 @@ end
 -- Makes every aura one the game never hides (C_Secrets calls it NeverSecret), so a
 -- lookup by spell id answers in a fight too, as the client's does for such an aura.
 -- For a buff the game has no item of its own for: its holder reads it by itself.
--- Call it before the first layout pass, which is when a holder is made.
+-- Call it before the first layout pass, which is when a holder is made. It ends
+-- with its world (loadWorld).
 local function plainAuras()
     stub.neverSecretAuras = setmetatable({}, { __index = function() return true end })
-    realLookup = realLookup or C_UnitAuras.GetUnitAuraBySpellID
-    C_UnitAuras.GetUnitAuraBySpellID = function(unit, spellID)
-        for _, filter in ipairs({ "HELPFUL", "HARMFUL" }) do
-            local list = stub.auras[unit] and stub.auras[unit][filter]
-            for _, a in ipairs(list or {}) do
-                if a.spellId == spellID then
-                    local out = {}
-                    for k, v in pairs(a) do out[k] = v end
-                    return out
-                end
-            end
-        end
-        return nil
-    end
 end
 
 local function data()
@@ -4163,21 +4147,71 @@ T.test("cdm hide up: a custom spell's aura bar hides while up", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("cdm hide up: the game's cooldown icon that shows its aura moves to ours, which can hide it", function()
-    local DUI, AB, set, ess = fxWorld()
+-- Who draws a spell follows from the spell and the What it shows pick alone. Hide
+-- (Buff up), the buff glows, the buff sounds and Glow to recast once moved the
+-- game's item to Daylight UI's holder, so a spell changed drawer as an option was
+-- switched. They work on the game's own item now: a cooldown icon that shows its
+-- aura says so with wasSetFromAura, a buff bar with isActive.
+T.test("cdm drawer: no buff option moves a spell off the game's item, and each works on it (icon and bar)", function()
+    local DUI, AB, set, ess, bars = fxWorld()
+    local D, R, Fx = AB.CdmData, AB.CdmRows, AB.CdmEffects
     DUI.DB.General().motion = false
-    withCategories({ [0] = { 11 } }, { [0] = { 11 } })
+    withCategories({ [0] = { 11 }, [3] = { 21 } }, { [0] = { 11 }, [3] = { 21 } })
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
         return { spellID = 100 + id, selfAura = false, hasAura = true }
     end
     _G.GetSpellBaseCooldown = function(sid) return sid == 111 and 6000 or 0 end
+    C_Spell.GetSpellInfo = function() return { castTime = 2000 } end
+    AB.CdmSpells.FACTS[111], AB.CdmSpells.FACTS[121] = { cd = 6, lasts = 18 }, { lasts = 18 }
     AB.CdmOwn.Forget()
-    pass(AB)
-    T.eq(AB.CdmRows.DrawnBy(11), "game", "left unset: the game's icon")
-    T.truthy(AB.CdmData.SetSpellValue(set, 11, "hideActive", true))
-    pass(AB)
-    T.eq(AB.CdmRows.DrawnBy(11), "aura and cooldown icon")
-    T.eq(ess[1]:GetAlpha(), 0, "the game's out of sight")
+    local got = listenAlerts(DUI)
+    for _, case in ipairs({ { 11, ess[1], "icon" }, { 21, bars[1], "bar" } }) do
+        local id, item, shape = case[1], case[2], case[3]
+        local function up(on)
+            if shape == "bar" then item:SetIsActive(on) else item:SetAura(on) end
+            stub.RunTimers()
+        end
+        up(true)
+        pass(AB)
+        T.eq(R.DrawnBy(id), "game", shape .. ": left unset, the game's item")
+        for _, o in ipairs({ { "hideActive", true }, { "upGlow", true }, { "clipGlow", true },
+            { "buffSound", "dui:done" }, { "buffEndSound", "dui:done" } }) do
+            T.truthy(D.SetSpellValue(set, id, o[1], o[2]))
+            pass(AB)
+            T.eq(R.DrawnBy(id), "game", shape .. ": " .. o[1] .. " leaves it the game's")
+            T.isnil(AB.CdmAuras.Frame(id), shape .. ": " .. o[1] .. " makes no holder of ours")
+        end
+        T.isnil(set.pieces[id].track, shape .. ": and nothing was picked for the player")
+        D.SetSpellValue(set, id, "upGlow", false)
+        D.SetSpellValue(set, id, "clipGlow", false)
+        D.SetSpellValue(set, id, "buffEndSound", "none")
+        -- Hide (Buff up), in a fight, with no cast of yours.
+        stub.EnterCombat()
+        up(false)
+        if shape == "icon" then T.eq(item:GetAlpha(), 1, "icon: down, the icon shows its cooldown") end
+        stub.Advance(5)
+        local heard = #got
+        up(true)
+        T.eq(item:GetAlpha(), 0, shape .. ": hidden while its buff is up")
+        T.eq(#got, heard + 1, shape .. ": and the buff's sound played as it landed")
+        up(false)
+        if shape == "icon" then T.eq(item:GetAlpha(), 1, "icon: back as it ends") end
+        -- Glow to recast, timed from your own cast.
+        D.SetSpellValue(set, id, "hideActive", false)
+        D.SetSpellValue(set, id, "clipGlow", true)
+        pass(AB)
+        T.eq(R.DrawnBy(id), "game", shape .. ": still the game's")
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-" .. shape, 100 + id)
+        up(true)
+        T.falsy(Fx.GlowShown(item), shape .. ": 18 s left, no glow yet")
+        stub.Advance(15.5); stub.RunTimers()
+        T.falsy(Fx.GlowShown(item), shape .. ": a cast now would still clip it")
+        stub.Advance(0.6); stub.RunTimers(); stub.RunTimers()
+        T.truthy(Fx.GlowShown(item), shape .. ": glows when a cast would land as it ends")
+        up(false)
+        T.falsy(Fx.GlowShown(item), shape .. ": gone once the game's item says it ended")
+        stub.LeaveCombat()
+    end
     _G.GetSpellBaseCooldown = nil
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -4736,10 +4770,59 @@ T.test("cdm rows: Track picks what a buff spell shows (buff only, cooldown, both
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- The game doesn't always say a spell has a cooldown (Forever's API docs lack
--- GetSpellBaseCooldown). The first press outside restrictions teaches it, per
--- character, and the rule turns the spell into Cooldown and buff.
-T.test("cdm facts: a buff spell's cooldown is learned from its first real cooldown (not the GCD, not a secret)", function()
+-- A layout saved while options still decided what an unset spell showed. A cooldown
+-- whose icon never shows its buff turned into Cooldown and buff once Hide (Buff up)
+-- or a buff glow was set, and a buff once seen on a cooldown counted as having one.
+-- Neither rule exists any more, so what each such spell showed is written down as
+-- its pick, once, and the screen stays as it was.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm drawer: an older layout keeps what its unset spells showed (" .. shape .. ")", function()
+    local DUI, AB, set = barsWorld()
+    local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
+    stub.SetUnits({ player = { class = "WARRIOR" } })
+    set = D.Current()
+    AB.CdmSpells.WARRIOR = { { 111, cd = true, aura = true }, { 112, cd = true, aura = true } }
+    AB.CdmCustom.Forget()
+    withCategories({ [0] = { 11, 12 }, [2] = { 31, 32 } }, { [0] = { 11, 12 }, [2] = { 31, 32 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, selfAura = true, hasAura = false }
+    end
+    _G.GetSpellBaseCooldown = function(sid) return (sid == 111 or sid == 112) and 60000 or 0 end
+    Own.Forget()
+    -- Buff 131 was once seen on a cooldown (a wand shot does that to every spell).
+    DUI.DB.Character().cdmCooldowns = { [131] = true }
+    D.AddPiece(set, 11, shape, 0, 0)
+    D.AddPiece(set, 31, shape, 0, -48)
+    D.AddPiece(set, 32, shape, 0, -96)
+    set.pieces[11].missingGlow = true
+    set.tracksKept = nil
+    pass(AB)
+    local both = shape == "bar" and "aura and cooldown bar" or "aura and cooldown icon"
+    T.eq(set.pieces[11].track, "both", "the glow had made it Cooldown and buff: kept as its pick")
+    T.eq(R.DrawnBy(11), both, "and drawn as it was")
+    T.eq(set.pieces[31].track, "both", "the cooldown once seen: kept as its pick")
+    T.eq(R.DrawnBy(31), both)
+    T.isnil(set.pieces[32].track, "a spell the old rules read the same way is left alone")
+    T.truthy(set.tracksKept, "done once")
+    -- From here on an option changes nothing about who draws a spell.
+    D.AddPiece(set, 12, shape, 48, 0)
+    pass(AB)
+    local was = R.DrawnBy(12)
+    T.truthy(D.SetSpellValue(set, 12, "missingGlow", true))
+    pass(AB)
+    T.isnil(set.pieces[12].track, "nothing picked for a spell set up now")
+    T.eq(R.DrawnBy(12), was, "and the glow leaves its drawer alone")
+    DUI.DB.Character().cdmCooldowns = nil
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- Whether a spell has a cooldown comes from the game's data, never from watching one
+-- run. A wand shot puts every spell on a cooldown that isn't flagged as the global
+-- one, and a buff seen on it once turned into Cooldown and buff for good.
+T.test("cdm facts: a cooldown seen running never changes what a spell shows or who draws it", function()
     local DUI, AB, set, w, ess, icons = barsWorld()
     local D, R, Own = AB.CdmData, AB.CdmRows, AB.CdmOwn
     withCategories({ [2] = { 31 } }, { [2] = { 31 } })
@@ -4748,22 +4831,20 @@ T.test("cdm facts: a buff spell's cooldown is learned from its first real cooldo
     icons[1]:SetIsActive(false)
     D.AddPiece(set, 31, "icon", 0, 0)
     R.Refresh(); stub.RunTimers()
-    T.eq(Own.Track(31, set.pieces[31]), "buff", "not known yet: buff only")
-    w.cds[131] = { duration = 1.5, isOnGCD = true }
-    cdEvent()
-    T.eq(Own.Track(31, set.pieces[31]), "buff", "the GCD teaches nothing")
-    w.cds[131] = { duration = stub.Secret(5), isOnGCD = false }
-    cdEvent()
-    T.eq(Own.Track(31, set.pieces[31]), "buff", "a secret cooldown is never read")
+    T.eq(Own.Track(31, set.pieces[31]), "buff", "no cooldown in the game's data: buff only")
+    T.eq(R.DrawnBy(31), "game")
     w.cds[131] = { duration = 5, isOnGCD = false }
     cdEvent()
-    T.eq(DUI.DB.Character().cdmCooldowns[131], true, "remembered for this character")
-    T.eq(Own.Track(31, set.pieces[31]), "both", "now: Cooldown and buff")
-    T.eq(R.DrawnBy(31), "aura and cooldown icon")
-    T.truthy(frameOf(31):IsShown(), "in its spot with the buff down")
-    D.SetSpellValue(set, 31, "track", "buff")
     R.Refresh(); stub.RunTimers()
-    T.eq(Own.Track(31, set.pieces[31]), "buff", "the player's pick still wins")
+    T.eq(Own.Track(31, set.pieces[31]), "buff", "a cooldown seen running teaches nothing")
+    T.eq(R.DrawnBy(31), "game", "and the game's buff icon still draws it")
+    T.isnil(DUI.DB.Character().cdmCooldowns, "nothing is remembered about it")
+    -- The data is the word: with a cooldown there, it's Cooldown and buff from the start.
+    AB.CdmSpells.FACTS[131] = { cd = 15 }
+    Own.Forget()
+    pass(AB)
+    T.eq(Own.Track(31, set.pieces[31]), "both", "a cooldown in the game's data")
+    T.eq(R.DrawnBy(31), "aura and cooldown icon")
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -5210,6 +5291,9 @@ T.test("cdm: Shield Block and Holy Shield in the cooldown row show their charges
         return { spellID = id == 12 and 2565 or 100 + id, selfAura = true, hasAura = id ~= 12 }
     end
     _G.GetSpellBaseCooldown = function() return 5000 end
+    -- The charges come from the game's spell data.
+    AB.CdmSpells.FACTS[2565] = { cd = 5, on = "self", lasts = 7, charges = 2 }
+    AB.CdmSpells.FACTS[20928] = { cd = 10, on = "self", lasts = 10, charges = 4 }
     AB.CdmOwn.Forget()
     D.AddPiece(set, 11, "icon", 0, 0)
     D.AddPiece(set, 12, "icon", 48, 0)
@@ -5238,10 +5322,10 @@ T.test("cdm: Shield Block and Holy Shield in the cooldown row show their charges
     AB.CdmOwn.Forget()
     pass(AB)
     T.eq(R.DrawnBy(12), "aura and cooldown icon", "Holy Shield: ours")
-    -- Picked Cooldown only: no buff, so the game's way is fine either way.
+    -- Picked Cooldown only: the game's icon never shows this buff, so it is that.
     set.pieces[12].track = "cooldown"
     pass(AB)
-    T.eq(R.DrawnBy(12), "own icon", "Cooldown only: no buff to count")
+    T.eq(R.DrawnBy(12), "game", "Cooldown only: no buff to count, the game's own icon")
     _G.GetSpellBaseCooldown = nil
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -5523,15 +5607,17 @@ end)
 -- Bloodrage (filed by the game as a cooldown with no aura to show) had no
 -- What it shows, Buff up or Buff missing rows, while Rend had them.
 T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows (Bloodrage)", function()
-    local DUI, AB, set = barsWorld()
+    local DUI, AB, set, _, ess, icons = barsWorld()
     local D, R, Own, Card = AB.CdmData, AB.CdmRows, AB.CdmOwn, AB.CdmCard
+    DUI.DB.General().motion = false
     stub.SetUnits({ player = { class = "WARRIOR" } })
     set = D.Current()     -- the class is part of whose settings these are
     AB.CdmSpells.WARRIOR = { { 111, 1110, cd = true, aura = true }, { 112, cd = true } }
     AB.CdmCustom.Forget()
     withCategories({ [0] = { 11, 12 } }, { [0] = { 11, 12 } })
+    -- The game's buff icon 31 is the same spell's buff, under its other rank's id.
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
-        return { spellID = 100 + id, selfAura = true, hasAura = false }
+        return { spellID = id == 31 and 1110 or 100 + id, selfAura = true, hasAura = false }
     end
     _G.GetSpellBaseCooldown = function() return 60000 end
     Own.Forget()
@@ -5565,16 +5651,28 @@ T.test("cdm card: a cooldown whose buff the game doesn't show has the buff rows 
     D.SetSpellValue(set, 11, "track", "buff")
     R.Refresh(); stub.RunTimers()
     T.eq(R.DrawnBy(11), "aura icon")
-    -- Unset again, a Buff row alone brings the buff in.
+    -- Unset again, a Buff row changes nothing about who draws it: it stays the
+    -- game's cooldown icon, and the game's buff icon of the same spell says when
+    -- the buff is up.
     set.pieces[11].track = nil
+    icons[1]:SetIsActive(false)
     T.truthy(D.SetSpellValue(set, 11, "hideActive", true))
     R.Refresh(); stub.RunTimers()
-    T.eq(Own.Track(11, set.pieces[11]), "both")
-    T.eq(R.DrawnBy(11), "aura and cooldown icon", "Hide (Buff up) needs the buff watched")
+    T.eq(Own.Track(11, set.pieces[11]), "cooldown", "an option never changes what it shows")
+    T.eq(R.DrawnBy(11), "game", "nor who draws it")
+    T.eq(R.Tracked(11), true, "the game's buff icon answers for it")
+    T.eq(ess[1]:GetAlpha(), 1, "buff down: the cooldown icon shows")
+    stub.EnterCombat()
+    icons[1]:SetIsActive(true); stub.RunTimers()
+    T.eq(ess[1]:GetAlpha(), 0, "Hide (Buff up): hidden while the buff is up, in a fight")
+    icons[1]:SetIsActive(false); stub.RunTimers()
+    T.eq(ess[1]:GetAlpha(), 1, "back as it ends")
+    stub.LeaveCombat()
     D.SetSpellValue(set, 11, "hideActive", false)
     T.truthy(D.SetSpellValue(set, 11, "missingGlow", true))
     R.Refresh(); stub.RunTimers()
-    T.eq(R.DrawnBy(11), "aura and cooldown icon", "Glow (Buff missing) too")
+    T.eq(R.DrawnBy(11), "game", "Glow (Buff missing) too")
+    T.truthy(AB.CdmEffects.GlowShown(ess[1]), "the cooldown icon glows while the buff is missing")
     -- The game's own flag counts as well: it has an aura, flagged not to show it.
     D.SetSpellValue(set, 11, "missingGlow", false)
     _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
@@ -5659,8 +5757,10 @@ T.test("cdm track: a placed spell's buff is learned from a cast, by name when it
     stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast-2", 112); stub.RunTimers()
     T.truthy(Own.AuraOf(112) and Own.AuraOf(112)[9112], "found by name")
     T.truthy(DUI.DB.Character().cdmAuraIDs[112][9112], "kept for this character")
-    T.truthy(Own.QuietAura(12), "now a cooldown with a buff the game's icon doesn't show")
-    T.eq(Own.Track(12, set.pieces[12]), "cooldown", "left alone it stays a cooldown, like Bloodrage")
+    -- What was seen only widens what a buff button watches. It never changes what
+    -- the spell shows or who draws it.
+    T.falsy(Own.QuietAura(12), "the game's data still knows no buff for it")
+    T.isnil(Own.Track(12, set.pieces[12]), "left alone it stays a plain cooldown")
     for _, shape in ipairs({ "bar", "icon" }) do
         D.SetShape(set, 12, shape)
         T.truthy(D.SetSpellValue(set, 12, "track", "both"))

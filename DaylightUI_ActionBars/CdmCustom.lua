@@ -435,9 +435,6 @@ end
 local function worn(id, f)
     return f.onYou == true and not Custom.Learned(id)
 end
-local function hasCd(id, f)
-    return f.cd and not worn(id, f)
-end
 
 function Custom.Family(id)
     if not Custom.Is(id) then return nil end
