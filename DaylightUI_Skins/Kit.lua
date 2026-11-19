@@ -622,8 +622,8 @@ end
 function Kit.FitFocusGlows()
     local r = _G.CVarCallbackRegistry
     if not isTable(r) or type(r.GetCallbacksByEvent) ~= "function" then return end
-    local ok, glows = pcall(r.GetCallbacksByEvent, r, 2, "GamepadFocusStateOpacity")
-    if not ok or not isTable(glows) then return end
+    local glows = r:GetCallbacksByEvent(2, "GamepadFocusStateOpacity")
+    if not isTable(glows) then return end
     for glow in pairs(glows) do
         if isTable(glow) and glow.SetAlpha and not (glow.IsForbidden and glow:IsForbidden()) then fitFocusGlow(glow) end
     end

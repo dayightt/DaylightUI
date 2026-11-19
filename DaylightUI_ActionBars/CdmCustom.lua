@@ -493,9 +493,9 @@ end
 -- game won't say.
 local function coolEnd(sid)
     local get = _G.GetSpellBaseCooldown
-    if type(get) ~= "function" then return nil end
-    local ok, ms = pcall(get, sid)
-    if not ok or type(ms) ~= "number" or isSecret(ms) or ms <= 0 then return nil end
+    if type(get) ~= "function" or type(sid) ~= "number" then return nil end
+    local ms = get(sid)
+    if type(ms) ~= "number" or isSecret(ms) or ms <= 0 then return nil end
     return GetTime() + ms / 1000
 end
 

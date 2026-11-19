@@ -545,7 +545,7 @@ function Own.Update(f)
     f.Cooldown:SetFrameLevel(f:GetFrameLevel() + (buffed and Own.TOTEM_TIME_LEVEL or f.cdLevel))
     if not buffed then f.Icon:SetAlpha(1) end
     if phase == "cooldown" then            -- an element's cooldown totem, gone: its cooldown
-        ok, dur = pcall(C_Spell.GetSpellCooldownDuration, sid)
+        if sid then ok, dur = true, C_Spell.GetSpellCooldownDuration(sid) end
     elseif f.totem and C then              -- a totem: its time while it stands
         ok = true
         if element then dur = slotDur else dur = C.TotemUp(sid) end
