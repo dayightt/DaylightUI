@@ -96,15 +96,23 @@ local function setPickIcon(tex, kind, settings)
     end
 end
 
+-- The smallest a folded part gets. The game reads a size of 0 as no size at
+-- all: what hangs below it loses its place and its clipping stops.
+RollCard.FOLDED = 0.001
+
 -- Eases a box of the card to a height, the card growing or shrinking with it.
+-- Folded all the way, the box hides, so nothing in it can show.
 local function easeBox(card, box, to, dur)
     local from = box:GetHeight() or 0
     if box.goal == to then return end
     box.goal = to
+    if to > 0 then box:Show() end
     Motion.Tween(box, from, to, dur, function(h)
-        box:SetHeight(math.max(0, h))
+        box:SetHeight(math.max(RollCard.FOLDED, h))
         card:SetHeight(RollCard.LiveHeight(card))
         if card.onHeight then card.onHeight(card) end
+    end, function()
+        if to <= 0 then box:Hide() end
     end)
 end
 
@@ -118,8 +126,9 @@ local function box(card, after)
     local f = CreateFrame("Frame", nil, card)
     f:SetPoint("TOPLEFT", after, "BOTTOMLEFT", 0, 0)
     f:SetPoint("RIGHT", card, "RIGHT", 0, 0)
-    f:SetHeight(0)
+    f:SetHeight(RollCard.FOLDED)
     f:SetClipsChildren(true)
+    f:Hide()
     card.boxes[#card.boxes + 1] = f
     return f
 end

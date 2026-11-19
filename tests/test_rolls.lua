@@ -438,7 +438,7 @@ T.test("rolls card: motion off snaps every change", function()
     local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
     local card = cardOf(S, id)
     card.buttons.need:Click()
-    T.eq(card.buttonBox:GetHeight(), 0, "folded at once")
+    T.near(card.buttonBox:GetHeight(), 0, 0.01, "folded at once")
     RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91)
     S.RollCard.Fill(card, S.RollData.drops[id], { mode = "full", open = true, settings = S.RollStack.Settings() })
     T.eq(card.rows[1].num:GetText(), "91", "the number at once")
@@ -799,4 +799,20 @@ T.test("rolls stack: the stack stays on screen", function()
     St.Layout()
     T.eq(#St.Cards(), 4, "all four with room")
     T.truthy(St.frame:IsClampedToScreen(), "kept inside the screen as a last guard")
+end)
+
+T.test("rolls card: a folded part is never sized 0 and hides its pieces", function()
+    -- The game reads a size of 0 as no size: what hangs below it loses its place
+    -- and the clipping stops, so a fold is a sliver, then hidden.
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardFor(S, id)
+    local sizes = {}
+    local set = card.buttonBox.SetHeight
+    card.buttonBox.SetHeight = function(self, h) sizes[#sizes + 1] = h; return set(self, h) end
+    card.buttons.greed:Click()
+    settle()
+    for _, h in ipairs(sizes) do T.truthy(h > 0, "never 0: " .. tostring(h)) end
+    T.falsy(card.buttonBox:IsShown(), "hidden once folded")
+    for _, box in ipairs(card.boxes) do T.truthy(box:GetHeight() > 0, "no part at 0") end
 end)
