@@ -245,7 +245,7 @@ function Listing.LendNote(page)
         if not Listing.hintColor and ins.GetTextColor then Listing.hintColor = { ins:GetTextColor() } end
         Style.DressText(ins, Style.SIZE.small, { outline = "" })
         local c = Style.INK.LABEL
-        pcall(ins.SetTextColor, ins, c[1], c[2], c[3], 0.9)
+        ins:SetTextColor(c[1], c[2], c[3], 0.9)
     end
     if not Listing.hooked then
         Listing.hooked = true
@@ -273,7 +273,7 @@ function Listing.ReturnNote()
     for r in pairs(lentArt) do r:SetAlpha(1) end
     lentArt = {}
     local was, ins = Listing.hintColor, sf.EditBox and sf.EditBox.Instructions
-    if type(ins) == "table" and was and was[1] then pcall(ins.SetTextColor, ins, was[1], was[2], was[3], was[4]) end
+    if type(ins) == "table" and was and was[1] then ins:SetTextColor(was[1], was[2], was[3], was[4]) end
     Listing.lent = nil
 end
 
