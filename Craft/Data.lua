@@ -31,9 +31,9 @@ local function call(name, ...)
     local ts = TS()
     local fn = ts and ts[name]
     if type(fn) ~= "function" then return nil end
-    local ok, a, b = pcall(fn, ...)
+    local ok, a, b, c, d = pcall(fn, ...)
     if not ok then return nil end
-    return a, b
+    return a, b, c, d
 end
 
 -- The trade skill list is being re-read (a switch), so it's half old, half new.
@@ -298,6 +298,22 @@ end
 function Data.RecipeLink(recipe)
     if type(recipe) ~= "table" then return nil end
     return str(call("GetRecipeLink", recipe.id)) or recipe.link
+end
+
+-- A recipe's cooldown as the game's own recipe page reads it: seconds left (nil when
+-- ready), whether it resets at midnight, and its charges (max 0 = none).
+function Data.Cooldown(id)
+    local left, isDay, charges, max = call("GetRecipeCooldown", id)
+    left, charges, max = num(left), num(charges), num(max)
+    if left and left <= 0 then left = nil end
+    return left, isDay == true, charges, max
+end
+
+-- Whether a recipe has to wait: on cooldown with no charge left to spend.
+function Data.Waiting(id)
+    local left, _, charges, max = Data.Cooldown(id)
+    if max and max > 0 and charges and charges > 0 then return false end
+    return left ~= nil
 end
 
 -- Everything the list needs: { prof, sections = { { id, name, order, recipes } }, byID }.
