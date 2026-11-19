@@ -238,6 +238,106 @@ T.test("cdm data: every row of a group growing from its middle stays centered", 
     T.eq(L[6].x, F[6].x, "the bottom row's too")
 end)
 
+-- Two shown boxes that cover each other. Boxes that only touch don't.
+local function overlaps(a, b)
+    return a.x < b.x + b.w and b.x < a.x + a.w and a.y - a.h < b.y and b.y - b.h < a.y
+end
+
+local function noOverlap(L, shown, why)
+    local ids = {}
+    for id in pairs(shown) do ids[#ids + 1] = id end
+    table.sort(ids)
+    for i = 1, #ids do
+        for j = i + 1, #ids do
+            T.falsy(overlaps(L[ids[i]], L[ids[j]]),
+                why .. ": " .. ids[i] .. " and " .. ids[j] .. " on top of each other")
+        end
+    end
+end
+
+-- Four icons snapped into a 2x2: 1 top-left (first), 2 top-right, 3 bottom-left,
+-- 4 bottom-right. hooks = { { id, parent, side } }.
+local function grid(D, hooks, grow)
+    local set = empty()
+    D.AddPiece(set, 1, "icon", 0, 0)
+    for _, h in ipairs(hooks) do
+        D.AddPiece(set, h[1], "icon", 0, 0)
+        T.truthy(D.Hook(set, h[1], h[2], h[3], "center"))
+    end
+    if grow then D.SetChainValue(set, 1, "grow", grow) end
+    local F = D.Layout(set)
+    T.deq({ F[1].x, F[1].y, F[2].x, F[2].y, F[3].x, F[3].y, F[4].x, F[4].y },
+        { 0, 0, 40, 0, 0, -40, 40, -40 }, "a 2x2")
+    return set, F
+end
+
+local ROWS = { { 2, 1, "right" }, { 3, 1, "down" }, { 4, 3, "right" } }
+
+-- A player's 2x2 with Slide over: the first spell gave up its spot, and the second
+-- row rose into the first, one spell on top of another.
+T.test("cdm data: a 2x2's hidden first piece: its row-mate takes its spot, the second row stays", function()
+    local D = data()
+    local set, F = grid(D, ROWS)
+    local shown = { [2] = true, [3] = true, [4] = true }
+    local L = D.Layout(set, shown)
+    noOverlap(L, shown, "start")
+    T.deq({ L[2].x, L[2].y }, { 0, 0 }, "2 slid into 1's spot")
+    T.deq(box(L[3]), box(F[3]), "3 kept its spot")
+    T.deq(box(L[4]), box(F[4]), "4 kept its spot")
+end)
+
+T.test("cdm data: a 2x2's hidden first piece, growing from the middle or the end", function()
+    local D = data()
+    local set, F = grid(D, ROWS, "center")
+    local shown = { [2] = true, [3] = true, [4] = true }
+    local L = D.Layout(set, shown)
+    noOverlap(L, shown, "center")
+    T.deq({ L[2].x, L[2].y }, { 20, 0 }, "2 alone in the middle of the top row")
+    T.deq(box(L[3]), box(F[3])); T.deq(box(L[4]), box(F[4]))
+    D.SetChainValue(set, 1, "grow", "end")
+    L = D.Layout(set, shown)
+    noOverlap(L, shown, "end")
+    T.deq(box(L[2]), box(F[2]), "the top row's far end stays")
+    T.deq(box(L[3]), box(F[3])); T.deq(box(L[4]), box(F[4]))
+end)
+
+T.test("cdm data: a 2x2 built in columns: its hidden first piece's column-mate takes its spot", function()
+    local D = data()
+    local set, F = grid(D, { { 3, 1, "down" }, { 2, 1, "right" }, { 4, 2, "down" } })
+    local shown = { [2] = true, [3] = true, [4] = true }
+    local L = D.Layout(set, shown)
+    noOverlap(L, shown, "columns")
+    T.deq({ L[3].x, L[3].y }, { 0, 0 }, "3 slid up into 1's spot")
+    T.deq(box(L[2]), box(F[2]), "the other column stays")
+    T.deq(box(L[4]), box(F[4]))
+end)
+
+-- Every way to snap a 2x2 with its first piece top-left, every grow, every set of
+-- pieces down: no two shown pieces cover each other.
+T.test("cdm data: a 2x2 with any pieces down never stacks one piece on another", function()
+    local D = data()
+    local shapes = {
+        ROWS,
+        { { 2, 1, "right" }, { 3, 1, "down" }, { 4, 2, "down" } },
+        { { 2, 1, "right" }, { 4, 2, "down" }, { 3, 4, "left" } },
+        { { 3, 1, "down" }, { 4, 3, "right" }, { 2, 4, "up" } },
+    }
+    for n, hooks in ipairs(shapes) do
+        for _, grow in ipairs({ "start", "center", "end" }) do
+            local set, F = grid(D, hooks, grow)
+            for mask = 1, 14 do
+                local shown, ids = {}, {}
+                for id = 1, 4 do
+                    if bit.band(mask, 2 ^ (id - 1)) ~= 0 then shown[id] = true; ids[#ids + 1] = id end
+                end
+                local L = D.Layout(set, shown)
+                local why = "shape " .. n .. ", " .. grow .. ", up: " .. table.concat(ids, " ")
+                noOverlap(L, shown, why)
+            end
+        end
+    end
+end)
+
 T.test("cdm data: the chain look, a piece's own look, and own icon size", function()
     local D = data()
     local set = filled(D)
