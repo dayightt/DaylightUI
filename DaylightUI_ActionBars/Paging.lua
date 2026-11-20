@@ -29,9 +29,16 @@ end
 -- stance bar). Travel and Aquatic have no bar of their own (page 1).
 Paging.FORM_BONUS = { [768] = 1, [5487] = 3, [9634] = 3, [24858] = 4 }
 
--- A prowling cat gets a bar of its own from the game (bonus bar 2, page 8), which
--- paging by form alone can't see, so a druid's rule gives Prowl that page first.
+-- A prowling cat can get a bar of its own (bonus bar 2, page 8), which paging by
+-- form alone can't see. It's a switch, off by default: most cat players keep their
+-- spells on the Cat Form page and would find an empty bar the moment they prowl.
 Paging.PROWL_PAGE = 8
+
+function Paging.ProwlBar()
+    if Paging.Class() ~= "DRUID" then return false end
+    local cfg = ns.Shape and ns.Shape.Config("main")
+    return type(cfg) == "table" and cfg.prowlBar == true
+end
 
 -- A priest's Shadowform is a real form, but as in Classic it has no bonus bar and
 -- no place on the stance bar (GetNumShapeshiftForms says 0). The macro conditions
@@ -103,7 +110,7 @@ Paging.CLAUSES = {
     function()
         local forms = Paging.FormConds()
         local rule = "[bonusbar:1] 7; [bonusbar:2] 8; [bonusbar:3] 9; [bonusbar:4] 10; [bonusbar:5] 11"
-        if Paging.Class() == "DRUID" then
+        if Paging.ProwlBar() then
             rule = "[bonusbar:1,stealth] " .. Paging.PROWL_PAGE .. "; " .. rule
         end
         if forms then
