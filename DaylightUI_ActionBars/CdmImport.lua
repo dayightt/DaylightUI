@@ -12,6 +12,11 @@
 -- on this screen (Import.ViewerLooks: position, size, padding, items per line,
 -- direction): Essential and Utility icons, tracked buffs as icons, tracked bars as
 -- bars. The result is a new profile (CdmData), picked for the talent set.
+--
+-- Daylight UI's own layouts are shared whole as well (Import.Export): every piece
+-- with its options, the groups, and the Cooldown Manager's page-wide look, so the
+-- one who pastes it sees exactly what the one who copied it sees. The same paste
+-- box reads both kinds.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -374,16 +379,133 @@ function Import.Summary(pick, rows)
     return string.format(L["The layout: %s."], what)
 end
 
+-- ---------------------------------------------------------------------
+-- Daylight UI's own layout as text: "!DUICDM1_" then the table packed the way
+-- profiles are (Profiles.Pack: CBOR, compressed, Base64), so reading one never
+-- runs any code. { v, name, class, set, look = { [setting path] = value } }.
+-- ---------------------------------------------------------------------
+
+Import.PREFIX = "!DUICDM1_"
+Import.VERSION = 1
+-- The Cooldown Manager's settings that aren't in the layout itself: its icon look,
+-- bar texture and background, fade, bar animation and keybinds.
+Import.LOOK_KEYS = { "barLooks.cdm", "media.cdm", "cdmFade", "cdmBarFx", "cdmKeybinds" }
+
+local function copy(v)
+    if type(v) ~= "table" then return v end
+    local c = {}
+    for k, x in pairs(v) do
+        if type(x) ~= "function" then c[k] = copy(x) end
+    end
+    return c
+end
+
+-- A layout as it's handed over: what only meant something on the sharer's
+-- account is left out (the tables kept from an old format, spells waiting for one
+-- of their characters), and the one-time upgrade of old layouts is marked done,
+-- since what it would read is the other player's history.
+local function shareable(set)
+    local s = copy(set)
+    s.old, s.tracksLeft = nil, nil
+    s.tracksKept = true
+    return s
+end
+
+local function classLabel(token)
+    local names = LOCALIZED_CLASS_NAMES_MALE
+    return type(names) == "table" and names[token] or tostring(token)
+end
+
+-- The text for profile id, or nil and the reason.
+function Import.Export(id)
+    local p = Data.Profile(id)
+    if not p then return nil, L["there's no layout to share"] end
+    local look = {}
+    for _, key in ipairs(Import.LOOK_KEYS) do look[key] = copy(DUI:Get("ActionBars", key)) end
+    return DUI.Profiles.Pack({ v = Import.VERSION, name = p.name, class = p.class,
+        set = shareable(p.set), look = look }, Import.PREFIX)
+end
+
+-- Whether text looks like Daylight UI's own layout rather than the game's string.
+function Import.IsOwn(text)
+    if type(text) ~= "string" then return false end
+    text = string.gsub(text, "%s", "")
+    return string.sub(text, 1, #Import.PREFIX) == Import.PREFIX
+end
+
+-- The shared table from text, checked, or nil and the reason.
+function Import.ReadOwn(text)
+    local t, why = DUI.Profiles.Unpack(text, Import.PREFIX)
+    if not t then
+        local said = { empty = L["nothing pasted"], prefix = L["that isn't a Cooldown Manager string"],
+                       client = L["this game client can't read it"],
+                       damaged = L["it's damaged (was all of it copied?)"] }
+        return nil, said[why] or said.damaged
+    end
+    if type(t.v) ~= "number" or type(t.set) ~= "table" or type(t.set.pieces) ~= "table" then
+        return nil, L["it's damaged (was all of it copied?)"]
+    end
+    if t.v > Import.VERSION then return nil, L["it's from a newer Daylight UI"] end
+    if t.class ~= Data.MyClass() then
+        return nil, string.format(L["it's made for a %s"], classLabel(t.class))
+    end
+    return t
+end
+
+function Import.OwnSummary(t)
+    local n = 0
+    for _ in pairs(t.set.pieces) do n = n + 1 end
+    local what = string.format(n == 1 and L["%d spell"] or L["%d spells"], n)
+    if type(t.name) == "string" and t.name ~= "" then
+        return string.format(L["Layout %s: %s, with its look."], t.name, what)
+    end
+    return string.format(L["The layout: %s, with its look."], what)
+end
+
+-- Makes the shared table a new profile picked for talent set g, and puts its
+-- page-wide look on. Returns the new profile's id.
+function Import.TakeOwn(t, g)
+    local name = type(t.name) == "string" and t.name ~= "" and t.name or L["Imported"]
+    local id = Data.NewProfile(name, nil, shareable(t.set))
+    Data.Assign(g, id)
+    if type(t.look) == "table" then
+        for _, key in ipairs(Import.LOOK_KEYS) do
+            local v = t.look[key]
+            local want = key == "cdmKeybinds" and "boolean" or "table"
+            if v == nil or type(v) == want then DUI:Set("ActionBars", key, copy(v)) end
+        end
+    end
+    return id
+end
+
+-- The copy box with profile id's text in it.
+function Import.ShowExport(id)
+    local Profiles = DUI.Profiles
+    local text, why = Import.Export(id)
+    if not text then
+        DUI.Print(string.format(L["Can't export: %s."], tostring(why)))
+        return
+    end
+    Profiles.ShowText(L["Export a Cooldown Manager layout"],
+        L["The whole layout: every spell with its options, the groups and the Cooldown Manager's look. Ctrl+C to copy, then share it. Import takes it in on a character of the same class."],
+        Profiles.Wrap(text))
+end
+
 -- The paste box (Profiles.ShowPaste) for talent set g. The string is read as it's
 -- typed, and Import makes it a new profile (named after the string's layout) picked
--- for g. refresh runs after.
+-- for g. It takes the game's string or Daylight UI's own. refresh runs after.
 function Import.Open(g, refresh)
     local Profiles = DUI.Profiles
     if not (Profiles and Profiles.ShowPaste) then return end
     Profiles.ShowPaste({
         title = L["Import a Cooldown Manager layout"],
-        hint = string.format(L["Paste a layout string from the game's Cooldown Manager (its Export), a guide or another UI (Ctrl+V). It becomes a new profile, used by talent set %d."], g),
+        hint = string.format(L["Paste a layout from Daylight UI's Export, the game's Cooldown Manager, a guide or another UI (Ctrl+V). It becomes a new profile, used by talent set %d."], g),
         read = function(text)
+            if Import.IsOwn(text) then
+                local t, why = Import.ReadOwn(text)
+                if not t then return nil, why end
+                return { own = t }, Import.OwnSummary(t)
+            end
             local t, why = Import.Read(text)
             if not t then return nil, why end
             local pick, why2 = Import.Pick(t)
@@ -396,6 +518,13 @@ function Import.Open(g, refresh)
         go = function(what)
             if InCombatLockdown() then return L["not in combat"] end
             if not Data.MyClass() then return L["try again in a moment"] end
+            if what.own then
+                local id = Import.TakeOwn(what.own, g)
+                if refresh then refresh() end
+                DUI.Print(string.format(L["Imported the Cooldown Manager profile %s, used by talent set %d."],
+                    tostring(Data.Profile(id).name), g))
+                return
+            end
             local set = Import.Build({ v = Data.FORMAT, pieces = {}, chains = {} }, what.rows, Import.ViewerLooks())
             local name = what.pick.name
             if type(name) ~= "string" or name == "" then name = L["Imported"] end

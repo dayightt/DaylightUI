@@ -15,6 +15,7 @@ DUI.PatchNotes = {
         { "Tooltips", "A weapon's damage per second stands out in big letters on Rich tooltips, with a size slider of its own" },
         { "Auction House", "Sell remembers how many of an item you last posted, can undercut by a percent, and writes each post in chat if you like. Right-click an item in its list to pin it on top or hide it" },
         { "Auction House", "My auctions has a search box, and can let a few cheaper items from others pass before calling yours undercut. Buy takes a max price and an exact name switch" },
+        { "Cooldown Manager", "Share your whole Cooldown Manager layout with friends: Export in the layout editor gives it as text, with every spell's options and its look, and Import takes it in" },
     }, fixed = {
         { "Auction House", "Bid on gear again, including auctions that only take bids, and follow your bids on a new Bids list under My auctions, like the game's own window. My auctions columns sort, and your gold shows in the window" },
         { "Auction House", "Selling gear takes a starting bid, a click on a listing copies its price, and a right-click on a bag item picks it to sell" },

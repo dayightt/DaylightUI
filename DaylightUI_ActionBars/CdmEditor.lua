@@ -1388,15 +1388,20 @@ function build()
     ui.set = W().MenuButton(pill, "", 26)
     ui.set:SetScript("OnClick", function(b) Ed.LayoutMenu(b) end)
     ui.set:SetPoint("LEFT", title, "RIGHT", 14, 0)
-    -- Import turns a game Cooldown Manager string into a new profile for this talent
-    -- set. Reset empties the profile in use, with a confirm.
+    -- Import turns a layout string (Daylight UI's or the game's) into a new profile
+    -- for this talent set; Export gives the one in use as text to share. Reset
+    -- empties the profile in use, with a confirm.
     ui.import = pillButton(pill, L["Import"], function()
         ns.CdmImport.Open(Ed.Group(), function() Ed.SetGroup(Ed.Group()) end)
     end)
     ui.import:SetPoint("LEFT", ui.set, "RIGHT", 8, 0)
+    ui.export = pillButton(pill, L["Export"], function()
+        ns.CdmImport.ShowExport(Data.Use(Ed.Group()))
+    end)
+    ui.export:SetPoint("LEFT", ui.import, "RIGHT", 8, 0)
     ui.reset = pillButton(pill, RESET or L["Reset"], nil)
     W().Confirm(ui.reset, RESET or L["Reset"], function() Ed.Reset() end)
-    ui.reset:SetPoint("LEFT", ui.import, "RIGHT", 8, 0)
+    ui.reset:SetPoint("LEFT", ui.export, "RIGHT", 8, 0)
     ui.live = pillButton(pill, L["Live preview"], function() Ed.SetLive(not live) end)
     ui.live:SetPoint("LEFT", ui.reset, "RIGHT", 8, 0)
     -- Unlock mode's grid and magnet toggles (the same settings).
@@ -1410,7 +1415,7 @@ function build()
     local function fitPill()
         local tw = title:GetStringWidth()
         if type(tw) ~= "number" then tw = 120 end
-        pill:SetWidth(14 + tw + 14 + ui.set:GetWidth() + 8 + ui.import:GetWidth() + 8 + ui.reset:GetWidth() + 8 + ui.live:GetWidth()
+        pill:SetWidth(14 + tw + 14 + ui.set:GetWidth() + 8 + ui.import:GetWidth() + 8 + ui.export:GetWidth() + 8 + ui.reset:GetWidth() + 8 + ui.live:GetWidth()
             + 8 + ui.snap:GetWidth() + 8 + ui.mag:GetWidth() + 8 + ui.done:GetWidth() + 14)
     end
     ui.fitPill = fitPill

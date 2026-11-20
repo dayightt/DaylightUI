@@ -6461,7 +6461,7 @@ T.test("cdm editor: the top bar holds every button once the talent set's label i
         if b:IsShown() and b:GetObjectType() == "Button" then wide = wide + b:GetWidth(); n = n + 1 end
     end
     wide = wide + (n - 1) * 8
-    T.eq(n, 7, "talent set, import, reset, live preview, two snaps, done")
+    T.eq(n, 8, "talent set, import, export, reset, live preview, two snaps, done")
     T.truthy(pill:GetWidth() >= wide, "bar " .. pill:GetWidth() .. " vs what it holds " .. wide)
     T.truthy(snap:GetWidth() > 0 and mag:GetWidth() > 0)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))

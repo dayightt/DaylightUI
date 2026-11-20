@@ -231,3 +231,92 @@ T.test("cdm import: each row is drawn as the game draws it: spot, size, padding,
     T.eq(D.Chain(set, 41).look.width, 220)
     _G.EssentialCooldownViewer, _G.UtilityCooldownViewer, _G.BuffBarCooldownViewer = nil, nil, nil
 end)
+
+-- Daylight UI's own layouts, shared whole. The packer is faked as a store behind a
+-- token (a deep copy, as real CBOR hands back a new table).
+local function packing()
+    local E = _G.C_EncodingUtil
+    local store, n = {}, 0
+    local function deep(v)
+        if type(v) ~= "table" then return v end
+        local c = {}
+        for k, x in pairs(v) do c[k] = deep(x) end
+        return c
+    end
+    local read = E.DeserializeCBOR
+    E.SerializeCBOR = function(t) n = n + 1; store[n] = deep(t); return "own" .. n end
+    E.DeserializeCBOR = function(s)
+        local i = tonumber(string.match(s, "^own(%d+)$"))
+        if i then return deep(store[i]) end
+        return read(s)
+    end
+    E.CompressString = function(s) return "z" .. s end
+    E.EncodeBase64 = function(s) return "b" .. s end
+end
+
+T.test("cdm export: a whole layout and its look go out as text and come back as a new profile", function()
+    local I, D = world()
+    packing()
+    local AB = _G.DaylightUITestDUI
+    local mine = D.NewProfile("Raid night")
+    D.Assign(1, mine)
+    local set = D.Get(1)
+    D.AddChain(set, { 11, 12 }, "icon", 40, -80)
+    D.AddPiece(set, "s772", "bar", -200, 10)
+    set.pieces[11].onCd = "fade"
+    set.pieces[12].missingGlow = true
+    D.Chain(set, 11).spacing = 6
+    set.old = { blocks = {} }
+    set.tracksLeft = { [12] = true }
+    D.Changed()
+    AB:Set("ActionBars", "cdmKeybinds", true)
+    AB:Set("ActionBars", "barLooks.cdm", { zoom = 20 })
+
+    local text = assert(I.Export(mine))
+    T.eq(string.sub(text, 1, #I.PREFIX), I.PREFIX)
+    T.truthy(I.IsOwn("  " .. text))
+
+    -- Another character of the class, with its own look.
+    AB:Set("ActionBars", "cdmKeybinds", false)
+    AB:Set("ActionBars", "barLooks.cdm", nil)
+    local spec
+    AB.Profiles.ShowPaste = function(s) spec = s end
+    I.Open(2, function() end)
+    local what, said = spec.read(AB.Profiles.Wrap(text))
+    T.truthy(what, said)
+    T.truthy(string.find(said, "Raid night", 1, true))
+    T.truthy(string.find(said, "3", 1, true), "counts the spells")
+    T.eq(spec.go(what), nil)
+
+    local id = D.Use(2)
+    T.truthy(id and id ~= mine, "a new profile for talent set 2")
+    local got = D.Get(2)
+    T.eq(got.pieces[11].onCd, "fade")
+    T.eq(got.pieces[12].missingGlow, true)
+    T.eq(got.pieces.s772.shape, "bar")
+    T.eq(D.Chain(got, 11).spacing, 6)
+    T.eq(got.old, nil, "the old format's tables stay home")
+    T.eq(got.tracksLeft, nil)
+    T.eq(got.tracksKept, true)
+    T.eq(AB:Get("ActionBars", "cdmKeybinds"), true, "the look comes along")
+    T.eq(AB:Get("ActionBars", "barLooks.cdm").zoom, 20)
+    -- Editing the copy leaves the original alone.
+    got.pieces[11].onCd = nil
+    T.eq(D.Profile(mine).set.pieces[11].onCd, "fade")
+end)
+
+T.test("cdm export: another class's layout, a newer one or a damaged string is refused", function()
+    local I, D = world()
+    packing()
+    local P = _G.DaylightUITestDUI.Profiles
+    local function pack(t) return assert(P.Pack(t, I.PREFIX)) end
+    local ok = { v = 1, name = "x", class = "MAGE", set = { v = 2, pieces = {}, chains = {} } }
+    T.truthy(I.ReadOwn(pack(ok)))
+    local other = { v = 1, class = "WARRIOR", set = ok.set }
+    local t, why = I.ReadOwn(pack(other))
+    T.eq(t, nil); T.truthy(why)
+    T.eq((I.ReadOwn(pack({ v = 9, class = "MAGE", set = ok.set }))), nil)
+    T.eq((I.ReadOwn(pack({ v = 1, class = "MAGE" }))), nil)
+    T.eq((I.ReadOwn(I.PREFIX .. "garbage")), nil)
+    T.eq((I.Export("nope")), nil, "no profile, nothing to share")
+end)

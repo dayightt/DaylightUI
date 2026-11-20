@@ -692,8 +692,12 @@ local cdmPages = {
                     Data.DeleteProfile(current())
                     refreshAll()
                 end },
+              { type = "button", key = "cdm.export", label = "Export cooldown layout", text = "Copy as text",
+                desc = "The cooldown layout you're using as text to share: every spell with its options, the groups and the Cooldown Manager's look.",
+                disabled = noProfile,
+                func = function() ns.CdmImport.ShowExport(current()) end },
               { type = "button", key = "cdm.import", label = "Import a layout", text = "Paste a string",
-                desc = "A layout string from the game's own Cooldown Manager (its Export), a guide or another UI. It becomes a new cooldown layout, used by the talent set you're in.",
+                desc = "A layout from Daylight UI's Export, the game's own Cooldown Manager, a guide or another UI. It becomes a new cooldown layout, used by the talent set you're in.",
                 disabled = cdmOff,
                 func = function() ns.CdmImport.Open(inUse(), refreshAll) end },
           } },
