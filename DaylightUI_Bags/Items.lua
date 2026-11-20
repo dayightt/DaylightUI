@@ -300,9 +300,8 @@ local function makeUseButton()
         local onEnter = slotButton:GetScript("OnEnter")
         if onEnter then
             enteringFromUseButton = true
-            local ok, err = pcall(onEnter, slotButton)
+            DUI.SafeCall(onEnter, slotButton)
             enteringFromUseButton = false
-            if not ok then geterrorhandler()(err) end
         end
     end)
     useButton:SetScript("OnLeave", function()
