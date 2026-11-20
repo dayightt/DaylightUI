@@ -1499,7 +1499,7 @@ T.test("opie: with the action bars off, its ring buttons wear their default look
     b:SetActive(stub.Secret(true))
     b:SetCount(stub.Secret(3))
     b:SetCount(nil)
-    T.eq(d.count:GetText(), "", "no count")
+    T.eq(stub.Text(d.count), "", "no count")
     local dur, got = stub.Duration(5), nil
     function d.cd:SetCooldownFromDurationObject(x) got = x end
     b:SetCooldownDuration(dur, false)

@@ -368,8 +368,22 @@ local function take(p, kind)
     return r
 end
 
+-- A pooled text that once showed a secret (a unit's name or health in a
+-- fight) keeps reading as one after it gets plain text: its text and width
+-- come back secret, and inline icons like coins don't draw (seen in game).
+-- SetToDefaults clears that, and takes the font and shadow with it.
+local function unsecret(fs)
+    if type(fs.HasAnySecretAspect) ~= "function" or fs:HasAnySecretAspect() ~= true then return end
+    fs:SetToDefaults()
+    fs:SetShadowOffset(Style.TEXT_SHADOW[1], Style.TEXT_SHADOW[2])
+    fs:SetDrawLayer("OVERLAY")
+    fs:Show()
+    fs.slot = nil
+end
+
 local function text(p, s, c, wrap)
     local fs = take(p, "text")
+    unsecret(fs)
     local slot = slotOf(s)
     if fs.slot ~= slot then
         fs.slot = slot

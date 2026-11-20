@@ -746,6 +746,10 @@ function Widget:SetText(t)
     self.__text = t
     self.__plainText = stub.Plain(t)
     self.__secretAnchoring = isSecret(t) or nil
+    -- A FontString given a secret keeps a "secret aspect" after it gets plain
+    -- text again: its text and width read secret (and its inline icons don't
+    -- draw, seen in game) until SetToDefaults. Pooled texts keep it on reuse.
+    if isSecret(t) and rawget(self, "__type") == "FontString" then self.__secretAspect = true end
     local fn = self.__scripts and self.__scripts.OnTextChanged
     if fn then fn(self, false) end
 end
@@ -944,7 +948,17 @@ function Widget:Disable() self:SetEnabled(false) end
 -- "NORMAL" or "PUSHED", as the game's buttons report it.
 function Widget:SetButtonState(s) self.__state = s end
 function Widget:GetButtonState() return self.__state or "NORMAL" end
-function Widget:GetText() return self.__text end
+function Widget:GetText()
+    if self.__secretAspect and not isSecret(self.__text) then return stub.Secret(self.__text) end
+    return self.__text
+end
+function Widget:HasAnySecretAspect() return self.__secretAspect == true end
+-- Back to a fresh widget: the secret aspect, the text and the font go.
+function Widget:SetToDefaults()
+    self.__secretAspect, self.__secretAnchoring = nil, nil
+    self.__text, self.__plainText = nil, nil
+    if rawget(self, "__type") == "FontString" then self.__font = nil end
+end
 function Widget:GetNumLetters()
     local t = self.__text
     if type(t) ~= "string" then return 0 end
@@ -1103,7 +1117,7 @@ function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__typ
 -- A text showing a secret has secret anchoring, and its width comes back
 -- secret ("SecretWhenAnchoringSecret"), as the client's.
 function Widget:GetStringWidth()
-    if isSecret(self.__text) then return stub.Secret(56) end
+    if isSecret(self.__text) or self.__secretAspect then return stub.Secret(56) end
     if type(self.__text) ~= "string" then return 0 end
     if stub.measure then return (stub.measure(self)) end
     -- Color codes take no room; an inline icon (|T...|t, |A...|a) is one

@@ -1126,7 +1126,14 @@ local function withLines(tip)
     end
     function tip:NumLines() return self.__n end
     function tip:ClearLines()
-        for i = 1, self.__n do line("Left", i):SetText(nil); line("Right", i):SetText(nil) end
+        -- The game's own lines read plain again after a clear (seen in game).
+        for i = 1, self.__n do
+            for _, side in ipairs({ "Left", "Right" }) do
+                local fs = line(side, i)
+                fs:SetText(nil)
+                fs.__secretAspect = nil
+            end
+        end
         self.__n = 0
     end
     function tip:AddDoubleLine(l, r, lr, lg, lb, rr, rg, rb)

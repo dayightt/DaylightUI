@@ -20,7 +20,7 @@ return {
         -- between two updates, and the game's own tooltip drew for a frame (seen in
         -- a frame by frame recording). PrettyTooltip hooks these same methods on
         -- Forever and works; the old "call a nil value" from the Tooltip module's
-        -- hooks (2026-10-04) was never traced to hooking itself. Post-hooks: they
+        -- earlier hooks was never traced to hooking itself. Post-hooks: they
         -- build the card and set the alpha back to 0, nothing else.
         ["DaylightUI_Tooltip/Rich/Rich.lua|tip|Show"] = "a refill's Show: the waiting card is built before the draw, a muted tooltip stays at alpha 0",
         ["DaylightUI_Tooltip/Rich/Rich.lua|tip|SetShown"] = "the comparison manager shows its tooltips with SetShown, never Show: the same",

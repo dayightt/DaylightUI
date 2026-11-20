@@ -17,7 +17,14 @@ local function lined(tip)
     end
     function tip:NumLines() return self.__n end
     function tip:ClearLines()
-        for i = 1, self.__n do line("Left", i):SetText(nil); line("Right", i):SetText(nil) end
+        -- The game's own lines read plain again after a clear (seen in game).
+        for i = 1, self.__n do
+            for _, side in ipairs({ "Left", "Right" }) do
+                local fs = line(side, i)
+                fs:SetText(nil)
+                fs.__secretAspect = nil
+            end
+        end
         self.__n = 0
     end
     function tip:AddDoubleLine(l, r, lr, lg, lb, rr, rg, rb)
@@ -2191,10 +2198,13 @@ T.test("other addons: prices (Auctionator, TSM, a money frame) as a label and th
         t:AddDoubleLine("|cff82c5ffDBMarket:|r", "12|cffffd70ag|r 34|cffc7c7cfs|r 56|cffeda55fc|r")
         t:AddLine("Vendor: 1|A:coin-gold:0:0|a 5|A:coin-copper:0:0|a")
         SetTooltipMoney(t, 4321, nil, "Disenchant:")
+        -- Daylight UI's own coins (the Auction House's price lines).
+        t:AddDoubleLine("Auction", W.Money(29400))
     end)
     local rows = {}
     for _, item in ipairs(afterRule(p)) do if item.kind == "row" then rows[#rows + 1] = item end end
-    T.eq(#rows, 4)
+    T.eq(#rows, 5)
+    T.eq(stub.Text(rows[5].value), W.Money(29400), "Daylight UI's own coins kept")
     T.eq(stub.Text(rows[1].label), "Auction x5")
     T.eq(stub.Text(rows[1].value), W.Money(123400), "Auctionator's coins")
     T.eq(stub.Text(rows[2].label), "DBMarket", "the label without its color or colon")
@@ -2208,6 +2218,22 @@ T.test("other addons: prices (Auctionator, TSM, a money frame) as a label and th
     withAddon({ "Copper Ore", "Trade Goods" })
     T.eq(#afterRule(p), 0, "nothing of the last fill")
     T.falsy(GameTooltipMoneyFrame1:IsShown(), "the game put its money frame away")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("a card text that once showed a secret draws plain text and coins again when reused", function()
+    foreignLogin()
+    local W = DaylightUI.Widgets
+    local p = withAddon({ "Copper Ore" }, function(t) t:AddDoubleLine("Auction", W.Money(29400)) end)
+    -- A unit's card wrote a secret into every pooled text (a name, health).
+    for _, fs in ipairs(p.pool.text) do fs:SetText(stub.Secret("Hogger")) end
+    withAddon({ "Tin Ore" }, function(t) t:AddDoubleLine("Auction", W.Money(29400)) end)
+    local row = afterRule(p)[1]
+    T.eq(row.kind, "row")
+    T.falsy(row.value:HasAnySecretAspect(), "the price's text is plain again")
+    T.eq(row.value:GetText(), W.Money(29400), "with its coins")
+    T.falsy(issecretvalue(row.value:GetStringWidth()), "and can be measured")
+    T.truthy(row.value.__font, "its font back on")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
