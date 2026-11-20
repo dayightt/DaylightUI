@@ -41,6 +41,7 @@ Donators.LIST = {
     "Alcasan",
     "blukraken",
     "Gimson",
+    "Spixx",
     "Harrumph",
     "eterion1234",
     "Fang",
