@@ -885,14 +885,23 @@ end
 -- the personal display the bars are cut like the display.
 local function shapeRow(h, row, rc, height, T, angle)
     local right, left = rc.slant == true, rc.slantLeft == true
-    if h.docked and not row.alone then right, left = ns.Personal.Ends() end
+    -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
+    local flipRight, flipLeft = rc.slantUnder, rc.slantUnderLeft
+    if h.docked and not row.alone then
+        right, left = ns.Personal.Ends()
+        flipRight, flipLeft = false, false
+    else
+        angle = ns.UF.AngleOf(rc.ownAngle, rc.lean)
+    end
     local cut = (right or left) and Pixel.Snap(row, height * angle) or 0
     if cut <= 0 then right, left = false, false end
-    Style.Slant(row, right and left and "both" or right and "right" or left and "left" or nil, cut)
+    local side = right and left and "both" or right and "right" or left and "left" or nil
+    local under = ns.UF.UnderOf(right, left, flipRight, flipLeft)
+    Style.Slant(row, side, cut, nil, under)
     -- The fill's moving edge takes the angle of the end it runs toward.
     local edge
     if rc.reverseFill == true then edge = left and "left" or nil else edge = right and "right" or nil end
-    Style.AngleFill(row.bar, edge, cut * (height - 2 * T) / height)
+    Style.AngleFill(row.bar, edge, cut * (height - 2 * T) / height, ns.UF.EdgeUnder(under, edge))
     row.endCut, row.leftCut = right and cut or 0, left and cut or 0
     -- The icon starts past a left angle.
     if (row.iconLead or 0) > 0 then

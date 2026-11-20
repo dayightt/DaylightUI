@@ -1804,7 +1804,7 @@ T.test("socket: each frame's Portrait card has the look, for a portrait on its o
     T.truthy(item.disabled(get))
 end)
 
-T.test("upgrade step 21: a profile from before keeps the classic ring; a new one starts set into the frame", function()
+T.test("upgrade step 23: a profile from before keeps the classic ring; a new one starts set into the frame", function()
     local _, ns = login()
     local p = { modules = { UnitFrames = { groupFrames = 20, target = { portraitLook = "socket" } } } }
     ns.UpgradeGroupFrames(p)

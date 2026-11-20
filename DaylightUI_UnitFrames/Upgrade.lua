@@ -557,11 +557,35 @@ ns.UPGRADE_STEPS[20] = function(uf)
     c.at, c.slantLeft, c.slantUnder = "middle", nil, nil
 end
 
--- 21: portraits can be set into their frame's border, the new default.
+-- The personal display's angle before the Own angle switch: above 0 it was its
+-- own, so the switch goes on with that lean. 0 (the default) meant the shared
+-- angle, which the switch left off already gives.
+ns.UPGRADE_STEPS[21] = function(uf)
+    local c = uf.personal
+    if type(c) ~= "table" then return end
+    local a = tonumber(c.angle) or 0
+    if a > 0 then c.ownAngle, c.lean = true, a end
+    c.angle = 0
+end
+
+-- One flip used to lean every angled end; now each end has its own. The right
+-- end keeps the old switch, so a bar flipped before flips its left end too.
+-- The defaults are off, so a flip that's on was the player's.
+ns.UPGRADE_STEPS[22] = function(uf)
+    for _, k in ipairs({ "playerCastbar", "targetCastbar", "focusCastbar" }) do
+        local c = uf[k]
+        if type(c) == "table" and c.slantUnder == true then c.slantUnderLeft = true end
+    end
+    for _, c in pairs(uf) do
+        if type(c) == "table" and c.powerSlantUnder == true then c.powerSlantUnderLeft = true end
+    end
+end
+
+-- 23: portraits can be set into their frame's border, the new default.
 -- Profiles from before keep the classic ring until the player picks (they are
 -- asked once which look they want). A value equal to the new default in an
 -- old profile was never picked: the setting didn't exist.
-ns.UPGRADE_STEPS[21] = function(uf, _, _, run)
+ns.UPGRADE_STEPS[23] = function(uf, _, _, run)
     if not run or run.from == 0 then return end
     for _, id in ipairs({ "player", "target", "focus", "party", "arena" }) do
         if type(uf[id]) ~= "table" then uf[id] = {} end

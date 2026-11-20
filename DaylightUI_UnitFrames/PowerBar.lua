@@ -136,9 +136,10 @@ function PB.Layout(f, cfg, text)
     local side = cfg.powerSlant ~= false and f.spec.slant or nil
     -- Its other end can lean too, so the bar is cut like a cast bar angled at both ends.
     local both = side ~= nil and cfg.powerSlantBoth == true
-    local cut = side and Pixel.Snap(h, H * UF.SLANT) or 0
-    -- Flipped, each angled end leans under: wider at the bottom than the top.
-    local flip = side ~= nil and cfg.powerSlantUnder == true
+    local cut = side and Pixel.Snap(h, H * UF.AngleOf(cfg.powerOwnAngle, cfg.powerLean)) or 0
+    -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
+    local under = side and UF.UnderOf(both or side == "right", both or side == "left",
+        cfg.powerSlantUnder, cfg.powerSlantUnderLeft) or nil
     -- The cost shade cuts both its own ends at the angle (UF.LayoutCost), so with both
     -- of the bar's ends angled it keeps only the clip at the empty end, where a big
     -- cost runs past the bar. A texture takes three masks, and this saves the fourth.
@@ -147,13 +148,13 @@ function PB.Layout(f, cfg, text)
     if cost then
         Style.ClipSpan(cost:GetStatusBarTexture(), nil, nil, both and (f.growLeft == true and "right" or "left") or false)
     end
-    Style.Slant(h, both and "both" or side, cut, nil, flip and (both and "both" or side) or nil)
+    Style.Slant(h, both and "both" or side, cut, nil, under)
     -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power"):
     -- the frame's spec (which side is angled), this bar's cut, both ends or
     -- one, and its mover.
     h.spec, h.cut, h.moverKey = f.spec, side and cut or 0, h.key
     h.ends = both and "both" or nil
-    h.flip = flip or nil
+    h.flip = under ~= nil or nil
     local p = h.set.power
     p:ClearAllPoints()
     p:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
@@ -162,7 +163,7 @@ function PB.Layout(f, cfg, text)
     -- The fill's moving edge takes the angle of the end it runs toward.
     local edge = side
     if f.flipped then edge = both and (side == "left" and "right" or "left") or nil end
-    Style.AngleFill(p, edge, cut * (H - 2 * T) / H, flip or nil)
+    Style.AngleFill(p, edge, cut * (H - 2 * T) / H, UF.EdgeUnder(under, edge))
     UF.LayoutPowerExtras(f, cfg, text, side, cut, H, true)
     h.want = show
     h:SetShown(show and (f.spec.unit == "player" or f:IsShown()))

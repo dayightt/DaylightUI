@@ -524,6 +524,8 @@ local function build()
     tab:Hide()
 
     card = CreateFrame("Frame", "DaylightUILeaderCard", tab)
+    -- Above the party frames it sits beside (their strata can be raised).
+    card:SetFrameStrata("HIGH")
     card:SetFrameLevel(tab:GetFrameLevel() + 2)
     Style.Shell(card, { window = true })
     card:Hide()

@@ -39,14 +39,14 @@ CB.AT_GAP = 6         -- gap between a frame and a cast bar above or below it
 -- under its frame ("below", sliding out), the target's and focus's cover the
 -- power bar ("power"). Any of them can sit above or below its frame at its own
 -- size ("above", "below") or stand on its own mover ("free"). The target's can
--- also hang under its frame ("slide"), mirroring the player's. The player's
+-- also hang under its frame ("slide"), mirroring the player's, and so can the focus's. The player's
 -- can sit between its frame and the target's ("middle"): both ends angled,
 -- wider at the bottom, each end parallel to the frame beside it, with the
 -- swing timers fanning out underneath (Swing.lua).
 CB.AT = {
     player = { "below", "above", "middle", "free" },
     target = { "power", "above", "below", "slide", "free" },
-    focus = { "power", "above", "below", "free" },
+    focus = { "power", "above", "below", "slide", "free" },
     -- Each party member's (PartyCasts.lua): "free" sits beside its frame.
     party = { "power", "slide", "free" },
 }
@@ -527,23 +527,24 @@ function CB.Layout(h, cfg, parentCfg)
         -- Otherwise each end has its own switch; the left one leans like
         -- the target frame's end, so a bar under it can match.
         local right, left = cfg.slant == true, cfg.slantLeft == true
-        -- Flipped, each angled end leans under: wider at the bottom than the top.
-        local flip = cfg.slantUnder == true
+        -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
+        local flipRight, flipLeft = cfg.slantUnder, cfg.slantUnderLeft
         if at == "personal" then
             width = ns.Personal.frame:GetWidth()
             right, left = ns.Personal.Ends()
-            flip = false
+            flipRight, flipLeft = false, false
         elseif f and (at == "above" or at == "below") and cfg.fitFrame == true then
             width = f:GetWidth() * f:GetEffectiveScale() / h:GetEffectiveScale()
         end
         h:SetSize(2 * Pixel.Snap(h, width / 2), height)
-        cut = (right or left) and Pixel.Snap(h, tall * (at == "personal" and ns.Personal.Angle() or ns.UF.SLANT)) or 0
+        cut = (right or left) and Pixel.Snap(h, tall * (at == "personal" and ns.Personal.Angle() or ns.UF.AngleOf(cfg.ownAngle, cfg.lean))) or 0
         side = right and left and "both" or right and "right" or left and "left" or nil
-        Style.Slant(h, side, cut, nil, flip and side or nil)
+        local under = ns.UF.UnderOf(right, left, flipRight, flipLeft)
+        Style.Slant(h, side, cut, nil, under)
         -- The fill's moving edge takes the angle of the end it runs toward.
         local edge
         if cfg.reverseFill == true then edge = left and "left" or nil else edge = right and "right" or nil end
-        Style.AngleFill(h.bar, edge, cut * (height - 2 * T) / height, flip or nil)
+        Style.AngleFill(h.bar, edge, cut * (height - 2 * T) / height, ns.UF.EdgeUnder(under, edge))
         if h.near and at == "above" then
             CB.PlaceAt(h, h.near, at, cfg.x, cfg.y)
         elseif h.near and at == "below" then

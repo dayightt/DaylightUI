@@ -387,7 +387,7 @@ T.test("a cast bar of its own can angle its left end, its right end, or both", f
     T.eq(Style.GetSlant(ns.playerCastbar).side, "both", "yours, with its right end on by default")
 end)
 
-T.test("a cast bar of its own can flip its angles to lean under, wider at the bottom", function()
+T.test("a cast bar of its own can flip each angled end on its own", function()
     local DUI, ns = stub.Load({ module = true })
     local Style = DaylightUI.Style
     DUI:Set("UnitFrames", "playerCastbar.at", "free")
@@ -397,18 +397,75 @@ T.test("a cast bar of its own can flip its angles to lean under, wider at the bo
     T.isnil(Style.GetSlant(h).under, "leaning out by default")
     DUI:Set("UnitFrames", "playerCastbar.slantUnder", true)
     stub.RunTimers()
+    T.eq(Style.GetSlant(h).under, "right", "the right end alone: a slanted box")
+    DUI:Set("UnitFrames", "playerCastbar.slantUnder", false)
+    DUI:Set("UnitFrames", "playerCastbar.slantUnderLeft", true)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(h).under, "left", "the left end alone")
+    DUI:Set("UnitFrames", "playerCastbar.slantUnder", true)
+    stub.RunTimers()
     T.eq(Style.GetSlant(h).under, "both", "both ends lean under")
     DUI:Set("UnitFrames", "playerCastbar.slantLeft", false)
     stub.RunTimers()
-    T.eq(Style.GetSlant(h).under, "right", "just the angled end")
+    T.eq(Style.GetSlant(h).under, "right", "a flip on an end that isn't angled does nothing")
     DUI:Set("UnitFrames", "targetCastbar.at", "below")
     DUI:Set("UnitFrames", "targetCastbar.slantLeft", true)
-    DUI:Set("UnitFrames", "targetCastbar.slantUnder", true)
+    DUI:Set("UnitFrames", "targetCastbar.slantUnderLeft", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(ns.targetCastbarFree).under, "left", "the target's too")
     DUI:Set("UnitFrames", "playerCastbar.at", "below")
     stub.RunTimers()
     T.isnil(Style.GetSlant(h).under, "hung under the frame it follows the frame's angle")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("a cast bar of its own can switch on its own angle; off, the shared one", function()
+    local DUI, ns = stub.Load({ module = true })
+    local Style = DaylightUI.Style
+    DUI:Set("UnitFrames", "playerCastbar.at", "free")
+    stub.RunTimers()
+    local h = ns.playerCastbar
+    local shared = Style.GetSlant(h).cut
+    T.truthy(shared > 0, "angled by default")
+    DUI:Set("UnitFrames", "playerCastbar.lean", 0.6)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(h).cut, shared, "an angle without its switch is ignored")
+    DUI:Set("UnitFrames", "playerCastbar.ownAngle", true)
+    stub.RunTimers()
+    T.truthy(Style.GetSlant(h).cut > shared, "steeper with its own angle")
+    DUI:Set("UnitFrames", "playerCastbar.lean", 0.02)
+    stub.RunTimers()
+    T.truthy(Style.GetSlant(h).cut < shared, "near 0 it's nearly square, not the shared angle")
+    DUI:Set("UnitFrames", "playerCastbar.ownAngle", false)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(h).cut, shared, "switched off, the shared angle again")
+    DUI:Set("UnitFrames", "targetCastbar.at", "free")
+    DUI:Set("UnitFrames", "targetCastbar.slant", true)
+    stub.RunTimers()
+    local tShared = Style.GetSlant(ns.targetCastbarFree).cut
+    DUI:Set("UnitFrames", "targetCastbar.ownAngle", true)
+    DUI:Set("UnitFrames", "targetCastbar.lean", 0.6)
+    stub.RunTimers()
+    T.truthy(Style.GetSlant(ns.targetCastbarFree).cut > tShared, "the target's too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("a free power bar can set its own angle, and a cast bar hung under it follows", function()
+    local DUI, ns = stub.Load({ module = true })
+    local Style = DaylightUI.Style
+    DUI:Set("UnitFrames", "player.powerAt", "free")
+    DUI:Set("UnitFrames", "playerCastbar.from", "power")
+    stub.RunTimers()
+    local pb, h = ns.frames.player.freePower, ns.playerCastbar
+    local shared, castShared = Style.GetSlant(pb).cut, Style.GetSlant(h).cut
+    DUI:Set("UnitFrames", "player.powerOwnAngle", true)
+    DUI:Set("UnitFrames", "player.powerLean", 0.6)
+    stub.RunTimers()
+    T.truthy(Style.GetSlant(pb).cut > shared, "the power bar's end is steeper")
+    T.truthy(Style.GetSlant(h).cut > castShared, "the cast bar under it continues the steeper line")
+    DUI:Set("UnitFrames", "player.powerOwnAngle", false)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(pb).cut, shared, "switched off, the shared angle again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -425,6 +482,33 @@ T.test("the player's cast bar between the frames fills the gap, both ends flippe
     local _, rel1 = h:GetPoint(1)
     local _, rel2 = h:GetPoint(2)
     T.eq(rel1, pf); T.eq(rel2, tf)
+end)
+
+T.test("upgrade step 22: a bar flipped with the old single switch flips both ends", function()
+    local _, ns = stub.Load({ module = true })
+    local uf = { playerCastbar = { slantUnder = true, slantUnderLeft = false },
+                 focusCastbar = { slantUnder = false, slantUnderLeft = false },
+                 player = { powerSlantUnder = true, powerSlantUnderLeft = false },
+                 target = { powerSlantUnder = false, powerSlantUnderLeft = false } }
+    ns.UPGRADE_STEPS[22](uf)
+    T.eq(uf.playerCastbar.slantUnderLeft, true, "flipped before: both ends")
+    T.eq(uf.focusCastbar.slantUnderLeft, false, "never flipped: untouched")
+    T.eq(uf.player.powerSlantUnderLeft, true, "a power bar too")
+    T.eq(uf.target.powerSlantUnderLeft, false)
+    ns.UPGRADE_STEPS[22]({})
+end)
+
+T.test("upgrade step 21: a personal display angle set before the Own angle switch keeps it", function()
+    local _, ns = stub.Load({ module = true })
+    local own = { personal = { angle = 0.4, ownAngle = false, lean = 0.21 } }
+    ns.UPGRADE_STEPS[21](own)
+    T.eq(own.personal.ownAngle, true); T.eq(own.personal.lean, 0.4)
+    T.eq(own.personal.angle, 0, "the older setting is spent")
+    local shared = { personal = { angle = 0, ownAngle = false, lean = 0.21 } }
+    ns.UPGRADE_STEPS[21](shared)
+    T.eq(shared.personal.ownAngle, false, "0 meant the shared angle")
+    T.eq(shared.personal.lean, 0.21, "its slider starts at the shared default")
+    ns.UPGRADE_STEPS[21]({})
 end)
 
 T.test("upgrade step 20: a bar 1.9.1 moved off the spot between the frames goes back", function()
@@ -934,7 +1018,15 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     T.eq(h.under, ns.frames.player, "the cast bar slides out from the frame instead")
     DUI:Set("UnitFrames", "player.powerSlantBoth", true)
     stub.RunTimers()
+    T.eq(Style.GetSlant(pb).under, "right", "its other end keeps its own lean")
+    DUI:Set("UnitFrames", "player.powerSlantUnderLeft", true)
+    stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "both", "both ends lean under")
+    DUI:Set("UnitFrames", "player.powerSlantUnder", false)
+    stub.RunTimers()
+    T.eq(Style.GetSlant(pb).under, "left", "the left end alone")
+    T.eq(h.under, ns.frames.player, "either end flipped, the cast bar slides out from the frame")
+    DUI:Set("UnitFrames", "player.powerSlantUnder", true)
     -- The spell cost shade leans the same way as the fill it sits on.
     local cost, fill = pb.set.cost, pb.set.power
     local function sameAngle(why)
