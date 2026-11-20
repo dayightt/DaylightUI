@@ -376,7 +376,9 @@ function R.InWorldBack()
                     pcall(SetUIVisibility, true)
                     R.cycling = nil
                 end
-                done()
+                -- The game hands its plates back out a moment after the switch
+                -- comes on, so the step's "after" count waits for that.
+                C_Timer.After(R.FIX_SETTLE, done)
             end)
             return "the game's switch for nameplates and speech bubbles turned off and back on, then the UI's"
                 .. " switch on (wait a second)"
@@ -549,6 +551,7 @@ end)
 R.CHECK_DETAIL = 6
 R.REPORT_MAX = 3800
 R.FIX_GAP = 0.5
+R.FIX_SETTLE = 1
 R.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
 R.PLATE_CVARS = { "nameplateMaxDistance", "nameplateShowOnlyNameForFriendlyPlayerUnits", "nameplateShowEnemyMinions",
     "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale" }

@@ -635,6 +635,21 @@ T.test("platefix: the last step turns the whole UI's switch on too", function()
     T.truthy(DaylightUI.PlateReport.WorldUI():find("last set on by /dui platefix", 1, true))
 end)
 
+-- The game re-adds its plates a moment after the switch comes back on. A
+-- step that ends at once reads zero plates "after" while they're returning.
+T.test("platefix: the last step finishes only after the plates had time to come back", function()
+    login()
+    local R = DaylightUI.PlateReport
+    local queue, was = {}, C_Timer.After
+    C_Timer.After = function(_, fn) queue[#queue + 1] = fn end
+    R.InWorldBack()
+    table.remove(queue, 1)() -- the switch back on
+    T.truthy(R.FixBusy(), "still waiting for the game's plates")
+    C_Timer.After = was
+    for _, fn in ipairs(queue) do fn() end
+    T.falsy(R.FixBusy(), "done once they had their moment")
+end)
+
 -- Steps 3 and 5 to 8 finish a moment after they're typed. Running the next one
 -- (or answering yes) before then mixes two steps, so "step N brought them
 -- back" would name the wrong one.
