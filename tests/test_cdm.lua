@@ -7407,11 +7407,12 @@ end)
 -- containers refuse to pick a debuff on you (or any friend) by spell id unless
 -- the spell is never secret (AuraContainerUtil.CanApplyIdentityCandidateFilters,
 -- tests/aura_rules.lua), so the debuff group goes by what's left: yours, and no
--- longer than it lasts.
+-- longer than it lasts. Forbearance is on no class list and lasts a minute: its
+-- length has to come from the game's data, or a shorter guess hides it.
 T.test("cdm custom: a debuff on you really shows in its container (never picked by spell id)", function()
     local shows = require("aura_rules")
     local AB, C = customWorld("PRIEST")
-    C.Forget()
+    realFacts()
     local you = { canAssist = true, groupMember = true }
     local function debuffGroup(h)
         for _, k in ipairs(h.containers) do
@@ -7419,20 +7420,17 @@ T.test("cdm custom: a debuff on you really shows in its container (never picked 
             if k.unit == "player" and g.filter:find("HARMFUL") then return g end
         end
     end
-    C_Spell.GetSpellDescription = function(sid)
-        if sid == 25771 then return "Cannot be shielded again for 15 sec." end
-    end
     local h = CreateFrame("Frame", nil, UIParent)
     h.size = 30
     AB.CdmAuras.Setup(h, "s25771")
     local g = debuffGroup(h)
     T.truthy(g, "a debuff group on you")
-    T.truthy(shows(g, you, { spellId = 25771, harmful = true, mine = true, duration = 15 }),
-        "yours shows")
-    T.falsy(shows(g, you, { spellId = 115, harmful = true, mine = false, duration = 15 }),
+    T.truthy(shows(g, you, { spellId = 25771, harmful = true, mine = true, duration = 60 }),
+        "yours shows, for its whole minute")
+    T.falsy(shows(g, you, { spellId = 115, harmful = true, mine = false, duration = 60 }),
         "a mob's debuff on you doesn't")
-    T.falsy(shows(g, you, { spellId = 2096, harmful = true, mine = true, duration = 60 }),
-        "a longer one of yours (Recently Bandaged) doesn't")
+    T.falsy(shows(g, you, { spellId = 2096, harmful = true, mine = true, duration = 120 }),
+        "a longer one of yours doesn't")
     -- A spell the client calls never secret may still go by its id.
     stub.neverSecretAuras = { [25771] = true }
     local n = CreateFrame("Frame", nil, UIParent)

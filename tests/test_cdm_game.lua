@@ -530,6 +530,35 @@ T.test("cdm game: a paladin's Aura piece is up while any one aura is (" .. shape
 end)
 end
 
+-- The Blessing piece is the same kind of piece: any long Blessing on you counts,
+-- each has its own buff item, and the first item found mustn't answer for all of
+-- them (only Blessing of Might used to count).
+local MIGHT, KINGS, WISDOM = 19740, 20217, 19742
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: a paladin's Blessing piece is up while any one Blessing is (" .. shape .. ")", function()
+    local DUI, AB, D, R, Fx = classWorld("PALADIN", MIGHT, { MIGHT, KINGS, WISDOM })
+    local set = D.Current()
+    D.AddPiece(set, "blessing", shape, 0, 0)
+    set.pieces.blessing.missingGlow = true
+    pass(AB)
+    local function holder()
+        return shape == "bar" and AB.CdmBars.AuraFrame("blessing") or AB.CdmAuras.Frame("blessing")
+    end
+    T.truthy(Fx.GlowShown(holder()), "no Blessing up: the missing glow")
+    for _, b in ipairs({ MIGHT, KINGS, WISDOM }) do
+        for _, fight in ipairs({ false, true }) do
+            if fight then stub.EnterCombat() end
+            CW.Aura("player", b, { duration = 300 }); stub.RunTimers()
+            T.falsy(Fx.GlowShown(holder()), b .. " up" .. (fight and " in a fight" or "") .. ": no glow")
+            CW.Unaura("player", b); stub.RunTimers()
+            T.truthy(Fx.GlowShown(holder()), b .. " gone" .. (fight and " in a fight" or "") .. ": the glow again")
+            if fight then stub.LeaveCombat() end
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 -- Touch of Weakness's buff row links the debuff it leaves on whoever hits you
 -- (2943 and up), and the game's item, finding nothing on you, looks on your
 -- target and goes active for that debuff. The buff is on you: once it's used up
