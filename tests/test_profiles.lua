@@ -826,6 +826,35 @@ T.test("characters: the profile picked while the realm was missing doesn't repla
     _G.GetRealmName = nil
 end)
 
+T.test("characters: a realm read under a new name still finds the character by its GUID", function()
+    talents(1, 1)
+    local DUI = stub.Load({ module = true, before = function()
+        fakeEncoding()
+        _G.GetRealmName = function() return "Realm 7 PvE" end
+        stub.units.player = { name = "Muscle", lastName = "Crowe", isPlayer = true, class = "WARRIOR", guid = "Player-6933-0093C938" }
+        DaylightUIDB = { version = 2, profileData = { Default = {}, Healer = {} }, characters = {} }
+    end })
+    T.eq(DaylightUIDB.characters["Muscle Crowe-Realm 7 PvE"].guid, "Player-6933-0093C938", "saved at login")
+    local saved = DaylightUIDB
+    saved.characters["Muscle Crowe-Realm 7 PvE"].profile = "Healer"
+    saved.characters["Muscle Crowe-Realm 7 PvE"].install = "installed"
+    saved.characters["Muscle Crowe-Realm 7 PvE"].cdm = { use = { "p1" } }
+    DUI = stub.Load({ module = true, before = function()
+        fakeEncoding()
+        _G.GetRealmName = function() return "Thunderhorn" end
+        stub.units.player = { name = "Muscle", lastName = "Crowe", isPlayer = true, class = "WARRIOR", guid = "Player-6933-0093C938" }
+        DaylightUIDB = saved
+    end })
+    local chars = DaylightUIDB.characters
+    local mine = chars["Muscle Crowe-Thunderhorn"]
+    T.eq(DUI.DB.CharKey(), "Muscle Crowe-Thunderhorn")
+    T.eq(mine.profile, "Healer", "its profile")
+    T.eq(mine.cdm.use[1], "p1", "its layout pick")
+    T.isnil(chars["Muscle Crowe-Realm 7 PvE"], "one entry, under the new name")
+    T.eq(DUI.DB.ActiveName(), "Healer", "on its profile from the first login")
+    _G.GetRealmName = nil
+end)
+
 -- Two characters with the same first name (Boopy Dadoopy, Boopy Mcdoopy) used to
 -- share one "Boopy-Realm" entry: each saw the other's bags and bank.
 T.test("characters: two with the same first name each keep their own bags; settings carry to both", function()
@@ -835,7 +864,7 @@ T.test("characters: two with the same first name each keep their own bags; setti
         local DUI = stub.Load({ module = true, before = function()
             fakeEncoding()
             _G.GetRealmName = function() return "Forever" end
-            stub.units.player = { name = "Boopy", lastName = last, isPlayer = true, class = class }
+            stub.units.player = { name = "Boopy", lastName = last, isPlayer = true, class = class, guid = "Player-1-" .. last }
             DaylightUIDB = saved
         end })
         stub.RunTimers()

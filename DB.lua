@@ -294,6 +294,26 @@ function DB.AdoptOldKeys()
         end
         chars[bare] = nil
     end
+    -- The GUID stays the same whatever the name or realm read as, so it finds the
+    -- character's entry when the key no longer does (a realm renamed or misread).
+    -- A new entry gives way to the one the character was set up under.
+    local guid = UnitGUID and UnitGUID("player")
+    if guid ~= nil and not DUI.IsSecret(guid) and type(guid) == "string" then
+        for k, other in pairs(chars) do
+            if k ~= key and type(other) == "table" and other.guid == guid then
+                local into, from = c, other
+                if c.install == nil and other.install ~= nil then
+                    chars[key] = other
+                    into, from, c = other, c, other
+                end
+                for f, v in pairs(from) do
+                    if into[f] == nil then into[f] = v end
+                end
+                chars[k] = nil
+            end
+        end
+        c.guid = guid
+    end
     local first, last = lastName()
     if not first then return end
     local old = first .. "-" .. last

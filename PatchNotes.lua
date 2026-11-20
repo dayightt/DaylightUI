@@ -21,7 +21,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Cooldown Manager", "The talent set button at the top of the layout editor opens a list of your layouts, so you can pick which one each talent set uses right there" },
     }, fixed = {
-        { "Characters", "When the game forgot your realm's name at login, Daylight UI treated you as a new character: your profile looked reset and your Cooldown Manager layout was gone. You now stay on your own profile and settings, and anything saved in the meantime is folded back in" },
+        { "Characters", "Since the game stopped giving realm names, Daylight UI took every character for a new one: your profile looked reset and your Cooldown Manager layout was gone. You're back on your own profile and settings on your next login, with anything saved in the meantime folded in" },
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
         { "Cooldown Manager", "With the game's Tracked Buffs row set to show only in combat, a buff's Hide, glow and sound options went missing from its card and did nothing out of combat. They are back and work in and out of a fight" },
