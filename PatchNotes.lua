@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },
+    } },
     { version = "2.0", date = "2026-11-19", summary = "Portraits set right into their frames, rich tooltip cards, a brand new Auction House, group loot rolls, and a big batch of fixes.", new = {
         { "Unit frames", "A slick new portrait look: portraits sit right inside their frame, with one border flowing around both. You're asked once which look you want, and each frame's Portrait tab switches it any time" },
         { "Tooltip", "Rich tooltips: items, spells, players, creatures, herbs and ore each get their own card, and a small pill in fights (Tooltips, Style)" },

@@ -431,10 +431,12 @@ end
 local waiting = {}   -- itemID -> rows waiting for the game to load its name
 
 local function fillInfo(row)
-    local name, quality, level, icon = ns.Items.Row(row.itemID)
+    -- The Lvl column is the level needed to use it, like the level filter,
+    -- not the item level (blank when anyone can use it).
+    local name, quality, _, icon, _, req = ns.Items.Row(row.itemID)
     if not name then return false end
     if row.key ~= row.base and row.itemKey then ns.Items.LearnKey(row.itemKey) end
-    row.name, row.quality, row.level, row.icon = ns.Items.KeyName(row.key, name), quality, level, icon
+    row.name, row.quality, row.level, row.icon = ns.Items.KeyName(row.key, name), quality, req, icon
     row.cantUse = ns.Items.CanUse(row.itemID) == false or nil
     return true
 end

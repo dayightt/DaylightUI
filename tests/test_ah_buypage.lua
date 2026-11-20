@@ -58,7 +58,7 @@ local function auctions()
         { itemID = RUNECLOTH, name = "Runecloth", count = 200, buyout = 200 * 11800, level = 50, classID = 7, subClassID = 5 },
         { itemID = RUNECLOTH, name = "Runecloth", count = 340, buyout = 340 * 14000, level = 50, classID = 7, subClassID = 5 },
         { itemID = BOLT, name = "Bolt of Runecloth", count = 80, buyout = 80 * 65000, level = 55, classID = 7, subClassID = 5 },
-        { itemID = HELM, name = "Lionheart Helm", count = 1, buyout = 420000, quality = 4, level = 60,
+        { itemID = HELM, name = "Lionheart Helm", count = 1, buyout = 420000, quality = 4, level = 60, itemLevel = 65,
           classID = 4, subClassID = 4, inventoryType = 1, owner = "Brann" },
         { itemID = SWORD, name = "Short Sword", count = 1, buyout = 9000, quality = 2, level = 10,
           classID = 2, subClassID = 7, owner = "Brann" },
@@ -159,6 +159,14 @@ local function has(list, v)
     for _, x in ipairs(list or {}) do if x == v then return true end end
     return false
 end
+
+T.test("ah buy page: Lvl is the level to wear it, not the item level", function()
+    local _, page = load()
+    enter(page.box, "lionheart")
+    AHW.Settle()
+    T.eq(page.table.rows[1].itemID, HELM)
+    T.eq(textOf(page.table:Row(1).cells.level), "60", "required level, item level is 65")
+end)
 
 T.test("ah buy page: a search fills one row per item, cheapest first", function()
     local A, page = load()
