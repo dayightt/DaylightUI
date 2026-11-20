@@ -9,7 +9,8 @@ ns.DEFAULTS = {
     -- Daylight UI's Auction House window instead of the game's; switched from either window.
     enabled = true,
     scale = 1,
-    undercut = 1,             -- copper under the cheapest when Sell fills a price (gear: whole silver)
+    undercut = 1,
+    hours = 24,               -- Sell's last picked duration (2, 8 or 24), kept for the next post             -- copper under the cheapest when Sell fills a price (gear: whole silver)
     windowAlphaOwn = false,   -- off: follows the general window opacity
     windowAlpha = 0.85,
 }

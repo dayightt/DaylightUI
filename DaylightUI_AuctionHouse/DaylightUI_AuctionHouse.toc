@@ -24,5 +24,8 @@ Scan.lua
 Tooltip.lua
 Options.lua
 ScanBand.lua
+BuyPage.lua
+SellPage.lua
+AuctionsPage.lua
 Window.lua
 Module.lua

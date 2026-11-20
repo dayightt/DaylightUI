@@ -1,0 +1,440 @@
+local AHW = require("ahworld")
+local stub = require("stub")
+
+-- The Sell tab (DaylightUI_AuctionHouse/SellPage.lua) on the fake Auction
+-- House with real bags: the bag items under the game's item classes, each
+-- searched once a visit; a pick fills the price under the cheapest (copper
+-- for a commodity, whole silver for gear); Post (the button or the key)
+-- sends it in the click and picks the next; refusals and the game's price
+-- warning say what to do.
+
+local LINEN, WOOL, POTION, SWORD, PATTERN, COPPER = 2589, 2592, 118, 2207, 2598, 2840
+local RKEY = "US-PvE"
+local G = 10000
+
+local CLASSES = { [0] = "Consumable", [2] = "Weapon", [7] = "Trade Goods", [9] = "Recipe" }
+
+-- The game's AuctionHouseFrame, loaded and shown by the interaction manager
+-- as the game does (tests/test_ah_window.lua has the long story).
+local function gameAH()
+    local world = CreateFrame("Frame")
+    world:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW")
+    world:RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE")
+    world:SetScript("OnEvent", function(_, event, kind)
+        if kind ~= AHW.AUCTIONEER then return end
+        local f = rawget(_G, "AuctionHouseFrame")
+        if event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
+            if not f then
+                f = CreateFrame("Frame", "AuctionHouseFrame", UIParent)
+                f.CloseButton = CreateFrame("Button", nil, f)
+                f:Hide()
+                f:SetScript("OnHide", function() C_AuctionHouse.CloseAuctionHouse() end)
+                stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI")
+            end
+            f:Show()
+        elseif f then
+            f:Hide()
+        end
+    end)
+end
+
+local function spec(extra)
+    local s = {
+        commodities = { [LINEN] = true, [WOOL] = true, [POTION] = true, [COPPER] = true },
+        auctions = {
+            { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7 },
+            { itemID = WOOL, name = "Wool Cloth", count = 45, buyout = 45 * 32, classID = 7 },
+            { itemID = POTION, name = "Minor Healing Potion", count = 10, buyout = 10 * 12, classID = 0 },
+            { itemID = SWORD, name = "Ridge Cleaver", count = 1, buyout = 2 * G + 500, classID = 2, quality = 2 },
+        },
+        items = {
+            [PATTERN] = { name = "Pattern: Red Linen Robe", classID = 9 },
+            [COPPER] = { name = "Copper Bar", classID = 7 },
+        },
+        bags = {
+            [0] = {
+                { itemID = LINEN, stackCount = 20, name = "Linen Cloth" },
+                { itemID = WOOL, stackCount = 14, name = "Wool Cloth" },
+                { itemID = POTION, stackCount = 6, name = "Minor Healing Potion" },
+                { itemID = SWORD, stackCount = 1, name = "Ridge Cleaver" },
+                { itemID = PATTERN, stackCount = 1 },
+            },
+        },
+    }
+    for k, v in pairs(extra or {}) do s[k] = v end
+    return s
+end
+
+-- usual: key -> copper, five days of lows (the usual price).
+local function load(extra, usual)
+    local DUI, A = AHW.Load(spec(extra), {
+        before = function()
+            _G.AuctionHouseFrame = nil
+            gameAH()
+            C_Item.GetItemClassInfo = function(id) return CLASSES[id] end
+        end,
+    })
+    A.Replicate.SETTLE, A.Replicate.EMPTY_WAIT = 0, 0
+    local now = A.Game.Now()
+    usual = usual or { [LINEN] = 10, [WOOL] = 34, [POTION] = 13, [SWORD] = 2 * G }
+    for id, c in pairs(usual) do
+        for d = 0, 4 do A.Store.Record(RKEY, tostring(id), c, 1, now - d * 86400) end
+    end
+    for _, id in ipairs({ LINEN, WOOL, POTION, SWORD, PATTERN, COPPER }) do AHW.Cache(id) end
+    return A, DUI
+end
+
+local function frame(n)
+    for _ = 1, n or 1 do
+        AHW.Frame()
+        DaylightUI.Win.Followers.Tick()
+    end
+end
+
+-- At the Auction House, on Sell, every price checked.
+local function open(A)
+    AHW.Open()
+    frame(3)
+    T.truthy(A.Window.IsOpen(), "the window opens at the AH")
+    A.Window.ShowTab("sell")
+    AHW.Advance(30)   -- the background checks: one a second, quiet after the player's clicks
+    return A.Window.frame.pages.sell
+end
+
+local function plain(text)
+    return (tostring(text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        :gsub("|T[^|]-coin%-(%a)%a*%.png[^|]*|t", "%1"):gsub("|T.-|t", ""))
+end
+local function said(page) return plain(page.right.said:GetText()) end
+local function why(page) return plain(page.right.why.text:GetText()) end
+
+local function lineOf(page, name)
+    for _, b in ipairs(page.left.stack.used) do
+        if b.lineSpec and b:IsShown() and plain(b.lineSpec.text) == name then return b end
+    end
+    error("no line " .. name)
+end
+
+local function sections(page)
+    local out = {}
+    for _, b in ipairs(page.left.stack.used) do
+        if b.isSection and b:IsShown() then out[#out + 1] = b end
+    end
+    return out
+end
+
+-- Types into a box as the player would.
+local function typeIn(box, text)
+    box:SetFocus()
+    box:SetText(text)
+    box:GetScript("OnTextChanged")(box, true)
+end
+
+local function quiet()
+    AHW.Settle()
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end
+
+T.test("sell: bag items under the game's classes, each searched and priced", function()
+    local A = load()
+    local page = open(A)
+    T.eq(AHW.Calls("SendSearchQuery") + AHW.Calls("SendSellSearchQuery"), 5, "every sellable item searched once")
+    local heads = {}
+    for _, s in ipairs(sections(page)) do heads[#heads + 1] = s.text:GetText() end
+    T.deq(heads, { "WEAPON", "CONSUMABLE", "TRADE GOODS", "RECIPE" }, "the Auction House's category order")
+    local linen = lineOf(page, "Linen Cloth")
+    T.eq(plain(linen.lineSpec.sub), "20 \195\151 9c")
+    T.eq(plain(linen.lineSpec.value), "1s 80c", "what the whole stack brings")
+    T.eq(plain(lineOf(page, "Wool Cloth").lineSpec.value), "4s 34c")
+    local order = A.SellPage.Order("c:7")
+    T.eq(order[1].name, "Wool Cloth", "the most valuable first")
+    T.eq(order[2].name, "Linen Cloth")
+    T.truthy(plain(lineOf(page, "Pattern: Red Linen Robe").lineSpec.sub):find("no price yet: you set it", 1, true))
+    T.eq(plain(sections(page)[3].value:GetText()), "6s 14c", "the heading's total")
+    T.eq(plain(sections(page)[4].value:GetText()), "no price yet")
+    quiet()
+end)
+
+T.test("sell: before its search a row shows the saved price and Post waits", function()
+    local A = load()
+    AHW.Open()
+    frame(3)
+    A.Window.ShowTab("sell")
+    local page = A.Window.frame.pages.sell
+    local linen = lineOf(page, "Linen Cloth")
+    T.truthy(plain(linen.lineSpec.sub):find("ago", 1, true), plain(linen.lineSpec.sub))
+    A.SellPage.Pick("2589", true)
+    T.truthy(page.right.box.post.off, "Post waits for the search")
+    stub.Key(function() A.SellPage.Post() end)
+    T.eq(AHW.Calls("PostCommodity"), 0, "nothing posts on a saved price")
+    T.eq(said(page), "Still checking a price. Click again in a moment.")
+    AHW.Settle()
+    T.eq(page.right.form.price:GetText(), "9c", "the search is back")
+    quiet()
+end)
+
+T.test("sell: a pick fills the price a copper under the cheapest, and says why", function()
+    local A = load()
+    local page = open(A)
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    local right = page.right
+    T.eq(right.title:GetText(), "Linen Cloth")
+    T.eq(plain(right.meta:GetText()), "20 in your bags  \194\183  usual 10c")
+    T.eq(right.form.qty:GetText(), "20")
+    T.eq(right.form.price:GetText(), "9c")
+    T.eq(plain(right.form.hint:GetText()), "1c under the cheapest")
+    T.eq(why(page), "9c each: 1c under the cheapest one up right now (10c, 200 of them, checked just now).")
+    T.eq(right.box.post.text:GetText(), "Post 20")
+    T.eq(plain(right.box.get:GetText()), "1s 71c", "after the 5% cut")
+    T.truthy(plain(right.box.deposit:GetText()) ~= "\226\128\148", "the game's deposit")
+    T.eq(#right.ah.rows, 1, "what's up now: one price")
+    T.eq(right.ah.rows[1].unit, 10)
+    T.eq(#right.days.days, 14, "two weeks of lows")
+    T.eq(right.days.days[14].net, 10, "today's low on the right")
+    T.eq(plain(right.dayCap:GetText()), "Usual 10c is the middle of these")
+    quiet()
+end)
+
+T.test("sell: gear goes a whole silver under", function()
+    local A = load()
+    local page = open(A)
+    A.SellPage.Pick("2207", true)
+    AHW.Settle()
+    local right = page.right
+    T.eq(right.form.price:GetText(), "2g 4s", "1c under 2g 5s lands on 2g 4s")
+    T.eq(plain(right.form.hint:GetText()), "1s under the cheapest")
+    right.box.post:Click()
+    T.eq(AHW.Log("PostItem")[1][5], 2 * G + 400)
+    AHW.Settle()
+    T.truthy(said(page):find("Posted 1 Ridge Cleaver at 2g 4s each.", 1, true), said(page))
+    quiet()
+end)
+
+T.test("sell: Post sends it in the click and picks the next", function()
+    local A = load()
+    local page = open(A)
+    lineOf(page, "Wool Cloth"):Click()
+    AHW.Settle()
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 1)
+    local args = AHW.Log("PostCommodity")[1]
+    T.eq(args[2], 3, "24 h by default")
+    T.eq(args[3], 14)
+    T.eq(args[4], 31)
+    T.eq(page.right.box.post.text:GetText(), "Posting...")
+    AHW.Settle()
+    T.eq(said(page), "Posted 14 Wool Cloth at 31c each. Next up: Linen Cloth.")
+    T.eq(A.SellPage.picked, "2589", "the next one is picked")
+    T.isnil(A.SellPage.Row("2592"), "none of it left in the bags")
+    quiet()
+end)
+
+T.test("sell: the key posts like the button, and the box names it", function()
+    local A = load()
+    local page = open(A)
+    stub.bindings.DAYLIGHTUI_AH_ACT = { "F" }
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    T.eq(plain(page.right.box.key:GetText()), "or press F")
+    stub.Key(DaylightUI.AuctionHouseKey)
+    T.eq(AHW.Calls("PostCommodity"), 1, "a key press is the player's")
+    AHW.Settle()
+    T.truthy(said(page):find("Posted 20 Linen Cloth", 1, true), said(page))
+    stub.bindings.DAYLIGHTUI_AH_ACT = nil
+    A.SellPage.Paint()
+    T.eq(plain(page.right.box.key:GetText()), "", "no key bound: no line")
+    quiet()
+end)
+
+T.test("sell: Skip picks the next without posting, and remembers the time picked", function()
+    local A = load()
+    local page = open(A)
+    lineOf(page, "Wool Cloth"):Click()
+    AHW.Settle()
+    page.right.box.skip:Click()
+    T.eq(A.SellPage.picked, "2589")
+    T.eq(AHW.Calls("PostCommodity"), 0)
+    page.right.form.chips[8]:Click()
+    T.eq(A.SellPage.Hours(), 8)
+    page.right.box.post:Click()
+    T.eq(AHW.Log("PostCommodity")[1][2], 2, "8 h is the game's second duration")
+    AHW.Settle()
+    T.truthy(page.right.form.chips[8].on, "8 h still picked")
+    T.eq(A.SellPage.Hours(), 8, "kept for the next post")
+    quiet()
+end)
+
+T.test("sell: Sell all walks its heading and stops after the last", function()
+    local A = load()
+    local page = open(A)
+    local trade = sections(page)[3]
+    trade.action:Click()
+    T.eq(A.SellPage.picked, "2592", "the heading's first")
+    AHW.Settle()
+    page.right.box.post:Click()
+    AHW.Settle()
+    T.eq(A.SellPage.picked, "2589")
+    page.right.box.post:Click()
+    AHW.Settle()
+    T.truthy(said(page):find("That was the last of Trade Goods.", 1, true), said(page))
+    T.isnil(A.SellPage.selling)
+    quiet()
+end)
+
+T.test("sell: refusals say why in plain words", function()
+    local A = load({ postFails = { [LINEN] = AHW.DATABASE_ERROR } })
+    local page = open(A)
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    stub.Key(function() A.SellPage.Post() end)
+    AHW.Settle()
+    T.eq(said(page), "The game said no to that post: Internal auction error.")
+    -- a refusal the page has no words for still reads plainly
+    local real = A.Post.Send
+    A.Post.Send = function() return false, "weird" end
+    page.right.box.post:Click()
+    A.Post.Send = real
+    T.eq(said(page), "Something went wrong posting it.")
+    -- the stack left the bags before the event said so
+    AHW.Bags()[0][1] = nil
+    page.right.box.post:Click()
+    T.eq(said(page), "None of it is left in your bags to sell.")
+    quiet()
+end)
+
+T.test("sell: the game's price warning asks for one more click", function()
+    local A = load({ postWarning = { [LINEN] = true } })
+    local page = open(A)
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    local post = page.right.box.post
+    post:Click()
+    AHW.Settle()
+    T.eq(post.text:GetText(), "The game asks: click again")
+    T.truthy(said(page):find("look again at this price", 1, true), said(page))
+    T.eq(AHW.Calls("ConfirmPostCommodity"), 0)
+    post:Click()
+    T.eq(AHW.Calls("ConfirmPostCommodity"), 1)
+    AHW.Settle()
+    T.truthy(said(page):find("Posted 20 Linen Cloth", 1, true), said(page))
+    quiet()
+end)
+
+T.test("sell: a typed price is used; gear's goes up to whole silver first", function()
+    local A = load()
+    local page = open(A)
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    typeIn(page.right.form.price, "12c")
+    T.eq(plain(page.right.form.hint:GetText()), "your own price")
+    T.eq(why(page), "12c each: your own price.")
+    page.right.box.post:Click()
+    T.eq(AHW.Log("PostCommodity")[1][4], 12)
+    AHW.Settle()
+    A.SellPage.Pick("2207", true)
+    AHW.Settle()
+    typeIn(page.right.form.price, "1g 99s 99c")
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostItem"), 0, "not posted at a price it didn't show")
+    T.truthy(said(page):find("whole silver only for this item: 2g each", 1, true), said(page))
+    T.eq(page.right.form.price:GetText(), "2g")
+    page.right.box.post:Click()
+    T.eq(AHW.Log("PostItem")[1][5], 2 * G)
+    AHW.Settle()
+    -- a price that doesn't read
+    typeIn(page.right.form.price, "lots")
+    A.SellPage.Pick("2592", true)   -- a new pick forgets it
+    T.eq(page.right.form.price:GetText(), "31c")
+    quiet()
+end)
+
+T.test("sell: a price that doesn't read is refused", function()
+    local A = load()
+    local page = open(A)
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    typeIn(page.right.form.price, "12")
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 0)
+    T.eq(said(page), "Type a price like 1g 20s 5c.")
+    quiet()
+end)
+
+T.test("sell: your own cheapest isn't undercut, and shows as yours", function()
+    local A = load({ auctions = {
+        { itemID = LINEN, name = "Linen Cloth", count = 30, buyout = 30 * 8, classID = 7, mine = true },
+        { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7 },
+    } })
+    local page = open(A)
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    T.eq(page.right.form.price:GetText(), "8c")
+    T.eq(plain(page.right.form.hint:GetText()), "the cheapest is yours: same price")
+    local rows = page.right.ah.rows
+    T.eq(#rows, 2)
+    T.eq(rows[1].own, 30, "the tag says yours")
+    T.eq(rows[2].own, 0)
+    quiet()
+end)
+
+T.test("sell: no one else selling posts at the usual price; neither asks for one", function()
+    local A = load({ bags = { [0] = {
+        { itemID = COPPER, stackCount = 5, name = "Copper Bar" },
+        { itemID = PATTERN, stackCount = 1 },
+    } } }, { [COPPER] = 18 })
+    local page = open(A)
+    local copper = lineOf(page, "Copper Bar")
+    T.eq(plain(copper.lineSpec.sub), "5 \195\151 18c  \194\183  no one else selling")
+    A.SellPage.Pick("2840", true)
+    AHW.Settle()
+    T.eq(page.right.form.price:GetText(), "18c")
+    T.eq(plain(page.right.form.hint:GetText()), "no one else selling: usual price")
+    A.SellPage.Pick("2598", true)
+    AHW.Settle()
+    T.eq(page.right.form.price:GetText(), "")
+    T.eq(plain(page.right.form.hint:GetText()), "no price yet: you set it")
+    T.truthy(page.right.box.post.off, "no price: Post waits for one")
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostItem") + AHW.Calls("PostCommodity"), 0)
+    quiet()
+end)
+
+T.test("sell: far under the usual price still posts, in the warning color", function()
+    local A = load(nil, { [LINEN] = 40 })
+    local page = open(A)
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    T.eq(page.right.form.price:GetText(), "9c")
+    T.eq(plain(page.right.form.hint:GetText()), "under half the usual price")
+    local r, g, b = page.right.form.hint:GetTextColor()
+    local warn = DaylightUI.Style.INK.WARN
+    T.deq({ r, g, b }, { warn[1], warn[2], warn[3] })
+    T.truthy(why(page):find("That's under half the usual price (40c).", 1, true), why(page))
+    quiet()
+end)
+
+T.test("sell: a bag change keeps the pick", function()
+    local A = load()
+    local page = open(A)
+    A.SellPage.Pick("2592", true)
+    AHW.Settle()
+    AHW.Bags()[0][1].stackCount = 10
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    AHW.Frame()
+    T.eq(A.SellPage.picked, "2592")
+    T.eq(plain(lineOf(page, "Linen Cloth").lineSpec.sub), "10 \195\151 9c")
+    quiet()
+end)
+
+T.test("sell: money in the price box reads and writes", function()
+    local A = load()
+    local P = A.SellPage
+    T.eq(P.ReadMoney("1g 20s 5c"), 12005)
+    T.eq(P.ReadMoney("2g4s"), 20400)
+    T.eq(P.ReadMoney("9c"), 9)
+    T.isnil(P.ReadMoney("12"), "a bare number has no coin")
+    T.isnil(P.ReadMoney("5c 2g"), "out of order")
+    T.eq(P.PlainMoney(20400), "2g 4s")
+    T.eq(P.PlainMoney(0), "0c")
+end)

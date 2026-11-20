@@ -148,6 +148,18 @@ function Post.Deposit(key, qty, hours)
     return type(v) == "number" and v or nil
 end
 
+-- What one of your commodity auctions paid to go up, lost on a cancel. Only
+-- known for a 24 h post: more than 8 h left can't be a shorter one. Gear needs
+-- the item in the bags to price, so it gives nil, as does anything unknown.
+Post.LONG_LEFT = 8 * 3600
+function Post.PaidDeposit(itemID, qty, left)
+    local a = api()
+    if not (a and a.CalculateCommodityDeposit) or type(itemID) ~= "number" or type(qty) ~= "number" then return nil end
+    if type(left) ~= "number" or left <= Post.LONG_LEFT then return nil end
+    local v = a.CalculateCommodityDeposit(itemID, Post.Index(24), qty)
+    return type(v) == "number" and v > 0 and v or nil
+end
+
 -- The events that end a post of `qty` of `kind`.
 local function postEvents(kind, qty)
     local events = {

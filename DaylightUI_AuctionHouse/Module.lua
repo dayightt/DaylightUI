@@ -7,7 +7,7 @@ DaylightUI:RegisterModule("AuctionHouse", {
     -- turns itself off with one line in chat (tests/test_guards.lua checks this list).
     ns = ns,
     parts = { "DB", "Items", "Market", "Ruleset", "Store", "Rows", "AH", "Bags", "Replicate", "Search", "Browse", "Buy", "Post", "Scan",
-              "Tooltip", "ScanBand", "Window" },
+              "Tooltip", "ScanBand", "BuyPage", "SellPage", "AuctionsPage", "Window" },
     label = "Auction House",
     order = 160,
     section = "QoL", pageOrder = 137,   -- its options page sits under Extras, after the smaller windows

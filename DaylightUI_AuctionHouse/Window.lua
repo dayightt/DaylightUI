@@ -187,7 +187,9 @@ end
 
 function Main.BuildOffer(page)
     local card = CreateFrame("Frame", nil, page)
-    card:SetPoint("TOPLEFT", page, "TOPLEFT", Main.OFFER_EDGE, -12)
+    -- over the right pane only: the categories stay in reach beside it
+    local left = ns.BuyPage and ns.BuyPage.LEFT_W and ns.BuyPage.LEFT_W + 1 or 0
+    card:SetPoint("TOPLEFT", page, "TOPLEFT", left + Main.OFFER_EDGE, -12)
     card:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Main.OFFER_EDGE, -12)
     card:SetHeight(Main.OFFER_H)
     card:SetFrameLevel(page:GetFrameLevel() + 5)
