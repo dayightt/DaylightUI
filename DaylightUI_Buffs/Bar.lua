@@ -1537,6 +1537,12 @@ local function readable(t)
     return type(t) == "table" and not isSecret(t) and BL.PlainTable(t) ~= nil
 end
 local function wakeAuras(info)
+    -- No payload is a full update to the client too: everything is read again,
+    -- nothing is new.
+    if info == nil then
+        wipe(auraBar)
+        return
+    end
     local buffs, debuffs = false, false
     local function wake(kind)
         if kind == "buffs" then buffs = true

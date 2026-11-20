@@ -142,6 +142,14 @@ T.test("buffs: a full aura refresh shows the icons again without sliding them in
     T.eq(sliding(btn), false, "the client's full refresh: buffs stay put")
     T.eq(sliding(dbtn), false, "debuffs too")
 
+    -- The client rebuilds everything for an update with no payload too
+    -- (ManagedAuraContainer ProcessUnitAuraUpdate: nil or isFullUpdate).
+    stub.Advance(1)
+    stub.FireEvent("UNIT_AURA", "player")
+    reshow(btn); reshow(dbtn)
+    T.eq(sliding(btn), false, "an update with no payload: buffs stay put")
+    T.eq(sliding(dbtn), false, "debuffs too, with no payload")
+
     stub.Advance(1)
     BL.Bar:ApplyGroups()
     reshow(btn)
@@ -1168,6 +1176,9 @@ T.test("buffs: the hover over a faded bar reads the auras and lays the icons out
         stub.SetAuras("player", "HARMFUL", { { name = "Poison", spellId = 99, icon = 3, expirationTime = 2000 } })
     end })
     local DUI = DaylightUI
+    -- The slides keep a look of their own at each change; this is about the hover.
+    DUI:Set("Buffs", "settings.newGlow", false)
+    stub.RunTimers()
     -- Fade off (the default): an aura change reads no debuffs.
     local reads = auraReads()
     stub.FireEvent("UNIT_AURA", "player")
@@ -1287,6 +1298,8 @@ T.test("buffs: with Float on, an aura gained or lost wakes its bar; a refresh or
     T.eq(heard(), "", "a refresh: nothing")
     stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true })
     T.eq(heard(), "", "a loading screen: nothing")
+    stub.FireEvent("UNIT_AURA", "player")
+    T.eq(heard(), "", "no payload, the client's full update too: nothing")
     stub.FireEvent("UNIT_AURA", "player", stub.Secret({ addedAuras = {} }))
     T.eq(heard(), "Buffs.buffs Buffs.debuffs", "unreadable: both")
     DaylightUI.Fade.Wake = wake
