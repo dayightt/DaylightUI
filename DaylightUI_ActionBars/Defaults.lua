@@ -38,6 +38,7 @@ end
 local function held(t)
     t.paging = { shift = 0, ctrl = 0, alt = 0, help = 0, harm = 0 }
     t.autoPage = true   -- forms, stances and picked pages swap its buttons (Paging.PageRule)
+    t.prowlBar = false  -- a prowling druid's bar 1 stays on the Cat Form page unless this is on
     t.height = 100
     return t
 end

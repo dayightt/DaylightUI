@@ -362,7 +362,29 @@ function XP.Paint(d)
     local G = DUI.Gradients
     local r, g, b = d.color[1], d.color[2], d.color[3]
     local accent = not d.rep and XP.colorMode == "accent"
-    local custom = not d.rep and XP.colorMode == "custom" and XP.custom
+    local own = not d.rep and XP.colorMode == "custom" and G and G.Stops(XP.stops)
+    local upright = XP.vertical and "VERTICAL" or nil
+    local custom
+    -- Your own colors: along the bar, or its last one with the gradient off.
+    if own then
+        if XP.gradient then
+            G.PaintStops(XP.bar, XP.stops, nil, false, upright)
+            r, g, b = Style.StopsAt(own, 0.5)
+        else
+            local last = own[#own]
+            r, g, b = last[1], last[2], last[3]
+            Style.SetBarColor(XP.bar, r, g, b)
+        end
+        Style.SetBarColor(XP.rested, r, g, b)
+        return
+    end
+    -- An accent of three or more colors runs every one of them along the bar.
+    local many = accent and XP.gradient and G and Style.AccentStops()
+    if many then
+        Style.PaintBarStops(XP.bar, many, nil, upright or "HORIZONTAL")
+        Style.SetBarColor(XP.rested, Style.StopsAt(many, 0.5))
+        return
+    end
     if accent and XP.gradient and G then custom = accentPair()
     elseif accent then r, g, b = Style.Accent() end
     if custom and not XP.gradient then r, g, b = custom.hi[1], custom.hi[2], custom.hi[3] end
@@ -533,8 +555,7 @@ function XP.Apply(cfg, T)
     -- The old "Class color" switch, turned off before the color pick came.
     XP.colorMode = cfg.color or "accent"
     if cfg.classColor == false and (XP.colorMode == "class" or XP.colorMode == "accent") then XP.colorMode = "blue" end
-    XP.custom = (type(cfg.customLo) == "table" and type(cfg.customHi) == "table")
-        and { lo = cfg.customLo, hi = cfg.customHi } or nil
+    XP.stops = cfg.customGradient
     XP.ticks = cfg.ticks == true
     XP.showBanked = cfg.banked ~= false
     -- Fresh tables: the defaults stand in for a missing or broken saved color.

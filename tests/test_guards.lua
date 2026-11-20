@@ -97,6 +97,91 @@ T.test("guards: no shipped file breaks a rule that broke the game before", funct
     if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
 end)
 
+-- The game runs Lua 5.1, which refuses a line that starts with "(" right after
+-- something that could be called ("ambiguous syntax (function call x new
+-- statement)"). The tests run on LuaJIT, which takes it, so one such line once
+-- got as far as the game and Style.lua failed to load, taking every file that
+-- uses it down too. Strings and comments are blanked first so their text can't
+-- look like code; newlines stay so line numbers still match.
+local function blank(s) return (s:gsub("[^\n]", "")) end
+
+local function codeOnly(text)
+    local out, i, n = {}, 1, #text
+    while i <= n do
+        local s = text:find("[\"'%-%[]", i)
+        if not s then out[#out + 1] = text:sub(i); break end
+        out[#out + 1] = text:sub(i, s - 1)
+        local c = text:sub(s, s)
+        local level = text:match("^%[(=*)%[", c == "-" and s + 2 or s)
+        if c == "-" and text:sub(s + 1, s + 1) ~= "-" or c == "[" and not level then
+            out[#out + 1] = c
+            i = s + 1
+        elseif level then
+            -- A long comment or long string, to its matching close.
+            local _, e = text:find("]" .. level .. "]", s + 2, true)
+            e = e or n
+            out[#out + 1] = (c == "[" and '""' or "") .. blank(text:sub(s, e))
+            i = e + 1
+        elseif c == "-" then
+            i = text:find("\n", s, true) or n + 1
+        else
+            local j, stop = s + 1, c == '"' and '[\\\n"]' or "[\\\n']"
+            while true do
+                local k = text:find(stop, j)
+                if not k or text:sub(k, k) ~= "\\" then j = k or n + 1; break end
+                j = k + 2
+            end
+            out[#out + 1] = c .. c .. blank(text:sub(s + 1, j - 1))
+            i = j + 1
+        end
+    end
+    return table.concat(out)
+end
+
+local KEYWORDS = {}
+for w in ("and break do else elseif end false for function goto if in local nil not or repeat return then true until while")
+        :gmatch("%a+") do KEYWORDS[w] = true end
+
+-- The line numbers in text where Lua 5.1 stops with "ambiguous syntax".
+local function ambiguousLines(text)
+    local found, prev, n = {}, nil, 0
+    for line in (codeOnly((text:gsub("\r", ""))) .. "\n"):gmatch("([^\n]*)\n") do
+        n = n + 1
+        if line:find("^%s*%(") and prev then
+            local word = prev:match("([%a_][%w_]*)$")
+            if (word and not KEYWORDS[word]) or (not word and prev:find("[%)%]}\"']$")) then
+                found[#found + 1] = n
+            end
+        end
+        local trimmed = line:match("^(.-)%s*$")
+        if trimmed ~= "" then prev = trimmed end
+    end
+    return found
+end
+
+T.test("guards: the ambiguous-syntax check finds what Lua 5.1 refuses, and only that", function()
+    T.deq(ambiguousLines("local a = b\n(c or d)()\n"), { 2 })
+    T.deq(ambiguousLines("f(x)\n    (g)()\n"), { 2 })
+    T.deq(ambiguousLines("local t = t[1]  -- a note\n\n(c)()\n"), { 3 })
+    T.deq(ambiguousLines('local s = "a"\n(c)()\n'), { 2 })
+    -- A line before that leaves the expression open is fine in 5.1 too.
+    T.deq(ambiguousLines("local a = b or\n(c)\nlocal e = f,\n(g)\nif x then y() else\n(z)() end\n"), {})
+    -- Strings and comments don't count, wherever they sit.
+    T.deq(ambiguousLines('local s = "a (b"\nlocal t = [[x\n(y)]]\n--[[ c\n(d) ]]\nlocal u = "\\"" -- e\nreturn\n(u)\n'), {})
+end)
+
+T.test("guards: no shipped line starts with ( where Lua 5.1 reads it as a call", function()
+    local bad = {}
+    for _, path in ipairs(shippedFiles()) do
+        local f = assert(io.open(path, "rb")); local text = f:read("*a"); f:close()
+        for _, n in ipairs(ambiguousLines(text)) do
+            bad[#bad + 1] = string.format("%s:%d  the game refuses this file (\"ambiguous syntax\"): end the line"
+                .. " above with ; or start this one without (", path, n)
+        end
+    end
+    if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
+end)
+
 -- A bare pcall throws its error away, so nothing ever reaches BugSack and the
 -- tests (which count reported errors) pass over a call that fails. A call that
 -- does something goes through DUI.SafeCall, which reports and goes on. A bare

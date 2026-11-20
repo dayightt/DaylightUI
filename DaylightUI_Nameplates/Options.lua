@@ -71,6 +71,12 @@ local function with(items, more)
     return items
 end
 
+-- A bar's custom gradient rows, shown while its color menu is on Custom gradient.
+local function stopsRows(key, menu, what, bar, dis)
+    return DaylightUI.Options.StopsRows(key, { what = what, bar = bar, disabled = dis, since = "2.2",
+        shown = function(get) return get(menu) == "customGradient" end })
+end
+
 ns.OPTIONS = { pages = {
     { id = "plates", label = "General",
       desc = "Size, look and stacking of every plate.",
@@ -227,12 +233,12 @@ ns.OPTIONS = { pages = {
               values = { reaction = "Reaction", class = "Class and reaction", classGradient = "Class gradient", white = "White" },
               order = { "reaction", "class", "classGradient", "white" },
               desc = "Reaction: every enemy name in red, players too, so friend and foe tell apart at a glance. Or players in their class color, a class gradient, or plain white." },
-            { type = "toggle", key = "shortNames", label = "Shorten long names", since = "1.9.7",
+            { type = "toggle", key = "shortNames", label = "Shorten long names", since = "2.0",
               desc = "Long names keep only their last word whole, the rest as initials (S. C. Commander), on enemy and friendly plates. A name on the bar that still doesn't fit is cut short so it never covers the health text." },
             { type = "toggle", key = "factionIcon", label = "Other faction's crest",
               desc = "An Alliance or Horde crest by the names of players of the other faction, on enemy and friendly plates alike." },
             { type = "toggle", key = "pvpIcon", label = "PvP flag crest",
-              desc = "The same Alliance or Horde crest by the name of anyone flagged for PvP, players and NPCs alike, so you can tell before you attack that it would flag you." },
+              desc = "The same Alliance or Horde crest by the name of anyone you could attack who's flagged for PvP, players and NPCs alike, so you can tell before you attack that it would flag you." },
         }, spotItems("Name", { spot = "namePos", x = "nameX", y = "nameY" })) },
         { label = "Health text", items = with({
             { type = "toggle", key = "percent", label = "Health text",
@@ -315,14 +321,16 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "markerSize", label = "Raid marker size", min = 10, max = 48, step = 1, unit = "px",
               desc = "How big the skull, star and other raid markers by the bar are." },
         }, spotItems("Raid marker", { spot = "markerPos", x = "markerX", y = "markerY" })) },
-        { label = "Health bar", tab = "Bar", items = {
+        { label = "Health bar", tab = "Bar", items = with({
             { type = "dropdown", key = "healthColor", label = "Health bar color",
-              values = { class = "Class and reaction", classGradient = "Class gradient", gradient = "By health (green to red)", custom = "One color" },
-              order = { "class", "classGradient", "gradient", "custom" },
+              values = { class = "Class and reaction", classGradient = "Class gradient", gradient = "By health (green to red)",
+                         custom = "One color", customGradient = "Custom gradient" },
+              order = { "class", "classGradient", "gradient", "custom", "customGradient" },
               desc = "The usual health bar color. Tapped mobs, Threat colors on the health bar and Special mobs paint over it." },
             { type = "color", key = "healthCustom", label = "Custom health bar color",
               desc = "The health bar's color when Health bar color is One color.",
               disabled = function(get) return get("healthColor") ~= "custom" end },
+        }, with(stopsRows("healthGradient", "healthColor", "nameplate health", "the nameplates' health bars"), {
             { type = "toggle", key = "eliteDragon", label = "Elite dragon",
               desc = "A dragon wrapped around the end of an elite's or boss's bar, in gold, or silver for a rare." },
             { type = "toggle", key = "predictHeals", label = "Incoming heals",
@@ -331,7 +339,7 @@ ns.OPTIONS = { pages = {
               desc = "A pale sliver on the health bar for an absorb shield, as the unit frames show them." },
             { type = "toggle", key = "dotTint", label = "DoT damage left",
               desc = "Your damage over time spells: the end of the health they will still take is shaded darker. The color is on Unit Frames > Look." },
-        } },
+        })) },
         { label = "Special mobs", items = with(since("1.6.5", {
             { type = "toggle", key = "bossBar", label = "Bosses in their own color",
               desc = "Boss health bars in the color below, so they stand out in a crowd. Threat colors still show over it." },
@@ -387,7 +395,7 @@ ns.OPTIONS = { pages = {
         { label = "Execute icon", items = since("1.7.2", spotItems("Execute icon",
             { spot = "executeIconPos", x = "executeIconX", y = "executeIconY" }, false,
             function(get) return execOff(get) or get("executeStyle") ~= "icon" end)) },
-        { label = "Power bar", items = since("1.6.6", {
+        { label = "Power bar", items = with(since("1.6.6", {
             { type = "toggle", key = "power", label = "Power bar",
               desc = "Mana, rage or energy as a thin bar under the health bar: see a caster running dry, or a rogue saving up energy. The cast bar moves down under it." },
             { type = "dropdown", key = "powerShow", label = "Power bar on",
@@ -399,24 +407,25 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "powerGap", label = "Power bar gap", min = 0, max = 8, step = 1, unit = "px",
               desc = "The space between the health bar and the power bar. Set to 0 to join them.", disabled = noPower },
             { type = "dropdown", key = "powerColor", label = "Power bar color",
-              values = { type = "By power type", custom = "One color" }, order = { "type", "custom" },
-              desc = "By power type: mana blue, rage red, energy yellow, each as its gradient from General > Gradients. Or one color you pick.",
+              values = { type = "By power type", custom = "One color", customGradient = "Custom gradient" },
+              order = { "type", "custom", "customGradient" },
+              desc = "By power type: mana blue, rage red, energy yellow, each as its gradient from General > Gradients. Or one color you pick, or a gradient in colors you pick.",
               disabled = noPower },
             { type = "color", key = "powerCustom", label = "Custom power bar color",
               desc = "The power bar's color when Power bar color is One color.",
               disabled = function(get) return noPower(get) or get("powerColor") ~= "custom" end },
-            { type = "toggle", key = "powerText", label = "Power text", since = "1.9.7", disabled = noPower,
+            { type = "toggle", key = "powerText", label = "Power text", since = "2.0", disabled = noPower,
               desc = "The unit's mana, rage or energy written on the power bar. Raise Power bar height so it reads well." },
-            { type = "dropdown", key = "powerFormat", label = "Power text format", since = "1.9.7",
+            { type = "dropdown", key = "powerFormat", label = "Power text format", since = "2.0",
               values = DaylightUI.Health.POWER_FORMATS, order = DaylightUI.Health.POWER_FORMAT_ORDER,
               disabled = function(get) return noPower(get) or get("powerText") ~= true end,
               desc = "How the power text reads: a percent, the power itself, power out of max, or both." },
-            { type = "slider", key = "powerTextSize", label = "Power text size", since = "1.9.7", min = 0, max = 20, step = 1, unit = "px",
+            { type = "slider", key = "powerTextSize", label = "Power text size", since = "2.0", min = 0, max = 20, step = 1, unit = "px",
               disabled = function(get) return noPower(get) or get("powerText") ~= true end,
               desc = "Text size of the power text. At 0 it follows the power bar's height." },
             DaylightUI.Options.BarRow("media.power", "Power bar", "the power bar on the nameplates", noPower),
             DaylightUI.Options.BackRow("media.power", "Power bar", "the power bar on the nameplates", noPower),
-        }) },
+        }), stopsRows("powerGradient", "powerColor", "nameplate power", "the nameplates' power bars", noPower)) },
         DaylightUI.Options.BarFxCard({ module = "Nameplates", choices = {
             { id = "health", label = "Health bar", base = "barFx.health.", kind = "health" },
             { id = "power", label = "Power bar", base = "barFx.power.", kind = "power",
@@ -491,7 +500,7 @@ ns.OPTIONS = { pages = {
     { id = "cast", label = "Cast Bar",
       desc = "The spell an enemy is casting, under its health bar.",
       groups = {
-        { label = "Cast bar", items = {
+        { label = "Cast bar", items = with(with({
             { type = "toggle", key = "castIcon", label = "Cast bar spell icon",
               desc = "The spell being cast, as a small icon by the cast bar." },
             { type = "dropdown", key = "castIconPos", since = "1.5.2", label = "Spell icon side",
@@ -502,18 +511,20 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "castY", since = "1.5.2", label = "Cast bar up / down", min = -100, max = 100, step = 1, unit = "px",
               desc = "Nudges it up or down from under the health bar, in pixels. In Design mode on the preview, drag it there." },
             { type = "dropdown", key = "castFill", label = "Cast bar fill style",
-              values = { plain = "One color", daylight = "Daylight gradient", pair = "Cast and channel gradients" },
-              order = { "plain", "daylight", "pair" },
-              desc = "One color, the Daylight gradient, or the Cast and Channel gradients from General > Gradients." },
+              values = { plain = "One color", daylight = "Daylight gradient", pair = "Cast and channel gradients",
+                         customGradient = "Custom gradient" },
+              order = { "plain", "daylight", "pair", "customGradient" },
+              desc = "One color, the Daylight gradient, the Cast and Channel gradients from General > Gradients, or a gradient in colors you pick." },
             { type = "color", key = "castColor", label = "Cast bar color",
               desc = "The cast bar's color when Cast bar fill style is One color.",
               disabled = function(get) return get("castFill") ~= "plain" end },
+        }, stopsRows("castGradient", "castFill", "nameplate cast bar", "the nameplates' cast bars")), {
             DaylightUI.Options.BarRow("media.cast", "Cast bar", "the cast bar on every nameplate"),
             DaylightUI.Options.BackRow("media.cast", "Cast bar", "the cast bar on every nameplate"),
             DaylightUI.Options.FontRow("media.castFont", "Cast bar font", "The spell name and time on the cast bars"),
             { type = "toggle", key = "castTarget", label = "Cast target", since = "1.7.2",
               desc = "Who an enemy's spell is aimed at, in their class color, on the right of its cast bar. Spells with no one target (an area spell, a self heal) show none." },
-        } },
+        }) },
         { label = "Interrupts", items = {
             { type = "toggle", key = "castKickMark", label = "Interrupt ready mark", since = "1.7.2",
               desc = "While your interrupt is on cooldown, a thin line on an enemy's cast bar shows where it comes back. No line: it's ready now, or it won't be back before the cast ends." },
@@ -584,7 +595,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "friendly.totems", label = "Totems as badges", since = "1.8.0",
               desc = "A friendly totem shows as a small round badge with its picture, ringed in its element's color, instead of its long name." },
         } },
-        { label = "Health bar", items = {
+        { label = "Health bar", items = with({
             { type = "toggle", key = "friendly.enabled", label = "Friendly health bar",
               desc = "A thin bar under the name." },
             { type = "slider", key = "friendly.height", label = "Friendly health bar height", min = 2, max = 24, step = 1, unit = "px",
@@ -613,13 +624,16 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "friendly.power", label = "Friendly power bar", since = "1.6.6", disabled = off("friendly.enabled"),
               desc = "Their mana, rage or energy as a thin bar under the health bar: see a healer running low. Who gets one, its size and color follow Health & Names > Power bar." },
             { type = "dropdown", key = "friendly.healthColor", label = "Friendly health bar color",
-              desc = "Friendly health bars in their class or reaction color, a class gradient, green to red by health, or one color.",
-              values = { class = "Class and reaction", classGradient = "Class gradient", gradient = "By health (green to red)", custom = "One color" },
-              order = { "class", "classGradient", "gradient", "custom" }, disabled = off("friendly.enabled") },
+              desc = "Friendly health bars in their class or reaction color, a class gradient, green to red by health, one color, or a gradient in colors you pick.",
+              values = { class = "Class and reaction", classGradient = "Class gradient", gradient = "By health (green to red)",
+                         custom = "One color", customGradient = "Custom gradient" },
+              order = { "class", "classGradient", "gradient", "custom", "customGradient" }, disabled = off("friendly.enabled") },
             { type = "color", key = "friendly.healthCustom", label = "Custom friendly health bar color",
               desc = "The friendly health bar's color when Friendly health bar color is One color.",
               disabled = function(get) return not get("friendly.enabled") or get("friendly.healthColor") ~= "custom" end },
-        } },
+        }, with(stopsRows("friendly.healthGradient", "friendly.healthColor", "friendly health", "friendly health bars",
+            off("friendly.enabled")), {
+        })) },
         { label = "Health text", items = since("1.5.2", spotItems("Friendly health text",
             { spot = "friendly.percentPos", x = "friendly.percentX", y = "friendly.percentY" }, false,
             function(get) return not get("friendly.enabled") or not get("friendly.percent") end)) },
@@ -649,13 +663,13 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "friendly.partyCustom", label = "Group color",
               desc = "The color of your party and raid members' names (with Group names on) and of the Group mark.",
               disabled = function(get) return get("friendly.partyName") ~= true and get("friendly.partyMark") == "none" end },
-        }), with(since("1.9.7", {
+        }), with(since("2.0", {
             { type = "dropdown", key = "friendly.classIcon", label = "Class icon",
               values = { none = "None", before = "Before name", after = "After name", above = "Above name" },
               order = { "none", "before", "after", "above" },
               desc = "A friendly player's class icon by their name, the one picked for that class under Unit Frames > Look > Class icons, so you can spot the healer in a crowd. Above name needs the name over the bar (or no bar); on or under it, the icon goes before the name." },
-            { type = "slider", key = "friendly.classIconSize", label = "Class icon size", min = 0, max = 32, step = 1,
-              desc = "How big the class icon is. Set to 0 to follow the name size.",
+            { type = "slider", key = "friendly.classIconScale", label = "Class icon size", min = 0.5, max = 2.5, step = 0.05, unit = "%",
+              desc = "How big the class icon is next to the name. It grows and shrinks with the name size.",
               disabled = function(get) return get("friendly.classIcon") == "none" end },
         }), spotItems("Friendly name", { spot = "friendly.namePos", x = "friendly.nameX", y = "friendly.nameY" }, false,
             off("friendly.enabled"),

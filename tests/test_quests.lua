@@ -777,6 +777,26 @@ T.test("quests tracker: the login reveal slides the lines in one after another; 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game: a zone heading drawn over another until a reload. The log can
+-- fill in while the reveal's lines still wait their turn, and a row's turn
+-- used to stop the glide to its new place.
+T.test("quests tracker: a quest arriving during the login reveal still glides every row to its place", function()
+    local Tr, ns, settle = tracker({ quests = { QW.quest(1, "A", { zone = "Arathi Highlands" }),
+        QW.quest(2, "B", { zone = "Arathi Highlands" }) } })
+    local A = ns.Animate
+    DaylightUI.Fire("LoginReveal")
+    table.insert(QW.state.quests, 1, QW.quest(7, "New", { zone = "Alterac Mountains" }))
+    Tr.reasons.enter[7] = true
+    Tr.Render(true)
+    stub.RunTimers()   -- the reveal's turns come after the new layout
+    settle()
+    for _, b in ipairs(Tr.shown) do
+        T.near(A.State(Tr.frames[b.key]).y, b.y, 0.01, b.key .. " rests where the layout puts it")
+        T.eq(A.State(Tr.frames[b.key]).a, 1, b.key .. " shown")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("quests tracker: a turned-in quest leaves the others' frames and text untouched", function()
     local Tr, ns, settle = tracker({ quests = { STEW, QW.quest(2, "Red Leather Bandanas"), QW.quest(3, "Patrolling Westfall") } })
     local f2, f3 = Tr.frames["quest:2"], Tr.frames["quest:3"]

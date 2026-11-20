@@ -6,8 +6,8 @@ DaylightUI:RegisterModule("AuctionHouse", {
     -- What each file defines. If a file goes missing after an update, the module
     -- turns itself off with one line in chat (tests/test_guards.lua checks this list).
     ns = ns,
-    parts = { "DB", "Items", "Market", "Ruleset", "Store", "Rows", "AH", "Bags", "Replicate", "Search", "Browse", "Buy", "Post", "Scan",
-              "Tooltip", "ScanBand", "BuyPage", "SellPage", "AuctionsPage", "Window" },
+    parts = { "DB", "Items", "Market", "Ruleset", "Store", "Vendor", "Rows", "AH", "Bags", "Replicate", "Search", "Browse", "Buy", "Post", "Scan",
+              "Tooltip", "ScanBand", "BuyPage", "SellPage", "AuctionsPage", "Window", "Bridge" },
     label = "Auction House",
     order = 147,   -- its own options section, between Chat and Extras
     defaults = ns.DEFAULTS,
@@ -20,6 +20,7 @@ DaylightUI:RegisterModule("AuctionHouse", {
             ns.Window.InitSwap()
             if ns.swap.Ours() then ns.Window.Build(mod) end
         end
+        ns.Bridge.Publish()
         ns.Fire("Login")
     end,
     OnSettingChanged = function()

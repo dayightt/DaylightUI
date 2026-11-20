@@ -265,13 +265,14 @@ end
 
 local WHITE = CreateColor(1, 1, 1, 1)
 
--- The fill is the same for every cast: one color, the Daylight gradient, or the
--- Gradients page's Cast / Channel pair.
+-- The fill is the same for every cast: one color, the Daylight gradient, the
+-- Gradients page's Cast / Channel pair, or colors picked for it.
 local function paintFill(c, channel)
     -- A plugin's fill: white under its texture, no gradient; the empty part in
     -- the cast color unless the plugin holds that too.
     if owned("fill") then
         Style.SetBarGradient(c.bar, false)
+        Style.ClearBarStops(c.bar)
         c.bar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
         if not owned("back") then
             local col = castColor()
@@ -280,6 +281,11 @@ local function paintFill(c, channel)
         return
     end
     local mode = ns.cfg.castFill
+    if mode == "customGradient" and DUI.Gradients then
+        Style.SetBarGradient(c.bar, false)
+        DUI.Gradients.PaintStops(c.bar, ns.cfg.castGradient)
+        return
+    end
     local G = mode == "pair" and DUI.Gradients
     local sweep = Style.SetBarGradient(c.bar, mode == "daylight" and not G)
     if G then
@@ -486,6 +492,7 @@ function Cast.Interrupted(p)
         Style.SetBarGradient(c.bar, false)
         if fill.SetGradient then fill:SetGradient("HORIZONTAL", WHITE, WHITE) end
         fill:SetVertexColor(col[1], col[2], col[3], 1)
+        Style.NoteFillRGB(fill, col[1], col[2], col[3])
     end
     c.text:SetText(INTERRUPTED or "Interrupted")
     c.time:Hide()

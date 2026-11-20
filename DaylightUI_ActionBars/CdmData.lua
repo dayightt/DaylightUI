@@ -520,8 +520,15 @@ function Data.Current()
     return Data.Get(Data.CurrentIndex())
 end
 
--- "on" (Use my layout) and "hideUnplaced": per character, on unless turned off.
-function Data.Switch(key) return Data.Store()[key] ~= false end
+-- "on" (Use my layout): per character, on unless turned off.
+-- "hideUnplaced" always answers on. The game's icons for spells left out of the
+-- layout stay hidden: shown, they sat at the game's own spot beside the layout,
+-- along with every buff the game's rows now carry. A value saved while it was
+-- still a setting is ignored.
+function Data.Switch(key)
+    if key == "hideUnplaced" then return true end
+    return Data.Store()[key] ~= false
+end
 function Data.SetSwitch(key, v) Data.Store()[key] = v and true or false end
 
 -- ---------------------------------------------------------------------
@@ -1141,7 +1148,8 @@ end
 -- Look keys: a { min, max } range, a list of values, or true for a toggle.
 Data.LOOK_FIELDS = {
     size = { 16, 64 }, width = { 60, 400 }, height = { 10, 40 },
-    color = { "class", "gradient", "spell" }, icon = true, text = { 8, 16 }, time = true,
+    color = { "class", "gradient", "spell", "customGradient" }, barStops = { stops = true },
+    icon = true, text = { 8, 16 }, time = true,
     back = { "dark", "solid", "gradient" }, backColor = { color = true, alpha = true }, backGradient = { gradient = true },
     -- Icon text (unset follows the action bars' look, CD.TextLook).
     cdNumbers = true, cdSize = { 8, 24 }, countSize = { 8, 20 },
@@ -1171,7 +1179,8 @@ Data.SPELL_FIELDS = {
     onShort = { values = { "show", "fade", "hide" } },
     track = { values = { "both", "cooldown", "buff", "totem" } },
     cdAlpha = { min = 0, max = 1 },
-    barMode = { values = { "block", "solid", "gradient" }, bar = true },
+    barMode = { values = { "block", "solid", "gradient", "customGradient" }, bar = true },
+    barStops = { stops = true, bar = true },
     fillBy = { values = { "shield", "time" }, bar = true }, shieldAmount = { bool = true },
     glowStyle = { glow = true },
     barColor = { color = true, bar = true },
@@ -1209,9 +1218,28 @@ local function isRGB(c)
 end
 
 -- Checks a value against a field. Returns the value to keep, or nil when it's bad.
+-- A custom gradient ({ count, c1 to c5 }, as General's accentGradient): a copy
+-- with the count kept to 2 to 5 and every color it holds checked, or nil.
+function Data.CheckStops(v)
+    if type(v) ~= "table" or type(v.count) ~= "number" or v.count ~= v.count then return nil end
+    local out = { count = max(2, min(DUI.Style.CUSTOM_STOPS_MAX, floor(v.count + 0.5))) }
+    for i = 1, DUI.Style.CUSTOM_STOPS_MAX do
+        local c = v["c" .. i]
+        if c ~= nil then
+            if not isRGB(c) then return nil end
+            out["c" .. i] = { c[1], c[2], c[3] }
+        elseif i <= out.count then
+            return nil
+        end
+    end
+    return out
+end
+
 local function check(spec, v)
     if spec == true then
         if type(v) == "boolean" then return v end
+    elseif spec.stops then
+        return Data.CheckStops(v)
     elseif spec.gradient then
         if type(v) == "table" and isRGB(v.lo) and isRGB(v.hi) then
             return { lo = { v.lo[1], v.lo[2], v.lo[3] }, hi = { v.hi[1], v.hi[2], v.hi[3] } }
@@ -1307,6 +1335,9 @@ function Data.SetSpellValue(set, id, key, value)
     if not (p and spec) or (spec.icon and bar) or (spec.bar and not bar) then return false end
     if spec.bool then
         if type(value) ~= "boolean" then return false end
+    elseif spec.stops then
+        value = Data.CheckStops(value)
+        if not value then return false end
     elseif spec.gradient then
         if type(value) ~= "table" or not isRGB(value.lo) or not isRGB(value.hi) then return false end
         value = { lo = { value.lo[1], value.lo[2], value.lo[3] }, hi = { value.hi[1], value.hi[2], value.hi[3] } }

@@ -585,32 +585,51 @@ end
 -- (General `accentGradient`, its `count` and colors c1 to c5). Kept in the
 -- same tables until a number changes, like the class pair.
 Style.CUSTOM_STOPS_MAX = 5
-local customPair = { key = "" }
+-- A fresh copy of the custom gradient accent's default colors, which a bar's
+-- own custom gradient starts on too (for a module's defaults).
+function Style.DefaultStops()
+    local d = DUI.DB.GENERAL_DEFAULTS.accentGradient
+    local out = { count = d.count }
+    for i = 1, Style.CUSTOM_STOPS_MAX do
+        local c = d["c" .. i]
+        out["c" .. i] = { c[1], c[2], c[3] }
+    end
+    return out
+end
 
-local function customAccent()
-    local s = general().accentGradient
+-- A saved custom gradient ({ count, c1 to c5 }) read into { stops, lo, hi,
+-- mid }, or nil when it's missing or broken. The answer is kept per settings
+-- table until a number in it changes, so the same tables come back and a
+-- painter can tell nothing changed.
+local stopsOf = setmetatable({}, { __mode = "k" })
+
+function Style.StopsOf(s)
     if type(s) ~= "table" then return nil end
     local n = math.max(2, math.min(Style.CUSTOM_STOPS_MAX, math.floor(tonumber(s.count) or 2)))
-    local stops, parts = {}, {}
+    local p = stopsOf[s]
+    local same = p ~= nil and #p.stops == n
     for i = 1, n do
         local c = s["c" .. i]
         if type(c) ~= "table" or type(c[1]) ~= "number" or type(c[2]) ~= "number" or type(c[3]) ~= "number" then
             return nil
         end
-        stops[i] = c
-        parts[#parts + 1] = string.format("%.4f,%.4f,%.4f", c[1], c[2], c[3])
+        local k = same and p.stops[i]
+        same = k and k[1] == c[1] and k[2] == c[2] and k[3] == c[3]
     end
-    local key = table.concat(parts, ";")
-    local p = customPair
-    if p.key ~= key then
-        p.key = key
-        p.stops = {}
-        for i, c in ipairs(stops) do p.stops[i] = { c[1], c[2], c[3] } end
-        p.lo, p.hi = p.stops[1], p.stops[n]
-        p.mid = { Style.StopsAt(p.stops, 0.5) }
+    -- Read on every paint of a bar, so an unchanged one makes no garbage.
+    if same then return p end
+    p = { stops = {} }
+    for i = 1, n do
+        local c = s["c" .. i]
+        p.stops[i] = { c[1], c[2], c[3] }
     end
+    p.lo, p.hi = p.stops[1], p.stops[n]
+    p.mid = { Style.StopsAt(p.stops, 0.5) }
+    stopsOf[s] = p
     return p
 end
+
+local function customAccent() return Style.StopsOf(general().accentGradient) end
 
 -- The spot t (0 to 1) along a list of { r, g, b } stops, evenly spaced.
 function Style.StopsAt(stops, t)
@@ -2215,8 +2234,15 @@ local isSecret = DUI.IsSecret
 -- A fill painted in more than two colors (the custom gradient accent) also
 -- keeps the whole list, so Flow can roll every one of them.
 local fillStops = setmetatable({}, { __mode = "k" })
+local stopsBar = setmetatable({}, { __mode = "k" }) -- fill -> its bar, once it has worn pieces (Style.PaintBarStops)
+local stopsPainting -- the bar Style.PaintBarStops is painting the back of
 local function noteRGB(tex, r1, g1, b1, r2, g2, b2, stops)
     if type(tex) ~= "table" then return end
+    -- Any other paint takes a many-color fill's pieces off. Its own back,
+    -- painted flat at the middle color, isn't what the fill shows.
+    local owner = stopsBar[tex]
+    if owner and owner == stopsPainting then return end
+    if owner then Style.DropBarStops(owner, stops) end
     local kept = fillColors[tex]
     -- The ends may match while the colors between them changed.
     local changed = fillStops[tex] ~= stops
@@ -2612,13 +2638,199 @@ function Style.PaintAccentBar(bar, paintBack)
         end
         return true
     end
-    (paintBack or Style.SetBarColor)(bar, Style.Accent())
+    local stops = Style.AccentStops()
+    if stops then return Style.PaintBarStops(bar, stops, paintBack, "HORIZONTAL") end
+    Style.ClearBarStops(bar)
+    local paint = paintBack or Style.SetBarColor
+    paint(bar, Style.Accent())
     local lo, hi = Style.AccentPair()
     local tex = lo and CreateColor and bar:GetStatusBarTexture()
     if type(tex) ~= "table" or not tex.SetGradient then return false end
     bar:SetStatusBarColor(1, 1, 1, 1)
     tex:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
-    Style.NoteFill(tex, lo, hi, Style.AccentStops())
+    Style.NoteFill(tex, lo, hi)
+    return true
+end
+
+-- A bar filled with three or more colors. A texture's own gradient has only
+-- two ends, so the fill is painted white and pieces laid over it, each a
+-- quarter of the fill with its own two-color gradient, multiply the colors in
+-- (MOD), which keeps the bar texture's shading. A quarter can be pinned to the
+-- fill without knowing its width (the fill's width comes from health, which is
+-- secret): each piece hangs from the fill's corners, its middle, or the
+-- middle of an invisible half. Three and five colors land exactly on the
+-- quarters; four are read at the quarters, close to their thirds.
+Style.STOP_PIECES = 4
+local barStops = setmetatable({}, { __mode = "k" }) -- bar -> { pieces, halves, stops, on, vertical }
+
+local function stopsLayer(bar)
+    local fx = DUI.BarFx
+    return (fx and fx.FILL_SUB or -7)
+end
+
+-- Where piece i of n starts and ends along the fill, as anchor points: the
+-- fill itself (0, 0.5, 1) or one of its two invisible halves (0.25, 0.75).
+local function pinPiece(t, fill, halves, i, vertical)
+    local lo, hi = (i - 1) / Style.STOP_PIECES, i / Style.STOP_PIECES
+    local function at(x)
+        if x == 0 then return fill, vertical and "BOTTOM" or "LEFT" end
+        if x == 1 then return fill, vertical and "TOP" or "RIGHT" end
+        if x == 0.5 then return fill, "CENTER" end
+        return x < 0.5 and halves[1] or halves[2], "CENTER"
+    end
+    local a, ap = at(lo)
+    local b, bp = at(hi)
+    t:ClearAllPoints()
+    if vertical then
+        t:SetPoint("LEFT", fill, "LEFT")
+        t:SetPoint("RIGHT", fill, "RIGHT")
+        t:SetPoint("BOTTOM", a, ap)
+        t:SetPoint("TOP", b, bp)
+    else
+        t:SetPoint("TOP", fill, "TOP")
+        t:SetPoint("BOTTOM", fill, "BOTTOM")
+        t:SetPoint("LEFT", a, ap)
+        t:SetPoint("RIGHT", b, bp)
+    end
+end
+
+local function buildStops(bar, vertical)
+    local e = barStops[bar]
+    local fill = bar:GetStatusBarTexture()
+    if not e then
+        e = { pieces = {}, halves = {} }
+        -- Only anchors: hidden regions are still laid out.
+        for i = 1, 2 do
+            local h = bar:CreateTexture()
+            h:Hide()
+            e.halves[i] = h
+        end
+        fillOver[bar] = fillOver[bar] or {}
+        for i = 1, Style.STOP_PIECES do
+            local t = bar:CreateTexture(nil, "ARTWORK", nil, stopsLayer() + 1)
+            t:SetTexture(WHITE)
+            t:SetBlendMode("MOD")
+            t:Hide()
+            e.pieces[i] = t
+            -- AngleFill moves the fill's angled edge onto it from now on.
+            fillOver[bar][t] = true
+            shareEdge(t, fillMask[bar])
+        end
+        barStops[bar] = e
+    end
+    if e.fill ~= fill or e.vertical ~= vertical then
+        if e.fill then stopsBar[e.fill] = nil end
+        e.fill, e.vertical = fill, vertical
+        stopsBar[fill] = bar
+        local h1, h2 = e.halves[1], e.halves[2]
+        h1:ClearAllPoints()
+        h2:ClearAllPoints()
+        if vertical then
+            h1:SetPoint("BOTTOMLEFT", fill, "BOTTOMLEFT")
+            h1:SetPoint("TOPRIGHT", fill, "RIGHT")
+            h2:SetPoint("BOTTOMLEFT", fill, "LEFT")
+            h2:SetPoint("TOPRIGHT", fill, "TOPRIGHT")
+        else
+            h1:SetPoint("TOPLEFT", fill, "TOPLEFT")
+            h1:SetPoint("BOTTOMRIGHT", fill, "BOTTOM")
+            h2:SetPoint("TOPLEFT", fill, "TOP")
+            h2:SetPoint("BOTTOMRIGHT", fill, "BOTTOMRIGHT")
+        end
+        for i, t in ipairs(e.pieces) do pinPiece(t, fill, e.halves, i, vertical) end
+    end
+    return e
+end
+
+-- Shows the pieces while they're wanted and no bar style covers the fill
+-- (Flow lays its own colors over all of it). The fill sits at the bottom of
+-- its layer and the pieces just above it, under every overlay.
+function Style.LayBarStops(bar)
+    local e = barStops[bar]
+    if not e then return end
+    local on = e.on and not (DUI.BarFx and DUI.BarFx.FlowShown(bar))
+    if on then
+        local fill = bar:GetStatusBarTexture()
+        fill:SetDrawLayer("ARTWORK", stopsLayer())
+        for _, t in ipairs(e.pieces) do
+            t:SetDrawLayer("ARTWORK", stopsLayer() + 1)
+            Style.SameMasks(t, fill)
+        end
+    end
+    for _, t in ipairs(e.pieces) do t:SetShown(on == true) end
+end
+
+-- Takes the pieces off (another color was painted). Cheap on a bar that never
+-- had them.
+function Style.ClearBarStops(bar)
+    local e = barStops[bar]
+    if not (e and e.on) then return end
+    e.on, e.stops, e.list = nil, nil, nil
+    for _, t in ipairs(e.pieces) do t:Hide() end
+end
+
+-- From the fill's paint log: a paint that didn't hand over this bar's own
+-- list of colors was another color.
+function Style.DropBarStops(bar, stops)
+    local e = barStops[bar]
+    if e and e.on and stops ~= e.list then Style.ClearBarStops(bar) end
+end
+
+-- Fills a status bar along a list of { r, g, b } stops (already softened if
+-- they should be), left to right, or bottom to top with "VERTICAL"; mirror
+-- runs them the other way. paintBack(bar, r, g, b) colors the fill and the
+-- empty part at the gradient's middle first (default Style.SetBarColor).
+-- Returns true.
+function Style.PaintBarStops(bar, stops, paintBack, orientation, mirror)
+    local n = #stops
+    local mr, mg, mb = Style.StopsAt(stops, 0.5)
+    local tex = bar:GetStatusBarTexture()
+    local paint = paintBack or Style.SetBarColor
+    if n < 2 or not (CreateColor and type(tex) == "table" and tex.SetGradient) then
+        Style.ClearBarStops(bar)
+        paint(bar, mr, mg, mb)
+        return true
+    end
+    local vertical = orientation == "VERTICAL"
+    local first, last = stops[1], stops[n]
+    if mirror then first, last = last, first end
+    if n == 2 then
+        Style.ClearBarStops(bar)
+        paint(bar, mr, mg, mb)
+        bar:SetStatusBarColor(1, 1, 1, 1)
+        Style.Gradient(tex, orientation or "HORIZONTAL", first[1], first[2], first[3], 1, last[1], last[2], last[3], 1)
+        Style.NoteFill(tex, first, last)
+        return true
+    end
+    local e = buildStops(bar, vertical)
+    -- The back is painted at the middle color without taking the pieces off.
+    stopsPainting = bar
+    paint(bar, mr, mg, mb)
+    stopsPainting = nil
+    bar:SetStatusBarColor(1, 1, 1, 1)
+    -- Flow rolls every color: hand it the list in the order it runs.
+    local list = stops
+    if mirror then
+        list = e.mirrored
+        if not list or e.mirrorOf ~= stops then
+            list = {}
+            for i = n, 1, -1 do list[#list + 1] = stops[i] end
+            e.mirrored, e.mirrorOf = list, stops
+        end
+    end
+    -- Power bars repaint on every power change: the same colors again need nothing more.
+    if e.on and e.list == list then return true end
+    local q = Style.STOP_PIECES
+    for i, t in ipairs(e.pieces) do
+        local a, b = (i - 1) / q, i / q
+        if mirror then a, b = 1 - a, 1 - b end
+        local ar, ag, ab = Style.StopsAt(stops, a)
+        local br, bg, bb = Style.StopsAt(stops, b)
+        t:SetVertexColor(1, 1, 1, 1)
+        Style.Gradient(t, vertical and "VERTICAL" or "HORIZONTAL", ar, ag, ab, 1, br, bg, bb, 1)
+    end
+    e.on, e.stops, e.list = true, stops, list
+    Style.NoteFill(tex, first, last, list)
+    Style.LayBarStops(bar)
     return true
 end
 

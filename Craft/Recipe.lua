@@ -319,6 +319,123 @@ function Recipe.Acts(s, r)
     return b
 end
 
+-- Profit: what the materials cost, what it sells for, the Auction House's cut and
+-- what's left, one row each with the number on the right. A row with no number
+-- stays out; a short sentence under them says why one is missing.
+Recipe.PROFIT_ROW = 20
+
+local function sourceWords(src)
+    if src == "vendor" then return L["vendor"] end
+    if src == "craft" then return L["made by you"] end
+    return L["Auction House"]
+end
+
+local function matsTip(row)
+    local p = row.profit
+    if not (p and GameTooltip) then return end
+    local Tips, INK = DUI.Tips, Style.INK
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    Tips.Clear()
+    Tips.Title(L["Materials"])
+    for _, m in ipairs(p.mats) do
+        local label = m.n > 1 and string.format(L["%d %s"], m.n, m.name) or m.name
+        if m.each then
+            Tips.Line(label .. "  " .. Win.Parts.Hex(INK.LABEL) .. sourceWords(m.src) .. "|r", DUI.Widgets.Money(m.each * m.n), INK.VALUE)
+        else
+            Tips.Line(label, L["No price yet"], INK.LABEL)
+        end
+    end
+    if p.yield ~= 1 then Tips.Text(string.format(L["One craft makes about %s."], string.format("%g", p.yield))) end
+    Tips.Flush(GameTooltip)
+    GameTooltip:Show()
+end
+
+local function sellTip(row)
+    local p = row.profit
+    if not (p and GameTooltip) then return end
+    local Tips = DUI.Tips
+    GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
+    Tips.Clear()
+    Tips.Title(L["Sells for"])
+    Tips.Text(L["Its usual price at the Auction House."])
+    local P = DUI.AuctionPrices
+    if p.seenAt and P and P.Ago then Tips.Sub(string.format(L["Seen %s ago"], P.Ago(p.seenAt))) end
+    Tips.Flush(GameTooltip)
+    GameTooltip:Show()
+end
+
+local function cutTip(row)
+    if not GameTooltip then return end
+    DUI.Widgets.Tooltip(row, L["Auction House cut"],
+        string.format(L["The Auction House keeps %s of every sale."], string.format("%g%%", (DUI.AuctionPrices and DUI.AuctionPrices.CUT or 0.05) * 100)))
+end
+
+local function makeProfit(parent)
+    local b = CreateFrame("Frame", nil, parent)
+    b.rows = {}
+    for i = 1, 4 do
+        local row = CreateFrame("Frame", nil, b)
+        row:SetHeight(Recipe.PROFIT_ROW)
+        row:EnableMouse(true)
+        row.label = Style.Text(row, Style.SIZE.body, "LEFT")
+        row.label:SetPoint("LEFT", row, "LEFT", 4, 0)
+        row.value = Style.Text(row, Style.SIZE.body, "RIGHT")
+        row.value:SetPoint("RIGHT", row, "RIGHT", -8, 0)
+        row:SetScript("OnLeave", DUI.Widgets.HideTooltip)
+        b.rows[i] = row
+    end
+    return b
+end
+
+-- The rows' last values, so a number that changes while shown eases in.
+Recipe.profitShown = {}
+
+local function profitRow(b, i, y, label, value, color, tip)
+    local row = b.rows[i]
+    row:ClearAllPoints()
+    row:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -y)
+    row:SetPoint("TOPRIGHT", b, "TOPRIGHT", 0, -y)
+    row.label:SetText(label)
+    Style.InkText(row.label, "TEXT")
+    row.value:SetText(value)
+    row.value:SetTextColor(color[1], color[2], color[3])
+    row:SetScript("OnEnter", tip)
+    row:Show()
+    local key = b.recipeID .. ":" .. i
+    local was = Recipe.profitShown[key]
+    Recipe.profitShown[key] = value
+    if was and was ~= value and DUI.Motion then DUI.Motion.Fade(row.value, 0, 1, DUI.Motion.FAST) end
+    return y + Recipe.PROFIT_ROW
+end
+
+function Recipe.Profit(s, r)
+    local p = ns.Profit.Of(r)
+    if not (p and p.known) then return nil end
+    local INK, W = Style.INK, DUI.Widgets
+    s:Section(L["Profit"])
+    local rows = {}
+    if p.cost then rows[#rows + 1] = { L["Materials"], W.Money(p.cost), INK.VALUE, matsTip } end
+    if p.value then
+        rows[#rows + 1] = { L["Sells for"], W.Money(p.value), INK.VALUE, sellTip }
+        rows[#rows + 1] = { L["Auction House cut"], "-" .. W.Money(p.cut, { color = false }), INK.LABEL, cutTip }
+    end
+    if p.profit then
+        local text = ns.Profit.Money(p.profit)
+        if p.pct then text = text .. "  (" .. p.pct .. "%)" end
+        rows[#rows + 1] = { L["Profit"], text, ns.Profit.Color(p.profit) }
+    end
+    local b = s:Piece("profit", makeProfit, #rows * Recipe.PROFIT_ROW, 2, "profit")
+    b.recipeID = r.id
+    local y = 0
+    for i, row in ipairs(rows) do
+        b.rows[i].profit = p
+        y = profitRow(b, i, y, row[1], row[2], row[3], row[4])
+    end
+    for i = #rows + 1, #b.rows do b.rows[i]:Hide() end
+    if p.why then s:Why(p.why) end
+    return b
+end
+
 -- A recipe's cooldown, worded the way the game's recipe page does it: charges when it
 -- has them, else the time left (a daily one under a day says it resets at midnight).
 -- Nil when it's ready.
@@ -425,6 +542,7 @@ function Recipe.Fill(pane, r, keepScroll)
     end
     local req = requires(r.id)
     if req then s:Text(req, { color = INK.TEXT, size = Style.SIZE.small, gap = 12 }) end
+    Recipe.Profit(s, r)
     pane.pieces = s:End()
     s:ScrollTo(at)
 end

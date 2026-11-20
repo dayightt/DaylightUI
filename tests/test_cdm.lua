@@ -1076,7 +1076,7 @@ T.test("cdm rows: the layout is a fade area, so the campfire's hush reaches it; 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("cdm rows: unplaced items fade with the layout and the setting on", function()
+T.test("cdm rows: unplaced items stay hidden while the layout is on", function()
     local DUI, AB, ess = rowsWorld()
     local D, R = AB.CdmData, AB.CdmRows
     R.Refresh(); stub.RunTimers()
@@ -1088,10 +1088,7 @@ T.test("cdm rows: unplaced items fade with the layout and the setting on", funct
     T.eq(ess[2]:GetAlpha(), 0, "unplaced faded")
     D.SetSwitch("hideUnplaced", false)
     R.Refresh(); stub.RunTimers()
-    T.eq(ess[2]:GetAlpha(), 1, "setting off")
-    D.SetSwitch("hideUnplaced", true)
-    R.Refresh(); stub.RunTimers()
-    T.eq(ess[2]:GetAlpha(), 0)
+    T.eq(ess[2]:GetAlpha(), 0, "an old saved value can't bring them back")
     D.SetSwitch("on", false)
     R.Refresh(); stub.RunTimers()
     T.eq(ess[2]:GetAlpha(), 1, "layout off releases everything")
@@ -1124,11 +1121,10 @@ T.test("cdm rows: a game bar placed as an icon isn't claimed: it hides and our a
     T.eq(h:GetParent(), pieceFrame(1, 21))
     T.truthy(R.Owns(ess[1]))
     T.eq(R.DrawnBy(11), "game")
-    -- Out of the layout (and unplaced items shown), the game's bar is back.
-    D.SetSwitch("hideUnplaced", false)
+    -- Out of the layout, the game's bar stays out of sight with the rest.
     D.RemovePiece(set, 21)
     R.Refresh(); stub.RunTimers()
-    T.eq(bars[1]:GetAlpha(), 1)
+    T.eq(bars[1]:GetAlpha(), 0)
     T.falsy(h:IsShown())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -1695,10 +1691,9 @@ T.test("cdm effects: the glow goes when the item is let go, and comes back", fun
     local DUI, AB, set, ess = fxWorld()
     local Fx, M = AB.CdmEffects, _G.ActionButtonSpellAlertManager
     M:ShowAlert(ess[1])
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
-    unplace(AB.CdmData, set, 11); pass(AB)
+    stub.actionbars.CdmData.SetSwitch("on", false); pass(AB)
     T.falsy(Fx.GlowShown(ess[1]), "released")
-    place(AB.CdmData, set, 11, 1); pass(AB)
+    stub.actionbars.CdmData.SetSwitch("on", true); pass(AB)
     T.truthy(Fx.GlowShown(ess[1]), "claimed again while the alert is still up")
 end)
 
@@ -1728,7 +1723,7 @@ T.test("cdm effects: hide swipe keeps it off and puts it back on release", funct
     cd:SetDrawSwipe(true)                       -- the game turns it back on
     T.eq(cd.__swipe, false, "forced back off")
     T.isnil(ess[2].Cooldown.__swipe, "others untouched")
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(AB.CdmData, set, 11); pass(AB)
     T.eq(cd.__swipe, true, "restored")
     cd:SetDrawSwipe(false); cd:SetDrawSwipe(true)
@@ -1792,7 +1787,7 @@ T.test("cdm text: numbers off and sized, count spot, low-time color; back on rel
     T.eq(select(2, fs:GetFont()), 20, "numbers size")
     T.rgb({ fs:GetTextColor() }, { 0, 1, 0 }, "2 s left: the low color")
     T.eq(select(2, item.ChargeCount.Current:GetFont()), 15)
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(D, set, 11); pass(AB)
     T.isnil(CD.TextOf(item), "let go")
     T.eq(select(1, item.ChargeCount.Current:GetPoint(1)), "BOTTOMRIGHT", "count back at the corner")
@@ -1931,7 +1926,7 @@ T.test("cdm effects: on cooldown fade or hide by alpha, back when ready or let g
     cds[111] = { duration = 0 }
     cdEvent()
     T.eq(ess[1]:GetAlpha(), 1, "ready")
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(AB.CdmData, set, 12); pass(AB)
     T.eq(ess[2]:GetAlpha(), 1, "let go: full again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -2913,7 +2908,7 @@ T.test("cdm effects: switching On cooldown back to show, or letting go, restores
     pass(AB)
     T.eq(ess[1]:GetAlpha(), 0.25)
     set.pieces[11].onCd = "show"
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(AB.CdmData, set, 11); pass(AB)
     T.eq(ess[1]:GetAlpha(), 1, "let go with the option already show")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -4707,10 +4702,10 @@ T.test("cdm rows: a shield the game files as a cooldown fills by the shield left
     T.eq(rawget(full, "__value"), 250, "the full stays")
     stub.Advance(1)
     -- It lands, then soaks: the bar drains and its full value is kept.
-    btn:Hide()
+    stub.AuraVisible(btn, false)
     stub.units.player = stub.units.player or {}
     stub.units.player.absorbs = stub.Secret(300)
-    btn:Show()
+    stub.AuraVisible(btn, true)
     T.eq(s:GetAlpha(), 1, "shown while the shield is up")
     local _, hi = s:GetMinMaxValues()
     T.eq(rawget(hi, "__value"), 300)
@@ -4726,7 +4721,7 @@ T.test("cdm rows: a shield the game files as a cooldown fills by the shield left
     T.eq(k.__refreshes or 0, n, "no rebuild for an enemy target")
     -- The client rebuilding its button (gone and straight back) keeps the full value.
     stub.Advance(1)
-    btn:Hide(); btn:Show()
+    stub.AuraVisible(btn, false); stub.AuraVisible(btn, true)
     stub.units.player.absorbs = stub.Secret(90)
     stub.FireEvent("UNIT_ABSORB_AMOUNT_CHANGED", "player")
     _, hi = s:GetMinMaxValues()
@@ -5056,7 +5051,7 @@ T.test("cdm bars: an Essential cooldown in a bar block is our bar, filled by the
     T.truthy(f.Bar.__timer and f.Bar.__timer[1] == cd2, "the recharge")
     T.falsy(f.next:IsShown()); T.falsy(f.lines[1]:IsShown())
     -- Out of the block, the addon's bar hides and the game's icon comes back.
-    D.SetSwitch("hideUnplaced", false)
+    D.SetSwitch("on", false)
     unplace(D, set, 11)
     pass(AB)
     T.falsy(f:IsShown())
@@ -7412,11 +7407,12 @@ end)
 -- containers refuse to pick a debuff on you (or any friend) by spell id unless
 -- the spell is never secret (AuraContainerUtil.CanApplyIdentityCandidateFilters,
 -- tests/aura_rules.lua), so the debuff group goes by what's left: yours, and no
--- longer than it lasts.
+-- longer than it lasts. Forbearance is on no class list and lasts a minute: its
+-- length has to come from the game's data, or a shorter guess hides it.
 T.test("cdm custom: a debuff on you really shows in its container (never picked by spell id)", function()
     local shows = require("aura_rules")
     local AB, C = customWorld("PRIEST")
-    C.Forget()
+    realFacts()
     local you = { canAssist = true, groupMember = true }
     local function debuffGroup(h)
         for _, k in ipairs(h.containers) do
@@ -7424,20 +7420,17 @@ T.test("cdm custom: a debuff on you really shows in its container (never picked 
             if k.unit == "player" and g.filter:find("HARMFUL") then return g end
         end
     end
-    C_Spell.GetSpellDescription = function(sid)
-        if sid == 25771 then return "Cannot be shielded again for 15 sec." end
-    end
     local h = CreateFrame("Frame", nil, UIParent)
     h.size = 30
     AB.CdmAuras.Setup(h, "s25771")
     local g = debuffGroup(h)
     T.truthy(g, "a debuff group on you")
-    T.truthy(shows(g, you, { spellId = 25771, harmful = true, mine = true, duration = 15 }),
-        "yours shows")
-    T.falsy(shows(g, you, { spellId = 115, harmful = true, mine = false, duration = 15 }),
+    T.truthy(shows(g, you, { spellId = 25771, harmful = true, mine = true, duration = 60 }),
+        "yours shows, for its whole minute")
+    T.falsy(shows(g, you, { spellId = 115, harmful = true, mine = false, duration = 60 }),
         "a mob's debuff on you doesn't")
-    T.falsy(shows(g, you, { spellId = 2096, harmful = true, mine = true, duration = 60 }),
-        "a longer one of yours (Recently Bandaged) doesn't")
+    T.falsy(shows(g, you, { spellId = 2096, harmful = true, mine = true, duration = 120 }),
+        "a longer one of yours doesn't")
     -- A spell the client calls never secret may still go by its id.
     stub.neverSecretAuras = { [25771] = true }
     local n = CreateFrame("Frame", nil, UIParent)
@@ -8093,10 +8086,10 @@ T.test("cdm custom: a shield's bar fills by the shield left, its full when it la
     T.eq(parts.bar:GetStatusBarTexture():GetAlpha(), 0, "the client's time fill gives way")
     T.eq(parts.time:GetAlpha(), 0, "and its time")
     -- It lands: the amount is its full value, and the hits after drain it.
-    btn:Hide()
+    stub.AuraVisible(btn, false)
     stub.units.player.absorbs = stub.Secret(480)
     stub.EnterCombat()
-    btn:Show()
+    stub.AuraVisible(btn, true)
     local lo, hi = s:GetMinMaxValues()
     T.eq(rawget(hi, "__value"), 480, "full at the amount it landed with")
     T.eq(rawget(s.text:GetText(), "__value"), "480")
@@ -9132,5 +9125,30 @@ T.test("cdm state: a buff others can cast too takes the game's item for your own
         stub.LeaveCombat()
     end
     noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm bars: a custom gradient fill, the spell's own or its group's; only a bar takes one", function()
+    local DUI, AB, set = fxWorld()
+    local D, CD, S = AB.CdmData, AB.Cooldowns, DUI.Style
+    local stops = { count = 3, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 }, c3 = { 0, 0, 1 } }
+    T.eq(D.SetSpellValue(set, 11, "barStops", stops), false, "an icon has no fill")
+    set.pieces[11].shape = "bar"
+    T.eq(D.SetSpellValue(set, 11, "barStops", { count = 3, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 } }), false, "a counted color missing")
+    T.eq(D.SetSpellValue(set, 11, "barStops", { count = "3" }), false)
+    T.eq(D.SetSpellValue(set, 11, "barStops", stops), true)
+    T.eq(set.pieces[11].barStops.count, 3)
+    T.truthy(set.pieces[11].barStops ~= stops, "a copy")
+    T.eq(D.SetSpellValue(set, 11, "barMode", "customGradient"), true)
+
+    local bar = S.Bar(UIParent)
+    local fill = bar:GetStatusBarTexture()
+    CD.ColourBase({}, bar, {}, "class", set.pieces[11])
+    T.eq(#S.FillStops(fill), 3, "the spell's own colors")
+    CD.ColourBase({}, bar, {}, "customGradient", { barMode = "block" },
+        { count = 4, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 }, c3 = { 0, 0, 1 }, c4 = { 1, 1, 0 } })
+    T.eq(#S.FillStops(fill), 4, "the group's")
+    CD.ColourBase({}, bar, {}, "customGradient", { barMode = "solid", barColor = { 1, 0, 0 } })
+    T.isnil(S.FillStops(fill), "a spell's own solid color wins")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

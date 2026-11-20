@@ -18,7 +18,7 @@ local function rollsPage()
     local NEW = "2.0"
     local function off(get) return get("rolls.enabled") == false end
     local function row(t)
-        t.since = NEW
+        t.since = t.since or NEW
         if t.key ~= "rolls.enabled" then t.disabled = t.disabled or off end
         return t
     end
@@ -27,8 +27,8 @@ local function rollsPage()
       sample = function(parent) return ns.RollSample.New(parent) end,
       groups = {
         { label = "Loot rolls", tab = "Basics", items = {
-            row({ type = "toggle", key = "rolls.enabled", label = "Daylight UI loot rolls", reload = true,
-              desc = "Loot rolls in a window of Daylight UI's own that shows who picked Need, Greed or Pass, every roll and who won. When off, the game's own roll popups show, in Daylight UI style." }),
+            row({ type = "toggle", key = "rolls.enabled", invert = true, since = "2.2", label = "The game's roll popups", reload = true,
+              desc = "The game's own roll popups in Daylight UI style, with how many players picked Need, Greed and Pass on each button. When off, rolls show in Daylight UI's roll window, with who picked what, every roll and who won." }),
             row({ type = "dropdown", key = "rolls.list", label = "Group list",
               values = { auto = "With one roll", always = "Always", hover = "On mouseover", off = "Never" },
               order = { "auto", "always", "hover", "off" },

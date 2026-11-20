@@ -316,6 +316,52 @@ T.test("craft: a tab opens that profession in the game, ours follows", function(
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Herbalism's crafting (Gardening) opens only from its spell, and so does Fishing's.
+-- A tab casts its profession's spell through a secure button laid over it out of
+-- combat, as the game's own tab casts it.
+T.test("craft: a tab casts its profession's spell, so Herbalism's Gardening opens too", function()
+    local profs = PW.Sample()
+    profs[2].craftingUI, profs[2].castOnly = nil, true
+    profs[2].recipes = { { id = 301, name = "Incense Candle", cat = 20, difficulty = 1, mats = { { 2672, 1 } }, out = 2679, quality = 1 } }
+    local ns = load({ profs = profs })
+    local f = open(ns)
+    local herb = f.tabs[2]
+    T.eq(herb.text:GetText(), "Herbalism")
+    herb.GetLeft = function() return 400 end
+    herb.GetBottom = function() return 500 end
+    herb:GetScript("OnEnter")(herb)
+    local b = _G.DaylightUICraftTab
+    T.truthy(b and b:IsShown(), "a secure button over the tab")
+    T.eq(b:GetParent(), UIParent, "never the window's child")
+    T.eq(b:GetAttribute("type1"), "spell")
+    T.eq(b:GetAttribute("spell"), 2366)
+    stub.Key(stub.SecureClick, b, "LeftButton", false)
+    frame(20)
+    T.eq(PW.Calls("CastSpell")[1][1], 2366)
+    T.eq(#PW.Calls("OpenTradeSkill"), 0, "no second open from the tab's own click")
+    T.eq(f.title:GetText(), "Herbalism")
+    T.eq(names(ns), "Incense Candle")
+    T.eq(f.tab, 182)
+    -- The open profession's tab casts nothing, like the game's.
+    herb:GetScript("OnEnter")(herb)
+    T.falsy(b:IsShown(), "nothing over the open one")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("craft: in a fight a tab still opens a profession by its skill line", function()
+    local ns = load()
+    local f = open(ns)
+    stub.EnterCombat()
+    local cook = f.tabs[2]
+    cook:GetScript("OnEnter")(cook)
+    T.falsy(_G.DaylightUICraftTab and _G.DaylightUICraftTab:IsShown(), "nothing secure in a fight")
+    cook:Click()
+    T.eq(PW.Calls("OpenTradeSkill")[1][1], 185)
+    frame(20)
+    T.eq(f.title:GetText(), "Cooking")
+    stub.LeaveCombat()
+end)
+
 T.test("craft: a tab switch lifts in only the recipes, the search and chips stay still (no flash)", function()
     local ns = load()
     local f = open(ns)

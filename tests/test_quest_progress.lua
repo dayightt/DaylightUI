@@ -286,3 +286,17 @@ T.test("quest progress: Stays for sets how long a line stays", function()
     C_Timer.After = after
     done()
 end)
+
+T.test("progress bars in a custom gradient: every color along the bar", function()
+    stub.Load({ quests = true })
+    local Look, S = stub.quests.Look, DaylightUI.Style
+    local bar = S.Bar(UIParent)
+    local look = { c = { barMode = "customGradient", barGradient = S.DefaultStops() } }
+    Look.PaintBar(bar, look)
+    T.eq(#S.FillStops(bar:GetStatusBarTexture()), 3)
+    local r = Look.BarColor(look)
+    T.near(r, (DaylightUI.Gradients.StopsMid(look.c.barGradient)), 1e-6, "its color for the sweep: the middle")
+    look.c.barMode = "class"
+    Look.PaintBar(bar, look)
+    T.isnil(S.FillStops(bar:GetStatusBarTexture()), "one color again")
+end)

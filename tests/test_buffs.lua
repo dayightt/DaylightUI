@@ -142,6 +142,14 @@ T.test("buffs: a full aura refresh shows the icons again without sliding them in
     T.eq(sliding(btn), false, "the client's full refresh: buffs stay put")
     T.eq(sliding(dbtn), false, "debuffs too")
 
+    -- The client rebuilds everything for an update with no payload too
+    -- (ManagedAuraContainer ProcessUnitAuraUpdate: nil or isFullUpdate).
+    stub.Advance(1)
+    stub.FireEvent("UNIT_AURA", "player")
+    reshow(btn); reshow(dbtn)
+    T.eq(sliding(btn), false, "an update with no payload: buffs stay put")
+    T.eq(sliding(dbtn), false, "debuffs too, with no payload")
+
     stub.Advance(1)
     BL.Bar:ApplyGroups()
     reshow(btn)
@@ -452,6 +460,29 @@ T.test("buffs: attached, a moved bar still follows the panel; detached, it keeps
     stub.RunTimers()
     h = { DaylightUIBuffsHolder:GetPoint(1) }
     T.eq(h[2], DaylightUIBuffsAnchor, "attached again")
+end)
+
+T.test("buffs: an attached bar shows its unlock handle, and dragging it detaches the bar where it is", function()
+    login({ infopanel = true, before = function()
+        DaylightUIDB = { positions = { ["buffs.buff"] = { 100, 200 } } }
+    end })
+    local Movers = DaylightUI.Movers
+    T.truthy(Movers.Get("buffs.buff").suspended, "attached by default")
+    Movers.Unlock()
+    local h = Movers.Handle("buffs.buff")
+    T.truthy(h and h:IsShown(), "the attached bar still has a handle to grab")
+    T.truthy(Movers.Handle("buffs.debuff") and Movers.Handle("buffs.debuff"):IsShown(), "so do the debuffs")
+    DaylightUIBuffsHolder.__center = { UIParent:GetWidth() / 2 + 300, UIParent:GetHeight() / 2 + 250 }
+    h:GetScript("OnMouseDown")(h)
+    h:GetScript("OnDragStart")(h)
+    T.eq(DaylightUI:Get("Buffs", "settings.attach"), false, "grabbing it turns attach off")
+    T.falsy(Movers.Get("buffs.buff").suspended, "the mover places it now")
+    local p = { DaylightUIBuffsHolder:GetPoint(1) }
+    T.eq(p[1], "CENTER")
+    T.truthy(math.abs(p[4] - 300) < 1 and math.abs(p[5] - 250) < 1, "it starts from where it was, not an old saved spot")
+    h:GetScript("OnDragStop")(h)
+    T.truthy(Movers.Get("buffs.debuff").suspended, "the debuffs stay attached")
+    Movers.Lock()
 end)
 
 T.test("buffs: detached for the first time, a bar stays where it was beside the panel", function()
@@ -1145,6 +1176,9 @@ T.test("buffs: the hover over a faded bar reads the auras and lays the icons out
         stub.SetAuras("player", "HARMFUL", { { name = "Poison", spellId = 99, icon = 3, expirationTime = 2000 } })
     end })
     local DUI = DaylightUI
+    -- The slides keep a look of their own at each change; this is about the hover.
+    DUI:Set("Buffs", "settings.newGlow", false)
+    stub.RunTimers()
     -- Fade off (the default): an aura change reads no debuffs.
     local reads = auraReads()
     stub.FireEvent("UNIT_AURA", "player")
@@ -1264,6 +1298,8 @@ T.test("buffs: with Float on, an aura gained or lost wakes its bar; a refresh or
     T.eq(heard(), "", "a refresh: nothing")
     stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true })
     T.eq(heard(), "", "a loading screen: nothing")
+    stub.FireEvent("UNIT_AURA", "player")
+    T.eq(heard(), "", "no payload, the client's full update too: nothing")
     stub.FireEvent("UNIT_AURA", "player", stub.Secret({ addedAuras = {} }))
     T.eq(heard(), "Buffs.buffs Buffs.debuffs", "unreadable: both")
     DaylightUI.Fade.Wake = wake

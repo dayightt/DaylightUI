@@ -195,15 +195,11 @@ function Data.Ignores()
 end
 
 -- The player's own Battle.net status ("on", "away", "busy" or "hidden" when appearing
--- offline) and broadcast. BNGetInfo doesn't say whether you appear offline: your own
--- account info does.
+-- offline) and broadcast. BNGetInfo's 8th return says whether you appear offline, read
+-- first like the game's own SocialUIUtil.GetPresenceTypeSelf.
 function Data.Me()
-    local _, tag, _, broadcast, afk, dnd = call(BNGetInfo)
-    local status = dnd == true and "busy" or afk == true and "away" or "on"
-    local B, guid = bn(), call(UnitGUID, "player")
-    local me = B and type(guid) == "string" and call(B.GetAccountInfoByGUID, guid)
-    local game = type(me) == "table" and me.gameAccountInfo
-    if type(game) == "table" and game.isAppearOffline == true then status = "hidden" end
+    local _, tag, _, broadcast, afk, dnd, _, hidden = call(BNGetInfo)
+    local status = hidden == true and "hidden" or afk == true and "away" or dnd == true and "busy" or "on"
     return status, str(broadcast), str(tag)
 end
 

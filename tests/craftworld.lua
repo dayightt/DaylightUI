@@ -11,6 +11,10 @@
 --     "Blizzard_Professions"). Its OnHide calls CloseTradeSkill, and
 --     TRADE_SKILL_CLOSE hides it unless its BookPage shows
 --     (ProfessionsMixin:OnHide, OnTradeSkillClosed).
+--   * Herbalism's Gardening and Fishing's Bait and Tackle (a profession with
+--     castOnly) open only from their spell: players found a tab that called
+--     OpenTradeSkill with their skill line opened nothing, while the spell from
+--     a macro did. How the client refuses is a guess: here it returns false.
 --   * GetAllRecipeIDs lists every recipe, learned or not.
 --
 --   * The slot filter (Camelot Professions.InitSlotsFilter, the game's
@@ -241,6 +245,17 @@ end
 
 local function install()
     Enum.SpellBookSpellBank = Enum.SpellBookSpellBank or { Player = 0, Pet = 1 }
+    -- A secure click casting a profession's spell opens it, as the game's own tab
+    -- does (ProfessionsLargeRightTabMixin:CastProfessionSpell).
+    stub.CastSpell = function(spellID)
+        for _, p in ipairs(S().profs) do
+            if p.spellID == spellID then
+                record("CastSpell", spellID)
+                C_Timer.After(0, function() PW.Open(p.skillLine) end)
+            end
+        end
+    end
+    stub.onReset[#stub.onReset + 1] = function() stub.CastSpell = nil end
     _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); f:Show() end
     -- The game's rule (UIParentPanelManager.lua) checks CheckProtectedFunctionsAllowed,
     -- so from addon code in combat it does nothing.
@@ -422,7 +437,8 @@ local function install()
         OpenTradeSkill = function(skillLine)
             if not stub.HardwareOnly("OpenTradeSkill") then return false end
             record("OpenTradeSkill", skillLine)
-            if not prof(skillLine) then return false end
+            local p = prof(skillLine)
+            if not p or p.castOnly then return false end
             C_Timer.After(0, function() PW.Open(skillLine) end)
             return true
         end,

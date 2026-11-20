@@ -34,11 +34,17 @@ local function login(on)
     return stub.qol.LootFeed
 end
 
+-- Runs the tweens and the anchor glides until both drivers rest.
 local function settle()
-    local d = DaylightUI.Motion.Driver()
     for _ = 1, 120 do
-        if not (d and d:GetScript("OnUpdate")) then return end
-        stub.RunOnUpdate(d, 1 / 60)
+        local busy = false
+        for _, d in ipairs({ DaylightUI.Motion.Driver(), DaylightUI.Win.Feel.Driver() }) do
+            if d and d:GetScript("OnUpdate") then
+                busy = true
+                stub.RunOnUpdate(d, 1 / 60)
+            end
+        end
+        if not busy then return end
     end
 end
 
@@ -356,15 +362,16 @@ end)
 T.test("loot feed: flipped, it mirrors left and right, and back again", function()
     local F = login()
     local Style, Motion = DaylightUI.Style, DaylightUI.Motion
-    local slide, sweep = Motion.SlideIn, Motion.Sweep
+    local Feel = DaylightUI.Win.Feel
+    local slide, sweep = Feel.Glide, Motion.Sweep
     local slid, swept
-    Motion.SlideIn = function(f, dx, ...) slid = dx return slide(f, dx, ...) end
+    Feel.Glide = function(f, dx, ...) slid = dx return slide(f, dx, ...) end
     Motion.Sweep = function(t, o, opts) swept = opts return sweep(t, o, opts) end
     DaylightUI:Set("QoL", "lootFeedFlip", true)
     loot("You receive loot: " .. SILK .. "x2.")
     T.eq(slid, -F.SLIDE, "slides in from the left")
     T.truthy(swept.reverse, "the light runs the other way")
-    Motion.SlideIn, Motion.Sweep = slide, sweep
+    Feel.Glide, Motion.Sweep = slide, sweep
     settle()
     local r = live(F)[1]
     local p = { r:GetPoint(1) }
@@ -613,6 +620,29 @@ T.test("loot feed log: keeps more than it shows, the wheel scrolls back and it c
     T.isnil(_G.DaylightUILootFeed:GetScript("OnUpdate"), "and rests again")
 end)
 
+-- Coins in a money line are inline textures, and a Translation animation
+-- leaves those behind until it ends (seen in game: they hung in place while
+-- scrolling). So rows move by their anchor, which carries everything.
+T.test("loot feed log: scrolled rows move by their anchor, so inline coins move with them", function()
+    local F = asLog()
+    for i = 1, F.MAX + 2 do thing(i) end
+    settle()
+    local row = live(F)[1]
+    row:GetScript("OnMouseWheel")(row, 1)
+    local stay, came = live(F)[1], live(F)[F.MAX]
+    local d = DaylightUI.Win.Feel.Driver()
+    T.truthy(d and d:GetScript("OnUpdate"), "the anchor glide is running")
+    stub.RunOnUpdate(d, 1 / 60)
+    local _, _, _, _, midY = stay:GetPoint(1)
+    local _, _, _, midX = came:GetPoint(1)
+    settle()
+    local _, _, _, _, restY = stay:GetPoint(1)
+    local _, _, _, restX = came:GetPoint(1)
+    T.truthy(math.abs(midY - restY) > 0.5, "a row staying is drawn on its way by its anchor")
+    T.truthy(math.abs(midX - restX) > 0.5, "a row scrolled in slides by its anchor")
+    T.near(came:GetAlpha(), 1, 0.01, "and has faded in")
+end)
+
 T.test("loot feed log: kept for the character after a reload, the preview's lines dropped, Clear empties it", function()
     local F = asLog()
     for i = 1, F.KEEP + 5 do thing(i) end
@@ -656,6 +686,32 @@ T.test("loot feed log: back to fading, the lines leave and the wheel is the came
     loot("You receive loot: " .. FANG .. ".")
     T.falsy(live(F)[1].__wheel)
     T.truthy(_G.DaylightUILootFeed:GetScript("OnUpdate"), "fading ticks again")
+end)
+
+-- Seen in game: a log set to "Only when something changes" came back in every
+-- fight. It should only come back for new loot.
+T.test("loot feed log: Only when something changes stays away in a fight and comes back for new loot", function()
+    local F = asLog()
+    local Fade = DaylightUI.Fade
+    DaylightUI:Set("QoL", "lootFeedFade", { mode = "float", alpha = 0, delay = 2, mouseover = true })
+    local holder = _G.DaylightUILootFeed
+    local function look()
+        Fade.Step()
+        for _ = 1, 120 do stub.RunOnUpdate(Fade.driver, 1 / 60) end
+        return holder:GetAlpha()
+    end
+    stub.Advance(5)
+    T.eq(look(), 0, "at rest: gone")
+    stub.EnterCombat()
+    T.eq(look(), 0, "a fight doesn't bring it back")
+    stub.LeaveCombat()
+    stub.Advance(5)
+    T.eq(look(), 0)
+    loot("You receive loot: " .. SILK .. ".")
+    T.eq(look(), 1, "new loot brings it back")
+    stub.Advance(5)
+    T.eq(look(), 0, "and it goes again after the delay")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("loot feed log: its options are on the loot page, the clear button and fade only for a log", function()

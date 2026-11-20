@@ -386,6 +386,21 @@ local function shieldShown(h, btn, up)
     h.shieldUp = on
 end
 
+-- The client refuses OnShow and OnHide on its aura button ("blocked by secret
+-- aspects"), but it plays a shown animation as the button comes up and stops it
+-- as the aura clears. An empty group that keeps playing until then tells both.
+local function watchShown(h, btn)
+    if type(btn.AddAuraShownAnimation) ~= "function" then return end
+    local ag = btn:CreateAnimationGroup()
+    local still = ag:CreateAnimation("Translation")
+    still:SetOffset(0, 0)
+    still:SetDuration(3600)
+    ag:SetLooping("REPEAT")
+    ag:SetScript("OnPlay", function() shieldShown(h, btn, true) end)
+    ag:SetScript("OnStop", function() shieldShown(h, btn, false) end)
+    DUI.SafeCall(btn.AddAuraShownAnimation, btn, ag)
+end
+
 -- Places Daylight UI's shield bar where the client's bar is (same numbers as LayoutButton), in
 -- the bar's color, with the amount on the right where the time was ("Show shield
 -- amount") and the name while the button wears the bar's look itself (h.bare). It's
@@ -414,7 +429,8 @@ local function layoutShield(h)
     s:SetStatusBarTexture(Style.BarFile("fill", ns.MEDIA.bars.cdm))
     Style.SetBarGradient(s, false)
     s.spellColour = nil
-    CD.ColourBase(h, s, s, block and Look(block, "color") or ns.CdmData.BAR_LOOK.color, h.button)
+    CD.ColourBase(h, s, s, block and Look(block, "color") or ns.CdmData.BAR_LOOK.color, h.button,
+        block and Look(block, "barStops"))
     s.fx = s.fx or {}
     CD.TrackFx(h, s, s.fx, true)
     local t = CD.BarText(block)
@@ -562,7 +578,8 @@ function B.LayoutButton(h, btn, parts)
     if shield then parts.time:SetAlpha(0) end
     Style.SetBarGradient(parts.bar, false)
     parts.spellColour = nil
-    CD.ColourBase(h, parts.bar, parts, block and Look(block, "color") or ns.CdmData.BAR_LOOK.color, h.button)
+    CD.ColourBase(h, parts.bar, parts, block and Look(block, "color") or ns.CdmData.BAR_LOOK.color, h.button,
+        block and Look(block, "barStops"))
     -- No background color set: paint the empty part dark (ColourBase painted the cover).
     if not back then parts.backTex:SetVertexColor(parts.back:GetVertexColor()) end
     -- With "Show missing buffs" off (h.bare) Daylight UI's empty bar is gone, so the button
@@ -682,9 +699,7 @@ local function initButton(h, btn)
     try(Style.SetAuraTime, btn, parts.time, nil, Style.ClockFormatter())
     try(btn.SetApplicationCount, btn, parts.count)
     ns.CdmEffects.MakeSlide(btn, h)
-    -- Shown and hidden, for the shield bar (Daylight UI's, outside the button).
-    try(btn.HookScript, btn, "OnShow", function() shieldShown(h, btn, true) end)
-    try(btn.HookScript, btn, "OnHide", function() shieldShown(h, btn, false) end)
+    if h.isShield then watchShown(h, btn) end
     DUI.SafeCall(B.LayoutButton, h, btn, parts)
 end
 
@@ -746,12 +761,19 @@ local function shapeKey(h, block, button)
     local Look, Fx = ns.CdmData.Look, ns.CdmEffects
     local function rgb(c) return type(c) == "table" and table.concat({ c[1] or 0, c[2] or 0, c[3] or 0, c[4] or 1 }, ",") or "" end
     local function pair(g) return type(g) == "table" and (rgb(g.lo) .. ";" .. rgb(g.hi)) or "" end
+    local function stops(g)
+        if type(g) ~= "table" then return "" end
+        local out = { tostring(g.count) }
+        for i = 1, DUI.Style.CUSTOM_STOPS_MAX do out[#out + 1] = rgb(g["c" .. i]) end
+        return table.concat(out, ";")
+    end
     local back, v = CD.BackOf(button, block)
     local text = CD.BarText(block)
     return table.concat({ h.w, h.h, tostring(Look(block, "icon")), tostring(Look(block, "text")),
         text.nameSize, text.timeSize, rgb(text.nameColor), rgb(text.timeColor),
         tostring(Look(block, "time")), tostring(Look(block, "color")), tostring(Fx.Get(button, "barMode")),
         rgb(Fx.Get(button, "barColor")), pair(Fx.Get(button, "barGradient")),
+        stops(Fx.Get(button, "barStops")), stops(Look(block, "barStops")),
         tostring(back), back == "solid" and rgb(v) or pair(v),
         tostring(h.cooldownUnder), tostring(h.wantBare), tostring(h.Bar.Name:GetText()),
         tostring(Fx.Get(button, "showName")), tostring(Fx.Get(button, "nameAlign")),

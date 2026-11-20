@@ -407,21 +407,24 @@ function Widget:IsForbidden() return self.__forbidden == true end
 -- A frame inside a client aura button has secret aspects (its shown state is
 -- secret), so the client refuses a show or hide handler on it, even while the
 -- button is being created. The game's error: "Frame:SetScript(): Cannot assign
--- script handler for 'onshow' (blocked by secret aspects)".
+-- script handler for 'onshow' (blocked by secret aspects)". HookScript too, on
+-- the button itself: "Button:HookScript(): Cannot assign script handler for
+-- 'onhide' (blocked by secret aspects)".
 local SECRET_ASPECT_SCRIPTS = { OnShow = "onshow", OnHide = "onhide" }
-local function refuseSecretAspect(self, h)
+local function refuseSecretAspect(self, h, how)
     if rawget(self, "__inAura") and SECRET_ASPECT_SCRIPTS[h] and rawget(self, "__type") ~= "AnimationGroup" then
-        error(string.format("Frame:SetScript(): Cannot assign script handler for '%s' (blocked by secret aspects)",
-            SECRET_ASPECT_SCRIPTS[h]), 3)
+        error(string.format("Frame:%s(): Cannot assign script handler for '%s' (blocked by secret aspects)",
+            how, SECRET_ASPECT_SCRIPTS[h]), 3)
     end
 end
-function Widget:SetScript(h, fn) refuseSecretAspect(self, h); self.__scripts[h] = fn end
+function Widget:SetScript(h, fn) refuseSecretAspect(self, h, "SetScript"); self.__scripts[h] = fn end
 function Widget:GetScript(h) return self.__scripts[h] end
 function Widget:HookScript(h, fn)
     -- The game: "Usage: local success = self:HookScript(scriptTypeName, script [, bindingType])"
     if type(fn) ~= "function" then
         error("bad argument #3 to '?' (Usage: local success = self:HookScript(scriptTypeName, script [, bindingType]))", 2)
     end
+    refuseSecretAspect(self, h, "HookScript")
     local prev = self.__scripts[h]
     local both = function(...) if prev then prev(...) end stub.Hooked(fn, ...) end
     -- Kept on the frame. A weak table here would keep every world alive, since
@@ -448,8 +451,12 @@ function Widget:SetWidth(w) guard(self, "SetWidth"); self.__w = w end
 function Widget:SetHeight(h) guard(self, "SetHeight"); self.__h = h end
 -- A tooltip whose lines show a secret has secret anchoring, so its size reads
 -- back secret too (GetWidth/GetHeight are "SecretWhenAnchoringSecret").
+-- A frame holding secrets gives everything anchored to it secret anchoring
+-- too: its sizes, points and text widths read back secret. The fake game
+-- doesn't follow anchors, so a test marks a widget with stub.HeldSecret.
+function stub.HeldSecret(w, on) w.__heldSecret = on ~= false or nil end
 function Widget:GetWidth()
-    if rawget(self, "__tipSecret") then return stub.Secret(self.__w or 0) end
+    if rawget(self, "__tipSecret") or rawget(self, "__heldSecret") then return stub.Secret(self.__w or 0) end
     return self.__w or 0
 end
 function Widget:GetHeight()
@@ -559,7 +566,7 @@ function Widget:GetNumPoints() return #self.__points end
 function Widget:GetPoint(i)
     local p = self.__points[i or 1]
     if not p then return end
-    if self.__secretAnchoring then
+    if self.__secretAnchoring or rawget(self, "__heldSecret") then
         return p[1], p[2], p[3], stub.Secret(p[4] or 0), stub.Secret(p[5] or 0)
     end
     return unpack(p, 1, 5)
@@ -1117,7 +1124,7 @@ function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__typ
 -- A text showing a secret has secret anchoring, and its width comes back
 -- secret ("SecretWhenAnchoringSecret"), as the client's.
 function Widget:GetStringWidth()
-    if isSecret(self.__text) or self.__secretAspect then return stub.Secret(56) end
+    if isSecret(self.__text) or self.__secretAspect or rawget(self, "__heldSecret") then return stub.Secret(56) end
     if type(self.__text) ~= "string" then return 0 end
     if stub.measure then return (stub.measure(self)) end
     -- Color codes take no room; an inline icon (|T...|t, |A...|a) is one
@@ -2180,6 +2187,8 @@ function stub.SecureClick(b, button, down)
             if text == "/reload" then ReloadUI()
             elseif type(text) == "string" then slashLine(text) end
         end
+        -- Type "spell": a test world that cares what a cast does sets stub.CastSpell.
+        if acts and attr("type") == "spell" and stub.CastSpell then stub.CastSpell(attr("spell")) end
         if acts and b:GetAttribute("type") == "attribute" then
             local frame = b:GetAttribute("attribute-frame") or b
             local name = b:GetAttribute("attribute-name")
@@ -3812,7 +3821,7 @@ stub.CHARACTER_FILES = { "Defaults.lua", "Colors.lua", "Gear.lua", "Stats.lua", 
 stub.NPC_FILES = { "Defaults.lua", "Data.lua", "Shop.lua", "Train.lua", "Window.lua", "Scene.lua", "Popups.lua", "Options.lua", "Module.lua" }
 stub.BOOK_FILES = { "Defaults.lua", "TalentData.lua", "Arrows.lua", "Spend.lua", "Talents.lua", "LoadoutString.lua", "Builds.lua", "SpellData.lua", "Cast.lua", "Spells.lua", "Training.lua", "Fight.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.INSPECT_FILES = { "Defaults.lua", "Model.lua", "Gear.lua", "Talents.lua", "Window.lua", "Options.lua", "Module.lua" }
-stub.CRAFT_FILES = { "Defaults.lua", "SkillUps.lua", "Data.lua", "Share.lua", "Spells.lua", "List.lua", "Recipe.lua", "Make.lua", "View.lua", "Key.lua", "Track.lua", "Window.lua", "Swap.lua", "Options.lua", "Module.lua" }
+stub.CRAFT_FILES = { "Defaults.lua", "SkillUps.lua", "Data.lua", "Profit.lua", "Share.lua", "Spells.lua", "List.lua", "Recipe.lua", "Make.lua", "View.lua", "Key.lua", "Track.lua", "Window.lua", "Swap.lua", "Options.lua", "Module.lua" }
 stub.LFG_FILES = { "Defaults.lua", "Data.lua", "Rows.lua", "Browse.lua", "Listing.lua", "Who.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.MAIL_FILES = { "Defaults.lua", "Ledger.lua", "Inbox.lua", "Send.lua", "LedgerPage.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Detail.lua", "Friends.lua", "Allies.lua", "Requests.lua", "Raid.lua", "Window.lua", "Options.lua", "Module.lua" }
@@ -3940,7 +3949,7 @@ function stub.Load(opts)
     end
     if opts.auctionhouse then
         local AH = {}
-        loadFiles("DaylightUI_AuctionHouse/", { "Base.lua", "Items.lua", "Market.lua", "Ruleset.lua", "Store.lua", "Rows.lua", "AH.lua", "Bags.lua", "Replicate.lua", "Search.lua", "Browse.lua", "Buy.lua", "Post.lua", "Scan.lua", "Tooltip.lua", "Options.lua", "ScanBand.lua", "BuyPage.lua", "SellPage.lua", "AuctionsPage.lua", "Window.lua", "Module.lua" }, "DaylightUI_AuctionHouse", AH)
+        loadFiles("DaylightUI_AuctionHouse/", { "Base.lua", "Items.lua", "Market.lua", "Ruleset.lua", "Store.lua", "Vendor.lua", "Rows.lua", "AH.lua", "Bags.lua", "Replicate.lua", "Search.lua", "Browse.lua", "Buy.lua", "Post.lua", "Scan.lua", "Tooltip.lua", "Options.lua", "ScanBand.lua", "BuyPage.lua", "SellPage.lua", "AuctionsPage.lua", "Window.lua", "Bridge.lua", "Module.lua" }, "DaylightUI_AuctionHouse", AH)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_AuctionHouse")
         stub.auctionhouse = AH
     end

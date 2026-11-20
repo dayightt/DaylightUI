@@ -11,4 +11,5 @@ ns.DEFAULTS = {
     windowAlpha = 0.85,
     rarityNames = false,   -- color recipe names by item quality instead of skill-up color
     skillUps = false,      -- each recipe's skill-up chance, and its range on the recipe page
+    profit = true,         -- what a recipe costs and sells for, from the Auction House's prices
 }

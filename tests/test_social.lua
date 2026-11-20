@@ -630,6 +630,20 @@ T.test("social: appear offline from the header, and back to Available", function
     clean()
 end)
 
+T.test("social: appearing offline set elsewhere shows in the header", function()
+    local ns = load()
+    local f = open(ns)
+    SW.state.hidden = true   -- set from the game's own menu or the Battle.net app
+    stub.FireEvent("BN_INFO_CHANGED")
+    frame(3)
+    T.eq(f.status.text:GetText(), "Appearing offline")
+    SW.state.hidden = false
+    stub.FireEvent("BN_INFO_CHANGED")
+    frame(3)
+    T.eq(f.status.text:GetText(), "Available")
+    clean()
+end)
+
 -- The prompt's Accept, pressed by the player: a key or click of theirs around it.
 local function accept(text)
     stub.Key(stub.Reply, text)

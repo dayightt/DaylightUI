@@ -311,7 +311,7 @@ T.test("info panel: the XP bar's gradient, in its own color or the class's", fun
     T.eq(XP.bar.__barColor[1], XP.COLOR[1], "back to flat blue")
 end)
 
-T.test("info panel: the XP bar's color pick: accent, class, blue, or a pair of your own", function()
+T.test("info panel: the XP bar's color pick: accent, class, blue, or a gradient of your own", function()
     local DUI = login()
     local XP = stub.infopanel.XP
     local fill = XP.bar:GetStatusBarTexture()
@@ -320,10 +320,13 @@ T.test("info panel: the XP bar's color pick: accent, class, blue, or a pair of y
     DUI:Set("InfoPanel", "xp.color", "blue")
     T.truthy(fill.__gradient[3] ~= class, "blue is not the class pair")
     DUI:Set("InfoPanel", "xp.color", "custom")
-    DUI:Set("InfoPanel", "xp.customHi", { 0, 1, 0 })
-    T.truthy(fill.__gradient, "the custom pair as a gradient")
+    DUI:Set("InfoPanel", "xp.customGradient.c2", { 0, 1, 0 })
+    T.truthy(fill.__gradient, "two colors: the fill's own gradient")
+    DUI:Set("InfoPanel", "xp.customGradient.count", 4)
+    T.eq(#DUI.Style.FillStops(fill), 4, "four: every one along the bar")
+    DUI:Set("InfoPanel", "xp.customGradient.count", 2)
     DUI:Set("InfoPanel", "xp.gradient", false)
-    T.eq(XP.bar.__barColor[2], 1, "plain: the pair's bright end")
+    T.near(XP.bar.__barColor[2], select(2, DUI.Style.Soften(0, 1, 0)), 1e-6, "plain: the last color")
     DUI:Set("InfoPanel", "xp.gradient", true)
     DUI:Set("InfoPanel", "xp.color", "class")
     DUI:Set("InfoPanel", "xp.classColor", false)
@@ -1610,6 +1613,46 @@ T.test("info panel: the armor figure leaves the game's right-side column and is 
     T.eq(df:GetNumPoints(), 1)
     local p2, rel2, rp2, x2, y2 = df:GetPoint(1)
     T.eq(rel2, rel, "back at its spot"); T.eq(rp2, rp); T.eq(x2, x); T.eq(y2, y)
+end)
+
+T.test("info panel: the game's capture bars leave the spot under its minimap for one beside the panel", function()
+    local DUI = login(function()
+        -- The game's container under its minimap (RightManagedFrameTemplate).
+        local f = CreateFrame("Frame", "UIWidgetBelowMinimapContainerFrame", RightManagedFrameContainer)
+        f.isManagedFrame, f.layoutParent = true, RightManagedFrameContainer
+        f:SetPoint("TOPRIGHT", RightManagedFrameContainer, "TOPRIGHT", 0, 0)
+    end)
+    stub.RunTimers()
+    local f = _G.UIWidgetBelowMinimapContainerFrame
+    local Map = stub.infopanel.Minimap
+    T.eq(f:GetParent(), UIParent, "out of the game's column, which sits under the panel")
+    local p, rel, rp = f:GetPoint(1)
+    T.eq(p, "TOPRIGHT"); T.eq(rel, Map.captureSpot); T.eq(rp, "TOPRIGHT")
+    local sp, srel, srp = Map.captureSpot:GetPoint(1)
+    T.eq(sp, "TOPRIGHT"); T.eq(srel, stub.infopanel.Panel.panel); T.eq(srp, "BOTTOMLEFT")
+    T.isnil(rawget(f, "SetPoint"), "no hook on its SetPoint")
+    -- A capture bar showing: the game takes the container back into its column.
+    f:Hide()
+    f:SetParent(RightManagedFrameContainer)
+    f:ClearAllPoints(); f:SetPoint("TOPRIGHT", RightManagedFrameContainer, "TOPRIGHT", 0, 0)
+    f:Show()
+    stub.RunTimers()
+    T.eq(f:GetParent(), UIParent, "out again the frame after")
+    T.eq(select(2, f:GetPoint(1)), Map.captureSpot)
+    -- The armor figure showing there too: the bars stand left of it.
+    local df = _G.DurabilityFrame
+    df:Hide(); df:SetWidth(60); df:Show()
+    stub.RunTimers()
+    local _, _, _, x = f:GetPoint(1)
+    T.truthy(x < -60, "left of the armor figure")
+    -- A handle of its own, and once moved it stays where the player put it.
+    T.truthy(DUI.Movers.Get("game.UIWidgetBelowMinimapContainerFrame"), "an unlock handle")
+    DUI.DB.Positions()["game.UIWidgetBelowMinimapContainerFrame"] = { -200, 150 }
+    DUI.Movers.Get("game.UIWidgetBelowMinimapContainerFrame").onMoved("game.UIWidgetBelowMinimapContainerFrame")
+    local mp, mrel, _, mx, my = f:GetPoint(1)
+    T.eq(mp, "CENTER"); T.eq(mrel, UIParent); T.eq(mx, -200); T.eq(my, 150)
+    DUI.Movers.Reset("game.UIWidgetBelowMinimapContainerFrame")
+    T.eq(select(2, f:GetPoint(1)), Map.captureSpot, "a reset puts it back beside the panel")
 end)
 
 T.test("info panel: the armor figure moved in Edit Mode stays where the player put it", function()
@@ -3594,4 +3637,28 @@ T.test("info panel: the XP bar's border is never thicker than the general border
     T.eq(B(2), 2, "a thin general border: as thin")
     T.eq(B(4), 3)
     T.eq(B(8), 4)
+end)
+
+T.test("info panel: an old two-color experience bar gradient moves into the custom gradient's first two colors", function()
+    local DUI = login()
+    local p = { modules = { InfoPanel = { xp = { color = "custom", customLo = { 1, 0, 0 }, customHi = { 0, 0, 1 } } } } }
+    stub.infopanel.UpgradeXPStops(p)
+    local xp = p.modules.InfoPanel.xp
+    T.deq(xp.customGradient.c1, { 1, 0, 0 }); T.deq(xp.customGradient.c2, { 0, 0, 1 })
+    T.isnil(xp.customLo); T.isnil(xp.customHi)
+    T.truthy(p.xpStops1, "once")
+    T.eq(DUI:Get("InfoPanel", "xp.customGradient.count"), 2, "untouched, it's still a pair")
+end)
+
+T.test("info panel: meter bars in a custom gradient, or its middle with Bar gradient off", function()
+    local DUI = login()
+    local Meter = stub.infopanel.Meter
+    local sb = DUI.Style.Bar(UIParent)
+    local cfg = { barColor = "customGradient", gradient = true, barGradient = DUI.Style.DefaultStops() }
+    Meter.PaintBar(sb, { classFilename = "MAGE" }, nil, cfg)
+    T.eq(#DUI.Style.FillStops(sb:GetStatusBarTexture()), 3, "every color along the bar")
+    cfg.gradient = false
+    Meter.PaintBar(sb, { classFilename = "MAGE" }, nil, cfg)
+    T.isnil(DUI.Style.FillStops(sb:GetStatusBarTexture()), "flat")
+    T.rgb(sb.__barColor, { DUI.Gradients.StopsMid(cfg.barGradient) }, "at the middle")
 end)

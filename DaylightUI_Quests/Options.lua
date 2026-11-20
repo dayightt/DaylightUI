@@ -20,6 +20,7 @@ local JOURNAL_SORTS = { log = "Quest log order", level = "Level", ready = "Ready
 local TIP_KINDS = { short = "Objectives", details = "Full quest details" }
 local TITLE_MODES ={ difficulty = "By difficulty", one = "One color" }
 local BAR_MODES = { accent = "Accent color", class = "Class color", custom = "One color" }
+local PROGRESS_MODES = { accent = "Accent color", class = "Class color", custom = "One color", customGradient = "Custom gradient" }
 local MARKER_LOOKS = { beacon = "Beacon", pillar = "Light pillar", minimal = "Minimal" }
 local FOCUS_MODES ={ accent = "Accent color", daylight = "Daylight gradient", gradient = "Class gradient", class = "Class color", custom = "One color" }
 
@@ -279,14 +280,15 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "colors.focusTitle", label = "Priority quest title in its color",
               desc = "The priority quest's title takes the Priority quest color too, so it stands out in the tracker and the quest log." },
         } },
-        { label = "Progress bars", items = {
-            { type = "dropdown", key = "colors.barMode", label = "Progress bar color", values = BAR_MODES,
-              order = { "accent", "class", "custom" },
-              desc = "Accent color follows the accent on General > Appearance, including the Daylight gradient." },
+        { label = "Progress bars", items = DaylightUI.Options.Join({
+            { type = "dropdown", key = "colors.barMode", label = "Progress bar color", values = PROGRESS_MODES,
+              order = { "accent", "class", "custom", "customGradient" },
+              desc = "Accent color follows the accent on General > Appearance, including the Daylight gradient. Custom gradient runs through colors you pick." },
             { type = "color", key = "colors.bar", label = "Custom progress bar color",
               desc = "The progress bars' color while Progress bar color is set to One color.",
               hidden = function(get) return get("colors.barMode") ~= "custom" end },
-        } },
+        }, DaylightUI.Options.StopsRows("colors.barGradient", { what = "progress bar", bar = "the progress bars", since = "2.2",
+            shown = function(get) return get("colors.barMode") == "customGradient" end })) },
       } },
 } }
 

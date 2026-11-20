@@ -192,8 +192,9 @@ function BarMixin:ApplySize()
 end
 
 -- Attached (the default), the bar sits at its anchor beside the info panel
--- regardless of any saved position, and follows the panel as it resizes; it
--- has no unlock handle. Detached, unlock mode moves it and it keeps its spot.
+-- regardless of any saved position, and follows the panel as it resizes. Its
+-- unlock handle still shows there: dragging it detaches the bar (Detach).
+-- Detached, unlock mode moves it and it keeps its spot.
 -- The first time it's detached (no spot of its own yet) it stays where it was
 -- beside the panel instead of jumping to the mover default.
 function BarMixin:ApplyAttach()
@@ -210,6 +211,16 @@ function BarMixin:ApplyAttach()
         holder:ClearAllPoints()
         holder:SetPoint(d[1], _G[d[2]] or UIParent, d[3], d[4], d[5])
     end, "buffs:attach:" .. self.moverKey)
+end
+
+-- Grabbed in unlock mode while attached: the bar keeps the spot it's at and
+-- turns its "Attach to the info panel" setting off, so the drag carries on
+-- from there.
+function BarMixin:Detach()
+    DUI.Movers.Save(self.moverKey, true)
+    DUI:Set(BL.MODULE, self:IsDebuff() and "settings.debuff.attach" or "settings.attach", false)
+    local e = DUI.Movers.Get(self.moverKey)
+    if e and e.suspended then self:ApplyAttach() end
 end
 
 -- The master scale times the bar's own (mouse wheel in unlock mode). The holder
@@ -272,7 +283,8 @@ function BarMixin:Create()
         scale = function()
             if self.frame then self:ApplyScale() end
             BL.PlaceAnchor() -- the anchors make room at the bars' drawn size
-        end })
+        end,
+        detach = function() self:Detach() end })
     self:ApplyAttach()
 
     local background = createCompanion("Frame", c)
@@ -1525,6 +1537,12 @@ local function readable(t)
     return type(t) == "table" and not isSecret(t) and BL.PlainTable(t) ~= nil
 end
 local function wakeAuras(info)
+    -- No payload is a full update to the client too: everything is read again,
+    -- nothing is new.
+    if info == nil then
+        wipe(auraBar)
+        return
+    end
     local buffs, debuffs = false, false
     local function wake(kind)
         if kind == "buffs" then buffs = true

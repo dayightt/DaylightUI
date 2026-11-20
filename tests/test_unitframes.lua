@@ -1068,6 +1068,41 @@ T.test("small health text sits at the inner end, clear of the angle", function()
     T.eq((pf.percentText:GetPoint(1)), "RIGHT", "player's inner end is its right")
 end)
 
+T.test("health text position puts it in the middle or at the outer end, nudges on top", function()
+    local cfg = { width = 220, height = 36, powerHeight = 6, showName = true, showPercent = true, bigNumber = false }
+    local f, ns = make(PLAYER, cfg)
+    cfg.healthTextPos, cfg.healthTextX = "center", -7
+    ns.UF.Layout(f, cfg, ns.DEFAULTS.playerText)
+    local p, rel, rp, x = f.percentText:GetPoint(1)
+    T.eq(p, "CENTER"); T.eq(rel, f.health); T.eq(rp, "CENTER")
+    T.eq(x, -7, "the nudge moves it from the middle")
+    T.eq(f.percentText:GetJustifyH(), "CENTER")
+    cfg.healthTextPos, cfg.healthTextX = "outer", 0
+    ns.UF.Layout(f, cfg, ns.DEFAULTS.playerText)
+    p, rel, rp, x = f.percentText:GetPoint(1)
+    T.eq(p, "LEFT", "player's outer end is its left"); T.eq(rp, "LEFT")
+    T.eq(x, 4, "no angle to clear at the outer end")
+    -- The large number goes where the position says too.
+    cfg.bigNumber, cfg.healthTextPos = true, "center"
+    ns.UF.Layout(f, cfg, ns.DEFAULTS.playerText)
+    p, _, rp, x = f.percentText:GetPoint(1)
+    T.eq(p, "CENTER"); T.eq(rp, "CENTER"); T.eq(x, 0)
+end)
+
+T.test("a tall tile's health text stays in the middle of its bottom for older profiles", function()
+    local _, ns = stub.Load({ module = true, login = false })
+    local uf = { groupFrames = 23, party = { height = 40, bigNumber = false }, raid = { height = 50 },
+                 raid20 = { height = 20 }, raid40 = { height = 50, healthTextPos = "outer" } }
+    ns.UpgradeGroupFrames({ modules = { UnitFrames = uf } })
+    T.eq(uf.party.healthTextPos, "center")
+    T.eq(uf.raid.healthTextPos, "center")
+    T.isnil(uf.raid20.healthTextPos, "a short tile keeps the inner end")
+    T.eq(uf.raid40.healthTextPos, "outer", "a pick stays")
+    local fresh = { party = { height = 40, bigNumber = false } }
+    ns.UpgradeGroupFrames({ modules = { UnitFrames = fresh } })
+    T.isnil(fresh.party.healthTextPos, "a new profile starts at the inner end")
+end)
+
 T.test("power text moves by its X/Y offset", function()
     local cfg = {}
     for k, v in pairs(TCFG) do cfg[k] = v end

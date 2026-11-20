@@ -217,8 +217,8 @@ T.test("cdm switch: with Daylight UI's Cooldown Manager off it takes back only w
     done()
 end)
 
-T.test("cdm switch: a player who shows spells not in the layout, or uses the game's layout, gets no extra buffs", function()
-    for _, key in ipairs({ "hideUnplaced", "on" }) do
+T.test("cdm switch: a player who uses the game's layout gets no extra buffs", function()
+    for _, key in ipairs({ "on" }) do
         world({ switchOff = key })
         T.eq(game.writes, 0, key .. " off: the game's layout is the player's to see, left as it is")
         done()

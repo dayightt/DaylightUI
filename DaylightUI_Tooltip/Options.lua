@@ -32,6 +32,9 @@ ns.OPTIONS = { pages = {
               order = { "shift", "ctrl", "alt", "none" },
               desc = "Hold this key over a player or creature to see their whole card in place of the fight pill. None keeps the pill whatever you hold.",
               hidden = function(get) return get("style") ~= "rich" or get("pill") == "never" end },
+            { type = "toggle", key = "portraits", label = "Portraits", since = "2.0.2",
+              desc = "A creature's face and a player's class icon at the top of their card. Off, the card starts with the name.",
+              hidden = function(get) return get("style") ~= "rich" end },
         } },
         { label = "Other addons", items = {
             { type = "dropdown", key = "addonLines", label = "Other addons' lines", since = "2.0",
@@ -89,7 +92,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "qualityBorder", label = "Item quality border",
               desc = "Items that are uncommon or better get a border in their quality color." },
         } },
-        { label = "Health bar", items = {
+        { label = "Health bar", items = DaylightUI.Options.Join({
             { type = "toggle", key = "healthBar", label = "Health bar",
               desc = "A slim bar under the tooltip of a player or creature." },
             { type = "slider", key = "barHeight", label = "Health bar height", min = 2, max = 12, step = 1, unit = "px",
@@ -98,12 +101,15 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.BarRow("media.health", "Health bar", "the health bar under a unit's tooltip", function(get) return get("healthBar") ~= true end),
             DaylightUI.Options.BackRow("media.health", "Health bar", "the health bar under a unit's tooltip", function(get) return get("healthBar") ~= true end),
             { type = "dropdown", key = "barGradient", label = "Health bar color",
-              values = { frames = "Same as unit frames", gradient = "Class gradient", flat = "Class and reaction" },
-              order = { "frames", "gradient", "flat" },
-              desc = "Same as unit frames: a class gradient when your unit frames' health bars use one. "
-                  .. "Class gradient uses the pairs from General > Gradients.",
+              values = { frames = "Same as unit frames", gradient = "Class gradient", flat = "Class and reaction",
+                         customGradient = "Custom gradient" },
+              order = { "frames", "gradient", "flat", "customGradient" },
+              desc = "Same as unit frames: a class gradient or custom gradient when your unit frames' health bars use one. "
+                  .. "Class gradient uses the pairs from General > Gradients. Custom gradient runs through colors you pick.",
               disabled = function(get) return get("healthBar") ~= true end },
-        } },
+        }, DaylightUI.Options.StopsRows("barStops", { what = "tooltip health", bar = "the tooltip's health bar", since = "2.2",
+            disabled = function(get) return get("healthBar") ~= true end,
+            shown = function(get) return get("barGradient") == "customGradient" end })) },
         { label = "Player and creature lines", items = {
             { type = "toggle", key = "showTarget", label = "Show who they're targeting",
               desc = "Who a player or creature is targeting, in their color (\">> You <<\" when it's you)." },

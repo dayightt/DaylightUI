@@ -965,13 +965,16 @@ T.test("paging: the page list names each bar's page and your forms' pages on bar
     for n = 1, 8 do T.eq(names[n], "Action Bar " .. n, "bar " .. n .. " in its place") end
     T.eq(names[9], "Action Bar 1 in Cat Form")
     T.eq(names[10], "Action Bar 1 in Bear Form")
-    T.eq(names[11], "Action Bar 1 in Prowl", "the page the game gives a prowling cat")
     local spare = {}
-    for i = 12, #names do
+    for i = 11, #names do
         spare[#spare + 1] = tonumber(names[i]:match("^Spare page (%d+)$"))
         T.truthy(spare[#spare], names[i] .. " is a spare page")
         if #spare > 1 then T.truthy(spare[#spare] > spare[#spare - 1], "spare pages in number order") end
     end
+    DaylightUI:Set("ActionBars", "bars.main.prowlBar", true)
+    values = row.choices()
+    T.eq(values[8], "Action Bar 1 in Prowl", "named once the Prowl bar is switched on")
+    DaylightUI:Set("ActionBars", "bars.main.prowlBar", false)
 end)
 
 T.test("paging: the rule is built again at each loading screen, after combat", function()
@@ -1118,11 +1121,15 @@ T.test("paging: a druid's bars 2-8 page by the form too; forms learned build it 
     noBlocked()
 end)
 
--- The game's bar 1 goes to page 8 while a cat prowls (the bonus bar Prowl gets on
--- Forever). Paging by form alone kept the cat's page 7 there.
-T.test("paging: a prowling druid's bar 1 shows the Prowl page, as the game's does", function()
+-- Cat players keep their spells on the Cat Form page, so Prowl stays there unless
+-- the Prowl bar switch is on.
+T.test("paging: a prowling druid's bar 1 stays on Cat Form unless the Prowl bar is on", function()
     login({ class = "DRUID", formSpells = DRUID_FORMS })
     local h = holder("main")
+    stub.SetConditions({ ["form:3"] = true, stealth = true })
+    T.eq(h:GetAttribute("actionpage"), 7, "Prowl keeps the Cat Form buttons by default")
+    stub.SetConditions({})
+    DaylightUI:Set("ActionBars", "bars.main.prowlBar", true)
     stub.SetConditions({ ["form:3"] = true })
     T.eq(h:GetAttribute("actionpage"), 7, "Cat Form")
     stub.SetConditions({ ["form:3"] = true, stealth = true })

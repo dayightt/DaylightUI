@@ -263,9 +263,11 @@ local function install()
     -- Battle.net
     _G.BNConnected = function() return true end
     _G.BNFeaturesEnabledAndConnected = function() return true end
+    -- The 8th return is whether you appear offline: the game's own
+    -- SocialUIUtil.GetPresenceTypeSelf reads it from here.
     _G.BNGetInfo = function()
         local s = S()
-        return 1, "Curt#1674", nil, s.broadcast or "", s.afk == true, s.dnd == true, false
+        return 1, "Curt#1674", nil, s.broadcast or "", s.afk == true, s.dnd == true, false, s.hidden == true
     end
     _G.BNGetNumFriends = function()
         local on = 0
@@ -317,11 +319,9 @@ local function install()
             if not stub.HardwareOnly("C_BattleNet.SetAppearOffline") then return end
             record("SetAppearOffline", on); S().hidden = on; later("BN_INFO_CHANGED")
         end,
-        GetAccountInfoByGUID = function(guid)
-            if guid ~= UnitGUID("player") then return nil end
-            return { battleTag = "Curt#1674", isAFK = S().afk == true, isDND = S().dnd == true,
-                gameAccountInfo = { isOnline = true, isAppearOffline = S().hidden == true, clientProgram = "WoW" } }
-        end,
+        -- A friend's account by their character. You aren't your own friend:
+        -- the game's own UI never asks this for you (it reads BNGetInfo).
+        GetAccountInfoByGUID = function() return nil end,
         SetCustomMessage = function(text)
             if not stub.HardwareOnly("C_BattleNet.SetCustomMessage") then return end
             record("SetCustomMessage", text); S().broadcast = text; later("BN_CUSTOM_MESSAGE_CHANGED")

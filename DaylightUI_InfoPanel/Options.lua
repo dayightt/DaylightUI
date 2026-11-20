@@ -150,28 +150,21 @@ ns.OPTIONS = { pages = {
               desc = "Where the numbers open when you hover the bar. Automatic opens them toward the middle of the screen.",
               disabled = off("xp.enabled") },
         } },
-        { tab = "Look", label = "Experience bar look", items = {
+        { tab = "Look", label = "Experience bar look", items = DaylightUI.Options.Join({
             { type = "toggle", key = "xp.gradient", label = "Experience bar gradient",
               desc = "The bar shades from dark to bright instead of one flat color. Reputation gets one per standing, editable on the Gradients page.",
               disabled = off("xp.enabled") },
             { type = "dropdown", key = "xp.color", label = "Experience bar color",
               values = { accent = "Accent color", class = "Class gradient", blue = "Blue", custom = "Custom gradient" }, order = { "accent", "class", "blue", "custom" },
-              desc = "Accent color follows the accent on General > Appearance. Class gradient uses your class's two colors (set on the Gradients page). Custom gradient uses the two colors you pick. Reputation keeps its standing's colors.",
+              desc = "Accent color follows the accent on General > Appearance. Class gradient uses your class's two colors (set on the Gradients page). Custom gradient runs through two to five colors you pick. Reputation keeps its standing's colors.",
               onPick = function() DaylightUI:Set("InfoPanel", "xp.classColor", nil) end,
               disabled = off("xp.enabled") },
-            { type = "gradient", label = "Custom experience bar color",
-              get = function() return { lo = DaylightUI:Get("InfoPanel", "xp.customLo"), hi = DaylightUI:Get("InfoPanel", "xp.customHi") } end,
-              set = function(v)
-                  DaylightUI:Set("InfoPanel", "xp.customLo", v.lo)
-                  DaylightUI:Set("InfoPanel", "xp.customHi", v.hi)
-              end,
-              default = function() return { lo = ns.DEFAULTS.xp.customLo, hi = ns.DEFAULTS.xp.customHi } end,
-              desc = "The two ends of the bar's gradient when Experience bar color is Custom gradient. With Experience bar gradient off, the bar takes the bright end.",
-              hidden = function(get) return get("xp.color") ~= "custom" end,
-              disabled = off("xp.enabled") },
+        }, DaylightUI.Options.StopsRows("xp.customGradient", { what = "experience bar", bar = "the experience bar",
+            since = "2.2", disabled = off("xp.enabled"),
+            shown = function(get) return get("xp.color") == "custom" end }), {
             DaylightUI.Options.BarRow("media.xp", "Experience bar", "the experience and reputation bars", noBars),
             DaylightUI.Options.BackRow("media.xp", "Experience bar", "the experience and reputation bars", noBars),
-        } },
+        }) },
         shellGroup("xp", "Experience bar border and shadow", "xp.enabled", true),
         { tab = "Size", label = "Experience bar size", items = {
             { type = "toggle", key = "xp.detached", label = "Separate experience bar",

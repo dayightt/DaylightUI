@@ -276,7 +276,9 @@ local function auraFamily()
     for _, f in ipairs(Custom.AURAS) do
         for _, s in ipairs(f) do ids[#ids + 1] = s end
     end
-    return { ids = ids, aura = true, self = true, name = DUI.L["Aura"], icon = Custom.AURA_ICON }
+    -- Merged: each aura also has a piece of its own (the game's buff row), which must
+    -- watch that one aura and not every paladin aura.
+    return { ids = ids, aura = true, self = true, merged = true, name = DUI.L["Aura"], icon = Custom.AURA_ICON }
 end
 
 -- Every rank of every totem in the slot, from the class list.

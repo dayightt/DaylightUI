@@ -229,6 +229,13 @@ function Feel.OnAura(unit, info)
         if next(Feel.snaps) then wipe(Feel.snaps) end
         return
     end
+    -- The client rebuilds every icon for an update that comes with no payload,
+    -- the same as for a full one, so both keep the slides still.
+    if info == nil then
+        Feel.Hush()
+        snapNext()
+        return
+    end
     if type(info) ~= "table" then return end
     local full = not issecretvalue(info.isFullUpdate) and info.isFullUpdate
     if full then Feel.Hush() end

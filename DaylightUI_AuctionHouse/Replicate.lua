@@ -277,6 +277,7 @@ function Replicate.Start(onDone, onSent)
     ns.AH.Request({
         name = "replicate",
         timeout = Replicate.TIMEOUT,
+        wait = Replicate.TIMEOUT,
         send = function()
             C_AuctionHouse.ReplicateItems()
             -- it went out (a send that raised sent nothing): the cooldown starts

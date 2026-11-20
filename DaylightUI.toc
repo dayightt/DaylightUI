@@ -10,7 +10,7 @@
 ## Author: Daylight
 ## X-Curse-Project-ID: 1712997
 ## X-Wago-ID: n6VYLONd
-## Version: 2.0
+## Version: 2.1.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## SavedVariables: DaylightUIDB
 ## AddonCompartmentFunc: DaylightUI_OpenOptions
@@ -154,6 +154,7 @@ Inspect\Module.lua
 Craft\Defaults.lua
 Craft\SkillUps.lua
 Craft\Data.lua
+Craft\Profit.lua
 Craft\Share.lua
 Craft\Spells.lua
 Craft\List.lua

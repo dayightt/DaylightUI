@@ -480,3 +480,130 @@ T.test("cdm game: an older layout reads the cooldowns every character of the cla
     T.truthy(clap ~= nil)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- A world of another class: its rows from the game's data, its spells known.
+local function classWorld(class, with, known)
+    stub.neverSecretAuras = {}
+    local DUI = stub.Load({ actionbars = true, before = function()
+        stub.SetUnits({ player = { name = "Me", class = class, friend = true },
+                        target = { name = "Boar", reaction = 2 } })
+        for _, id in ipairs(known) do stub.knownSpells[id] = true end
+        CW.Install({ with = with, known = known, showAll = true })
+    end })
+    stub.RunTimers()
+    DUI.DB.General().motion = false
+    local AB = stub.actionbars
+    return DUI, AB, AB.CdmData, AB.CdmRows, AB.CdmEffects
+end
+
+-- A paladin's Aura piece stands for every aura, each of which has its own buff
+-- item in the game. Whichever aura is up, the piece is up: the item of the one
+-- that isn't up mustn't answer for it. Devotion Aura's own piece watches Devotion
+-- alone.
+local DEVOTION, RETRIBUTION = 465, 7294
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: a paladin's Aura piece is up while any one aura is (" .. shape .. ")", function()
+    local DUI, AB, D, R, Fx = classWorld("PALADIN", DEVOTION, { DEVOTION, RETRIBUTION })
+    local set = D.Current()
+    D.AddPiece(set, "aura", shape, 0, 0)
+    set.pieces.aura.missingGlow = true
+    pass(AB)
+    local function holder()
+        return shape == "bar" and AB.CdmBars.AuraFrame("aura") or AB.CdmAuras.Frame("aura")
+    end
+    T.truthy(Fx.GlowShown(holder()), "no aura up: the missing glow")
+    for _, aura in ipairs({ DEVOTION, RETRIBUTION }) do
+        for _, fight in ipairs({ false, true }) do
+            if fight then stub.EnterCombat() end
+            CW.Aura("player", aura); stub.RunTimers()
+            T.truthy(R.Tracked("aura"), aura .. ": the game's items tell")
+            T.falsy(Fx.GlowShown(holder()), aura .. " up" .. (fight and " in a fight" or "") .. ": no glow")
+            CW.Unaura("player", aura); stub.RunTimers()
+            T.truthy(Fx.GlowShown(holder()), aura .. " gone" .. (fight and " in a fight" or "") .. ": the glow again")
+            if fight then stub.LeaveCombat() end
+        end
+    end
+    local ids = AB.CdmAuras.SpellIDs(CW.ID(DEVOTION, BUFFS))
+    T.truthy(ids[DEVOTION], "Devotion Aura's own piece watches Devotion")
+    T.isnil(ids[RETRIBUTION], "and not Retribution Aura")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- The Blessing piece is the same kind of piece: any long Blessing on you counts,
+-- each has its own buff item, and the first item found mustn't answer for all of
+-- them (only Blessing of Might used to count).
+local MIGHT, KINGS, WISDOM = 19740, 20217, 19742
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: a paladin's Blessing piece is up while any one Blessing is (" .. shape .. ")", function()
+    local DUI, AB, D, R, Fx = classWorld("PALADIN", MIGHT, { MIGHT, KINGS, WISDOM })
+    local set = D.Current()
+    D.AddPiece(set, "blessing", shape, 0, 0)
+    set.pieces.blessing.missingGlow = true
+    pass(AB)
+    local function holder()
+        return shape == "bar" and AB.CdmBars.AuraFrame("blessing") or AB.CdmAuras.Frame("blessing")
+    end
+    T.truthy(Fx.GlowShown(holder()), "no Blessing up: the missing glow")
+    for _, b in ipairs({ MIGHT, KINGS, WISDOM }) do
+        for _, fight in ipairs({ false, true }) do
+            if fight then stub.EnterCombat() end
+            CW.Aura("player", b, { duration = 300 }); stub.RunTimers()
+            T.falsy(Fx.GlowShown(holder()), b .. " up" .. (fight and " in a fight" or "") .. ": no glow")
+            CW.Unaura("player", b); stub.RunTimers()
+            T.truthy(Fx.GlowShown(holder()), b .. " gone" .. (fight and " in a fight" or "") .. ": the glow again")
+            if fight then stub.LeaveCombat() end
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- Touch of Weakness's buff row links the debuff it leaves on whoever hits you
+-- (2943 and up), and the game's item, finding nothing on you, looks on your
+-- target and goes active for that debuff. The buff is on you: once it's used up
+-- it's missing, whatever your target carries.
+local TOUCH, TOUCH_DEBUFF = 2652, 2943
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: Touch of Weakness reads missing once used up, its debuff on your target (" .. shape .. ")", function()
+    local DUI, AB, D, R, Fx = classWorld("PRIEST", TOUCH, { TOUCH })
+    local id = CW.ID(TOUCH, BUFFS)
+    local set = D.Current()
+    D.AddPiece(set, id, shape, 0, 0)
+    set.pieces[id].missingGlow = true
+    pass(AB)
+    local function lit() return shape == "bar" and AB.CdmBars.AuraFrame(id) or CW.Item(id) end
+    CW.Aura("player", TOUCH); stub.RunTimers()
+    T.falsy(Fx.GlowShown(lit()), "the buff is up: no glow")
+    stub.EnterCombat()
+    CW.Unaura("player", TOUCH)
+    CW.Aura("target", TOUCH_DEBUFF, { harmful = true, duration = 120 }); stub.RunTimers()
+    T.truthy(CW.Item(id).isActive, "the game's item went active for the debuff on your target")
+    T.truthy(Fx.GlowShown(lit()), "used up: missing, so it glows")
+    CW.Aura("player", TOUCH); stub.RunTimers()
+    T.falsy(Fx.GlowShown(lit()), "cast again: up")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- New candidate filters make the client hand each button its aura again (a full
+-- rebuild), which replays the slide-in. SPELLS_CHANGED comes often, so the filters
+-- go out again only when a spell's ids really changed.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: SPELLS_CHANGED with the same spells leaves the aura containers alone (" .. shape .. ")", function()
+    local DUI, AB, D, R = world()
+    local set = D.Current()
+    -- Battle Shout is a buff others cast too, so Daylight UI's own holder draws it.
+    local shout = CW.ID(SHOUT, BUFFS)
+    D.AddPiece(set, shout, shape, 60, 0)
+    pass(AB)
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(shout) or AB.CdmAuras.Frame(shout)
+    T.truthy(h and h.containers and h.containers[1], "Battle Shout has a container of Daylight UI's")
+    local c = h.containers[1].c
+    local n = c.__candidateSets or 0
+    stub.FireEvent("SPELLS_CHANGED"); stub.RunTimers()
+    T.eq(c.__candidateSets or 0, n, "same spells: no new filters")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end

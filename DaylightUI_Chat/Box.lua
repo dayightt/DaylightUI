@@ -364,6 +364,28 @@ function Box.GlowStep()
     end
 end
 
+-- Someone else's crafting ("X creates Y"). The client sends every nearby
+-- player's, which would bury a city's chat, so the box keeps only yours, as the
+-- game's own chat shows it. Read from the GUID when there is one, else from the
+-- game's third-person string; a line that can't be read counts as yours.
+local othersCraft
+function Box.OthersCraft(text, guid)
+    if type(guid) == "string" and not secret(guid) and guid ~= "" then
+        local me = UnitGUID and UnitGUID("player")
+        if type(me) == "string" and not secret(me) then return guid ~= me end
+    end
+    if type(text) ~= "string" or secret(text) then return false end
+    if othersCraft == nil then
+        local fmt = _G.TRADESKILL_LOG_THIRDPERSON
+        othersCraft = false
+        if type(fmt) == "string" and fmt ~= "" then
+            local p = string.gsub(fmt, "[%^%$%(%)%.%[%]%*%+%-%?%%]", "%%%0")
+            othersCraft = "^" .. string.gsub(p, "%%%%%d?%$?s", ".+") .. "$"
+        end
+    end
+    return othersCraft and string.find(text, othersCraft) ~= nil or false
+end
+
 -- Read-only hook on each window's AddMessage. Lines are kept in Classic too, so
 -- switching to Daylight shows what came before.
 function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
@@ -372,6 +394,7 @@ function Box.Feed(cf, text, r, g, b, id, _, _, event, args)
     if not fresh(cf, text, args) then return end
     if type(event) == "nil" then event = ns.Kinds.Heard(cf) end
     local _, kind = ns.Kinds.Of(id, event, args, text)
+    if kind == "tradeskill" and Box.OthersCraft(text, type(args) == "table" and args[12]) then return end
     text = named(text, event, args)
     -- Whispers that a conversation keeps go to their own window, not the chat.
     -- Locked (secret) whispers and away, busy and offline notices still show here.
@@ -452,14 +475,14 @@ function Box.Watch(cf)
     hooksecurefunc(cf, "AddMessage", function(...) DUI.SafeCall(Box.Feed, ...) end)
 end
 
--- The game's default chat settings send experience from kills (and a few other
--- gains) only to the combat log window, which the box never reads, so those lines
--- never arrived. When none of the windows it reads carries the line's group, the
--- box takes it from the event, worded and colored as the game's window would show
--- it (the text as is, in the type's color). Only reads the windows.
+-- The game's default chat settings send experience from kills, honor and
+-- reputation only to the combat log window, which the box never reads, so those
+-- lines never arrived. When none of the windows it reads carries the line's group,
+-- the box takes it from the event, worded and colored as the game's window would
+-- show it. Only these gains and your own crafting: the rest of the log's stream
+-- (pets eating, misc combat lines) belongs in the combat log, not the chat.
 Box.GAIN_EVENTS = { "CHAT_MSG_COMBAT_XP_GAIN", "CHAT_MSG_COMBAT_HONOR_GAIN", "CHAT_MSG_COMBAT_FACTION_CHANGE",
-    "CHAT_MSG_COMBAT_MISC_INFO", "CHAT_MSG_LOOT", "CHAT_MSG_MONEY", "CHAT_MSG_CURRENCY", "CHAT_MSG_SKILL",
-    "CHAT_MSG_OPENING", "CHAT_MSG_TRADESKILLS", "CHAT_MSG_PET_INFO", "CHAT_MSG_TARGETICONS" }
+    "CHAT_MSG_TRADESKILLS" }
 local fromEvent = {}   -- stands in for a window when the box hears a line itself
 
 local function carried(group)
@@ -469,16 +492,29 @@ local function carried(group)
     return false
 end
 
-function Box.HearGain(event, text)
+-- Some chat window has the group, the combat log included. One no window has
+-- was switched off in the game's chat settings, so the box leaves it off too.
+local function wanted(group)
+    for i = 1, tonumber(_G.NUM_CHAT_WINDOWS) or 10 do
+        local cf = _G["ChatFrame" .. i]
+        if type(cf) == "table" and type(cf.ContainsMessageGroup) == "function" and cf:ContainsMessageGroup(group) then
+            return true
+        end
+    end
+    return false
+end
+
+function Box.HearGain(event, text, guid)
     if not Box.On() or type(event) ~= "string" or secret(text) or type(text) ~= "string" then return end
     local group = event:sub(10)
-    if carried(group) then return end
+    if carried(group) or not wanted(group) then return end
+    if group == "TRADESKILLS" and Box.OthersCraft(text, guid) then return end
     local info = type(ChatTypeInfo) == "table" and ChatTypeInfo[group]
     if type(info) ~= "table" then return end
     Box.Feed(fromEvent, text, info.r, info.g, info.b, info.id, nil, nil, event)
 end
 for _, e in ipairs(Box.GAIN_EVENTS) do
-    DUI.RegisterEvent(e, function(event, text) Box.HearGain(event, text) end)
+    DUI.RegisterEvent(e, function(event, text, ...) Box.HearGain(event, text, (select(11, ...))) end)
 end
 
 -- ---------------------------------------------------------------------

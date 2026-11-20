@@ -2494,17 +2494,140 @@ end
 T.test("chat daylight: experience from kills shows though only the combat log carries it", function()
     local Box, box = daylight(function()
         _G.ChatTypeInfo.COMBAT_XP_GAIN = { id = 9, r = 0.4, g = 0.4, b = 1 }
+        _G.COMBATLOG = ChatFrame2
     end)
+    -- As the game's defaults: only the combat log window (ChatFrame2) has it.
     for i = 1, 10 do
         local cf = _G["ChatFrame" .. i]
-        if cf and cf.messageTypeList then dropGroup(cf, "COMBAT_XP_GAIN") end
+        if i ~= 2 and cf and cf.messageTypeList then dropGroup(cf, "COMBAT_XP_GAIN") end
     end
+    T.truthy(ChatFrame2:ContainsMessageGroup("COMBAT_XP_GAIN"))
     local text = "Young Wolf dies, you gain 45 experience."
     stub.FireEvent("CHAT_MSG_COMBAT_XP_GAIN", text, "", "", "", "", "", 0, 0, "", 0, 0)
     Box.Pick(1)
     local texts = table.concat(boxTexts(box), "|")
     T.truthy(texts:find("you gain 45 experience", 1, true), "in Everything: " .. texts)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: a line no game window has stays out of the box", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.COMBAT_XP_GAIN = { id = 9, r = 0.4, g = 0.4, b = 1 }
+    end)
+    -- Switched off in every window in the game's chat settings.
+    for i = 1, 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.messageTypeList then dropGroup(cf, "COMBAT_XP_GAIN") end
+    end
+    stub.FireEvent("CHAT_MSG_COMBAT_XP_GAIN", "Young Wolf dies, you gain 45 experience.", "", "", "", "", "", 0, 0, "", 0, 0)
+    Box.Pick(1)
+    local texts = table.concat(boxTexts(box), "|")
+    T.falsy(texts:find("you gain 45 experience", 1, true), "switched off everywhere: " .. texts)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: saved tabs drop the crafting lines too", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.TRADESKILLS = { id = 30, r = 1, g = 1, b = 1 }
+        _G.COMBATLOG = ChatFrame2
+    end)
+    -- As the game's defaults: crafting goes only to the combat log window.
+    for i = 1, 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.messageTypeList then
+            dropGroup(cf, "TRADESKILLS")
+            if i == 2 then cf.messageTypeList[#cf.messageTypeList + 1] = "TRADESKILLS" end
+        end
+    end
+    -- Tabs a player renamed or changed: saved whole, at an older tab version.
+    DaylightUI:Set("Chat", "tabs", {
+        { name = "Mine", all = true, v = 6 },
+        { name = "Loot", kinds = { loot = true, tradeskill = true }, v = 6 },
+        { name = "Old", kinds = { loot = true }, v = 5 },
+    })
+    stub.RunTimers()
+    local Kinds = stub.chatModule.Kinds
+    local tabs = Box.Tabs()
+    T.truthy(tabs[1].all, "still an everything tab")
+    T.falsy(Kinds.Shows(tabs[1], "tradeskill"), "no crafting on the everything tab")
+    T.truthy(Kinds.Shows(tabs[1], "say") and Kinds.Shows(tabs[1], "loot"), "the rest stays")
+    T.falsy(Kinds.Shows(tabs[2], "tradeskill"), "nor on a saved loot tab")
+    T.truthy(Kinds.Shows(tabs[2], "loot"), "loot stays")
+    T.falsy(Kinds.Shows(tabs[3], "tradeskill"), "an older tab skips it through the split")
+    T.truthy(Kinds.Shows(tabs[3], "opening"), "while the split's other kinds still come")
+    stub.FireEvent("CHAT_MSG_TRADESKILLS", "Somebody creates Linen Bandage.", "", "", "", "", "", 0, 0, "", 0, 0)
+    Box.Pick(1)
+    local texts = table.concat(boxTexts(box), "|")
+    T.falsy(texts:find("creates Linen Bandage", 1, true), "a busy city stays quiet: " .. texts)
+    -- Switched back on, it shows and stays on after the next read.
+    stub.chatModule.Tabs.SetKind(1, "tradeskill", true)
+    stub.RunTimers()
+    T.truthy(Kinds.Shows(Box.Tabs()[1], "tradeskill"), "a player can still turn it on")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game's chat never fills with every nearby player's crafting, even with
+-- Tradeskills on: only "You create..." comes through.
+T.test("chat daylight: Tradeskills on shows your crafting, never everyone else's", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.TRADESKILLS = { id = 30, r = 1, g = 1, b = 1 }
+        _G.COMBATLOG = ChatFrame2
+        _G.TRADESKILL_LOG_FIRSTPERSON = "You create %s."
+        _G.TRADESKILL_LOG_THIRDPERSON = "%s creates %s."
+    end)
+    for i = 1, 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.messageTypeList then
+            dropGroup(cf, "TRADESKILLS")
+            if i == 2 then cf.messageTypeList[#cf.messageTypeList + 1] = "TRADESKILLS" end
+        end
+    end
+    stub.chatModule.Tabs.SetKind(1, "tradeskill", true)
+    stub.RunTimers()
+    Box.Pick(1)
+    local me = UnitGUID("player")
+    local function fire(text, guid)
+        stub.FireEvent("CHAT_MSG_TRADESKILLS", text, "", "", "", "", "", 0, 0, "", 0, 0, guid or "")
+    end
+    fire("Xara Dawnspire creates Heavy Wool Bandage.", "Player-1-00000099")
+    fire("Somebody creates Linen Bandage.")
+    fire("You create Silk Bandage.", me)
+    -- A game window that carries the group: its lines reach the box through the hook.
+    ChatFrame1.messageTypeList[#ChatFrame1.messageTypeList + 1] = "TRADESKILLS"
+    local args = { "Bob Stone creates Copper Bracers.", "", n = 14 }
+    args[12] = "Player-1-00000098"
+    ChatFrame1:AddMessage(args[1], 1, 1, 1, 30, nil, nil, "CHAT_MSG_TRADESKILLS", args)
+    local texts = table.concat(boxTexts(box), "|")
+    T.falsy(texts:find("Heavy Wool Bandage", 1, true), "another player's, by GUID: " .. texts)
+    T.falsy(texts:find("Linen Bandage", 1, true), "another player's, by the game's words: " .. texts)
+    T.falsy(texts:find("Copper Bracers", 1, true), "nor through a game window: " .. texts)
+    T.truthy(texts:find("You create Silk Bandage.", 1, true), "your own still shows: " .. texts)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Only the gains the game's defaults leave in the combat log come over. The
+-- log's own stream (pets eating, misc combat lines) stays there.
+T.test("chat daylight: combat log lines never come over into the box", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.COMBAT_MISC_INFO = { id = 10, r = 1, g = 1, b = 1 }
+        _G.ChatTypeInfo.PET_INFO = { id = 11, r = 1, g = 1, b = 1 }
+        _G.COMBATLOG = ChatFrame2
+    end)
+    for i = 1, 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.messageTypeList then
+            dropGroup(cf, "COMBAT_MISC_INFO"); dropGroup(cf, "PET_INFO")
+        end
+    end
+    local log = ChatFrame2
+    log.messageTypeList[#log.messageTypeList + 1] = "COMBAT_MISC_INFO"
+    log.messageTypeList[#log.messageTypeList + 1] = "PET_INFO"
+    stub.FireEvent("CHAT_MSG_COMBAT_MISC_INFO", "Spoof's pet begins eating a Roasted Quail.", "", "", "", "", "", 0, 0, "", 0, 0)
+    stub.FireEvent("CHAT_MSG_PET_INFO", "Your pet is happy.", "", "", "", "", "", 0, 0, "", 0, 0)
+    Box.Pick(1)
+    local texts = table.concat(boxTexts(box), "|")
+    T.falsy(texts:find("begins eating", 1, true), "misc line stayed out: " .. texts)
+    T.falsy(texts:find("pet is happy", 1, true), "pet line stayed out: " .. texts)
 end)
 
 T.test("chat daylight: a window that carries experience lines keeps them single", function()
@@ -5991,10 +6114,40 @@ T.test("chat daylight: tradeskills, currency, battlegrounds and the game's other
                                      { name = "Sys", v = 5, kinds = { system = true } } })
     stub.RunTimers()
     local loot, sys = Box.Tabs()[1], Box.Tabs()[2]
-    T.truthy(loot.kinds.tradeskill and loot.kinds.opening and loot.kinds.currency, "loot and money brought theirs along")
+    T.truthy(loot.kinds.opening and loot.kinds.currency, "loot and money brought theirs along")
+    T.falsy(loot.kinds.tradeskill, "but not crafting, left out of every saved tab")
     T.falsy(loot.kinds.pvp, "nothing it didn't show")
     T.truthy(sys.kinds.pvp and sys.kinds.pet and sys.kinds.misc and sys.kinds.icons and sys.kinds.bnalert,
         "what went to System still shows there")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: crafting lines stay off the General and Loot tabs", function()
+    local Box = daylight()
+    local Kinds = stub.chatModule.Kinds
+    local Tabs = stub.chatModule.Tabs
+    local general, loot = Box.Tabs()[1], Box.Tabs()[4]
+    T.truthy(general.all, "General is still an everything tab")
+    T.falsy(Kinds.Shows(general, "tradeskill"), "no crafting lines on General")
+    T.truthy(Kinds.Shows(general, "say") and Kinds.Shows(general, "loot"), "everything else stays")
+    T.falsy(Kinds.Shows(loot, "tradeskill"), "nor on Loot")
+    T.truthy(Kinds.Shows(loot, "loot"), "Loot still has loot")
+    -- Switching crafting back on keeps General an everything tab.
+    Tabs.SetKind(1, "tradeskill", true)
+    stub.RunTimers()
+    general = Box.Tabs()[1]
+    T.truthy(general.all and Kinds.Shows(general, "tradeskill"), "back on, still everything")
+    -- Switching one kind off from there leaves crafting on.
+    Tabs.SetKind(1, "loot", false)
+    stub.RunTimers()
+    general = Box.Tabs()[1]
+    T.truthy(general.kinds.tradeskill and not general.kinds.loot, "only loot went off")
+    -- Everything on again shows every kind.
+    DaylightUI:Set("Chat", "tabs", nil)
+    stub.RunTimers()
+    Tabs.SetKind(1, "all", true)
+    stub.RunTimers()
+    T.truthy(Kinds.Shows(Box.Tabs()[1], "tradeskill"), "Everything means everything")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

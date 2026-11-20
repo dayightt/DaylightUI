@@ -598,7 +598,49 @@ function Map.PlaceDurability()
         end
         Map.PlaceAt(spot, "TOPRIGHT", panel, "BOTTOMLEFT", -Map.DURABILITY_GAP, -ns.Panel.GAP)
         Map.PlaceAt(f, "TOPRIGHT", spot, "TOPRIGHT")
+        -- The capture bars stand aside for it.
+        if DUI.GameMovers then DUI.GameMovers.PlaceSoon() end
     end)
+end
+
+-- The game hangs its capture bars (a battleground's flags, world PvP towers)
+-- under its own minimap's spot, which the panel covers. Until the player moves
+-- them (their "Capture Bars" handle), they stand just left of the panel's
+-- bottom-left corner, left of the armor figure while that shows there too.
+Map.CAPTURE = "UIWidgetBelowMinimapContainerFrame"
+
+function Map.CaptureHome()
+    local panel = ns.Panel.panel
+    local f = _G[Map.CAPTURE]
+    if type(panel) ~= "table" or not panel:IsShown() or type(f) ~= "table" then return nil end
+    local spot = Map.captureSpot
+    if not spot then
+        spot = CreateFrame("Frame", nil, UIParent)
+        spot:SetSize(1, 1)
+        Map.captureSpot = spot
+    end
+    Map.PlaceAt(spot, "TOPRIGHT", panel, "BOTTOMLEFT", -Map.DURABILITY_GAP, -ns.Panel.GAP)
+    local x = 0
+    local df = _G.DurabilityFrame
+    if type(df) == "table" and df:IsShown() and not Map.DurabilityMoved(df) then
+        local w = df:GetWidth() * df:GetEffectiveScale() / f:GetEffectiveScale()
+        x = -(w + Map.DURABILITY_GAP)
+    end
+    return { "TOPRIGHT", spot, "TOPRIGHT", x, 0 }
+end
+
+function Map.PlaceCapture()
+    local GM = DUI.GameMovers
+    if not (GM and GM.SetHome) then return end
+    if not Map.captureHomed then
+        Map.captureHomed = true
+        GM.SetHome(Map.CAPTURE, Map.CaptureHome)
+        -- Hidden, the armor figure no longer needs the room.
+        local df = _G.DurabilityFrame
+        if type(df) == "table" and df.HookScript then df:HookScript("OnHide", GM.PlaceSoon) end
+        return
+    end
+    GM.PlaceSoon()
 end
 
 function Map.Build(parent)
@@ -1086,6 +1128,7 @@ function Map.Apply(cfg)
     for _, name in ipairs(Map.DECOR) do ns.Panel.Park(_G[name]) end
     Map.QuietCluster(cluster)
     Map.PlaceDurability()
+    Map.PlaceCapture()
 
     -- The clock and framerate, bottom middle of the map.
     local clock = ensureClock(mm)

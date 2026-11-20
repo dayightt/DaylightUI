@@ -11,7 +11,68 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", new = {
+        { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. The Profit button over the list puts the best earners first" },
+        { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours" },
+        { "Bars", "Health, power, cast and swing bars, combo points, nameplates, the experience bar, meters, tooltips, quest bars and Cooldown Manager bars can each wear a gradient of two to five colors you pick, like the custom gradient accent. Pick Custom gradient in a bar's color menu" },
+        { "Loot", "Prefer the game's own roll popups? A new switch brings them back in Daylight UI style, with how many players picked Need, Greed and Pass on each button" },
+    }, fixed = {
+        { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
+        { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
+        { "Auction House", "Searching for a name with a category picked, like One-Handed Axes, now searches only that category instead of the whole Auction House. Click the category again to search everywhere" },
+    } },
+    { version = "2.1.1", date = "2026-11-20", summary = "Game windows that follow the Daylight UI scale, and a big batch of fixes for bags, tooltips, the Cooldown Manager and more.", changed = {
+        { "Skins", "The game's windows, like the trade window, now shrink or grow with the Daylight UI scale" },
+        { "Nameplates", "The class icon by a friendly player's name grows and shrinks with the name" },
+    }, fixed = {
+        { "Nameplates", "With friendly nameplates off, mailboxes and herbs no longer show a name, and the PvP crest no longer shows on players of your own faction" },
+        { "Action bars", "Druids: your main bar keeps your Cat Form buttons while you prowl again. Want a separate Prowl bar? Turn it on in Action Bar 1's options" },
+        { "Loot", "The loot log set to show only when something changes no longer pops up in every fight. It comes back when you loot something" },
+        { "Bags", "Items in the bags' Shelf view no longer vanish, or hide from the search, after you sell a stack and buy it back or loot more of it" },
+        { "Action bars", "Shamans no longer get a flood of errors from the totem bar's summon and recall buttons in fights" },
+        { "Bags", "Clean Up with items kept in their slot no longer packs everything else at the bottom, and the \"Clean up toward the end\" switch works the right way round" },
+        { "Bags", "Item tooltips show how many you have in your bank, even with only one character" },
+        { "Tooltip", "The small tooltip in fights shows the enemy's name again, and creature tooltips in dungeons show your quest progress" },
+        { "Tooltip", "Armor and weapons your class can't use show their type (Leather, Mail, Plate...) in red, so you see it at a glance" },
+        { "Cooldown Manager", "The paladin Aura and Blessing pieces count whichever aura or Blessing you have up, and Touch of Weakness shows as missing once it's used up" },
+        { "Cooldown Manager", "A Forbearance bar or icon added by its ID shows again while you have it" },
+        { "Cooldown Manager", "Buffs no longer slide in again when your spells change" },
+        { "Buffs", "Your buffs and debuffs no longer bounce in again after the game refreshes them" },
+        { "Auction House", "After switching to the game's own Auction House window, everything in it can be clicked again" },
+        { "Auction House", "Item tooltips no longer show the auction price twice. The usual price line is off now, and can be turned back on in the options" },
+        { "Chat", "Pets eating and other combat log lines no longer show up in the chat box" },
+        { "Controller", "Using items from the bags works with a controller, and at a mailbox, vendor or trade window the item goes there instead" },
+        { "Options", "Switches like Use my layout show their new spot as soon as you click them" },
+        { "Languages", "More Simplified Chinese thanks to Levis, and the texts added in 2.0 in Spanish thanks to Ángel" },
+    }, new = {
+        { "Unit frames", "Health text can sit at either end of the health bar or right in the middle, like the power text" },
+    } },
+    { version = "2.1", date = "2026-11-20", summary = "Better tooltips, an Auction House scan that no longer gets stuck, battleground flags out from under the minimap, and lots of small fixes.", fixed = {
+        { "Tooltip", "Spells on cooldown still show what they do, and recipes show both the recipe's binding and the item's" },
+        { "Tooltip", "Long tags and titles wrap instead of running off the edge, and weapon compares say which hand each of yours is in" },
+        { "Auction House", "A full scan no longer gets stuck on \"Asking the Auction House\". It stops and says so, and you can scan again" },
+        { "Auction House", "Shift-clicking an item in your bags or a profession searches for it on Buy" },
+        { "Auction House", "On Sell, what you get no longer covers its own label when it's worth a gold or more" },
+        { "Info panel", "Battleground capture bars, like Arathi Basin's flags, no longer hide under the minimap and can be moved in unlock mode" },
+        { "Buffs", "Buffs and debuffs next to the minimap can be dragged in unlock mode" },
+        { "Chat", "A tab with Tradeskills on shows only your own crafting, not everyone's nearby" },
+        { "Quests", "Zone names in the quest tracker no longer pile on top of each other right after logging in" },
+        { "Professions", "The Herbalism and Fishing tabs open Gardening and Bait and Tackle again" },
+        { "Action bars", "A hidden micro menu no longer pops up on a vehicle's action bar" },
+        { "Unit frames", "The combat glow on square portraits is as soft as on round ones, and a rare error after two quick interrupts is gone" },
+        { "Character", "Hovering Spell Damage lists every school again, Shadow included" },
+        { "Social", "Appearing offline shows as \"Appearing offline\" at the top of the social window instead of \"Available\"" },
+    }, new = {
+        { "Tooltip", "Rich tooltip cards can leave out the creature's face and the player's class icon" },
+    } },
+    { version = "2.0.1", date = "2026-11-20", summary = "Chat stops filling up with everyone's crafting, plus a few quick fixes.", fixed = {
+        { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },
+        { "Loot", "Winning a roll no longer shows a second \"You received\" box on top of the loot roll" },
+        { "Cooldown Manager", "Buff bars no longer throw errors, and a shield someone else gives you fills its bar right" },
+        { "Chat", "Chat lines you switched off in the game's chat settings no longer show up anyway" },
+    }, changed = {
+        { "Chat", "Chat no longer fills up with everyone's crafting in cities, tabs you renamed or changed included. Switch Tradeskills on for a tab to see it" },
+    } },
     { version = "2.0", date = "2026-11-19", summary = "Portraits set right into their frames, rich tooltip cards, a brand new Auction House, group loot rolls, and a big batch of fixes.", new = {
         { "Unit frames", "A slick new portrait look: portraits sit right inside their frame, with one border flowing around both. You're asked once which look you want, and each frame's Portrait tab switches it any time" },
         { "Tooltip", "Rich tooltips: items, spells, players, creatures, herbs and ore each get their own card, and a small pill in fights (Tooltips, Style)" },

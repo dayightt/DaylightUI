@@ -1075,12 +1075,15 @@ function Motion.KickTag(t, guid, element, size)
     t.name:SetTextColor(Style.ClassTextColor(token))
     t.gen = (t.gen or 0) + 1
     local gen = t.gen
-    local from = t:IsShown() and t:GetAlpha() or 0
+    -- Start from the alpha last painted, never GetAlpha: a parent faded by a
+    -- secret (range) makes that read secret, and a tween can't use it.
+    local from = t:IsShown() and t.kickAlpha or 0
+    local function paint(a) t.kickAlpha = a; t:SetAlpha(a) end
     t:Show()
-    Motion.Tween(t, from, 1, Motion.FAST, function(a) t:SetAlpha(a) end)
+    Motion.Tween(t, from, 1, Motion.FAST, paint)
     C_Timer.After(Motion.KICKED_BY_FOR, function()
         if t.gen ~= gen then return end
-        Motion.Tween(t, 1, 0, Motion.NORMAL, function(a) t:SetAlpha(a) end, function()
+        Motion.Tween(t, 1, 0, Motion.NORMAL, paint, function()
             if t.gen == gen then t:Hide() end
         end)
     end)

@@ -11,13 +11,18 @@ local INK = DaylightUI.Style.INK
 -- Copy the color, since a saved color is written into its own table.
 local function ink(c) return { c[1], c[2], c[3] } end
 
+-- The experience bar's own gradient starts as its old amber pair, then the
+-- usual custom gradient colors past the second.
+ns.XP_STOPS = DaylightUI.Style.DefaultStops()
+ns.XP_STOPS.count, ns.XP_STOPS.c1, ns.XP_STOPS.c2 = 2, { 0.55, 0.38, 0.12 }, { 0.98, 0.78, 0.35 }
+
 ns.DEFAULTS = {
     media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS, ns.MEDIA_FONTS),
     xpGain = true,          -- flash the gained XP, show "+N", sweep on level up
     xp = { enabled = true, gameBar = false, showText = false, showPercent = false, textSize = 9, gradient = true, classColor = true, height = 11, detached = false, width = 207,
           matchBars = true,     -- when detached, match the main action bar's width
-          color = "accent",     -- accent | class | blue | custom (customLo/customHi); classColor = false is the old blue
-          customLo = { 0.55, 0.38, 0.12 }, customHi = { 0.98, 0.78, 0.35 },
+          color = "accent",     -- accent | class | blue | custom (customGradient); classColor = false is the old blue
+          customGradient = ns.XP_STOPS,
           ticks = false,        -- 20 segments per level
           banked = true,        -- show XP from completed quests ahead of the fill
           bankedColor = ink(INK.GOOD), restedColor = { 0.58, 0.32, 0.88 },
@@ -34,7 +39,7 @@ ns.DEFAULTS = {
     meter = { enabled = true, width = 207, rowHeight = 22, mode = "damage", session = "current",
               inGroup = false, inCombat = false, inInstance = false, onJoin = "nothing", onInstance = "ask",
               detached = false, height = 196, border = true,   -- border of the detached window
-              barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, textSize = 11,
+              barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, barGradient = DaylightUI.Style.DefaultStops(), textSize = 11,
               -- nameColorBy: "custom" paints names in nameColor, "class" in
               -- each player's class color. classText colors names and numbers
               -- by class, overriding both.
@@ -81,7 +86,7 @@ ns.DEFAULTS = {
     -- barColor: class | threat (colored by how close each row is) | custom.
     -- header: mob name and your percent on top ("always" | "off").
     threat = { enabled = true, auto = "group", at = "left", belowRows = 3, width = 170, rowHeight = 16, rows = 6, textSize = 10,
-               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, nameColor = { 1, 1, 1 }, nameColorBy = "custom",
+               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, barGradient = DaylightUI.Style.DefaultStops(), nameColor = { 1, 1, 1 }, nameColorBy = "custom",
                pullLine = true, pullColor = ink(INK.BAD), border = true, trackAlpha = 0.35, header = "always", angled = true,
                fade = DaylightUI.Fade.Defaults() },
     -- meterSide: which side of the map the meters slide out on. "auto" picks
@@ -122,6 +127,23 @@ ns.DEFAULTS = {
     panelBorder = true,
     fade = DaylightUI.Fade.Defaults(),   -- also covers a detached meter and the XP bar without its own fade
 }
+
+-- The experience bar's custom gradient was a pair (customLo, customHi) before
+-- it took up to five colors. A profile's own pair moves into its first two.
+function ns.UpgradeXPStops(p)
+    if type(p) ~= "table" or p.xpStops1 or type(p.modules) ~= "table" then return end
+    p.xpStops1 = true
+    local xp = type(p.modules.InfoPanel) == "table" and p.modules.InfoPanel.xp
+    if type(xp) ~= "table" then return end
+    local lo, hi = xp.customLo, xp.customHi
+    xp.customLo, xp.customHi = nil, nil
+    if type(lo) ~= "table" and type(hi) ~= "table" then return end
+    local stops = type(xp.customGradient) == "table" and xp.customGradient or {}
+    if type(lo) == "table" then stops.c1 = { lo[1], lo[2], lo[3] } end
+    if type(hi) == "table" then stops.c2 = { hi[1], hi[2], hi[3] } end
+    xp.customGradient = stops
+end
+DaylightUI.DB.RegisterUpgrade(ns.UpgradeXPStops)
 
 -- The minimap box used to share the panel's background and border. Copy a
 -- profile's custom panel look onto the new map settings once.

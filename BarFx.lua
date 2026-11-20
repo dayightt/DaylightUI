@@ -194,7 +194,7 @@ end
 
 local function buildFlow(s)
     local bar = s.bar
-    local h = {}
+    local h = { bar = bar }
     h.anim = bar:CreateAnimationGroup()
     h.anim:SetLooping("REPEAT")
     h.base = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
@@ -229,6 +229,7 @@ local function extraWave(s, i)
 end
 
 local function showFlow(h, on)
+    local was = h.shown
     h.shown = on
     h.base:SetShown(on and not h.isSweep)
     h.sweep:SetShown(on and h.isSweep == true)
@@ -236,6 +237,8 @@ local function showFlow(h, on)
     for i, e in ipairs(h.extra or {}) do
         e.tex:SetShown(on and not h.isSweep and i <= (h.waves or 0) and e.live == true)
     end
+    -- A fill in three or more colors hides its pieces under Flow, and shows them again after.
+    if was ~= on then Style.LayBarStops(h.bar) end
 end
 
 -- Laid over the fill, so a size change needs nothing.
@@ -423,6 +426,12 @@ function BarFx.Angled(bar)
     if s.angleSide == side and s.angleCut == cut and s.angleUnder == under then return end
     s.angleSide, s.angleCut, s.angleUnder = side, cut, under
     layoutPiece(s)
+end
+
+-- Whether Flow covers the bar's fill right now.
+function BarFx.FlowShown(bar)
+    local s = worn[bar]
+    return s ~= nil and s.flow ~= nil and s.flow.shown == true
 end
 
 function BarFx.StyleOf(bar)

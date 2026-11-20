@@ -20,6 +20,7 @@ ns.DEFAULTS = {
     richAlpha = 0.95, -- the rich card's background opacity
     pill = "combat", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
     pillKey = "shift", -- held, the full card in the pill's place: "shift", "ctrl", "alt", "none"
+    portraits = true, -- a creature's face and a player's class icon at the top of their card
     -- Other addons' lines on the rich card (Rich/Foreign.lua): "own" (their
     -- own area at the bottom), "mixed" (in with the card's rows), "hidden".
     addonLines = "own",
@@ -51,7 +52,8 @@ ns.DEFAULTS = {
     showIDs = false,        -- an "Item ID" / "Spell ID" line on items, spells and auras
     qualityBorder = true, -- item border in its quality color
     healthBar = true,
-    barGradient = "frames", -- health bar color: "frames" (class gradient when unit frame health uses one), "gradient", "flat"
+    barGradient = "frames", -- health bar color: "frames" (a gradient when unit frame health uses one), "gradient", "flat", "customGradient"
+    barStops = DaylightUI.Style.DefaultStops(), -- ...the colors for "customGradient"
     barHeight = 5,
     hideInCombat = false, -- in combat, show unit tooltips only while Shift is held
     fadeOut = false, -- world object tooltips fade out like the game's (off: hide at once)

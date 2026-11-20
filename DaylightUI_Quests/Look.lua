@@ -260,16 +260,25 @@ function Look.BarColor(look)
         local r, g, b = Look.Color(look, "bar")
         return r, g, b, false
     end
+    if mode == "customGradient" and DUI.Gradients then
+        local r, g, b = DUI.Gradients.StopsMid(look.c.barGradient)
+        return r, g, b, false
+    end
     local r, g, b = Style.Accent()
     return r, g, b, true
 end
 
 -- Objective bar in its color: the accent gradient for a gradient accent
--- (Style.PaintAccentBar), otherwise the single color.
+-- (Style.PaintAccentBar), a custom gradient, otherwise the single color.
 function Look.PaintBar(bar, look)
     local r, g, b, accent = Look.BarColor(look)
     if accent then
         Style.PaintAccentBar(bar)
+        return
+    end
+    if look.c.barMode == "customGradient" and DUI.Gradients then
+        Style.SetBarGradient(bar, false)
+        DUI.Gradients.PaintStops(bar, look.c.barGradient)
         return
     end
     Style.SetBarGradient(bar, false)

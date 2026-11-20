@@ -3590,6 +3590,34 @@ T.test("window scale: Ctrl + wheel sizes a game window, kept and put back, never
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("window scale: the game's windows follow the Daylight UI scale, a Ctrl + wheel size on top", function()
+    stub.Load({ skins = true })
+    local f = CreateFrame("Frame", "DemoGamePanel", UIParent)
+    _G.UIPanelWindows = _G.UIPanelWindows or {}
+    _G.UIPanelWindows.DemoGamePanel = { area = "left" }
+    stub.FireEvent("ADDON_LOADED", "Blizzard_Demo")
+    stub.RunTimers()
+    T.near(f:GetScale(), 1, 1e-6, "at a Daylight UI scale of 1, the game's own size")
+    DaylightUI:Set("general", "scale", 0.8)
+    stub.RunTimers()
+    T.near(f:GetScale(), 0.8, 1e-6, "smaller with the rest of the UI")
+    _G.IsControlKeyDown = function() return true end
+    f:GetScript("OnMouseWheel")(f, 1)
+    T.near(DaylightUI:Get("Skins", "windowScales").DemoGamePanel, 1.05, 1e-6, "the wheel saves its own size")
+    T.near(f:GetScale(), 0.84, 1e-6, "its own size times the Daylight UI scale")
+    f:SetScale(1)                     -- the game laid its panels out again
+    f:Hide(); f:Show()
+    T.near(f:GetScale(), 0.84, 1e-6)
+    DaylightUI.Movers.ResetAll()
+    T.near(f:GetScale(), 0.8, 1e-6, "/dui reset: the Daylight UI scale alone")
+    DaylightUI:Set("general", "scale", 1)
+    stub.RunTimers()
+    T.near(f:GetScale(), 1, 1e-6, "back to 1 with it")
+    _G.IsControlKeyDown = nil
+    _G.UIPanelWindows.DemoGamePanel = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The dressing room as DressUpFrames.xml makes it, as far as the skin touches
 -- it, plus the small one beside the auction house.
 local function artButton(parent, size)

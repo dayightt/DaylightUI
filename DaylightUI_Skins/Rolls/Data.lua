@@ -36,6 +36,7 @@ local function sameItem(drop, link)
     if a and b then return a == b and itemName(drop.link) == itemName(link) end
     return itemName(link) ~= nil and itemName(link) == (drop.name or itemName(drop.link))
 end
+RollData.SameItem = sameItem
 
 -- Oldest first, so the first of two copies pairs with the first lines.
 local function oldest(test)

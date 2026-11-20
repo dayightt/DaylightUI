@@ -464,6 +464,31 @@ function RollStack.OnUpdate()
     DUI.SafeCall(RollStack.Tick, now())
 end
 
+-- The game's "You won" toast (LOOT_ITEM_ROLL_WON) for a roll a card is showing:
+-- the card already says who won with what, and the toast lands right over it
+-- (the game anchors toasts above its roll popups, which are gone by then).
+-- Dismissed the way the game's own right-click does it. Only roll toasts carry
+-- the need/greed icon, so plain loot keeps its toast.
+function RollStack.WonToast(f)
+    if RollStack.broken or not RollStack.On() then return end
+    if type(f) ~= "table" or f.queue == nil or f.queue ~= _G.LootAlertSystem then return end
+    local icon = f.RollTypeIcon
+    if type(icon) ~= "table" or not icon:IsShown() then return end
+    local held = false
+    for _, card in pairs(cards) do
+        if card.drop and card:IsShown() and Data.SameItem(card.drop, f.hyperlink) then held = true; break end
+    end
+    if not held then return end
+    for _, key in ipairs({ "animIn", "waitAndAnimOut" }) do
+        if type(f[key]) == "table" then f[key]:Stop() end
+    end
+    for _, key in ipairs({ "glow", "shine" }) do
+        local g = f[key]
+        if type(g) == "table" and type(g.animIn) == "table" then g.animIn:Stop() end
+    end
+    f:Hide()
+end
+
 -- After a setting changes or the look repaints.
 function RollStack.Refresh()
     if RollStack.frame then RollStack.Layout() end
@@ -478,6 +503,9 @@ function RollStack.Apply()
         end
     end
     quietAll()
+    if type(_G.AlertFrame_ShowNewAlert) == "function" then
+        hooksecurefunc("AlertFrame_ShowNewAlert", function(f) DUI.SafeCall(RollStack.WonToast, f) end)
+    end
     makeFrame()
     -- Every change shows at once: picks and the winner never wait.
     DUI.On("RollChanged", function() RollStack.Layout() end)

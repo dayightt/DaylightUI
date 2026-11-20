@@ -1,7 +1,8 @@
 -- Ctrl + mouse wheel over a game window scales it, like BlizzMove. Covers every
 -- window in UIPanelWindows, picked up as addons load. Saved per profile by name
--- (windowScales); /dui reset clears them. Out of combat only, since some of
--- these windows hold secure buttons.
+-- (windowScales); /dui reset clears them. The Daylight UI scale (General) goes
+-- on top, so the game's windows match Daylight UI's own. Out of combat only,
+-- since some of these windows hold secure buttons.
 --
 -- Apart from MapMove, this is the only place that writes to the game's windows:
 -- EnableMouseWheel, a HookScript and SetScale. Nothing of theirs is called or
@@ -20,6 +21,7 @@ Scale.SKIP = { WorldMapFrame = true }
 
 local cfg
 local hooked = {}   -- [name] = frame
+local applied = {}  -- [name] = true once its scale was set here
 
 local function scales()
     if not cfg then return nil end
@@ -35,10 +37,22 @@ function Scale.Of(name)
     return math.max(Scale.MIN, math.min(Scale.MAX, v))
 end
 
--- Applies the saved scale. Windows never scaled are left alone.
+-- The Daylight UI scale for a window, unless its unlock handle already gives
+-- it that (the loot window).
+local function masterFor(name)
+    if DUI.Movers.Get("game." .. name) then return 1 end
+    return DUI.Movers.Scale()
+end
+
+-- The saved scale times the Daylight UI scale. A window never scaled, at a
+-- Daylight UI scale of 1, is left alone.
 function Scale.Apply(name)
-    local f, s = hooked[name], Scale.Of(name)
-    if not (f and s) or InCombatLockdown() then return end
+    local f, own = hooked[name], Scale.Of(name)
+    if not f or InCombatLockdown() then return end
+    local master = masterFor(name)
+    if not (own or applied[name]) and math.abs(master - 1) < 0.001 then return end
+    applied[name] = true
+    local s = (own or 1) * master
     if math.abs((f:GetScale() or 1) - s) > 0.001 then
         f:SetScale(s)
         -- A dragged window keeps its top-left corner on its spot.
@@ -54,7 +68,7 @@ end
 function Scale.Wheel(name, delta)
     local f = hooked[name]
     if not (f and cfg) or InCombatLockdown() then return end
-    local v = (Scale.Of(name) or f:GetScale() or 1) + (delta > 0 and Scale.STEP or -Scale.STEP)
+    local v = (Scale.Of(name) or (f:GetScale() or 1) / masterFor(name)) + (delta > 0 and Scale.STEP or -Scale.STEP)
     v = math.floor(math.max(Scale.MIN, math.min(Scale.MAX, v)) / Scale.STEP + 0.5) * Scale.STEP
     scales()[name] = v
     Scale.Apply(name)
@@ -95,19 +109,21 @@ function Scale.Start(c)
             hooksecurefunc("UpdateUIPanelPositions", Scale.ApplyAll)
         end
         DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Scale.Reset
+        -- A new Daylight UI scale reaches the game's windows too.
+        DUI.On("StyleChanged", Scale.ApplyAll)
     end
     Scale.Scan()
     Scale.ApplyAll()
 end
 
--- /dui reset: every window back to the game's scale.
+-- /dui reset: every window back to the Daylight UI scale alone.
 function Scale.Reset()
     local t = scales()
     if not t then return end
     for name in pairs(t) do
         t[name] = nil
         local f = hooked[name]
-        if f and not InCombatLockdown() then f:SetScale(1) end
+        if f and not InCombatLockdown() then f:SetScale(masterFor(name)) end
     end
     -- The loot window uses the master scale, so reapply that instead of 1.
     DUI.Movers.ApplyAll()

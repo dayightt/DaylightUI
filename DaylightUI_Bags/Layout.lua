@@ -1567,7 +1567,13 @@ function Layout.Hold(window)
                 end, "bags:hold:" .. window.kind)
             end
         end
-        local want = (#live > 1 and live[1] == b) and total or nil
+        -- The shown stack carries the whole pile, whichever slot it is. A slot that
+        -- emptied and filled again with the same item (bought back, or loot that
+        -- didn't fit the other stack) stays folded into it, so its count lands here
+        -- or that stack would be on the Shelf nowhere.
+        local shows = false
+        for _, l in ipairs(live) do if l == b then shows = true end end
+        local want = (#live > 1 and shows) and total or nil
         if b.dluiCount ~= want then
             b.dluiCount = want
             bags[bagOf(b)] = true

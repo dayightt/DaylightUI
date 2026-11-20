@@ -188,7 +188,7 @@ Sample.PARTS = {
         "friendly.guildColor", "friendly.guildCustom", "friendly.guildSize",
         "friendly.roleColor", "friendly.roleCustom", "friendly.roleSize" },
       move = NAME_MOVE }, -- hangs off the name, so they move together
-    { label = "Class icon", at = at("classIcon"), keys = { "friendly.classIcon", "friendly.classIconSize" },
+    { label = "Class icon", at = at("classIcon"), keys = { "friendly.classIcon", "friendly.classIconScale" },
       move = NAME_MOVE },
     { label = "Quest mark", at = function(p) return { p.quest, p.questCount } end,
       keys = { "quest", "questCount", "questPos", "questX", "questY" },
@@ -374,6 +374,7 @@ local function paintBar(p, c, u, pct, t)
     -- A plugin's fill (DaylightUI.API's Paint), as on a real plate.
     if Plate.Owned("healthFill") then
         Style.SetBarGradient(bar, false)
+        Style.ClearBarStops(bar)
         bar:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
         if not Plate.Owned("healthBack") then Plate.SetBackColor(bar, r, g, b) end
         Plate.PaintClassLayers(p, nil, nil)
@@ -390,6 +391,7 @@ local function paintBar(p, c, u, pct, t)
         Plate.PaintKindBar(bar, c, kc)
     end
     if c.healthColor == "classGradient" and not onBar and not kc then DUI.Gradients.Paint(bar, u.key) end
+    if c.healthColor == "customGradient" and not onBar and not kc then DUI.Gradients.PaintStops(bar, c.healthGradient) end
     if onBar then Plate.PaintThreatBar(p, c) end
     Plate.PaintClassLayers(p, nil, nil)
 end

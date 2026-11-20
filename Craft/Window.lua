@@ -14,9 +14,10 @@
 -- Works in combat too: nothing in it is protected, so the game's frame stays parked
 -- through a fight and a profession opened then still uses this window.
 --
--- Tabs switch professions with C_TradeSkillUI.OpenTradeSkill, like the game's
--- OpenProfessionUIToSkillLine. Only from a click: it works from a slash command but is
--- blocked from an update.
+-- Tabs switch professions by casting the profession's spell from a secure button
+-- laid over the tab (Craft.TabCaster), as the game's own tabs do. In a fight they
+-- fall back to C_TradeSkillUI.OpenTradeSkill, which needs a click: it works from a
+-- slash command but is blocked from an update.
 
 local _, DUI = ...
 DUI.Craft = DUI.Craft or {}
@@ -236,6 +237,33 @@ function Craft.MakeTabs(f)
     local list = {}
     for _, t in ipairs(tabs) do list[#list + 1] = { id = t.skillLine, text = t.name } end
     Win.Tabs(f, list, Craft.Switch)
+    for i, b in ipairs(f.tabs) do
+        local spellID = tabs[i].spellID
+        b:HookScript("OnEnter", function(self) Craft.TabCaster(f, self, spellID) end)
+    end
+end
+
+-- Out of combat a tab casts its profession's spell through a secure button laid
+-- over it, as the game's own tab does. Herbalism's Gardening and Fishing's Bait and
+-- Tackle open only that way: OpenTradeSkill with their skill line opens nothing.
+-- In a fight the caster is gone and the tab's own click calls OpenTradeSkill.
+Craft.TAB_CASTER = "DaylightUICraftTab"
+function Craft.TabCaster(f, b, spellID)
+    if not Craft.tabCaster then
+        Craft.tabCaster = Win.Caster({ name = Craft.TAB_CASTER,
+            above = function() return f end,
+            enter = function(row) row.Paint(true) end,
+            leave = function(row) row.Paint(false) end,
+            post = function(row, button)
+                if button ~= "LeftButton" or f.tab == row.id then return end
+                Win.PickTab(f, row.id)
+                if DUI.Sound then DUI.Sound.Play("click") end
+            end })
+        f:HookScript("OnHide", function() Craft.tabCaster.Hide() end)
+    end
+    local open = ns.Data.Profession()
+    local attrs = (type(spellID) == "number" and not (open and open.id == b.id)) and { type1 = "spell", spell = spellID } or nil
+    Craft.tabCaster.Over(b, attrs)
 end
 
 -- A tab opens that profession in the game; its window stays up and this one with it.

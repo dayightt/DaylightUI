@@ -25,7 +25,11 @@ local function gameAH()
         if event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
             if not f then
                 f = CreateFrame("Frame", "AuctionHouseFrame", UIParent)
+                f:SetSize(800, 538)   -- Blizzard_AuctionHouseFrame.xml
                 f.CloseButton = CreateFrame("Button", nil, f)
+                -- Blizzard_AuctionHouseSearchBar.lua: SetSearchText is SearchBox:SetText
+                f.SearchBar = CreateFrame("Frame", nil, f)
+                f.SearchBar.SearchBox = CreateFrame("EditBox", nil, f.SearchBar)
                 f:Hide()
                 f:SetScript("OnHide", function() C_AuctionHouse.CloseAuctionHouse() end)
                 stub.FireEvent("ADDON_LOADED", "Blizzard_AuctionHouseUI")
@@ -43,6 +47,9 @@ local function load(opts)
         ruleset = opts.ruleset, prices = opts.prices,
         before = function()
             _G.AuctionHouseFrame = nil
+            if opts.gamePicked then
+                DaylightUIDB = { profileData = { ["DPS/Tank"] = { modules = { AuctionHouse = { enabled = false } } } } }
+            end
             _G.DaylightMogul = opts.mogul and {} or nil
             gameAH()
         end,
@@ -121,6 +128,7 @@ T.test("ah window: the swap icon hands the AH to the game's window, its link bri
     T.truthy(AHW.IsOpen(), "the AH stays open in the game's window")
     T.eq(game():GetParent(), UIParent)
     T.truthy(game():IsShown())
+    T.eq(game():GetWidth(), 800, "the game's own width back, or its lists run past its edge")
     local link = A.swap.link
     T.truthy(link and link:IsShown(), "the game's window has a way back")
     -- the next visit stays the game's
@@ -259,5 +267,50 @@ T.test("ah options: own section, and its buttons clear lists and prices", functi
     T.truthy(A.Store.Min(RKEY, tostring(LINEN)))
     button("Forget every price").func()
     T.isnil(A.Store.Min(RKEY, tostring(LINEN)))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- ChatFrameUtil.InsertLink (Blizzard_ChatFrameBase, Mainline overrides) with no
+-- chat box open: when AuctionHouseFrame:IsVisible() it puts the item's name in
+-- the frame's search box (SetSearchText, Buy mode). Bags and profession
+-- Shift-clicks all come this way.
+local function insertLink(name)
+    local f = game()
+    if not (f and f:IsVisible()) then return false end
+    f.SearchBar.SearchBox:SetText(name)
+    return true
+end
+
+T.test("ah window: a Shift-clicked item is searched on Buy", function()
+    local A = load()
+    AHW.Open()
+    frame(A)
+    A.Window.ShowTab("sell")
+    local searched = {}
+    local submit = A.BuyPage.Submit
+    A.BuyPage.Submit = function(text) searched[#searched + 1] = text end
+    T.truthy(insertLink("Linen Cloth"), "the game's frame counts as visible under the veil")
+    A.BuyPage.Submit = submit
+    T.deq(searched, { "Linen Cloth" })
+    T.eq(A.Window.frame.tab, "buy", "Buy comes up to show it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Logged in with the game's window picked: Daylight UI's was never built, and
+-- the link on the game's window still brings it back.
+T.test("ah window: the link brings ours back after a login with the game's picked", function()
+    local A = load({ gamePicked = true })
+    T.eq(DaylightUI:Get("AuctionHouse", "enabled"), false)
+    AHW.Open()
+    frame(A, 3)
+    T.falsy(A.Window.IsOpen())
+    local link = A.swap.link
+    T.truthy(link and link:IsShown(), "the game's window has a way back")
+    click(link)
+    settle(A)
+    T.eq(DaylightUI:Get("AuctionHouse", "enabled"), true)
+    T.truthy(A.Window.IsOpen(), "ours opens, the AH still open")
+    T.eq(game():GetParent(), veil())
+    T.truthy(AHW.IsOpen())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

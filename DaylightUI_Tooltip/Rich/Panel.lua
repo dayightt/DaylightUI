@@ -34,8 +34,8 @@ Panel.SHRINK_MIN = 0.7  -- a title's longest word may shrink the letters this fa
 Panel.GROW = 1.3       -- a fixed card widens this much at most, for a long tag or tile
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
-Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, spell = 270, cooldown = 200, other = 280 }
-Panel.FIXED = { unit = true, mob = true, node = true, item = true, compare = true, spell = true, cooldown = true }
+Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, spell = 270, other = 280 }
+Panel.FIXED = { unit = true, mob = true, node = true, item = true, compare = true, spell = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.TAG_ROW_GAP = 4  -- between two rows of a header's tags
 Panel.RULE_ALPHA = 0.25
@@ -520,7 +520,8 @@ end
 -- One line that never wraps, cut with "..." at the card's edge, and an
 -- optional smaller tail right after it (a stat's "from Equip").
 function Panel.Line(p, words, color, s, tail, tailColor, tailSize)
-    local item = add(p, { kind = "line" })
+    -- Secret words can't be measured: they get the whole room, cut there.
+    local item = add(p, { kind = "line", secret = isSecret(words) })
     item.fs = text(p, s or Style.SIZE.body, color or Style.INK.TEXT)
     item.fs:SetText(words or "")
     if tail then
@@ -671,16 +672,7 @@ end
 -- wrap).
 local function needed(item)
     local k, w = item.kind, 0
-    if k == "header" then
-        for _, tag in ipairs(item.tags or {}) do
-            tag.FitWidth()
-            w = math.max(w, tag:GetWidth())
-        end
-        if item.sub then
-            local icon = item.icon and ((item.spec.iconSize or 36) + (item.spec.iconGap or 12)) or 0
-            w = math.max(w, icon + widthOf(item.sub))
-        end
-    elseif k == "tiles" then
+    if k == "tiles" then
         w = (#item.list - 1) * Panel.TILE_GAP
         for _, t in ipairs(item.list) do w = w + tileWidth(t) end
     end
@@ -718,7 +710,7 @@ local function alignTags(p)
 end
 
 local function snapTag(p, tag, x, y)
-    tag:SetHeight(math.max(DUI.Pixel.Px(tag, 1), DUI.Pixel.Snap(tag, W().TAG_H)))
+    tag:SetHeight(math.max(DUI.Pixel.Px(tag, 1), DUI.Pixel.Snap(tag, tag:GetHeight())))
     local spot = { tag, x, y }
     p.tagSpots[#p.tagSpots + 1] = spot
     alignTag(p, spot)
@@ -782,28 +774,56 @@ function place.header(p, item, y, inner)
         item.title:SetSpacing(Panel.LINE_SPACING)
         th = 2 * one + Panel.LINE_SPACING
     end
-    -- A sub line longer than the row beside the icon wraps (two lines) rather
-    -- than run past the card.
+    -- Everything under the title has the room right of the icon, the whole way.
+    local wide = inner + padX(p) - x
+    local col = th
     local subH = 0
     if item.sub then
-        subH = lineHeight(item.sub.size, item.sub.slot)
-        local sroom = inner + padX(p) - x
-        if not isSecret(item.spec.sub) and widthOf(item.sub) > sroom + 1 then
-            item.sub:SetWidth(sroom)
+        -- A long sub line ("Companion of ..." in German) wraps onto a second
+        -- line rather than running to the card's edge.
+        local sh = lineHeight(item.sub.size, item.sub.slot)
+        subH = sh
+        if isSecret(item.spec.sub) then
+            item.sub:SetWidth(wide)
+        elseif widthOf(item.sub) > wide + 1 then
+            item.sub:SetWidth(wide)
             item.sub:SetWordWrap(true)
             item.sub:SetMaxLines(2)
             item.sub:SetSpacing(Panel.LINE_SPACING)
-            subH = 2 * subH + Panel.LINE_SPACING
+            subH = 2 * sh + Panel.LINE_SPACING
         end
+        col = col + 2 + subH
     end
-    local col = th
-    if item.sub then col = col + 2 + subH end
     local tagGap = spec.tagGap or 5
+    local rows = {}
+    if item.tags and #item.tags > 0 then
+        -- As many rows as the tags need beside the icon; a tag longer than a
+        -- whole row wraps its own words (W.Tag's FitTo) and its row grows.
+        local tx = 0
+        rows[1] = W().TAG_H
+        for _, tag in ipairs(item.tags) do
+            local tagH = tag.FitTo and tag.FitTo(wide) or W().TAG_H
+            local w = tag:GetWidth()
+            if tx > 0 and tx + w > wide then
+                rows[#rows + 1], tx = W().TAG_H, 0
+            end
+            tag.row, tag.at = #rows, tx
+            rows[#rows] = math.max(rows[#rows], tagH)
+            tx = tx + w + Panel.TAG_GAP
+        end
+        col = col + tagGap
+        for i, rh in ipairs(rows) do col = col + rh + (i > 1 and Panel.TAG_ROW_GAP or 0) end
+    end
     -- Shorter than the icon, the words sit in the middle of its height; taller
     -- (a wrapped name), the icon sits in the middle of theirs.
     local block = math.max(h, col)
     local top = y + (block - col) / 2
-    if item.icon then item.icon:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + (block - h) / 2)) end
+    if item.icon then
+        -- With tags under the words the icon keeps the top; without, it sits in
+        -- the middle of a taller (wrapped) name.
+        local drop = rows[1] and 0 or (block - h) / 2
+        item.icon:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + drop))
+    end
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
@@ -814,21 +834,19 @@ function place.header(p, item, y, inner)
         item.sub:SetPoint("TOPLEFT", p, "TOPLEFT", x, -(ty + 2))
         ty = ty + 2 + subH
     end
-    item.h = block
-    -- The tags go under the icon and the words, across the card's whole inside
-    -- width, in as many rows as they need. One longer than that is cut.
-    if item.tags and #item.tags > 0 then
-        local wy, wx = y + item.h + tagGap, 0
-        for _, tag in ipairs(item.tags) do
-            tag.FitWidth()
-            if tag:GetWidth() > inner then tag.FitWidth(inner) end
-            local w = tag:GetWidth()
-            if wx > 0 and wx + w > inner then wy, wx = wy + W().TAG_H + Panel.TAG_ROW_GAP, 0 end
-            snapTag(p, tag, padX(p) + wx, wy)
-            wx = wx + w + Panel.TAG_GAP
+    if #rows > 0 then
+        local rowY = {}
+        local at = ty + tagGap
+        for i, rh in ipairs(rows) do
+            rowY[i] = at
+            at = at + rh + Panel.TAG_ROW_GAP
         end
-        item.h = wy + W().TAG_H - y
+        for _, tag in ipairs(item.tags) do
+            snapTag(p, tag, x + tag.at, rowY[tag.row])
+        end
+        ty = at - Panel.TAG_ROW_GAP
     end
+    item.h = math.max(block, ty - y)
     return item.h
 end
 
@@ -882,7 +900,7 @@ function place.line(p, item, y, inner)
     local fs, tail = item.fs, item.tail
     fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local room = inner - (tail and (4 + widthOf(tail)) or 0)
-    if widthOf(fs) > room + 1 then fs:SetWidth(math.max(1, room)) end
+    if item.secret or widthOf(fs) > room + 1 then fs:SetWidth(math.max(1, room)) end
     local h = lineHeight(fs.size, fs.slot)
     if tail then
         -- On the line's baseline.

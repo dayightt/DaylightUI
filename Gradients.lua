@@ -438,7 +438,8 @@ end
 -- other side (the target) runs the other way so the two face each other;
 -- only horizontal gradients mirror.
 function Gradients.Paint(bar, key, paintBack, mirror)
-    (paintBack or Style.SetBarColor)(bar, Gradients.Mid(key))
+    Style.ClearBarStops(bar)
+    ;(paintBack or Style.SetBarColor)(bar, Gradients.Mid(key))
     bar:SetStatusBarColor(1, 1, 1, 1)
     local tex = bar:GetStatusBarTexture()
     local lo, hi = Gradients.Colors(key, mirror and Gradients.Orientation() == "HORIZONTAL")
@@ -451,6 +452,53 @@ end
 -- Same, with the pair chosen for the unit.
 function Gradients.PaintUnit(bar, unit, paintBack, mirror)
     Gradients.Paint(bar, Gradients.KeyFor(unit), paintBack, mirror)
+end
+
+-- A bar's own custom gradient: two to five colors the player picks for that
+-- bar (a saved { count, c1 to c5 }, like General's accentGradient), softened
+-- like the pairs. Returns the list of { r, g, b }, or nil when cfg is missing
+-- or broken. The same list comes back until a color, softness or brightness
+-- changes, so a fill painted again with it counts as unchanged.
+local softStops = setmetatable({}, { __mode = "k" })
+
+function Gradients.Stops(cfg)
+    local p = Style.StopsOf(cfg)
+    if not p then return nil end
+    local gen = DUI.DB.General()
+    local e = softStops[p]
+    if e and e.soft == gen.softness and e.bright == gen.brightness then return e.list end
+    local list = {}
+    for i, c in ipairs(p.stops) do list[i] = { Style.Soften(c[1], c[2], c[3]) } end
+    softStops[p] = { soft = gen.softness, bright = gen.brightness, list = list }
+    return list
+end
+
+-- The custom gradient's middle, softened: r, g, b (a name or a back in it).
+function Gradients.StopsMid(cfg)
+    local list = Gradients.Stops(cfg)
+    if not list then return Style.Neutral() end
+    return Style.StopsAt(list, 0.5)
+end
+
+-- Fills a status bar with a bar's own custom gradient, in the gradients'
+-- orientation (or orientation, for a bar turned upright); mirror runs it the
+-- other way (a horizontal one only, as with the pairs). With General >
+-- Gradients off it paints flat at its middle. paintBack as in Gradients.Paint.
+-- A broken cfg paints the fallback pair.
+function Gradients.PaintStops(bar, cfg, paintBack, mirror, orientation)
+    local list = Gradients.Stops(cfg)
+    if not list then
+        Style.ClearBarStops(bar)
+        return Gradients.Paint(bar, "FALLBACK", paintBack, mirror)
+    end
+    local o = orientation or Gradients.Orientation()
+    if Gradients.Flat() then
+        Style.ClearBarStops(bar)
+        local paint = paintBack or Style.SetBarColor
+        paint(bar, Style.StopsAt(list, 0.5))
+        return
+    end
+    Style.PaintBarStops(bar, list, paintBack, o, mirror and o == "HORIZONTAL")
 end
 
 -- A pair built from one color { r, g, b }: a darker shade, then the color
@@ -511,7 +559,8 @@ end
 -- comes from the unit frames' combo settings (cfg; nil uses the defaults,
 -- e.g. with unit frames off). pips: { { bar = StatusBar, full = StatusBar? } }.
 -- colorMode: color (one color), blend (color to fullColor along the row),
--- class, gradient (the COMBO pair on every pip), points (COMBO_<n> each).
+-- class, gradient (the COMBO pair on every pip), points (COMBO_<n> each),
+-- customGradient (cfg.customGradient's colors along the row, each pip its stretch).
 -- fullRed: the last pip fills in fullColor. fullAll: every pip's overlay
 -- (pip.full, spanning the last point) shows it, so the whole row changes
 -- color at max points. empty: brightness of the unfilled part.
@@ -526,11 +575,19 @@ function Gradients.PaintCombo(pips, cfg)
     local red = cfg.fullRed ~= false
     local fr, fg, fb = Style.Soften(full[1], full[2], full[3])
     local n = #pips
+    local own = mode == "customGradient" and Gradients.Stops(cfg.customGradient)
+    if mode == "customGradient" and not own then mode = "gradient" end
     for i, pip in ipairs(pips) do
         local bar = pip.bar
         Style.SetBarGradient(bar, false)
-        local key, r, g, b
-        if mode == "gradient" then
+        Style.ClearBarStops(bar)
+        local key, r, g, b, lo, hi
+        if own then
+            lo = { Style.StopsAt(own, n > 1 and (i - 1) / n or 0) }
+            hi = { Style.StopsAt(own, n > 1 and i / n or 1) }
+            r, g, b = (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2, (lo[3] + hi[3]) / 2
+            if Gradients.Flat() then lo, hi = nil, nil end
+        elseif mode == "gradient" then
             key = "COMBO"
         elseif mode == "points" then
             key = defs["COMBO_" .. i] and ("COMBO_" .. i) or "COMBO"
@@ -548,6 +605,9 @@ function Gradients.PaintCombo(pips, cfg)
             Gradients.Paint(bar, key)
             r, g, b = Gradients.Mid(key)
             pair = { Gradients.Colors(key) }
+        elseif lo and CreateColor then
+            Style.PaintBarStops(bar, { lo, hi }, nil, "HORIZONTAL")
+            pair = { CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1) }
         else
             Style.SetBarColor(bar, r, g, b)
         end

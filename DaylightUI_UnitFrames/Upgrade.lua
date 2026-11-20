@@ -594,6 +594,25 @@ ns.UPGRADE_STEPS[23] = function(uf, _, _, run)
     end
 end
 
+-- 24: the health text got a position, inner end by default. A tall party or
+-- raid tile without the large number kept it in the middle of its bottom
+-- edge, so an older profile with tiles that tall keeps the middle.
+ns.UPGRADE_STEPS[24] = function(uf, _, _, run)
+    if not run or run.from == 0 then return end
+    local look = type(uf.look) == "table" and uf.look.style or nil
+    local tall = (ns.UF and ns.UF.TALL_TILE) or 36
+    for _, id in ipairs({ "party", "raid", "raid20", "raid40" }) do
+        local t = uf[id]
+        if type(t) == "table" and t.healthTextPos == nil then
+            local c = ns.WithDefaults(t, ns.DEFAULTS[id] or {})
+            local style = c.style == "global" and look or c.style
+            if (tonumber(c.height) or 0) >= tall and c.bigNumber ~= true and style ~= "ribbon" then
+                t.healthTextPos = "center"
+            end
+        end
+    end
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 -- Each step also gets this run: from = the last step done before it (0 for a
 -- new profile), picked = settings an earlier step set from the player's own

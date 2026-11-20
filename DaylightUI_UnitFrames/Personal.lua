@@ -415,10 +415,10 @@ end
 -- own layout.
 function PR.ReadColors(h, cfg)
     local f, own = h.paint, ns.frames and ns.frames.player or {}
-    if cfg.colorHealth == "player" then f.healthMode, f.healthCustom = own.healthMode, own.healthCustom
-    else f.healthMode, f.healthCustom = cfg.colorHealth, cfg.colorHealthCustom end
-    if cfg.colorPower == "player" then f.powerMode, f.powerCustom = own.powerMode, own.powerCustom
-    else f.powerMode, f.powerCustom = cfg.colorPower, cfg.colorPowerCustom end
+    if cfg.colorHealth == "player" then f.healthMode, f.healthCustom, f.healthStops = own.healthMode, own.healthCustom, own.healthStops
+    else f.healthMode, f.healthCustom, f.healthStops = cfg.colorHealth, cfg.colorHealthCustom, cfg.colorHealthGradient end
+    if cfg.colorPower == "player" then f.powerMode, f.powerCustom, f.powerStops = own.powerMode, own.powerCustom, own.powerStops
+    else f.powerMode, f.powerCustom, f.powerStops = cfg.colorPower, cfg.colorPowerCustom, cfg.colorPowerGradient end
 end
 
 -- pct: a sample's health. A sample is never dead, and a health-following

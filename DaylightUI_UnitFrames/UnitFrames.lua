@@ -242,7 +242,10 @@ UF.PULSE_TIME = 0.6    -- aggro pulse: half a breath in seconds, bouncing
 UF.PULSE_ALPHA = 0.75  -- its peak alpha
 UF.HALO_ALPHA = 0.9    -- the halo past the ring, at its peak
 UF.HALO_SIZE = 3.1     -- the halo's width, in ring radii
-UF.SQUARE_HALO = 5.0   -- a square's halo image, in half-sides (its shape fills half of it)
+UF.SQUARE_HALO = 3.6   -- a square's halo image, in half-sides (its shape fills half of it)
+-- A square's halo has more edge and corners than a ring's, so it peaks lower
+-- to glow as softly past the band as the round one does.
+UF.SQUARE_HALO_DIM = 0.6
 UF.THREAT_BAND_DIM = 0.45   -- the tab's band, as a fraction of the color
 UF.THREAT_TAG_W = 36        -- the threat tag's width (fits "100%" and its angled end)
 
@@ -1009,6 +1012,21 @@ function UF.PlaceText(fs, p, rel, rp, x, y, nx, ny)
     fs:SetPoint(p, rel, rp, x + (tonumber(nx) or 0), y + (tonumber(ny) or 0))
 end
 
+-- Where a frame's health text sits along its bar (healthTextPos inner |
+-- center | outer). Returns the anchor's side ("LEFT", "RIGHT" or "" for the
+-- middle), the direction that points inward from it, and a function giving
+-- the room the angled end needs there (only the inner end is angled).
+function UF.HealthTextSpot(f, cfg)
+    local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
+    local outer = inner == "LEFT" and "RIGHT" or "LEFT"
+    local pos = cfg.healthTextPos
+    if pos == "center" then return "", 0, function() return 0 end end
+    local h = pos == "outer" and outer or inner
+    local dir = h == "LEFT" and 1 or -1
+    if h == outer then return h, dir, function() return 0 end end
+    return h, dir, function(cut) return cut or 0 end
+end
+
 -- The nine spots a tile icon can sit in (role, marker, leader, dispel). sx/sy
 -- point inward from that spot, so one padding insets any of them.
 UF.ICON_SPOTS = {
@@ -1058,6 +1076,8 @@ function UF.SetTileName(f, cfg, text)
     f.tileName = {
         cutPad = cut,
         showPercent = cfg.showPercent == true,
+        -- The health text at the outer end hands the name the inner half.
+        healthOuter = cfg.healthTextPos == "outer",
         x = tonumber(cfg.nameX) or 0, y = tonumber(cfg.nameY) or 0,
         justify = (f.spec.group and UF.NAME_ALIGN[cfg.nameAlign]) or "CENTER",
         -- "bar": across the bar (above). Otherwise a Spots spot (namePos). A
@@ -1225,10 +1245,13 @@ function UF.PlaceTileName(f)
     local leftPad = 3 + (f.spec.slant == "left" and t.cutPad or 0)
     local rightPad = 3 + (f.spec.slant == "right" and t.cutPad or 0)
     -- Target of target and pet: clear of the health text, when it's shown.
-    if not f.spec.group and t.showPercent then rightPad = rightPad + 26 end
+    local textLeft = (f.spec.slant == "left") ~= (t.healthOuter == true)
+    if not f.spec.group and t.showPercent then
+        if t.healthOuter and textLeft then leftPad = leftPad + 26 else rightPad = rightPad + 26 end
+    end
     if t.outerHalf then
         local half = f:GetWidth() * 0.5
-        if f.spec.slant == "left" then leftPad = math.max(leftPad, half)
+        if textLeft then leftPad = math.max(leftPad, half)
         else rightPad = math.max(rightPad, half) end
     end
     local top = f.tallTile and -3 or 0
@@ -1631,38 +1654,37 @@ function UF.Layout(f, cfg, text, keepSize)
     f.percentColorMode, f.percentCustom = cfg.percentColor, cfg.percentCustom
     f.nameLimitLen = cfg.nameLimitLen
     -- Its own bar colors ("global" or nil uses the Colors page, Colors.lua).
-    f.healthMode, f.healthCustom = cfg.colorHealth, cfg.colorHealthCustom
-    f.powerMode, f.powerCustom = cfg.colorPower, cfg.colorPowerCustom
+    f.healthMode, f.healthCustom, f.healthStops = cfg.colorHealth, cfg.colorHealthCustom, cfg.colorHealthGradient
+    f.powerMode, f.powerCustom, f.powerStops = cfg.colorPower, cfg.colorPowerCustom, cfg.colorPowerGradient
     UF.PaintPercent(f)
-    -- Either size sits at the frame's inner end, clear of the angled edge.
-    local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
-    local dir = inner == "LEFT" and 1 or -1
+    -- Either size sits at the end healthTextPos picks: the inner end (clear of
+    -- the angled edge), the middle, or the outer end. The nudges go on top.
+    local h, dir, pad = UF.HealthTextSpot(f, cfg)
     local nx, ny = cfg.healthTextX, cfg.healthTextY
-    -- With a name row: on the row above the bar at its inner end (bigger with
-    -- the large number), sliding in with the row.
+    -- With a name row: on the row above the bar (bigger with the large
+    -- number), sliding in with the row.
     f.percentText:SetParent((f.nameRow and f.tab) or f.overlay)
     if f.nameRow and f.tab then
         Style.SetTextSize(f.percentText, f.bigNumber and text.big or text.percent)
-        UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.tab, "BOTTOM" .. inner, dir * UF.ROW_NUMBER_INSET,
+        UF.PlaceText(f.percentText, "BOTTOM" .. h, f.tab, "BOTTOM" .. h, dir * UF.ROW_NUMBER_INSET,
             UF.ROW_TEXT_LIFT, nx, ny)
-        f.percentText:SetJustifyH(inner)
     elseif f.backdropOn then
-        -- On the art at its inner bottom corner, just over the health strip.
+        -- On the art at its bottom, just over the health strip.
         Style.SetTextSize(f.percentText, f.bigNumber and text.big or text.percent)
-        UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.health, "TOP" .. inner, (cut + UF.BIG_NUMBER_INSET) * dir,
+        UF.PlaceText(f.percentText, "BOTTOM" .. h, f.health, "TOP" .. h, dir * (pad(cut) + UF.BIG_NUMBER_INSET),
             UF.CARD_TEXT_LIFT, nx, ny)
-        f.percentText:SetJustifyH(inner)
     elseif f.bigNumber then
         Style.SetTextSize(f.percentText, text.big)
-        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + UF.BIG_NUMBER_INSET) * dir, -UF.BIG_NUMBER_DROP, nx, ny)
-        f.percentText:SetJustifyH(inner)
+        UF.PlaceText(f.percentText, h == "" and "CENTER" or h, f.health, h == "" and "CENTER" or h,
+            dir * (pad(cut) + UF.BIG_NUMBER_INSET), -UF.BIG_NUMBER_DROP, nx, ny)
     elseif f.tallTile then
-        UF.PlaceText(f.percentText, "BOTTOM", f.health, "BOTTOM", 0, 3, nx, ny)
-        f.percentText:SetJustifyH("CENTER")
+        -- Along the bottom, under the name along the top.
+        UF.PlaceText(f.percentText, "BOTTOM" .. h, f.health, "BOTTOM" .. h, dir * (pad(cut) + 3), 3, nx, ny)
     else
-        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + 4) * dir, 0, nx, ny)
-        f.percentText:SetJustifyH(inner)
+        UF.PlaceText(f.percentText, h == "" and "CENTER" or h, f.health, h == "" and "CENTER" or h,
+            dir * (pad(cut) + 4), 0, nx, ny)
     end
+    f.percentText:SetJustifyH(h == "" and "CENTER" or h)
     f.percentText:SetShown(cfg.showPercent == true)
 
     UF.LayoutPortrait(f, cfg)
@@ -1955,6 +1977,8 @@ function UF.CreatePortrait(f)
     h:SetSmoothing("IN_OUT")
     haloAnim:SetLooping("BOUNCE")
     p.haloAnim = haloAnim
+    p.haloFade = h
+    p.haloPeak = UF.HALO_ALPHA
     p.pulseHold:Hide()
     makeFill(p)
     p:Hide()
@@ -2115,6 +2139,7 @@ function UF.LayoutPortrait(f, cfg)
         end
         p.shadow:SetSize(4.2 * half, 4.2 * half)
         p.halo:SetSize(UF.SQUARE_HALO * half, UF.SQUARE_HALO * half)
+        p.haloPeak = UF.HALO_ALPHA * UF.SQUARE_HALO_DIM
         -- A model can't be masked: it fills the opening's straight part, its
         -- edges under the band. Angled trims the tucked-in corner's side.
         local trim = shapeArt == "square" and 0 or UF.SQUARE_LEAN * box
@@ -2129,6 +2154,7 @@ function UF.LayoutPortrait(f, cfg)
         p.halo:SetTexture(DUI.MEDIA .. "crest-glow.png")
         p.shadow:SetSize(2.6 * R, 2.6 * R)
         p.halo:SetSize(UF.HALO_SIZE * R, UF.HALO_SIZE * R)
+        p.haloPeak = UF.HALO_ALPHA
         p.disc:SetSize(2 * inner + 2, 2 * inner + 2)
         if socket then
             local back = 2 * math.max(0, R - ns.Socket.Inset(f))
@@ -3110,6 +3136,7 @@ function UF.Pulse(p, on)
     else
         local red = UF.THREAT_COLORS.aggro
         p.halo:SetVertexColor(red[1], red[2], red[3], 1)
+        p.haloFade:SetToAlpha(p.haloPeak or UF.HALO_ALPHA)
         p.halo:Show()
     end
     local red = UF.THREAT_COLORS.aggro
@@ -3928,7 +3955,9 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
     local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
     local pad = endPad or ((side and cut * (ph + Pixel.Px(f, 2)) / H or 0) + 4)
     -- Under the big health number, it lines up with it.
-    if not free and cfg.bigNumber == true and cfg.showPercent == true then pad = (cut or 0) + UF.BIG_NUMBER_INSET end
+    if not free and cfg.bigNumber == true and cfg.showPercent == true and (cfg.healthTextPos or "inner") == "inner" then
+        pad = (cut or 0) + UF.BIG_NUMBER_INSET
+    end
     local pos = cfg.powerTextPos or "inner"
     local nx, ny = cfg.powerTextX, cfg.powerTextY
     f.powerText:ClearAllPoints()

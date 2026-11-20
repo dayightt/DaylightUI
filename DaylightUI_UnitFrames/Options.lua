@@ -63,8 +63,13 @@ end
 
 -- The cast bars' and swing timer's Fill style. Its flat colors show with
 -- "plain"; with "pair" the bars take their pairs from the Gradients page.
-local FILL_STYLES = { plain = "One color", daylight = "Daylight gradient", pair = "Two-color gradient" }
-local FILL_ORDER = { "plain", "daylight", "pair" }
+local FILL_STYLES = { plain = "One color", daylight = "Daylight gradient", pair = "Two-color gradient",
+    customGradient = "Custom gradient" }
+local FILL_ORDER = { "plain", "daylight", "pair", "customGradient" }
+-- Class color has no place in a fill that's one gradient for everything.
+local function noClassFill(key)
+    return function(get) return get(key) == "daylight" or get(key) == "customGradient" end
+end
 local function fillIs(key, v) return function(get) return get(key) == v end end
 local function fillIsNot(key, v) return function(get) return get(key) ~= v end end
 
@@ -453,7 +458,7 @@ end
 local TEXT_ORDER = {
     showName = 10, lastNames = 11, nameOnBar = 12, namePos = 13, nameAlign = 14, nameTag = 15, nameX = 16, nameY = 17,
     nameColor = 18, nameCustom = 19, nameLimitLen = 20, ["media.nameFont"] = 21, ["size.name"] = 22,
-    showPercent = 30, healthText = 31, percentSign = 32, hideFullHealth = 33, percentColor = 34, percentCustom = 35,
+    showPercent = 30, healthText = 31, percentSign = 32, hideFullHealth = 33, healthTextPos = 33, percentColor = 34, percentCustom = 35,
     ["media.healthFont"] = 36, ["size.percent"] = 37, bigNumber = 38, ["size.big"] = 39, healthTextX = 40, healthTextY = 41,
     showPowerText = 50, powerFormat = 51, powerPercentSign = 52, hideFullPower = 53, powerTextPos = 54,
     ["media.powerFont"] = 55, ["size.power"] = 56, powerTextX = 57, powerTextY = 58,
@@ -1233,20 +1238,28 @@ end
 -- A frame's own bar colors (<frame>.colorHealth / colorPower), each next to its
 -- bar's rows. "global" follows the Look page.
 local HEALTH_COLORS = { global = "Same as the Look page", class = "Class and reaction", classGradient = "Class gradient",
-    gradient = "By health (green to red)", custom = "One color", dark = "Dark (missing health colored)" }
-local HEALTH_COLOR_ORDER = { "global", "class", "classGradient", "gradient", "custom", "dark" }
+    gradient = "By health (green to red)", custom = "One color", customGradient = "Custom gradient",
+    dark = "Dark (missing health colored)" }
+local HEALTH_COLOR_ORDER = { "global", "class", "classGradient", "gradient", "custom", "customGradient", "dark" }
 -- Your own frame can also take the Daylight gradient or your accent.
 local PLAYER_HEALTH_COLORS = { daylight = "Daylight gradient", accent = "Accent color" }
 local PLAYER_HEALTH_ORDER = { "global", "daylight", "accent" }
 for k, v in pairs(HEALTH_COLORS) do PLAYER_HEALTH_COLORS[k] = v end
 for i = 2, #HEALTH_COLOR_ORDER do PLAYER_HEALTH_ORDER[#PLAYER_HEALTH_ORDER + 1] = HEALTH_COLOR_ORDER[i] end
 local POWER_COLORS = { global = "Same as the Look page", type = "By power type", gradient = "Power gradient",
-    custom = "One color" }
-local POWER_COLOR_ORDER = { "global", "type", "gradient", "custom" }
+    custom = "One color", customGradient = "Custom gradient" }
+local POWER_COLOR_ORDER = { "global", "type", "gradient", "custom", "customGradient" }
+
+-- The color rows of a bar's custom gradient, shown while its color menu (key)
+-- is on Custom gradient.
+local function stopsRows(key, menu, what, bar, dis)
+    return DaylightUI.Options.StopsRows(key, { what = what, bar = bar, disabled = dis, since = "2.2",
+        shown = function(get) return get(menu) == "customGradient" end })
+end
 
 local function healthColorRows(id, dis)
     local k = function(s) return id .. "." .. s end
-    return {
+    return DaylightUI.Options.Join({
         { type = "dropdown", key = k("colorHealth"), label = "Health bar color",
           values = id == "player" and PLAYER_HEALTH_COLORS or HEALTH_COLORS,
           order = id == "player" and PLAYER_HEALTH_ORDER or HEALTH_COLOR_ORDER, disabled = dis,
@@ -1256,19 +1269,19 @@ local function healthColorRows(id, dis)
         { type = "color", key = k("colorHealthCustom"), label = "Custom health color", disabled = dis,
           desc = "The health bar's color when Health bar color is One color.",
           hidden = notCustom(k("colorHealth")) },
-    }
+    }, stopsRows(k("colorHealthGradient"), k("colorHealth"), "health", "the health bar", dis))
 end
 
 local function powerColorRows(id, dis)
     local k = function(s) return id .. "." .. s end
-    return {
+    return DaylightUI.Options.Join({
         { type = "dropdown", key = k("colorPower"), label = "Power bar color", values = POWER_COLORS,
           order = POWER_COLOR_ORDER, disabled = dis,
           desc = "This frame's own power color. Same as the Look page follows the color every frame shares." },
         { type = "color", key = k("colorPowerCustom"), label = "Custom power color", disabled = dis,
           desc = "The power bar's color when Power bar color is One color.",
           hidden = notCustom(k("colorPower")) },
-    }
+    }, stopsRows(k("colorPowerGradient"), k("colorPower"), "power", "the power bar", dis))
 end
 
 -- The empty part of one bar on this frame (bar "Health" or "Power"): its own
@@ -1318,7 +1331,7 @@ local function personalBarRows(bar, dis)
                 desc = "The bar's own color, so it can look unlike your player frame. Same as the Look page follows the color every frame shares." }
     rows[4] = { type = "color", key = mode .. "Custom", label = "Custom " .. bar .. " color", disabled = dis,
                 desc = "The bar's color when it's set to One color.", hidden = notCustom(mode) }
-    return rows
+    return DaylightUI.Options.Join(rows, stopsRows(mode .. "Gradient", mode, bar, "the " .. bar .. " bar", dis))
 end
 local PERSONAL_HEALTH = personalBarRows("health", offAny("personal.enabled", "personal.showHealth"))
 local PERSONAL_POWER = personalBarRows("power", offAny("personal.enabled", "personal.showPower"))
@@ -1474,6 +1487,9 @@ local function petCard()
           desc = "Shows each pet's health as text.", disabled = petOff },
         { type = "dropdown", key = p("healthText"), label = "Pet health text format",
           values = UF.HEALTH_FORMATS, order = UF.HEALTH_FORMAT_ORDER, desc = "How the pets' health text is written.",
+          disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
+        { type = "dropdown", key = p("healthTextPos"), label = "Pet health text position",
+          values = UF.POWER_TEXT_POS, order = UF.POWER_TEXT_POS_ORDER, desc = "Where along each pet's bar the health text sits.",
           disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
         { type = "slider", key = "partyPetText.percent", label = "Pet health text size", min = 6, max = 24, step = 1,
           desc = "How big the pets' health text is.", disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
@@ -1933,6 +1949,10 @@ local function framePage(id, label, desc, opts)
         text[#text + 1] = { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
             desc = "The health text shows at full health too. When off, it disappears while the unit is at full.",
             disabled = offAny(k("enabled"), k("showPercent")) }
+        text[#text + 1] = { type = "dropdown", key = k("healthTextPos"), label = "Health text position",
+            values = UF.POWER_TEXT_POS, order = UF.POWER_TEXT_POS_ORDER,
+            desc = "Where along the health bar the health text sits. The left / right nudge moves it from there.",
+            disabled = offAny(k("enabled"), k("showPercent")) }
     end
     if opts.healthText then
         text[#text + 1] = { type = "dropdown", key = k("percentColor"), label = "Health text color",
@@ -1946,7 +1966,7 @@ local function framePage(id, label, desc, opts)
     end
     if opts.big then
         text[#text + 1] = { type = "toggle", key = k("bigNumber"), label = "Large health number",
-            desc = "Shows the health text large in the frame's inner corner (in Ribbon, at the inner end of the row above the bar), in the Health text color.",
+            desc = "Shows the health text large, in the Health text color, at the end Health text position picks (in Ribbon, on the row above the bar).",
             disabled = offAny(k("enabled"), k("showPercent")) }
     end
     if opts.power then
@@ -2519,6 +2539,10 @@ local function raidPage(size)
             { type = "toggle", key = "raid.percentSign", label = "Health text % sign",
               desc = "62% rather than 62, when the health text shows a percent.",
               disabled = signOff(offAny("raid.enabled", "raid.showPercent"), "raid.healthText") },
+            { type = "dropdown", key = "raid.healthTextPos", label = "Health text position",
+              values = UF.POWER_TEXT_POS, order = UF.POWER_TEXT_POS_ORDER,
+              desc = "Where along each tile the health text sits. The left / right nudge moves it from there.",
+              disabled = offAny("raid.enabled", "raid.showPercent") },
             fontRow("raid.media.healthFont", "Health text font", "The raid tiles' health text", offAny("raid.enabled", "raid.showPercent")),
             { type = "slider", key = "raidText.name", label = "Name size", min = 6, max = 20, step = 1,
               desc = "How big the names on the tiles are.", disabled = off("raid.enabled") },
@@ -2767,17 +2791,21 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "look.slant", label = "Slant angle", min = 0.05, max = 0.4, step = 0.01, unit = "%",
               desc = "How far the frames' angled ends lean, on every unit frame and cast bar. 21% is the usual look." },
         } },
-        { label = "Health and names", items = {
+        { label = "Health and names", items = DaylightUI.Options.Join({
             { type = "dropdown", key = "colors.health", label = "Health bar color",
               values = { class = "Class and reaction", classGradient = "Class gradient", gradient = "By health (green to red)",
-                         custom = "One color", dark = "Dark (missing health colored)" },
-              order = { "class", "classGradient", "gradient", "custom", "dark" },
+                         custom = "One color", customGradient = "Custom gradient", dark = "Dark (missing health colored)" },
+              order = { "class", "classGradient", "gradient", "custom", "customGradient", "dark" },
               desc = "Class and reaction: players by class color, others by friendly, neutral or hostile. Dark: a near-black bar with the missing health in the class or reaction color." },
             { type = "color", key = "colors.healthColor", label = "Custom health color",
               desc = "Every health bar's color when Health bar color is One color.", disabled = function(get) return get("colors.health") ~= "custom" end },
+        }, stopsRows("colors.healthGradient", "colors.health", "health", "every health bar"), {
             { type = "toggle", key = "colors.mirrorGradient", label = "Mirror the target's gradient",
-              desc = "The target's and target of target's class and power gradients run the other way, so they mirror yours. Only for a horizontal gradient.",
-              disabled = function(get) return get("colors.health") ~= "classGradient" and get("colors.power") ~= "gradient" end },
+              desc = "The target's and target of target's health and power gradients run the other way, so they mirror yours. Only for a horizontal gradient.",
+              disabled = function(get)
+                  local h, p = get("colors.health"), get("colors.power")
+                  return h ~= "classGradient" and h ~= "customGradient" and p ~= "gradient" and p ~= "customGradient"
+              end },
             { type = "slider", key = "colors.backBrightness", label = "Bar background brightness", min = 0, max = 1,
               step = 0.05, unit = "%", desc = "How much color the empty part of every health and power bar keeps. Lower is darker.",
               disabled = function(get) return get("colors.backMode") == "custom" end },
@@ -2795,7 +2823,7 @@ ns.OPTIONS = { pages = {
               values = { white = "White", class = "Class and reaction", classGradient = "Class gradient" },
               order = { "white", "class", "classGradient" },
               desc = "The names on every unit frame, unless a frame picks its own. Class and reaction: players by class color, others by friendly, neutral or hostile." },
-        } },
+        }) },
         { label = "Dead, offline and NPCs", desc = "The bar's color for dead and offline players and tapped NPCs, and for NPCs by how they feel about you. The NPC colors show with Class and reaction or Dark; Class gradient uses the pairs on General > Gradients.", items = {
             { type = "color", key = "colors.dead", label = "Dead", desc = "The health bar's color for a dead unit." },
             { type = "color", key = "colors.offline", label = "Offline", desc = "The health bar's color for a player who went offline." },
@@ -2811,14 +2839,14 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "colors.dispelDisease", label = "Disease", desc = "The color of a Disease debuff's border and dispel icon." },
             { type = "color", key = "colors.dispelPoison", label = "Poison", desc = "The color of a Poison debuff's border and dispel icon." },
         } },
-        { label = "Power", items = {
+        { label = "Power", items = DaylightUI.Options.Join({
             { type = "dropdown", key = "colors.power", label = "Power bar color",
-              values = { type = "By power type", gradient = "Power gradient", custom = "One color" },
-              order = { "type", "gradient", "custom" },
+              values = { type = "By power type", gradient = "Power gradient", custom = "One color", customGradient = "Custom gradient" },
+              order = { "type", "gradient", "custom", "customGradient" },
               desc = "Power gradient: each power type's pair from the Gradients page (mana, rage, energy, focus)." },
             { type = "color", key = "colors.powerColor", label = "Custom power color",
               desc = "Every power bar's color when Power bar color is One color.", disabled = function(get) return get("colors.power") ~= "custom" end },
-        } },
+        }, stopsRows("colors.powerGradient", "colors.power", "power", "every power bar")) },
         { label = "Aggro", desc = "The ring (or name tab, or raid tile) that turns red while something is attacking the unit; an elite's dragon keeps its color, its eyes catch fire.", items = {
             { type = "dropdown", key = "colors.threat", label = "Aggro color",
               values = { health = "Same as Hostile", custom = "One color" }, order = { "health", "custom" },
@@ -2880,7 +2908,7 @@ ns.OPTIONS = { pages = {
         } }),
         { label = "Cast bar fill", items = {
             { type = "dropdown", key = "casts.fill", label = "Cast bar fill style", values = FILL_STYLES, order = FILL_ORDER,
-              desc = "How every cast bar (yours, target's, focus's and party's) is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per kind of cast, set on the Gradients page." },
+              desc = "How every cast bar (yours, target's, focus's and party's) is filled: one color each, the Daylight gradient (the logo's blue to orange), a two-color gradient per kind of cast (set on the Gradients page), or a gradient in colors you pick." },
             { type = "toggle", key = "casts.flash", label = "Show interrupts",
               desc = "When a cast is interrupted, the bar stays full for a moment and says Interrupted." },
             { type = "button", label = "Cast bar gradients", text = "Edit",
@@ -2888,10 +2916,10 @@ ns.OPTIONS = { pages = {
               hidden = fillIsNot("casts.fill", "pair"),
               func = function() DaylightUI.OptionsPanel.Show("gradients") end },
         } },
-        { label = "Your cast bar's colors", items = {
+        { label = "Your cast bar's colors", items = DaylightUI.Options.Join({
             { type = "toggle", key = "casts.classColor", label = "Class color on your cast bar",
-              desc = "Your casts and channels in your class color, or your class's gradient with a two-color fill. Not with the Daylight gradient.",
-              disabled = fillIs("casts.fill", "daylight") },
+              desc = "Your casts and channels in your class color, or your class's gradient with a two-color fill. Not with the Daylight gradient or a custom gradient.",
+              disabled = noClassFill("casts.fill") },
             { type = "color", key = "casts.cast", label = "Casting color", hidden = fillIsNot("casts.fill", "plain"),
               desc = "Your cast bar's color while you cast." },
             { type = "color", key = "casts.channel", label = "Channeling color", hidden = fillIsNot("casts.fill", "plain"),
@@ -2901,11 +2929,11 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("casts.flash") ~= true end },
             { type = "color", key = "casts.locked", label = "Can't be interrupted", hidden = fillIs("casts.fill", "pair"),
               desc = "The bar's color while the cast can't be interrupted." },
-        } },
-        { label = "Other cast bars' colors", items = {
+        }, stopsRows("casts.customGradient", "casts.fill", "cast bar", "your cast bar")) },
+        { label = "Other cast bars' colors", items = DaylightUI.Options.Join({
             { type = "toggle", key = "targetCasts.classColor", label = "Class color on other cast bars",
-              desc = "A player's casts in their class color, or their class's gradient with a two-color fill. Creatures' casts keep the fill style. Not with the Daylight gradient.",
-              disabled = fillIs("casts.fill", "daylight") },
+              desc = "A player's casts in their class color, or their class's gradient with a two-color fill. Creatures' casts keep the fill style. Not with the Daylight gradient or a custom gradient.",
+              disabled = noClassFill("casts.fill") },
             { type = "color", key = "targetCasts.cast", label = "Casting color", hidden = fillIsNot("casts.fill", "plain"),
               desc = "The target, focus and party cast bars' color while they cast." },
             { type = "color", key = "targetCasts.channel", label = "Channeling color", hidden = fillIsNot("casts.fill", "plain"),
@@ -2915,7 +2943,7 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("casts.flash") ~= true end },
             { type = "color", key = "targetCasts.locked", label = "Can't be interrupted", hidden = fillIs("casts.fill", "pair"),
               desc = "The bar's color while the cast can't be interrupted." },
-        } },
+        }, stopsRows("targetCasts.customGradient", "casts.fill", "target cast bar", "the target, focus and party cast bars")) },
         { label = "Interrupts", items = {
             { type = "toggle", key = "casts.kickMark", label = "Interrupt ready mark", since = "1.7.2",
               desc = "While your interrupt is on cooldown, a thin line on an enemy target's or focus's cast bar shows where it comes back. No line: it's ready now, or it won't be back before the cast ends." },
@@ -3010,13 +3038,13 @@ ns.OPTIONS = { pages = {
               disabled = off("swing.enabled") },
         } },
         swingBarCard(),
-        { label = "Colors", items = {
+        { label = "Colors", items = DaylightUI.Options.Join({
             { type = "dropdown", key = "swing.fill", label = "Swing timer fill style", values = FILL_STYLES, order = FILL_ORDER,
-              desc = "How each hand's bar is filled: one color each, the Daylight gradient (the logo's blue to orange), or a two-color gradient per hand, set on the Gradients page. A queued attack always keeps its own color.",
+              desc = "How each hand's bar is filled: one color each, the Daylight gradient (the logo's blue to orange), a two-color gradient per hand (set on the Gradients page), or a gradient in colors you pick. A queued attack always keeps its own color.",
               disabled = off("swing.enabled") },
             { type = "toggle", key = "swing.classColor", label = "Class color on the swing timer",
-              desc = "Every hand's bar in your class color, or your class's gradient with a two-color fill. A queued attack keeps its own color. Not with the Daylight gradient.",
-              disabled = function(get) return get("swing.enabled") ~= true or get("swing.fill") == "daylight" end },
+              desc = "Every hand's bar in your class color, or your class's gradient with a two-color fill. A queued attack keeps its own color. Not with the Daylight gradient or a custom gradient.",
+              disabled = function(get) return get("swing.enabled") ~= true or noClassFill("swing.fill")(get) end },
             { type = "color", key = "swing.colors.main", label = "Main hand color", hidden = fillIsNot("swing.fill", "plain"),
               desc = "The main hand bar's color.",
               disabled = function(get) return get("swing.enabled") ~= true or get("swing.classColor") == true end },
@@ -3032,7 +3060,7 @@ ns.OPTIONS = { pages = {
               desc = "Opens the Gradients page, where the Swing timers pairs are.",
               hidden = fillIsNot("swing.fill", "pair"),
               func = function() DaylightUI.OptionsPanel.Show("gradients") end },
-        } },
+        }, stopsRows("swing.customGradient", "swing.fill", "swing timer", "the swing timer bars", off("swing.enabled"))) },
     } },
 
     { id = "personal", label = "Personal Display", preview = { "personal" },
@@ -3123,7 +3151,7 @@ ns.OPTIONS = { pages = {
     } },
 
     { id = "extras", label = "Combo Points & Range", desc = "Combo points for rogues and druids, and how frames fade out of range.", groups = {
-        { label = "Combo points", desc = "For rogues, and druids in cat form. Small pips on your target or player frame.", items = {
+        { label = "Combo points", desc = "For rogues, and druids in cat form. Small pips on your target or player frame.", items = DaylightUI.Options.Join({
             { type = "toggle", key = "combo.enabled", label = "Show combo points",
               desc = "Replaces the game's own combo points." },
             { type = "dropdown", key = "combo.anchor", label = "Attach to",
@@ -3158,10 +3186,11 @@ ns.OPTIONS = { pages = {
               desc = "Each pip leans like the frames' angled ends. When off, their ends are straight.", disabled = off("combo.enabled") },
             { type = "dropdown", key = "combo.colorMode", label = "Combo point colors",
               values = { color = "One color", blend = "Color to full color", class = "Class color",
-                         gradient = "One gradient", points = "A gradient per point" },
-              order = { "color", "blend", "class", "gradient", "points" },
-              desc = "One color on every pip; colors shading from Combo point color to Full color along the row; your class color; or two-color pairs from the Gradients page (Combo points), one for all pips or one each. Your nameplates' combo points use the same colors.",
+                         gradient = "One gradient", points = "A gradient per point", customGradient = "Custom gradient" },
+              order = { "color", "blend", "class", "gradient", "points", "customGradient" },
+              desc = "One color on every pip; colors shading from Combo point color to Full color along the row; your class color; two-color pairs from the Gradients page (Combo points), one for all pips or one each; or colors you pick, running along the row. Your nameplates' combo points use the same colors.",
               disabled = off("combo.enabled") },
+        }, stopsRows("combo.customGradient", "combo.colorMode", "combo point", "the row of combo points", off("combo.enabled")), {
             { type = "color", key = "combo.color", label = "Combo point color",
               desc = "The pips' color with One color, or the color they start from with Color to full color.",
               hidden = function(get) local m = get("combo.colorMode"); return m ~= "color" and m ~= "blend" end,
@@ -3184,7 +3213,7 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "combo.empty", label = "Empty pip brightness", min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How bright the pips you haven't filled are, as a share of their color. Lower makes the filled ones stand out more.",
               disabled = off("combo.enabled") },
-        } },
+        }) },
         { label = "Range fade", desc = "Dims units that are out of reach: target, focus, their targets, party, party targets, raid and PvP frames. Your group by your heal, anyone else by the spell you pick.", items = {
             { type = "toggle", key = "range.enabled", label = "Fade when out of range",
               desc = "Your group fades by your heal's range, or the game's own check without one. Anyone else fades only with a range spell picked below." },

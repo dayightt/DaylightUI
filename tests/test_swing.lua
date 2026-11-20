@@ -961,3 +961,18 @@ T.test("swing: shown always, the bars leave with the unit frames at a campfire a
     T.eq(r.off.pod:GetAlpha(), 1, "back")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("swing timer: a custom gradient on every hand; a queued attack keeps its own color", function()
+    local DUI, ns = login()
+    DaylightUI:Set("UnitFrames", "swing.fill", "customGradient")
+    stub.RunTimers()
+    local main = rows(ns.swing).main
+    local tex = main.bar:GetStatusBarTexture()
+    T.eq(#DUI.Style.FillStops(tex), 3, "every color of the gradient")
+    stub.swing.current["Heroic Strike"] = true
+    stub.FireEvent("ACTIONBAR_UPDATE_STATE")
+    T.isnil(DUI.Style.FillStops(tex), "queued: its own color")
+    stub.swing.current["Heroic Strike"] = nil
+    stub.FireEvent("ACTIONBAR_UPDATE_STATE")
+    T.eq(#DUI.Style.FillStops(tex), 3, "and back")
+end)

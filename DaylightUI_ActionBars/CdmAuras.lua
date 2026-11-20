@@ -1309,13 +1309,24 @@ function A.Retarget()
     end)
 end
 
--- Spells changed, so ranks may have too.
+local function sameIDs(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return false end
+    for k in pairs(a) do if not b[k] then return false end end
+    for k in pairs(b) do if not a[k] then return false end end
+    return true
+end
+
+-- Spells changed, so ranks may have too. SPELLS_CHANGED comes often, and new
+-- filters make the client hand every button its aura again, which replays the
+-- slide-in, so they're only sent when the ids really changed.
 function A.Rebuild()
     each(function(h)
         if h.watch then
             h.ids = A.SpellIDs(h.id)
         elseif not InCombatLockdown() and h.containers and h.id then
-            h.ids = A.SpellIDs(h.id)
+            local ids = A.SpellIDs(h.id)
+            if sameIDs(ids, h.ids) then return end
+            h.ids = ids
             for _, k in ipairs(h.containers) do
                 local filters = { includeSpellIDs = h.ids }
                 if k.selfDebuff then filters = select(2, A.SelfDebuffGroup(h.id, h.ids)) end

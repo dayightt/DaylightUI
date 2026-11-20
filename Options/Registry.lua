@@ -707,6 +707,47 @@ local function pickName(kind, key)
 end
 local GENERAL_KEY = { font = "font", bar = "barTexture", back = "barBack" }
 
+-- The rows of a custom gradient, the colors a bar (or the accent) runs through:
+-- how many, then each color, a row per color shown only while counted. key is
+-- the saved { count, c1 to c5 } table's path. spec: shown(get) (true while
+-- its color menu is on Custom gradient), what ("health": the labels' word),
+-- bar ("the health bar": the descriptions'), disabled(get), since, and
+-- countLabel / colorLabels / countDesc / colorDescs to word them otherwise
+-- (the accent's).
+local ORDINAL = { "First", "Second", "Third", "Fourth", "Fifth" }
+
+-- Lists of rows one after another, for a group that takes in a helper's rows.
+function Options.Join(...)
+    local out = {}
+    for i = 1, select("#", ...) do
+        for _, item in ipairs((select(i, ...))) do out[#out + 1] = item end
+    end
+    return out
+end
+
+function Options.StopsRows(key, spec)
+    local shown = spec.shown or function() return true end
+    local title = spec.what and (string.upper(string.sub(spec.what, 1, 1)) .. string.sub(spec.what, 2))
+    local rows = {}
+    rows[1] = { type = "slider", key = key .. ".count", min = 2, max = DUI.Style.CUSTOM_STOPS_MAX, step = 1,
+        label = spec.countLabel or (title .. " gradient colors"),
+        desc = spec.countDesc or ("How many colors " .. spec.bar .. " runs through, left to right, when its color is Custom gradient."),
+        since = spec.since, disabled = spec.disabled,
+        hidden = function(get) return shown(get) ~= true end }
+    for i = 1, DUI.Style.CUSTOM_STOPS_MAX do
+        rows[#rows + 1] = { type = "color", key = key .. ".c" .. i, since = spec.since, disabled = spec.disabled,
+            label = spec.colorLabels and spec.colorLabels[i]
+                or (title .. " gradient " .. string.lower(ORDINAL[i]) .. " color"),
+            desc = spec.colorDescs and spec.colorDescs[i]
+                or i == 1 and ("Where the custom gradient of " .. spec.bar .. " starts.")
+                or ("The next color along the custom gradient of " .. spec.bar .. "."),
+            hidden = function(get)
+                return shown(get) ~= true or (i > 2 and (get(key .. ".count") or 0) < i)
+            end }
+    end
+    return rows
+end
+
 -- Per-area media dropdown. When following General, the box shows the
 -- General pick's name, and the list leads with "Expressway (General)".
 -- kind: "font" | "bar" | "back". extra: more item fields.
@@ -1251,7 +1292,7 @@ Options.RegisterPage({
             { type = "slider", key = "fontScale", label = "Text scale", min = 0.7, max = 1.6, step = 0.05, unit = "x",
               desc = "Makes all text on Daylight UI's frames bigger or smaller, on top of each frame's own text size." },
         } },
-        { label = "Color", items = {
+        { label = "Color", items = Options.Join({
             { type = "dropdown", key = "accent", label = "Accent color", values = DUI.Style.ACCENTS,
               order = DUI.Style.ACCENT_ORDER,
               desc = "The highlight color: Daylight's own quiet tone, the Daylight gradient, your class's color or its gradient (from the Gradients page), or one of your own.",
@@ -1264,36 +1305,18 @@ Options.RegisterPage({
               desc = "Your own accent, when Accent color is Custom color.",
               hidden = function(get) return get("accent") == "customGradient" end,
               disabled = function(get) return get("accent") ~= "custom" end },
-            { type = "slider", key = "accentGradient.count", label = "Gradient colors", min = 2,
-              max = DUI.Style.CUSTOM_STOPS_MAX, step = 1, since = "1.9.2",
-              desc = "How many colors your custom gradient runs through, left to right.",
-              hidden = function(get) return get("accent") ~= "customGradient" end },
-            { type = "color", key = "accentGradient.c1", label = "First color", since = "1.9.2",
-              desc = "Where your custom gradient starts.",
-              hidden = function(get) return get("accent") ~= "customGradient" end },
-            { type = "color", key = "accentGradient.c2", label = "Second color", since = "1.9.2",
-              desc = "The next color along your custom gradient.",
-              hidden = function(get) return get("accent") ~= "customGradient" end },
-            { type = "color", key = "accentGradient.c3", label = "Third color", since = "1.9.2",
-              desc = "The next color along your custom gradient.",
-              hidden = function(get)
-                  return get("accent") ~= "customGradient" or (get("accentGradient.count") or 0) < 3
-              end },
-            { type = "color", key = "accentGradient.c4", label = "Fourth color", since = "1.9.2",
-              desc = "The next color along your custom gradient.",
-              hidden = function(get)
-                  return get("accent") ~= "customGradient" or (get("accentGradient.count") or 0) < 4
-              end },
-            { type = "color", key = "accentGradient.c5", label = "Fifth color", since = "1.9.2",
-              desc = "The next color along your custom gradient.",
-              hidden = function(get)
-                  return get("accent") ~= "customGradient" or (get("accentGradient.count") or 0) < 5
-              end },
+        }, Options.StopsRows("accentGradient", { since = "1.9.2",
+                shown = function(get) return get("accent") == "customGradient" end,
+                countLabel = "Gradient colors", countDesc = "How many colors your custom gradient runs through, left to right.",
+                colorLabels = { "First color", "Second color", "Third color", "Fourth color", "Fifth color" },
+                colorDescs = { "Where your custom gradient starts.", "The next color along your custom gradient.",
+                    "The next color along your custom gradient.", "The next color along your custom gradient.",
+                    "The next color along your custom gradient." } }), {
             { type = "slider", key = "softness", label = "Color softness", min = 0, max = 0.8, step = 0.05, unit = "%",
               desc = "Eases class, reaction and power colors toward gray for a gentler look." },
             { type = "slider", key = "brightness", label = "Bar brightness", min = 0.4, max = 1, step = 0.05, unit = "%",
               desc = "Dims every bar color." },
-        } },
+        }) },
         { label = "Borders and shadows", items = {
             { type = "toggle", key = "heavyBorder", label = "Heavy border",
               desc = "Adds a warm band inside the black outline, lit along the top. When off, the border is a plain dark line." },

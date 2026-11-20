@@ -120,8 +120,7 @@ end
 
 local function sameSearch(a, b)
     if not (a and b) then return false end
-    if a.path or b.path then return a.path == b.path end
-    return string.lower(a.text or "") == string.lower(b.text or "")
+    return a.path == b.path and string.lower(a.text or "") == string.lower(b.text or "")
 end
 
 local function remember(q)
@@ -130,7 +129,8 @@ local function remember(q)
     for i = #list, 1, -1 do
         if type(list[i]) ~= "table" or sameSearch(list[i], q) then table.remove(list, i) end
     end
-    table.insert(list, 1, { text = (not q.path) and q.text or nil, path = q.path, label = q.label })
+    local text = trim(q.text)
+    table.insert(list, 1, { text = text ~= "" and text or nil, path = q.path, label = q.label })
     for i = #list, BP.RECENT_MAX + 1, -1 do list[i] = nil end
 end
 
@@ -396,7 +396,7 @@ end
 -- always, from the rarity picked up: the game's own UI always sends them.
 function BP.QueryOf(q)
     local f = S.filters
-    local query = { searchString = q.path and "" or (q.text or ""), sorts = ns.Search.PriceSort(),
+    local query = { searchString = trim(q.text), sorts = ns.Search.PriceSort(),
         minLevel = f.minLevel, maxLevel = f.maxLevel }
     local filters = {}
     if f.usable then filters[#filters + 1] = filterValue("UsableOnly", 2) end
@@ -431,10 +431,12 @@ end
 local waiting = {}   -- itemID -> rows waiting for the game to load its name
 
 local function fillInfo(row)
-    local name, quality, level, icon = ns.Items.Row(row.itemID)
+    -- The Lvl column is the level needed to use it, like the level filter,
+    -- not the item level (blank when anyone can use it).
+    local name, quality, _, icon, _, req = ns.Items.Row(row.itemID)
     if not name then return false end
     if row.key ~= row.base and row.itemKey then ns.Items.LearnKey(row.itemKey) end
-    row.name, row.quality, row.level, row.icon = ns.Items.KeyName(row.key, name), quality, level, icon
+    row.name, row.quality, row.level, row.icon = ns.Items.KeyName(row.key, name), quality, req, icon
     row.cantUse = ns.Items.CanUse(row.itemID) == false or nil
     return true
 end
@@ -538,12 +540,30 @@ function BP.Run(q, pickItem)
     return true
 end
 
--- The words in the box searched.
-function BP.Submit(text)
+-- Nothing searched: the rows go and the empty words come back (the last
+-- category unpicked with nothing typed).
+function BP.Clear()
+    if not page then return end
+    BP.DropQuote()
+    S.gen = S.gen + 1
+    S.query, S.rows, S.problem, S.capped, S.tell, S.running = nil, {}, nil, nil, nil, nil
+    S.open, S.step, S.pending, S.closeDone, S.opening, S.want = nil, nil, nil, nil, nil, nil
+    for id in pairs(waiting) do waiting[id] = nil end
+    ns.AH.Drop(ns.Browse.TAG)
+    BP.PaintTools()
+    Left.Fill(true)
+    BP.Changed(true)
+end
+
+-- The words in the box searched, inside the picked category like the game's
+-- own AH. anywhere: every category (an item's name from a link).
+function BP.Submit(text, anywhere)
     text = trim(text)
-    if text == "" then return false end
+    local q = S.query
+    local path = not anywhere and q and q.path or nil
+    if text == "" and not path then return false end
     if page.box:GetText() ~= text then page.box:SetText(text) end
-    return BP.Run({ text = text })
+    return BP.Run({ text = text, path = path, label = path and q.label or nil })
 end
 
 function BP.Again()
@@ -1524,14 +1544,12 @@ local function fillRecent(stack)
     if #list == 0 then return empty(stack, L["No searches yet."]) end
     for i, e in ipairs(list) do
         local node = e.path and Cat.Find(e.path)
-        local text = e.path and (node and Cat.Label(node) or e.label or e.path) or e.text
+        local where = e.path and (node and Cat.Label(node) or e.label or e.path)
+        local words = e.text or ""
+        local text = where and words ~= "" and string.format(L["%s in %s"], words, where) or where or words
         row(stack, { id = "recent:" .. i, text = text, onClick = function()
-            if e.path then
-                if page.box:GetText() ~= "" then page.box:SetText("") end
-                BP.Run({ path = e.path, label = text })
-            else
-                BP.Submit(e.text)
-            end
+            if page.box:GetText() ~= words then page.box:SetText(words) end
+            BP.Run({ text = words, path = e.path, label = where })
         end }, sameSearch(S.query, e))
     end
 end
@@ -1625,20 +1643,24 @@ local function fadeChildren(path, done)
     C_Timer.After(Motion.FAST, function() if Left.closing == token then Left.closing = nil; done() end end)
 end
 
--- A category: opened (or shut when it was the one picked and open), and browsed.
+-- A category: opened and browsed with the words in the box, like the game's
+-- own AH. A click on the picked one unpicks it (shutting it): its parent is
+-- picked, or none, and the words then search everywhere.
 function Left.PickCategory(node)
     local path = Cat.Path(node)
-    local shut = false
-    if #node.children > 0 then
-        if pickedPath() == path and Left.expanded[path] then Left.expanded[path] = nil; shut = true
-        else Left.expanded[path] = true end
+    local text = trim(page.box:GetText())
+    local unpick = pickedPath() == path
+    local shut = unpick and Left.expanded[path] == true
+    if shut then Left.expanded[path] = nil
+    elseif not unpick and #node.children > 0 then Left.expanded[path] = true end
+    local function go()
+        if not unpick then return BP.Run({ text = text, path = path, label = Cat.Label(node) }) end
+        local up = #node.path > 1 and Cat.Find(table.concat(node.path, "/", 1, #node.path - 1))
+        if up then return BP.Run({ text = text, path = Cat.Path(up), label = Cat.Label(up) }) end
+        if text ~= "" then return BP.Run({ text = text }) end
+        BP.Clear()
     end
-    if page.box:GetText() ~= "" then page.box:SetText("") end
-    if shut then
-        fadeChildren(path, function() BP.Run({ path = path, label = Cat.Label(node) }) end)
-    else
-        BP.Run({ path = path, label = Cat.Label(node) })
-    end
+    if shut then fadeChildren(path, go) else go() end
 end
 
 -- The chips fill the pane edge to edge whatever the font: each as wide as

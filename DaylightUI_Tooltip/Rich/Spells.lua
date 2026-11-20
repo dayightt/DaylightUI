@@ -1,7 +1,7 @@
 -- The rich card for a spell: its icon, name, school and rank, a strip of tiles
 -- for cast time, cost and range (or cooldown), the description with its numbers
--- colored. Hovering an action button whose spell is cooling down shows when
--- it's ready instead, over a bar the client drains.
+-- colored. Hovering an action button whose spell is cooling down adds when
+-- it's ready under the strip, over a bar the client drains.
 --
 -- Everything is read from the tooltip's own lines (the game's words, in the
 -- player's language). In a fight every line is secret: then the card is only
@@ -22,8 +22,6 @@ Spells.TAG_GAP = 4        -- between the title and its tags
 Spells.PAD_TOP = 16
 Spells.AFTER_HEADER = 12  -- the header, then the strip
 Spells.AFTER_STRIP = 12   -- the strip, then the description
-Spells.COOLDOWN_PAD = 14
-Spells.READY_GAP = 8      -- the cooldown card's title, then "Ready in"
 Spells.BAR_GAP = 6
 Spells.CHARGES_GAP = 12
 Spells.TICK = 0.1         -- how often "Ready in" counts down
@@ -280,14 +278,12 @@ function Spells.Light(school)
     return { hi, lo }
 end
 
--- The cooldown card (board "On cooldown").
-function Spells.CooldownCard(p, r, cd)
-    local Panel, INK, SIZE = ns.RichPanel, Style.INK, Style.SIZE
+-- While the action button cools down: when it's ready again over a bar the
+-- client drains, and its charges, under the strip. The card keeps everything
+-- else it says, so a spell on cooldown can still be read.
+function Spells.CooldownRows(p, cd)
+    local Panel, INK = ns.RichPanel, Style.INK
     local lo, hi = DUI.Gradients.PairFrom(INK.WARN)
-    Panel.Begin(p, "cooldown", { hi, lo })
-    p.padTop, p.padX = Spells.COOLDOWN_PAD, Spells.COOLDOWN_PAD
-    Panel.Line(p, r.title, INK.TITLE, SIZE.head)
-    Panel.Gap(p, Spells.READY_GAP)
     Panel.Row(p, L["Ready in"], Spells.Time(math.max(0, cd.ends - GetTime())), INK.WARN)
     p.ready = p.items[p.count].value
     if type(cd.duration) ~= "nil" then
@@ -299,11 +295,10 @@ function Spells.CooldownCard(p, r, cd)
         Panel.Row(p, L["Charges"], cd.charges .. " " .. hex(INK.LABEL) .. string.format(L["/ %d"], cd.most) .. "|r",
             INK.VALUE)
     end
-    Panel.Finish(p)
 end
 
 -- The spell card (board "The strip").
-function Spells.Card(p, tip, r, lines, school, id, light)
+function Spells.Card(p, tip, r, lines, school, id, light, cd)
     local Panel, INK, SIZE, Tips = ns.RichPanel, Style.INK, Style.SIZE, DUI.Tips
     Panel.Begin(p, "spell", light)
     p.padTop = Spells.PAD_TOP
@@ -325,6 +320,10 @@ function Spells.Card(p, tip, r, lines, school, id, light)
         Panel.Gap(p, Spells.AFTER_HEADER)
         Panel.Tiles(p, tiles)
     end
+    if cd then
+        Panel.Gap(p, Spells.AFTER_HEADER)
+        Spells.CooldownRows(p, cd)
+    end
     local numbers = school and school.color or nil
     for i, t in ipairs(r.desc) do
         if i == 1 then Panel.Gap(p, Spells.AFTER_STRIP) end
@@ -336,8 +335,8 @@ function Spells.Card(p, tip, r, lines, school, id, light)
     Panel.Finish(p)
 end
 
--- Builds a spell's card: the cooldown card while its action button cools
--- down, else the card. Returns what the tooltip's update needs to know ({ ends }).
+-- Builds a spell's card, with when it's ready while its action button cools
+-- down. Returns what the tooltip's update needs to know ({ ends }).
 function Spells.Build(p, tip, data, n, lines)
     local own = ns.Rich.Own(data, n)
     p.ready = nil
@@ -347,11 +346,7 @@ function Spells.Build(p, tip, data, n, lines)
     local light = Spells.Light(school) or ns.Rich.Light(tip, data, "spell")
     local sp = {}
     local cd = tip == GameTooltip and Spells.Cooldown(tip) or nil
-    if cd then
-        sp.ends = cd.ends
-        Spells.CooldownCard(p, r, cd)
-    else
-        Spells.Card(p, tip, r, lines, school, id, light)
-    end
+    if cd then sp.ends = cd.ends end
+    Spells.Card(p, tip, r, lines, school, id, light, cd)
     return sp
 end

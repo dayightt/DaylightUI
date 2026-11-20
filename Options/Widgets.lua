@@ -2458,7 +2458,13 @@ function W.toggle(row, page, item)
     function b.Refresh() b.SetOn(Options.Get(page, item) == true) end
     b:SetScript("OnClick", function()
         if row.disabled then return end
-        Options.Set(page, item, Options.Get(page, item) ~= true)
+        if Options.Set(page, item, Options.Get(page, item) ~= true) and item.set then
+            -- A setter of its own writes past DUI:Set, so no SettingChanged redraws
+            -- the page: move this switch now, and let rows that hang on it follow.
+            b.Refresh()
+            local P = DUI.OptionsPanel
+            if page and P and P.IsShown and P.IsShown() then P.Refresh() end
+        end
     end)
     -- Clicking anywhere on the row flips it too.
     row:SetScript("OnMouseUp", function(_, button)
@@ -3953,6 +3959,7 @@ end
 -- or nil for the Appearance font.
 
 W.TAG_H, W.TAG_PAD, W.TAG_SLANT = 18, 9, 4
+W.TAG_LINE_GAP = 2 -- between the two lines of a tag too long for one
 W.TAG_FILL = { 1, 1, 1 }
 
 -- A tag: a short fact in small capitals inside a slanted outline, its text in
@@ -3982,6 +3989,8 @@ function W.Tag(parent, font)
     -- max: the most room it may take; a longer word is cut there with "...".
     function t.FitWidth(max)
         t.text:SetWidth(0)
+        t.text:SetWordWrap(false)
+        t:SetHeight(W.TAG_H)
         local w = t.text:GetStringWidth()
         if type(w) ~= "number" or DUI.IsSecret(w) then w = 60 end
         if max and w > max - 2 * W.TAG_PAD then
@@ -3990,6 +3999,23 @@ function W.Tag(parent, font)
         end
         t:SetWidth(math.floor(w + 2 * W.TAG_PAD + 0.5))
         return t:GetWidth()
+    end
+    -- Words longer than the room they have (a long title in German) wrap onto
+    -- a second line inside the tag, which grows taller, instead of running past
+    -- the card's edge. Returns its height.
+    function t.FitTo(most)
+        if t:GetWidth() <= most then return t:GetHeight() end
+        local inner = math.max(1, most - 2 * W.TAG_PAD)
+        t.text:SetWidth(inner)
+        t.text:SetWordWrap(true)
+        t.text:SetMaxLines(2)
+        t.text:SetSpacing(W.TAG_LINE_GAP)
+        t:SetWidth(most)
+        local h = t.text:GetStringHeight()
+        local one = SIZE.small + 3
+        if type(h) ~= "number" or DUI.IsSecret(h) or h <= 0 then h = 2 * one + W.TAG_LINE_GAP end
+        t:SetHeight(math.floor(W.TAG_H - one + h + 0.5))
+        return t:GetHeight()
     end
     return t
 end

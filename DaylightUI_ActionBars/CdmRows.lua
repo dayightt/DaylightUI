@@ -239,6 +239,17 @@ local function itemUp(item, auraItem)
     local v
     if auraItem then v = item.isActive else v = item.wasSetFromAura end
     if isSecret(v) or type(v) ~= "boolean" then return nil end
+    -- A buff item also lights up for a linked aura it finds on your target, after
+    -- looking on you. For a buff that lands on you, that's another aura: Touch of
+    -- Weakness links the debuff it leaves on whoever hit you, so its item stayed
+    -- active for two minutes after the buff was used up.
+    if v and auraItem then
+        local unit = item.auraDataUnit
+        if unit == "target" and not isSecret(unit) then
+            local info = Data.Info(num(item.cooldownID))
+            if type(info) == "table" and info.selfAura == true then return false end
+        end
+    end
     return v
 end
 
@@ -346,17 +357,26 @@ end
 
 local INFO_SPELLS = { "spellID", "overrideSpellID", "overrideTooltipSpellID", "linkedSpellID" }
 
--- The game's buff item for any of these spell ids, placed or not.
-local function buffItemOf(ids)
+-- What the game's buff items for these spell ids say: up when any of them is up,
+-- down when the ones that answer are all down, nil when none does. A piece can
+-- stand for several of the game's buffs (a paladin's Aura or Seal: any one counts),
+-- so one item alone isn't the answer.
+local function buffUp(ids)
+    local up
     for sid in pairs(ids or {}) do
-        if buffItems[sid] then return buffItems[sid] end
+        local item = buffItems[sid]
+        if item then
+            local v = itemUp(item, true)
+            if v == true then return true end
+            if v == false then up = false end
+        end
     end
+    return up
 end
 
--- The game's item that tells whether piece id's buff is up, and whether it's a buff
--- item (else a cooldown icon showing its aura). nil when the game has none for it,
--- or has one that can't see this aura.
-local function truthItem(id, holder)
+-- Whether the game's items say piece id's buff is up: true, false, or nil when the
+-- game has no item for it, or has one that can't see this aura.
+local function truthUp(id, holder)
     local A = ns.CdmAuras
     -- A piece Daylight UI draws from its own knowledge (the pet, a debuff on you)
     -- isn't an aura the game's item looks for. Nor is a trap's debuff or a pet's buff.
@@ -367,13 +387,12 @@ local function truthItem(id, holder)
     -- word; where it can't, yours being up or down is the best there is.
     if A and A.GameBlind(id) and A.Knows(holder) then return nil end
     local item = auraItems[id] or (elsewhereAura[id] and elsewhere[id]) or nil
-    if item then return item, true end
-    if auraHolders[id] then return auraHolders[id], false end
+    if item then return itemUp(item, true) end
+    if auraHolders[id] then return itemUp(auraHolders[id], false) end
     -- The game's cooldown icon, out of sight because the piece is a bar: it still
     -- marks the aura it would be showing.
-    if elsewhere[id] and ns.CdmAuras and ns.CdmAuras.Follows(id) then return elsewhere[id], false end
-    local item = buffItemOf(holder and holder.ids)
-    if item then return item, true end
+    if elsewhere[id] and ns.CdmAuras and ns.CdmAuras.Follows(id) then return itemUp(elsewhere[id], false) end
+    return buffUp(holder and holder.ids)
 end
 
 -- One of the game's items (in viewer passName): held in its piece, hidden so Daylight UI's
@@ -489,12 +508,10 @@ local function heldState(id, p, item)
         -- A buff under a linked spell (Bloodrage's): the game's buff item of the
         -- spell sees it as well, and either one saying up is the game's word.
         if up == false and not A.Follows(id, true) then
-            local seen = buffItemOf(A.Watch(id).ids)
-            if seen and itemUp(seen, true) then up = true end
+            if buffUp(A.Watch(id).ids) then up = true end
         end
     elseif A and t then
-        local seen = buffItemOf(A.Watch(id).ids)
-        if seen then up = itemUp(seen, true) end
+        up = buffUp(A.Watch(id).ids)
         -- With no such item nothing can tell, and the card leaves its state rows out.
         tracked[id] = false
     end
@@ -707,9 +724,7 @@ function Rows.Update()
                 or drawn[id] == "aura and cooldown icon" and ns.CdmAuras.Frame(id))
             local closedNow = false
             if holder then
-                local seen, auraItem = truthItem(id, holder)
-                local up
-                if seen then up = itemUp(seen, auraItem) end
+                local up = truthUp(id, holder)
                 local knows = up ~= nil or ns.CdmAuras.Knows(holder)
                 tracked[id] = knows
                 local hide = knows and Fx.Get(p, "hideActive") == true

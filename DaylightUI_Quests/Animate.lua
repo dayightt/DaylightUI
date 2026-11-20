@@ -81,6 +81,22 @@ function Animate.Enter(f, y)
     go(f, "a", 1, Motion.NORMAL, out)
 end
 
+-- A row already in the list slides in from the right where it is, as a new
+-- quest does. Only its slide and alpha restart: a glide to a new place under way
+-- keeps going. now: it just lands, shown.
+function Animate.SlideIn(f, now)
+    if now then
+        go(f, "dx", 0, 0)
+        go(f, "a", 1, 0)
+        return
+    end
+    local r = Animate.State(f)
+    r.dx, r.a = Animate.ENTER_DX, 0
+    apply(f, r)
+    go(f, "dx", 0, Motion.NORMAL, out)
+    go(f, "a", 1, Motion.NORMAL, out)
+end
+
 function Animate.Leave(f, done, far)
     local dur = far and Motion.SLOW or Motion.NORMAL
     go(f, "dx", far and Animate.LEAVE_FAR_DX or Animate.LEAVE_DX, dur, out)

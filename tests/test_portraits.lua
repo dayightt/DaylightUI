@@ -417,6 +417,21 @@ T.test("aggro pulses (so it reads apart from a red enemy bar); orange and motion
     T.falsy(p.pulseHold:IsShown(), "motion off: a still band")
 end)
 
+T.test("a square portrait's aggro halo glows as softly past the band as the ring's", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f, p = ns.frames.target, ns.frames.target.portrait
+    stub.units.target = { name = "Wolf", isPlayer = false, reaction = 2, threat = 3 }
+    UF.UpdateAll(f, true)
+    T.eq(p.haloPeak, UF.HALO_ALPHA, "round: the full halo")
+    DUI:Set("UnitFrames", "target.portraitShape", "square")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    T.truthy(p.halo:IsShown())
+    T.truthy(p.haloPeak < UF.HALO_ALPHA, "square: a lower peak for its longer edge and corners")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("a secret tanking answer gates the pulse through the client", function()
     local _, ns = login()
     local f, p = ns.frames.target, ns.frames.target.portrait

@@ -4447,6 +4447,7 @@ end)
 T.test("nameplates: a friendly player's class icon sits by the name, in the picked icon style", function()
     login()
     local DUI = DaylightUI
+    local Plate = stub.nameplates.Plate
     local set = function(k, v) DUI:Set("Nameplates", k, v) end
     stub.units.nameplate3 = { name = "Stabitha", isPlayer = true, class = "ROGUE", hostile = true, reaction = 2,
         health = 50, maxHealth = 100 }
@@ -4471,8 +4472,13 @@ T.test("nameplates: a friendly player's class icon sits by the name, in the pick
     point, rel, relPoint = friend.classIcon:GetPoint(1)
     T.eq(point .. relPoint, "RIGHTLEFT", "a name on the bar keeps it before the name, off the bar")
     set("friendly.enabled", false); set("friendly.namePos", "above"); stub.RunTimers()
-    set("friendly.classIconSize", 20); stub.RunTimers()
-    T.eq(friend.classIcon:GetWidth(), 20, "its own size")
+    local small = friend.classIcon:GetWidth()
+    set("friendly.classIconScale", 2); stub.RunTimers()
+    local big = friend.classIcon:GetWidth()
+    T.truthy(big > small, "a bigger share is a bigger icon")
+    T.eq(big, math.floor(Plate.NameSize(friend, Plate.Cfg(friend)) * 2 + 0.5), "a share of the name's size")
+    set("friendly.classIconScale", 0.5); stub.RunTimers()
+    T.truthy(friend.classIcon:GetWidth() < small, "a smaller share is a smaller icon")
     -- The icon picked for the class on the unit frames wins.
     local was = DUI.ClassIcon
     DUI.ClassIcon = function(token) return "picked\\" .. token, 0, 0.5, 0, 0.5 end
@@ -4819,4 +4825,21 @@ T.test("nameplates: Shorten long names keeps the last word, initials before it; 
     stub.RunTimers()
     local p = added("nameplate1")
     T.eq(p.name:GetText(), "S. C. Commander")
+end)
+
+T.test("nameplates: a custom gradient on the health bar; a tapped mob still goes gray", function()
+    login()
+    DaylightUI:Set("Nameplates", "healthColor", "customGradient")
+    stub.RunTimers()
+    local p = added("nameplate1")
+    local S = DaylightUI.Style
+    local fill = p.health:GetStatusBarTexture()
+    T.eq(#S.FillStops(fill), 3, "three colors by default")
+    stub.units.nameplate1.tapped = true
+    stub.FireEvent("UNIT_FLAGS", "nameplate1")
+    T.isnil(S.FillStops(fill), "tapped: gray")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.units.nameplate1.tapped = false
+    stub.FireEvent("UNIT_FLAGS", "nameplate1")
+    T.eq(#S.FillStops(fill), 3, "and back")
 end)

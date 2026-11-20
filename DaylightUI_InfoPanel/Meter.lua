@@ -306,12 +306,16 @@ function Meter.Painting()
     return type(R) == "table" and R.Painting("meterrow")
 end
 
--- Color a bar for a source: custom color, class gradient, or flat class color.
--- c is the color settings to use; defaults to the first meter's.
+-- Color a bar for a source: custom color, custom gradient, class gradient, or
+-- flat class color. c is the color settings to use; defaults to the first meter's.
 function Meter.PaintBar(sb, src, token, c)
     local cfg = c or Meter.Config()
     local G = cfg.gradient == true and DUI.Gradients
-    if cfg.barColor == "custom" then
+    if cfg.barColor == "customGradient" and DUI.Gradients then
+        -- Bar gradient off: the gradient's middle, flat.
+        if G then G.PaintStops(sb, cfg.barGradient)
+        else Style.SetBarColor(sb, DUI.Gradients.StopsMid(cfg.barGradient)) end
+    elseif cfg.barColor == "custom" then
         local c = cfg.barCustom
         if G then G.PaintFrom(sb, c)
         else Style.SetBarColor(sb, Style.Soften(c[1], c[2], c[3])) end

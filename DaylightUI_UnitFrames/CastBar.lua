@@ -732,6 +732,7 @@ function paintColor(h)
     -- A plugin's fill: white under its texture, no gradient, no class layers.
     if owned("fill") then
         Style.SetBarGradient(h.bar, false)
+        Style.ClearBarStops(h.bar)
         tex:SetVertexColor(1, 1, 1, 1)
         CB.PaintHiddenClass(h)
         return
@@ -749,6 +750,7 @@ function paintColor(h)
             return
         end
         tex:SetVertexColor(pal.locked.r, pal.locked.g, pal.locked.b, 1)
+        Style.NoteFillRGB(tex, pal.locked.r, pal.locked.g, pal.locked.b)
         local back = backOf(h)
         if back then
             local k = Style.BAR_BACK_DIM
@@ -771,6 +773,13 @@ function paintColor(h)
             end
         end
     end
+    -- Your own gradient: the same colors for casts and channels.
+    if CB.cfg.fill == "customGradient" and DUI.Gradients then
+        Style.SetBarGradient(h.bar, false)
+        DUI.Gradients.PaintStops(h.bar, pal.cfg.customGradient or CB.cfg.customGradient)
+        CB.PaintHiddenClass(h)
+        return
+    end
     -- The fill (Fill style): the Daylight gradient, or the Gradients page's pair
     -- (cast / channel, or the caster's class), else the plain color.
     local grad = CB.cfg.fill == "daylight"
@@ -787,6 +796,7 @@ function paintColor(h)
     if sweep then base = WHITE elseif grad then base = CreateColor(Style.FlatSweep()) end
     tex = h.bar:GetStatusBarTexture()
     tex:SetVertexColor(base.r, base.g, base.b, 1)
+    Style.NoteFillRGB(tex, base.r, base.g, base.b)
     -- The empty part in the same color, dimmed like every bar.
     local back = backOf(h)
     if back and not grad then
@@ -981,7 +991,9 @@ function CB.Interrupted(h)
             DUI.Gradients.Paint(h.bar, "CAST_INTERRUPTED")
         else
             local c = colorsOf(h).cfg.interrupted or CB.cfg.interrupted
-            h.bar:GetStatusBarTexture():SetVertexColor(c[1], c[2], c[3], 1)
+            local tex = h.bar:GetStatusBarTexture()
+            tex:SetVertexColor(c[1], c[2], c[3], 1)
+            Style.NoteFillRGB(tex, c[1], c[2], c[3])
         end
     end
     h.text:SetText(INTERRUPTED or DUI.L["Interrupted"])
