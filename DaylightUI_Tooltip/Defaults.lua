@@ -33,6 +33,7 @@ ns.DEFAULTS = {
     textSize = 12,   -- every line
     titleSize = 14,  -- a name, an item's name, a spell's name
     smallSize = 11,  -- sub lines, the quote, small facts
+    dpsSize = 14,    -- a weapon's damage per second on the Rich card
     -- Their border, shadow and background. By design tooltips are a little
     -- more solid than the windows, also on the global style.
     frameStyle = DaylightUI.Style.LookDefaults({ windowAlpha = 0.92 }),

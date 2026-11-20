@@ -271,6 +271,13 @@ local function numLine(p, num, word, color, equip)
     ns.RichPanel.Line(p, numText(num, word, color), Style.INK.TEXT, nil, equip and L["Equip"] or nil, Style.INK.GOOD)
 end
 
+-- "31.5 damage per second" from the game's own words, its brackets off, the
+-- number in the accent. A language that puts the number later keeps its order.
+function Items.DpsWords(v)
+    local words = (DPS_TEMPLATE or "(%s damage per second)"):gsub("^%s*%(", ""):gsub("%)%s*$", "")
+    return function() return (words:gsub("%%s", function() return popHex() .. v .. "|r" end, 1)) end
+end
+
 -- Two base numbers that belong together share a line, as the game shows a
 -- weapon's damage and speed: "46 - 86 Damage" on the left, "2.20 Speed" at
 -- the right edge. A shield's armor and block go the same way.
@@ -421,14 +428,14 @@ local function sort(n, lines, own, info, groups)
             local words, num = wordsAndNumber(right and Items.Words(right) or "")
             local speed = words and { num, words } or nil
             g.list[#g.list + 1] = function(p) pairLine(p, damage, speed) end
+            g.damageAt = #g.list
         elseif t:find(P.dps) then
-            -- Kept in the game's own brackets: they set it apart from the
-            -- damage and speed lines above it.
+            -- Big, over the damage and speed it comes from: the number that
+            -- tells two weapons apart at a glance.
             local v = t:match(P.dps)
-            g.list[#g.list + 1] = function(p)
-                ns.RichPanel.Line(p, string.format(DPS_TEMPLATE or "(%s damage per second)",
-                    popHex() .. v .. "|r"), Style.INK.TEXT)
-            end
+            local words = Items.DpsWords(v)
+            table.insert(g.list, g.damageAt or #g.list + 1, function(p) ns.RichPanel.Big(p, words()) end)
+            g.damageAt = nil
         elseif t:find(P.setName) then
             local name, have, total = t:match(P.setName)
             inSet = true

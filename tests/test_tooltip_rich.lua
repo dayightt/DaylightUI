@@ -862,7 +862,23 @@ T.test("rich tooltip: a weapon's damage and speed as rows, a plain item's card",
     local row = kinds(p, "row")[1]
     T.eq(bare(row.label), "41 - 77 Damage", "number first")
     T.eq(bare(row.value), "2.60 Speed", "speed on the damage's line, at the right")
-    T.eq(said[1], "(22.7 damage per second)", "the game's own brackets, under them")
+    T.eq(said[1], "22.7 damage per second", "damage per second without the brackets")
+    local dps, rowAt
+    for i = 1, p.count do
+        if p.items[i] == row then rowAt = i end
+        if p.items[i].kind == "line" and bare(p.items[i].fs) == said[1] then dps = i end
+    end
+    T.truthy(dps < rowAt, "above the damage and speed")
+    T.truthy(p.items[dps].fs.size > row.label.size, "bigger than the rows")
+    DaylightUI:Set("Tooltip", "dpsSize", 20)
+    GameTooltip:Hide()
+    fillItem(GameTooltip, "sword", { { "Thunderforge Blade", nil, { 0, 0.44, 0.87 } }, { "One-Hand", "Sword" },
+        { "41 - 77 Damage", "Speed 2.60" }, "(22.7 damage per second)", "+5 Agility" })
+    p = Panel.Get(GameTooltip)
+    local grown
+    for _, l in ipairs(kinds(p, "line")) do if bare(l.fs) == said[1] then grown = l.fs.size end end
+    T.truthy(grown > 20, "its own size setting")
+    DaylightUI:Set("Tooltip", "dpsSize", nil)
     T.eq(stub.Text(p.items[1].tags[2].text), "ONE-HAND", "the slot")
     T.eq(stub.Text(p.items[1].tags[3].text), "SWORD", "the slot line's own word, a tag of its own")
     local RI = stub.tooltip.RichItems

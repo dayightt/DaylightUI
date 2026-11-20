@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", new = {
+        { "Tooltips", "A weapon's damage per second stands out in big letters on Rich tooltips, with a size slider of its own" },
+    }, fixed = {
         { "Auction House", "Bid on gear again, including auctions that only take bids, and follow your bids on a new Bids list under My auctions, like the game's own window. My auctions columns sort, and your gold shows in the window" },
         { "Auction House", "Selling gear takes a starting bid, a click on a listing copies its price, and a right-click on a bag item picks it to sell" },
         { "Auction House", "Searching works like the game's window: each quality has its own filter, recipes show and sort by the skill they need, long lists sort on the server, and the game's favorites show up in one search" },

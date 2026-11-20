@@ -74,8 +74,8 @@ end
 -- The card is already scaled by the text size, so a title or small text only
 -- grows by how far its own size sits from where it would be at that text
 -- size (the defaults' gap kept).
-local function size(s)
-    local part = Panel.Part(s)
+local function size(s, part)
+    part = part or Panel.Part(s)
     if not part then return s end
     local cfg, D = ns.Tooltip.Config(), ns.DEFAULTS
     local key = part .. "Size"
@@ -382,15 +382,15 @@ local function unsecret(fs)
     fs.slot = nil
 end
 
-local function text(p, s, c, wrap)
+local function text(p, s, c, wrap, part)
     local fs = take(p, "text")
     unsecret(fs)
-    local slot = slotOf(s)
+    local slot = part and font() or slotOf(s)
     if fs.slot ~= slot then
         fs.slot = slot
         Style.SetTextSlot(fs, slot)
     end
-    local z = size(s)
+    local z = size(s, part)
     Style.SetTextSize(fs, z)
     fs.size = z
     fs:SetWidth(0)
@@ -524,6 +524,15 @@ function Panel.Line(p, words, color, s, tail, tailColor, tailSize)
         item.tail = text(p, tailSize or Style.SIZE.small, tailColor or Style.INK.LABEL)
         item.tail:SetText(tail)
     end
+end
+
+-- A weapon's damage per second, the one number a glance at a weapon wants:
+-- a line of its own, bigger than the rows, sized by its own setting (dps).
+Panel.DPS = 16
+function Panel.Big(p, words)
+    local item = add(p, { kind = "line", secret = isSecret(words) })
+    item.fs = text(p, Panel.DPS, Style.INK.TEXT, false, "dps")
+    item.fs:SetText(words or "")
 end
 
 function Panel.Rule(p)

@@ -71,6 +71,9 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.MediaPick("font", "media.smallFont", "Tooltip small text font",
                 "The small lines under a title, short facts, quotes and captions. General uses the tooltip font.",
                 { since = "2.0", follows = { slot = "tooltip.font", label = "Tooltip font" } }),
+            { type = "slider", key = "dpsSize", label = "Damage per second size", min = 9, max = 24, step = 1, since = "2.2",
+              desc = "A weapon's damage per second, the big number over its damage and speed.",
+              hidden = function(get) return get("style") ~= "rich" end },
         } },
         { label = "Borders and background", items = lookRows },
         { label = "Look", items = {
