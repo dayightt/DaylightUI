@@ -347,7 +347,10 @@ function Foreign.Read(p, tip, n, lines, own, pieces)
     if pieces then
         for i = f.from, n do
             local piece = pieces[i]
-            if piece and piece.kind == "tag" then f.tags[#f.tags + 1] = { piece.text, piece.color or Style.INK.LABEL } end
+            if piece and piece.kind == "tag" then
+                -- Colored like every other tag: the addon's color, else the accent.
+                f.tags[#f.tags + 1] = ns.RichItems.Tag(piece.text, piece.color or { Style.Pop() })
+            end
         end
     end
     -- The quests the game's own lines already show: another addon's rows for

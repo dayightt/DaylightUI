@@ -80,6 +80,9 @@ Items.CLASS_COLORS = {
     [13] = { 0.96, 0.80, 0.42 }, -- key, brass
     [15] = { 0.88, 0.80, 0.96 }, -- miscellaneous, lilac
     [16] = { 0.62, 0.74, 1.00 }, -- glyph, ink blue
+    [17] = { 0.80, 0.92, 0.62 }, -- battle pet, leaf
+    [19] = { 0.98, 0.78, 0.36 }, -- profession tool, brass
+    [20] = { 0.96, 0.74, 0.56 }, -- housing, terracotta
 }
 -- A recipe's profession.
 Items.RECIPE_COLORS = {
@@ -269,12 +272,24 @@ end
 
 -- The game's binding lines and Unique: facts about the item itself, shown
 -- as tags under its name (where the game puts them too).
+local uniqueCounts
 local function isBadge(line, t)
     if line.type == (Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.ItemBinding or 20) then return true end
     for _, word in ipairs({ ITEM_SOULBOUND or "Soulbound", ITEM_BIND_ON_PICKUP or "Binds when picked up",
         ITEM_BIND_ON_EQUIP or "Binds when equipped", ITEM_BIND_ON_USE or "Binds when used", ITEM_BIND_QUEST or "Quest Item",
         ITEM_UNIQUE or "Unique", ITEM_UNIQUE_EQUIPPABLE or "Unique-Equipped", ITEM_ACCOUNTBOUND, ITEM_BNETACCOUNTBOUND }) do
         if type(word) == "string" and t == word then return true end
+    end
+    -- "Unique (5)", "Unique-Equipped: Gems (3)": one of a kind with a count.
+    if not uniqueCounts then
+        uniqueCounts = {}
+        for _, fmt in ipairs({ ITEM_UNIQUE_MULTIPLE or "Unique (%d)", ITEM_LIMIT_CATEGORY or "Unique: %s (%d)",
+            ITEM_LIMIT_CATEGORY_MULTIPLE or "Unique-Equipped: %s (%d)" }) do
+            if type(fmt) == "string" then uniqueCounts[#uniqueCounts + 1] = "^" .. DUI.GamePattern(fmt) .. "$" end
+        end
+    end
+    for _, pattern in ipairs(uniqueCounts) do
+        if t:find(pattern) then return true end
     end
     return false
 end
