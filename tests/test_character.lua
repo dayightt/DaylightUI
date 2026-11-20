@@ -3189,6 +3189,31 @@ T.test("character slots: a long item name takes a second line", function()
     stub.measure = nil
 end)
 
+-- Seen in game (Spanish): "Reparacion pronto - ..." and "Roto - sin estadi..." ended in dots,
+-- so you could not tell what they said. A line too long for the room takes a second row.
+T.test("character slots: a long repair line takes a second row instead of ending in dots", function()
+    local P, ns = charPage({ items = { Head = CW.item("Crown", { quality = 4, level = 66, cur = 10, max = 100 }),
+                                        Neck = CW.item("Pendant", { quality = 3, level = 20 }),
+                                        Chest = CW.item("The Breastplate of the Long Name Mountain Kings", { quality = 4, level = 66, cur = 0, max = 100 }) } })
+    wrapMeasure()
+    local page = openChar(ns)
+    local S = ns.Slots
+    local h, short, both = S.frames.Head, S.frames.Neck, S.frames.Chest
+    h.line:SetWidth(40)   -- less room than "Repair soon . 10% left"
+    S.FitText(h)
+    T.truthy(h.lineWrap, "too long for one row: two")
+    T.eq(h.line.__maxLines, 2, "at most two")
+    T.falsy(short.lineWrap, "a short line stays on one row")
+    -- Both too long: the name takes two rows and so does the line.
+    T.truthy(both.wrap and both.lineWrap, "the name and the line each wrap")
+    -- Back to a short line in the same slot: one row again.
+    h.line:SetWidth(400)
+    S.FitText(h)
+    T.falsy(h.lineWrap, "one row again")
+    T.eq(h.line.__maxLines or 0, 0)
+    stub.measure = nil
+end)
+
 T.test("character slots: the item level in the icon's corner leaves the name its own, centered", function()
     local P, ns = charPage({ items = { Head = CW.item("Lionheart Helm", { quality = 4, level = 66 }),
                                         Chest = CW.item("Chest", { cur = 20, max = 100 }) } })
