@@ -1408,8 +1408,7 @@ local function outwardGroupState(DUI, ns, unit)
     return { revealed = module.group.revealed, previewing = module.group:Previewing(), look = groupLook(ns, unit),
              headerShown = module.header:IsShown(), holderShown = holder:IsShown(),
              width = holder:GetWidth(), height = holder:GetHeight(), point = { holder:GetPoint(1) },
-             placedAt = module.placedAt, moverSuspended = mover ~= nil and mover.suspended == true,
-             fadeHeld = DUI.Fade.HasHold("UnitFrames." .. unit) }
+             placedAt = module.placedAt, moverSuspended = mover ~= nil and mover.suspended == true }
 end
 
 -- { name, previews once revealed, setup }
@@ -1469,21 +1468,27 @@ T.test("revealed with Raid 40 on its own spot: the preview sits there, and ended
     T.deq(outwardGroupState(DUI, ns, "Raid"), before)
 end)
 
-local function revealedLooks(ns)
+local function revealedLooks(ns, shownFor)
     local personal = ns.Personal.frame
-    return { personal = { revealed = ns.Personal.revealed, shown = personal:IsShown(), alpha = personal:GetAlpha() },
+    return { personal = { revealed = shownFor[ns.Personal.FADE], shown = personal:IsShown(), alpha = personal:GetAlpha() },
              Party = { revealed = ns.Party.group.revealed, look = groupLook(ns, "Party") },
              Raid = { revealed = ns.Raid.group.revealed, look = groupLook(ns, "Raid"), placedAt = ns.Raid.placedAt } }
 end
 
 T.test("the Personal Display, the party and the raid each answer only their own reveal keys", function()
     local DUI, ns = login()
+    DUI:Set("UnitFrames", "personal.enabled", true)
+    local shownFor, show = {}, DUI.Fade.Show
+    DUI.Fade.Show = function(key, why, on)
+        shownFor[key] = on or nil
+        return show(key, why, on)
+    end
     local owners = { [ns.Personal.KEY] = "personal" }
     for _, keyAndUnit in ipairs(groupKeys(ns)) do owners[keyAndUnit[1]] = keyAndUnit[2] end
-    local quiet = revealedLooks(ns)
+    local quiet = revealedLooks(ns, shownFor)
     for _, key in ipairs(stub.RevealKeys(ns)) do
         DUI.Fire("RevealFrame", key, true)
-        local now = revealedLooks(ns)
+        local now = revealedLooks(ns, shownFor)
         for frame, look in pairs(now) do
             if owners[key] == frame then
                 T.truthy(look.revealed, key .. " reveals the " .. frame)
@@ -1492,8 +1497,9 @@ T.test("the Personal Display, the party and the raid each answer only their own 
             end
         end
         DUI.Fire("RevealFrame", key, false)
-        T.deq(revealedLooks(ns), quiet, key .. " ended")
+        T.deq(revealedLooks(ns, shownFor), quiet, key .. " ended")
     end
+    DUI.Fade.Show = show
 end)
 
 -- Other changes that show or hide samples: { name, change, undo }

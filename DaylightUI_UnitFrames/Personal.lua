@@ -477,13 +477,13 @@ end
 
 -- Layout and showing
 
--- Shown while on or revealed, and alive (a ghost has no bars to watch). The fade handles
+-- Shown while on and alive (a ghost has no bars to watch). The fade handles
 -- the rest (in combat, with a target).
 function PR.UpdateShown()
     local h, cfg = PR.frame, db()
     if not h or not cfg then return end
     local state = not h.test and ns.UF.UnitState("player") or nil
-    local show = (cfg.enabled == true or PR.revealed == true) and state ~= "dead" and state ~= "ghost"
+    local show = cfg.enabled == true and state ~= "dead" and state ~= "ghost"
     if show and not h:IsShown() then
         h:Show()
         PR.UpdateAll()
@@ -640,7 +640,7 @@ PR.SAMPLE = { health = 72, healthValue = 3600, power = 58, powerValue = 1856, co
 
 function PR.ShowSample()
     local h, cfg = PR.frame, db()
-    if not h or not cfg or not (cfg.enabled or PR.revealed) then return end
+    if not h or not cfg or not cfg.enabled then return end
     h.test = true
     h:Show()
     PR.FillSample(h, cfg)
@@ -669,10 +669,9 @@ function PR.FillSample(h, cfg)
     if h.combo then ns.Combo.ShowSample(h.combo, s.combo) end
 end
 
--- Kept while revealed: the reveal's end hides it.
 function PR.HideSample()
     local h = PR.frame
-    if not h or not h.test or PR.revealed then return end
+    if not h or not h.test then return end
     h.test = nil
     if h.combo then ns.Combo.HideSample(h.combo) end
     if PR.auras then ns.Auras.HideSample(PR.auras) end
@@ -685,38 +684,9 @@ DUI.RegisterTestPart("personal", "Personal display", 45, function()
     return cfg ~= nil and cfg.enabled == true
 end)
 
--- Fade.Hold is one flag per area: let go only of a hold we took, else put back the alpha it left.
-
-local function testModeShowsSample()
-    return DUI.testMode == true and DUI.TestPartShown("personal")
-end
-
-local function startReveal(h)
-    if not PR.revealed then
-        PR.revealed = true
-        PR.revealTookFadeHold = not DUI.Fade.HasHold(PR.FADE)
-        PR.alphaBeforeReveal = h:GetAlpha()
-        DUI.Fade.Hold(PR.FADE, true)
-    end
-    PR.ShowSample()
-    h:SetAlpha(1)
-end
-
-local function endReveal(h)
-    if not PR.revealed then return end
-    PR.revealed = nil
-    local someoneElseHolds = not PR.revealTookFadeHold and DUI.Fade.HasHold(PR.FADE)
-    if someoneElseHolds then
-        h:SetAlpha(PR.alphaBeforeReveal)
-    else
-        DUI.Fade.Hold(PR.FADE, false)
-    end
-    PR.revealTookFadeHold, PR.alphaBeforeReveal = nil, nil
-    PR.HideSample()
-    if testModeShowsSample() then PR.ShowSample() end
-end
-
+-- The layout editor shows the display while a group it edits follows it. One switched off stays hidden.
 DUI.On("RevealFrame", function(key, on)
-    if key ~= PR.KEY or not PR.frame then return end
-    if on then startReveal(PR.frame) else endReveal(PR.frame) end
+    if key ~= PR.KEY then return end
+    local cfg = db()
+    DUI.Fade.Show(PR.FADE, "cdm", on and cfg ~= nil and cfg.enabled == true)
 end)
