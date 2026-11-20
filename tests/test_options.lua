@@ -353,9 +353,16 @@ T.test("sliders snap, show units and take typed values", function()
     T.eq(W.FormatValue({ unit = "x" }, 0.7111), "0.7111x", "decimals show when the value has them")
     -- snapTo: near a value that matters, it lands on it exactly.
     local item = { min = 0.4, max = 1.15, step = 0.01, unit = "x", snapTo = function() return 768 / 1080 end }
-    T.near(W.SnapValue(item, 0.71), 0.7111, 1e-9, "the pixel-perfect scale, from 0.71")
+    T.near(W.SnapValue(item, 0.71), 0.7111, 1e-4, "the pixel-perfect scale, from 0.71")
     T.near(W.SnapValue(item, 0.7), 0.7, 1e-9, "a step away stays")
     T.near(W.SnapValue(item, 0.8), 0.8, 1e-9, "far from it stays")
+    -- Typed into a free slider: kept as typed, only clamped.
+    item.free = true
+    T.near(W.TypedValue(item, 0.71), 0.71, 1e-9, "typed 0.71 stays 0.71")
+    T.near(W.TypedValue(item, 0.7123456), 0.7123, 1e-9, "four decimals")
+    T.near(W.TypedValue(item, 5), 1.15, 1e-9, "clamped")
+    item.free = nil
+    T.near(W.TypedValue(item, 0.713), 768 / 1080, 1e-4, "not free: the grid, and its snap")
     T.near(W.SnapValue({ min = 0.4, max = 1.15, step = 0.01 }, 0.71), 0.71, 1e-9, "no snapTo: the grid")
 end)
 

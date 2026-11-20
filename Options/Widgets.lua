@@ -2393,6 +2393,14 @@ function W.SnapValue(item, v)
     return tonumber(string.format("%.4f", v))
 end
 
+-- What was typed into a slider's box. Normally it lands on the step's grid like
+-- a drag; item.free keeps it as typed (to four decimals), inside the range.
+function W.TypedValue(item, v)
+    if not item.free then return W.SnapValue(item, v) end
+    v = math.max(item.min, math.min(item.max, v))
+    return tonumber(string.format("%.4f", v))
+end
+
 -- Controls. Each sets row.control, a frame with Refresh().
 
 local SWITCH_W, SWITCH_H, KNOB = 30, 16, 12
@@ -2641,7 +2649,7 @@ function W.Slider(parent, spec)
     box:SetScript("OnEnterPressed", function(self)
         local v = W.ParseValue(item, self:GetText())
         self:ClearFocus()
-        if v and not off() then spec.set(W.SnapValue(item, v)) end
+        if v and not off() then spec.set(W.TypedValue(item, v)) end
         f.Refresh()
     end)
     box:SetScript("OnEscapePressed", function(self)
@@ -2655,7 +2663,7 @@ end
 
 -- An options row's slider: W.Slider bound to the page's setting.
 function W.slider(row, page, item)
-    local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit, snapTo = item.snapTo,
+    local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit, snapTo = item.snapTo, free = item.free,
         get = function() return Options.Get(page, item) end,
         set = function(v) Options.Set(page, item, v) end,
         preview = function(v) return Options.Preview(page, item, v) end,
