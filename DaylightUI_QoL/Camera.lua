@@ -25,7 +25,7 @@ local function get()
 end
 
 local function set(v)
-    if type(SetCVar) == "function" then pcall(SetCVar, Camera.CVAR, tostring(v)) end
+    if type(SetCVar) == "function" then DUI.SafeCall(SetCVar, Camera.CVAR, tostring(v)) end
 end
 
 -- The game's normal max distance: what 100% means.

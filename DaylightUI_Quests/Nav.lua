@@ -293,7 +293,7 @@ local function checkZone()
     if nearSpots(q, map, x, y) then return true end
     if Nav.noZone then return false end
     if not zoneFrame then
-        local made, b = pcall(CreateFrame, "QuestPOIFrame", nil, UIParent)
+        local made, b = DUI.SafeReturn(CreateFrame, "QuestPOIFrame", nil, UIParent)
         if not made or type(b) ~= "table" then Nav.noZone = true; return false end
         b:SetSize(100, 100)
         b:SetPoint("CENTER")
@@ -303,9 +303,9 @@ local function checkZone()
     end
     local key = map .. ":" .. q
     if key ~= zoneKey then
-        pcall(zoneFrame.SetMapID, zoneFrame, map)
-        pcall(zoneFrame.DrawNone, zoneFrame)
-        pcall(zoneFrame.DrawBlob, zoneFrame, q, true)
+        DUI.SafeCall(zoneFrame.SetMapID, zoneFrame, map)
+        DUI.SafeCall(zoneFrame.DrawNone, zoneFrame)
+        DUI.SafeCall(zoneFrame.DrawBlob, zoneFrame, q, true)
         zoneKey = key
     end
     local asked, id = pcall(zoneFrame.UpdateMouseOverTooltip, zoneFrame, x, y)

@@ -39,7 +39,7 @@ function Key.Spell()
 end
 
 local function make()
-    local ok, b = pcall(CreateFrame, "Button", Key.NAME, UIParent, "SecureActionButtonTemplate")
+    local ok, b = DUI.SafeReturn(CreateFrame, "Button", Key.NAME, UIParent, "SecureActionButtonTemplate")
     if not ok or type(b) ~= "table" then return nil end
     -- Act on key down only. A binding sends both down and up, and PreClick ran on both, so
     -- the up closed what the down had just opened. useOnKeyDown makes the secure code act

@@ -34,7 +34,7 @@ local function get(name)
 end
 
 local function set(name, v)
-    if type(SetCVar) == "function" and get(name) ~= v then pcall(SetCVar, name, v) end
+    if type(SetCVar) == "function" and get(name) ~= v then DUI.SafeCall(SetCVar, name, v) end
 end
 
 local function default(name)

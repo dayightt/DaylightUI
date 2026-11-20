@@ -832,7 +832,7 @@ function Campfire.Enable(m)
     wire()
     -- So its description is there by the time you sit.
     if C_Spell and type(C_Spell.RequestLoadSpellData) == "function" then
-        pcall(C_Spell.RequestLoadSpellData, Campfire.BENEFITS)
+        DUI.SafeCall(C_Spell.RequestLoadSpellData, Campfire.BENEFITS)
     end
     Campfire.Check(true)
     Campfire.BagCheck(true)

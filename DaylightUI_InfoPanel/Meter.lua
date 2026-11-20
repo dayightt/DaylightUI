@@ -147,7 +147,7 @@ local function fallbackOptions()
         for _, b in ipairs(Meter.TIERS) do
             if b.breakpoint >= 1 then tiers[#tiers + 1] = b end
         end
-        local ok, c = pcall(CreateAbbreviateConfig, tiers)
+        local ok, c = DUI.SafeReturn(CreateAbbreviateConfig, tiers)
         if ok and c then fallback = { config = c } end
     end
     return fallback or nil
@@ -373,7 +373,7 @@ Meter.PaintKey = paintKey   -- the threat meter's rows too
 -- The game keeps one set of fights for every meter: clearing them also
 -- drops each meter's picked fight.
 function Meter.ResetAll()
-    if C_DamageMeter and C_DamageMeter.ResetAllCombatSessions then pcall(C_DamageMeter.ResetAllCombatSessions) end
+    if C_DamageMeter and C_DamageMeter.ResetAllCombatSessions then DUI.SafeCall(C_DamageMeter.ResetAllCombatSessions) end
     Meter.FightsChanged()
     for _, m in ipairs(all) do
         if not m.dead then m.Cleared() end
@@ -1120,7 +1120,7 @@ function Meter.New(m, opts)
         -- Keep the game's meter window off, even while ours is collapsed. Only
         -- written when it isn't off already.
         if c.enabled and SetCVar and not (GetCVar and GetCVar("damageMeterEnabled") == "0") then
-            pcall(SetCVar, "damageMeterEnabled", "0")
+            DUI.SafeCall(SetCVar, "damageMeterEnabled", "0")
         end
         ns.MeterHeader.Apply(header, c)
         layoutRows()

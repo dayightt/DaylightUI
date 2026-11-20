@@ -543,8 +543,8 @@ function Style.DurationFormatter(upTo)
         steps[#steps + 1] = step
     end
     if upTo then steps[#steps + 1] = { threshold = upTo, format = "", step = 1 } end
-    local ok, f = pcall(make)
-    if ok and f and pcall(f.SetBreakpoints, f, steps) then durationFormatters[key] = f end
+    local ok, f = DUI.SafeReturn(make)
+    if ok and f and DUI.SafeCall(f.SetBreakpoints, f, steps) then durationFormatters[key] = f end
     return durationFormatters[key] or nil
 end
 
@@ -579,8 +579,8 @@ function Style.ClockFormatter()
         end
         steps[i] = step
     end
-    local ok, f = pcall(make)
-    if ok and f and pcall(f.SetBreakpoints, f, steps) then clockFormatter = f end
+    local ok, f = DUI.SafeReturn(make)
+    if ok and f and DUI.SafeCall(f.SetBreakpoints, f, steps) then clockFormatter = f end
     return clockFormatter or nil
 end
 
@@ -1821,8 +1821,8 @@ function Style.LayoutShell(s)
         if t.SetVertexOffset then
             -- Vertex 1 is upper left, 3 upper right: shear the top out along the cut.
             if side == "left" then lean = -lean end
-            pcall(t.SetVertexOffset, t, 1, lean, 0)
-            pcall(t.SetVertexOffset, t, 3, lean, 0)
+            DUI.SafeCall(t.SetVertexOffset, t, 1, lean, 0)
+            DUI.SafeCall(t.SetVertexOffset, t, 3, lean, 0)
         end
     end
     if angled.left or angled.right then
@@ -2585,8 +2585,8 @@ end
 -- Paint). SetBarGradient alone skips a bar already in the requested state.
 function Style.ResetBarFill(bar)
     if not (bar and fills[bar] ~= nil) then return end
-    pcall(paintFill, bar, fills[bar])
-    pcall(paintGrain, bar)
+    DUI.SafeCall(paintFill, bar, fills[bar])
+    DUI.SafeCall(paintGrain, bar)
 end
 
 -- A status bar (or a plain fill texture) made elsewhere, given Daylight UI's fill.
@@ -2608,9 +2608,9 @@ end
 function Style.SetBarSlot(bar, slot)
     if type(bar) ~= "table" or slotOf[bar] == slot then return end
     slotOf[bar] = slot
-    if fills[bar] then pcall(paintFill, bar, fills[bar]) end
-    pcall(paintGrain, bar)
-    pcall(paintBack, bar)
+    if fills[bar] then DUI.SafeCall(paintFill, bar, fills[bar]) end
+    DUI.SafeCall(paintGrain, bar)
+    DUI.SafeCall(paintBack, bar)
 end
 
 function Style.BarSlot(bar) return slotOf[bar] end
@@ -2700,8 +2700,8 @@ function Style.SetBarGradient(bar, on)
     if flat then Style.SetBarColor(bar, Style.FlatSweep()) end
     if gradFills[bar] == on then return on == true end
     gradFills[bar] = on
-    pcall(paintFill, bar, fills[bar] or "fill")
-    pcall(paintGrain, bar)
+    DUI.SafeCall(paintFill, bar, fills[bar] or "fill")
+    DUI.SafeCall(paintGrain, bar)
     if on then
         bar:SetStatusBarColor(1, 1, 1, 1)
         Style.NoteFillRGB(bar:GetStatusBarTexture(), 1, 1, 1)
@@ -3054,7 +3054,7 @@ function Style.FontFamily(file, size, flags, shadow, color)
                        height = size, flags = flags }
     end
     familyCount = familyCount + 1
-    local ok, made = pcall(CreateFontFamily, "DaylightUIFont" .. familyCount, members)
+    local ok, made = DUI.SafeReturn(CreateFontFamily, "DaylightUIFont" .. familyCount, members)
     if not (ok and made) then
         families[key] = false
         return nil

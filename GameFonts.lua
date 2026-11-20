@@ -123,7 +123,7 @@ local function setFace(obj, face)
             flags = ourFlags(saved[2])
         end
     end
-    if pcall(obj.SetFont, obj, face, size, flags) and savedFaces[obj] then savedFaces[obj].face = face end
+    if DUI.SafeCall(obj.SetFont, obj, face, size, flags) and savedFaces[obj] then savedFaces[obj].face = face end
 end
 
 -- The game's fonts the pass leaves whole. The combat text over you draws with
@@ -176,7 +176,7 @@ local function setMember(member, face, done)
     if face == nil or type(member.GetFont) ~= "function" then return end
     local ok, current, size, flags = pcall(member.GetFont, member)
     if not ok or type(size) ~= "number" or size <= 0 or current == face then return end
-    pcall(member.SetFont, member, face, size, flags or "")
+    DUI.SafeCall(member.SetFont, member, face, size, flags or "")
 end
 
 -- A family changes member by member: a SetFont on the family itself changes
@@ -211,7 +211,7 @@ local function keepFaces(obj, done)
     end)
     if #list == 0 then return end
     keptCount = keptCount + 1
-    local okFam, fam = pcall(CreateFontFamily, "DaylightUIKeptFont" .. keptCount, list)
+    local okFam, fam = DUI.SafeReturn(CreateFontFamily, "DaylightUIKeptFont" .. keptCount, list)
     if not (okFam and type(fam) == "table") then return end
     local r, g, b, a
     if obj.GetTextColor then r, g, b, a = obj:GetTextColor() end
@@ -219,7 +219,7 @@ local function keepFaces(obj, done)
     if obj.GetShadowColor then sr, sg, sb, sa = obj:GetShadowColor() end
     local sx, sy
     if obj.GetShadowOffset then sx, sy = obj:GetShadowOffset() end
-    if not pcall(obj.SetFontObject, obj, fam) then return end
+    if not DUI.SafeCall(obj.SetFontObject, obj, fam) then return end
     if r and obj.SetTextColor then obj:SetTextColor(r, g, b, a) end
     if sr and obj.SetShadowColor then obj:SetShadowColor(sr, sg, sb, sa) end
     if sx and obj.SetShadowOffset then obj:SetShadowOffset(sx, sy) end
@@ -246,7 +246,7 @@ function GameFonts.SetObjectFont(obj, face, size, flags)
         f = f or current
         if f == nil then return end
         if f == current and currentSize == size and (currentFlags or "") == flags then return end
-        pcall(member.SetFont, member, f, size, flags)
+        DUI.SafeCall(member.SetFont, member, f, size, flags)
     end
     if not isFamily(obj) then return one(obj, face) end
     members(obj, function(alphabet, member) one(member, takes(alphabet, face) and face or nil) end)

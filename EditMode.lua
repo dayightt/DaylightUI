@@ -288,7 +288,7 @@ function EditMode.Install(base, profile)
     end
     info.layouts = all
     written = true
-    if not pcall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
+    if not DUI.SafeCall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
     if C_EditMode.OnLayoutAdded then
         C_EditMode.OnLayoutAdded(index, true, false)
     else
@@ -348,7 +348,7 @@ function EditMode.RenameLayout(old, new)
         if isOurs(l, old) then
             l.layoutName = EditMode.Name(new)
             info.layouts = all
-            if not pcall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
+            if not DUI.SafeCall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
             return true
         end
     end
@@ -373,7 +373,7 @@ function EditMode.Write()
     info.layouts = all
     -- Marked before the write even if the game refuses it: one attempt per session.
     written = true
-    if not pcall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
+    if not DUI.SafeCall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
     C_EditMode.SetActiveLayout(index)
     return true
 end
@@ -446,7 +446,7 @@ writePending = function()
     end
     if not changed then return end
     info.layouts = all
-    pcall(C_EditMode.SaveLayouts, info)
+    DUI.SafeCall(C_EditMode.SaveLayouts, info)
 end
 
 function EditMode.WriteSetting(system, index, key, value)

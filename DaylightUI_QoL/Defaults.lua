@@ -74,7 +74,7 @@ function GlowGone.Enable()
             own()[name] = nil
             local v = ns.GiveBackCVar(name) or gameDefault(name)
             if v ~= nil and type(GetCVar) == "function" and GetCVar(name) ~= nil and tostring(GetCVar(name)) ~= v then
-                pcall(SetCVar, name, v)
+                DaylightUI.SafeCall(SetCVar, name, v)
             end
         end
         for _, name in ipairs(ns.GLOW_CVARS_FORGET) do

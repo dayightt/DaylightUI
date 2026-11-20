@@ -148,7 +148,7 @@ end
 
 local function setCVar(name, v)
     local fn = (C_CVar and C_CVar.SetCVar) or SetCVar
-    if type(fn) == "function" then pcall(fn, name, tostring(v)) end
+    if type(fn) == "function" then DUI.SafeCall(fn, name, tostring(v)) end
 end
 
 local function kept()

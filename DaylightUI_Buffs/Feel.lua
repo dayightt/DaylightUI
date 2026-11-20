@@ -22,9 +22,9 @@ local function expiringCurve()
     if curve ~= nil and curveMotion == motion then return curve or nil end
     curveMotion, curve = motion, false
     if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
-    local ok, c = pcall(C_CurveUtil.CreateColorCurve)
+    local ok, c = DUI.SafeReturn(C_CurveUtil.CreateColorCurve)
     if not ok or not c then return nil end
-    if Enum.LuaCurveType and c.SetType then pcall(c.SetType, c, Enum.LuaCurveType.Linear) end
+    if Enum.LuaCurveType and c.SetType then DUI.SafeCall(c.SetType, c, Enum.LuaCurveType.Linear) end
     -- x = seconds left. From 0 to EXPIRING: orange with a point every half
     -- pulse, dim on the odd ones. Just above that, the timer's normal color.
     local o, t = Style.GRADIENT[2], BL.Widgets.TIME_COLOR

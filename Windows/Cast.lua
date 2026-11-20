@@ -66,7 +66,7 @@ function Win.Caster(spec)
     local c = {}
 
     local function make()
-        local ok, b = pcall(CreateFrame, "Button", spec.name, UIParent, "SecureActionButtonTemplate")
+        local ok, b = DUI.SafeReturn(CreateFrame, "Button", spec.name, UIParent, "SecureActionButtonTemplate")
         if not ok or type(b) ~= "table" then return nil end
         b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
         b:SetAttribute("useOnKeyDown", false)   -- nil follows the key-down CVar, which would ignore the Up clicks sent here

@@ -79,7 +79,7 @@ local function make(kind)
         holder.shadow:SetTexture(Model.GLOW)
         holder.shadow:SetVertexColor(0, 0, 0, Model.SHADOW_ALPHA)
         holder:SetScript("OnSizeChanged", Model.Place)
-        local ok, scene = pcall(CreateFrame, "ModelScene", nil, holder, "ModelSceneMixinTemplate")
+        local ok, scene = DUI.SafeReturn(CreateFrame, "ModelScene", nil, holder, "ModelSceneMixinTemplate")
         if ok and scene then
             scene:SetAllPoints(holder)
             scene:EnableMouse(true)
@@ -139,10 +139,10 @@ local function make(kind)
         scene:SetAlpha(0)
         Model.Offset(0)
         if kind == "pet" then
-            local ok, done = pcall(setUpPet, scene)
+            local ok, done = DUI.SafeReturn(setUpPet, scene)
             if not (ok and done) then Model.actor = nil end
         else
-            pcall(ModelSceneUtil.SetUpCharacterSheetScene, scene)
+            DUI.SafeCall(ModelSceneUtil.SetUpCharacterSheetScene, scene)
         end
         Model.waited, Model.waiting = 0, true
         Model.ride = { t = 0, rise = rise or 0 }
@@ -151,20 +151,20 @@ local function make(kind)
 
     function Model.Dress(slot)
         local a = Model.Actor()
-        if a and type(a.DressPlayerSlot) == "function" and type(slot) == "number" then pcall(a.DressPlayerSlot, a, slot) end
+        if a and type(a.DressPlayerSlot) == "function" and type(slot) == "number" then DUI.SafeCall(a.DressPlayerSlot, a, slot) end
     end
 
     -- Shows an item on the model without putting it on. A bare number would be
     -- read as an appearance, so it takes an item link.
     function Model.TryOn(link)
         local a = Model.Actor()
-        if a and type(a.TryOn) == "function" and type(link) == "string" then pcall(a.TryOn, a, link) end
+        if a and type(a.TryOn) == "function" and type(link) == "string" then DUI.SafeCall(a.TryOn, a, link) end
     end
 
     -- Back to the gear you have on.
     function Model.Redress()
         local a = Model.Actor()
-        if a and type(a.Dress) == "function" then pcall(a.Dress, a) end
+        if a and type(a.Dress) == "function" then DUI.SafeCall(a.Dress, a) end
     end
 
     -- Frames closer than the game does, starting from the distance it set. The
@@ -247,7 +247,7 @@ local function make(kind)
         local function limit(get, set, keep)
             if type(cam[get]) ~= "function" or type(cam[set]) ~= "function" then return end
             local ok, v = pcall(cam[get], cam)
-            if ok and type(v) == "number" and keep(v) then pcall(cam[set], cam, keep(v)) end
+            if ok and type(v) == "number" and keep(v) then DUI.SafeCall(cam[set], cam, keep(v)) end
         end
         limit("GetMinZoomDistance", "SetMinZoomDistance", function(min) return min > want and want or nil end)
         limit("GetMaxZoomDistance", "SetMaxZoomDistance", function(max)
@@ -263,8 +263,8 @@ local function make(kind)
             if okMin and type(min) == "number" and d < min then d = min end
             if okMax and type(max) == "number" and d > max then d = max end
         end
-        pcall(cam.SetZoomDistance, cam, d)
-        if type(cam.SnapAllInterpolatedValues) == "function" then pcall(cam.SnapAllInterpolatedValues, cam) end
+        DUI.SafeCall(cam.SetZoomDistance, cam, d)
+        if type(cam.SnapAllInterpolatedValues) == "function" then DUI.SafeCall(cam.SnapAllInterpolatedValues, cam) end
     end
 
     -- Offsets the scene by y px. A 3D model doesn't follow the window's lift

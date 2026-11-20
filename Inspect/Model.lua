@@ -61,7 +61,7 @@ function Model.Build(parent)
     h.shadow:SetTexture(Model.GLOW)
     h.shadow:SetVertexColor(0, 0, 0, Model.SHADOW_ALPHA)
     h:SetScript("OnSizeChanged", place)
-    local ok, m = pcall(CreateFrame, "PlayerModel", nil, h)
+    local ok, m = DUI.SafeReturn(CreateFrame, "PlayerModel", nil, h)
     if ok and type(m) == "table" then
         m:SetAllPoints(h)
         m:EnableMouse(true)
@@ -97,8 +97,8 @@ function Model.SetUnit(unit)
     if not (m and unit) then return end
     m.facing, m.speed, m.dragX = 0, 0, nil
     m:SetAlpha(0)
-    pcall(m.SetUnit, m, unit)
-    pcall(m.SetFacing, m, 0)
+    DUI.SafeCall(m.SetUnit, m, unit)
+    DUI.SafeCall(m.SetFacing, m, 0)
     DUI.Motion.Fade(m, 0, 1, DUI.Motion.NORMAL)
 end
 
@@ -107,11 +107,11 @@ end
 function Model.Dress(unit)
     local m = Model.model
     if not (m and unit) then return end
-    pcall(m.SetUnit, m, unit)
-    pcall(m.SetFacing, m, m.facing or 0)
+    DUI.SafeCall(m.SetUnit, m, unit)
+    DUI.SafeCall(m.SetFacing, m, m.facing or 0)
 end
 
 function Model.Clear()
     local m = Model.model
-    if m and type(m.ClearModel) == "function" then pcall(m.ClearModel, m) end
+    if m and type(m.ClearModel) == "function" then DUI.SafeCall(m.ClearModel, m) end
 end

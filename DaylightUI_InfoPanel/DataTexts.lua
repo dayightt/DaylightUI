@@ -648,7 +648,7 @@ DT.sessionStart = GetTime()
 local muted = {}
 local function unmute()
     for i = #muted, 1, -1 do
-        pcall(muted[i].RegisterEvent, muted[i], "TIME_PLAYED_MSG")
+        DUI.SafeCall(muted[i].RegisterEvent, muted[i], "TIME_PLAYED_MSG")
         muted[i] = nil
     end
 end

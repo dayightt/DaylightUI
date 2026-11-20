@@ -125,7 +125,7 @@ ns.OPTIONS = { pages = {
               -- A game setting, so it's written out of a fight only.
               set = function(v)
                   DaylightUI.AfterCombat(function()
-                      if type(SetCVar) == "function" then pcall(SetCVar, "autoQuestWatch", v and "1" or "0") end
+                      if type(SetCVar) == "function" then DaylightUI.SafeCall(SetCVar, "autoQuestWatch", v and "1" or "0") end
                   end, "quests:autowatch")
               end,
               default = function() return true end },

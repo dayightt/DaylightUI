@@ -56,7 +56,7 @@ local function configOf(style)
     if configs[style] == nil then
         configs[style] = false
         if Health.TIERS[style] and CreateAbbreviateConfig then
-            local ok, c = pcall(CreateAbbreviateConfig, Health.TIERS[style])
+            local ok, c = DUI.SafeReturn(CreateAbbreviateConfig, Health.TIERS[style])
             if ok and c then configs[style] = { config = c } end
         end
     end
@@ -103,7 +103,7 @@ local function missing(u)
 end
 
 local function linear(c)
-    if Enum.LuaCurveType and c.SetType then pcall(c.SetType, c, Enum.LuaCurveType.Linear) end
+    if Enum.LuaCurveType and c.SetType then DUI.SafeCall(c.SetType, c, Enum.LuaCurveType.Linear) end
 end
 
 -- Missing health shows nothing at full. Its alpha comes from a curve (1 below
@@ -114,7 +114,7 @@ function Health.FullCurve()
     if fullCurve == nil then
         fullCurve = false
         if C_CurveUtil and C_CurveUtil.CreateCurve then
-            local ok, c = pcall(C_CurveUtil.CreateCurve)
+            local ok, c = DUI.SafeReturn(C_CurveUtil.CreateCurve)
             if ok and c then
                 linear(c)
                 c:AddPoint(0, 1)
@@ -132,7 +132,7 @@ local function hideAtFull(fs, u)
     if curve and UnitHealthPercent then
         local ok, a = pcall(UnitHealthPercent, u, true, curve)
         if ok then
-            pcall(fs.SetAlpha, fs, a)
+            DUI.SafeCall(fs.SetAlpha, fs, a)
             return
         end
     end
@@ -231,7 +231,7 @@ function Health.GradientCurve()
     if curve ~= nil and curveSoft == gen.softness and curveBright == gen.brightness then return curve or nil end
     curveSoft, curveBright, curve = gen.softness, gen.brightness, false
     if not (C_CurveUtil and C_CurveUtil.CreateColorCurve and CreateColor) then return nil end
-    local ok, c = pcall(C_CurveUtil.CreateColorCurve)
+    local ok, c = DUI.SafeReturn(C_CurveUtil.CreateColorCurve)
     if not ok or not c then return nil end
     linear(c)
     for _, stop in ipairs(Health.GRADIENT) do
@@ -248,7 +248,7 @@ function Health.ApplyGradient(bar, u)
     if not (c and UnitHealthPercent) then return end
     local ok, col = pcall(UnitHealthPercent, u, true, c)
     if ok and type(col) == "table" and col.GetRGB then
-        pcall(bar.SetStatusBarColor, bar, col:GetRGB())
+        DUI.SafeCall(bar.SetStatusBarColor, bar, col:GetRGB())
         DUI.Style.NoteFill(bar:GetStatusBarTexture(), col)
     end
 end

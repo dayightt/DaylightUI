@@ -65,7 +65,7 @@ end
 
 local function sound(key)
     local id = SOUNDKIT and SOUNDKIT[key]
-    if id and type(PlaySound) == "function" then pcall(PlaySound, id) end
+    if id and type(PlaySound) == "function" then DUI.SafeCall(PlaySound, id) end
 end
 
 -- The dragged position, saved per profile in the module's `spot` (Window.spot,

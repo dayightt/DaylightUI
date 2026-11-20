@@ -237,7 +237,7 @@ ns.OPTIONS = { pages = {
               get = function() return type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true end,
               -- A game setting, so it's written out of a fight only.
               set = function(v) DaylightUI.AfterCombat(function()
-                  if type(SetCVar) == "function" then pcall(SetCVar, "rotateMinimap", v and "1" or "0") end
+                  if type(SetCVar) == "function" then DaylightUI.SafeCall(SetCVar, "rotateMinimap", v and "1" or "0") end
                   -- The game reapplies this from its Edit Mode layout at login,
                   -- so write it there too or it resets after a reload.
                   local sys, set = Enum.EditModeSystem, Enum.EditModeMinimapSetting

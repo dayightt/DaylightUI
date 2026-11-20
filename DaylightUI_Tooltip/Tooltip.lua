@@ -1880,7 +1880,7 @@ function Tip.SkinAll()
     local f = EnumerateFrames()
     while f do
         local ok, what = pcall(f.GetObjectType, f)
-        if ok and what == "GameTooltip" then pcall(Tip.Skin, f) end
+        if ok and what == "GameTooltip" then DUI.SafeCall(Tip.Skin, f) end
         f = EnumerateFrames(f)
     end
 end
@@ -2032,7 +2032,7 @@ function Tip.StyleAuraTooltip()
     local look = Style.LookOf(LOOK)
     local edge = DUI.Pixel.Px(UIParent, look.borderPx)
     local bg, border = Style.BackColor(LOOK), Style.BORDER
-    pcall(inbound.SetTooltipBackdrop, {
+    DUI.SafeCall(inbound.SetTooltipBackdrop, {
         backdropInfo = {
             bgFile = Tip.WHITE, edgeFile = Tip.WHITE, edgeSize = edge,
             insets = { left = 0, right = 0, top = 0, bottom = 0 },

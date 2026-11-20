@@ -156,21 +156,21 @@ function CT.Warn() return warn end
 -- on the first line). Nothing is hooked.
 local function hideGames()
     local f = _G.CombatText
-    if type(f) == "table" and type(f.Hide) == "function" then pcall(f.Hide, f) end
+    if type(f) == "table" and type(f.Hide) == "function" then DUI.SafeCall(f.Hide, f) end
 end
 
 local function setActiveUnit()
     if not (C_CombatText and C_CombatText.SetActiveUnit) then return end
     local unit = "player"
     if type(UnitHasVehicleUI) == "function" and UnitHasVehicleUI("player") then unit = "vehicle" end
-    pcall(C_CombatText.SetActiveUnit, unit)
+    DUI.SafeCall(C_CombatText.SetActiveUnit, unit)
 end
 
 -- Low health/mana warning. The percent is secret, so a curve maps it directly
 -- to the warning's alpha: 1 below the threshold, fading to 0 just above it.
 local function curve()
     if not (C_CurveUtil and C_CurveUtil.CreateCurve) then return nil end
-    local ok, c = pcall(C_CurveUtil.CreateCurve)
+    local ok, c = DUI.SafeReturn(C_CurveUtil.CreateCurve)
     if not ok or type(c) ~= "table" and type(c) ~= "userdata" then return nil end
     local at = CT.Get("warnAt") or 0.3
     c:AddPoint(0, 0)        -- zero health means dead, not low
@@ -247,7 +247,7 @@ local function gameSwitchOn(counted)
             if switchTries >= CT.SWITCH_TRIES then return end
             switchTries = switchTries + 1
         end
-        pcall(SetCVar, CT.GAME_SWITCH, "1")
+        DUI.SafeCall(SetCVar, CT.GAME_SWITCH, "1")
     end, "combattext:switch")
 end
 

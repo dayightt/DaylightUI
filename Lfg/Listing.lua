@@ -676,7 +676,7 @@ function Listing.Build(page)
         -- A game setting, so it's written out of a fight only.
         local on = Listing.npf
         DUI.AfterCombat(function()
-            if type(SetCVar) == "function" then pcall(SetCVar, "lfgNewPlayerFriendly", on and "1" or "0") end
+            if type(SetCVar) == "function" then DUI.SafeCall(SetCVar, "lfgNewPlayerFriendly", on and "1" or "0") end
         end, "lfg:npf")
         page.npf.SetOn(Listing.npf)
         Listing.PaintFooter()

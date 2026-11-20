@@ -672,7 +672,7 @@ function Bars.TellManaRise()
     local register = _G.ManaRise_RegisterBarAddon
     if type(register) ~= "function" then return end
     Bars.toldManaRise = true
-    pcall(register, { name = "Daylight UI", buttons = function() return ns.Buttons.All() end })
+    DUI.SafeCall(register, { name = "Daylight UI", buttons = function() return ns.Buttons.All() end })
 end
 DUI.RegisterEvent("ADDON_LOADED", function(_, name)
     if name == "ManaRise" and Bars.built then Bars.TellManaRise() end

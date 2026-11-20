@@ -91,8 +91,8 @@ function Dots.LayoutVeil(veil, bar, growLeft)
     -- cut the way the trail mask runs (a quarter of its width at the top).
     if e.SetVertexOffset then
         local lean = side == "right" and cut or side == "left" and -cut or 0
-        pcall(e.SetVertexOffset, e, 1, lean, 0)
-        pcall(e.SetVertexOffset, e, 3, lean, 0)
+        DUI.SafeCall(e.SetVertexOffset, e, 1, lean, 0)
+        DUI.SafeCall(e.SetVertexOffset, e, 3, lean, 0)
     end
 end
 

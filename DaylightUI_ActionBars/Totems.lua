@@ -104,7 +104,7 @@ local function pin(frame, place)
             local function now()
                 if InCombatLockdown() then soon() else placeAll() end
             end
-            pcall(R.RegisterCallback, R, "EditModeManager.UpdateBottomActionBarPositions", now, Totems)
+            DUI.SafeCall(R.RegisterCallback, R, "EditModeManager.UpdateBottomActionBarPositions", now, Totems)
         end
     end
     DUI.AfterCombat(function() DUI.SafeCall(place) end, "totems:pin:" .. tostring(frame:GetName()))

@@ -300,7 +300,7 @@ function Training.Build(page)
     local a = api()
     if a and type(a.RegisterCallback) == "function" then
         for _, e in ipairs(Training.EVENTS) do
-            pcall(a.RegisterCallback, Training, e, function() Training.Soon() end)
+            DUI.SafeCall(a.RegisterCallback, Training, e, function() Training.Soon() end)
         end
     end
     DUI.RegisterEvent("PLAYER_MONEY", function() Training.Soon() end)

@@ -355,7 +355,7 @@ local look = {
           set = function(v)
               -- A game setting, so it's written out of a fight only.
               DUI.AfterCombat(function()
-                  if type(SetCVar) == "function" then pcall(SetCVar, "displayFreeBagSlots", v and "1" or "0") end
+                  if type(SetCVar) == "function" then DUI.SafeCall(SetCVar, "displayFreeBagSlots", v and "1" or "0") end
                   -- Not one of Daylight UI's settings, so tell the options window directly.
                   DUI.Fire("SettingChanged", "ActionBars", "displayFreeBagSlots", v)
               end, "actionbars:freeslots")

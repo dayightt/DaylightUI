@@ -88,7 +88,7 @@ local function hookMogul()
     local api = mogulAPI()
     if not (api and type(api.On) == "function") then return end
     mogulHooked = true
-    pcall(api.On, "LedgerChanged", function()
+    DUI.SafeCall(api.On, "LedgerChanged", function()
         local page = Page.page
         if page and page:IsVisible() then Page.Render(page) end
     end)

@@ -53,8 +53,8 @@ function Engine.Broke(def, err)
     told[addon] = true
     local version = C_AddOns and C_AddOns.GetAddOnMetadata and def.addon and C_AddOns.GetAddOnMetadata(def.addon, "Version")
     DUI.Print(string.format(L["Daylight UI couldn't skin %s %s: it's left as it is."], tostring(def.label or addon), tostring(version or "")))
-    -- Print the actual error when the dev addon is loaded.
-    if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DaylightUI_Dev") then geterrorhandler()(err) end
+    -- The error itself is kept for /dui bug, so a report can say why.
+    DUI.NoteError(err)
 end
 
 function Engine.Safe(def, fn)

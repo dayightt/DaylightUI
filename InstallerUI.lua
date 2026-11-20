@@ -662,7 +662,7 @@ function UI.ShowReload(over)
     -- A timer from the Finish checklist can fire after the window closed.
     if not (frame and frame:IsShown()) then return false end
     if not reload then
-        local ok, b = pcall(CreateFrame, "Button", "DaylightUIInstallerReload", UIParent, "SecureActionButtonTemplate")
+        local ok, b = DUI.SafeReturn(CreateFrame, "Button", "DaylightUIInstallerReload", UIParent, "SecureActionButtonTemplate")
         if not ok or type(b) ~= "table" then return false end
         reload = b
         reload:SetAttribute("type", "macro")

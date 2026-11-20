@@ -897,7 +897,7 @@ end
 
 function Window.Sort()
     if InCombatLockdown and InCombatLockdown() then return end
-    if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then pcall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
+    if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then DUI.SafeCall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
     local f = ns.window
     if ns.Keep.Any() then
         -- Its own rounds: held until they're done, or SORT_MAX at most.
@@ -905,7 +905,7 @@ function Window.Sort()
         return ns.Keep.Sort(function() if hold then Window.EndSort(f, nil, hold) end end)
     end
     Window.BeginSort(f, false)
-    pcall(C_Container.SortBags)
+    DUI.SafeCall(C_Container.SortBags)
 end
 
 -- A cleanup moves items through many bag updates, a few at a time. Filling and
@@ -1537,7 +1537,7 @@ function ns.Build(mod)
         ns.Repair.Register()
         ns.Layout.Register()
         -- This addon's search decides what dims; the game's own search stays empty.
-        pcall(C_Container.SetItemSearch, "")
+        DUI.SafeCall(C_Container.SetItemSearch, "")
         ns.OpenClose.Take()
         if ns.Bank then ns.Bank.Build() end
         ns.Viewer.Build()

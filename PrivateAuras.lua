@@ -63,7 +63,7 @@ end
 function PA.Release(set)
     local all = true
     for i, id in pairs(set.ids) do
-        if pcall(C_UnitAuras.RemovePrivateAuraAnchor, id) then set.ids[i] = nil else all = false end
+        if DUI.SafeCall(C_UnitAuras.RemovePrivateAuraAnchor, id) then set.ids[i] = nil else all = false end
     end
     set.unit, set.size = nil, nil
     return all
@@ -87,7 +87,7 @@ function PA.Apply(set)
     if not PA.Release(set) then return later(set) end
     if not unit then return end
     for i, slot in ipairs(set.slots) do
-        local ok, id = pcall(C_UnitAuras.AddPrivateAuraAnchor, args(set, slot, i, unit, size))
+        local ok, id = DUI.SafeReturn(C_UnitAuras.AddPrivateAuraAnchor, args(set, slot, i, unit, size))
         if not ok then
             PA.Release(set)
             return later(set)

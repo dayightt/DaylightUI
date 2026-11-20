@@ -181,9 +181,9 @@ function Spells.OpenTraining()
     local open = Spells.Training()
     if not open then return end
     local f = _G.WhatsTrainingFloatingFrame
-    if not (type(f) == "table" and f:IsShown()) then pcall(open, "") end
+    if not (type(f) == "table" and f:IsShown()) then DUI.SafeCall(open, "") end
     f = _G.WhatsTrainingFloatingFrame
-    if type(f) == "table" and type(f.SetProfessionView) == "function" then pcall(f.SetProfessionView, f, true) end
+    if type(f) == "table" and type(f.SetProfessionView) == "function" then DUI.SafeCall(f.SetProfessionView, f, true) end
 end
 
 function Spells.MakeTraining(row)

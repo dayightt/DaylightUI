@@ -1418,7 +1418,7 @@ function BL.ApplyBlizzardHiding()
         end
         -- The game re-shows these when Edit Mode (re)applies its layout.
         if EventRegistry and EventRegistry.RegisterCallback then
-            pcall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.SavedLayouts.LayoutsApplied", function()
+            DUI.SafeCall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.SavedLayouts.LayoutsApplied", function()
                 if not editModeActive then BL.ApplyBlizzardHiding() end
             end, BL)
         end
@@ -1452,8 +1452,8 @@ local function onEditModeExit()
 end
 
 if EventRegistry and EventRegistry.RegisterCallback then
-    pcall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Enter", onEditModeEnter, BL)
-    pcall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Exit", onEditModeExit, BL)
+    DUI.SafeCall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Enter", onEditModeEnter, BL)
+    DUI.SafeCall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Exit", onEditModeExit, BL)
 end
 
 -- ---------------------------------------------------------------------

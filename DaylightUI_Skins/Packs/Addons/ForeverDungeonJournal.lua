@@ -151,9 +151,7 @@ local function walk(Kit, f, depth, shownOnly, again)
     if not isTable(f) or not f.GetChildren or depth > FDJ.DEPTH or forbidden(f) then return end
     if shownOnly and f.IsShown and not f:IsShown() then return end
     local ok, err = pcall(dress, Kit, f, depth, again)
-    if not ok and C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DaylightUI_Dev") then
-        geterrorhandler()(err)
-    end
+    if not ok then DUI.NoteError(err) end
     for _, c in ipairs({ f:GetChildren() }) do walk(Kit, c, depth + 1, shownOnly, again) end
 end
 

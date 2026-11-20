@@ -233,7 +233,7 @@ local function watchStable(f)
     local R = _G.EventRegistry
     if type(R) == "table" and R.RegisterCallback then
         for _, e in ipairs({ "StableFrameMixin.PetSelected", "StableFrameMixin.OnSelectedPetChanged" }) do
-            pcall(R.RegisterCallback, R, e, refreshStable, "DaylightUI.stable")
+            DaylightUI.SafeCall(R.RegisterCallback, R, e, refreshStable, "DaylightUI.stable")
         end
     end
     for _, e in ipairs({ "PET_STABLE_UPDATE", "PLAYER_MONEY" }) do

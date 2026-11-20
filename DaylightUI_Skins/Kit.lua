@@ -1524,7 +1524,7 @@ function Kit.SideTab(tab, isSelected, crop, whole)
     local name = tab.GetName and tab:GetName()
     local icon = tab.Icon or tab.icon or (type(name) == "string" and (_G[name .. "Icon"] or _G[name .. "IconTexture"]))
     if kind(icon) ~= "Texture" then return end
-    if isTable(tab.Mask) and icon.RemoveMaskTexture then pcall(icon.RemoveMaskTexture, icon, tab.Mask) end
+    if isTable(tab.Mask) and icon.RemoveMaskTexture then DUI.SafeCall(icon.RemoveMaskTexture, icon, tab.Mask) end
     if crop then Kit.KeepCrop(icon, crop) end
     local shell = whole and Kit.Shell(tab, "tab") or Kit.Outline(icon, 0, "icon", true)
     Kit.Row(tab, { [icon] = true }, isSelected or selectionArt(tab) or tabSelected, shell)
@@ -1732,7 +1732,7 @@ function Kit.ProgressBar(bar)
         return
     end
     Kit.Strip(bar, { [fill] = true })
-    if isTable(bar.Mask) and fill.RemoveMaskTexture then pcall(fill.RemoveMaskTexture, fill, bar.Mask) end
+    if isTable(bar.Mask) and fill.RemoveMaskTexture then DUI.SafeCall(fill.RemoveMaskTexture, fill, bar.Mask) end
     Style.TrackBar(fill)
     Kit.OnRefill(bar, function() Style.TrackBar(fill) end)
     -- Track: the bar's width, the fill's height.
@@ -2000,7 +2000,7 @@ function Kit.EachRow(box, fn, key)
     if not isTable(box) or not box.ForEachFrame then return end
     local function each(f)
         local t0 = Kit.Profiling and debugprofilestop()
-        pcall(box.ForEachFrame, box, function(row) DUI.SafeCall(f, row) end)
+        DUI.SafeCall(box.ForEachFrame, box, function(row) DUI.SafeCall(f, row) end)
         if t0 then Kit.Spent("rows", debugprofilestop() - t0) end
     end
     each(fn)

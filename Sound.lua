@@ -166,12 +166,12 @@ function Sound.Play(name, gameKit)
         local kit = (gameKit or Sound.On()) and type(SOUNDKIT) == "table"
             and SOUNDKIT[gameKit or Sound.GAME_KIT[name]]
         if type(kit) == "number" and type(PlaySound) == "function" and fresh(name) then
-            pcall(PlaySound, kit)
+            DUI.SafeCall(PlaySound, kit)
         end
         return
     end
     if type(PlaySoundFile) ~= "function" or not fresh(name) then return end
-    pcall(PlaySoundFile, file, "SFX")
+    DUI.SafeCall(PlaySoundFile, file, "SFX")
 end
 
 -- The game's own sound for a moment its window had that Daylight UI's took over (a
@@ -186,7 +186,7 @@ function Sound.Kit(name, kind)
         local g = DUI.DB and DUI.DB.General and DUI.DB.General()
         if g and type(g.soundKinds) == "table" and g.soundKinds[kind] == "none" then return end
     end
-    if fresh("kit:" .. name) then pcall(PlaySound, kit) end
+    if fresh("kit:" .. name) then DUI.SafeCall(PlaySound, kit) end
 end
 
 -- Plays one of Daylight UI's sounds on repeat. Each copy fades in and out so a copy every
@@ -198,7 +198,7 @@ function Sound.Loop(name, every)
     local loop = { handles = {} }
     local function again()
         if loop.stopped or Sound.Mode(name) ~= "soft" then return end -- stopped, or sounds turned off
-        local ok, _, handle = pcall(PlaySoundFile, file, "SFX")
+        local ok, _, handle = DUI.SafeReturn(PlaySoundFile, file, "SFX")
         if ok and handle then
             local h = loop.handles
             h[#h + 1] = handle
@@ -344,7 +344,7 @@ function Sound.AlertSample(key, wait)
     local ask = sampleAsk
     C_Timer.After(wait or Sound.PICK_WAIT, function()
         if ask ~= sampleAsk then return end
-        if samplePlaying and type(StopSound) == "function" then pcall(StopSound, samplePlaying) end
+        if samplePlaying and type(StopSound) == "function" then DUI.SafeCall(StopSound, samplePlaying) end
         samplePlaying = Sound.Alert(key)
     end)
 end
@@ -359,7 +359,7 @@ function Sound.StopLoop(loop, fade)
     if type(loop) ~= "table" or loop.stopped then return end
     loop.stopped = true
     if type(StopSound) ~= "function" then return end
-    for _, h in ipairs(loop.handles) do pcall(StopSound, h, math.floor((fade or 0) * 1000)) end
+    for _, h in ipairs(loop.handles) do DUI.SafeCall(StopSound, h, math.floor((fade or 0) * 1000)) end
 end
 
 -- Mutes every replaced kit's files unless its kind is set to the game's own,
@@ -381,12 +381,12 @@ function Sound.ApplyMutes()
     for id, muted in pairs(want) do
         if muted then
             if not mutedNow[id] and type(MuteSoundFile) == "function" then
-                pcall(MuteSoundFile, id)
+                DUI.SafeCall(MuteSoundFile, id)
                 mutedNow[id] = true
             end
             saved[id] = true
         elseif mutedNow[id] or saved[id] or old then
-            if type(UnmuteSoundFile) == "function" then pcall(UnmuteSoundFile, id) end
+            if type(UnmuteSoundFile) == "function" then DUI.SafeCall(UnmuteSoundFile, id) end
             mutedNow[id] = nil
             saved[id] = nil
         end
@@ -394,7 +394,7 @@ function Sound.ApplyMutes()
     -- Lift Daylight UI's mutes on kits no longer replaced (an update dropped them).
     for id in pairs(saved) do
         if want[id] == nil then
-            if type(UnmuteSoundFile) == "function" then pcall(UnmuteSoundFile, id) end
+            if type(UnmuteSoundFile) == "function" then DUI.SafeCall(UnmuteSoundFile, id) end
             mutedNow[id] = nil
             saved[id] = nil
         end

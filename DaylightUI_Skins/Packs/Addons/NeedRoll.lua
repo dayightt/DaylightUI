@@ -548,9 +548,7 @@ end
 -- A failure on one frame (its frames change between versions) skips only that frame.
 local function each(f)
     local ok, err = pcall(NR.Each, f)
-    if not ok and C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DaylightUI_Dev") then
-        geterrorhandler()(err)
-    end
+    if not ok then DUI.NoteError(err) end
 end
 
 -- Its title: its own (icon and name centered in a holder over the emptied

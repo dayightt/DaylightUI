@@ -359,7 +359,7 @@ local function build()
     m.shadow:SetTexture(Afk.GLOW)
     m.shadow:SetVertexColor(0, 0, 0, 0.6)
     screen.model = m
-    local ok, scene = pcall(CreateFrame, "ModelScene", nil, m, "ModelSceneMixinTemplate")
+    local ok, scene = DUI.SafeReturn(CreateFrame, "ModelScene", nil, m, "ModelSceneMixinTemplate")
     if ok and type(scene) == "table" then
         scene:SetAllPoints(m)
         scene:EnableMouse(false)
@@ -475,7 +475,7 @@ function Afk.Show(preview)
     local scene = screen.scene
     if scene and type(ModelSceneUtil) == "table" and type(ModelSceneUtil.SetUpCharacterSheetScene) == "function" then
         scene:SetAlpha(0)
-        pcall(ModelSceneUtil.SetUpCharacterSheetScene, scene)
+        DUI.SafeCall(ModelSceneUtil.SetUpCharacterSheetScene, scene)
         Afk.waiting, Afk.waited = true, 0
     else
         Afk.waiting = false

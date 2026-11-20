@@ -37,14 +37,14 @@ function Who.Send(text)
     Who.asked = text
     Who.searching = true
     local origin = Enum and Enum.SocialWhoOrigin and Enum.SocialWhoOrigin.Social
-    pcall(F.SendWho, text, origin)
+    DUI.SafeCall(F.SendWho, text, origin)
     Who.Render()
 end
 
 function Who.Sort(mode)
     Who.sort = mode
     local F = friends()
-    if F and F.SortWho then pcall(F.SortWho, mode) end
+    if F and F.SortWho then DUI.SafeCall(F.SortWho, mode) end
     Who.Render()
 end
 
@@ -169,11 +169,11 @@ function Who.Build(page)
         side = function(open) ns.Window.SetSide("who", open) end, fit = function(p) Who.Fit(page, p) end })
     page:HookScript("OnShow", function()
         local F = friends()
-        if F and F.SetWhoToUi then pcall(F.SetWhoToUi, true) end
+        if F and F.SetWhoToUi then DUI.SafeCall(F.SetWhoToUi, true) end
     end)
     page:HookScript("OnHide", function()
         local F = friends()
-        if F and F.SetWhoToUi then pcall(F.SetWhoToUi, false) end
+        if F and F.SetWhoToUi then DUI.SafeCall(F.SetWhoToUi, false) end
     end)
     DUI.RegisterEvent("WHO_LIST_UPDATE", function()
         Who.searching = false

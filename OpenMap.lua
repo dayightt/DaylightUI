@@ -55,7 +55,7 @@ function OM.Hook()
     local a = api()
     if hooked or not a or type(a.RegisterCallback) ~= "function" then return end
     hooked = true
-    pcall(a.RegisterCallback, OM, "OpenMap_StitchedChanged", function(_, on) DUI.Fire("OpenMapStitched", on == true) end)
+    DUI.SafeCall(a.RegisterCallback, OM, "OpenMap_StitchedChanged", function(_, on) DUI.Fire("OpenMapStitched", on == true) end)
 end
 
 DUI.RegisterEvent("PLAYER_LOGIN", function() OM.Hook() end)

@@ -1229,7 +1229,7 @@ function DaylightUI_OpenOptions() Panel.Toggle() end
 
 DUI.On("Login", function()
     if not (Settings and Settings.RegisterCanvasLayoutCategory and Settings.RegisterAddOnCategory) then return end
-    pcall(function()
+    DUI.SafeCall(function()
         local f = CreateFrame("Frame")
         local b = W.Button(f, L["Open DaylightUI options"], 28)
         b:SetWidth(220)

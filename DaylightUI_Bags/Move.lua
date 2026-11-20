@@ -117,7 +117,7 @@ function Move.Run(f)
         -- Still the same item in that slot, not picked up since?
         local ok, info = pcall(C_Container.GetContainerItemInfo, item.bag, item.slot)
         if ok and info and not info.isLocked and info.hyperlink == item.link then
-            pcall(C_Container.UseContainerItem, item.bag, item.slot)
+            DUI.SafeCall(C_Container.UseContainerItem, item.bag, item.slot)
             moved[#moved + 1] = item
         end
         C_Timer.After(ns.Junk.STEP, step)

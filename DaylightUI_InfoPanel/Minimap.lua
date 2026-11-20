@@ -1050,7 +1050,7 @@ function Map.Apply(cfg)
         for _, kind in ipairs(Map.BLOB_RINGS) do
             for _, part in ipairs({ "RingScalar", "RingAlpha" }) do
                 local set = mm["Set" .. kind .. part]
-                if type(set) == "function" then pcall(set, mm, 0) end
+                if type(set) == "function" then DUI.SafeCall(set, mm, 0) end
             end
         end
     end

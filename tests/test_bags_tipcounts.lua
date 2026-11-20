@@ -10,6 +10,7 @@ local function login()
         Constants.InventoryConstants = { NumBagSlots = 4, NumReagentBagSlots = 1 }
         _G.C_Container = {
             GetContainerNumSlots = function() return 0 end,
+            SetItemSearch = function() end,
             GetContainerItemInfo = function() return nil end,
             GetContainerNumFreeSlots = function() return 0, 0 end,
             HasContainerItem = function() return false end,

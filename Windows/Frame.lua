@@ -624,7 +624,7 @@ function Win.SetPortrait(f, unit, fallback)
     local ok
     if unit and type(UnitExists) == "function" and not UnitExists(unit) then unit = nil end
     if unit then
-        ok = type(SetPortraitTexture) == "function" and pcall(SetPortraitTexture, f.portrait, unit)
+        ok = type(SetPortraitTexture) == "function" and DUI.SafeCall(SetPortraitTexture, f.portrait, unit)
     elseif fallback then
         f.portrait:SetTexture(fallback)
         ok = true

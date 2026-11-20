@@ -23,7 +23,7 @@ end
 
 local function propagate(f, on)
     if InCombatLockdown() then return end
-    pcall(f.SetPropagateKeyboardInput, f, on)
+    DUI.SafeCall(f.SetPropagateKeyboardInput, f, on)
 end
 
 local apply

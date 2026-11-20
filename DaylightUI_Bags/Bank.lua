@@ -216,7 +216,7 @@ function Bank.CreateStrip(f)
     local strip = Slots.NewStrip(f)
     local max = call(bankFn("FetchMaxNumBankTabs"), enum("Character")) or 0
     for i = 1, max do
-        local function pick() local c, s = bagSlot(i); if c then pcall(C_Container.PickupContainerItem, c, s) end end
+        local function pick() local c, s = bagSlot(i); if c then DUI.SafeCall(C_Container.PickupContainerItem, c, s) end end
         local b = Slots.NewButton(strip, { pick = pick, put = pick,
             slots = function() return f.set.Slots() end,
             lit = function() return tabContainer(i) end,
@@ -324,8 +324,8 @@ function Bank.Build()
               onClick = function(w)
                   if InCombatLockdown and InCombatLockdown() then return end
                   W.BeginSort(w)
-                  if C_Container.SortBank and Bank.bankType then pcall(C_Container.SortBank, Bank.bankType)
-                  elseif C_Container.SortBankBags then pcall(C_Container.SortBankBags) end
+                  if C_Container.SortBank and Bank.bankType then DUI.SafeCall(C_Container.SortBank, Bank.bankType)
+                  elseif C_Container.SortBankBags then DUI.SafeCall(C_Container.SortBankBags) end
               end },
             { key = "depositButton", icon = Bank.DEPOSIT_ICON, title = L["Deposit reagents"],
               desc = L["Puts every reagent and trade good from your bags into this bank."],

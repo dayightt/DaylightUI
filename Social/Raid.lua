@@ -81,7 +81,7 @@ function Raid.Tip(owner, m)
     GameTooltip:Show()
 end
 
-local function call(fn, ...) if type(fn) == "function" then pcall(fn, ...) end end
+local function call(fn, ...) if type(fn) == "function" then DUI.SafeCall(fn, ...) end end
 
 function Raid.Menu(owner, m)
     local keys, values = {}, {}

@@ -1305,7 +1305,7 @@ local function setCVar(name, value)
     if type(GetCVar) ~= "function" or type(SetCVar) ~= "function" then return end
     local ok, current = pcall(GetCVar, name)
     if ok and current == value then return end
-    pcall(SetCVar, name, value)
+    DUI.SafeCall(SetCVar, name, value)
 end
 
 function Chat.ApplySettings()

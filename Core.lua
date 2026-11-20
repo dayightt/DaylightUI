@@ -337,6 +337,29 @@ function DUI.SafeCall(fn, ...)
     return report(xpcall(fn, withStack, ...))
 end
 
+-- Keeps an error for /dui bug without handing it to the error handler: for a
+-- failure that already has its own one-line message (another addon's window
+-- changed and its skin was left off), where an error box would only blame
+-- the wrong addon.
+function DUI.NoteError(err)
+    if isSecretValue(err) then return end
+    local text = tostring(err)
+    local key = string.match(text, "^[^\n]*")
+    local n = (seen[key] or 0) + 1
+    seen[key] = n
+    remember(key, n, string.sub(text, #key + 2))
+end
+
+-- SafeCall for a call whose answer is needed: true and what fn returned, or
+-- false once the error is reported.
+local function reportReturn(ok, ...)
+    if ok then return true, ... end
+    return report(false, (...))
+end
+function DUI.SafeReturn(fn, ...)
+    return reportReturn(xpcall(fn, withStack, ...))
+end
+
 -- SafeCall with the report prefixed by label (a plugin's name).
 function DUI.SafeCallAs(label, fn, ...)
     local ok, err = xpcall(fn, withStack, ...)
@@ -542,9 +565,9 @@ function DUI.PlayGameMessageSound(id)
     local ok, _, kit, voice = pcall(GetGameMessageInfo, id)
     if not ok then return end
     if type(voice) == "number" and C_Sound and type(C_Sound.PlayVocalErrorSound) == "function" then
-        pcall(C_Sound.PlayVocalErrorSound, voice)
+        DUI.SafeCall(C_Sound.PlayVocalErrorSound, voice)
     elseif type(kit) == "number" and type(PlaySound) == "function" then
-        pcall(PlaySound, kit)
+        DUI.SafeCall(PlaySound, kit)
     end
 end
 
@@ -968,7 +991,7 @@ DUI.RegisterEvent("PLAYER_LOGIN", function()
     if type(TRP3_API) ~= "table" or type(TRP3_API.RegisterCallback) ~= "function" or type(TRP3_Addon) ~= "table" then return end
     local events = TRP3_Addon.Events or {}
     for _, e in ipairs({ "REGISTER_DATA_UPDATED", "REGISTER_PROFILES_LOADED", "REGISTER_PROFILE_DELETED" }) do
-        if events[e] then pcall(TRP3_API.RegisterCallback, TRP3_Addon, events[e], DUI.RoleplayNamesChanged) end
+        if events[e] then DUI.SafeCall(TRP3_API.RegisterCallback, TRP3_Addon, events[e], DUI.RoleplayNamesChanged) end
     end
 end)
 

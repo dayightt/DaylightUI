@@ -22,7 +22,7 @@ local function apply(on, keep)
     local v = on and "0" or (ns.GiveBackCVar("showTutorials") or "1")
     -- Written only when it differs, so a login with it already off changes nothing.
     if type(SetCVar) == "function" and not (type(GetCVar) == "function" and GetCVar("showTutorials") == v) then
-        pcall(SetCVar, "showTutorials", v)
+        DaylightUI.SafeCall(SetCVar, "showTutorials", v)
     end
     if on then hideFrames() end
 end

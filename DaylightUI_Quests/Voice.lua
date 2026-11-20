@@ -99,6 +99,6 @@ function Voice.Enable(onChange)
     local S = _G.Spoken
     if listening or type(S) ~= "table" or type(S.RegisterCallback) ~= "function" then return end
     listening = true
-    pcall(S.RegisterCallback, S, "VOICE_PACKS_LOADED", function() onChange() end)
-    pcall(S.RegisterCallback, S, "PART_SWITCHED", function(key) if key == "quests" then onChange() end end)
+    DUI.SafeCall(S.RegisterCallback, S, "VOICE_PACKS_LOADED", function() onChange() end)
+    DUI.SafeCall(S.RegisterCallback, S, "PART_SWITCHED", function(key) if key == "quests" then onChange() end end)
 end

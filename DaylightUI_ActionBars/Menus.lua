@@ -325,7 +325,7 @@ function Menus.SkinBag(btn)
     fade(btn.IconBorder)
     local icon = btn.icon or btn.Icon
     if type(icon) == "table" and icon.ClearAllPoints then
-        if btn.SquareMask and icon.RemoveMaskTexture then pcall(icon.RemoveMaskTexture, icon, btn.SquareMask) end
+        if btn.SquareMask and icon.RemoveMaskTexture then DUI.SafeCall(icon.RemoveMaskTexture, icon, btn.SquareMask) end
         icon:ClearAllPoints()
         icon:SetAllPoints(btn)
     end

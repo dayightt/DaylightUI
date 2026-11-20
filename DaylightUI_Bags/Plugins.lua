@@ -285,7 +285,7 @@ Plugins.KNOWN.Pawn = function()
     API:RegisterUpgradePlugin("pawn", function(link) return upgrade(link) == true end)
     -- Pawn calls RefreshAll when gear, spec or its scales change.
     if type(PawnRegisterThirdPartyBag) == "function" then
-        pcall(PawnRegisterThirdPartyBag, "Daylight UI", { RefreshAll = function() Plugins.Refresh() end })
+        DUI.SafeCall(PawnRegisterThirdPartyBag, "Daylight UI", { RefreshAll = function() Plugins.Refresh() end })
     end
     DUI.RegisterEvent("PLAYER_LEVEL_UP", Plugins.Refresh)
 end

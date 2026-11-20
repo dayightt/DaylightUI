@@ -90,12 +90,12 @@ function Skin.Shape(st, host, s, icon, overlays, cds, L)
     st.masked = st.masked or {}
     if not name then
         if not st.shape then return false end
-        for tex in pairs(st.masked) do pcall(tex.RemoveMaskTexture, tex, st.shapeMask) end
+        for tex in pairs(st.masked) do DUI.SafeCall(tex.RemoveMaskTexture, tex, st.shapeMask) end
         for k in pairs(st.masked) do st.masked[k] = nil end
         for _, k in ipairs({ "shapeShadow", "shapeOuter", "shapeBand", "shapeBg" }) do st[k]:Hide() end
         for _, cd in ipairs(cds) do
-            if cd.SetSwipeTexture then pcall(cd.SetSwipeTexture, cd, Skin.SWIPE_FILE) end
-            if cd.SetUseCircularEdge then pcall(cd.SetUseCircularEdge, cd, false) end
+            if cd.SetSwipeTexture then DUI.SafeCall(cd.SetSwipeTexture, cd, Skin.SWIPE_FILE) end
+            if cd.SetUseCircularEdge then DUI.SafeCall(cd.SetUseCircularEdge, cd, false) end
         end
         st.shape = nil
         return false
@@ -157,8 +157,8 @@ function Skin.Shape(st, host, s, icon, overlays, cds, L)
     st.shapeHole:SetPoint("BOTTOMRIGHT", host, "BOTTOMRIGHT", -T, T)
     st.shapeBg:Show()
     for _, cd in ipairs(cds) do
-        if cd.SetSwipeTexture then pcall(cd.SetSwipeTexture, cd, file) end
-        if cd.SetUseCircularEdge then pcall(cd.SetUseCircularEdge, cd, name == "circle") end
+        if cd.SetSwipeTexture then DUI.SafeCall(cd.SetSwipeTexture, cd, file) end
+        if cd.SetUseCircularEdge then DUI.SafeCall(cd.SetUseCircularEdge, cd, name == "circle") end
     end
     Skin.PaintShape(st, nil, nil)
     return true
@@ -1035,7 +1035,7 @@ applyLook = function(btn)
         local icon = iconOf(btn)
         for _, key in ipairs(Skin.ICON_MASKS) do
             local m = btn[key]
-            if icon and type(m) == "table" then pcall(icon.RemoveMaskTexture, icon, m) end
+            if icon and type(m) == "table" then DUI.SafeCall(icon.RemoveMaskTexture, icon, m) end
         end
         -- No hooks on the button's own functions (Update, UpdateButtonArt,
         -- SetButtonState...): they taint the game's button code, which then errors
@@ -1159,12 +1159,12 @@ function Skin.StyleCooldown(cd, L)
     L = L or Skin.LookFor("cdm")
     Skin.StyleSwipe(cd, L)
     -- The game's countdown numbers: on or off, in Daylight UI's font at their size and color.
-    if cd.SetHideCountdownNumbers then pcall(cd.SetHideCountdownNumbers, cd, L.cooldownNumbers == false) end
+    if cd.SetHideCountdownNumbers then DUI.SafeCall(cd.SetHideCountdownNumbers, cd, L.cooldownNumbers == false) end
     local fs = cd.GetCountdownFontString and cd:GetCountdownFontString()
     if type(fs) == "table" and fs.SetFont then
-        pcall(fs.SetFont, fs, Style.FONT, L.cooldownSize, Style.Outline())
+        DUI.SafeCall(fs.SetFont, fs, Style.FONT, L.cooldownSize, Style.Outline())
         local tc = L.cooldownTextColor
-        if fs.SetTextColor then pcall(fs.SetTextColor, fs, tc[1], tc[2], tc[3]) end
+        if fs.SetTextColor then DUI.SafeCall(fs.SetTextColor, fs, tc[1], tc[2], tc[3]) end
         Skin.PlaceCountdown(cd, L)
     end
 end
@@ -1182,13 +1182,13 @@ end
 function Skin.StyleSwipe(cd, L)
     L = L or Skin.LookFor("cdm")
     local shape = Skin.ShapeOf(L)
-    if cd.SetSwipeTexture then pcall(cd.SetSwipeTexture, cd, shape and shapeFile(shape) or Skin.SWIPE_FILE) end
+    if cd.SetSwipeTexture then DUI.SafeCall(cd.SetSwipeTexture, cd, shape and shapeFile(shape) or Skin.SWIPE_FILE) end
     local c = L.swipeColor
-    if cd.SetSwipeColor then pcall(cd.SetSwipeColor, cd, c[1], c[2], c[3], L.cooldownAlpha) end
-    if cd.SetDrawBling then pcall(cd.SetDrawBling, cd, false) end
+    if cd.SetSwipeColor then DUI.SafeCall(cd.SetSwipeColor, cd, c[1], c[2], c[3], L.cooldownAlpha) end
+    if cd.SetDrawBling then DUI.SafeCall(cd.SetDrawBling, cd, false) end
     local edge = Skin.EdgeOf(L)
-    if cd.SetDrawEdge then pcall(cd.SetDrawEdge, cd, edge ~= nil) end
-    if edge and cd.SetEdgeColor then pcall(cd.SetEdgeColor, cd, edge[1], edge[2], edge[3], 1) end
+    if cd.SetDrawEdge then DUI.SafeCall(cd.SetDrawEdge, cd, edge ~= nil) end
+    if edge and cd.SetEdgeColor then DUI.SafeCall(cd.SetEdgeColor, cd, edge[1], edge[2], edge[3], 1) end
 end
 
 -- The cooldown edge's color (nil = no edge line).

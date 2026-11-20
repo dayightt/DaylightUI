@@ -26,15 +26,11 @@ local Bridge = {
 }
 ns.Bridge = Bridge
 
--- Reports the error only with the dev addon on, same as Skins' Engine.Broke.
-local function broke(err)
-    local loaded = C_AddOns and C_AddOns.IsAddOnLoaded
-    if type(loaded) == "function" and loaded("DaylightUI_Dev") then geterrorhandler()(err) end
-end
-
+-- A call into Questie that fails is kept for /dui bug, so a Questie update
+-- that breaks this bridge can be seen in a report.
 local function safe(fn, ...)
     local ok, a = pcall(fn, ...)
-    if not ok then broke(a); return nil end
+    if not ok then DaylightUI.NoteError(a); return nil end
     return a
 end
 

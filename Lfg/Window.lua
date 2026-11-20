@@ -288,7 +288,7 @@ end
 -- A game setting, so it's written out of a fight only.
 function Lfg.SetAllLevels(on)
     DUI.AfterCombat(function()
-        pcall(SetCVar, Lfg.ALL_LEVELS, on and "1" or "0")
+        DUI.SafeCall(SetCVar, Lfg.ALL_LEVELS, on and "1" or "0")
         Lfg.LevelsChanged()
     end, "lfg:levels")
 end

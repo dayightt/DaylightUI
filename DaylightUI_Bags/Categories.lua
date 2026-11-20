@@ -337,7 +337,7 @@ end
 -- and the game's new-item flags are cleared too or they'd bring them back.
 function Cat.ClearRecent()
     wipe(Cat.recent)
-    if C_NewItems and C_NewItems.ClearAll then pcall(C_NewItems.ClearAll) end
+    if C_NewItems and C_NewItems.ClearAll then DUI.SafeCall(C_NewItems.ClearAll) end
     changed()
 end
 

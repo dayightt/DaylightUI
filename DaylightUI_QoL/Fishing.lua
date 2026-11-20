@@ -173,7 +173,7 @@ local function disarm(entering)
 end
 
 local function make()
-    local ok, b = pcall(CreateFrame, "Button", Fish.NAME, UIParent, "SecureActionButtonTemplate")
+    local ok, b = DUI.SafeReturn(CreateFrame, "Button", Fish.NAME, UIParent, "SecureActionButtonTemplate")
     if not ok or type(b) ~= "table" then return nil end
     -- The binding arrives mid-press, so only the release reaches the button.
     -- Set by hand: nil here means the player's ActionButtonUseKeyDown, and

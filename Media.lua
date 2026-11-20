@@ -191,9 +191,9 @@ function Media.RegisterOwn()
     local lsm = Media.Lib()
     if registered or not lsm then return end
     registered = true
-    pcall(lsm.Register, lsm, "statusbar", Media.OWN_BAR, DUI.Style.BAR.fill)
+    DUI.SafeCall(lsm.Register, lsm, "statusbar", Media.OWN_BAR, DUI.Style.BAR.fill)
     for _, b in ipairs(Media.BARS) do
-        pcall(lsm.Register, lsm, "statusbar", b.shared, b.file)
+        DUI.SafeCall(lsm.Register, lsm, "statusbar", b.shared, b.file)
     end
     for _, key in ipairs(DUI.Style.FONT_ORDER) do
         local f = DUI.Style.FONTS[key]
@@ -203,7 +203,7 @@ function Media.RegisterOwn()
             -- even one that has the letters.
             local mask = f.cyrillic == true and lsm.LOCALE_BIT_ruRU and lsm.LOCALE_BIT_western
                 and lsm.LOCALE_BIT_ruRU + lsm.LOCALE_BIT_western or nil
-            pcall(lsm.Register, lsm, "font", f.label, f.file, mask)
+            DUI.SafeCall(lsm.Register, lsm, "font", f.label, f.file, mask)
         end
     end
 end

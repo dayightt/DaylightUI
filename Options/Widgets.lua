@@ -593,8 +593,8 @@ end
 local function glowLean(tex, lean)
     if tex.glowLean == lean or not tex.SetVertexOffset then return end
     tex.glowLean = lean
-    pcall(tex.SetVertexOffset, tex, 2, -lean, 0)
-    pcall(tex.SetVertexOffset, tex, 4, -lean, 0)
+    DUI.SafeCall(tex.SetVertexOffset, tex, 2, -lean, 0)
+    DUI.SafeCall(tex.SetVertexOffset, tex, 4, -lean, 0)
 end
 
 -- A strip on one side from p0 to p1 along it, alpha a0 and color c0 at p0 running
@@ -4379,7 +4379,7 @@ end
 local function askShowReload(f)
     if InCombatLockdown() then return end
     if not askReload then
-        local ok, b = pcall(CreateFrame, "Button", "DaylightUIAskReload", UIParent, "SecureActionButtonTemplate")
+        local ok, b = DUI.SafeReturn(CreateFrame, "Button", "DaylightUIAskReload", UIParent, "SecureActionButtonTemplate")
         if not ok or type(b) ~= "table" then return end
         b:SetAttribute("type", "macro")
         b:SetAttribute("macrotext", "/reload")
@@ -4564,7 +4564,7 @@ local ICON_KINDS = { "all", "item", "spell" }
 local function iconFill(list, ...)
     for i = 1, select("#", ...) do
         local fn = _G[(select(i, ...))]
-        if type(fn) == "function" then pcall(fn, list) end
+        if type(fn) == "function" then DUI.SafeCall(fn, list) end
     end
     return list
 end

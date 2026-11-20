@@ -325,7 +325,7 @@ function Ring.Gcd()
         local get = C_Spell.GetSpellCooldownDuration
         local okD, d = false, nil
         if type(get) == "function" then okD, d = pcall(get, Ring.GCD_SPELL) end
-        if okD and type(d) ~= "nil" then pcall(f.gcd.SetCooldownFromDurationObject, f.gcd, d) end
+        if okD and type(d) ~= "nil" then DUI.SafeCall(f.gcd.SetCooldownFromDurationObject, f.gcd, d) end
     elseif type(start) == "number" and type(length) == "number" and start > 0 and length > 0 then
         f.gcd:SetCooldown(start, length)
     end
@@ -344,7 +344,7 @@ function Ring.Cast(event)
         if type(d) == "nil" then d = UnitChannelDuration and UnitChannelDuration("player") end
     end
     if type(d) == "nil" then f.cast:Clear(); f.castFrom, f.castTo = nil, nil; return end
-    pcall(f.cast.SetCooldownFromDurationObject, f.cast, d, true)
+    DUI.SafeCall(f.cast.SetCooldownFromDurationObject, f.cast, d, true)
     -- Your own cast times stay plain; anything secret just leaves the spark out.
     local _, _, _, from, to = UnitCastingInfo("player")
     if type(from) == "nil" then _, _, _, from, to = UnitChannelInfo("player") end

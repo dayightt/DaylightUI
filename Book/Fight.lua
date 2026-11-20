@@ -176,7 +176,7 @@ function Fight.Build(f)
         DUI.AfterCombat(function() Fight.Build(f) end, "bookFight")
         return
     end
-    local ok, h = pcall(CreateFrame, "Frame", Fight.NAME, UIParent, "SecureHandlerBaseTemplate")
+    local ok, h = DUI.SafeReturn(CreateFrame, "Frame", Fight.NAME, UIParent, "SecureHandlerBaseTemplate")
     if not ok or type(h) ~= "table" then return end
     Fight.h, Fight.casts = h, {}
     h:SetAllPoints(UIParent)

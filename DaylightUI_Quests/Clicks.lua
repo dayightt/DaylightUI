@@ -58,7 +58,7 @@ function Clicks.OpenMap(questID, mapID)
     if InCombatLockdown() then refuse(Clicks.MAP_IN_COMBAT); return end
     if not (C_Map and C_Map.OpenWorldMap) then return end
     mapID = mapID or (type(GetQuestUiMapID) == "function" and GetQuestUiMapID(questID, true))
-    pcall(C_Map.OpenWorldMap, (type(mapID) == "number" and mapID > 0) and mapID or nil)
+    DUI.SafeCall(C_Map.OpenWorldMap, (type(mapID) == "number" and mapID > 0) and mapID or nil)
     if EventRegistry and EventRegistry.TriggerEvent then
         EventRegistry:TriggerEvent("MapCanvas.PingQuestID", questID)
     end

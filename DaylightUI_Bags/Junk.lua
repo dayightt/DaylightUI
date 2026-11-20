@@ -226,7 +226,7 @@ function Junk.Sell(list, say, done)
         -- Is the same item still there (not moved or locked since)?
         local ok, info = pcall(C_Container.GetContainerItemInfo, item.bag, item.slot)
         if ok and info and not info.isLocked and info.hyperlink == item.link then
-            pcall(C_Container.UseContainerItem, item.bag, item.slot)
+            DUI.SafeCall(C_Container.UseContainerItem, item.bag, item.slot)
             sold[#sold + 1] = item
             total = total + item.value
         end

@@ -162,7 +162,7 @@ function Spells.PaintCooldown(b)
         if b.cd.Clear then b.cd:Clear() end
         return
     end
-    if type(b.cd.SetCooldownFromDurationObject) == "function" then pcall(b.cd.SetCooldownFromDurationObject, b.cd, d, true) end
+    if type(b.cd.SetCooldownFromDurationObject) == "function" then DUI.SafeCall(b.cd.SetCooldownFromDurationObject, b.cd, d, true) end
 end
 
 function Spells.PaintCell(b, cell)

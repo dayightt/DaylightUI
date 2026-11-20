@@ -106,7 +106,7 @@ function DT.Apply()
             local name = DT.CVARS[key]
             local now, want = cvar(name), value(key)
             if now ~= nil and math.abs(now - want) > 0.0001 then
-                pcall(SetCVar, name, string.format("%.2f", want))
+                DUI.SafeCall(SetCVar, name, string.format("%.2f", want))
             end
         end
         root.damageTextSet = anyChanged() or nil
@@ -125,7 +125,7 @@ function DT.SetShown(what, on)
     if type(SetCVar) ~= "function" then return end
     DUI.AfterCombat(function()
         for _, name in ipairs(DT.SHOW[what]) do
-            if cvar(name) ~= nil then pcall(SetCVar, name, on and "1" or "0") end
+            if cvar(name) ~= nil then DUI.SafeCall(SetCVar, name, on and "1" or "0") end
         end
         -- Stored by the game, not Daylight UI's settings, so tell the window to slide the switch.
         DUI.Fire("SettingChanged", "general", "damage.show." .. what, on)

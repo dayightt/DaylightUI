@@ -182,7 +182,7 @@ end
 -- An area's frames, read at most once per check and only when needed (mouse,
 -- movement, resting faded, or reconciling whole-fade ownership).
 local function readFrames(e)
-    local ok, list = pcall(e.frames)
+    local ok, list = DUI.SafeReturn(e.frames)
     e.list = ok and type(list) == "table" and list or {}
     e.listAt = tick
 end
@@ -298,8 +298,8 @@ local function setWhole(f, on)
     local flat, buffer = f.SetFlattensRenderLayers, f.SetIsFrameBuffer
     if type(flat) ~= "function" or type(buffer) ~= "function" then return end
     local ok
-    if on then ok = pcall(flat, f, true) and pcall(buffer, f, true)
-    else ok = pcall(buffer, f, false) and pcall(flat, f, false) end
+    if on then ok = DUI.SafeCall(flat, f, true) and DUI.SafeCall(buffer, f, true)
+    else ok = DUI.SafeCall(buffer, f, false) and DUI.SafeCall(flat, f, false) end
     if ok then
         f.fadeWhole = on
         wholeOn[f] = on or nil
@@ -782,7 +782,7 @@ function Fade.MapDots(show)
     if type(map) ~= "table" or type(map.SetIconScale) ~= "function" then return end
     if show == not dotsGone then return end
     dotsGone = not show
-    pcall(map.SetIconScale, map, show and Fade.MapIconScale() or 0)
+    DUI.SafeCall(map.SetIconScale, map, show and Fade.MapIconScale() or 0)
 end
 
 function Fade.MapAway(name, on)
@@ -977,7 +977,7 @@ function Fade.RevealPicks()
         end
     end
     for _, source in ipairs(extras) do
-        local ok, frame, pad = pcall(source)
+        local ok, frame, pad = DUI.SafeReturn(source)
         local okV, shown = false, nil
         if ok and type(frame) == "table" then okV, shown = pcall(frame.IsVisible, frame) end
         if okV and shown == true and alphaOf(frame, goals) >= Fade.REVEAL_SKIP then
@@ -1188,9 +1188,9 @@ DUI.RegisterEvent("ZONE_CHANGED_NEW_AREA", function() if Fade.CheckInstance() th
 DUI.RegisterEvent("PLAYER_LOGIN", function() loginAt = GetTime(); Fade.CheckInstance() end)
 
 if EventRegistry and EventRegistry.RegisterCallback then
-    pcall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Enter",
+    DUI.SafeCall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Enter",
           function() Fade.editMode = true; Fade.Step() end, Fade)
-    pcall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Exit",
+    DUI.SafeCall(EventRegistry.RegisterCallback, EventRegistry, "EditMode.Exit",
           function() Fade.editMode = false; Fade.Step() end, Fade)
 end
 

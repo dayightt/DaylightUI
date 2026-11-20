@@ -692,8 +692,8 @@ function Journal.BlobFollow(b, map)
     a = math.floor(a * 100 + 0.5) / 100
     if b.dluiAlpha == a then return end
     b.dluiAlpha = a
-    pcall(b.SetFillAlpha, b, math.floor(Journal.BLOB_FILL_ALPHA * a + 0.5))
-    pcall(b.SetBorderAlpha, b, math.floor(Journal.BLOB_BORDER_ALPHA * a + 0.5))
+    DUI.SafeCall(b.SetFillAlpha, b, math.floor(Journal.BLOB_FILL_ALPHA * a + 0.5))
+    DUI.SafeCall(b.SetBorderAlpha, b, math.floor(Journal.BLOB_BORDER_ALPHA * a + 0.5))
 end
 
 -- The ring and the area are made with no parent and then moved onto the map's
@@ -701,15 +701,15 @@ end
 -- created under it, and that rescan is refused in combat; moving a frame in
 -- (SetParent) doesn't rescan, so this works in a fight too.
 local function makeBlob(child, map)
-    local ok, b = pcall(CreateFrame, "QuestPOIFrame")
+    local ok, b = DUI.SafeReturn(CreateFrame, "QuestPOIFrame")
     if not ok or type(b) ~= "table" then return nil end
     b:SetParent(child)
     b:SetAllPoints(child)
     b:EnableMouse(false)
-    pcall(b.SetFillTexture, b, Journal.BLOB_FILL)
-    pcall(b.SetBorderTexture, b, Journal.BLOB_BORDER)
+    DUI.SafeCall(b.SetFillTexture, b, Journal.BLOB_FILL)
+    DUI.SafeCall(b.SetBorderTexture, b, Journal.BLOB_BORDER)
     Journal.BlobFollow(b, map)
-    pcall(b.SetBorderScalar, b, 1)
+    DUI.SafeCall(b.SetBorderScalar, b, 1)
     b:SetScript("OnUpdate", function(self) Journal.BlobFollow(self, map) end)
     return b
 end
@@ -753,8 +753,8 @@ local function makeRing(child)
     r.inner:SetSize(Journal.RING_INNER_SIZE, Journal.RING_INNER_SIZE)
     r.inner:SetPoint("CENTER", r, "CENTER", 0, 0)
     r.inner:SetBlendMode("ADD")
-    if r.outer.SetAtlas then pcall(r.outer.SetAtlas, r.outer, Journal.RING_OUTER) end
-    if r.inner.SetAtlas then pcall(r.inner.SetAtlas, r.inner, Journal.RING_INNER) end
+    if r.outer.SetAtlas then DUI.SafeCall(r.outer.SetAtlas, r.outer, Journal.RING_OUTER) end
+    if r.inner.SetAtlas then DUI.SafeCall(r.inner.SetAtlas, r.inner, Journal.RING_INNER) end
     r.outer:SetAlpha(Journal.RING_ALPHA)
     r.inner:SetAlpha(Journal.RING_ALPHA)
     r:Hide()
@@ -777,7 +777,7 @@ end
 -- Lights questID's area and icon on the map (nil = none). Only on a map that shows
 -- quests, and with the game's "Quest objectives on the map" (questPOI) on.
 function Journal.Light(questID)
-    if blob then pcall(blob.DrawNone, blob) end
+    if blob then DUI.SafeCall(blob.DrawNone, blob) end
     if ring then ring:Hide() end
     if type(questID) ~= "number" then return end
     if type(GetCVarBool) == "function" and GetCVarBool("questPOI") == false then return end
@@ -793,8 +793,8 @@ function Journal.Light(questID)
         Journal.blob = blob
     end
     blob:SetFrameLevel(blobLevel(map))
-    pcall(blob.SetMapID, blob, mapID)
-    pcall(blob.DrawBlob, blob, questID, true)
+    DUI.SafeCall(blob.SetMapID, blob, mapID)
+    DUI.SafeCall(blob.DrawBlob, blob, questID, true)
 end
 
 function Journal.Track(q)

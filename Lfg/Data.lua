@@ -251,7 +251,7 @@ end
 function Data.SetRoles(roles)
     local R = type(C_LFGListRoles) == "table" and C_LFGListRoles or nil
     if not (R and R.SetRoles) then return false end
-    local ok, took = pcall(R.SetRoles, { tank = roles.tank == true, healer = roles.healer == true, dps = roles.dps == true })
+    local ok, took = DUI.SafeReturn(R.SetRoles, { tank = roles.tank == true, healer = roles.healer == true, dps = roles.dps == true })
     return ok and took == true
 end
 

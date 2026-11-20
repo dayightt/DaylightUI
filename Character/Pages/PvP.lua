@@ -117,7 +117,7 @@ function PvP.NextReward(rank, max)
                 if type(GetItemInfo) == "function" then item, _, q = GetItemInfo(r.itemID) end
                 if plain(q) then quality = q end
                 if type(item) == "string" and not isSecret(item) and item ~= "" then name = item
-                elseif C_Item and C_Item.RequestLoadItemDataByID then pcall(C_Item.RequestLoadItemDataByID, r.itemID) end
+                elseif C_Item and C_Item.RequestLoadItemDataByID then DUI.SafeCall(C_Item.RequestLoadItemDataByID, r.itemID) end
             end
             local words = r.description
             if type(words) == "string" and not isSecret(words) and words ~= "" then name = words end

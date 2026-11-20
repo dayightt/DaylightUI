@@ -478,7 +478,7 @@ local function onFrame(frame, names, fn)
     end
     for _, name in ipairs(names) do
         local event = frame.Event[name]
-        if event then pcall(frame.RegisterCallback, frame, event, soon, frameOwner) end
+        if event then DUI.SafeCall(frame.RegisterCallback, frame, event, soon, frameOwner) end
     end
 end
 
