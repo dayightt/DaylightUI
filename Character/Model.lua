@@ -47,15 +47,15 @@ local function make(kind)
     Model.WAIT = 2          -- seconds to wait for the model before showing it anyway
     -- Camera distance as a fraction of the game's, before the width pull-back.
     -- The pet keeps the game's framing.
-    Model.ZOOM = kind == "pet" and 1 or 0.43
+    Model.ZOOM = kind == "pet" and 1 or 0.4
     Model.ROOM = 1.6        -- max zoom-out with the wheel, relative to the start
-    Model.FILL = 0.8        -- tall models (night elf, tauren) back off until they fill this much of the height. 0.92 touched both edges
+    Model.FILL = 0.88        -- tall models (night elf, tauren) back off until they fill this much of the height. 0.92 touched both edges
     Model.GLOW = DUI.MEDIA .. "char-glow.png"
     Model.GLOW_ALPHA = 0.3
-    Model.GLOW_W, Model.GLOW_H = 1.0, 0.95   -- glow size relative to the model
+    Model.GLOW_W, Model.GLOW_H = 1.25, 1.05  -- glow size relative to the model
     Model.GLOW_UP = 0.04                     -- glow center offset up, as a fraction of height
     Model.SHADOW_ALPHA = 0.6
-    Model.SHADOW_W, Model.SHADOW_H = 0.5, 26
+    Model.SHADOW_W, Model.SHADOW_H = 0.65, 34
     Model.FEET = 0.12                        -- shadow center, as a fraction of height from the bottom
 
     function Model.Actor()
