@@ -766,7 +766,10 @@ function Feed.Add(e, hold)
     e.key = e.money and "money" or (e.key or e.name)
     e.count = e.count or 1
     Feed.Wake()
-    if logMode() and not hold then return addLog(e) end
+    if logMode() and not hold then
+        DUI.Fade.Wake("QoL.loot")
+        return addLog(e)
+    end
     local until_ = not hold and (GetTime() + Feed.Hold()) or nil
     local row = find(e.key)
     if row then
@@ -958,7 +961,7 @@ local function build()
     -- Only a log stays on screen, so only a log fades with the rest of the UI.
     local list, none = { holder }, {}
     DUI.Fade.Register{ key = "QoL.loot", scope = "QoL", path = "lootFeedFade", page = "QoL.loot",
-        frames = function() return logMode() and list or none end }
+        frames = function() return logMode() and list or none end, fights = false }
 end
 
 -- The log kept with the character; a preview's lines are dropped.

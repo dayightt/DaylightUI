@@ -117,7 +117,9 @@ function Fade.Read(e)
         -- Show with a target: true, or "enemy" when only an attackable target counts.
         target = s.target == true and (s.targetEnemy == true and "enemy" or true)
     end
-    if floats(e, s) then mode = "ooc" end
+    -- An area with nothing to say in a fight (the loot log) floats like "until
+    -- mouseover": only its own changes bring it back.
+    if floats(e, s) then mode = e.fights == false and "always" or "ooc" end
     return mode, alpha, mouseover, delay, opacity, target
 end
 
@@ -505,14 +507,18 @@ end
 -- it, when its frames can't tell) and paint (sets the alpha itself) tune it.
 -- float = false drops the "Only when something changes" choice, and whole = true
 -- fades the area as one picture (Fade.Whole), for frames with overlapping pieces.
+-- fights = false keeps a floating area away in a fight too, for one that only
+-- matters when it changes.
 function Fade.Register(def)
     assert(type(def.key) == "string" and type(def.frames) == "function", "Fade.Register: key and frames")
     assert(def.float == nil or def.float == false, "Fade.Register: float")
+    assert(def.fights == nil or def.fights == false, "Fade.Register: fights")
     if Fade.intro and loginPhase and not introWanted() then Fade.intro = false end
     if loginPhase then Fade.CheckInstance() end -- before the zone events, so it starts where it belongs
     local old = entries[def.key]
     local e = { key = def.key, scope = def.scope, path = def.path, frames = def.frames, page = def.page,
-                cap = def.cap, wake = def.wake, over = def.over, paint = def.paint, float = def.float, whole = def.whole }
+                cap = def.cap, wake = def.wake, over = def.over, paint = def.paint, float = def.float, whole = def.whole,
+                fights = def.fights }
     e.wholeKey = old and old.wholeKey or ("fade:" .. def.key)
     e.wholeFrames, e.wholePass = old and old.wholeFrames, old and old.wholePass
     readFrames(e)

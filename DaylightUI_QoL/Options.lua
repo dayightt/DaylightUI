@@ -20,7 +20,13 @@ local function logOn(get) return get("lootFeedStyle") == "log" end
 -- Only a log stays on screen, so only a log fades like the rest of the UI.
 local function logFadeOff(get) return lootOff(get) or not logOn(get) end
 local logFade = DaylightUI.Fade.Card("lootFeedFade.", nil, logFadeOff, "Loot feed")
-for _, item in ipairs(logFade.items) do item.hidden = logFadeOff end
+for _, item in ipairs(logFade.items) do
+    item.hidden = logFadeOff
+    -- The log doesn't come back in a fight, only for new loot.
+    if item.key == "lootFeedFade.mode" then
+        item.desc = "Fade out of combat: fades a while after a fight and comes back in one. Fade in combat: fades a while into a fight and comes back after. Fade until mouseover: stays faded until your mouse is over it. Only when something changes: gone until you loot something or a skill goes up, then back for a moment."
+    end
+end
 local BORDER_COLOR = { normal = "Daylight UI", quality = "Quality color", accent = "Accent color", custom = "One color" }
 local backRows = DaylightUI.Options.BackAlphaRows("lootFeedAlpha", "Loot feed",
     function(get) return get("lootFeed") ~= true or get("lootFeedBack") == false end)

@@ -658,6 +658,32 @@ T.test("loot feed log: back to fading, the lines leave and the wheel is the came
     T.truthy(_G.DaylightUILootFeed:GetScript("OnUpdate"), "fading ticks again")
 end)
 
+-- Seen in game: a log set to "Only when something changes" came back in every
+-- fight. It should only come back for new loot.
+T.test("loot feed log: Only when something changes stays away in a fight and comes back for new loot", function()
+    local F = asLog()
+    local Fade = DaylightUI.Fade
+    DaylightUI:Set("QoL", "lootFeedFade", { mode = "float", alpha = 0, delay = 2, mouseover = true })
+    local holder = _G.DaylightUILootFeed
+    local function look()
+        Fade.Step()
+        for _ = 1, 120 do stub.RunOnUpdate(Fade.driver, 1 / 60) end
+        return holder:GetAlpha()
+    end
+    stub.Advance(5)
+    T.eq(look(), 0, "at rest: gone")
+    stub.EnterCombat()
+    T.eq(look(), 0, "a fight doesn't bring it back")
+    stub.LeaveCombat()
+    stub.Advance(5)
+    T.eq(look(), 0)
+    loot("You receive loot: " .. SILK .. ".")
+    T.eq(look(), 1, "new loot brings it back")
+    stub.Advance(5)
+    T.eq(look(), 0, "and it goes again after the delay")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("loot feed log: its options are on the loot page, the clear button and fade only for a log", function()
     login()
     local page = DaylightUI.Options.GetPage("QoL.loot")
