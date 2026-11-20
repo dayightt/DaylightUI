@@ -28,7 +28,7 @@ local function flipRows(o)
     local dis = o.disabled or function() return false end
     local note = o.note and (" " .. o.note) or ""
     local function row(key, side, on)
-        return { type = "toggle", key = key, label = o.name .. " flip " .. side .. " end", since = "1.9.7",
+        return { type = "toggle", key = key, label = o.name .. " flip " .. side .. " end", since = "2.0",
                  desc = "Tips " .. o.what .. " " .. side .. " end the other way, so its bottom corner sticks out instead of its top. The other end keeps its own." .. note,
                  disabled = function(get) return dis(get) or (on ~= nil and get(on) ~= true) end, hidden = o.hidden }
     end
@@ -1206,10 +1206,10 @@ local function swingBarCard()
             flipRows({ right = b("slantUnder"), left = b("slantUnderLeft"), rightOn = b("slant"), leftOn = b("slantLeft"),
                        name = name .. " bar", what = "the " .. lower .. " bar's", note = "Only when detached on its own.",
                        disabled = dis, hidden = attached })[2],
-            angleRows({ own = b("ownAngle"), lean = b("lean"), name = name .. " bar", what = "the " .. lower .. " bar's", since = "1.9.7",
+            angleRows({ own = b("ownAngle"), lean = b("lean"), name = name .. " bar", what = "the " .. lower .. " bar's", since = "2.0",
                         note = "Only when detached on its own.", hidden = attached,
                         disabled = function(get) return dis(get) or (get(b("slant")) ~= true and get(b("slantLeft")) ~= true) end })[1],
-            angleRows({ own = b("ownAngle"), lean = b("lean"), name = name .. " bar", what = "the " .. lower .. " bar's", since = "1.9.7",
+            angleRows({ own = b("ownAngle"), lean = b("lean"), name = name .. " bar", what = "the " .. lower .. " bar's", since = "2.0",
                         note = "Only when detached on its own.", hidden = attached,
                         disabled = function(get) return dis(get) or (get(b("slant")) ~= true and get(b("slantLeft")) ~= true) end })[2],
             { type = "toggle", key = b("reverseFill"), label = name .. " bar fills right to left",
@@ -1765,7 +1765,7 @@ local function framePage(id, label, desc, opts)
             disabled = function(get) return notFree(get) or get(k("powerSlant")) == false or slidesOut(get) end })
         frame[#frame + 1] = powerFlip[1]
         frame[#frame + 1] = powerFlip[2]
-        local powerAngle = angleRows({ own = k("powerOwnAngle"), lean = k("powerLean"), name = "Power bar", what = "the power bar's", since = "1.9.7",
+        local powerAngle = angleRows({ own = k("powerOwnAngle"), lean = k("powerLean"), name = "Power bar", what = "the power bar's", since = "2.0",
             note = "Only while the power bar is on its own. A cast bar sliding out from under it continues the line.",
             disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end })
         frame[#frame + 1] = powerAngle[1]
@@ -2411,7 +2411,7 @@ local function flipRow(unit, who, notOwn)
 end
 -- Its own angle, on the same bars the flip works on.
 local function castAngle(unit, who, notOwn)
-    return angleRows({ own = unit .. "Castbar.ownAngle", lean = unit .. "Castbar.lean", name = CAST_WHO[unit], what = who .. " cast bar's", since = "1.9.7",
+    return angleRows({ own = unit .. "Castbar.ownAngle", lean = unit .. "Castbar.lean", name = CAST_WHO[unit], what = who .. " cast bar's", since = "2.0",
         note = unit == "player" and "Not while under the frame, between the frames or under the personal display."
             or (unit == "target" or unit == "focus") and "Not inside the frame or sliding out under it." or "Not inside the frame.",
         disabled = function(get)
@@ -2962,10 +2962,10 @@ ns.OPTIONS = { pages = {
             flipRows({ right = "swing.slantUnder", left = "swing.slantUnderLeft", rightOn = "swing.slant", leftOn = "swing.slantLeft",
                        name = "Swing timer", what = "the swing timer's", note = "Only when detached as a group.",
                        disabled = groupAttached })[2],
-            angleRows({ own = "swing.ownAngle", lean = "swing.lean", name = "Swing timer", what = "the swing timer's", since = "1.9.7",
+            angleRows({ own = "swing.ownAngle", lean = "swing.lean", name = "Swing timer", what = "the swing timer's", since = "2.0",
                         note = "Only when detached as a group.",
                         disabled = function(get) return groupAttached(get) or (get("swing.slant") ~= true and get("swing.slantLeft") ~= true) end })[1],
-            angleRows({ own = "swing.ownAngle", lean = "swing.lean", name = "Swing timer", what = "the swing timer's", since = "1.9.7",
+            angleRows({ own = "swing.ownAngle", lean = "swing.lean", name = "Swing timer", what = "the swing timer's", since = "2.0",
                         note = "Only when detached as a group.",
                         disabled = function(get) return groupAttached(get) or (get("swing.slant") ~= true and get("swing.slantLeft") ~= true) end })[2],
             { type = "toggle", key = "swing.showIcon", label = "Swing timer weapon icon",
@@ -3058,10 +3058,10 @@ ns.OPTIONS = { pages = {
               desc = "Cuts the right end at an angle, docked cast and swing bars too. When off, it's square.", disabled = off("personal.enabled") },
             { type = "toggle", key = "personal.slantLeft", label = "Personal display angled left end",
               desc = "Cuts the left end at an angle too, docked cast and swing bars included.", disabled = off("personal.enabled") },
-            angleRows({ own = "personal.ownAngle", lean = "personal.lean", name = "Personal display", what = "the personal display's", since = "1.9.7",
+            angleRows({ own = "personal.ownAngle", lean = "personal.lean", name = "Personal display", what = "the personal display's", since = "2.0",
                         note = "Docked cast and swing bars lean with it.",
                         disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end })[1],
-            angleRows({ own = "personal.ownAngle", lean = "personal.lean", name = "Personal display", what = "the personal display's", since = "1.9.7",
+            angleRows({ own = "personal.ownAngle", lean = "personal.lean", name = "Personal display", what = "the personal display's", since = "2.0",
                         note = "Docked cast and swing bars lean with it.",
                         disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end })[2],
             { type = "toggle", key = "personal.showHealth", since = "1.6.0.2", label = "Personal health bar",

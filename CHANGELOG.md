@@ -1,3 +1,49 @@
+# DaylightUI 2.0
+
+Portraits set right into their frames, rich tooltip cards, a brand new Auction House, group loot rolls, and a big batch of fixes.
+
+## New
+- Unit frames: A slick new portrait look: portraits sit right inside their frame, with one border flowing around both. You're asked once which look you want, and each frame's Portrait tab switches it any time
+- Tooltip: Rich tooltips: items, spells, players, creatures, herbs and ore each get their own card, and a small pill in fights (Tooltips, Style)
+- Tooltip: Tooltips can have their own border, background, and title and small text sizes and fonts, or follow the rest of Daylight UI (Tooltips, Look)
+- Auction House: A brand new Auction House in Daylight UI style: Buy, Sell and My auctions, cheapest deals first, your sell price filled in, and outbid auctions on top. Buy a whole stack in two clicks, with a check before you pay way over the usual price
+- Auction House: Every item tooltip shows its auction price: the last one seen, the usual one, and how long ago. Hold Shift to price the whole stack
+- Loot: Loot rolls in Daylight UI style that show who picked Need, Greed or Pass, everyone's roll and who won. Several drops stack small, and two of the same item are marked
+- Welcome: A welcome to 2.0 that shows what's new and lets you pick the new looks. /dui welcome opens it again
+- Nameplates: Friendly players can show their class icon by their name, the power bar can show mana, rage or energy, and long names can shorten to initials
+- Unit frames: Cast, power and swing bars can angle each end their own way, with their own slant
+- Unlock mode: Lock a frame in place so it can't be moved by accident, and reach a frame hidden under another from its editor
+- Professions: Click a material you can make yourself, like Bolt of Silk Cloth, to jump to its recipe
+
+## Changed
+- Character: The character window, its item icons and stat rows are bigger and easier to read
+- Unit frames: The focus cast bar hangs under its frame and slides out
+- Tooltip: Tooltips fade out softly, their text is a little bigger, and NPC quest lists mark dungeon and elite quests with a short D or E
+- Chat: Hovering an item link in chat shows just that item. Hold Shift to compare it with your gear, or turn the compare back on in Chat options
+- Cooldown Manager: Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor
+- NPC window: Quest pages show the quest's level next to its name
+
+## Fixed
+- Cooldown Manager: Rebuilt underneath for fewer missing spells and buffs shown wrong
+- Action bars: Bars that switch page while you hold Shift can be rearranged by dragging with your spellbook open, and a prowling druid's main bar switches to its Prowl page again
+- Bags: Quest items that are also food, like Kravel's Crate, go under Quest items, and your bag no longer stays dimmed after you hover the bag row
+- Chat: Speech bubbles keep the game's size at a small UI scale and show again after a dungeon, item links no longer cut lines short with Prat, and kill experience shows in the chat tabs
+- Minimap: The minimap no longer stays blank after the screen is dimmed and comes back
+- Damage meter: No more Lua errors from the meter's top line in a fight when the group's total is shown
+- Threat meter: The threat meter keeps updating in dungeons instead of stopping until a reload, and the tank's bar at 100% fills all the way
+- Info panel: With the game's controller mode on, clicking the gold, bags, gear or friends text no longer leaves "action blocked" errors
+- NPC window: No more "action blocked" error from the Back button on quest pages: the game doesn't allow it, so the button is gone
+- Legacy: Clicking a Legacy challenge's popup or tracked challenge no longer shows a Lua error, and opens on that challenge
+- Group finder: Listings no longer show more open spots than the dungeon holds, and inviting someone as a tank or healer no longer turns you into Damage
+- Professions: Recipes with a cooldown, like Mooncloth, show when you can make them again, and the Abilities row always fits the open profession's spells
+- Quests: Ready quests kept at the bottom of the tracker no longer jump back into their zones during a fight
+- Nameplates: Quest marks show on mobs you still need inside dungeons too
+- Party and raid frames: No more Lua errors after someone leaves the party or raid, and the group leader card no longer hides behind party frames
+- Tooltip: Tooltip borders are as thick as every other frame's instead of thinner
+- Fonts: A font from a shared media addon now reaches every text after you log in
+- World map: With OpenMap, the map fades in on its first open after a reload instead of jumping in
+- Translations: The missing Spanish texts are translated
+
 # DaylightUI 1.9.6
 
 Full quest details on hover, a flight timer that floats over the world, totem pieces for shamans, and a big batch of fixes.
