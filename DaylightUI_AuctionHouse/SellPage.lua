@@ -44,7 +44,7 @@ P.FORM_TOP = 70          -- the first form line under the item's name
 P.FORM_STEP = 32
 P.LABEL_W = 96
 P.BOX_W = 220
-P.BOX_H = 132
+P.BOX_H = 140
 P.SAID_TOP = 172
 P.WHY_TOP = 192
 P.LOWER_TOP = 262        -- what's up now and the daily lows
@@ -953,13 +953,21 @@ local function buildForm(right, sale)
     right.form = form
 end
 
-local function boxLine(box, text, y, size)
+-- A label and its amount. `under` puts the amount on its own line below the
+-- label: a long label beside an amount in gold left no room for both.
+local function boxLine(box, text, y, size, under)
     local l = Style.Text(box, Style.SIZE.small, "LEFT")
     Style.InkText(l, "LABEL")
     l:SetText(text)
     l:SetPoint("TOPLEFT", box, "TOPLEFT", 12, -y)
     local v = Style.Text(box, size or Style.SIZE.body, "RIGHT")
-    v:SetPoint("BOTTOMRIGHT", box, "TOPRIGHT", -12, -y - Style.SIZE.small - 1)
+    if under then
+        v:SetPoint("TOPRIGHT", box, "TOPRIGHT", -12, -y - Style.SIZE.small - 3)
+    else
+        v:SetPoint("BOTTOMRIGHT", box, "TOPRIGHT", -12, -y - Style.SIZE.small - 1)
+    end
+    v:SetWordWrap(false)
+    v.label = l
     return v
 end
 
@@ -969,9 +977,9 @@ local function buildBox(right)
     box:SetSize(P.BOX_W, P.BOX_H)
     Style.Shell(box, {})
     box.deposit = boxLine(box, L["Deposit"], 14)
-    box.get = boxLine(box, L["You get when it sells"], 40, Style.SIZE.head)
+    box.get = boxLine(box, L["You get when it sells"], 38, Style.SIZE.head, true)
     box.post = W.Button(box, L["Post"], 30)
-    box.post:SetPoint("TOPLEFT", box, "TOPLEFT", 12, -66)
+    box.post:SetPoint("TOPLEFT", box, "TOPLEFT", 12, -76)
     box.post:SetPoint("RIGHT", box, "RIGHT", -84, 0)
     Parts.Tone(box.post, "main")
     box.post:SetScript("OnClick", function() P.Post() end)
@@ -981,7 +989,7 @@ local function buildBox(right)
     box.skip:SetScript("OnClick", function() P.Skip() end)
     box.key = Style.Text(box, Style.SIZE.small, "CENTER")
     Style.InkText(box.key, "LABEL")
-    box.key:SetPoint("TOP", box, "TOP", 0, -106)
+    box.key:SetPoint("TOP", box, "TOP", 0, -114)
     right.box = box
 end
 

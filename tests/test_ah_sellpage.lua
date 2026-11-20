@@ -130,6 +130,35 @@ local function typeIn(box, text)
     box:GetScript("OnTextChanged")(box, true)
 end
 
+-- How far down the card a text's top sits, and its height (the fake game has no
+-- layout, so this reads the anchors: every line hangs from the card's top).
+local function span(fs, box)
+    local point, rel, relPoint, _, y = fs:GetPoint(1)
+    T.eq(rel, box)
+    local _, h = fs:GetFont()
+    local top = -y - ((point:find("^BOTTOM") and h) or 0)
+    T.truthy(relPoint:find("^TOP"), relPoint)
+    return top, top + h
+end
+
+T.test("sell: what a sale brings sits under its label, so a sale worth gold never covers it", function()
+    local A = load()
+    local page = open(A)
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    typeIn(page.right.form.price, "4g 99s 99c")
+    AHW.Settle()
+    local box = page.right.box
+    T.eq(plain(box.get:GetText()), "94g 99s 81c")
+    local _, labelEnd = span(box.get.label, box)
+    local top, bottom = span(box.get, box)
+    T.truthy(top >= labelEnd, "the amount shares a line with \"You get when it sells\": " .. top .. " < " .. labelEnd)
+    local postTop = -select(5, box.post:GetPoint(1))
+    T.truthy(bottom <= postTop, "the amount runs into Post")
+    T.truthy(postTop + 30 <= -select(5, box.key:GetPoint(1)), "Post runs into the key line")
+    T.truthy(-select(5, box.key:GetPoint(1)) + DaylightUI.Style.SIZE.small <= A.SellPage.BOX_H, "the key line leaves the card")
+end)
+
 local function quiet()
     AHW.Settle()
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))

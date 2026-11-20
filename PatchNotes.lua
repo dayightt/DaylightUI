@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         { "Buffs", "Buffs and debuffs next to the minimap can be dragged in unlock mode" },
         { "Character", "Hovering Spell Damage lists every school again, Shadow included, and says the top number is your best one" },
         { "Social", "Appearing offline now shows as \"Appearing offline\" at the top of the social window instead of \"Available\"" },
+        { "Auction House", "On Sell, what you get when it sells no longer covers its own label when it's worth a gold or more" },
         { "Tooltip", "A recipe's tooltip shows the recipe's own binding at the top and what the item it makes binds as down with that item and its materials" },
         { "Tooltip", "Long tags and titles on tooltips, like long guild ranks or pet owner names in German, wrap onto a second line instead of running off the edge" },
         { "Tooltip", "With a weapon in each hand, comparing a weapon says which hand each of yours is in, and your main hand sits next to the item" },
