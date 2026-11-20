@@ -202,8 +202,15 @@ function Hide.Movers(cfg)
     for _, event in ipairs(Hide.PLACE_EVENTS) do DUI.RegisterEvent(event, soon) end
     -- The game puts the micro menu back at its Edit Mode spot when its override
     -- bar goes away (after a death, a vehicle), then runs its pass over the micro
-    -- buttons. After that pass it goes back to its spot.
-    if type(_G.UpdateMicroButtons) == "function" then hooksecurefunc("UpdateMicroButtons", soon) end
+    -- buttons. After that pass it goes back to its spot. A vehicle's override bar
+    -- takes the micro menu itself and ends with the same pass, so a hidden one is
+    -- parked again right there.
+    if type(_G.UpdateMicroButtons) == "function" then
+        hooksecurefunc("UpdateMicroButtons", function()
+            if ns.db then Hide.Repark(ns.db) end
+            soon()
+        end)
+    end
     -- The game hands the micro menu itself to a full-screen window and back to
     -- UIParent, out of the hidden frame, so a hidden one came back on a flight.
     for _, fn in ipairs({ "MicroMenuBar_SetFullScreenFrame", "MicroMenuBar_ClearFullScreenFrame" }) do

@@ -1487,6 +1487,30 @@ T.test("action bars: a hidden micro menu stays hidden when the game hands it aro
     T.eq(MicroMenu:GetParent(), UIParent, "shown: the game's to place")
 end)
 
+-- A vehicle's override bar takes the micro menu too (MicroMenuMixin:OverrideMicroMenuPosition
+-- in Blizzard_MicroMenu/Shared/MicroMenuContainer.lua: SetParent, then UpdateMicroButtons),
+-- and ResetMicroMenuPosition hands it back to MicroMenuContainer the same way.
+T.test("action bars: a hidden micro menu stays hidden on a vehicle's bar", function()
+    local DUI = stub.Load({ actionbars = true, before = function()
+        world()
+        CreateFrame("Frame", "MicroMenu", MicroMenuContainer)
+        CreateFrame("Frame", "OverrideActionBar", UIParent)
+        _G.UpdateMicroButtons = function() end
+    end })
+    local Hide = stub.actionbars.Hide
+    T.eq(MicroMenu:GetParent(), Hide.parent, "hidden by default")
+    MicroMenu:SetParent(OverrideActionBar)
+    UpdateMicroButtons()
+    stub.RunTimers()
+    T.eq(MicroMenu:GetParent(), Hide.parent, "not on the vehicle's bar")
+    DUI:Set("ActionBars", "microMenu", "shown")
+    T.eq(MicroMenu:GetParent(), MicroMenuContainer, "shown: back in its own container")
+    MicroMenu:SetParent(OverrideActionBar)
+    UpdateMicroButtons()
+    stub.RunTimers()
+    T.eq(MicroMenu:GetParent(), OverrideActionBar, "shown: the game's to place")
+end)
+
 T.test("action bars: the shown bag bar and micro menu move in unlock mode and stay put", function()
     local DUI = login()
     BagsBar:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10, 10)
