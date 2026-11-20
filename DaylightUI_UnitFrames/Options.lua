@@ -94,6 +94,15 @@ for _, s in ipairs(ns.Spots.ORDER) do
     HOME_SPOTS[s], HOME_ORDER[#HOME_ORDER + 1] = SPOT_VALUES[s], s
 end
 -- The level badge: its own spot at the portrait's foot, or any spot.
+local LEVEL_STYLES = { badge = "Badge", number = "Number only" }
+local LEVEL_COLORS = { difficulty = "By difficulty", class = "Class color", white = "White", custom = "Custom" }
+local LEVEL_RINGS = { custom = "Custom" }
+local LEVEL_RING_ORDER = {}
+for _, key in ipairs(ns.UF.RING_COLOR_ORDER) do
+    LEVEL_RINGS[key] = ns.UF.RING_COLORS[key]
+    LEVEL_RING_ORDER[#LEVEL_RING_ORDER + 1] = key
+end
+LEVEL_RING_ORDER[#LEVEL_RING_ORDER + 1] = "custom"
 local LEVEL_SPOTS, LEVEL_ORDER = { ring = "On the portrait" }, { "ring" }
 for _, s in ipairs(ns.Spots.ORDER) do
     LEVEL_SPOTS[s], LEVEL_ORDER[#LEVEL_ORDER + 1] = ns.Spots.LABELS[s], s
@@ -333,14 +342,14 @@ end
 -- Your target's outline on a group page. gate is the page's on/off key.
 local function targetItems(k, gate)
     return {
-        { type = "toggle", key = k("targetMark"), label = "Target outline",
-          desc = "Outlines the member you have targeted, so you can find them at a glance.", disabled = off(gate) },
-        { type = "dropdown", key = k("targetMarkColor"), label = "Target outline color",
+        { type = "toggle", key = k("targetMark"), label = "Frame outline",
+          desc = "Outlines the frame of the member you have targeted, so you can find them at a glance.", disabled = off(gate) },
+        { type = "dropdown", key = k("targetMarkColor"), label = "Frame outline color",
           values = { accent = "Accent color", custom = "One color" }, order = { "accent", "custom" },
           desc = "Accent color follows your accent (General > Appearance). One color uses the one you pick.",
           disabled = offAny(gate, k("targetMark")) },
-        { type = "color", key = k("targetMarkCustom"), label = "Custom target outline color",
-          desc = "The outline's color when Target outline color is One color.",
+        { type = "color", key = k("targetMarkCustom"), label = "Custom frame outline color",
+          desc = "The outline's color when Frame outline color is One color.",
           disabled = offAny(gate, k("targetMark")), hidden = notCustom(k("targetMarkColor")) },
     }
 end
@@ -1495,8 +1504,9 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Auras", "Extras" }
-local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Level", "Icons", "Threat", "Text", "Cast bar", "Auras", "Extras" }
+local TAB_OF = { Portrait = "Portrait", Level = "Level", ["Leader crown"] = "Icons", ["PvP flag"] = "Icons", Resting = "Icons",
+    ["Raid marker"] = "Icons", Threat = "Threat", ["Frame outline"] = "Bars", ["Elite and rare crest"] = "Icons", ["Role icon"] = "Icons", ["Ready check"] = "Icons", Summon = "Icons", Rez = "Icons", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", Dispels = "Auras" }
@@ -1862,7 +1872,7 @@ local function framePage(id, label, desc, opts)
             desc = "The name sits on the card's picture, at its top outer corner. Long names are cut short.",
             disabled = shown, hidden = noCard })
     end
-    text[#text + 1] = fontRow(m("nameFont"), "Name font", opts.portrait and "This frame's names, and its level badge" or "This frame's names", shown)
+    text[#text + 1] = fontRow(m("nameFont"), "Name font", "This frame's names", shown)
     if opts.healthText then
         text[#text + 1] = { type = "toggle", key = k("showPercent"), label = "Health text",
             desc = "The unit's health written on this frame.", disabled = shown }
@@ -1993,105 +2003,215 @@ local function framePage(id, label, desc, opts)
         needHome = " Needs the portrait or the name tab."
         homeDis = function(get) return shown(get) or noHomeFn(get) end
     end
+    -- Every icon a frame can show gets a card on the Icons tab: its switch, its
+    -- place, its nudges and its size in pixels. A frame only gets the icons it can have.
+    local iconCards = {}
+    local function placeRows(key, label, off, what, sizeRow)
+        local rows = {
+            { type = "dropdown", key = k(key .. "Pos"), label = label .. " position", values = HOME_SPOTS, order = HOME_ORDER,
+              desc = "Where the " .. what .. " sits: where this frame puts it (with the portrait or name tab), or any spot on or around the frame. You can also drag it in Design mode.",
+              disabled = off },
+            { type = "slider", key = k(key .. "X"), label = label .. " left / right", min = -50, max = 50, step = 1, unit = "px",
+              desc = "Nudges the " .. what .. " sideways from its position.", disabled = off },
+            { type = "slider", key = k(key .. "Y"), label = label .. " up / down", min = -50, max = 50, step = 1, unit = "px",
+              desc = "Nudges the " .. what .. " up or down from its position.", disabled = off },
+        }
+        rows[#rows + 1] = sizeRow
+        return rows
+    end
+    -- An icon's size in pixels. Until you pick one it is the size the frame draws it at
+    -- (saved as 0), which the slider shows.
+    local function pxRow(key, label, what, off)
+        local field = (key == "leader" and "leaderPx") or (key .. "Px")
+        return { type = "slider", key = k(field), label = label .. " size", min = 6, max = 40, step = 1, unit = "px",
+            desc = "How big the " .. what .. " is, in pixels.",
+            get = function()
+                local v = tonumber(DaylightUI:Get("UnitFrames", k(field))) or 0
+                if v > 0 then return v end
+                return ns.UF.IconSize(id, key)
+            end,
+            set = function(v) return DaylightUI:Set("UnitFrames", k(field), v) end,
+            default = function() return ns.UF.IconSize(id, key) end,
+            disabled = off }
+    end
     if opts.portrait then
-        extras[#extras + 1] = { type = "toggle", key = k("showPvP"), label = "PvP flag",
-            desc = "Crossed swords, tinted by faction, while the unit is flagged for PvP." .. needHome, disabled = homeDis }
-        extras[#extras + 1] = { type = "slider", key = k("pvpSize"), label = "PvP flag size", min = 0.5, max = 2, step = 0.05, unit = "%",
-            desc = "How big the PvP flag is.", disabled = homeDis }
+        local pvpOff = function(get) return homeDis(get) or get(k("showPvP")) == false end
+        local items = { { type = "toggle", key = k("showPvP"), label = "PvP flag",
+            desc = "Crossed swords, tinted by faction, while the unit is flagged for PvP." .. needHome, disabled = homeDis } }
+        for _, row in ipairs(placeRows("pvp", "PvP flag", pvpOff, "PvP flag",
+            pxRow("pvp", "PvP flag", "PvP flag", pvpOff))) do items[#items + 1] = row end
+        iconCards[#iconCards + 1] = { label = "PvP flag", desc = "Crossed swords while the unit is flagged for PvP." .. needHome, items = items }
     end
     -- A party frame's role, marker and crown each get a card of their own,
-    -- headed by its switch (see the tile cards below); other frames keep them here.
-    local iconRows = {}
-    local function iconRow(item) if opts.tile then iconRows[#iconRows + 1] = item else extras[#extras + 1] = item end end
+    -- headed by its switch (see the tile cards below).
+    local iconRows, levelRows = {}, nil
+    local function iconRow(item) if opts.tile then iconRows[#iconRows + 1] = item end end
     if opts.marker then
+        local markerOff = offAny(k("enabled"), k("showMarker"))
         iconRow({ type = "toggle", key = k("showMarker"), label = "Raid marker",
             desc = "Skull, cross and the rest, shown in the name tab before the name.", disabled = shown })
         iconRow({ type = "slider", key = k("markerSize"), label = "Raid marker size", min = 8, max = 32, step = 1, unit = "px",
-            desc = "How big the raid marker is.", disabled = offAny(k("enabled"), k("showMarker")) })
+            desc = "How big the raid marker is.", disabled = markerOff })
+        if not opts.tile then
+            local items = { { type = "toggle", key = k("showMarker"), label = "Raid marker",
+                desc = "Skull, cross and the rest, shown in the name tab before the name.", disabled = shown } }
+            for _, row in ipairs(placeRows("marker", "Raid marker", markerOff, "raid marker",
+                { type = "slider", key = k("markerSize"), label = "Raid marker size", min = 8, max = 32, step = 1, unit = "px",
+                  desc = "How big the raid marker is.", disabled = markerOff })) do items[#items + 1] = row end
+            iconCards[#iconCards + 1] = { label = "Raid marker", desc = "Skull, cross and the rest, shown in the name tab before the name.", items = items }
+        end
     end
     if opts.crest then
-        extras[#extras + 1] = { type = "toggle", key = k("showClassification"), label = "Elite and rare crest",
-            desc = "Gold for elites and bosses, silver for rares: a dragon around the portrait, or a small horned-helm crest on the name tab when portraits are off.",
-            disabled = shown }
+        iconCards[#iconCards + 1] = { label = "Elite and rare crest", desc = "A gold or silver crest on an elite or a rare.", items = {
+            { type = "toggle", key = k("showClassification"), label = "Elite and rare crest",
+              desc = "Gold for elites and bosses, silver for rares: a dragon around the portrait, or a small horned-helm crest on the name tab when portraits are off.",
+              disabled = shown } } }
     end
     if opts.portrait then
-        extras[#extras + 1] = { type = "toggle", key = k("showLevel"), label = "Level",
-            desc = "A small badge at the foot of the portrait" .. (opts.tile and "" or " (or the frame's corner without one)")
-                .. ", colored by how hard the unit is for you." .. needHome,
-            disabled = homeDis }
+        -- Everything about the level badge sits on its own tab.
         local levelOff = function(get) return homeDis(get) or get(k("showLevel")) == false end
-        extras[#extras + 1] = { type = "dropdown", key = k("levelPos"), label = "Level position", values = LEVEL_SPOTS,
-            order = LEVEL_ORDER, desc = "Where the level badge sits: on the portrait, or any spot on or around the frame. You can also drag it in Design mode.", disabled = levelOff }
-        extras[#extras + 1] = { type = "slider", key = k("levelX"), label = "Level left / right", min = -50, max = 50, step = 1,
-            desc = "Nudges the level badge sideways. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
-        extras[#extras + 1] = { type = "slider", key = k("levelY"), label = "Level up / down", min = -50, max = 50, step = 1,
-            desc = "Nudges the level badge up or down. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
+        local numberOnly = function(get) return levelOff(get) or get(k("levelStyle")) == "number" end
+        -- A size in pixels. Until you pick one it follows the portrait (saved as 0);
+        -- the slider shows what that comes to.
+        local function levelPx(field, n, label, lo, hi, desc, dis)
+            return { type = "slider", key = k(field), label = label, min = lo, max = hi, step = 1, unit = "px", desc = desc,
+                get = function()
+                    local v = tonumber(DaylightUI:Get("UnitFrames", k(field))) or 0
+                    if v > 0 then return v end
+                    return (select(n, ns.UF.LevelAuto(id)))
+                end,
+                set = function(v)
+                    if v == (select(n, ns.UF.LevelAuto(id))) then v = 0 end
+                    return DaylightUI:Set("UnitFrames", k(field), v)
+                end,
+                default = function() return (select(n, ns.UF.LevelAuto(id))) end,
+                disabled = dis }
+        end
+        local spotOff = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end
+        levelRows = {
+            { type = "toggle", key = k("showLevel"), label = "Level",
+              desc = "The unit's level, in a badge at the foot of the portrait" .. (opts.tile and "" or " (or the frame's corner without one)") .. ", colored by how hard the unit is for you." .. needHome,
+              disabled = homeDis },
+            { type = "dropdown", key = k("levelStyle"), label = "Level style", values = LEVEL_STYLES, order = { "badge", "number" },
+              desc = "A badge with a ring around the number, or just the number.", disabled = levelOff },
+            { type = "dropdown", key = k("levelPos"), label = "Level position", values = LEVEL_SPOTS,
+              order = LEVEL_ORDER, desc = "Where the level sits: on the portrait, or any spot on or around the frame. You can also drag it in Design mode.", disabled = levelOff },
+            { type = "slider", key = k("levelX"), label = "Level left / right", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges the level sideways from its position. Not while it sits on the portrait.", disabled = spotOff },
+            { type = "slider", key = k("levelY"), label = "Level up / down", min = -100, max = 100, step = 1, unit = "px",
+              desc = "Nudges the level up or down from its position. Not while it sits on the portrait.", disabled = spotOff },
+            { type = "dropdown", key = k("levelShape"), label = "Level shape", values = ns.UF.PORTRAIT_SHAPES, order = ns.UF.PORTRAIT_SHAPE_ORDER,
+              desc = "A round badge, a square, or a square with its outer side angled like the frame's end.", disabled = numberOnly },
+            { type = "dropdown", key = k("levelRing"), label = "Level ring color", values = LEVEL_RINGS, order = LEVEL_RING_ORDER,
+              desc = "The badge's ring, like the portrait's: gray, dark, the unit's class gradient, your accent, the Daylight gradient, or a color you pick.", disabled = numberOnly },
+            { type = "color", key = k("levelRingCustom"), label = "Custom level ring color", hidden = notCustom(k("levelRing")),
+              desc = "The badge's ring color when Level ring color is Custom.", disabled = numberOnly },
+            { type = "dropdown", key = k("levelRingWidth"), label = "Level ring thickness", values = ns.UF.RING_WIDTH_NAMES, order = ns.UF.RING_WIDTH_ORDER,
+              desc = "How thick the badge's ring is.", disabled = numberOnly },
+            levelPx("levelWidthPx", 1, "Level width", 6, 80, "How wide the level badge is.", numberOnly),
+            levelPx("levelHeightPx", 2, "Level height", 6, 80, "How tall the level badge is.", numberOnly),
+            levelPx("levelTextPx", 3, "Level text size", 6, 40, "How big the level's number is.", levelOff),
+            fontRow(m("levelFont"), "Level font", "The level's number", levelOff),
+            { type = "dropdown", key = k("levelColor"), label = "Level color", values = LEVEL_COLORS,
+              order = { "difficulty", "class", "white", "custom" },
+              desc = "The number's color: by how hard the unit is for you, its class, plain white, or one you pick.", disabled = levelOff },
+            { type = "color", key = k("levelCustom"), label = "Custom level color", hidden = notCustom(k("levelColor")),
+              desc = "The number's color when Level color is Custom.", disabled = levelOff },
+        }
         iconRow({ type = "toggle", key = k("showLeader"), label = "Leader crown",
             desc = "A crown on top of the portrait ring (or over the name tab) for the party or raid leader.", disabled = shown })
-        iconRow({ type = "slider", key = k("leaderSize"), label = "Leader crown size", min = 0.5, max = 2, step = 0.05, unit = "%",
-            desc = "How big the leader's crown is.", disabled = opts.tile and offAny(k("enabled"), k("showLeader")) or shown })
+        if not opts.tile then
+            local crownOff = offAny(k("enabled"), k("showLeader"))
+            local items = { { type = "toggle", key = k("showLeader"), label = "Leader crown",
+                desc = "A crown on top of the portrait ring (or over the name tab) while the unit leads the group.", disabled = shown } }
+            for _, row in ipairs(placeRows("leader", "Leader crown", crownOff, "leader's crown",
+                pxRow("leader", "Leader crown", "leader's crown", crownOff))) do items[#items + 1] = row end
+            table.insert(iconCards, 1, { label = "Leader crown", desc = "A crown while the unit leads the group.", items = items })
+        end
     end
+    local druid, cost, threatRows = {}, {}, {}
     if opts.combat then
-        extras[#extras + 1] = { type = "toggle", key = k("druidMana"), label = "Druid mana in forms",
+        druid[#druid + 1] = { type = "toggle", key = k("druidMana"), label = "Druid mana in forms",
             desc = "A thin mana strip along the bottom of the power bar while a form hides your mana.", disabled = powerOff }
         local function druidOff(get) return shown(get) or get(k("druidBars.enabled")) ~= true end
-        extras[#extras + 1] = { type = "toggle", key = k("druidBars.enabled"), label = "Druid resource bars",
+        druid[#druid + 1] = { type = "toggle", key = k("druidBars.enabled"), label = "Druid resource bars",
             desc = "Small bars for the druid powers you're not using right now: rage and energy in caster form, mana in bear or cat form. Each shows once you know its form. Move them in unlock mode.",
             disabled = shown }
-        extras[#extras + 1] = { type = "slider", key = k("druidBars.width"), label = "Druid bars width", min = 40, max = 300, step = 1, unit = "px",
+        druid[#druid + 1] = { type = "slider", key = k("druidBars.width"), label = "Druid bars width", min = 40, max = 300, step = 1, unit = "px",
             desc = "How long each bar is.", disabled = druidOff }
-        extras[#extras + 1] = { type = "slider", key = k("druidBars.height"), label = "Druid bars height", min = 3, max = 20, step = 1, unit = "px",
+        druid[#druid + 1] = { type = "slider", key = k("druidBars.height"), label = "Druid bars height", min = 3, max = 20, step = 1, unit = "px",
             desc = "How tall each bar is.", disabled = druidOff }
-        extras[#extras + 1] = { type = "toggle", key = k("druidBars.showText"), label = "Druid bars numbers",
+        druid[#druid + 1] = { type = "toggle", key = k("druidBars.showText"), label = "Druid bars numbers",
             desc = "How much of each power you have, on its bar.", disabled = druidOff }
-        extras[#extras + 1] = { type = "toggle", key = k("costPreview"), label = "Spell cost preview",
+        cost[#cost + 1] = { type = "toggle", key = k("costPreview"), label = "Spell cost preview",
             desc = "While you cast, the power the spell will use is shaded on your power bar.", disabled = powerSpellOff }
-        extras[#extras + 1] = { type = "color", key = k("costColor"), label = "Spell cost color",
+        cost[#cost + 1] = { type = "color", key = k("costColor"), label = "Spell cost color",
             desc = "The color of the shaded spell cost on your power bar.",
             disabled = function(get) return powerSpellOff(get) or get(k("costPreview")) ~= true end }
-        extras[#extras + 1] = { type = "slider", key = k("costAlpha"), label = "Spell cost opacity",
+        cost[#cost + 1] = { type = "slider", key = k("costAlpha"), label = "Spell cost opacity",
             desc = "How strongly the spell cost shows on your power bar.", min = 0.1, max = 1, step = 0.05, unit = "%",
             disabled = function(get) return powerSpellOff(get) or get(k("costPreview")) ~= true end }
-        extras[#extras + 1] = { type = "dropdown", key = k("regenSweep"), since = "1.5.1.1", label = "Mana regen sweep",
+        cost[#cost + 1] = { type = "dropdown", key = k("regenSweep"), since = "1.5.1.1", label = "Mana regen sweep",
             values = { off = "Off", spark = "Spark", trail = "Soft trail", line = "Draining line" },
             order = { "off", "spark", "trail", "line" },
             desc = "After you cast a spell that costs mana, a light crosses your mana bar for the 5 seconds until your Spirit regen is back. Shows on your player frame and personal display.",
             disabled = powerSpellOff, hidden = function() return not ns.PowerBar.HasMana() end }
-        extras[#extras + 1] = { type = "toggle", key = k("showResting"), label = "Resting",
-            desc = "Zzz on your portrait ring while you rest in an inn or city.", disabled = shown }
-        extras[#extras + 1] = { type = "slider", key = k("restSize"), label = "Resting size", min = 0.5, max = 2, step = 0.05, unit = "%",
-            desc = "How big the resting Zzz is.", disabled = shown }
+        iconCards[#iconCards + 1] = { label = "Druid", desc = "Mana in forms and the bars for the powers a druid isn't using.", items = druid }
+        iconCards[#iconCards + 1] = { label = "Spell cost", desc = "What the spell you cast will use, and the mana regen after it.", items = cost }
+        local restOff = offAny(k("enabled"), k("showResting"))
+        local items = { { type = "toggle", key = k("showResting"), label = "Resting",
+            desc = "Zzz on your portrait ring while you rest in an inn or city.", disabled = shown } }
+        for _, row in ipairs(placeRows("rest", "Resting", restOff, "resting Zzz",
+            pxRow("rest", "Resting", "resting Zzz", restOff))) do items[#items + 1] = row end
+        iconCards[#iconCards + 1] = { label = "Resting", desc = "Zzz while you rest in an inn or city.", items = items }
     end
     if opts.combat then
-        extras[#extras + 1] = { type = "toggle", key = k("showThreat"), label = "Red ring in combat",
+        threatRows[#threatRows + 1] = { type = "toggle", key = k("showThreat"), label = "Red ring in combat",
             desc = "Your portrait ring, or your name tab without a portrait, turns red while you're in combat.",
             disabled = shown }
     end
     if opts.groupThreat then
-        extras[#extras + 1] = { type = "toggle", key = k("showThreat"), label = "Aggro colors",
+        threatRows[#threatRows + 1] = { type = "toggle", key = k("showThreat"), label = "Aggro colors",
             desc = "A member's ring (or name tab without a portrait) turns red while something is attacking them.",
             disabled = shown }
     end
     if opts.threat then
-        extras[#extras + 1] = { type = "toggle", key = k("showThreat"), label = "Threat colors",
+        threatRows[#threatRows + 1] = { type = "toggle", key = k("showThreat"), label = "Threat colors",
             desc = "Red while it's attacking you, on the portrait ring or the name tab without a portrait. In a group it goes orange first, as you get close to pulling it.",
             disabled = shown }
     end
     local tagRows = {}
     if opts.threatTag then
-        tagRows[#tagRows + 1] = { type = "toggle", key = k("threatTag"), label = "Threat % tag",
+        tagRows[#tagRows + 1] = { type = "toggle", key = k("threatTag"), label = "Threat tag",
             desc = "In a group or with a pet, a small tag on the frame's top inner corner: your threat on it, where 100% means it turns on you. Orange as you get close, red once it's on you.",
             disabled = offAny(k("enabled"), k("showThreat")) }
         local tagOff = offAny(k("enabled"), k("showThreat"), k("threatTag"))
         local notOnFrame = function(get) return tagOff(get) or get(k("threatTagAt")) == "free" end
-        tagRows[#tagRows + 1] = { type = "dropdown", key = k("threatTagAt"), label = "Threat tag position",
-            values = { frame = "On the frame", free = "On its own (unlock to move)" }, order = { "frame", "free" },
-            desc = "On its own, the tag leaves the frame and you can move it anywhere in unlock mode, like near the middle of the screen.",
+        -- One list for the tag's place: where the frame puts it, any spot on or around the
+        -- frame, or on its own (a mover, unlock to place it anywhere on screen).
+        local tagSpots, tagOrder = { [UF.ICON_HOME] = "Above the frame", free = "On its own (unlock to move)" }, { UF.ICON_HOME }
+        for _, s in ipairs(ns.Spots.ORDER) do
+            tagSpots[s], tagOrder[#tagOrder + 1] = SPOT_VALUES[s], s
+        end
+        tagOrder[#tagOrder + 1] = "free"
+        tagRows[#tagRows + 1] = { type = "dropdown", key = k("threatTagPos"), label = "Threat tag position",
+            values = tagSpots, order = tagOrder,
+            get = function()
+                if DaylightUI:Get("UnitFrames", k("threatTagAt")) == "free" then return "free" end
+                return DaylightUI:Get("UnitFrames", k("threatTagPos")) or UF.ICON_HOME
+            end,
+            set = function(v)
+                if v == "free" then return DaylightUI:Set("UnitFrames", k("threatTagAt"), "free") end
+                DaylightUI:Set("UnitFrames", k("threatTagAt"), "frame")
+                return DaylightUI:Set("UnitFrames", k("threatTagPos"), v)
+            end,
+            default = function() return UF.ICON_HOME end,
+            desc = "Where the tag sits: above the frame, any spot on or around it, or on its own, where you can move it anywhere on screen in unlock mode.",
             disabled = tagOff }
         tagRows[#tagRows + 1] = { type = "slider", key = k("threatTagX"), label = "Threat tag left / right", min = -100, max = 100, step = 1,
-            unit = "px", desc = "Nudges the tag sideways. Only while it sits on the frame.", disabled = notOnFrame }
+            unit = "px", desc = "Nudges the tag sideways from its position. Not while it is on its own.", disabled = notOnFrame }
         tagRows[#tagRows + 1] = { type = "slider", key = k("threatTagY"), label = "Threat tag up / down", min = -100, max = 100, step = 1,
-            unit = "px", desc = "Nudges the tag up or down. Only while it sits on the frame.", disabled = notOnFrame }
+            unit = "px", desc = "Nudges the tag up or down from its position. Not while it is on its own.", disabled = notOnFrame }
         tagRows[#tagRows + 1] = { type = "slider", key = k("threatTagWidth"), label = "Threat tag width", min = 20, max = 120, step = 1,
             unit = "px", desc = "How wide the tag is.", disabled = tagOff }
         tagRows[#tagRows + 1] = { type = "slider", key = k("threatTagHeight"), label = "Threat tag height", min = 0, max = 40, step = 1,
@@ -2112,32 +2232,34 @@ local function framePage(id, label, desc, opts)
             desc = "The tag's end is angled like the frame. When off, both ends are straight.", disabled = tagOff }
     end
     if opts.happiness then
+        local happy = {}
         local function happyOff(get) return shown(get) or get(k("happiness")) ~= true end
-        extras[#extras + 1] = { type = "toggle", key = k("happiness"), label = "Pet happiness (hunters)",
+        happy[#happy + 1] = { type = "toggle", key = k("happiness"), label = "Pet happiness (hunters)",
             desc = "Your pet's mood beside the frame: red while it's unhappy, yellow while content, green while happy. Hover for its damage, loyalty and diet.",
             disabled = shown }
-        extras[#extras + 1] = { type = "dropdown", key = k("happinessLook"), label = "Happiness look",
+        happy[#happy + 1] = { type = "dropdown", key = k("happinessLook"), label = "Happiness look",
             values = { square = "Color square", icon = "Mood face", frame = "In the frame" },
             order = { "square", "icon", "frame" },
             desc = "A square filled with the mood's color, the pet's mood face, or a stripe inside the frame.",
             disabled = happyOff }
         local function besideOff(get) return happyOff(get) or get(k("happinessLook")) == "frame" end
         local function stripeOff(get) return happyOff(get) or get(k("happinessLook")) ~= "frame" end
-        extras[#extras + 1] = { type = "dropdown", key = k("happinessSide"), label = "Happiness side", since = "1.8.0",
+        happy[#happy + 1] = { type = "dropdown", key = k("happinessSide"), label = "Happiness side", since = "1.8.0",
             values = { left = "Left", right = "Right" }, order = { "left", "right" },
             desc = "Which end of the frame the stripe sits in. On an angled end it follows the angle.",
             disabled = stripeOff }
-        extras[#extras + 1] = { type = "dropdown", key = k("happinessSpot"), label = "Happiness position", values = ns.Spots.LABELS,
+        happy[#happy + 1] = { type = "dropdown", key = k("happinessSpot"), label = "Happiness position", values = ns.Spots.LABELS,
             order = ns.Spots.ORDER, desc = "Where the happiness square or face sits, on or around the frame.", disabled = besideOff }
-        extras[#extras + 1] = { type = "slider", key = k("happinessSize"), label = "Happiness size", min = 8, max = 40, step = 1, unit = "px",
+        happy[#happy + 1] = { type = "slider", key = k("happinessSize"), label = "Happiness size", min = 8, max = 40, step = 1, unit = "px",
             desc = "How big the happiness square or face is.", disabled = besideOff }
-        extras[#extras + 1] = { type = "slider", key = k("happinessX"), label = "Happiness left / right", min = -50, max = 50, step = 1, unit = "px",
+        happy[#happy + 1] = { type = "slider", key = k("happinessX"), label = "Happiness left / right", min = -50, max = 50, step = 1, unit = "px",
             desc = "Nudges the happiness square or face sideways.", disabled = besideOff }
-        extras[#extras + 1] = { type = "slider", key = k("happinessY"), label = "Happiness up / down", min = -50, max = 50, step = 1, unit = "px",
+        happy[#happy + 1] = { type = "slider", key = k("happinessY"), label = "Happiness up / down", min = -50, max = 50, step = 1, unit = "px",
             desc = "Nudges the happiness square or face up or down.", disabled = besideOff }
-        extras[#extras + 1] = { type = "toggle", key = k("happinessBar"), label = "Color health bar by happiness",
+        happy[#happy + 1] = { type = "toggle", key = k("happinessBar"), label = "Color health bar by happiness",
             desc = "The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn Pet happiness off to have only this.",
             disabled = shown }
+        iconCards[#iconCards + 1] = { label = "Pet happiness", desc = "How content your pet is, shown on its frame (hunters).", items = happy }
     end
     if opts.role then
         iconRow({ type = "toggle", key = k("showRole"), label = "Role icon",
@@ -2145,10 +2267,16 @@ local function framePage(id, label, desc, opts)
             disabled = shown })
     end
     if opts.targetMark then
-        for _, item in ipairs(targetItems(k, k("enabled"))) do extras[#extras + 1] = item end
+        groups[#groups + 1] = { label = "Frame outline", desc = "Outlines the frame of the member you have targeted.", items = targetItems(k, k("enabled")) }
     end
     if #extras > 0 then groups[#groups + 1] = { label = "Extras", items = extras } end
-    if #tagRows > 0 then groups[#groups + 1] = { label = "Threat % tag", items = tagRows } end
+    for _, card in ipairs(iconCards) do groups[#groups + 1] = card end
+    if levelRows then
+        groups[#groups + 1] = { label = "Level", desc = "The unit's level: a badge or just the number, its size, color, font and place." .. needHome, items = levelRows }
+    end
+    if #threatRows > 0 or #tagRows > 0 then
+        groups[#groups + 1] = { label = "Threat", desc = "Red while something is attacking, and the small tag with your threat.", items = cat(threatRows, tagRows) }
+    end
     if opts.auraGroups then
         for _, card in ipairs(auraCards(k, k("enabled"))) do groups[#groups + 1] = card end
     end
@@ -2166,9 +2294,10 @@ local function framePage(id, label, desc, opts)
         groups[#groups + 1] = { label = "Raid marker", desc = "Skull, cross and the rest on a marked member's frame." .. home,
             items = cat({ row("showMarker"), row("markerSize") }, icons.marker) }
         groups[#groups + 1] = { label = "Leader crown", desc = "A crown on the party leader's frame." .. home,
-            items = cat({ row("showLeader"), row("leaderSize") }, icons.leader) }
-        groups[#groups + 1] = { label = "Ready check, summon and rez", desc = "Answers to a ready check, who's being summoned, and who's being rezzed, on each party frame.",
-            items = cat(icons.ready, icons.summon, icons.rez) }
+            items = cat({ row("showLeader") }, icons.leader) }
+        groups[#groups + 1] = { label = "Ready check", desc = "The answers to a ready check on each party frame.", items = icons.ready }
+        groups[#groups + 1] = { label = "Summon", desc = "Who's being summoned, on each party frame.", items = icons.summon }
+        groups[#groups + 1] = { label = "Rez", desc = "Who's being rezzed, on each party frame.", items = icons.rez }
     end
     if opts.layout then
         table.insert(groups, 1, { label = "Layout", items = {
@@ -2471,17 +2600,12 @@ local function raidPage(size)
               desc = "Heals on their way, as a soft green stretch past the health.", disabled = off("raid.enabled") },
             { type = "toggle", key = "raid.predictAbsorbs", label = "Absorbs",
               desc = "Damage shields, as a pale stretch after any incoming heals.", disabled = off("raid.enabled") },
-            { type = "toggle", key = "raid.showMarker", label = "Raid marker",
-              desc = "Skull, cross and the rest, on the tile of a marked member.", disabled = off("raid.enabled") },
-            { type = "toggle", key = "raid.showLeader", label = "Leader crown",
-              desc = "A small crown on the raid leader's tile.", disabled = off("raid.enabled") },
         }, {
             { type = "toggle", key = "raid.showThreat", label = "Aggro colors",
               desc = "A member's border turns red while something is attacking them.", disabled = off("raid.enabled") },
-            { type = "toggle", key = "raid.showRole", label = "Role icon",
-              desc = "Tank, healer or damage, from the role they picked. Nothing shows for an unknown or unset role.",
-              disabled = off("raid.enabled") },
-        }, targetItems(function(s) return "raid." .. s end, "raid.enabled")) },
+        }) },
+        { label = "Frame outline", desc = "Outlines the frame of the member you have targeted.",
+          items = targetItems(function(s) return "raid." .. s end, "raid.enabled") },
         size == 10 and { label = "Leader tools", items = {
             { type = "toggle", key = "leader.enabled", label = "Leader tools", anySize = true,
               desc = "A small crown tab that opens ready check, role check, a pull timer, and target and world markers. It shows while you lead the group or assist in a raid. When off, these are only in the game's slash commands.",
@@ -2500,8 +2624,19 @@ local function raidPage(size)
     }, auraCards(function(s) return "raid." .. s end, "raid.enabled"), {
         { label = "Dispels", desc = "How a debuff you can remove shows on each raid tile: an icon, a highlight or a glow.",
           items = dispelItems(function(s) return "raid." .. s end, "raid.enabled", 24, "tile", raidIcons.dispel) },
-        { label = "Icon positions and sizes", desc = "Where the role, marker and crown sit on a tile, and the ready check, summon and rez icons.",
-          items = cat(raidIcons.role, raidIcons.marker, raidIcons.leader, raidIcons.ready, raidIcons.summon, raidIcons.rez) },
+        { label = "Role icon", desc = "Tank, healer or damage on each raid tile.",
+          items = cat({ { type = "toggle", key = "raid.showRole", label = "Role icon",
+              desc = "Tank, healer or damage, from the role they picked. Nothing shows for an unknown or unset role.",
+              disabled = off("raid.enabled") } }, raidIcons.role) },
+        { label = "Raid marker", desc = "Skull, cross and the rest on a marked member's tile.",
+          items = cat({ { type = "toggle", key = "raid.showMarker", label = "Raid marker",
+              desc = "Skull, cross and the rest, on the tile of a marked member.", disabled = off("raid.enabled") } }, raidIcons.marker) },
+        { label = "Leader crown", desc = "A small crown on the raid leader's tile.",
+          items = cat({ { type = "toggle", key = "raid.showLeader", label = "Leader crown",
+              desc = "A small crown on the raid leader's tile.", disabled = off("raid.enabled") } }, raidIcons.leader) },
+        { label = "Ready check", desc = "The answers to a ready check on each raid tile.", items = raidIcons.ready },
+        { label = "Summon", desc = "Who's being summoned, on each raid tile.", items = raidIcons.summon },
+        { label = "Rez", desc = "Who's being rezzed, on each raid tile.", items = raidIcons.rez },
         barFxCard("raid", offAny("raid.enabled", "raid.showPower"), off("raid.enabled"), false,
                   function(key) return DaylightUI:Get("UnitFrames", ns.Raid.MapKey(key, size)) end,
                   size ~= 10 and function() return ns.Raid.Locked(size) end or nil),
