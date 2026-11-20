@@ -28,6 +28,7 @@ DUI.PatchNotes = {
         { "Tooltip", "Hovering a spell on your action bars while it's on cooldown still shows what it does, with the time left added" },
     }, new = {
         { "Tooltip", "Rich tooltip cards can leave out the creature's face and the player's class icon" },
+        { "Chat", "A chat tab can leave out other people's loot and rolls and keep only yours" },
     } },
     { version = "2.0.1", date = "2026-11-20", summary = "Chat stops filling up with everyone's crafting, plus a few quick fixes.", fixed = {
         { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },

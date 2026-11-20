@@ -2566,6 +2566,45 @@ T.test("chat daylight: saved tabs drop the crafting lines too", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's chat never fills with every nearby player's crafting, even with
+-- Tradeskills on: only "You create..." comes through.
+T.test("chat daylight: Tradeskills on shows your crafting, never everyone else's", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.TRADESKILLS = { id = 30, r = 1, g = 1, b = 1 }
+        _G.COMBATLOG = ChatFrame2
+        _G.TRADESKILL_LOG_FIRSTPERSON = "You create %s."
+        _G.TRADESKILL_LOG_THIRDPERSON = "%s creates %s."
+    end)
+    for i = 1, 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.messageTypeList then
+            dropGroup(cf, "TRADESKILLS")
+            if i == 2 then cf.messageTypeList[#cf.messageTypeList + 1] = "TRADESKILLS" end
+        end
+    end
+    stub.chatModule.Tabs.SetKind(1, "tradeskill", true)
+    stub.RunTimers()
+    Box.Pick(1)
+    local me = UnitGUID("player")
+    local function fire(text, guid)
+        stub.FireEvent("CHAT_MSG_TRADESKILLS", text, "", "", "", "", "", 0, 0, "", 0, 0, guid or "")
+    end
+    fire("Xara Dawnspire creates Heavy Wool Bandage.", "Player-1-00000099")
+    fire("Somebody creates Linen Bandage.")
+    fire("You create Silk Bandage.", me)
+    -- A game window that carries the group: its lines reach the box through the hook.
+    ChatFrame1.messageTypeList[#ChatFrame1.messageTypeList + 1] = "TRADESKILLS"
+    local args = { "Bob Stone creates Copper Bracers.", "", n = 14 }
+    args[12] = "Player-1-00000098"
+    ChatFrame1:AddMessage(args[1], 1, 1, 1, 30, nil, nil, "CHAT_MSG_TRADESKILLS", args)
+    local texts = table.concat(boxTexts(box), "|")
+    T.falsy(texts:find("Heavy Wool Bandage", 1, true), "another player's, by GUID: " .. texts)
+    T.falsy(texts:find("Linen Bandage", 1, true), "another player's, by the game's words: " .. texts)
+    T.falsy(texts:find("Copper Bracers", 1, true), "nor through a game window: " .. texts)
+    T.truthy(texts:find("You create Silk Bandage.", 1, true), "your own still shows: " .. texts)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: a window that carries experience lines keeps them single", function()
     local Box, box = daylight(function()
         _G.ChatTypeInfo.COMBAT_XP_GAIN = { id = 9, r = 0.4, g = 0.4, b = 1 }
@@ -6326,5 +6365,41 @@ T.test("chat: Classic windows get the price of each one too", function()
     local want = "You won an auction for Linen Cloth x14 (" .. DaylightUI.Widgets.Money(345) .. " each)"
     T.eq(ChatFrame1.visibleLines[1]:GetText(), want)
     _G.ERR_AUCTION_COMMODITY_WON_S = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A group's loot filled the Loot tab with everyone's drops, picks and rolls:
+-- other people's lines are their own kind, so a tab can keep only yours.
+T.test("chat daylight: other people's loot and rolls are a kind of their own", function()
+    stub.Load({ chat = true, skins = true })
+    local Kinds = stub.chatModule.Kinds
+    _G.LOOT_ITEM = "%s receives loot: %s."    -- the game's GlobalStrings
+    _G.LOOT_ITEM_SELF = "You receive loot: %s."
+    local link = "|cff1eff00|Hitem:1|h[Shovel]|h|r"
+    local function kind(text, guid) return select(2, Kinds.Of(nil, "CHAT_MSG_LOOT", { text, [12] = guid }, text)) end
+    T.eq(kind("You receive loot: " .. link .. "."), "loot", "your own loot")
+    T.eq(kind("Bob receives loot: " .. link .. "."), "lootothers", "someone else's")
+    T.eq(kind("Bob receives loot: " .. link .. ".", UnitGUID("player")), "loot", "the GUID wins when there is one")
+    T.eq(kind("You receive loot: " .. link .. ".", "Player-1-OTHER"), "lootothers")
+    -- Roll lines, read by the loot rolls' own reader.
+    local Rolls = DaylightUI.RollChat
+    T.truthy(Rolls, "the roll reader is loaded")
+    do
+        _G.LOOT_ROLL_GREED = "|HlootHistory:%d|h[Loot]|h: %s has selected Greed for: %s"
+        _G.LOOT_ROLL_GREED_SELF = "|HlootHistory:%d|h[Loot]|h: You have selected Greed for: %s"
+        _G.LOOT_ROLL_ROLLED_GREED = "|HlootHistory:%d|h[Loot]|h: Greed Roll - %d for %s by %s"
+        Rolls.Build()
+        T.eq(kind(LOOT_ROLL_GREED:format(3, "Bob", link)), "lootothers", "someone else's pick")
+        T.eq(kind(LOOT_ROLL_GREED_SELF:format(3, link)), "loot", "your pick")
+        T.eq(kind(LOOT_ROLL_ROLLED_GREED:format(3, 54, link, UnitName("player"))), "loot", "your roll")
+        T.eq(kind(LOOT_ROLL_ROLLED_GREED:format(3, 54, link, "Bob")), "lootothers", "their roll")
+    end
+    -- A saved Loot tab gets the new kind once, so it shows what it did; off stays off.
+    local tab = { name = "Loot", kinds = { loot = true }, v = 7 }
+    Kinds.Upgrade(tab)
+    T.truthy(Kinds.Shows(tab, "lootothers"))
+    tab.kinds.lootothers = false
+    Kinds.Upgrade(tab)
+    T.falsy(Kinds.Shows(tab, "lootothers"), "switched off stays off")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -9,6 +9,7 @@ local DUI = DaylightUI
 
 local RollChat = {}
 ns.RollChat = RollChat
+DUI.RollChat = RollChat   -- the chat reads roll lines with it too (whose roll is it)
 
 -- Each form: the global string, what kind of line it is and what each of its
 -- holes holds, in the English argument order (positional holes map onto these).

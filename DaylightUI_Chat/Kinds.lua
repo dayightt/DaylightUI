@@ -63,7 +63,7 @@ Kinds.RENAMED = { ["ch:tradelocal"] = Kinds.TRADE_LOCAL }
 
 -- Every kind, in tab editor order.
 Kinds.ORDER = { "say", "yell", "emote", "whisper", "bnet", "bnalert", "party", "instance", "raid", "warning",
-                "icons", "pvp", "guild", "officer", "general", "trade", "lfg", "defense", "channel", "loot",
+                "icons", "pvp", "guild", "officer", "general", "trade", "lfg", "defense", "channel", "loot", "lootothers",
                 "currency", "money", "tradeskill", "opening", "progress", "reputation", "skill", "achievement",
                 "pet", "misc", "npc", "boss", "system" }
 
@@ -79,8 +79,10 @@ Kinds.SPLIT = {
     [6] = { loot = { "tradeskill", "opening" }, money = { "currency" },
             system = { "pvp", "pet", "misc", "icons", "bnalert" } },
     [7] = {}, -- not a split, see Kinds.LEFT_OUT
+    -- Other people's loot and rolls, so a tab can keep only yours.
+    [8] = { loot = { "lootothers" } },
 }
-Kinds.VERSION = 7
+Kinds.VERSION = 8
 
 -- Kinds a saved tab stops showing at that tab version. Crafting reached every
 -- tab that showed everything, and loot tabs through the split above, so a busy
@@ -387,6 +389,45 @@ function Kinds.SystemKind(text)
     end
 end
 
+-- The game's lines about someone else's loot. Yours use their own strings
+-- ("You receive loot"), so these only ever name another player.
+Kinds.OTHERS_LOOT = { "LOOT_ITEM", "LOOT_ITEM_MULTIPLE", "LOOT_ITEM_PUSHED", "LOOT_ITEM_PUSHED_MULTIPLE" }
+
+local othersLoot
+local function myName()
+    local name = UnitName and UnitName("player")
+    if type(name) == "string" and not secret(name) then return name end
+end
+
+-- Is this loot line about someone else: their loot, their pick or roll, their
+-- win? Read from the event's GUID when there is one, else from the text. A
+-- line that can't be read (secret, or a form not known) counts as yours, so
+-- nothing of yours is ever hidden.
+function Kinds.OthersLoot(text, guid)
+    if type(guid) == "string" and not secret(guid) and guid ~= "" then
+        local me = UnitGUID and UnitGUID("player")
+        if type(me) == "string" and not secret(me) then return guid ~= me end
+    end
+    if type(text) ~= "string" or secret(text) then return false end
+    local rolls = DaylightUI.RollChat
+    local roll = rolls and rolls.Parse(text)
+    if roll then
+        if roll.self or not roll.who then return false end
+        return roll.who ~= myName()
+    end
+    if not othersLoot then
+        othersLoot = {}
+        for _, name in ipairs(Kinds.OTHERS_LOOT) do
+            local fmt = _G[name]
+            if type(fmt) == "string" and fmt ~= "" then othersLoot[#othersLoot + 1] = patternOf(fmt) end
+        end
+    end
+    for _, p in ipairs(othersLoot) do
+        if string.find(text, "^" .. p) then return true end
+    end
+    return false
+end
+
 -- The line's chat type ("GUILD", "CHANNEL"...) and kind.
 function Kinds.Of(id, event, args, text)
     local t
@@ -398,6 +439,9 @@ function Kinds.Of(id, event, args, text)
     if t == "CHANNEL" or t == "COMMUNITIES_CHANNEL" or string.find(t, "^CHANNEL%d") then return t, channelKind(args) end
     local kind = Kinds.BY_TYPE[t] or "system"
     if kind == "system" then kind = Kinds.SystemKind(text) or kind end
+    if t == "LOOT" and Kinds.OthersLoot(text or (type(args) == "table" and args[1]), type(args) == "table" and args[12]) then
+        kind = "lootothers"
+    end
     return t, kind
 end
 
@@ -409,7 +453,7 @@ function Kinds.DefaultTabs()
         { name = _G.GENERAL or L["General"], all = true, kinds = { tradeskill = false } },
         { name = _G.GUILD or L["Guild"], kinds = { guild = true, officer = true } },
         { name = _G.TRADE or L["Trade"], kinds = { trade = true, [Kinds.SERVICES] = true, [Kinds.TRADE_LOCAL] = true } },
-        { name = _G.LOOT or L["Loot"], kinds = { loot = true, money = true, currency = true,
+        { name = _G.LOOT or L["Loot"], kinds = { loot = true, lootothers = true, money = true, currency = true,
             opening = true, progress = true,
             reputation = true, skill = true, achievement = true } },
     }
