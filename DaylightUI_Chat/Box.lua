@@ -475,14 +475,14 @@ function Box.Watch(cf)
     hooksecurefunc(cf, "AddMessage", function(...) DUI.SafeCall(Box.Feed, ...) end)
 end
 
--- The game's default chat settings send experience from kills (and a few other
--- gains) only to the combat log window, which the box never reads, so those lines
--- never arrived. When none of the windows it reads carries the line's group, the
--- box takes it from the event, worded and colored as the game's window would show
--- it (the text as is, in the type's color). Only reads the windows.
+-- The game's default chat settings send experience from kills, honor and
+-- reputation only to the combat log window, which the box never reads, so those
+-- lines never arrived. When none of the windows it reads carries the line's group,
+-- the box takes it from the event, worded and colored as the game's window would
+-- show it. Only these gains and your own crafting: the rest of the log's stream
+-- (pets eating, misc combat lines) belongs in the combat log, not the chat.
 Box.GAIN_EVENTS = { "CHAT_MSG_COMBAT_XP_GAIN", "CHAT_MSG_COMBAT_HONOR_GAIN", "CHAT_MSG_COMBAT_FACTION_CHANGE",
-    "CHAT_MSG_COMBAT_MISC_INFO", "CHAT_MSG_LOOT", "CHAT_MSG_MONEY", "CHAT_MSG_CURRENCY", "CHAT_MSG_SKILL",
-    "CHAT_MSG_OPENING", "CHAT_MSG_TRADESKILLS", "CHAT_MSG_PET_INFO", "CHAT_MSG_TARGETICONS" }
+    "CHAT_MSG_TRADESKILLS" }
 local fromEvent = {}   -- stands in for a window when the box hears a line itself
 
 local function carried(group)

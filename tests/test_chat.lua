@@ -2605,6 +2605,31 @@ T.test("chat daylight: Tradeskills on shows your crafting, never everyone else's
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Only the gains the game's defaults leave in the combat log come over. The
+-- log's own stream (pets eating, misc combat lines) stays there.
+T.test("chat daylight: combat log lines never come over into the box", function()
+    local Box, box = daylight(function()
+        _G.ChatTypeInfo.COMBAT_MISC_INFO = { id = 10, r = 1, g = 1, b = 1 }
+        _G.ChatTypeInfo.PET_INFO = { id = 11, r = 1, g = 1, b = 1 }
+        _G.COMBATLOG = ChatFrame2
+    end)
+    for i = 1, 10 do
+        local cf = _G["ChatFrame" .. i]
+        if cf and cf.messageTypeList then
+            dropGroup(cf, "COMBAT_MISC_INFO"); dropGroup(cf, "PET_INFO")
+        end
+    end
+    local log = ChatFrame2
+    log.messageTypeList[#log.messageTypeList + 1] = "COMBAT_MISC_INFO"
+    log.messageTypeList[#log.messageTypeList + 1] = "PET_INFO"
+    stub.FireEvent("CHAT_MSG_COMBAT_MISC_INFO", "Spoof's pet begins eating a Roasted Quail.", "", "", "", "", "", 0, 0, "", 0, 0)
+    stub.FireEvent("CHAT_MSG_PET_INFO", "Your pet is happy.", "", "", "", "", "", 0, 0, "", 0, 0)
+    Box.Pick(1)
+    local texts = table.concat(boxTexts(box), "|")
+    T.falsy(texts:find("begins eating", 1, true), "misc line stayed out: " .. texts)
+    T.falsy(texts:find("pet is happy", 1, true), "pet line stayed out: " .. texts)
+end)
+
 T.test("chat daylight: a window that carries experience lines keeps them single", function()
     local Box, box = daylight(function()
         _G.ChatTypeInfo.COMBAT_XP_GAIN = { id = 9, r = 0.4, g = 0.4, b = 1 }
