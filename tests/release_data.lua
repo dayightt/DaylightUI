@@ -1685,7 +1685,7 @@ return {
     },
     ["damageFont"] = "Interface\\AddOns\\DaylightUI\\Media\\fonts\\ExpresswayFree.ttf",
     ["lastVersion"] = "test",
-    ["notesSeen"] = "2.0.1",
+    ["notesSeen"] = "2.1",
     ["oneStandard"] = true,
     ["profileData"] = {
       ["DPS/Tank"] = {
@@ -3886,6 +3886,7 @@ return {
     ["Tooltip.media.titleFont"] = "general",
     ["Tooltip.pill"] = "combat",
     ["Tooltip.pillKey"] = "shift",
+    ["Tooltip.portraits"] = true,
     ["Tooltip.qualityBorder"] = true,
     ["Tooltip.richAlpha"] = 0.95,
     ["Tooltip.scale"] = 1,
@@ -7860,5 +7861,5 @@ return {
     ["general.windowTintColor.2"] = 0.078,
     ["general.windowTintColor.3"] = 0.09,
   },
-  ["version"] = "2.0.1",
+  ["version"] = "2.1",
 }
