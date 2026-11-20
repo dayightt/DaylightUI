@@ -3916,7 +3916,14 @@ T.test("plate icon: a needed mob shows the sword", function()
     T.truthy(p.questArt:IsShown(), "our symbol")
     T.eq(p.questArt.icon.__texture, DaylightUI.MEDIA .. "objective-kill.png")
     T.eq(p.questArt.icon.__vertex[1], 0.9, "in the quest's color")
-    T.truthy(p.quest:GetText():find("objective-kill-edge", 1, true), "its dark edge holds the mark's place")
+    -- The text only holds the mark's place, with an image that really exists:
+    -- the game draws nothing and says nothing for a missing file.
+    local held = p.quest:GetText():match("^|T(.-):0|t$")
+    T.truthy(held, "an inline image holds the mark's place")
+    local file = held:gsub("\\", "/"):gsub("^Interface/AddOns/DaylightUI/", "")
+    local fh = io.open(file, "rb")
+    T.truthy(fh, "a file in the addon: " .. file)
+    if fh then fh:close() end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     DaylightUI.QuestKindForUnit, stub.tooltips = nil, nil
 end)

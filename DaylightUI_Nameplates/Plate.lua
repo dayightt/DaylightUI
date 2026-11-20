@@ -2832,8 +2832,9 @@ function Plate.UpdateQuest(p)
     local appear = shown and not p.questShownNow
     p.questShownNow, p.questTextNow, p.questKindNow, p.questRNow = shown, text, kind, r
     if kind then
-        -- The symbol's dark edge drawn inline holds the mark's space; the symbol goes over it.
-        p.quest:SetText("|T" .. DUI.MEDIA .. "objective-" .. kind .. "-edge.png:0|t")
+        -- A see-through image drawn inline holds the mark's space; the symbol
+        -- (its dark edge is part of its own image) goes over it.
+        p.quest:SetText("|T" .. DUI.MEDIA .. "mask-none.png:0|t")
         p.questArt.icon:SetTexture(DUI.MEDIA .. "objective-" .. kind .. ".png")
         p.questArt.icon:SetVertexColor(r or 1, g or 1, b or 1)
     else

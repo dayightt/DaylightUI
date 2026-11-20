@@ -333,3 +333,68 @@ T.test("guards: every .toc has the core's version", function()
     end
     if #bad > 0 then error("not " .. core .. ":\n  " .. table.concat(bad, "\n  "), 0) end
 end)
+
+-- A file the code names has to be one players get. The game draws nothing
+-- for a missing image and reports nothing, so a file renamed or deleted while
+-- the code kept its old name goes unseen. A name built round a changing part
+-- ("objective-" .. kind .. ".png") needs at least one file that fits it.
+local function mediaFiles()
+    local set, list = {}, {}
+    local p = io.popen('git ls-files -- Media')
+    for line in p:lines() do
+        local name = line:gsub("\r", ""):match("^Media/(.+)$")
+        if name then
+            set[name:lower()] = true
+            list[#list + 1] = name:lower()
+        end
+    end
+    p:close()
+    return set, list
+end
+
+-- A name as a pattern: a format hole ("marker-%d.png") fits anything.
+local function namePattern(s)
+    s = s:gsub("[%^%$%(%)%.%[%]%*%+%-%?]", "%%%0")
+    return (s:gsub("%%%%?%d*[ds]", ".+"))
+end
+
+-- The file name in a quoted piece: up to its extension, dropping what an
+-- inline image adds after it (":0|t").
+local function fileIn(s)
+    s = s:gsub("\\\\", "/"):lower()
+    return s:match("^(.-%.%a%a%a)$") or s:match("^(.-%.%a%a%a)[:|]")
+end
+
+T.test("guards: every Media file named in the code is one players get", function()
+    local set, list = mediaFiles()
+    if #list == 0 then return end -- not a git checkout (a ZIP of the source): nothing to compare with
+    local function fits(want)
+        if set[want] then return true end
+        local pattern = "^" .. namePattern(want) .. "$"
+        for _, name in ipairs(list) do
+            if name:find(pattern) then return true end
+        end
+        return false
+    end
+    local bad = {}
+    for _, path in ipairs(shippedFiles()) do
+        local n = 0
+        for line in io.lines(path) do
+            n = n + 1
+            local c = code(line)
+            for first, rest in c:gmatch('%.MEDIA%s*%.%.%s*"([^"]*)"([^\n]*)') do
+                local want = fileIn(first)
+                if not want then
+                    -- prefix .. something .. "suffix.ext"
+                    local last = rest:match('^%s*%.%.[^"]-%.%.%s*"([^"]*)"')
+                    last = last and fileIn(last)
+                    if last then want = first:gsub("\\\\", "/"):lower() .. "%s" .. last end
+                end
+                if want and not fits(want) and not (ALLOW.media or {})[want] then
+                    bad[#bad + 1] = string.format("%s:%d names Media/%s, which isn't in the repository", path, n, want)
+                end
+            end
+        end
+    end
+    if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
+end)
