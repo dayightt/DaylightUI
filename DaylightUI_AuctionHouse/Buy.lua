@@ -34,7 +34,7 @@
 --   ns.Buy.Pending() -> "quote" | "confirm" | "item" | "bid" | nil
 --   ns.Buy.Quote() -> unit, total   the held quote the game gave (nil before it came,
 --       or with none): what to show again after a Confirm refused "moved"
---   ns.Buy.Check(key, unit) -> warn, pct   the safety net: warn above search.safety % of the
+--   ns.Buy.Check(key, unit) -> warn, pct   the safety net: warn above Buy.Safety() % of the
 --       market (or with no market or a unit that isn't a number, then pct is nil);
 --       pct = the price as a percent of it.
 --
@@ -55,6 +55,12 @@ local Buy = {}
 ns.Buy = Buy
 
 Buy.SAFETY = 150   -- a price above this % of the usual one asks for a second look
+
+-- The player's own limit from the options, Buy.SAFETY until the settings are read.
+function Buy.Safety()
+    local v = ns.Setting and ns.Setting("askAbove")
+    return type(v) == "number" and v * 100 or Buy.SAFETY
+end
 
 Buy.LATE = 60   -- seconds a confirm that lost its answer can still land
 
@@ -105,7 +111,9 @@ function Buy.Check(key, unit)
     local rkey = ns.Ruleset.Key()
     local market = rkey and ns.Store.Market(rkey, key, ns.Game.Now())
     if type(unit) ~= "number" or type(market) ~= "number" or market <= 0 then return true, nil end
-    return unit * 100 > market * Buy.SAFETY, math.floor(unit * 100 / market + 0.5)
+    local over = unit * 100 > market * Buy.Safety()
+    if ns.Setting and ns.Setting("askHigh") == false then over = false end
+    return over, math.floor(unit * 100 / market + 0.5)
 end
 
 function Buy.Commodity(itemID, qty, unit, onQuote, onDone)

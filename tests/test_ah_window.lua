@@ -222,3 +222,42 @@ T.test("ah window: a full scan opens the band and the card steps aside", functio
     T.falsy(A.Window.OfferWanted(), "a full scan done: no card")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("ah window: opens on the tab picked in the options, or the one left open", function()
+    local A, DUI = load()
+    DUI:Set("AuctionHouse", "openOn", "sell")
+    AHW.Open()
+    frame(A)
+    T.eq(A.Window.frame.tab, "sell")
+    A.Window.ShowTab("auctions")
+    A.Window.Close()
+    settle(A)
+    DUI:Set("AuctionHouse", "openOn", "last")
+    AHW.Open()
+    frame(A)
+    T.eq(A.Window.frame.tab, "auctions", "the tab left open last time")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("ah options: own section, and its buttons clear lists and prices", function()
+    local A, DUI = load({ prices = true })
+    local Options = DUI.Options
+    local s = Options.Section("AuctionHouse")
+    T.truthy(s, "the Auction House has its own section")
+    T.eq(#s.pages, 3)
+    local function button(label)
+        for _, p in ipairs(s.pages) do
+            for _, g in ipairs(p.groups) do
+                for _, item in ipairs(g.items) do if item.label == label then return item end end
+            end
+        end
+    end
+    A.BuyPage.SetFavorite(LINEN, true)
+    button("Clear favorites").func()
+    T.deq(A.BuyPage.Favorites(), {})
+    A.Store.Record(RKEY, tostring(LINEN), 100, 5, A.Game.Now())
+    T.truthy(A.Store.Min(RKEY, tostring(LINEN)))
+    button("Forget every price").func()
+    T.isnil(A.Store.Min(RKEY, tostring(LINEN)))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

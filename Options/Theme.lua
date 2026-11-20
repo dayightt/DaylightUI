@@ -78,6 +78,7 @@ section("Nameplates", "cc66c0", "plates", L["Plates"], L["Names and bars over he
 section("Buffs", "e0679f", "buffs", L["Buffs"], L["Your buffs and debuffs."])
 section("Tooltip", "f0708a", "tooltip", L["Tooltips"], L["The game's tooltips."])
 section("Chat", "ff8a5a", "chat", L["Chat"], L["Chat windows, tabs and text."])
+section("AuctionHouse", "ff923c", "auction", L["Auction"], L["Buy, sell, your auctions and item prices."])
 section("QoL", "ff9a1f", "extras", L["Extras"], L["Small helpers and the game's windows in DaylightUI style."])
 section("patchnotes", "e9dcc8", "news", L["News"], L["What changed in each version."])
 Theme.FALLBACK_ICON = "module"

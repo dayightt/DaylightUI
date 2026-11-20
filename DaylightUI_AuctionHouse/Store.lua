@@ -17,7 +17,12 @@ ns.Store = Store
 
 local DB, Market = ns.DB, ns.Market
 Store.STALE_DAYS = 60   -- an item not seen for this many days is dropped
-local function staleAfter() return Store.STALE_DAYS * 86400 end
+-- The player's pick from the options, STALE_DAYS until the settings are read.
+function Store.KeepDays()
+    local v = ns.Setting and ns.Setting("keepDays")
+    return type(v) == "number" and v >= 1 and v or Store.STALE_DAYS
+end
+local function staleAfter() return Store.KeepDays() * 86400 end
 Store.TRIM_SLICE = 2000          -- items the login trim looks at a frame (a compare each)
 
 local added = 0   -- new keys recorded so far: a walk across frames starts again after one
@@ -152,7 +157,7 @@ function Store.Prior(rkey, key, now)
     return Market.Value(lows, Market.Day(now), true)
 end
 
--- Drops the items not seen for STALE_DAYS days; returns how many.
+-- Drops the items not seen for Store.KeepDays() days; returns how many.
 function Store.Trim(rkey, now)
     local data = peek(rkey)
     local items = data and data.items

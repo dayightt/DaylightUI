@@ -9,8 +9,7 @@ DaylightUI:RegisterModule("AuctionHouse", {
     parts = { "DB", "Items", "Market", "Ruleset", "Store", "Rows", "AH", "Bags", "Replicate", "Search", "Browse", "Buy", "Post", "Scan",
               "Tooltip", "ScanBand", "BuyPage", "SellPage", "AuctionsPage", "Window" },
     label = "Auction House",
-    order = 160,
-    section = "QoL", pageOrder = 137,   -- its options page sits under Extras, after the smaller windows
+    order = 147,   -- its own options section, between Chat and Extras
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)

@@ -124,9 +124,31 @@ T.test("ah tooltip: a suffix never seen at the AH gets no price of the plain ite
     local getInfo = C_Item.GetItemInfo
     C_Item.GetItemInfo = function(id)
         if id == 7429 then return "Bandit Cinch" end
-        return getInfo(id)
+        if getInfo then return getInfo(id) end
     end
     M.Store.Record("US-PvE", "7429", 100, 1, NOW)
     local unplaced = "|cff1eff00|Hitem:7429::::::::60::::::::|h[Bandit Cinch of the Monkey]|h|r"
     T.deq(lefts(fill(unplaced)), {})
+    C_Item.GetItemInfo = getInfo
+end)
+
+T.test("ah tooltip: the options switch the price lines off one by one", function()
+    local M = load()
+    M.Store.Record("US-PvE", tostring(HERB), 100, 60, NOW - 120)
+    _G.C_Container = { GetContainerItemInfo = function() return { stackCount = 20 } end }
+    local off = {}
+    M.Setting = function(key) if off[key] then return false end return true end
+    off.tooltipUsual = true
+    T.deq(lefts(fill(link(HERB), true)), { "Auction", "Seen 2 min ago  ·  Shift: the whole stack" })
+    off.tooltipAge = true
+    T.deq(lefts(fill(link(HERB), true)), { "Auction", "Shift: the whole stack" })
+    off.tooltipStack = true
+    stub.shift = true
+    local rows = fill(link(HERB), true)
+    stub.shift = nil
+    T.deq(lefts(rows), { "Auction" })
+    T.eq(rows[2].right, DaylightUI.Widgets.Money(100), "Shift does nothing with the stack switch off")
+    off.tooltip = true
+    T.deq(lefts(fill(link(HERB), true)), {})
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

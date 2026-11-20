@@ -226,6 +226,7 @@ function Main.ShowTab(id)
     local f = Main.frame
     if not f then return end
     Main.tab = id
+    ns.DB.Prices().lastTab = id
     Win.PickTab(f, id)
     Win.ShowPage(f, id)
     ns.Fire("TabShown", id)
@@ -301,13 +302,21 @@ function Main.Apply()
     end
 end
 
+-- The tab the window opens on: the player's pick, or the one left last time.
+function Main.FirstTab()
+    local pick = ns.Setting("openOn")
+    if pick == "last" then pick = ns.DB.Prices().lastTab end
+    for _, t in ipairs(Main.TABS) do if t.id == pick then return pick end end
+    return "buy"
+end
+
 function Main.Open()
     local f = Main.frame
     if not f then return end
     Main.Header()
     if Win.IsOpen(f) then return end
     place(f)
-    Main.ShowTab("buy")
+    Main.ShowTab(Main.FirstTab())
     if ns.ScanBand then ns.ScanBand.Sync() end
     Main.PaintOffer(true)
     Win.Open(f)

@@ -48,6 +48,11 @@ local function hasLine(tip, name, text)
     return false
 end
 
+-- A tooltip switch from the options; on until the settings are read.
+local function on(key)
+    return not (ns.Setting and ns.Setting(key) == false)
+end
+
 -- The lines for `link`, as { left, right, leftInk, rightInk } rows, or nil
 -- when there's no price. held: Shift is down; stack: how many the tooltip
 -- stands for. Kept apart from the tooltip so the options page can show it.
@@ -63,24 +68,28 @@ function Tooltip.Lines(link, held, stack)
     local now = ns.Game.Now()
     local usual = ns.Store.Market(rkey, key, now)
     local seenAt = ns.Store.SeenAt(rkey, key)
-    local count = (held and type(stack) == "number" and stack > 1) and stack or 1
+    local wholeStack = on("tooltipStack")
+    local count = (wholeStack and held and type(stack) == "number" and stack > 1) and stack or 1
     local INK = DUI.Style.INK
     local rows = {}
     rows[1] = { L["Auction"], DUI.Widgets.Money(min * count), INK.TEXT, INK.VALUE }
-    if usual then
+    if usual and on("tooltipUsual") then
         local label = count > 1 and string.format(L["Usual, stack of %d"], count) or L["Usual"]
-        rows[2] = { label, DUI.Widgets.Money(usual * count), INK.LABEL, INK.VALUE }
+        rows[#rows + 1] = { label, DUI.Widgets.Money(usual * count), INK.LABEL, INK.VALUE }
     end
-    local seen = string.format(L["Seen %s ago"], ns.Ago(type(seenAt) == "number" and now - seenAt or nil))
-    if count == 1 and type(stack) == "number" and stack > 1 then
-        seen = seen .. "  ·  " .. L["Shift: the whole stack"]
+    local last = {}
+    if on("tooltipAge") then
+        last[1] = string.format(L["Seen %s ago"], ns.Ago(type(seenAt) == "number" and now - seenAt or nil))
     end
-    rows[#rows + 1] = { seen, nil, INK.LABEL }
+    if wholeStack and count == 1 and type(stack) == "number" and stack > 1 then
+        last[#last + 1] = L["Shift: the whole stack"]
+    end
+    if last[1] then rows[#rows + 1] = { table.concat(last, "  ·  "), nil, INK.LABEL } end
     return rows
 end
 
 local function addLines(tip, data)
-    if ns.mogul then return end
+    if ns.mogul or not on("tooltip") then return end
     local name = tip.GetName and tip:GetName()
     if type(name) ~= "string" then return end
     local link = itemOf(tip, data)

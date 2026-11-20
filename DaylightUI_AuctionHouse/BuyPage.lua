@@ -48,7 +48,7 @@ BP.ICON_X = 44        -- the item name starts after its icon
 BP.STEP_X = 48
 BP.LEVEL_W = 40
 BP.QTY_W = 52
-BP.DEAL = 70          -- a % at or under this is a deal (INK.GOOD)
+BP.DEAL = 70          -- a % at or under this is a deal (INK.GOOD), until the settings are read
 BP.RECENT_MAX = 10
 BP.CONFIRM_WAIT = 0.5 -- s a Confirm click is refused after its total shows or changes
 BP.SUGGEST_MAX = 8
@@ -132,6 +132,14 @@ local function remember(q)
     end
     table.insert(list, 1, { text = (not q.path) and q.text or nil, path = q.path, label = q.label })
     for i = #list, BP.RECENT_MAX + 1, -1 do list[i] = nil end
+end
+
+-- Empties the recent searches or the favorites (from the options), and the
+-- left pane if it shows that list.
+function BP.Forget(field)
+    if field ~= "recent" and field ~= "favorites" then return end
+    ns.DB.Prices()[field] = {}
+    if Left and Left.mode == field then Left.Fill(true) end
 end
 
 function BP.Favorites()
@@ -785,10 +793,15 @@ function BP.Changed(fresh)
     BP.PaintNote()
 end
 
+function BP.Deal()
+    local v = ns.Setting("dealBelow")
+    return type(v) == "number" and v * 100 or BP.DEAL
+end
+
 local function pctRole(pct)
     if type(pct) ~= "number" then return "LABEL" end
-    if pct <= BP.DEAL then return "GOOD" end
-    if pct > ns.Buy.SAFETY then return "WARN" end
+    if pct <= BP.Deal() then return "GOOD" end
+    if pct > ns.Buy.Safety() then return "WARN" end
     return "VALUE"
 end
 

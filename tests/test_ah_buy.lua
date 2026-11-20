@@ -436,6 +436,18 @@ T.test("bid_sold_out", function()
     T.deq(w.done, { { false, "failed" } })
 end)
 
+T.test("check_follows_the_players_limit", function()
+    local M = load()
+    local set = { askHigh = true, askAbove = 2 }
+    M.Setting = function(key) return set[key] end
+    M.Store.Record(RKEY, "2449", 1 * G, 5, time())
+    T.falsy((M.Buy.Check("2449", 1 * G + 90 * S)), "190% is under a 200% limit")
+    T.truthy((M.Buy.Check("2449", 2 * G + 1 * S)))
+    set.askHigh = false
+    local warn, pct = M.Buy.Check("2449", 5 * G)
+    T.falsy(warn, "asking switched off"); T.eq(pct, 500)
+end)
+
 T.test("check_warns_over_safety", function()
     local M = load()
     T.eq(M.Buy.SAFETY, 150)
