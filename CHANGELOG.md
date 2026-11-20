@@ -1,3 +1,35 @@
+# DaylightUI 2.1.1
+
+Game windows that follow the Daylight UI scale, and a big batch of fixes for bags, tooltips, the Cooldown Manager and more.
+
+## New
+- Unit frames: Health text can sit at either end of the health bar or right in the middle, like the power text
+
+## Changed
+- Skins: The game's windows, like the trade window, now shrink or grow with the Daylight UI scale
+- Nameplates: The class icon by a friendly player's name grows and shrinks with the name
+
+## Fixed
+- Nameplates: With friendly nameplates off, mailboxes and herbs no longer show a name, and the PvP crest no longer shows on players of your own faction
+- Action bars: Druids: your main bar keeps your Cat Form buttons while you prowl again. Want a separate Prowl bar? Turn it on in Action Bar 1's options
+- Loot: The loot log set to show only when something changes no longer pops up in every fight. It comes back when you loot something
+- Bags: Items in the bags' Shelf view no longer vanish, or hide from the search, after you sell a stack and buy it back or loot more of it
+- Action bars: Shamans no longer get a flood of errors from the totem bar's summon and recall buttons in fights
+- Bags: Clean Up with items kept in their slot no longer packs everything else at the bottom, and the "Clean up toward the end" switch works the right way round
+- Bags: Item tooltips show how many you have in your bank, even with only one character
+- Tooltip: The small tooltip in fights shows the enemy's name again, and creature tooltips in dungeons show your quest progress
+- Tooltip: Armor and weapons your class can't use show their type (Leather, Mail, Plate...) in red, so you see it at a glance
+- Cooldown Manager: The paladin Aura and Blessing pieces count whichever aura or Blessing you have up, and Touch of Weakness shows as missing once it's used up
+- Cooldown Manager: A Forbearance bar or icon added by its ID shows again while you have it
+- Cooldown Manager: Buffs no longer slide in again when your spells change
+- Buffs: Your buffs and debuffs no longer bounce in again after the game refreshes them
+- Auction House: After switching to the game's own Auction House window, everything in it can be clicked again
+- Auction House: Item tooltips no longer show the auction price twice. The usual price line is off now, and can be turned back on in the options
+- Chat: Pets eating and other combat log lines no longer show up in the chat box
+- Controller: Using items from the bags works with a controller, and at a mailbox, vendor or trade window the item goes there instead
+- Options: Switches like Use my layout show their new spot as soon as you click them
+- Languages: More Simplified Chinese thanks to Levis, and the texts added in 2.0 in Spanish thanks to Ángel
+
 # DaylightUI 2.1
 
 Better tooltips, an Auction House scan that no longer gets stuck, battleground flags out from under the minimap, and lots of small fixes.

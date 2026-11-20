@@ -11,7 +11,8 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", changed = {
+    { version = "Unreleased" },
+    { version = "2.1.1", date = "2026-11-20", summary = "Game windows that follow the Daylight UI scale, and a big batch of fixes for bags, tooltips, the Cooldown Manager and more.", changed = {
         { "Skins", "The game's windows, like the trade window, now shrink or grow with the Daylight UI scale" },
         { "Nameplates", "The class icon by a friendly player's name grows and shrinks with the name" },
     }, fixed = {
@@ -30,6 +31,10 @@ DUI.PatchNotes = {
         { "Buffs", "Your buffs and debuffs no longer bounce in again after the game refreshes them" },
         { "Auction House", "After switching to the game's own Auction House window, everything in it can be clicked again" },
         { "Auction House", "Item tooltips no longer show the auction price twice. The usual price line is off now, and can be turned back on in the options" },
+        { "Chat", "Pets eating and other combat log lines no longer show up in the chat box" },
+        { "Controller", "Using items from the bags works with a controller, and at a mailbox, vendor or trade window the item goes there instead" },
+        { "Options", "Switches like Use my layout show their new spot as soon as you click them" },
+        { "Languages", "More Simplified Chinese thanks to Levis, and the texts added in 2.0 in Spanish thanks to Ángel" },
     }, new = {
         { "Unit frames", "Health text can sit at either end of the health bar or right in the middle, like the power text" },
     } },
