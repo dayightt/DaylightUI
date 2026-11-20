@@ -363,6 +363,10 @@ function Main.WatchLinks()
         if typed or not (Main.IsOpen() and Main.Docked()) then return end
         local text = b:GetText()
         if type(text) ~= "string" or text == "" then return end
+        -- Emptied again, so the same item Shift-clicked later is a change
+        -- too. Whether the client runs this script for unchanged text isn't
+        -- known, and nobody sees this box while it's parked.
+        b:SetText("")
         if Main.frame.tab ~= "buy" then Main.ShowTab("buy") end
         ns.BuyPage.Submit(text, true)
     end)

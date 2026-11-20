@@ -296,6 +296,27 @@ T.test("ah window: a Shift-clicked item is searched on Buy", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The same item Shift-clicked again after another search. The fake box here
+-- is the strict case: it only runs OnTextChanged when its text really changes.
+T.test("ah window: the same item Shift-clicked again is searched again", function()
+    local A = load()
+    AHW.Open()
+    frame(A)
+    local box = game().SearchBar.SearchBox
+    local function shiftClick(name)
+        if box:GetText() ~= name then box:SetText(name) end
+    end
+    local searched = {}
+    local submit = A.BuyPage.Submit
+    A.BuyPage.Submit = function(text) searched[#searched + 1] = text end
+    shiftClick("Linen Cloth")
+    A.BuyPage.Submit("Silk Cloth")
+    shiftClick("Linen Cloth")
+    A.BuyPage.Submit = submit
+    T.deq(searched, { "Linen Cloth", "Silk Cloth", "Linen Cloth" })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Logged in with the game's window picked: Daylight UI's was never built, and
 -- the link on the game's window still brings it back.
 T.test("ah window: the link brings ours back after a login with the game's picked", function()
