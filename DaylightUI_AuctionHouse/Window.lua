@@ -427,6 +427,38 @@ function Main.Covers()
     return not (g and g:IsShown() and not parked())
 end
 
+-- The game's frame keeps listening while it's parked, so a price warning or
+-- error on a post from this window also runs the game's own answer: it lays
+-- its DialogOverlay (an invisible button over everything below the title) on
+-- the hidden frame and asks with its own pop-up, whose OnHide takes it off.
+-- When that pop-up is gone, or never came up, the overlay stays, and the
+-- game's window handed back to the player can't be clicked. So it comes off
+-- as the frame goes back, unless one of the game's dialogs is still up.
+local AH_POPUPS = { "BUYOUT_AUCTION", "BID_AUCTION", "CANCEL_AUCTION", "AUCTION_HOUSE_POST_WARNING", "AUCTION_HOUSE_POST_ERROR" }
+
+local function dialogUp(g)
+    local buy = g.BuyDialog
+    if type(buy) == "table" and buy:IsShown() then return true end
+    local visible = _G.StaticPopup_Visible
+    if type(visible) ~= "function" then return false end
+    local list = type(_G.AUCTION_HOUSE_STATIC_POPUPS) == "table" and _G.AUCTION_HOUSE_STATIC_POPUPS or AH_POPUPS
+    for _, which in ipairs(list) do
+        if visible(which) then return true end
+    end
+    return false
+end
+
+function Main.ClearOverlay(g)
+    local over = type(g) == "table" and g.DialogOverlay
+    if type(over) ~= "table" or not over:IsShown() or dialogUp(g) then return end
+    if type(g.SetDialogOverlayShown) == "function" then g:SetDialogOverlayShown(false) else over:Hide() end
+end
+
+-- Follower callback: the game's frame was parked (parked true) or handed back.
+function Main.Parked(_, g, isParked)
+    if not isParked then Main.ClearOverlay(g) end
+end
+
 -- A fight starts: a hidden game frame goes back for the fight.
 function Main.FightStarts()
     if Main.follow then Win.Followers.Unpark(Main.follow, Main.KIND) end
@@ -468,7 +500,7 @@ function Main.Build(mod)
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("AuctionHouse", "scale", v) end)
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Main.ResetSpot
     Main.follow = Win.Follow({ key = "auctionhouse", frames = { [Main.KIND] = Main.Game }, veil = { [Main.KIND] = true },
-        changed = Main.Changed,
+        changed = Main.Changed, onPark = Main.Parked,
         leave = function() return not (ns.swap and ns.swap.Ours()) end,
         width = function() return Main.W * Win.Scale(ns.Setting("scale")) end })
     Main.Apply()
