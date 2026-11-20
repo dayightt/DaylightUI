@@ -13,6 +13,8 @@ local UNDOCUMENTED = {
     "GetOwner", "SetOwner", "SetAction", "AddLine", "AddDoubleLine", "NumLines",
     -- GameTooltip: TooltipComparisonManager.lua:77 and :116.
     "GetAnchorType", "SetAnchorType",
+    -- GameTooltip: Camelot PaperDollFrame.lua CharacterSpellBonusDamage_OnEnter (a school's icon).
+    "AddTexture",
 }
 
 -- Widget types' method lists only (tools/fetch_blizzard.py is_widget_doc):

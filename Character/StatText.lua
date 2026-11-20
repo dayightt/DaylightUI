@@ -155,6 +155,50 @@ function StatText.ExpertiseTip(owner)
     GameTooltip:Show()
 end
 
+-- The game's spell power hover leads with the lowest school and lists only the
+-- schools that differ from it, so the best one went missing once the row showed
+-- the best. This leads with the best, lists every school when they differ and
+-- says the top number is the best one. Only out of combat: it compares numbers.
+function StatText.SpellPowerTip(owner)
+    local dmg, last = owner.bonusDamage, type(MAX_SPELL_SCHOOLS) == "number" and MAX_SPELL_SCHOOLS or 7
+    local best, low
+    for i = 2, last do
+        local v = dmg[i]
+        if type(v) == "number" then
+            best = math.max(best or v, v)
+            low = math.min(low or v, v)
+        end
+    end
+    if not best then return end
+    local function line(name, n) return string.format(PAPERDOLLFRAME_TOOLTIP_FORMAT, name) .. " " .. BreakUpLargeNumbers(n) end
+    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
+    GameTooltip:SetText(HIGHLIGHT_FONT_COLOR_CODE .. line(owner.tooltip, best) .. FONT_COLOR_CODE_CLOSE)
+    if best ~= low then
+        for i = 2, last do
+            if type(dmg[i]) == "number" then
+                GameTooltip:AddLine(line(_G["DAMAGE_SCHOOL" .. i] or "", dmg[i]), nil, nil, nil, true)
+                GameTooltip:AddTexture("Interface\\PaperDollInfoFrame\\SpellSchoolIcon" .. i)
+            end
+        end
+        GameTooltip:AddLine(L["The top number is your best school."], nil, nil, nil, true)
+    end
+    if type(owner.tooltip2) == "string" then GameTooltip:AddLine(owner.tooltip2, nil, nil, nil, true) end
+    -- A warlock's demon gains from fire or shadow, whichever is higher, as in the game's hover.
+    local fire, shadow = dmg[3], dmg[6]
+    if owner.unit == "player" and type(ComputePetBonus) == "function" and type(fire) == "number" and type(shadow) == "number" then
+        local petStr, damage
+        if fire == low and shadow == low then petStr, damage = PET_BONUS_TOOLTIP_WARLOCK_SPELLDMG, low
+        elseif shadow > fire then petStr, damage = PET_BONUS_TOOLTIP_WARLOCK_SPELLDMG_SHADOW, shadow
+        else petStr, damage = PET_BONUS_TOOLTIP_WARLOCK_SPELLDMG_FIRE, fire end
+        local ap = math.floor(ComputePetBonus("PET_BONUS_SPELLDMG_TO_AP", damage) or 0)
+        local bonus = math.floor(ComputePetBonus("PET_BONUS_SPELLDMG_TO_SPELLDMG", damage) or 0)
+        if (ap > 0 or bonus > 0) and type(petStr) == "string" then
+            GameTooltip:AddLine(string.format(petStr, ap, bonus), nil, nil, nil, true)
+        end
+    end
+    GameTooltip:Show()
+end
+
 -- What the game's sheet functions leave on a stat frame. Rows are reused for
 -- other stats, so a main-hand row must not keep an off-hand row's title.
 local LEFTOVERS = { "tooltip", "tooltip2", "tooltip3", "tooltip4", "onEnterFunc", "UpdateTooltip", "tooltipLabel",
@@ -175,14 +219,8 @@ function StatText.GameTip(owner, row, look)
         and type(_G.CR_EXPERTISE_TOOLTIP) == "string" then
         owner.onEnterFunc = StatText.ExpertiseTip
     end
-    -- The game's spell power hover leads with the lowest school and lists the
-    -- others. The row shows the best school, so lead with that one instead.
     if owner.onEnterFunc ~= nil and owner.onEnterFunc == _G.CharacterSpellBonusDamage_OnEnter and type(owner.bonusDamage) == "table" then
-        local best = owner.minModifier
-        for _, v in pairs(owner.bonusDamage) do
-            if type(v) == "number" and type(best) == "number" and v > best then best = v end
-        end
-        owner.minModifier = best
+        owner.onEnterFunc = StatText.SpellPowerTip
     end
     if not pcall(owner.onEnterFunc or show, owner) then return false end
     StatText.Restyle(GameTooltip, look)

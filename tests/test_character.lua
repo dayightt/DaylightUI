@@ -1381,23 +1381,59 @@ T.test("character page: expertise's tooltip says the melee sentence, not the gam
     T.eq(CW.Calls("tipLine")[1], "Melee 5.0%")
 end)
 
--- Camelot PaperDollFrame.lua: CharacterSpellBonusDamage_OnEnter leads with
--- self.minModifier and lists each school that differs from it.
-T.test("character page: spell power's tooltip leads with the best school, as the row shows", function()
-    local P, ns = charPage({ class = "MAGE" })
+-- Camelot PaperDollFrame.lua: PaperDollFrame_SetSpellPower keeps the lowest
+-- school in minModifier and CharacterSpellBonusDamage_OnEnter leads with it,
+-- listing only the schools that differ from it.
+local function spellPowerTip(schools)
+    local P, ns = charPage({ class = "WARLOCK" })
     local page = openChar(ns)
-    local lead
-    local was = { _G.CharacterSpellBonusDamage_OnEnter, _G.PaperDollFrame_SetSpellPower, _G.PaperDollStatTooltip }
-    _G.CharacterSpellBonusDamage_OnEnter = function(self) lead = self.minModifier end
-    _G.PaperDollFrame_SetSpellPower = function(f)
-        f.bonusDamage = { [2] = 50, [3] = 120, [4] = 50, [5] = 50, [6] = 50, [7] = 50 }
-        f.minModifier, f.tooltip = 50, "Spell Power"
+    local names = { "Holy", "Fire", "Nature", "Frost", "Shadow", "Arcane" }
+    local g = { "CharacterSpellBonusDamage_OnEnter", "PaperDollFrame_SetSpellPower", "PaperDollStatTooltip",
+        "MAX_SPELL_SCHOOLS", "PAPERDOLLFRAME_TOOLTIP_FORMAT", "HIGHLIGHT_FONT_COLOR_CODE", "FONT_COLOR_CODE_CLOSE",
+        "BreakUpLargeNumbers", "ComputePetBonus" }
+    local was = {}
+    for _, k in ipairs(g) do was[k] = _G[k] end
+    for i = 2, 7 do was["DAMAGE_SCHOOL" .. i] = _G["DAMAGE_SCHOOL" .. i]; _G["DAMAGE_SCHOOL" .. i] = names[i - 1] end
+    _G.MAX_SPELL_SCHOOLS, _G.PAPERDOLLFRAME_TOOLTIP_FORMAT = 7, "%s"
+    _G.HIGHLIGHT_FONT_COLOR_CODE, _G.FONT_COLOR_CODE_CLOSE = "", ""
+    _G.BreakUpLargeNumbers = function(n) return tostring(n) end
+    _G.ComputePetBonus = function() return 0 end
+    _G.CharacterSpellBonusDamage_OnEnter = function(self)
+        GameTooltip:SetText(self.tooltip .. " " .. self.minModifier)
+        for i = 2, 7 do
+            if self.bonusDamage[i] ~= self.minModifier then GameTooltip:AddLine(names[i - 1] .. " " .. self.bonusDamage[i]) end
+        end
+        GameTooltip:AddLine(self.tooltip2)
+    end
+    _G.PaperDollFrame_SetSpellPower = function(f, unit)
+        f.bonusDamage, f.minModifier = {}, nil
+        for i = 2, 7 do
+            f.bonusDamage[i] = schools[i - 1]
+            f.minModifier = math.min(f.minModifier or schools[i - 1], schools[i - 1])
+        end
+        f.tooltip, f.tooltip2, f.unit = "Spell Damage", "Increases the damage of your spells.", unit
         f.onEnterFunc = _G.CharacterSpellBonusDamage_OnEnter
     end
     _G.PaperDollStatTooltip = function() end
     P.StatTip(rowFrame(page, "spell", "sp"))
-    _G.CharacterSpellBonusDamage_OnEnter, _G.PaperDollFrame_SetSpellPower, _G.PaperDollStatTooltip = was[1], was[2], was[3]
-    T.eq(lead, 120, "fire, the best, not the lowest")
+    for k, v in pairs(was) do _G[k] = v end
+    return CW.Calls("tipText"), CW.Calls("tipLine")
+end
+
+T.test("character page: spell power's tooltip leads with the best school and lists every school", function()
+    local text, lines = spellPowerTip({ 171, 171, 171, 171, 182, 171 })
+    T.deq(text, { "Spell Damage 182" }, "the best school, as the row shows")
+    local listed = table.concat(lines, "\n")
+    for _, s in ipairs({ "Holy 171", "Fire 171", "Nature 171", "Frost 171", "Shadow 182", "Arcane 171" }) do
+        T.truthy(listed:find(s, 1, true), s .. " is listed")
+    end
+    T.truthy(listed:find("best school", 1, true), "says the top number is the best school")
+end)
+
+T.test("character page: spell power's tooltip lists no schools when they're all the same", function()
+    local text, lines = spellPowerTip({ 90, 90, 90, 90, 90, 90 })
+    T.deq(text, { "Spell Damage 90" })
+    T.falsy(table.concat(lines, "\n"):find("Shadow", 1, true))
 end)
 
 T.test("character page: a tooltip that redraws itself (movement speed) keeps our colors, and rests in a fight", function()
