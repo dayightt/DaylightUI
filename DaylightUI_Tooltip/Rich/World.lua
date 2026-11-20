@@ -251,8 +251,8 @@ function World.Tags(unit, r)
         local name = reaction <= 3 and W.hostile or reaction == 4 and W.neutral or W.friendly
         tags[#tags + 1] = Tag(name, { Style.ReactionColor(reaction) })
     end
-    local kind, kindID = UnitCreatureType(unit)
-    kind, kindID = plain(kind), plain(kindID)
+    local kindRaw, idRaw = UnitCreatureType(unit)
+    local kind, kindID = plain(kindRaw), plain(idRaw)
     if type(kind) == "string" and kind ~= "" then
         tags[#tags + 1] = Tag(kind, World.KIND_COLORS[kindID] or INK.TEXT)
     end

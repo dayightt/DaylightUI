@@ -1288,6 +1288,33 @@ T.test("tooltip: short item stats, on out of the box, procs left alone", functio
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("tooltip: item stats keep their colors in other languages", function()
+    -- The game's own stat formats, as a German and a Korean client have them.
+    local saved = {}
+    local function set(k, v) saved[k] = saved[k] == nil and { _G[k] } or saved[k]; _G[k] = v end
+    set("ITEM_MOD_STRENGTH", "%c%s St\195\164rke")
+    set("ITEM_MOD_STAMINA", "\236\178\180\235\160\165 %c%s")
+    set("ITEM_RESIST_SINGLE", "%c%d %swiderstand")
+    set("DAMAGE_SCHOOL3", "Feuer")
+    login(itemWorld)
+    local at = withLines(GameTooltip)
+    local Tip = stub.tooltip.Tooltip
+    fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1001, hyperlink = "sword" }, {
+        "Sword", "+24 St\195\164rke", "\236\178\180\235\160\165 +10", "+5 Feuerwiderstand", "-3 St\195\164rke",
+    })
+    local hex = DaylightUI.Win.Parts.Hex
+    T.eq(at(2):GetText(), hex(Tip.STAT_COLORS.Strength) .. "+24 St\195\164rke|r", "German strength in its color")
+    T.eq(at(3):GetText(), hex(Tip.STAT_COLORS.Stamina) .. "\236\178\180\235\160\165 +10|r", "Korean puts the name first")
+    T.eq(at(4):GetText(), hex(Tip.SCHOOL_COLORS.Fire) .. "+5 Feuerwiderstand|r", "a resistance by its school")
+    T.eq(at(5):GetText(), "-3 St\195\164rke", "a minus stays the game's")
+    local num, name, c = Tip.ReadStat("\236\178\180\235\160\165 +10")
+    T.eq(num, "+10")
+    T.eq(name, "\236\178\180\235\160\165")
+    T.rgb(c, Tip.STAT_COLORS.Stamina)
+    for k, v in pairs(saved) do _G[k] = v[1] end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("tooltip: the game's money lines wear Daylight UI's coins, digits in the money color", function()
     login(itemWorld)
     local at = withLines(GameTooltip)

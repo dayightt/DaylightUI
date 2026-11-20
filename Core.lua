@@ -257,8 +257,11 @@ function DUI.GamePattern(fmt)
     local p = fmt:gsub("%%%d+%$", "%%")
     p = p:gsub("([%(%)%.%+%-%*%?%[%]%^%$])", "%%%1")
     -- A decimal (the reputation bonus lines' "%.1f", its dot escaped above).
-    p = p:gsub("%%%d?%$?%%%.%d+f", "([%%d%%.,]+)"):gsub("%%%d?%$?f", "([%%d%%.,]+)")
+    -- "%.2g" is how the game writes cast times and cooldowns ("2.5 sec cast").
+    p = p:gsub("%%%d?%$?%%%.%d+[fg]", "([%%d%%.,]+)"):gsub("%%%d?%$?[fg]", "([%%d%%.,]+)")
     p = p:gsub("%%%d?%$?s", "(.+)"):gsub("%%%d?%$?d", "(%%d+)")
+    -- "%c" is the plus or minus in front of an item's stat ("%c%s Strength").
+    p = p:gsub("%%%d?%$?c", "([%%+%%-])")
     return p
 end
 

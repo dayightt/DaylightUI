@@ -238,10 +238,10 @@ local function isGreen(c) return c and c[1] < 0.3 and c[2] > 0.85 and c[3] < 0.3
 local function isRed(c) return c and DUI.Tips.GameColor(c[1], c[2], c[3]) == "red" end
 local function lineColor(line) return line.hasLC and line.lc or nil end
 
--- "+24 Strength": its number and name, or nil.
+-- "+24 Strength": its number, name and color (nil when unknown), or nil.
+-- Read by the game's own stat formats, so it works in every language.
 function Items.Stat(t)
-    local num, name = t:match("^([%+%-]%d[%d,%.]*%%?) (.+)$")
-    return num, name
+    return ns.Tooltip.ReadStat(t)
 end
 
 -- The effect triggers the game starts a green line with.
@@ -393,9 +393,9 @@ local function sort(n, lines, own, info, groups)
             local short = word == (ITEM_SPELL_TRIGGER_ONEQUIP or "Equip:") and Tip.ShortText(rest) or nil
             if short then
                 for part in (short .. "\n"):gmatch("(.-)\n") do
-                    local num, name = Items.Stat(part)
+                    local num, name, color = Items.Stat(part)
                     if num then
-                        local color = Tip.StatColor(name) or Style.INK.GOOD
+                        color = color or Style.INK.GOOD
                         groups.list[#groups.list + 1] = function(p) numLine(p, num, name, color, true) end
                     end
                 end
@@ -407,8 +407,8 @@ local function sort(n, lines, own, info, groups)
                 groups.effects[#groups.effects + 1] = function(p) ns.RichPanel.Text(p, Tips.Numbers(t), Style.INK.GOOD) end
             end
         elseif Items.Stat(t) and not right and not isRed(c) then
-            local num, name = Items.Stat(t)
-            local color = Tip.StatColor(name) or (num:sub(1, 1) == "-" and Style.INK.DAMAGE) or Style.INK.VALUE
+            local num, name, color = Items.Stat(t)
+            color = color or (num:sub(1, 1) == "-" and Style.INK.DAMAGE) or Style.INK.VALUE
             groups.list[#groups.list + 1] = function(p) numLine(p, num, name, color) end
         elseif ns.Rich.IsFlavor(line) then
             groups.quote[#groups.quote + 1] = function(p) ns.Rich.Flavor(p, line) end

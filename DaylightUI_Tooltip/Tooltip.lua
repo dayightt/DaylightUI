@@ -834,6 +834,57 @@ function Tip.StatColor(name)
     if name:find(" Skill$") then return MELEE end
 end
 
+-- The game's own formats for the base stats and resistances, so a stat line
+-- is read in the client's language. Korean puts the name before the number,
+-- so the whole line is matched, not a "+N name" shape.
+Tip.STAT_FORMATS = {
+    ITEM_MOD_STRENGTH = "Strength", ITEM_MOD_AGILITY = "Agility", ITEM_MOD_STAMINA = "Stamina",
+    ITEM_MOD_INTELLECT = "Intellect", ITEM_MOD_SPIRIT = "Spirit",
+}
+Tip.RESIST_SCHOOLS = { "Holy", "Fire", "Nature", "Frost", "Shadow", "Arcane" }   -- DAMAGE_SCHOOL2..7
+
+local statReads
+local function statPatterns()
+    if statReads then return statReads end
+    statReads = {}
+    local function add(fmt, color)
+        if type(fmt) == "string" and fmt:find("%", 1, true) and color then
+            statReads[#statReads + 1] = { "^" .. DUI.GamePattern(fmt) .. "$", color }
+        end
+    end
+    for global, key in pairs(Tip.STAT_FORMATS) do add(_G[global], Tip.STAT_COLORS[key]) end
+    add(ITEM_RESIST_ALL, Tip.STAT_COLORS["All Resistances"])
+    if type(ITEM_RESIST_SINGLE) == "string" then
+        for i, key in ipairs(Tip.RESIST_SCHOOLS) do
+            local school = _G["DAMAGE_SCHOOL" .. (i + 1)]
+            if type(school) == "string" and school ~= "" then
+                -- The school's word goes in its hole, leaving only the sign and number.
+                add((ITEM_RESIST_SINGLE:gsub("%%%d?%$?s", (school:gsub("%%", "%%%%")))), Tip.SCHOOL_COLORS[key])
+            end
+        end
+    end
+    return statReads
+end
+
+-- A stat line ("+24 Strength", "+5 Feuerwiderstand"): its signed
+-- number, the words around it, and the stat's color (nil when unknown). nil
+-- when the line isn't a stat.
+function Tip.ReadStat(text)
+    -- Every stat line has a signed number; most lines have none.
+    if type(text) ~= "string" or not text:find("[%+%-]%d") then return nil end
+    for _, r in ipairs(statPatterns()) do
+        local sign, n = text:match(r[1])
+        if sign then
+            local num = sign .. n
+            local s, e = text:find(num, 1, true)
+            local name = (text:sub(1, s - 1) .. text:sub(e + 1)):gsub("^%s+", ""):gsub("%s+$", "")
+            return num, name, r[2]
+        end
+    end
+    local num, name = text:match("^([%+%-]%d[%d,%.]*%%?) (.+)$")
+    if num then return num, name, Tip.StatColor(name) end
+end
+
 local function h(v) return math.max(0, math.min(255, math.floor(v * 255 + 0.5))) end
 local function hex(c)
     return string.format("|cff%02x%02x%02x", h(c[1]), h(c[2]), h(c[3]))
@@ -843,12 +894,12 @@ end
 -- nil if any part isn't a known stat. Items refill every 0.2 s, so one table is reused.
 local statParts = {}
 function Tip.PaintStats(text)
-    if type(text) ~= "string" or text:byte(1) ~= 43 then return nil end -- every part starts with "+"
+    if type(text) ~= "string" then return nil end
     local n = 0
     for part in (text .. "\n"):gmatch("(.-)\n") do
-        local name = part:match("^%+%d+%%? (.+)$")
-        local c = name and Tip.StatColor(name)
-        if not c then
+        -- A loss keeps the game's own look.
+        local num, _, c = Tip.ReadStat(part)
+        if not (c and num:sub(1, 1) == "+") then
             for i = n, 1, -1 do statParts[i] = nil end
             return nil
         end
