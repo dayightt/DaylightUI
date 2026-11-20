@@ -449,7 +449,7 @@ local function pageChoices()
         if n and Paging.Has(state) then add(6 + n, string.format(L["Action Bar 1 in %s"], L[state.name])) end
     end
     for _, state in ipairs(Paging.STATES) do
-        if state.ownPage and Paging.Has(state) then add(state.ownPage, string.format(L["Action Bar 1 in %s"], L[state.name])) end
+        if state.ownPage and Paging.Has(state) and Paging.ProwlBar() then add(state.ownPage, string.format(L["Action Bar 1 in %s"], L[state.name])) end
     end
     for page = 1, Paging.PAGES do add(page, string.format(L["Spare page %d"], page)) end
     return values, order
@@ -465,6 +465,13 @@ pagingItems = function(def, k, hidden)
         items[#items + 1] = { type = "toggle", key = k("autoPage"), label = "Change with forms and stances", search = "Paging",
             desc = "Your stances, forms, stealth and the page keys swap this bar's buttons, as in the game. When off, it always shows its own buttons. Vehicles still take it over.",
             disabled = hidden }
+        items[#items + 1] = { type = "toggle", key = k("prowlBar"), label = "Own bar while prowling", search = "Paging Prowl",
+            desc = "While you prowl, this bar shows a page of its own instead of your Cat Form buttons, like the game's Prowl bar. Fill it with the spells you open with.",
+            hidden = function(get)
+                if type(hidden) == "function" and hidden(get) then return true end
+                return hidden == true or Paging.Class() ~= "DRUID"
+            end,
+            disabled = function(get) return get(k("autoPage")) == false end }
         items[#items + 1] = { type = "text", label = "Powershifting: the game takes a moment to confirm a new form, and shows your caster bar until it does. Put /click DaylightUICat (or DaylightUIBear, DaylightUIMoonkin) at the top of your shift macro and this bar swaps the moment you press it.",
             hidden = function(get)
                 if type(hidden) == "function" and hidden(get) then return true end
@@ -702,11 +709,6 @@ local cdmPages = {
                 disabled = cdmOff,
                 get = function() return Data.Switch("on") end,
                 set = function(v) Data.SetSwitch("on", v); ns.CdmRows.Refresh() end },
-              { type = "toggle", key = "cdm.hideUnplaced", invert = true, label = "Show spells not in the layout",
-                desc = "Spells the game tracks that aren't in your layout still show. When off, they're faded out. Saved for this character.",
-                disabled = function(get) return cdmOff(get) or not Data.Switch("on") end,
-                get = function() return Data.Switch("hideUnplaced") end,
-                set = function(v) Data.SetSwitch("hideUnplaced", v); ns.CdmRows.Refresh() end },
               { type = "toggle", key = "cdmKeybinds", since = "1.5.2", label = "Show keybinds on icons",
                 desc = "The key that casts each spell, on its icon. It reads your action bars, so a spell on no bar shows none. Any icon can change this in the layout editor.",
                 disabled = cdmOff },

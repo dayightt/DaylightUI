@@ -1076,7 +1076,7 @@ T.test("cdm rows: the layout is a fade area, so the campfire's hush reaches it; 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("cdm rows: unplaced items fade with the layout and the setting on", function()
+T.test("cdm rows: unplaced items stay hidden while the layout is on", function()
     local DUI, AB, ess = rowsWorld()
     local D, R = AB.CdmData, AB.CdmRows
     R.Refresh(); stub.RunTimers()
@@ -1088,10 +1088,7 @@ T.test("cdm rows: unplaced items fade with the layout and the setting on", funct
     T.eq(ess[2]:GetAlpha(), 0, "unplaced faded")
     D.SetSwitch("hideUnplaced", false)
     R.Refresh(); stub.RunTimers()
-    T.eq(ess[2]:GetAlpha(), 1, "setting off")
-    D.SetSwitch("hideUnplaced", true)
-    R.Refresh(); stub.RunTimers()
-    T.eq(ess[2]:GetAlpha(), 0)
+    T.eq(ess[2]:GetAlpha(), 0, "an old saved value can't bring them back")
     D.SetSwitch("on", false)
     R.Refresh(); stub.RunTimers()
     T.eq(ess[2]:GetAlpha(), 1, "layout off releases everything")
@@ -1124,11 +1121,10 @@ T.test("cdm rows: a game bar placed as an icon isn't claimed: it hides and our a
     T.eq(h:GetParent(), pieceFrame(1, 21))
     T.truthy(R.Owns(ess[1]))
     T.eq(R.DrawnBy(11), "game")
-    -- Out of the layout (and unplaced items shown), the game's bar is back.
-    D.SetSwitch("hideUnplaced", false)
+    -- Out of the layout, the game's bar stays out of sight with the rest.
     D.RemovePiece(set, 21)
     R.Refresh(); stub.RunTimers()
-    T.eq(bars[1]:GetAlpha(), 1)
+    T.eq(bars[1]:GetAlpha(), 0)
     T.falsy(h:IsShown())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -1695,10 +1691,9 @@ T.test("cdm effects: the glow goes when the item is let go, and comes back", fun
     local DUI, AB, set, ess = fxWorld()
     local Fx, M = AB.CdmEffects, _G.ActionButtonSpellAlertManager
     M:ShowAlert(ess[1])
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
-    unplace(AB.CdmData, set, 11); pass(AB)
+    stub.actionbars.CdmData.SetSwitch("on", false); pass(AB)
     T.falsy(Fx.GlowShown(ess[1]), "released")
-    place(AB.CdmData, set, 11, 1); pass(AB)
+    stub.actionbars.CdmData.SetSwitch("on", true); pass(AB)
     T.truthy(Fx.GlowShown(ess[1]), "claimed again while the alert is still up")
 end)
 
@@ -1728,7 +1723,7 @@ T.test("cdm effects: hide swipe keeps it off and puts it back on release", funct
     cd:SetDrawSwipe(true)                       -- the game turns it back on
     T.eq(cd.__swipe, false, "forced back off")
     T.isnil(ess[2].Cooldown.__swipe, "others untouched")
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(AB.CdmData, set, 11); pass(AB)
     T.eq(cd.__swipe, true, "restored")
     cd:SetDrawSwipe(false); cd:SetDrawSwipe(true)
@@ -1792,7 +1787,7 @@ T.test("cdm text: numbers off and sized, count spot, low-time color; back on rel
     T.eq(select(2, fs:GetFont()), 20, "numbers size")
     T.rgb({ fs:GetTextColor() }, { 0, 1, 0 }, "2 s left: the low color")
     T.eq(select(2, item.ChargeCount.Current:GetFont()), 15)
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(D, set, 11); pass(AB)
     T.isnil(CD.TextOf(item), "let go")
     T.eq(select(1, item.ChargeCount.Current:GetPoint(1)), "BOTTOMRIGHT", "count back at the corner")
@@ -1931,7 +1926,7 @@ T.test("cdm effects: on cooldown fade or hide by alpha, back when ready or let g
     cds[111] = { duration = 0 }
     cdEvent()
     T.eq(ess[1]:GetAlpha(), 1, "ready")
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(AB.CdmData, set, 12); pass(AB)
     T.eq(ess[2]:GetAlpha(), 1, "let go: full again")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -2913,7 +2908,7 @@ T.test("cdm effects: switching On cooldown back to show, or letting go, restores
     pass(AB)
     T.eq(ess[1]:GetAlpha(), 0.25)
     set.pieces[11].onCd = "show"
-    stub.actionbars.CdmData.SetSwitch("hideUnplaced", false)
+    stub.actionbars.CdmData.SetSwitch("on", false)
     unplace(AB.CdmData, set, 11); pass(AB)
     T.eq(ess[1]:GetAlpha(), 1, "let go with the option already show")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -5056,7 +5051,7 @@ T.test("cdm bars: an Essential cooldown in a bar block is our bar, filled by the
     T.truthy(f.Bar.__timer and f.Bar.__timer[1] == cd2, "the recharge")
     T.falsy(f.next:IsShown()); T.falsy(f.lines[1]:IsShown())
     -- Out of the block, the addon's bar hides and the game's icon comes back.
-    D.SetSwitch("hideUnplaced", false)
+    D.SetSwitch("on", false)
     unplace(D, set, 11)
     pass(AB)
     T.falsy(f:IsShown())

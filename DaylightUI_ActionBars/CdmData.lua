@@ -520,8 +520,15 @@ function Data.Current()
     return Data.Get(Data.CurrentIndex())
 end
 
--- "on" (Use my layout) and "hideUnplaced": per character, on unless turned off.
-function Data.Switch(key) return Data.Store()[key] ~= false end
+-- "on" (Use my layout): per character, on unless turned off.
+-- "hideUnplaced" always answers on. The game's icons for spells left out of the
+-- layout stay hidden: shown, they sat at the game's own spot beside the layout,
+-- along with every buff the game's rows now carry. A value saved while it was
+-- still a setting is ignored.
+function Data.Switch(key)
+    if key == "hideUnplaced" then return true end
+    return Data.Store()[key] ~= false
+end
 function Data.SetSwitch(key, v) Data.Store()[key] = v and true or false end
 
 -- ---------------------------------------------------------------------
