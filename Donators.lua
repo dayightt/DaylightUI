@@ -66,6 +66,7 @@ Donators.LIST = {
     "Narnia",
     "amshagar",
     "Stavlor",
+    "Luka Bosnjak",
     "HappyS",
     "ramnokri",
     "Shady",
@@ -115,6 +116,7 @@ Donators.MONTHLY = {
     "HappyS",
     "Stavlor",
     "Harrumph",
+    "Luka Bosnjak",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
