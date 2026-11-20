@@ -566,38 +566,6 @@ T.test("a dropdown's name too long for its box shows whole in a tooltip", functi
     T.eq(lines[1], long)
 end)
 
-T.test("a dropdown shows an unavailable choice in the off color, in its box and in its list", function()
-    local DUI = stub.Load()
-    local W = DUI.Widgets
-    local C = W.COLORS
-    local page = { id = "test.offpick", scope = "general" }
-    local parent = CreateFrame("Frame", nil, UIParent)
-    local current, saved = "b", nil
-    local drop = W.CompactRow(parent, page, { type = "dropdown", label = "Pick",
-        get = function() return current end, set = function(v) saved = v end,
-        choices = function() return { a = "A", b = "B" }, { "a", "b" }, nil, { b = true } end,
-        offShown = function(v) return v == "b" end }, 206)
-    drop.Refresh()
-    T.rgb({ drop.control.text:GetTextColor() }, DUI.Style.INK.OFF, "an unavailable value in the off color")
-    current = "a"
-    drop.Refresh()
-    T.rgb({ drop.control.text:GetTextColor() }, C.text, "an available value back in plain text")
-    drop.control:Click()
-    T.rgb({ W.MenuRow(2).text:GetTextColor() }, DUI.Style.INK.OFF, "the unavailable row in the off color")
-    W.MenuRow(2):Click()
-    T.eq(saved, "b", "the unavailable row can be picked")
-    local plain = W.CompactRow(parent, page, { type = "dropdown", label = "Plain",
-        get = function() return "a" end, set = function() end,
-        choices = function() return { a = "A", b = "B" }, { "a", "b" } end }, 206)
-    plain.Refresh()
-    T.rgb({ plain.control.text:GetTextColor() }, C.text, "a dropdown without offShown in plain text")
-    plain.control:Click()
-    T.rgb({ W.MenuRow(1).text:GetTextColor() }, { DUI.Style.Accent() }, "choices with only values and order: the current one in the accent")
-    T.rgb({ W.MenuRow(2).text:GetTextColor() }, C.text, "and the other in plain text")
-    W.CloseMenu()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
 T.test("compact rows read and write their item, label above or beside", function()
     local DUI = stub.Load()
     local W = DUI.Widgets

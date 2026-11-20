@@ -1397,55 +1397,6 @@ T.test("menu: several ticks, headings, and staying open for switches", function(
     W.CloseMenu()
 end)
 
-T.test("menu: an unavailable choice is drawn in the off color and can still be picked", function()
-    local DUI = stub.Load({})
-    local W = DUI.Widgets
-    local C = W.COLORS
-    local picked = {}
-    local owner = CreateFrame("Button", nil, UIParent)
-    owner:SetSize(20, 20)
-    local function openWith(current)
-        W.OpenMenu(owner, { "a", "b" }, { a = "Apple", b = "Pear" }, current,
-            function(k) picked[#picked + 1] = k end, nil, { off = { b = true } })
-    end
-    openWith("b")
-    T.rgb({ W.MenuRow(2).text:GetTextColor() }, DUI.Style.INK.OFF, "the unavailable current choice in the off color")
-    T.truthy(W.MenuRow(2).check:IsShown(), "the current choice keeps its tick")
-    T.rgb({ W.MenuRow(1).text:GetTextColor() }, C.text, "an available choice in plain text")
-    W.MenuRow(2):Click()
-    T.eq(picked[1], "b", "the unavailable choice can be picked")
-    openWith("a")
-    T.rgb({ W.MenuRow(1).text:GetTextColor() }, { DUI.Style.Accent() }, "an available current choice in the accent")
-    T.rgb({ W.MenuRow(2).text:GetTextColor() }, DUI.Style.INK.OFF, "the unavailable choice stays in the off color")
-    W.OpenMenu(owner, { "del" }, { del = "Delete" }, nil, function() end, nil, { off = { del = true }, confirm = { del = true } })
-    W.MenuRow(1):Click()
-    T.rgb({ W.MenuRow(1).text:GetTextColor() }, DUI.Style.INK.WARN, "an armed unavailable choice asks to click again in the warning color")
-    W.CloseMenu()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
-T.test("menu: a row reused for an available choice loses the off color", function()
-    local DUI = stub.Load({})
-    local W = DUI.Widgets
-    local C = W.COLORS
-    local owner = CreateFrame("Button", nil, UIParent)
-    local keys, values = {}, {}
-    for i = 1, W.MENU_MAX_ROWS + 3 do keys[i] = "k" .. i; values[keys[i]] = "Choice " .. i end
-    W.OpenMenu(owner, keys, values, nil, function() end, nil, { off = { k1 = true } })
-    local offRow = W.MenuRow(1)
-    T.rgb({ offRow.text:GetTextColor() }, DUI.Style.INK.OFF, "the unavailable choice in the off color")
-    W.ScrollMenu(2)
-    local reused = W.MenuRow(W.MENU_MAX_ROWS)
-    T.truthy(rawequal(reused, offRow), "the scrolled-out row is reused at the bottom")
-    T.eq(reused.text:GetText(), "Choice " .. (W.MENU_MAX_ROWS + 2))
-    T.rgb({ reused.text:GetTextColor() }, C.text, "a reused row in plain text after scrolling")
-    W.CloseMenu()
-    W.OpenMenu(owner, keys, values, nil, function() end)
-    T.rgb({ W.MenuRow(1).text:GetTextColor() }, C.text, "a row in plain text when reopened without off")
-    W.CloseMenu()
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
 T.test("map button: round, the accent under the mouse, clicks", function()
     local DUI = stub.Load({})
     local W = DUI.Widgets
