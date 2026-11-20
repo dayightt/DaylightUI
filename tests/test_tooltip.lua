@@ -72,6 +72,8 @@ end
 local function login(before)
     stub.Load({ tooltip = true, before = function()
         world()
+        -- A new profile starts in Rich. These tests are about the Simple look.
+        _G.DaylightUIDB = { modules = { Tooltip = { style = "simple" } } }
         if before then before() end
     end })
     return stub.tooltip.Tooltip
