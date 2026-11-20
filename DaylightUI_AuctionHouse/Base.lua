@@ -33,7 +33,8 @@ end
 -- The prices live in their own saved table, account-wide: every character on
 -- one ruleset shops on the same Auction House.
 --   DaylightUIAuctionDB = { rulesets = { [key] = { items, full, asked, offered, n, last } },
---                           suffixes = { [number] = "of the Bear" } }
+--                           suffixes = { [number] = "of the Bear" },
+--                           vendor = { [itemID] = copper } }
 local DB = {}
 ns.DB = DB
 
@@ -58,6 +59,13 @@ function DB.RulesetData(rkey)
         r.rulesets[rkey] = data
     end
     return data
+end
+
+-- What vendors sell items for, by itemID (copper per unit, Vendor.lua).
+function DB.Vendor()
+    local r = root()
+    if type(r.vendor) ~= "table" then r.vendor = {} end
+    return r.vendor
 end
 
 -- Random-suffix words by the Auction House's suffix number. Forever's links

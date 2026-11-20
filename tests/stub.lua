@@ -3821,7 +3821,7 @@ stub.CHARACTER_FILES = { "Defaults.lua", "Colors.lua", "Gear.lua", "Stats.lua", 
 stub.NPC_FILES = { "Defaults.lua", "Data.lua", "Shop.lua", "Train.lua", "Window.lua", "Scene.lua", "Popups.lua", "Options.lua", "Module.lua" }
 stub.BOOK_FILES = { "Defaults.lua", "TalentData.lua", "Arrows.lua", "Spend.lua", "Talents.lua", "LoadoutString.lua", "Builds.lua", "SpellData.lua", "Cast.lua", "Spells.lua", "Training.lua", "Fight.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.INSPECT_FILES = { "Defaults.lua", "Model.lua", "Gear.lua", "Talents.lua", "Window.lua", "Options.lua", "Module.lua" }
-stub.CRAFT_FILES = { "Defaults.lua", "SkillUps.lua", "Data.lua", "Share.lua", "Spells.lua", "List.lua", "Recipe.lua", "Make.lua", "View.lua", "Key.lua", "Track.lua", "Window.lua", "Swap.lua", "Options.lua", "Module.lua" }
+stub.CRAFT_FILES = { "Defaults.lua", "SkillUps.lua", "Data.lua", "Profit.lua", "Share.lua", "Spells.lua", "List.lua", "Recipe.lua", "Make.lua", "View.lua", "Key.lua", "Track.lua", "Window.lua", "Swap.lua", "Options.lua", "Module.lua" }
 stub.LFG_FILES = { "Defaults.lua", "Data.lua", "Rows.lua", "Browse.lua", "Listing.lua", "Who.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.MAIL_FILES = { "Defaults.lua", "Ledger.lua", "Inbox.lua", "Send.lua", "LedgerPage.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Detail.lua", "Friends.lua", "Allies.lua", "Requests.lua", "Raid.lua", "Window.lua", "Options.lua", "Module.lua" }
@@ -3949,7 +3949,7 @@ function stub.Load(opts)
     end
     if opts.auctionhouse then
         local AH = {}
-        loadFiles("DaylightUI_AuctionHouse/", { "Base.lua", "Items.lua", "Market.lua", "Ruleset.lua", "Store.lua", "Rows.lua", "AH.lua", "Bags.lua", "Replicate.lua", "Search.lua", "Browse.lua", "Buy.lua", "Post.lua", "Scan.lua", "Tooltip.lua", "Options.lua", "ScanBand.lua", "BuyPage.lua", "SellPage.lua", "AuctionsPage.lua", "Window.lua", "Module.lua" }, "DaylightUI_AuctionHouse", AH)
+        loadFiles("DaylightUI_AuctionHouse/", { "Base.lua", "Items.lua", "Market.lua", "Ruleset.lua", "Store.lua", "Vendor.lua", "Rows.lua", "AH.lua", "Bags.lua", "Replicate.lua", "Search.lua", "Browse.lua", "Buy.lua", "Post.lua", "Scan.lua", "Tooltip.lua", "Options.lua", "ScanBand.lua", "BuyPage.lua", "SellPage.lua", "AuctionsPage.lua", "Window.lua", "Bridge.lua", "Module.lua" }, "DaylightUI_AuctionHouse", AH)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_AuctionHouse")
         stub.auctionhouse = AH
     end

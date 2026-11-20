@@ -1,6 +1,7 @@
 -- Recipe list, the left side of the window. Search and chips on top (Skill-ups, Have
 -- materials, and Slot for gear professions, which drives the game's own slot filter;
--- Rarity colors sits beside the search). Below, learned recipes under category headings
+-- Rarity colors sits beside the search; Profit, with Auction House prices, shows each
+-- recipe's profit in place of its materials, the best first). Below, learned recipes under category headings
 -- that collapse on click (saved per character). Each row shows the icon, the name in its
 -- difficulty color (or item quality with Rarity colors on), the materials underneath,
 -- and how many can be made on the right. Clicking a row shows it in Recipe.lua.
@@ -84,7 +85,43 @@ end
 
 -- Filtering
 
-List.chipOn = { skill = false, mats = false }   -- session only, like the game's filters
+List.chipOn = { skill = false, mats = false, profit = false }   -- session only, like the game's filters
+
+local function profitOn() return List.chipOn.profit and ns.Profit.On() end
+
+-- The best profit first in each heading; recipes with none keep their order, last.
+local function byProfit(list)
+    local val, at = {}, {}
+    for i, r in ipairs(list) do
+        local p = ns.Profit.Of(r)
+        val[r], at[r] = p and p.profit, i
+    end
+    table.sort(list, function(a, b)
+        local x, y = val[a], val[b]
+        if x ~= y then
+            if x == nil then return false end
+            if y == nil then return true end
+            return x > y
+        end
+        return at[a] < at[b]
+    end)
+end
+
+-- A row's second line with the Profit chip on: the profit in green or soft red,
+-- else what it costs (an enchant), else that a price is missing.
+local function profitSub(recipe)
+    local p = ns.Profit.Of(recipe)
+    local INK = Style.INK
+    if p and p.profit then
+        local text = ns.Profit.Money(p.profit)
+        if p.pct then text = text .. "  (" .. p.pct .. "%)" end
+        return text, ns.Profit.Color(p.profit)
+    end
+    if p and p.none and p.none ~= "nomarket" and p.cost then
+        return string.format(L["Costs %s"], DUI.Widgets.Money(p.cost)), INK.LABEL
+    end
+    return L["No price yet"], INK.LABEL
+end
 
 local function keep(recipe)
     if List.chipOn.skill and not ns.Data.SkillsUp(recipe) then return false end
@@ -200,8 +237,10 @@ List.colors = {}
 function List.Line(s, recipe, picked)
     local accent = { Style.Accent() }
     local c = ns.Data.NameColor(recipe, ns.Setting("rarityNames") == true)
+    local sub, subColor = recipe.sub, nil
+    if profitOn() then sub, subColor = profitSub(recipe) end
     local b = s:Line({ recipe = recipe, icon = recipe.icon, text = recipe.name, color = c,
-        sub = recipe.sub, value = recipe.count > 0 and tostring(recipe.count) or "", valueColor = accent,
+        sub = sub, subColor = subColor, value = recipe.count > 0 and tostring(recipe.count) or "", valueColor = accent,
         picked = picked, onClick = onClick, onRightClick = List.Menu, tooltip = tooltip, id = "recipe:" .. tostring(recipe.id) })
     List.PaintChance(b, recipe)
     local was = List.colors[recipe.id]
@@ -220,6 +259,12 @@ function List.Render(pane, keepScroll)
     local data = List.data
     if not (pane and data) then return end
     pane.rarity.SetOn(ns.Setting("rarityNames") == true)   -- the options page switch updates this too
+    local priced = ns.Profit.On()
+    if pane.profit:IsShown() ~= priced then
+        pane.profit:SetShown(priced)
+        List.LayoutChips(pane)
+    end
+    local sortProfit = profitOn()
     local s = pane.stack
     local at = keepScroll and s:Scrolled() or 0
     -- Same profession refilled while open (search, chip, collapse, skill-up): rows that
@@ -234,6 +279,7 @@ function List.Render(pane, keepScroll)
     for _, section in ipairs(data.sections) do
         local shown = {}
         for _, r in ipairs(section.recipes) do if keep(r) then shown[#shown + 1] = r end end
+        if sortProfit then byProfit(shown) end
         if #shown > 0 then
             any = true
             local folded = not List.filter and List.IsFolded(section)
@@ -348,6 +394,12 @@ function List.Build(pane)
     pane.search = box
     pane.skill = chip(pane, "skill", L["Skill-ups"], List.EDGE)
     pane.mats = chip(pane, "mats", L["Have materials"], List.EDGE + pane.skill:GetWidth() + DUI.Widgets.CHIP_GAP)
+    pane.profit = chip(pane, "profit", L["Profit"], List.EDGE + pane.skill:GetWidth() + pane.mats:GetWidth() + 2 * DUI.Widgets.CHIP_GAP)
+    pane.profit:HookScript("OnEnter", function(self)
+        DUI.Widgets.Tooltip(self, L["Profit"], L["Each recipe shows its profit instead of its materials, the best first, from the prices the Auction House has shown you."])
+    end)
+    pane.profit:HookScript("OnLeave", DUI.Widgets.HideTooltip)
+    pane.profit:SetShown(ns.Profit.On())
     pane.slot = DUI.Widgets.Chip(pane, L["Slot"])
     pane.slot:SetScript("OnClick", function(self) List.SlotMenu(self) end)
     pane.slot:Hide()
@@ -374,6 +426,7 @@ function List.LayoutChips(pane)
     if b:IsShown() then
         b.FitWidth()
         local x = List.EDGE + pane.skill:GetWidth() + pane.mats:GetWidth() + 2 * DUI.Widgets.CHIP_GAP
+        if pane.profit:IsShown() then x = x + pane.profit:GetWidth() + DUI.Widgets.CHIP_GAP end
         local w = pane:GetWidth()
         if type(w) ~= "number" or w <= 0 then w = List.W end
         b:ClearAllPoints()
@@ -468,6 +521,7 @@ end
 
 function List.Pieces(pane)
     local out = { pane.search, pane.rarity, pane.skill, pane.mats }
+    if pane.profit:IsShown() then out[#out + 1] = pane.profit end
     if pane.slot:IsShown() then out[#out + 1] = pane.slot end
     List.Rows(pane, out)
     for _, b in ipairs(ns.Spells.Pieces()) do out[#out + 1] = b end

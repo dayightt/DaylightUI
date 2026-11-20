@@ -251,6 +251,15 @@ function Data.OutputItem(id)
     return s and num(s.outputItemID) or nil
 end
 
+-- How many one craft makes, on average (some make 1 to 3).
+function Data.Yield(id)
+    local s = schematic(id)
+    local lo, hi = s and num(s.quantityMin), s and num(s.quantityMax)
+    if not lo or lo < 1 then return 1 end
+    if not hi or hi < lo then hi = lo end
+    return (lo + hi) / 2
+end
+
 -- Quality of the crafted item (its name color on the recipe page).
 function Data.OutputQuality(id)
     local s = schematic(id)

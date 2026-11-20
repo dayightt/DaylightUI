@@ -27,7 +27,7 @@ DUI:RegisterModule("Professions", {
     order = 128,
     section = "QoL", pageOrder = 132, windowCard = true,   -- a card on Extras > Windows
     ns = ns,
-    parts = { "SkillUps", "Data", "Share", "Spells", "List", "Recipe", "Make", "View", "Key", "Track", "Window", "Swap" },
+    parts = { "SkillUps", "Data", "Profit", "Share", "Spells", "List", "Recipe", "Make", "View", "Key", "Track", "Window", "Swap" },
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)

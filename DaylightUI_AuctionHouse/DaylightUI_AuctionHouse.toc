@@ -12,6 +12,7 @@ Items.lua
 Market.lua
 Ruleset.lua
 Store.lua
+Vendor.lua
 Rows.lua
 AH.lua
 Bags.lua
@@ -28,4 +29,5 @@ BuyPage.lua
 SellPage.lua
 AuctionsPage.lua
 Window.lua
+Bridge.lua
 Module.lua

@@ -154,6 +154,7 @@ Inspect\Module.lua
 Craft\Defaults.lua
 Craft\SkillUps.lua
 Craft\Data.lua
+Craft\Profit.lua
 Craft\Share.lua
 Craft\Spells.lua
 Craft\List.lua
