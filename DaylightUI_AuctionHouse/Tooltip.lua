@@ -16,7 +16,7 @@ ns.Tooltip = Tooltip
 
 -- A value from the game, or nil when it reads secret.
 local function plain(v)
-    if v ~= nil and issecretvalue and issecretvalue(v) then return nil end
+    if issecretvalue and issecretvalue(v) then return nil end
     return v
 end
 

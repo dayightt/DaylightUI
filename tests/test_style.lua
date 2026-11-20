@@ -170,7 +170,7 @@ T.test("a window can have its own opacity, and General's Apply brings every one 
 end)
 
 T.test("every separate background opacity is one Apply reaches", function()
-    local DUI = stub.Load({ buffs = true, skins = true, bags = true, qol = true, chat = true, infopanel = true, quests = true, tooltip = true })
+    local DUI = stub.Load({ buffs = true, skins = true, bags = true, qol = true, chat = true, infopanel = true, quests = true, tooltip = true, auctionhouse = true })
     T.truthy(#DUI.DB.ALL_BACKS >= 18, "panels and windows both listed")
     for _, b in ipairs(DUI.DB.ALL_BACKS) do
         local mod = DUI:GetModule(b[1])

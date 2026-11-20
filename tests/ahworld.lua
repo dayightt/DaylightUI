@@ -118,7 +118,7 @@
 --     game's sell frame, ConvertItemSellItemKey). Numbers and links seen in play.
 --     Sent with the level or suffix still set, it answers only
 --     AUCTION_HOUSE_NEW_RESULTS_RECEIVED (every search fires that first): no
---     results event, so a search waiting for one times out (in play, 2026-11-07).
+--     results event, so a search waiting for one times out (seen in play).
 --     MakeItemKey(itemID) fills in the item's level (known `level`, else an auction's).
 --   * GetItemKeyInfo on an item not cached answers nil and does NOT start a
 --     load (the client probably does; asking with RequestLoadItemDataByID
@@ -186,8 +186,8 @@
 --     AUCTION_HOUSE_SHOW_ERROR(1) (AUCTION_MULTISELL_FAILURE too for a multisell). A gear or
 --     recipe post (classID 2, 4, 9) whose buyout or bid isn't whole silver answers
 --     AUCTION_HOUSE_SHOW_ERROR(DatabaseError), "Internal auction error" (Forever, in the game's
---     own window too: seen 2026-11-08); any other single item (a Silver Rod: a player posted one
---     at 4s 50c in the game's window, 2026-11-12) and a commodity take copper. Deposits:
+--     own window too: seen in game); any other single item (a Silver Rod: a player posted one
+--     at 4s 50c in the game's window) and a commodity take copper. Deposits:
 --     vendorSell (or 1) x qty x duration, at least 1 (a GUESS at the formula: only its existence matters).
 --     QueryOwnedAuctions(sorts) answers OWNED_AUCTIONS_UPDATED; GetOwnedAuctionInfo(i) is the docs'
 --     OwnedAuctionInfo (status 0 active, 1 sold). CancelAuction(id) (hardware-only, throttled) on an
@@ -651,7 +651,7 @@ local function search(name, key)
     local q = copyKey(key)
     return send(name, function()
         -- Every search's answer starts with AUCTION_HOUSE_NEW_RESULTS_RECEIVED (in play,
-        -- 2026-11-07: before the results' own events, in the same frame). A sell search
+        -- in play: before the results' own events, in the same frame). A sell search
         -- names the key the server used: level and suffix cleared. Sent with them NOT
         -- cleared (the docs: "ItemKey should have its iLVL and suffix cleared before
         -- calling"), that is all that comes: no ITEM_SEARCH_RESULTS_* (seen six times in
@@ -1281,7 +1281,7 @@ local function install()
             itemLink = linkOf(a), status = a.sold and 1 or 0, quantity = a.count,
             timeLeftSeconds = (not a.sold) and (a.timeLeftSeconds or 86400) or nil, timeLeft = a.timeLeft or 3,
             -- the price of one (Auctionator's Cancelling.lua 242-244 multiplies it by the quantity),
-            -- but a SOLD one's is the whole sale (players 2026-11-16: 9 Swiftthistle sold for
+            -- but a SOLD one's is the whole sale (seen by players: 9 Swiftthistle sold for
             -- 70s 11c showed as 70s 11c each, 6g 30s 99c in all)
             bidAmount = a.bid, buyoutAmount = (a.buyout or 0) > 0 and (a.sold and a.buyout or math.floor(a.buyout / a.count)) or nil,
             bidder = a.bid and "Someone" or nil,
@@ -1453,7 +1453,7 @@ function AHW.Sell(auctionID, buyer, count)
         a.count, a.buyout, a.deposit = all - count, (a.buyout or 0) - bid, (a.deposit or 0) - deposit
     else
         a.sold = true
-        -- The real client, seen 2026-11-05: 17 commodities were booked canceled, nobody
+        -- The real client, seen in game: 17 commodities were booked canceled, nobody
         -- canceled them, and their sale letter came. Its signal for a sold-out auction.
         if S().saleCancels and S().open then fire("AUCTION_CANCELED", auctionID) end
     end

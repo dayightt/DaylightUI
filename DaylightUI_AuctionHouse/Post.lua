@@ -404,7 +404,7 @@ function Post.Cancel(auctionID, onDone)
             -- not carry this auction's ID (the game's own window never reads it).
             -- One naming another of your auctions is that one selling, not ours.
             AUCTION_CANCELED = function(id)
-                if type(id) == "number" and id ~= 0 and not (issecretvalue and issecretvalue(id)) and id ~= auctionID then
+                if type(id) == "number" and not (issecretvalue and issecretvalue(id)) and id ~= 0 and id ~= auctionID then
                     for _, r in ipairs(mine) do if r.auctionID == id then return end end
                 end
                 return true

@@ -291,7 +291,7 @@ T.test("cancel_takes_a_click_and_mails_it_back", function()
 end)
 
 -- Forever: a cancel went through but the addon heard no answer for that auction
--- (a player, 2026-11-11: "Cancel 1 of 9" stalled after one). Any cancel answer
+-- (seen by a player: "Cancel 1 of 9" stalled after one). Any cancel answer
 -- while ours is out is ours; with none, the owned list says whether it's gone.
 for _, case in ipairs({ { "another_id", 0 }, { "no_event", false } }) do
     T.test("a_cancel_answer_without_its_id_still_ends_it_" .. case[1], function()
@@ -417,7 +417,7 @@ T.test("a_single_item_takes_whole_silver_only", function()
 end)
 
 -- Any other single item takes copper: a player posted a Silver Rod at 4s 50c in
--- the game's own window, where the addon rounded it up to 5s (2026-11-12).
+-- the game's own window, where the addon rounded it up to 5s.
 T.test("a_single_item_that_isnt_gear_or_a_recipe_takes_copper", function()
     local ROD = 6338
     local M = load({

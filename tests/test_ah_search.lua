@@ -122,7 +122,7 @@ T.test("item_search_prices_each_suffix", function()
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
 
--- In play (2026-11-07): MakeItemKey(2901) gave a Mining Pick's key at itemLevel 4,
+-- Seen in play: MakeItemKey(2901) gave a Mining Pick's key at itemLevel 4,
 -- the sell search went out with it, and only AUCTION_HOUSE_NEW_RESULTS_RECEIVED
 -- came back: every gear check sat out its 10 s timeout, and the picked item
 -- waited behind it. The game's sell frame clears level and suffix first

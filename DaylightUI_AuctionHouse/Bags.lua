@@ -29,7 +29,7 @@ local dirty = true
 local counts, keys, links, slots = {}, {}, {}, {}
 
 local function plain(v)
-    if v ~= nil and issecretvalue and issecretvalue(v) then return nil end
+    if issecretvalue and issecretvalue(v) then return nil end
     return v
 end
 
