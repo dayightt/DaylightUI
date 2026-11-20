@@ -93,6 +93,8 @@ Pages.STYLE_FOLLOWERS = { "player.style", "target.style", "focus.style", "party.
 --   portraits = one choice for every frame's portrait (true), or another of
 --     their settings by key ("portraitRing"), with draw/cols/height as cards
 --   samples = your frame and a target drawn in the window (module Samples)
+--   look = two looks of one thing drawn side by side, a card each to pick
+--     (InstallerLooks.KINDS: "portraitLook", "tooltipStyle")
 --   presets = several settings picked at once as picture cards { { id,
 --     label, sub, set = { { scope, key, value } } } }, draw/cols/height as
 --     cards. The card whose settings all match shows as picked.
@@ -134,6 +136,7 @@ Pages.TOUR = {
           { label = "", needs = "UnitFrames", rows = { { "UnitFrames", "colors.healthColor" } } },
           { label = "Portraits", needs = "UnitFrames", portraits = true },
           { label = "Ring color", needs = "UnitFrames", portraits = "portraitRing", draw = "portraitRing", cols = 3, height = 90 },
+          { label = "Portrait look", needs = "UnitFrames", look = "portraitLook" },
           -- Where your cast bar sits: under your frame, or between your frame and the
           -- target's with the swing timers fanning out below it.
           { label = "Cast bar", needs = "UnitFrames", draw = "castbar", cols = 2, height = 104, presets = {
@@ -206,6 +209,7 @@ Pages.TOUR = {
               { "InfoPanel", "xp.enabled", label = "XP bar" },
               { "InfoPanel", "xp.detached", label = "XP bar position",
                 choice = { "In the info panel", "Under the action bars" } } } },
+          { label = "Tooltip look", needs = "Tooltip", look = "tooltipStyle" },
           { label = "Tooltips", needs = "Tooltip", rows = { { "Tooltip", "anchor" } } },
       } },
     { id = "questing", title = "Questing",
@@ -296,6 +300,8 @@ function Pages.Refs(group)
         if c.colorKey then out[#out + 1] = { c.scope, c.colorKey } end
     end
     for _, r in ipairs(group.rows or {}) do out[#out + 1] = { r[1], r[2] } end
+    local look = group.look and DUI.InstallerLooks.KINDS[group.look]
+    if look then out[#out + 1] = { look.ref[1], look.ref[2] } end
     local seen = {}
     for _, p in ipairs(group.presets or {}) do
         for _, s in ipairs(p.set) do
@@ -325,6 +331,7 @@ end
 function Pages.GroupAvailable(group)
     if group.needs and not Pages.Loaded(group.needs) then return false end
     if group.portraits then return Pages.Find("UnitFrames", "player." .. Pages.PortraitKey(group)) ~= nil end
+    if group.look and not DUI.InstallerLooks.Available(group.look) then return false end
     if group.samples then
         local mod = DUI:GetModule("UnitFrames")
         return mod ~= nil and mod.Samples ~= nil

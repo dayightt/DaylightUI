@@ -23,6 +23,7 @@ Rich\World.lua
 Rich\Foreign.lua
 Rich\Pill.lua
 Rich\Rich.lua
+Rich\Sample.lua
 Ghost.lua
 Options.lua
 Module.lua

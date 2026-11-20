@@ -46,7 +46,12 @@ function UI.ReloadButton() return reload end
 function UI.IsShown() return frame ~= nil and frame:IsShown() end
 
 -- The width a page is laid out to: the window's inside minus the sidebar.
-function UI.ContentWidth(rail) return UI.WIDTH - 2 * UI.PAD - (rail and UI.RAIL or 0) end
+-- The width a page gets in the window at its current size (a welcome opens it larger).
+function UI.ContentWidth(rail)
+    local w = frame and frame:GetWidth() or UI.WIDTH
+    if type(w) ~= "number" or w <= 0 then w = UI.WIDTH end
+    return w - 2 * UI.PAD - (rail and UI.RAIL or 0)
+end
 
 -- An alpha fade on a frame or texture that holds its end value. Call Play on it.
 local function fade(region, from, to, duration, delay)
@@ -300,9 +305,18 @@ end
 
 -- Shows the window. h holds callbacks: close() when the player closes it (X or
 -- Escape, not when the guide hides itself), next(), back(), again() after combat.
+-- h: the window's handlers (close, next, back, again), and optionally width and
+-- height (a showpiece opens it larger) and lit (its border in the Daylight
+-- gradient). Each open sets all three again, so the next one is back to normal.
 function UI.Open(h)
     if not frame then build() end
     handlers = h or {}
+    frame:SetSize(handlers.width or UI.WIDTH, handlers.height or UI.HEIGHT)
+    local s = Style.GetShell(frame)
+    if s then
+        local a, b = Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
+        if handlers.lit then Style.SetShellColors(s, b, nil, { a, b }) else Style.SetShellColors(s, nil, nil, nil) end
+    end
     combatHidden = false
     wanted = true
     frame:Show()
@@ -453,6 +467,13 @@ function UI.SetPage(page, opts)
     if pin then UI.Slide(pin, opts.dir or 1) end
     if opts.full then UI.Sunrise() end
     UI.SetVeil(opts.veil == true)
+end
+
+-- Next on the page showing: its text, or nil to hide it until a choice is made.
+function UI.SetNext(text)
+    if not frame then return end
+    button(frame.next, text ~= nil)
+    if text then frame.next.text:SetText(text) end
 end
 
 -- New header text on the visible page (after Finish has run). The text fades

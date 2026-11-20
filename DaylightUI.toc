@@ -80,6 +80,8 @@ InstallerCards.lua
 InstallerUI.lua
 InstallerSteps.lua
 InstallerPlugins.lua
+InstallerLooks.lua
+Welcome.lua
 Profiles.lua
 Alts.lua
 Plugins.lua

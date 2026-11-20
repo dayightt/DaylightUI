@@ -772,6 +772,20 @@ local function portraits(page, group, width, refreshers)
     page.pickers[group.portraits == true and "portraits" or name] = picker
 end
 
+-- Two looks of one thing side by side, a card each (InstallerLooks.lua).
+local function looks(page, group, width, refreshers)
+    local Looks = DUI.InstallerLooks
+    local kind = group.look
+    local picker = Looks.Picker(page, kind, {
+        width = width,
+        get = function() return Looks.Current(kind) end,
+        set = function(k) Looks.Apply(kind, k, DUI.InstallerDraft.Set) end,
+    })
+    page.Add(picker, picker.height, 12)
+    refreshers[#refreshers + 1] = picker.Refresh
+    page.pickers[kind] = picker
+end
+
 -- Your frame and a target, drawn by the unit frames module on a panel pinned
 -- above the page (InstallerUI.SetPage puts it on the window so it stays in
 -- view while the options below scroll), redrawn on every pick.
@@ -890,6 +904,7 @@ builders.groups = function(parent, width, def)
             if g.cards then cards(page, g, width, refreshers) end
             if g.presets then presets(page, g, width, refreshers) end
             if g.portraits then portraits(page, g, width, refreshers) end
+            if g.look then looks(page, g, width, refreshers) end
             if g.rows then rows(page, g, refreshers) end
         end
     end

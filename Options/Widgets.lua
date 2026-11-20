@@ -3987,6 +3987,72 @@ function W.Tag(parent, font)
     return t
 end
 
+-- A showpiece's one big action (the 2.0 welcome's Let's go): slanted like the
+-- tags, its outline the Daylight gradient, a soft gradient fill that brightens
+-- on hover and dips on press, the words with a chevron after them. b.Shine()
+-- runs a light across it once (as it shows). Click sound built in.
+W.HERO_H, W.HERO_SLANT, W.HERO_PAD = 44, 14, 34
+W.HERO_FILL, W.HERO_HOVER, W.HERO_DOWN = 0.22, 0.42, 0.12
+W.HERO_SHINE = 0.3
+function W.HeroButton(parent, text, h)
+    local M = DUI.Motion
+    local b = CreateFrame("Button", nil, parent)
+    h = h or W.HERO_H
+    b:SetHeight(h)
+    local s = Style.Shell(b, { borderPx = 2, flat = true, noBevel = true, cornerPx = 0, bgAlpha = 0.9 })
+    b.fill = b:CreateTexture(nil, "ARTWORK")
+    b.fill:SetTexture(WHITE)
+    b.fill:SetAllPoints(b)
+    b.shine = b:CreateTexture(nil, "OVERLAY")
+    b.shine:SetTexture(WHITE)
+    b.shine:SetBlendMode("ADD")
+    b.shine:SetHeight(h)
+    b.shine:Hide()
+    -- The clips go on before the slant: its layout is what cuts them to the
+    -- angled ends. Their masks hang on the button's edges, so a new width
+    -- carries them along, as on the tags.
+    Style.Clip(b, b.fill, "inner")
+    Style.Clip(b, b.shine, "inner")
+    Style.Slant(b, "both", W.HERO_SLANT, nil, "left")
+    b.text = W.Font(b, W.TITLE, SIZE.head, C.value, "CENTER")
+    b.chevron = W.Icon(b, "ui-chevron.png", 12, C.value, "OVERLAY")
+    b.chevron:SetRotation(math.pi / 2)   -- the art points down: turned to point on
+    function b.SetLabel(words)
+        b.text:SetText(words or "")
+        local w = b.text:GetStringWidth()
+        if type(w) ~= "number" then w = 80 end
+        b.text:ClearAllPoints()
+        b.text:SetPoint("CENTER", b, "CENTER", -10, 0)
+        b.chevron:ClearAllPoints()
+        b.chevron:SetPoint("LEFT", b.text, "RIGHT", 10, 0)
+        if (b:GetWidth() or 0) < w + 2 * W.HERO_PAD then b:SetWidth(math.ceil(w) + 2 * W.HERO_PAD + 22) end
+    end
+    local level = W.HERO_FILL
+    local function fill(v)
+        level = v
+        W.TintDaylight(b.fill, v)
+    end
+    local function paint()
+        local a, z = Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
+        Style.SetShellColors(s, z, nil, { a, z })
+        fill(level)
+    end
+    local function to(v) M.Tween(b.fill, level, v, M.FAST, fill) end
+    b:SetScript("OnEnter", function() to(W.HERO_HOVER) end)
+    b:SetScript("OnLeave", function() to(W.HERO_FILL) end)
+    b:SetScript("OnMouseDown", function() to(W.HERO_DOWN) end)
+    b:SetScript("OnMouseUp", function() to(b:IsMouseOver() and W.HERO_HOVER or W.HERO_FILL) end)
+    b:HookScript("OnClick", function() if DUI.Sound then DUI.Sound.Play("click") end end)
+    function b.Shine()
+        M.Sweep(b.shine, b, { width = h * 1.4, alpha = W.HERO_SHINE, dur = M.SLOW * 2, key = b.shine,
+            color = Style.GRADIENT_SHAPE[2] })
+    end
+    b:HookScript("OnShow", paint)
+    paint()
+    b.SetLabel(text)
+    return b
+end
+
 W.TILE_H, W.TILE_CUT, W.TILE_PAD = 40, 5, 8
 
 -- A value tile: a value over its caption (CAST, COST, RANGE), in a faint box
