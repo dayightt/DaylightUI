@@ -58,11 +58,99 @@ Items.ARMOR_COLORS = {
     [4] = { 1.00, 0.85, 0.50 }, -- plate, gold
 }
 
--- An armor tag's outline: its color, half toward the plain outline so the
+-- Every other tag reads its color from what it says, by the item's class
+-- and subclass ids (every language): a recipe in its profession's color, a
+-- weapon's type apart from an armor's, the slot by where it goes.
+Items.WEAPON_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Weapon or 2
+Items.RECIPE_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Recipe or 9
+Items.WEAPON_COLOR = { 1.00, 0.62, 0.50 }
+Items.CLASS_COLORS = {
+    [0] = { 0.58, 0.90, 0.58 },  -- consumable, green
+    [1] = { 0.86, 0.70, 0.52 },  -- container, leather brown
+    [2] = Items.WEAPON_COLOR,
+    [3] = { 0.98, 0.62, 0.86 },  -- gem, pink
+    [4] = { 1.00, 0.72, 0.68 },  -- armor, rose
+    [5] = { 0.78, 0.72, 1.00 },  -- reagent, lavender
+    [6] = { 0.92, 0.80, 0.60 },  -- projectile, sand
+    [7] = { 0.54, 0.80, 1.00 },  -- trade goods, sky
+    [8] = { 0.56, 0.94, 0.86 },  -- enhancement, mint
+    [9] = { 1.00, 0.84, 0.56 },  -- recipe, parchment
+    [11] = { 0.86, 0.70, 0.52 }, -- quiver, as a container
+    [12] = { 1.00, 0.82, 0.30 }, -- quest, the quest gold
+    [13] = { 0.96, 0.80, 0.42 }, -- key, brass
+    [15] = { 0.88, 0.80, 0.96 }, -- miscellaneous, lilac
+    [16] = { 0.62, 0.74, 1.00 }, -- glyph, ink blue
+}
+-- A recipe's profession.
+Items.RECIPE_COLORS = {
+    [1] = { 0.96, 0.68, 0.42 },  -- leatherworking
+    [2] = { 0.94, 0.64, 0.88 },  -- tailoring
+    [3] = { 0.98, 0.78, 0.36 },  -- engineering
+    [4] = { 1.00, 0.56, 0.40 },  -- blacksmithing
+    [5] = { 1.00, 0.86, 0.52 },  -- cooking
+    [6] = { 0.58, 0.92, 0.52 },  -- alchemy
+    [7] = { 1.00, 0.58, 0.60 },  -- first aid
+    [8] = { 0.76, 0.62, 1.00 },  -- enchanting
+    [9] = { 0.50, 0.78, 1.00 },  -- fishing
+    [10] = { 0.52, 0.92, 0.94 }, -- jewelcrafting
+    [11] = { 0.62, 0.74, 1.00 }, -- inscription
+}
+-- Where it goes: weapons, jewelry, worn armor, anything else.
+Items.SLOT_WEAPON = { 0.66, 0.80, 1.00 }
+Items.SLOT_JEWELRY = { 0.98, 0.62, 0.86 }
+Items.SLOT_ARMOR = { 1.00, 0.72, 0.68 }
+Items.SLOT_OTHER = { 0.92, 0.84, 0.66 }
+Items.SLOT_COLORS = {
+    INVTYPE_WEAPON = Items.SLOT_WEAPON, INVTYPE_2HWEAPON = Items.SLOT_WEAPON,
+    INVTYPE_WEAPONMAINHAND = Items.SLOT_WEAPON, INVTYPE_WEAPONOFFHAND = Items.SLOT_WEAPON,
+    INVTYPE_RANGED = Items.SLOT_WEAPON, INVTYPE_RANGEDRIGHT = Items.SLOT_WEAPON,
+    INVTYPE_THROWN = Items.SLOT_WEAPON, INVTYPE_SHIELD = Items.SLOT_WEAPON, INVTYPE_HOLDABLE = Items.SLOT_WEAPON,
+    INVTYPE_NECK = Items.SLOT_JEWELRY, INVTYPE_FINGER = Items.SLOT_JEWELRY, INVTYPE_TRINKET = Items.SLOT_JEWELRY,
+    INVTYPE_HEAD = Items.SLOT_ARMOR, INVTYPE_SHOULDER = Items.SLOT_ARMOR, INVTYPE_CHEST = Items.SLOT_ARMOR,
+    INVTYPE_ROBE = Items.SLOT_ARMOR, INVTYPE_WAIST = Items.SLOT_ARMOR, INVTYPE_LEGS = Items.SLOT_ARMOR,
+    INVTYPE_FEET = Items.SLOT_ARMOR, INVTYPE_WRIST = Items.SLOT_ARMOR, INVTYPE_HAND = Items.SLOT_ARMOR,
+    INVTYPE_CLOAK = Items.SLOT_ARMOR,
+}
+
+-- Binding and Unique tags: bound to you, binds as you pick it up, free to
+-- trade until worn or used, shared across the account, one of a kind.
+Items.BIND_YOURS = { 0.72, 0.74, 1.00 }
+Items.BIND_PICKUP = { 1.00, 0.64, 0.58 }
+Items.BIND_TRADE = { 0.58, 0.92, 0.62 }
+Items.BIND_USE = { 0.98, 0.84, 0.50 }
+Items.BIND_ACCOUNT = { 0.50, 0.86, 1.00 }
+local badgeInk
+function Items.BadgeColor(t)
+    if not badgeInk then
+        badgeInk = {}
+        local function put(word, c) if type(word) == "string" and word ~= "" then badgeInk[word] = c end end
+        put(ITEM_SOULBOUND or "Soulbound", Items.BIND_YOURS)
+        put(ITEM_BIND_ON_PICKUP or "Binds when picked up", Items.BIND_PICKUP)
+        put(ITEM_BIND_ON_EQUIP or "Binds when equipped", Items.BIND_TRADE)
+        put(ITEM_BIND_ON_USE or "Binds when used", Items.BIND_USE)
+        put(ITEM_BIND_QUEST or "Quest Item", Items.CLASS_COLORS[12])
+        put(ITEM_ACCOUNTBOUND, Items.BIND_ACCOUNT)
+        put(ITEM_BNETACCOUNTBOUND, Items.BIND_ACCOUNT)
+        put(ITEM_BIND_TO_ACCOUNT, Items.BIND_ACCOUNT)
+        put(ITEM_BIND_TO_BNETACCOUNT, Items.BIND_ACCOUNT)
+    end
+    if badgeInk[t] then return badgeInk[t] end
+    -- "Unique", "Unique-Equipped", "Unique (5)": all one of a kind.
+    local unique = ITEM_UNIQUE or "Unique"
+    if t:sub(1, #unique) == unique then return Style.INK.MONEY end
+    return Items.BIND_YOURS
+end
+
+-- A colored tag's outline: its color, half toward the plain outline so the
 -- word stays the brightest part.
-function Items.ArmorEdge(c)
+function Items.TagEdge(c)
     local e = Style.BAND_LIT
     return { (c[1] + e[1]) / 2, (c[2] + e[2]) / 2, (c[3] + e[3]) / 2 }
+end
+
+-- A tag in its color, the outline tinted to match.
+function Items.Tag(text, c)
+    return { text, c, Items.TagEdge(c) }
 end
 
 -- A quality color's light end, as the top light starts and the name shows.
@@ -91,9 +179,17 @@ function Items.Info(link)
         if type(kind) == "string" and kind ~= "" then info.kind = kind end
         if type(sub) == "string" and sub ~= "" then info.sub = sub end
         -- A cloak counts as cloth but every class wears one: no color there.
-        if plain(class) == Items.ARMOR_CLASS and equip ~= "INVTYPE_CLOAK" then
-            info.armor = Items.ARMOR_COLORS[plain(subClass)]
+        class, subClass = plain(class), plain(subClass)
+        if class == Items.ARMOR_CLASS and equip ~= "INVTYPE_CLOAK" then
+            info.armor = Items.ARMOR_COLORS[subClass]
         end
+        info.kindColor = Items.CLASS_COLORS[class] or Style.INK.VALUE
+        if class == Items.RECIPE_CLASS then
+            info.subColor = Items.RECIPE_COLORS[subClass]
+        elseif class == Items.WEAPON_CLASS then
+            info.subColor = Items.WEAPON_COLOR
+        end
+        info.slotColor = type(equip) == "string" and Items.SLOT_COLORS[equip] or Items.SLOT_OTHER
         if type(equip) == "string" and equip ~= "" and not DUI.NO_LEVEL[equip] then
             info.equip = equip
             local slot = _G[equip]
@@ -328,7 +424,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     info.badges = {}
     local foot = sort(n, lines, own, info, groups)
     if compare then
-        Panel.Tags(p, { { compare.label, Style.INK.LABEL } })
+        Panel.Tags(p, { Items.Tag(compare.label, { Style.Accent() }) })
         Panel.Gap(p, Items.AFTER_TAG)
     end
     -- The header.
@@ -340,23 +436,28 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     end
     local tags = {}
     if info.level then
-        tags[#tags + 1] = { string.format(L["ilvl %d"], math.floor(info.level + 0.5)), info.light or Style.INK.LABEL }
+        tags[#tags + 1] = Items.Tag(string.format(L["ilvl %d"], math.floor(info.level + 0.5)),
+            info.light or Style.INK.VALUE)
     end
-    local what
     if info.slot then
+        -- The slot, then what it is (Plate, Sword) in a tag of its own color.
+        tags[#tags + 1] = Items.Tag(info.slot, info.slotColor)
         local word = info.slotWord or info.sub
-        what = word and word ~= info.slot and string.format(L["%s · %s"], info.slot, word) or info.slot
+        if word and word ~= info.slot then
+            tags[#tags + 1] = Items.Tag(word, info.armor or info.subColor or info.kindColor)
+        end
     elseif info.kind then
-        what = info.sub and info.sub ~= info.kind and string.format(L["%s · %s"], info.kind, info.sub) or info.kind
+        if info.sub and info.sub ~= info.kind and info.subColor then
+            -- "Recipe" and "Blacksmithing" apart, the profession in its color.
+            tags[#tags + 1] = Items.Tag(info.kind, info.kindColor)
+            tags[#tags + 1] = Items.Tag(info.sub, info.subColor)
+        else
+            local what = info.sub and info.sub ~= info.kind and string.format(L["%s · %s"], info.kind, info.sub)
+                or info.kind
+            tags[#tags + 1] = Items.Tag(what, info.kindColor)
+        end
     end
-    if info.slot and info.armor and (info.slotWord or info.sub) then
-        -- The slot and its armor type apart, the armor type in its color.
-        tags[#tags + 1] = { info.slot, Style.INK.LABEL }
-        tags[#tags + 1] = { info.slotWord or info.sub, info.armor, Items.ArmorEdge(info.armor) }
-    elseif what then
-        tags[#tags + 1] = { what, Style.INK.LABEL }
-    end
-    for _, badge in ipairs(info.badges) do tags[#tags + 1] = { badge, Style.INK.LABEL } end
+    for _, badge in ipairs(info.badges) do tags[#tags + 1] = Items.Tag(badge, Items.BadgeColor(badge)) end
     Panel.Header(p, { icon = info.icon, iconSize = Items.ICON, iconEdge = info.color,
         title = first and first.left or "", titleColor = titleColor, tags = tags, tagGap = Items.TAG_GAP,
         wash = info.color })

@@ -600,8 +600,9 @@ function Spells.Card(p, tip, r, lines, school, id, light, hasMath)
     Panel.Begin(p, "spell", light)
     p.padTop = Spells.PAD_TOP
     local tags = {}
-    if school then tags[#tags + 1] = { school.word, school.color } end
-    if r.rank and r.rank ~= "" then tags[#tags + 1] = { r.rank, INK.LABEL } end
+    local Tag = ns.RichItems.Tag
+    if school then tags[#tags + 1] = Tag(school.word, school.color or INK.TEXT) end
+    if r.rank and r.rank ~= "" then tags[#tags + 1] = Tag(r.rank, { Style.Pop() }) end
     Panel.Header(p, { icon = iconOf(tip, id), iconSize = Spells.ICON, iconGap = Spells.ICON_GAP,
         title = r.title, tags = #tags > 0 and tags or nil, tagGap = Spells.TAG_GAP })
     local tiles = {}

@@ -220,23 +220,47 @@ function World.ReadMob(lines, own, level)
     return r
 end
 
+-- What a creature is, each kind in a color of its own, keyed by the
+-- creature type's id so it works in every language.
+World.KIND_COLORS = {
+    [1] = { 0.96, 0.72, 0.46 },  -- beast, amber
+    [2] = { 1.00, 0.56, 0.42 },  -- dragonkin, ember
+    [3] = { 0.86, 0.58, 1.00 },  -- demon, fel violet
+    [4] = { 0.52, 0.84, 1.00 },  -- elemental, sky
+    [5] = { 0.88, 0.78, 0.62 },  -- giant, stone
+    [6] = { 0.66, 0.92, 0.72 },  -- undead, pale green
+    [7] = { 1.00, 0.84, 0.70 },  -- humanoid, warm
+    [8] = { 0.80, 0.92, 0.62 },  -- critter, leaf
+    [9] = { 0.70, 0.82, 0.96 },  -- mechanical, steel
+    [11] = { 0.96, 0.82, 0.48 }, -- totem, wood gold
+    [12] = { 0.80, 0.92, 0.62 }, -- pet, as a critter
+    [13] = { 0.72, 0.94, 0.90 }, -- gas cloud, mist
+    [14] = { 0.80, 0.92, 0.62 }, -- wild pet, as a critter
+    [15] = { 0.96, 0.60, 0.80 }, -- aberration, rose
+}
+World.RARE_COLOR = { 0.80, 0.88, 1.00 }
+
 -- Hostile, Neutral or Friendly in its reaction's color, what it is, whether
--- it can be skinned, and Rare, Elite or Boss when it is one.
+-- it can be skinned, and Rare, Elite or Boss when it is one. Every tag in its
+-- color, the outline tinted to match.
 function World.Tags(unit, r)
-    local W, INK = World.Words(), Style.INK
+    local W, INK, Tag = World.Words(), Style.INK, ns.RichItems.Tag
     local tags = {}
     local reaction = plain(UnitReaction(unit, "player"))
     if type(reaction) == "number" then
         local name = reaction <= 3 and W.hostile or reaction == 4 and W.neutral or W.friendly
-        tags[#tags + 1] = { name, { Style.ReactionColor(reaction) } }
+        tags[#tags + 1] = Tag(name, { Style.ReactionColor(reaction) })
     end
-    local kind = plain(UnitCreatureType(unit))
-    if type(kind) == "string" and kind ~= "" then tags[#tags + 1] = { kind, INK.LABEL } end
-    for _, t in ipairs(r.tags) do tags[#tags + 1] = t end
+    local kind, kindID = UnitCreatureType(unit)
+    kind, kindID = plain(kind), plain(kindID)
+    if type(kind) == "string" and kind ~= "" then
+        tags[#tags + 1] = Tag(kind, World.KIND_COLORS[kindID] or INK.TEXT)
+    end
+    for _, t in ipairs(r.tags) do tags[#tags + 1] = Tag(t[1], t[2]) end
     local class = plain(UnitClassification(unit))
-    if class == "rare" or class == "rareelite" then tags[#tags + 1] = { W.rare, INK.VALUE } end
-    if class == "elite" or class == "rareelite" then tags[#tags + 1] = { W.elite, INK.MONEY } end
-    if class == "worldboss" then tags[#tags + 1] = { W.boss, INK.BAD } end
+    if class == "rare" or class == "rareelite" then tags[#tags + 1] = Tag(W.rare, World.RARE_COLOR) end
+    if class == "elite" or class == "rareelite" then tags[#tags + 1] = Tag(W.elite, INK.MONEY) end
+    if class == "worldboss" then tags[#tags + 1] = Tag(W.boss, INK.BAD) end
     return tags
 end
 
