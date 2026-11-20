@@ -87,6 +87,7 @@ Donators.LIST = {
     "sam",
     "Daniel",
     "Dragon Slayer",
+    "Auld Gadgie",
 }
 
 -- Monthly supporters (a Ko-fi subscription or an active Patreon member), shown
