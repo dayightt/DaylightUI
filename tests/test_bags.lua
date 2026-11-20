@@ -6699,8 +6699,11 @@ T.test("bags on a controller: X does an item's right click through a secure key,
     T.truthy(o, "X is bound on a usable item")
     T.eq(o.button, "RightButton")
     local s = _G[o.click]
-    T.eq(s:GetAttribute("type"), "click")
-    T.eq(s:GetAttribute("clickbutton"), at)
+    -- An item with a spell is used by bag and slot: clicking this addon's item
+    -- button ran the game's click code tainted (CloseAllBags in the use).
+    T.eq(s:GetAttribute("type"), "item")
+    T.eq(s:GetAttribute("item"), "0 1")
+    T.eq(s:GetAttribute("clickbutton"), nil)
     local said = {}
     for _, row in ipairs(DaylightUI.Pad.HintList(f)) do said[#said + 1] = row[2] end
     said = table.concat(said, "|")
@@ -6709,6 +6712,188 @@ T.test("bags on a controller: X does an item's right click through a secure key,
     stub.RunTimers()
     T.eq(stub.overrides.PAD3, nil, "an item a right click does nothing with leaves X alone")
     T.truthy(stub.overrides.PAD4, "Y still has more actions")
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
+-- With the mailbox open a right click attaches a usable item instead of using it,
+-- so X keeps the item button's own right click there.
+T.test("bags on a controller: X attaches a usable item at the mailbox", function()
+    local ns = login()
+    world.items[0][1].itemID = 1
+    C_Item.GetItemSpell = function(id) if id == 1 then return "Drink", 430 end end
+    C_Item.IsEquippableItem = function() return false end
+    padOn()
+    local at = ns.Bags.buttons[0][1]
+    _G.SmartNavigation = { GetCurrentButton = function() return at end }
+    _G.MailFrame = CreateFrame("Frame", "MailFrame", UIParent)
+    local f = open(ns)
+    stub.RunTimers()
+    local a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "click"); T.eq(a.clickbutton, at)
+    _G.MailFrame:Hide()
+    a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "item"); T.eq(a.item, "0 1")
+    -- Equipping goes the same way; selling keeps the right click.
+    local equippable = C_Item.IsEquippableItem
+    C_Item.IsEquippableItem = function() return true end
+    a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "item"); T.eq(a.item, "0 1")
+    _G.MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+    a = ns.Window.PadUseSecure(f, at)
+    T.eq(a.type, "click"); T.eq(a.clickbutton, at)
+    _G.MerchantFrame:Hide()
+    _G.MerchantFrame = nil
+    C_Item.IsEquippableItem = equippable
+    _G.MailFrame = nil
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
+-- In game: a mouse right-click on a usable item ran the slot's own click, the game's
+-- click code ran tainted, and the use left the game's state tainted until a reload.
+-- One secure button follows the pointer and uses the item by bag and slot.
+T.test("bags on a controller: a right-click goes through a secure use on the slot under the pointer, out of combat only", function()
+    local ns = login()
+    padOn()
+    local f = open(ns)
+    local slotButton = ns.Bags.buttons[0][1]
+    local enter, leave = slotButton:GetScript("OnEnter"), slotButton:GetScript("OnLeave")
+    local modifierDown = false
+    local isModifierKeyDown = _G.IsModifierKeyDown
+    _G.IsModifierKeyDown = function() return modifierDown end
+    enter(slotButton)
+    local useButton = _G.DaylightUIBagUse
+    T.truthy(useButton and useButton:IsShown(), "on the hovered slot")
+    T.eq(useButton:GetAttribute("type2"), "item")
+    T.eq(useButton:GetAttribute("item"), "0 1", "that slot, by bag and slot")
+    T.eq(useButton:GetFrameStrata(), "HIGH", "a strata above the bag's, so raising the bag on a click can't cover it")
+    leave(slotButton)
+    T.falsy(useButton:IsShown(), "off when the pointer leaves")
+    modifierDown = true
+    enter(slotButton)
+    T.falsy(useButton:IsShown(), "a modified right-click keeps the slot's own click")
+    modifierDown = false
+    _G.MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+    enter(slotButton)
+    T.falsy(useButton:IsShown(), "at a vendor a right-click sells: the slot's own click")
+    _G.MerchantFrame:Hide(); _G.MerchantFrame = nil
+    _G.GuildBankFrame = CreateFrame("Frame", "GuildBankFrame", UIParent)
+    enter(slotButton)
+    T.falsy(useButton:IsShown(), "at the guild bank a right-click deposits: the slot's own click")
+    _G.GuildBankFrame:Hide(); _G.GuildBankFrame = nil
+    enter(slotButton)
+    T.truthy(useButton:IsShown())
+    stub.EnterCombat()
+    T.falsy(useButton:IsShown(), "off as a fight starts, before the lockdown")
+    leave(slotButton); enter(slotButton)
+    T.falsy(useButton:IsShown(), "and nothing in the fight")
+    -- The fight ends with the pointer still on the slot: back without a new hover.
+    local getMouseFoci = _G.GetMouseFoci
+    _G.GetMouseFoci = function() return { slotButton } end
+    stub.LeaveCombat()
+    T.truthy(useButton:IsShown(), "back after the fight, the pointer still on the slot")
+    -- Something opened over the slot meanwhile: the button stays off it.
+    modifierDown = true
+    stub.FireEvent("MODIFIER_STATE_CHANGED")
+    T.falsy(useButton:IsShown())
+    _G.GetMouseFoci = function() return { UIParent } end
+    modifierDown = false
+    stub.FireEvent("MODIFIER_STATE_CHANGED")
+    T.falsy(useButton:IsShown(), "a menu over the slot keeps the pointer")
+    _G.GetMouseFoci = getMouseFoci
+    leave(slotButton)
+    _G.IsModifierKeyDown = isModifierKeyDown
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+    T.truthy(f)
+end)
+
+-- With the controller UI off, a mouse player's right-click stays the game's own.
+T.test("bags: with the controller UI off, a right-click is the slot's own click", function()
+    local ns = login()
+    _G.GamepadMode, _G.InputUtil = nil, nil
+    open(ns)
+    local slotButton = ns.Bags.buttons[0][1]
+    slotButton:GetScript("OnEnter")(slotButton)
+    local useButton = _G.DaylightUIBagUse
+    T.falsy(useButton and useButton:IsShown(), "no secure button over the slot")
+    slotButton:GetScript("OnLeave")(slotButton)
+end)
+
+-- A locked slot's clicks are off under Disenchant (Guard.lua). The secure use by
+-- bag and slot would go around that and disenchant it.
+T.test("bags on a controller: no secure use while a spell is targeting or on a locked slot", function()
+    local ns = login()
+    categoryWorld()   -- item 2 is a weapon, so it can be disenchanted and locked
+    padOn()
+    open(ns)
+    local locked, other = ns.Bags.buttons[0][2], ns.Bags.buttons[0][1]
+    ns.Categories.ToggleLock(C_Container.GetContainerItemInfo(0, 2).itemID)
+    stub.RunTimers()
+    local disenchanting = false
+    local isCurrentSpell, spellIsTargeting = C_Spell.IsCurrentSpell, _G.SpellIsTargeting
+    C_Spell.IsCurrentSpell = function(id) return disenchanting and id == ns.Disenchant.SPELL end
+    _G.SpellIsTargeting = function() return disenchanting end
+    local getMouseFoci = _G.GetMouseFoci
+    local underPointer = other
+    _G.GetMouseFoci = function() return { underPointer } end
+
+    other:GetScript("OnEnter")(other)
+    local useButton = _G.DaylightUIBagUse
+    T.truthy(useButton:IsShown(), "no spell: the secure use")
+    disenchanting = true
+    stub.FireEvent("CURRENT_SPELL_CAST_CHANGED")
+    T.falsy(useButton:IsShown(), "Disenchant on the cursor: the slot's own click, even on an unlocked item")
+    disenchanting = false
+    stub.FireEvent("CURRENT_SPELL_CAST_CHANGED")
+    T.truthy(useButton:IsShown(), "the cast gone: back")
+    other:GetScript("OnLeave")(other)
+
+    disenchanting = true
+    stub.FireEvent("CURRENT_SPELL_CAST_CHANGED")
+    T.truthy(locked.dluiGuarded, "Disenchant on the cursor locks the slot")
+    underPointer = locked
+    locked:GetScript("OnEnter")(locked)
+    T.falsy(useButton:IsShown(), "a locked slot under Disenchant: no secure use")
+    -- Even if the game said nothing was targeting, the lock still holds.
+    _G.SpellIsTargeting = function() return false end
+    stub.FireEvent("MODIFIER_STATE_CHANGED")
+    T.falsy(useButton:IsShown(), "a locked slot: no secure use")
+    local isEquippable = C_Item.IsEquippableItem
+    C_Item.IsEquippableItem = function() return true end
+    local action = ns.Window.PadUseSecure(ns.window, locked)
+    T.eq(action.type, "click", "X on a locked slot keeps its own (switched off) click")
+    T.eq(action.clickbutton, locked)
+    C_Item.IsEquippableItem = isEquippable
+    locked:GetScript("OnLeave")(locked)
+
+    disenchanting = false
+    stub.FireEvent("CURRENT_SPELL_CAST_CHANGED")
+    C_Spell.IsCurrentSpell, _G.SpellIsTargeting, _G.GetMouseFoci = isCurrentSpell, spellIsTargeting, getMouseFoci
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
+-- At a vendor only an item with a value is sold; one without is used, and the
+-- mouse and X agree on it (Window.HandsOver).
+T.test("bags on a controller: at a vendor an item with no value is used securely, by the mouse and X alike", function()
+    local ns = login()
+    world.items[0][1].itemID = 1
+    world.items[0][1].hasNoValue = true
+    C_Item.GetItemSpell = function(id) if id == 1 then return "Drink", 430 end end
+    C_Item.IsEquippableItem = function() return false end
+    padOn()
+    local f = open(ns)
+    local slotButton = ns.Bags.buttons[0][1]
+    _G.MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
+    _G.MerchantFrame.selectedTab = 1
+    T.truthy(C_Container.GetContainerItemInfo(0, 1).hasNoValue)
+    local action = ns.Window.PadUseSecure(f, slotButton)
+    T.eq(action.type, "item"); T.eq(action.item, "0 1")
+    slotButton:GetScript("OnEnter")(slotButton)
+    T.truthy(_G.DaylightUIBagUse:IsShown(), "the mouse too")
+    slotButton:GetScript("OnLeave")(slotButton)
+    _G.MerchantFrame.selectedTab = 2
+    T.truthy(ns.Window.HandsOver(C_Container.GetContainerItemInfo(0, 1)), "the buyback tab: the game's click, which does nothing")
+    _G.MerchantFrame:Hide(); _G.MerchantFrame = nil
+    world.items[0][1].hasNoValue = nil
     _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
 end)
 

@@ -187,6 +187,18 @@ function K.Walk(DUI, keys)
             end
         end
     end
+    local W = DUI.Welcome
+    for _, item in ipairs(W and W.NEWS or {}) do    
+        add(item.title, "welcome news"); add(item.text, "welcome news")
+    end
+    local Looks = DUI.InstallerLooks
+    for id, spec in pairs(Looks and Looks.KINDS or {}) do
+        local at = "guide looks " .. id
+        add(spec.title, at); add(spec.desc, at); add(spec.rail, at)
+    end
+    for _, look in ipairs(Looks and Looks.CROWD_LOOKS or {}) do
+        add(look.name, "guide looks crowd"); add(look.line, "guide looks crowd")
+    end  
     return keys
 end
 
