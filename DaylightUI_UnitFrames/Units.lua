@@ -412,7 +412,7 @@ function ns.Refresh(mod, path)
         CB.Layout(ns.targetCastbar, { enabled = tc.enabled and tAt == "power", spell = tc.spell, time = tc.time,
                                       insideTextSize = tc.insideTextSize, insideTextX = tc.insideTextX, insideTextY = tc.insideTextY }, db.target)
         CB.Layout(ns.targetCastbarFree, { enabled = tc.enabled and tAt ~= "power", at = tAt, x = tc.x, y = tc.y, drop = (tSlides or tAt == "below") and tPips or 0,
-                                          width = tc.width, fitFrame = tc.fitFrame, height = tc.height, showIcon = tc.showIcon, slant = tSlides or tc.slant, slantLeft = tc.slantLeft, slantUnder = not tSlides and tc.slantUnder,
+                                          width = tc.width, fitFrame = tc.fitFrame, height = tc.height, showIcon = tc.showIcon, slant = tSlides or tc.slant, slantLeft = tc.slantLeft, slantUnder = not tSlides and tc.slantUnder, slantUnderLeft = not tSlides and tc.slantUnderLeft, ownAngle = tc.ownAngle, lean = tc.lean,
                                           spell = tc.spell, time = tc.time, reverseFill = tc.reverseFill, strata = tc.strata })
         DUI.Movers.Suspend("unitframes.targetCastbar", tAt ~= "free")
         local fc = db.focusCastbar
@@ -420,7 +420,7 @@ function ns.Refresh(mod, path)
         CB.Layout(ns.focusCastbar, { enabled = fc.enabled and fAt == "power", spell = fc.spell, time = fc.time }, db.focus)
         local fSlides = fAt == "slide"
         CB.Layout(ns.focusCastbarFree, { enabled = fc.enabled and fAt ~= "power", at = fAt, x = fc.x, y = fc.y,
-                                         width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fSlides or fc.slant, slantLeft = fc.slantLeft, slantUnder = not fSlides and fc.slantUnder,
+                                         width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fSlides or fc.slant, slantLeft = fc.slantLeft, slantUnder = not fSlides and fc.slantUnder, slantUnderLeft = not fSlides and fc.slantUnderLeft, ownAngle = fc.ownAngle, lean = fc.lean,
                                          spell = fc.spell, time = fc.time, reverseFill = fc.reverseFill, strata = fc.strata })
         DUI.Movers.Suspend("unitframes.focusCastbar", fAt ~= "free")
         -- The display first, since your cast bar and swing bars may stand under it.

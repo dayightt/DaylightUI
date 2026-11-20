@@ -18,6 +18,39 @@ local UF = ns.UF
 
 -- disabled() helpers. get reads another setting on the same page.
 local function off(key) return function(get) return get(key) ~= true end end
+
+-- A frame's flips, one per end, read by UF.UnderOf. o.right and o.left are the
+-- keys, o.name labels both ("Swing timer"), o.what names the bar in the text,
+-- o.note ends both descriptions, o.disabled / o.hidden gray out or hide both,
+-- and o.rightOn / o.leftOn (optional) are the keys of the end's own angle switch.
+-- Use as flipRows(o)[1], [2].
+local function flipRows(o)
+    local dis = o.disabled or function() return false end
+    local note = o.note and (" " .. o.note) or ""
+    local function row(key, side, on)
+        return { type = "toggle", key = key, label = o.name .. " flip " .. side .. " end", since = "1.9.7",
+                 desc = "Tips " .. o.what .. " " .. side .. " end the other way, so its bottom corner sticks out instead of its top. The other end keeps its own." .. note,
+                 disabled = function(get) return dis(get) or (on ~= nil and get(on) ~= true) end, hidden = o.hidden }
+    end
+    return { row(o.right, "right", o.rightOn), row(o.left, "left", o.leftOn) }
+end
+
+-- A frame's own angle: a switch and its slider, read by UF.AngleOf. o.own and
+-- o.lean are the keys, o.name labels both ("Swing timer"), o.what names the
+-- bar in the text ("the swing timer's"), o.note ends both descriptions, and
+-- o.disabled / o.hidden gray out or hide both. Use as angleRows(o)[1], [2].
+local function angleRows(o)
+    local dis = o.disabled or function() return false end
+    local note = o.note and (" " .. o.note) or ""
+    return {
+        { type = "toggle", key = o.own, label = o.name .. " own angle", since = o.since,
+          desc = "Gives " .. o.what .. " angled ends their own angle, set below. When off, they follow the Slant angle on Unit Frames > Look." .. note,
+          disabled = dis, hidden = o.hidden },
+        { type = "slider", key = o.lean, label = o.name .. " angle", since = o.since, min = 0.01, max = 1, step = 0.01, unit = "%",
+          desc = "How far " .. o.what .. " angled ends lean: how far the cut reaches in, as a share of the bar's height. Near 0 is almost square, 100 is 45 degrees. Needs its own angle on." .. note,
+          disabled = function(get) return dis(get) or get(o.own) ~= true end, hidden = o.hidden },
+    }
+end
 local function offAny(...)
     local keys = { ... }
     return function(get)
@@ -1124,7 +1157,7 @@ local function groupAttached(get) return get("swing.enabled") ~= true or get("sw
 -- rows at a time (swing.bars.<hand>), each with its own handle in /dui unlock.
 local SWING_HANDS = { { "main", "Main hand", "swing.mainHand" }, { "off", "Off hand", "swing.offHand" },
                       { "ranged", "Ranged", "swing.ranged" } }
-local SWING_BAR_FIELDS = { "visibility", "width", "height", "textSize", "showName", "showTime", "showIcon", "slant", "reverseFill" }
+local SWING_BAR_FIELDS = { "visibility", "width", "height", "textSize", "showName", "showTime", "showIcon", "slant", "slantUnder", "slantUnderLeft", "ownAngle", "lean", "reverseFill" }
 local function swingBarCard()
     local choices = {}
     for _, hand in ipairs(SWING_HANDS) do
@@ -1167,6 +1200,18 @@ local function swingBarCard()
               desc = "Cuts the " .. lower .. " bar's right end at an angle. Only when detached on its own.", disabled = dis, hidden = attached },
             { type = "toggle", key = b("slantLeft"), label = name .. " bar angled left end",
               desc = "Cuts the " .. lower .. " bar's left end at an angle. Only when detached on its own.", disabled = dis, hidden = attached },
+            flipRows({ right = b("slantUnder"), left = b("slantUnderLeft"), rightOn = b("slant"), leftOn = b("slantLeft"),
+                       name = name .. " bar", what = "the " .. lower .. " bar's", note = "Only when detached on its own.",
+                       disabled = dis, hidden = attached })[1],
+            flipRows({ right = b("slantUnder"), left = b("slantUnderLeft"), rightOn = b("slant"), leftOn = b("slantLeft"),
+                       name = name .. " bar", what = "the " .. lower .. " bar's", note = "Only when detached on its own.",
+                       disabled = dis, hidden = attached })[2],
+            angleRows({ own = b("ownAngle"), lean = b("lean"), name = name .. " bar", what = "the " .. lower .. " bar's", since = "1.9.7",
+                        note = "Only when detached on its own.", hidden = attached,
+                        disabled = function(get) return dis(get) or (get(b("slant")) ~= true and get(b("slantLeft")) ~= true) end })[1],
+            angleRows({ own = b("ownAngle"), lean = b("lean"), name = name .. " bar", what = "the " .. lower .. " bar's", since = "1.9.7",
+                        note = "Only when detached on its own.", hidden = attached,
+                        disabled = function(get) return dis(get) or (get(b("slant")) ~= true and get(b("slantLeft")) ~= true) end })[2],
             { type = "toggle", key = b("reverseFill"), label = name .. " bar fills right to left",
               desc = "The " .. lower .. " bar fills from the right. Only when detached on its own.", disabled = dis, hidden = attached },
         } }
@@ -1715,9 +1760,16 @@ local function framePage(id, label, desc, opts)
             return id == "player" and get("playerCastbar.enabled") == true and get("playerCastbar.at") == "below"
                 and get("playerCastbar.from") == "power"
         end
-        frame[#frame + 1] = { type = "toggle", key = k("powerSlantUnder"), label = "Flip the power bar's angles", since = "1.9.1",
-            desc = "Tips the angled ends the other way, so the bar is wider at the bottom than the top. Only while the power bar is on its own, and not while your cast bar slides out from under it.",
-            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false or slidesOut(get) end }
+        local powerFlip = flipRows({ right = k("powerSlantUnder"), left = k("powerSlantUnderLeft"), name = "Power bar", what = "the power bar's",
+            note = "Only on an angled end, while the power bar is on its own, and not while your cast bar slides out from under it.",
+            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false or slidesOut(get) end })
+        frame[#frame + 1] = powerFlip[1]
+        frame[#frame + 1] = powerFlip[2]
+        local powerAngle = angleRows({ own = k("powerOwnAngle"), lean = k("powerLean"), name = "Power bar", what = "the power bar's", since = "1.9.7",
+            note = "Only while the power bar is on its own. A cast bar sliding out from under it continues the line.",
+            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end })
+        frame[#frame + 1] = powerAngle[1]
+        frame[#frame + 1] = powerAngle[2]
     end
     if opts.tile then
         frame[#frame + 1] = { type = "toggle", key = k("fillVertical"), label = "Fill upward",
@@ -2345,14 +2397,22 @@ local attached = notOwnSize("player")
 local function notMiddleOwn(get) return attached(get) or atOf(get, "player") == "middle" end
 -- Flipping needs an angled end, on a bar with its own shape.
 local function flipRow(unit, who, notOwn)
-    return { type = "toggle", key = unit .. "Castbar.slantUnder", label = unit == "player" and "Flip your cast bar's angles" or ("Flip the " .. string.lower(CAST_WHO[unit]) .. "'s angles"), since = "1.9.1",
-             desc = "Tips the angled ends the other way, so " .. who .. " cast bar is wider at the bottom than the top. "
-                 .. (unit == "player" and "Not while under the frame, between the frames or under the personal display."
-                     or (unit == "target" or unit == "focus") and "Not inside the frame or sliding out under it." or "Not inside the frame."),
-             disabled = function(get)
-                 return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal")
-                     or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
-             end }
+    return flipRows({ right = unit .. "Castbar.slantUnder", left = unit .. "Castbar.slantUnderLeft",
+        rightOn = unit .. "Castbar.slant", leftOn = unit .. "Castbar.slantLeft",
+        name = CAST_WHO[unit], what = who .. " cast bar's",
+        note = unit == "player" and "Not while under the frame, between the frames or under the personal display."
+            or (unit == "target" or unit == "focus") and "Not inside the frame or sliding out under it." or "Not inside the frame.",
+        disabled = function(get) return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal") end })
+end
+-- Its own angle, on the same bars the flip works on.
+local function castAngle(unit, who, notOwn)
+    return angleRows({ own = unit .. "Castbar.ownAngle", lean = unit .. "Castbar.lean", name = CAST_WHO[unit], what = who .. " cast bar's", since = "1.9.7",
+        note = unit == "player" and "Not while under the frame, between the frames or under the personal display."
+            or (unit == "target" or unit == "focus") and "Not inside the frame or sliding out under it." or "Not inside the frame.",
+        disabled = function(get)
+            return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal")
+                or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
+        end })
 end
 
 -- A raid page: Raid 10, 20 or 40 (Raid.lua's setups by raid size).
@@ -2527,7 +2587,7 @@ local PLAYER_CAST = {
           desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
           disabled = function(get)
               return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or get("player.powerAt") ~= "free"
-                  or get("player.powerSlantUnder") == true
+                  or get("player.powerSlantUnder") == true or get("player.powerSlantUnderLeft") == true
           end },
         nudge("player", "x"),
         nudge("player", "y"),
@@ -2546,7 +2606,10 @@ local PLAYER_CAST = {
         { type = "toggle", key = "playerCastbar.slantLeft", label = "Your cast bar angled left end",
           desc = "Cuts the left end at an angle, leaning like the target frame's end. Not while under the frame, between the frames or under the personal display.",
           disabled = function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end },
-        flipRow("player", "your", notMiddleOwn),
+        flipRow("player", "your", notMiddleOwn)[1],
+        flipRow("player", "your", notMiddleOwn)[2],
+        castAngle("player", "your", notMiddleOwn)[1],
+        castAngle("player", "your", notMiddleOwn)[2],
         { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
           desc = "Your cast bar fills from the right. Not while under the frame or between the frames.", disabled = notMiddleOwn },
         strataRow("playerCastbar.strata", "Your cast bar layer", "The layer your cast bar draws in.",
@@ -2582,7 +2645,10 @@ local TARGET_CAST = {
         { type = "toggle", key = "targetCastbar.slantLeft", label = "Target cast bar angled left end",
           desc = "Cuts the left end of your target's cast bar at an angle, leaning like the frame's own end, so a bar above or below it can match. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
-        flipRow("target", "your target's", notOwnBar("target")),
+        flipRow("target", "your target's", notOwnBar("target"))[1],
+        flipRow("target", "your target's", notOwnBar("target"))[2],
+        castAngle("target", "your target's", notOwnBar("target"))[1],
+        castAngle("target", "your target's", notOwnBar("target"))[2],
         { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
           desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
@@ -2617,7 +2683,10 @@ local FOCUS_CAST = {
         { type = "toggle", key = "focusCastbar.slantLeft", label = "Focus cast bar angled left end",
           desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
-        flipRow("focus", "your focus's", notOwnBar("focus")),
+        flipRow("focus", "your focus's", notOwnBar("focus"))[1],
+        flipRow("focus", "your focus's", notOwnBar("focus"))[2],
+        castAngle("focus", "your focus's", notOwnBar("focus"))[1],
+        castAngle("focus", "your focus's", notOwnBar("focus"))[2],
         { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
           desc = "Your focus's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
@@ -2882,6 +2951,18 @@ ns.OPTIONS = { pages = {
               desc = "Cuts the bars' right end at an angle. Only when detached as a group. Under the personal display they're cut like it.", disabled = groupAttached },
             { type = "toggle", key = "swing.slantLeft", label = "Swing timer angled left end",
               desc = "Cuts the bars' left end at an angle. Only when detached as a group.", disabled = groupAttached },
+            flipRows({ right = "swing.slantUnder", left = "swing.slantUnderLeft", rightOn = "swing.slant", leftOn = "swing.slantLeft",
+                       name = "Swing timer", what = "the swing timer's", note = "Only when detached as a group.",
+                       disabled = groupAttached })[1],
+            flipRows({ right = "swing.slantUnder", left = "swing.slantUnderLeft", rightOn = "swing.slant", leftOn = "swing.slantLeft",
+                       name = "Swing timer", what = "the swing timer's", note = "Only when detached as a group.",
+                       disabled = groupAttached })[2],
+            angleRows({ own = "swing.ownAngle", lean = "swing.lean", name = "Swing timer", what = "the swing timer's", since = "1.9.7",
+                        note = "Only when detached as a group.",
+                        disabled = function(get) return groupAttached(get) or (get("swing.slant") ~= true and get("swing.slantLeft") ~= true) end })[1],
+            angleRows({ own = "swing.ownAngle", lean = "swing.lean", name = "Swing timer", what = "the swing timer's", since = "1.9.7",
+                        note = "Only when detached as a group.",
+                        disabled = function(get) return groupAttached(get) or (get("swing.slant") ~= true and get("swing.slantLeft") ~= true) end })[2],
             { type = "toggle", key = "swing.showIcon", label = "Swing timer weapon icon",
               desc = "The weapon's picture at the start of each bar. Only when detached as a group.", disabled = groupAttached },
             { type = "slider", key = "swing.textSize", label = "Swing timer text size", min = 6, max = 24, step = 1,
@@ -2972,9 +3053,12 @@ ns.OPTIONS = { pages = {
               desc = "Cuts the right end at an angle, docked cast and swing bars too. When off, it's square.", disabled = off("personal.enabled") },
             { type = "toggle", key = "personal.slantLeft", label = "Personal display angled left end",
               desc = "Cuts the left end at an angle too, docked cast and swing bars included.", disabled = off("personal.enabled") },
-            { type = "slider", key = "personal.angle", label = "Personal display angle", min = 0, max = 0.6, step = 0.01, unit = "%",
-              desc = "How far the angled end leans, docked bars included. Set to 0 to use the Slant angle on Unit Frames > Look.",
-              disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end },
+            angleRows({ own = "personal.ownAngle", lean = "personal.lean", name = "Personal display", what = "the personal display's", since = "1.9.7",
+                        note = "Docked cast and swing bars lean with it.",
+                        disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end })[1],
+            angleRows({ own = "personal.ownAngle", lean = "personal.lean", name = "Personal display", what = "the personal display's", since = "1.9.7",
+                        note = "Docked cast and swing bars lean with it.",
+                        disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end })[2],
             { type = "toggle", key = "personal.showHealth", since = "1.6.0.2", label = "Personal health bar",
               desc = "Your health on the display. Turn it off to keep just your power bar. Needs the power bar on.",
               disabled = offAny("personal.enabled", "personal.showPower") },

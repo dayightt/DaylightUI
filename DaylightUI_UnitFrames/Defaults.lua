@@ -46,12 +46,12 @@ local function indicators(size)
 end
 
 ns.DEFAULTS = {
-    player = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, showName = true, nameOnBar = false, showPercent = true,
+    player = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, powerSlantUnderLeft = false, powerOwnAngle = false, powerLean = 0.21, showName = true, nameOnBar = false, showPercent = true,
                slant = true, bigNumber = true, healthText = "value", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, portraitDragon = false, portraitDragonColor = "class",
                predictHeals = true, predictAbsorbs = true, showThreat = true,
                showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showResting = true, showPvP = true, pvpSize = 1, leaderSize = 1, restSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, powerTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, druidMana = true,
                druidBars = { enabled = false, width = 94, height = 6, spacing = 2, showText = false }, costPreview = true, costColor = { 0, 0, 0 }, costAlpha = 0.45, regenSweep = "off", fade = DaylightUI.Fade.Defaults({ fullHealth = false, fullMana = false, target = true }) },
-    target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, showName = true, nameOnBar = false, showPercent = true,
+    target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, powerSlantUnderLeft = false, powerOwnAngle = false, powerLean = 0.21, showName = true, nameOnBar = false, showPercent = true,
                showMarker = true, showClassification = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false,
                portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, predictHeals = true, predictAbsorbs = true, showThreat = true, threatTag = true,
                -- The threat % tag (UF.LayoutThreatTag), on the frame or on its own
@@ -71,13 +71,13 @@ ns.DEFAULTS = {
             happinessLook = "square", happinessSide = "right", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
             -- The name on the bar, or with nameOnBar off, in a small tab above the frame like the others.
             nameOnBar = true, tabHeight = 14 },
-    focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, showName = true, nameOnBar = false, showPercent = true,
+    focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, powerSlantUnderLeft = false, powerOwnAngle = false, powerLean = 0.21, showName = true, nameOnBar = false, showPercent = true,
               showMarker = true, slant = true, portrait = "class", portraitRing = "class", portraitShape = "round", portraitRingWidth = "normal", portraitRingLine = true, predictHeals = true, predictAbsorbs = true,
               showThreat = true, showLevel = true, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showPvP = true, pvpSize = 1, leaderSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, fade = DaylightUI.Fade.Defaults(),
               healthText = "percent", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, reverseFill = false },
     -- at: where it sits (CastBar.AT). "below" hangs under your frame, "above"
     -- sits over it, "free" uses its own mover. x/y nudge it above or below.
-    playerCastbar = { enabled = true, at = "below", x = 0, y = 0, width = 285, height = 27, showIcon = false, slant = true, slantLeft = false, slantUnder = false, reverseFill = false,
+    playerCastbar = { enabled = true, at = "below", x = 0, y = 0, width = 285, height = 27, showIcon = false, slant = true, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false,
                       from = "frame",   -- when hung "below": under the player frame, or "power" for under a free-standing power bar (player.powerAt free)
                       shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 } },   -- its own border (UF.OwnShell)
     -- The target's cast bar: inside its frame over the power bar (at = "power"),
@@ -85,7 +85,7 @@ ns.DEFAULTS = {
     -- x/y) or on its own mover ("free").
     -- insideText*: its text while inside the frame (size 0 fits the power bar,
     -- X/Y nudge both texts).
-    targetCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 240, height = 22, showIcon = true, slant = false, slantLeft = false, slantUnder = false, reverseFill = false,
+    targetCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 240, height = 22, showIcon = true, slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false,
                       insideTextSize = 0, insideTextX = 0, insideTextY = 0 },
     -- Every cast bar's colors, fill and interrupts.
     casts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
@@ -99,7 +99,7 @@ ns.DEFAULTS = {
               -- interrupt comes off cooldown (DUI.Interrupt).
               kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false },
     -- The focus cast bar: inside its frame over the power bar, or its own.
-    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, slantLeft = false, slantUnder = false, reverseFill = false },
+    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false },
     -- Each party member's cast bar (PartyCasts.lua): inside the frame over the
     -- power bar ("power"), hung under it and sliding out ("slide"), or its own
     -- bar beside the frame ("free", with spot right|left|below|above and x/y).
@@ -113,7 +113,7 @@ ns.DEFAULTS = {
     swing = { enabled = true, attach = true, mainHand = true, width = 204, height = 14, visibility = "swinging",
               shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 },   -- its own border (UF.OwnShell)
               offHand = true, ranged = true, stopCue = false, rangeText = false, showText = true, queue = true, classColor = false, fill = "pair",
-              slant = false, slantLeft = false, showIcon = false, textSize = 12, reverseFill = false, spacing = 0, growUp = false,
+              slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, showIcon = false, textSize = 12, reverseFill = false, spacing = 0, growUp = false,
               colors = { main = { 0.80, 0.68, 0.46 }, off = { 0.62, 0.56, 0.46 }, ranged = { 0.50, 0.66, 0.52 },
                          queued = { 0.86, 0.44, 0.32 } } },
     combo = { enabled = true, size = 14, fullRed = true,
@@ -306,7 +306,7 @@ ns.SWING_BARS = { "main", "off", "ranged" }
 ns.DEFAULTS.swing.bars = {}
 for _, k in ipairs(ns.SWING_BARS) do
     ns.DEFAULTS.swing.bars[k] = { detach = false, visibility = "swinging", width = 204, height = 14, textSize = 12, showName = true,
-                                  showTime = true, showIcon = false, slant = false, slantLeft = false, reverseFill = false }
+                                  showTime = true, showIcon = false, slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false }
 end
 
 -- Each frame's own look on top of the shared one, set on its page: bar colors
@@ -335,8 +335,10 @@ do
     d.colorPower, d.colorPowerCustom = "player", { 0.3, 0.5, 0.95 }
     d.shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 }
     d.media = { health = G, healthBack = G, power = G, powerBack = G, healthFont = G, powerFont = G }
-    -- angle: the cut as a share of its height. 0 uses the shared Slant angle.
-    d.angle = 0
+    -- ownAngle: lean by its own angle, lean (the cut as a share of its
+    -- height), instead of the shared Slant angle. angle: the older setting,
+    -- above 0 for its own angle; upgrade step 21 moves it to the two above.
+    d.ownAngle, d.lean, d.angle = false, 0.21, 0
     -- The numbers on the bars, using the player frame's keys. Size 0 fits its bar.
     d.showPercent, d.healthText, d.percentSign, d.hideFullHealth = false, "percent", false, false
     d.healthTextPos, d.healthTextSize = "center", 0

@@ -557,6 +557,30 @@ ns.UPGRADE_STEPS[20] = function(uf)
     c.at, c.slantLeft, c.slantUnder = "middle", nil, nil
 end
 
+-- The personal display's angle before the Own angle switch: above 0 it was its
+-- own, so the switch goes on with that lean. 0 (the default) meant the shared
+-- angle, which the switch left off already gives.
+ns.UPGRADE_STEPS[21] = function(uf)
+    local c = uf.personal
+    if type(c) ~= "table" then return end
+    local a = tonumber(c.angle) or 0
+    if a > 0 then c.ownAngle, c.lean = true, a end
+    c.angle = 0
+end
+
+-- One flip used to lean every angled end; now each end has its own. The right
+-- end keeps the old switch, so a bar flipped before flips its left end too.
+-- The defaults are off, so a flip that's on was the player's.
+ns.UPGRADE_STEPS[22] = function(uf)
+    for _, k in ipairs({ "playerCastbar", "targetCastbar", "focusCastbar" }) do
+        local c = uf[k]
+        if type(c) == "table" and c.slantUnder == true then c.slantUnderLeft = true end
+    end
+    for _, c in pairs(uf) do
+        if type(c) == "table" and c.powerSlantUnder == true then c.powerSlantUnderLeft = true end
+    end
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 -- Each step also gets this run: from = the last step done before it (0 for a
 -- new profile), picked = settings an earlier step set from the player's own

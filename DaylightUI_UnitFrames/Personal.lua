@@ -95,9 +95,7 @@ end
 -- How far its angled end leans: its own angle, else the shared Slant angle.
 function PR.Angle()
     local cfg = db()
-    local a = cfg and tonumber(cfg.angle)
-    if a and a > 0 then return a end
-    return ns.UF.SLANT
+    return ns.UF.AngleOf(cfg and cfg.ownAngle, cfg and cfg.lean)
 end
 
 -- Lays body s out w wide: health h tall (0 for none), then power p tall (0 for

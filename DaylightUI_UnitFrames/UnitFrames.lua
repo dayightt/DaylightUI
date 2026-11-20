@@ -83,6 +83,28 @@ end
 
 UF.NAME_COLOR = DUI.Style.INK.VALUE   -- names: a warm soft white
 UF.SLANT = 0.21         -- width of the angled end, as a share of frame height
+
+-- A frame's angle: its own when it has one switched on, else the shared Slant
+-- angle. own is its ownAngle switch, v its lean (cut width per height).
+function UF.AngleOf(own, v)
+    v = tonumber(v)
+    if own == true and v and v > 0 then return v end
+    return UF.SLANT
+end
+
+-- Which angled ends lean under (bottom corner out), for Style.Slant's under:
+-- right and left say which ends are angled, flipRight and flipLeft which flip.
+function UF.UnderOf(right, left, flipRight, flipLeft)
+    local r, l = right and flipRight == true, left and flipLeft == true
+    return r and l and "both" or r and "right" or l and "left" or nil
+end
+
+-- Whether the fill's moving edge (from UF.UnderOf's ends) leans under.
+function UF.EdgeUnder(under, edge)
+    if not edge then return nil end
+    return (under == "both" or under == edge) or nil
+end
+
 UF.TAB_HEIGHT = 16
 UF.TAB_INSET = 10       -- tab distance from the outer end
 UF.TAB_PAD = 8
