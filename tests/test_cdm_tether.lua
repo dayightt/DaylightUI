@@ -1326,14 +1326,13 @@ test("cdm editor: a followed frame of no size, or that would loop, gets no ring 
     T.deq(reveals, {}, "nothing revealed")
 end)
 
-test("cdm editor: a switched-off Personal Display with a place on screen is ringed by its plain name and revealed with its sample until nothing is picked, the editor closes or a fight closes it", function()
+test("cdm editor: a switched-off Personal Display with a place on screen is ringed by its plain name but stays hidden; its reveal ends when nothing is picked, the editor closes or a fight closes it", function()
     local world = tetherWorld({ unitFrames = true, personal = "off", attached = "unitframes.personal", editor = true })
     local DUI, Ed, Tether, Personal = world.DUI, world.Ed, world.Tether, world.Personal
     local reveals = recordReveals(DUI)
     local function hiddenWithNoSample() return not Personal.frame:IsShown() and Personal.frame.test == nil end
     local function expectRevealed(context)
-        T.truthy(Personal.frame:IsShown() and Personal.frame.test, context .. ": shown with its sample, though switched off")
-        T.eq(Personal.frame:GetAlpha(), 1, context .. ": at full alpha")
+        T.truthy(hiddenWithNoSample(), context .. ": switched off, so hidden")
     end
     Ed.Select(11)
     local ring = ringRound(Ed, Personal.frame)
@@ -1341,11 +1340,11 @@ test("cdm editor: a switched-off Personal Display with a place on screen is ring
     expectAccentText(DUI, ring.tag, Tether.Label("unitframes.personal"), "its plain name")
     expectRevealed("picked")
     Ed.Select(nil)
-    T.truthy(hiddenWithNoSample(), "nothing picked: hidden again, no sample left")
+    T.truthy(hiddenWithNoSample(), "nothing picked: hidden")
     Ed.Select(11)
     Ed.Close()
     T.eq(#shownLeadRings(Ed), 0, "closed: no ring left")
-    T.truthy(hiddenWithNoSample(), "closed: hidden, no sample left")
+    T.truthy(hiddenWithNoSample(), "closed: hidden")
     T.truthy(Ed.Open(), "opens again")
     Ed.Select(11)
     expectRevealed("the first pick after reopening")
@@ -1362,7 +1361,7 @@ test("cdm editor: a switched-off Personal Display with a place on screen is ring
         onAndOff, { "unitframes.personal", false } }, "every reveal switched off: unpicked, closed, and by the fight")
     T.eq(revealsAtClose, 6, "switched off by the time the fight's close returned")
     T.eq(ringsAtClose, 0, "no ring left by then")
-    T.truthy(hiddenAtClose, "hidden, no sample left, by then")
+    T.truthy(hiddenAtClose, "hidden by then")
     stub.LeaveCombat()
 end)
 
