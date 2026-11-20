@@ -1305,12 +1305,23 @@ local function leadRing()
     return ring
 end
 
-local function showLeadRing(key, leadFrame)
-    local ring = leadRing()
+-- Placed from the lead's corners, never anchored to it: a lead can be protected.
+local function placeLeadRing(ring)
+    local left, top = ns.CdmTether.PointAt(ring.lead, "TOPLEFT")
+    local right, bottom = ns.CdmTether.PointAt(ring.lead, "BOTTOMRIGHT")
+    if not (left and right) then return end
+    if ring.left == left and ring.top == top and ring.right == right and ring.bottom == bottom then return end
+    ring.left, ring.top, ring.right, ring.bottom = left, top, right, bottom
     local pad = Ed.GROUP_PAD
     ring:ClearAllPoints()
-    ring:SetPoint("TOPLEFT", leadFrame, "TOPLEFT", -pad, pad)
-    ring:SetPoint("BOTTOMRIGHT", leadFrame, "BOTTOMRIGHT", pad, -pad)
+    ring:SetPoint("TOPLEFT", ui.overlay, "CENTER", left - pad, top + pad)
+    ring:SetPoint("BOTTOMRIGHT", ui.overlay, "CENTER", right + pad, bottom - pad)
+end
+
+local function showLeadRing(key, leadFrame)
+    local ring = leadRing()
+    ring.lead, ring.left = leadFrame, nil
+    placeLeadRing(ring)
     DUI.Style.PaintAccentText(ring.tag, ns.CdmTether.Label(key))
     DUI.Motion.AlphaTo(ring, 1, DUI.Motion.FAST)
     ring.lit(true)
@@ -1489,6 +1500,7 @@ function build()
             Ed.DrawPieces()
         end
         if not drag and pickedGroupsLeadChanged() then Ed.Draw() end
+        if ui.leadShown then placeLeadRing(ui.leadRing) end
         acc = acc + (elapsed or 0)
         if acc >= Ed.TICK then
             acc = 0
