@@ -144,6 +144,26 @@ T.test("target cast bar: under the frame it slides out mirrored, the buffs keep 
     T.falsy(h.bar:GetReverseFill(), "its own fill way")
 end)
 
+-- The focus's bar can hang under its frame too, like the target's.
+T.test("focus cast bar: under the frame it slides out, the buffs keep their room", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    local h, f = ns.focusCastbarFree, ns.frames.focus
+    T.truthy(f, "a focus frame")
+    local room = select(2, ns.FocusAuraRoom(ns.module.db))
+    DUI:Set("UnitFrames", "focusCastbar.enabled", true)
+    DUI:Set("UnitFrames", "focusCastbar.at", "slide")
+    stub.RunTimers()
+    T.truthy(h.column, "hung under the frame")
+    T.eq(h:GetParent(), h.clip, "inside the clip it slides out of")
+    T.truthy(DUI.Movers.Get("unitframes.focusCastbar").suspended, "no mover: it follows the frame")
+    T.near(h:GetWidth(), f:GetWidth(), 1, "as wide as the frame")
+    T.truthy(select(2, ns.FocusAuraRoom(ns.module.db)) > room, "the buffs keep room for it")
+    DUI:Set("UnitFrames", "focusCastbar.at", "free")
+    stub.RunTimers()
+    T.falsy(h.column, "on its own again")
+end)
+
 T.test("target cast bar: slides out from under combo points sitting below the frame", function()
     local DUI, ns = stub.Load({ module = true, before = function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", powerToken = "ENERGY" }

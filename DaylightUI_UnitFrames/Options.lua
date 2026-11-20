@@ -2348,7 +2348,7 @@ local function flipRow(unit, who, notOwn)
     return { type = "toggle", key = unit .. "Castbar.slantUnder", label = unit == "player" and "Flip your cast bar's angles" or ("Flip the " .. string.lower(CAST_WHO[unit]) .. "'s angles"), since = "1.9.1",
              desc = "Tips the angled ends the other way, so " .. who .. " cast bar is wider at the bottom than the top. "
                  .. (unit == "player" and "Not while under the frame, between the frames or under the personal display."
-                     or unit == "target" and "Not inside the frame or sliding out under it." or "Not inside the frame."),
+                     or (unit == "target" or unit == "focus") and "Not inside the frame or sliding out under it." or "Not inside the frame."),
              disabled = function(get)
                  return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal")
                      or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
@@ -2595,7 +2595,7 @@ local FOCUS_CAST = {
     { label = "Focus cast bar", items = {
         { type = "toggle", key = "focusCastbar.enabled", label = "Show the focus cast bar",
           desc = "Your focus's casts, while they last. It uses the target cast bar's colors." },
-        atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode."),
+        atChoice("focus", "Inside the frame it covers the power bar, as wide as it (in the Ribbon style it sits below the frame instead). Above, below or on its own it's a bar you size here; on its own you move it in unlock mode. Under the frame it slides out during a cast, and the buffs below keep room for it."),
         nudge("focus", "x"),
         nudge("focus", "y"),
         fitRow("focus"),
@@ -2609,20 +2609,20 @@ local FOCUS_CAST = {
         barRows("focusCastbar.media.bar", "your focus's cast bar", "Focus cast bar", off("focusCastbar.enabled"))[2],
         fontRow("focusCastbar.media.font", "Focus cast bar font", "The spell name and time on your focus's cast bar", off("focusCastbar.enabled")),
         { type = "toggle", key = "focusCastbar.showIcon", label = "Focus cast bar spell icon",
-          desc = "The spell's icon at the end of your focus's cast bar. Not while it sits inside the frame.",
-          disabled = notOwnSize("focus") },
+          desc = "The spell's icon at the end of your focus's cast bar. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("focus") },
         { type = "toggle", key = "focusCastbar.slant", label = "Focus cast bar angled right end",
-          desc = "Cuts the right end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
-          disabled = notOwnSize("focus") },
+          desc = "Cuts the right end of your focus's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("focus") },
         { type = "toggle", key = "focusCastbar.slantLeft", label = "Focus cast bar angled left end",
-          desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not while it sits inside the frame.",
-          disabled = notOwnSize("focus") },
-        flipRow("focus", "your focus's", notOwnSize("focus")),
+          desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("focus") },
+        flipRow("focus", "your focus's", notOwnBar("focus")),
         { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
-          desc = "Your focus's cast bar fills from the right. Not while it sits inside the frame.",
-          disabled = notOwnSize("focus") },
+          desc = "Your focus's cast bar fills from the right. Not inside the frame or sliding out under it.",
+          disabled = notOwnBar("focus") },
         strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
-            notOwnSize("focus"), " Inside the frame, it draws with the frame instead."),
+            notOwnBar("focus"), " Inside the frame or sliding out under it, it draws with the frame instead."),
     } },
     castTextCard("focus", "Focus", "your focus's"),
 }
