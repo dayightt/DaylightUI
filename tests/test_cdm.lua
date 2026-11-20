@@ -2917,9 +2917,12 @@ end)
 -- The game's category lists (Essential 0, Utility 1, TrackedBuff 2,
 -- TrackedBar 3): known ids, and all ids including unlearned ones.
 local function withCategories(known, all)
-    _G.Enum.CooldownViewerCategory = { Essential = 0, Utility = 1, TrackedBuff = 2, TrackedBar = 3, HiddenSpell = -1, HiddenAura = -2 }
+    _G.Enum.CooldownViewerCategory = { Essential = 0, Utility = 1, TrackedBuff = 2, TrackedBar = 3, HiddenActive = -1, HiddenPassive = -2 }
     _G.C_CooldownViewer = {
-        GetCooldownViewerCategorySet = function(cat, allow) return (allow and all or known)[cat] or {} end,
+        GetCooldownViewerCategorySet = function(cat, allow)
+            if cat < 0 then error("bad argument #1 to '?' (Usage: local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(category [, allowUnlearned]))", 2) end
+            return (allow and all or known)[cat] or {}
+        end,
     }
 end
 local function noCategories()

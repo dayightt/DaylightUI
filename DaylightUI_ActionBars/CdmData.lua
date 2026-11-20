@@ -45,6 +45,23 @@ Data.INFO_EVENTS = {
     "PLAYER_PVP_TALENT_UPDATE", "PLAYER_EQUIPMENT_CHANGED", "COOLDOWN_VIEWER_SPELL_OVERRIDE_UPDATED",
 }
 local infoCache, infoFrom = {}, nil
+
+-- The categories the game keeps a list for, as name -> value, or nil without a
+-- Cooldown Manager. The game's settings code adds negative values to the enum for
+-- its "not shown" spots (HiddenActive, HiddenPassive). They aren't real categories
+-- and GetCooldownViewerCategorySet refuses them. Read fresh each time: it runs
+-- only when the lists change.
+function Data.Categories()
+    local CV, cats = _G.C_CooldownViewer, type(_G.Enum) == "table" and _G.Enum.CooldownViewerCategory
+    if type(CV) ~= "table" or type(CV.GetCooldownViewerCategorySet) ~= "function" or type(cats) ~= "table" then
+        return nil
+    end
+    local out = {}
+    for name, cat in pairs(cats) do
+        if type(cat) == "number" and cat >= 0 then out[name] = cat end
+    end
+    return out
+end
 function Data.ForgetInfo() wipe(infoCache) end
 for _, e in ipairs(Data.INFO_EVENTS) do DUI.RegisterEvent(e, Data.ForgetInfo) end
 

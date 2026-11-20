@@ -29,7 +29,7 @@ Ed.TRAY_EDGE = 16       -- the tray's default distance above the screen's bottom
 Ed.FADED = 0.35         -- alpha of the tray, title and banner while a piece moves
 Ed.TICK = 0.1           -- sample timer step
 local QUESTION = 134400
-local AURA = { TrackedBuff = true, TrackedBar = true, HiddenAura = true }
+local AURA = { TrackedBuff = true, TrackedBar = true }
 
 local ui                -- the frames, made on first open
 local isOpen = false
@@ -64,19 +64,14 @@ end
 -- know: { [id] = { kind, aura } }.
 local function allListed()
     local out = {}
-    local CV, cats = _G.C_CooldownViewer, type(_G.Enum) == "table" and _G.Enum.CooldownViewerCategory
-    if type(CV) ~= "table" or type(CV.GetCooldownViewerCategorySet) ~= "function" or type(cats) ~= "table" then
-        return out
-    end
+    local cats = Data.Categories()
+    if not cats then return out end
+    local CV = _G.C_CooldownViewer
     for name, cat in pairs(cats) do
-        if type(cat) == "number" then
-            local ok, ids = pcall(CV.GetCooldownViewerCategorySet, cat, true)
-            if ok and type(ids) == "table" then
-                for _, id in ipairs(ids) do
-                    if type(id) == "number" and not isSecret(id) and not out[id] then
-                        out[id] = { kind = name == "TrackedBar" and "bar" or "icon", aura = AURA[name] or false }
-                    end
-                end
+        local ids = CV.GetCooldownViewerCategorySet(cat, true)
+        for _, id in ipairs(type(ids) == "table" and ids or {}) do
+            if type(id) == "number" and not isSecret(id) and not out[id] then
+                out[id] = { kind = name == "TrackedBar" and "bar" or "icon", aura = AURA[name] or false }
             end
         end
     end

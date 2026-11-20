@@ -218,6 +218,11 @@ function CW.Install(opts)
     -- The public calls. Each read hands out a new table, as the client's do.
     global("C_CooldownViewer", {
         GetCooldownViewerCategorySet = function(category, allowUnlearned)
+            -- The client takes only the docs' 0 to 8. The settings code's negative
+            -- HiddenActive and HiddenPassive are refused.
+            if type(category) ~= "number" or category < 0 or category > 8 then
+                error("bad argument #1 to '?' (Usage: local cooldownIDs = C_CooldownViewer.GetCooldownViewerCategorySet(category [, allowUnlearned]))", 2)
+            end
             local out = {}
             for _, r in ipairs(order) do
                 if r.category == category and (allowUnlearned or rowKnown(r)) then out[#out + 1] = r.id end

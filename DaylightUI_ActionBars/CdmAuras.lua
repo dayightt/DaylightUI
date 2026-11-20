@@ -70,19 +70,15 @@ function A.SpellIDs(id)
     if key then
         for s in pairs(C.Ranks(key)) do ids[s] = true end
     end
-    local CV, cats = _G.C_CooldownViewer, type(_G.Enum) == "table" and _G.Enum.CooldownViewerCategory
-    if name and type(CV) == "table" and type(CV.GetCooldownViewerCategorySet) == "function" and type(cats) == "table" then
-        local seen = {}
+    local cats = name and ns.CdmData.Categories()
+    if cats then
+        local CV, seen = _G.C_CooldownViewer, {}
         for _, cat in pairs(cats) do
-            if type(cat) == "number" then
-                local ok, list = pcall(CV.GetCooldownViewerCategorySet, cat, true)
-                if ok and type(list) == "table" then
-                    for _, cid in ipairs(list) do
-                        local info = not seen[cid] and plain(cid) and infoOf(cid)
-                        seen[cid] = true
-                        if info and nameOf(plain(info.spellID)) == name then add(info) end
-                    end
-                end
+            local list = CV.GetCooldownViewerCategorySet(cat, true)
+            for _, cid in ipairs(type(list) == "table" and list or {}) do
+                local info = not seen[cid] and plain(cid) and infoOf(cid)
+                seen[cid] = true
+                if info and nameOf(plain(info.spellID)) == name then add(info) end
             end
         end
     end
@@ -167,12 +163,11 @@ function A.Short(id)
     local own, C = ownKey(id), ns.CdmCustom
     local top = own ~= nil and C.Learned(own) or nil
     local fact = top and C.Fact(top)
-    local CV, cats = _G.C_CooldownViewer, type(_G.Enum) == "table" and _G.Enum.CooldownViewerCategory
-    if fact and fact.on ~= nil and fact.auras == nil
-        and type(CV) == "table" and type(CV.GetCooldownViewerCategorySet) == "function" and type(cats) == "table" then
-        local ranks, listed, rows = C.Ranks(own), {}, 0
+    local cats = fact and fact.on ~= nil and fact.auras == nil and ns.CdmData.Categories()
+    if cats then
+        local CV, ranks, listed, rows = _G.C_CooldownViewer, C.Ranks(own), {}, 0
         for _, cat in pairs(cats) do
-            local list = type(cat) == "number" and CV.GetCooldownViewerCategorySet(cat, true) or nil
+            local list = CV.GetCooldownViewerCategorySet(cat, true)
             for _, cid in ipairs(type(list) == "table" and list or {}) do
                 local info = plain(cid) and infoOf(cid)
                 if info and (cid == id or ranks[plain(info.spellID)]) then

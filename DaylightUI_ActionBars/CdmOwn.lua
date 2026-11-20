@@ -10,7 +10,7 @@ local L = DUI.L
 local Own = {}
 ns.CdmOwn = Own
 
-local AURA = { TrackedBuff = true, TrackedBar = true, HiddenAura = true }
+local AURA = { TrackedBuff = true, TrackedBar = true }
 local frames = {}   -- [id] = frame
 local holds = {}    -- [id .. kind] = placeholder frame
 
@@ -44,21 +44,16 @@ end
 
 function Own.Read()
     local out = {}
-    local CV, cats = _G.C_CooldownViewer, type(_G.Enum) == "table" and _G.Enum.CooldownViewerCategory
-    if type(CV) ~= "table" or type(CV.GetCooldownViewerCategorySet) ~= "function" or type(cats) ~= "table" then
-        return out
-    end
+    local cats = ns.CdmData.Categories()
+    if not cats then return out end
+    local CV = _G.C_CooldownViewer
     for name, cat in pairs(cats) do
-        if type(cat) == "number" then
-            local ok, ids = pcall(CV.GetCooldownViewerCategorySet, cat, false)
-            if ok and type(ids) == "table" then
-                for _, id in ipairs(ids) do
-                    -- In two categories the cooldown one wins (pairs order isn't fixed).
-                    local had = type(id) == "number" and not isSecret(id) and out[id]
-                    if had == nil or (had and had.aura and not AURA[name]) then
-                        out[id] = { kind = name == "TrackedBar" and "bar" or "icon", aura = AURA[name] or false, cat = name }
-                    end
-                end
+        local ids = CV.GetCooldownViewerCategorySet(cat, false)
+        for _, id in ipairs(type(ids) == "table" and ids or {}) do
+            -- In two categories the cooldown one wins (pairs order isn't fixed).
+            local had = type(id) == "number" and not isSecret(id) and out[id]
+            if had == nil or (had and had.aura and not AURA[name]) then
+                out[id] = { kind = name == "TrackedBar" and "bar" or "icon", aura = AURA[name] or false, cat = name }
             end
         end
     end
@@ -234,9 +229,9 @@ end
 -- Adds to out the game's buff ids it left out as unknown whose talent you have.
 function Own.AddProcBuffs(out, CV, cats)
     for name, cat in pairs(cats) do
-        if AURA[name] and type(cat) == "number" then
-            local ok, ids = pcall(CV.GetCooldownViewerCategorySet, cat, true)
-            if ok and type(ids) == "table" then
+        if AURA[name] then
+            local ids = CV.GetCooldownViewerCategorySet(cat, true)
+            if type(ids) == "table" then
                 for _, id in ipairs(ids) do
                     if type(id) == "number" and not isSecret(id) and out[id] == nil then
                         local info = infoOf(id)

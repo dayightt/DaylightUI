@@ -160,8 +160,8 @@ function Import.Rows(layout)
     if type(CV) == "table" and type(CV.GetCooldownViewerCategorySet) == "function" then
         inGame = {}
         for _, cat in ipairs(ALL_CATEGORIES) do
-            local ok, ids = pcall(CV.GetCooldownViewerCategorySet, cat, true)
-            if ok and type(ids) == "table" then
+            local ids = CV.GetCooldownViewerCategorySet(cat, true)
+            if type(ids) == "table" then
                 for _, id in ipairs(ids) do
                     id = tonumber(id)
                     if id then defaults[#defaults + 1] = id; inGame[id] = true end
