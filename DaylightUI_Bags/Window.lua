@@ -542,41 +542,63 @@ local function padGroups(f)
     return out, here
 end
 
--- Windows where a right click on a usable item hands it over (attach, post,
--- trade) instead of using it.
-Window.HAND_OVER = { "MailFrame", "TradeFrame", "AuctionHouseFrame", "AuctionFrame", "ScrappingMachineFrame",
-                     "ItemInteractionFrame", "ItemUpgradeFrame" }
+-- Windows where a right click on an item hands it over (deposit, attach, post,
+-- trade, upgrade) instead of using it. From the game's own right click
+-- (ContainerFrameItemButtonMixin:OnModifiedClick, ContainerFrame.lua), plus the
+-- windows that take an item through it.
+Window.HAND_OVER = { "BankFrame", "GuildBankFrame", "MailFrame", "TradeFrame", "AuctionHouseFrame", "AuctionFrame",
+                     "ItemUpgradeFrame", "ObliterumForgeFrame", "ChallengesKeystoneFrame", "AzeriteRespecFrame",
+                     "RuneforgeFrame", "ScrappingMachineFrame", "ItemInteractionFrame" }
+
+-- Whether a right click on this item, here and now, hands it over instead of
+-- using it: then only the item button's own click does the right thing. One
+-- check for the controller's X and the mouse's right click (Items.UseOver).
+function Window.HandsOver(info)
+    if ns.Bank and ns.Bank.open then return true end
+    local merchant = _G.MerchantFrame
+    if merchant and merchant:IsShown() then
+        -- The buyback tab: the game's click does nothing. Otherwise an item
+        -- with a value is sold; one without is used, as anywhere else.
+        if merchant.selectedTab == 2 then return true end
+        if not (info and info.hasNoValue) then return true end
+    end
+    for _, frameName in ipairs(Window.HAND_OVER) do
+        local frame = _G[frameName]
+        if type(frame) == "table" and frame.IsShown and frame:IsShown() then return true end
+    end
+    return false
+end
+
+-- What X does in the game's own words when the item is used where it is.
+local USED_IN_PLACE = {
+    [CONTEXT_ACTION_LABEL_USE or L["Use"]] = true, [CONTEXT_ACTION_LABEL_EQUIP or L["Equip"]] = true,
+    [CONTEXT_ACTION_LABEL_OPEN or L["Open"]] = true, [CONTEXT_ACTION_LABEL_READ or L["Read"]] = true,
+}
 
 -- X uses, equips, opens or reads an item by bag and slot, the way a macro's
 -- /use does, not by clicking this bag's item button. The button is this
 -- addon's, so the game's click code runs tainted, and so does every event the
 -- use fires inside it (CURRENT_SPELL_CAST_CHANGED, ITEM_LOCK_CHANGED): the
 -- game's bag frames then call CloseAllBags tainted, and the controller refuses
--- SetPreferredGamepadInteractTarget until a reload. Selling and the bank keep
--- the right click: the secure use would equip or use the item there instead.
-function Window.PadUseSecure(f, b)
-    local label = Window.PadUseLabel(f, b)
+-- SetPreferredGamepadInteractTarget until a reload. Where a right click hands the
+-- item over (Window.HandsOver), X keeps the item button's own click: the secure
+-- use would use or equip the item there instead. So does a locked slot
+-- (Guard.lua): its click is switched off at a vendor and under Disenchant, and a
+-- use by bag and slot would go around that.
+function Window.PadUseSecure(window, slotButton)
+    local label = Window.PadUseLabel(window, slotButton)
     if not label then return nil end
-    local info, bag, slot = padItem(b)
-    local plain = {
-        [CONTEXT_ACTION_LABEL_USE or L["Use"]] = true, [CONTEXT_ACTION_LABEL_EQUIP or L["Equip"]] = true,
-        [CONTEXT_ACTION_LABEL_OPEN or L["Open"]] = true, [CONTEXT_ACTION_LABEL_READ or L["Read"]] = true,
-    }
-    if info and plain[label] then
-        local handing = false
-        for _, name in ipairs(Window.HAND_OVER) do
-            local w = _G[name]
-            if type(w) == "table" and w.IsShown and w:IsShown() then handing = true end
-        end
-        if not handing then return { type = "item", item = bag .. " " .. slot } end
+    local info, bag, slot = padItem(slotButton)
+    if info and USED_IN_PLACE[label] and not slotButton.dluiGuarded and not Window.HandsOver(info) then
+        return { type = "item", item = bag .. " " .. slot }
     end
-    return { type = "click", clickbutton = b }
+    return { type = "click", clickbutton = slotButton }
 end
 
 function Window.PadSetup(f)
     f.padKeys = {
         { key = "X", label = function(b) return Window.PadUseLabel(f, b) end, button = "RightButton",
-          secure = function(b) return Window.PadUseSecure(f, b) end },
+          secure = function(slotButton) return Window.PadUseSecure(f, slotButton) end },
         { key = "Y", label = CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"],
           when = function(b) return padItem(b) ~= nil end, run = Window.PadMore },
     }

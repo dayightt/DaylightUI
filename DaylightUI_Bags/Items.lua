@@ -217,93 +217,138 @@ end
 -- slot under it and takes right-clicks only; left clicks, drags and hovering go
 -- through to the slot. It takes the pointer too (a frame that ignores the pointer
 -- gets no clicks), so it shows the slot's tooltip and highlight while on it.
--- Hidden in a fight (a right-click there takes the slot's
--- own click), with a modifier key down, with an item on the cursor, and where a
--- right-click hands the item over (vendor, bank, mail, trade, auction house).
-local use, useOn
+-- Only with the game's controller UI on, where the taint matters: with it off a
+-- right-click stays exactly the game's. Also off (the slot's own click instead)
+-- in a fight, with a modifier key down, with an item on the cursor, while a
+-- spell is targeting (Disenchant goes through the slot, so a locked slot can
+-- refuse it, see Guard.lua), on a locked slot, and where a right-click hands the
+-- item over (Window.HandsOver: vendor, bank, mail, trade, auction house...).
+local useButton    -- the secure use button, made on the first hover
+local useSlot      -- the slot under the pointer, kept through a fight
+local enteringFromUseButton = false
+
 -- One strata above the slot's: the bag is a top-level window, so a click raises
 -- it and its slots above anything at their own strata, this button included.
 local STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
-local function above(strata)
-    for i, s in ipairs(STRATA) do
-        if s == strata then return STRATA[math.min(i + 1, #STRATA)] end
+local function strataAbove(strata)
+    for i, strataName in ipairs(STRATA) do
+        if strataName == strata then return STRATA[math.min(i + 1, #STRATA)] end
     end
     return "HIGH"
 end
 
-local function handingOver()
-    local merchant = _G.MerchantFrame
-    if merchant and merchant:IsShown() then return true end
-    if ns.Bank and ns.Bank.open then return true end
-    for _, name in ipairs(ns.Window and ns.Window.HAND_OVER or {}) do
-        local w = _G[name]
-        if type(w) == "table" and w.IsShown and w:IsShown() then return true end
+-- The same bag and slot as the controller's X (padItem in Window.lua).
+local function bagAndSlotOf(slotButton)
+    local holder = slotButton:GetParent()
+    local bag = slotButton.GetBagID and slotButton:GetBagID() or (holder and holder.GetID and holder:GetID())
+    return bag, slotButton:GetID()
+end
+
+local function controllerUIOn()
+    return DUI.Pad ~= nil and DUI.Pad.On() == true
+end
+
+local function spellTargeting()
+    return type(SpellIsTargeting) == "function" and SpellIsTargeting() == true
+end
+
+-- Whether the slot (or this button over it) is still the frame under the pointer.
+-- A menu or popup that opened over the slot since then keeps it, so the button
+-- isn't put back on top of it.
+local function stillUnderPointer(slotButton)
+    if type(GetMouseFoci) == "function" then
+        local foci = GetMouseFoci()
+        local topFrame = type(foci) == "table" and foci[1] or nil
+        return topFrame == slotButton or (useButton ~= nil and topFrame == useButton)
     end
-    return false
+    return slotButton.IsMouseOver ~= nil and slotButton:IsMouseOver() == true
 end
 
--- entering: called from PLAYER_REGEN_DISABLED, which comes just before the
+-- keepSlot: remember the slot, so a later event can put the button back on it.
+-- enteringCombat: called from PLAYER_REGEN_DISABLED, which comes just before the
 -- lockdown, so the button can still be moved off even if the game says combat.
-function Items.UseOff(keep, entering)
-    if not keep then useOn = nil end
-    if not use or (Items.InCombat() and not entering) then return end
-    use:Hide()
-    use:ClearAllPoints()
+function Items.UseOff(keepSlot, enteringCombat)
+    if not keepSlot then useSlot = nil end
+    if not useButton or (Items.InCombat() and not enteringCombat) then return end
+    useButton:Hide()
+    useButton:ClearAllPoints()
 end
 
-local function useButton()
-    if use then return use end
-    use = CreateFrame("Button", "DaylightUIBagUse", UIParent, "SecureActionButtonTemplate")
+-- After an event (modifier, cursor, cast, end of a fight): back over the slot
+-- only if the pointer is still on it.
+local function useAgain()
+    if useSlot then Items.UseOver(useSlot, true) end
+end
+
+local function makeUseButton()
+    if useButton then return useButton end
+    useButton = CreateFrame("Button", "DaylightUIBagUse", UIParent, "SecureActionButtonTemplate")
     -- Both presses: the game acts on the down or the up one depending on
     -- ActionButtonUseKeyDown (SecureActionButton_OnClick), and ignores the other.
-    use:RegisterForClicks("RightButtonDown", "RightButtonUp")
-    use:SetAttribute("type2", "item")
-    if use.SetPassThroughButtons then use:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5") end
+    useButton:RegisterForClicks("RightButtonDown", "RightButtonUp")
+    useButton:SetAttribute("type2", "item")
+    if useButton.SetPassThroughButtons then
+        useButton:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5")
+    end
     -- The slot's tooltip and highlight while the pointer is on this instead.
-    use:SetScript("OnEnter", function()
-        local b = useOn
-        if not b then return end
-        if b.LockHighlight then b:LockHighlight() end
-        local fn = b:GetScript("OnEnter")
-        if fn then fn(b) end
+    -- The slot's own enter runs again (the game's tooltip); the hooks in
+    -- Items.Dress skip what already ran for this slot.
+    useButton:SetScript("OnEnter", function()
+        local slotButton = useSlot
+        if not slotButton then return end
+        if slotButton.LockHighlight then slotButton:LockHighlight() end
+        local onEnter = slotButton:GetScript("OnEnter")
+        if onEnter then
+            enteringFromUseButton = true
+            local ok, err = pcall(onEnter, slotButton)
+            enteringFromUseButton = false
+            if not ok then geterrorhandler()(err) end
+        end
     end)
-    use:SetScript("OnLeave", function()
-        local b = useOn
+    useButton:SetScript("OnLeave", function()
+        local slotButton = useSlot
         Items.UseOff()
-        if not b then return end
-        if b.UnlockHighlight then b:UnlockHighlight() end
+        if not slotButton then return end
+        if slotButton.UnlockHighlight then slotButton:UnlockHighlight() end
         -- Back onto the slot itself: it gets its own enter. Otherwise it's left.
-        if not (b.IsMouseOver and b:IsMouseOver()) then
-            local fn = b:GetScript("OnLeave")
-            if fn then fn(b) end
+        if not (slotButton.IsMouseOver and slotButton:IsMouseOver()) then
+            local onLeave = slotButton:GetScript("OnLeave")
+            if onLeave then onLeave(slotButton) end
         end
     end)
     -- Alt-right-click picks the item's group (Items.Dress): a modifier keeps
     -- this off, so the slot's own click does it.
-    use:Hide()
+    useButton:Hide()
     -- Before the fight's lockdown: off the slot, so nothing protected hangs on it.
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function() Items.UseOff(true, true) end)
-    DUI.RegisterEvent("MODIFIER_STATE_CHANGED", function() if useOn then Items.UseOver(useOn) end end)
-    DUI.RegisterEvent("CURSOR_CHANGED", function() if useOn then Items.UseOver(useOn) end end)
-    return use
+    -- After it: back on the slot still under the pointer, without a new hover.
+    DUI.RegisterEvent("PLAYER_REGEN_ENABLED", useAgain)
+    DUI.RegisterEvent("MODIFIER_STATE_CHANGED", useAgain)
+    DUI.RegisterEvent("CURSOR_CHANGED", useAgain)
+    -- A spell starts or stops targeting (Disenchant on the cursor).
+    DUI.RegisterEvent("CURRENT_SPELL_CAST_CHANGED", useAgain)
+    return useButton
 end
 
-function Items.UseOver(btn)
-    useOn = btn
+-- fromEvent: called again after an event, not by the slot's own enter.
+function Items.UseOver(slotButton, fromEvent)
+    useSlot = slotButton
     if Items.InCombat() then return end
-    local h = btn:GetParent()
-    local bag, slot = h and h.GetID and h:GetID(), btn:GetID()
-    local mine = ns.window and windowOf(btn) == ns.window
-    if not mine or type(bag) ~= "number" or type(slot) ~= "number" or (IsModifierKeyDown and IsModifierKeyDown())
-        or Items.CursorBusy() or handingOver() then
+    local bag, slot = bagAndSlotOf(slotButton)
+    local ours = ns.window and windowOf(slotButton) == ns.window
+    if not ours or not controllerUIOn() or type(bag) ~= "number" or type(slot) ~= "number"
+        or slotButton.dluiGuarded or spellTargeting()
+        or (IsModifierKeyDown and IsModifierKeyDown()) or Items.CursorBusy()
+        or (ns.Window and ns.Window.HandsOver(Items.InfoAt(bag, slot)))
+        or (fromEvent and not stillUnderPointer(slotButton)) then
         return Items.UseOff(true)
     end
-    local u = useButton()
-    u:SetAttribute("item", bag .. " " .. slot)
-    u:ClearAllPoints()
-    u:SetAllPoints(btn)
-    u:SetFrameStrata(above(btn:GetFrameStrata()))
-    u:Show()
+    local button = makeUseButton()
+    button:SetAttribute("item", bag .. " " .. slot)
+    button:ClearAllPoints()
+    button:SetAllPoints(slotButton)
+    button:SetFrameStrata(strataAbove(slotButton:GetFrameStrata()))
+    button:Show()
 end
 
 local function setting(btn, key)
@@ -495,22 +540,25 @@ function Items.Dress(btn)
     -- Looking at a new item clears its dot.
     -- Reaching for a slot mid-cleanup shows the real items first (Window.SortTouched).
     btn:HookScript("OnEnter", function(self)
-        Items.UseOver(self)
         Items.NoCompare(self)
         Items.Hover(self, true)
+        -- Entered again through the secure use button over it (Items.UseOver):
+        -- the pointer never left this slot, so the rest already ran.
+        if enteringFromUseButton then return end
+        Items.UseOver(self)
         if ns.Window then ns.Window.SortTouched(windowOf(self)) end
         if self.dluiNew then Items.SeeNew(self) end
     end)
     btn:HookScript("OnLeave", function(self)
         -- The pointer just went onto the secure use button over this slot: still here.
-        if useOn == self and use and use:IsShown() and use:IsMouseOver() then return end
+        if useSlot == self and useButton and useButton:IsShown() and useButton:IsMouseOver() then return end
         Items.Hover(self, false)
-        if useOn == self then Items.UseOff() end
+        if useSlot == self then Items.UseOff() end
     end)
     -- No leave comes when the slot hides under the pointer, so let go here.
     btn:HookScript("OnHide", function(self)
         Items.Hover(self, false, true)
-        if useOn == self then Items.UseOff() end
+        if useSlot == self then Items.UseOff() end
     end)
     btn:HookScript("PreClick", function(self)
         if ns.Window then ns.Window.SortTouched(windowOf(self)) end
