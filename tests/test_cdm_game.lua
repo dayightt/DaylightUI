@@ -482,13 +482,13 @@ T.test("cdm game: an older layout reads the cooldowns every character of the cla
 end)
 
 -- A world of another class: its rows from the game's data, its spells known.
-local function classWorld(class, with, known)
+local function classWorld(class, with, known, hidden)
     stub.neverSecretAuras = {}
     local DUI = stub.Load({ actionbars = true, before = function()
         stub.SetUnits({ player = { name = "Me", class = class, friend = true },
                         target = { name = "Boar", reaction = 2 } })
         for _, id in ipairs(known) do stub.knownSpells[id] = true end
-        CW.Install({ with = with, known = known, showAll = true })
+        CW.Install({ with = with, known = known, showAll = not hidden })
     end })
     stub.RunTimers()
     DUI.DB.General().motion = false
@@ -607,3 +607,93 @@ T.test("cdm game: SPELLS_CHANGED with the same spells leaves the aura containers
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 end
+
+-- The game's buff icon is the word on a buff. A row set to show only in combat has
+-- no icon to ask until a fight starts, but out of one auras read plainly, so the
+-- buff can be told all the time: its options work and the card keeps offering them.
+-- A row that's hidden for good, or a buff the game's layout still hides, has no icon
+-- in a fight either. Those stay drawn and nothing more, in town too, since an option
+-- that works in town and not in a fight reads as broken.
+local THORNS = 467
+local NO_ICON = {
+    { "its row only shows in combat", true, function() CW.Setting("BuffIconCooldownViewer", "VisibleSetting", Enum.CooldownViewerVisibleSetting.InCombat) end },
+    { "its row is hidden", false, function() CW.Setting("BuffIconCooldownViewer", "VisibleSetting", Enum.CooldownViewerVisibleSetting.Hidden) end },
+    { "the game's layout hides the buff", false, nil, true },
+}
+for _, case in ipairs(NO_ICON) do
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: a buff with no game icon to ask right now, " .. case[1] .. " (" .. shape .. ")", function()
+    local DUI, AB, D, R, Fx = classWorld("DRUID", THORNS, { THORNS }, case[4])
+    local id = CW.ID(THORNS, BUFFS)
+    local set = D.Current()
+    D.AddPiece(set, id, shape, 0, 0)
+    set.pieces[id].missing, set.pieces[id].missingGlow = true, true
+    pass(AB)
+    if case[3] then
+        -- Thorns is hidden by default. Daylight UI switched it on in the game's
+        -- layout at login, and remembers that it did.
+        DUI.DB.Character().cdmSwitched = { [id] = BUFFS }
+        case[3](); stub.RunTimers()
+        T.falsy(BuffIconCooldownViewer:IsShown(), "the game's row is out of sight")
+    end
+    local function holder()
+        return shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id)
+    end
+    if not case[2] then
+        T.eq(R.Tracked(id), false, "nothing can tell in a fight: the card leaves the rows out")
+        T.falsy(Fx.GlowShown(holder()), "and no glow in town either")
+        CW.Aura("player", THORNS, { duration = 600 }); stub.RunTimers()
+        T.eq(R.Tracked(id), false, "the same while it's up")
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+        return
+    end
+    T.truthy(R.Tracked(id), "the card offers Hide, the glows and the sounds")
+    T.truthy(Fx.GlowShown(holder()), "not up: the missing glow")
+    CW.Aura("player", THORNS, { duration = 600 }); stub.RunTimers()
+    T.truthy(R.Tracked(id), "still offered while it's up")
+    T.falsy(Fx.GlowShown(holder()), "up: no glow")
+    CW.Unaura("player", THORNS); stub.RunTimers()
+    T.truthy(R.Tracked(id), "and after it dropped")
+    T.truthy(Fx.GlowShown(holder()), "gone: the glow again")
+    -- In a fight the game's row is back, and its icon answers again.
+    stub.EnterCombat(); stub.FireEvent("PLAYER_IN_COMBAT_CHANGED", true); stub.RunTimers()
+    T.truthy(BuffIconCooldownViewer:IsShown(), "the game's row shows in a fight")
+    T.truthy(Fx.GlowShown(holder()), "missing in a fight: the glow")
+    CW.Aura("player", THORNS, { duration = 600 }); stub.RunTimers()
+    T.falsy(Fx.GlowShown(holder()), "up in a fight: no glow")
+    CW.Unaura("player", THORNS); stub.RunTimers()
+    T.truthy(Fx.GlowShown(holder()), "dropped in a fight: the glow again")
+    stub.LeaveCombat(); stub.FireEvent("PLAYER_IN_COMBAT_CHANGED", false); stub.RunTimers()
+    T.falsy(BuffIconCooldownViewer:IsShown(), "the row goes again after the fight")
+    T.truthy(R.Tracked(id), "still offered")
+    T.truthy(Fx.GlowShown(holder()), "and the glow stays")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+end
+
+-- A spell placed a moment ago has its card drawn before a pass has looked at it.
+-- Once the pass finds nothing can tell its buff, the card is drawn again, so it
+-- shows the same rows now as when the spell is picked again later.
+T.test("cdm game: the card is drawn again once a just-placed buff has been looked at", function()
+    local DUI, AB, D, R = classWorld("DRUID", THORNS, { THORNS }, true)
+    local id = CW.ID(THORNS, BUFFS)
+    local Ed, Card = AB.CdmEditor, AB.CdmCard
+    Ed.Open(1); stub.RunTimers()
+    D.AddPiece(D.Current(), id, "icon", 0, 0)
+    D.Changed()
+    Ed.Select(id)
+    T.truthy(Card.Shown(), "its card is up")
+    T.isnil(R.Tracked(id), "no pass has looked at it yet")
+    local draws, draw = 0, Card.Draw
+    Card.Draw = function(...) draws = draws + 1; return draw(...) end
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.Tracked(id), false, "the pass found nothing to ask")
+    T.truthy(draws > 0, "and the card was drawn again")
+    local n = draws
+    R.Refresh(); stub.RunTimers()
+    T.eq(draws, n, "not again while nothing changed")
+    Card.Draw = draw
+    Ed.Close()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

@@ -317,6 +317,10 @@ local auraHolders = {}
 -- its cooldown (or one of Daylight UI's own spells) has another id than the game's
 -- buff entry of the same spell, so it finds its buff's item here.
 local buffItems = {}
+-- spell id -> true for the buff items of a game row set to show only in combat,
+-- while it's out of sight. Those items answer again once a fight starts, and until
+-- then auras read plainly, so such a buff can be told all the time.
+local asleep = {}
 -- Game items from the buff rows (the others are cooldown icons).
 local auraKind = setmetatable({}, weak)
 local usedOwn, usedHolders, usedHolds, usedBars = {}, {}, {}, {}
@@ -395,6 +399,58 @@ local function truthUp(id, holder)
     return buffUp(holder and holder.ids)
 end
 
+-- Every spell id the game's row for a cooldown id stands for.
+local function eachSpell(id, fn)
+    local info = Data.Info(id)
+    if type(info) ~= "table" then return end
+    for _, key in ipairs(INFO_SPELLS) do
+        local sid = num(info[key])
+        if sid then fn(sid) end
+    end
+    if type(info.linkedSpellIDs) == "table" then
+        for _, sid in ipairs(info.linkedSpellIDs) do
+            sid = num(sid)
+            if sid then fn(sid) end
+        end
+    end
+end
+
+-- A buff row the game hides until a fight. Its items carry nothing while hidden,
+-- so the buffs it shows come from the game's list for the row: the ones shown by
+-- default, and the hidden ones Daylight UI switched on. Kept until the game's
+-- spell data changes.
+local ROW_OF = { BuffIconCooldownViewer = 2, BuffBarCooldownViewer = 3 }
+local HIDE_BY_DEFAULT = 2   -- Enum.CooldownSetSpellFlags.HideByDefault
+local rowSpells = {}
+local function sleepRow(v, name)
+    CD.EachItem(v, release)
+    local row, CV = ROW_OF[name], C_CooldownViewer
+    if not row or type(CV) ~= "table" or type(CV.GetCooldownViewerCategorySet) ~= "function" then return end
+    local spells = rowSpells[row]
+    if not spells then
+        spells = {}
+        rowSpells[row] = spells
+        local on = DUI.DB.Character().cdmSwitched
+        local ids = CV.GetCooldownViewerCategorySet(row, false)
+        for _, id in ipairs(type(ids) == "table" and ids or {}) do
+            local info = Data.Info(id)
+            local flags = info and tonumber(info.flags) or 0
+            if bit.band(flags, HIDE_BY_DEFAULT) == 0 or (type(on) == "table" and on[id] == row) then
+                eachSpell(id, function(sid) spells[sid] = true end)
+            end
+        end
+    end
+    for sid in pairs(spells) do asleep[sid] = true end
+end
+for _, e in ipairs(Data.INFO_EVENTS) do DUI.RegisterEvent(e, function() wipe(rowSpells) end) end
+
+local function sleeps(ids)
+    for sid in pairs(ids or {}) do
+        if asleep[sid] then return true end
+    end
+    return false
+end
+
 -- One of the game's items (in viewer passName): held in its piece, hidden so Daylight UI's
 -- can draw it, or released.
 local function claim(item)
@@ -406,19 +462,9 @@ local function claim(item)
     auraKind[item] = AURA_VIEWERS[name] or nil
     if AURA_VIEWERS[name] then
         hook(item)
-        local info = Data.Info(id)
-        if type(info) == "table" then
-            for _, key in ipairs(INFO_SPELLS) do
-                local sid = num(info[key])
-                if sid and not buffItems[sid] then buffItems[sid] = item end
-            end
-            if type(info.linkedSpellIDs) == "table" then
-                for _, sid in ipairs(info.linkedSpellIDs) do
-                    sid = num(sid)
-                    if sid and not buffItems[sid] then buffItems[sid] = item end
-                end
-            end
-        end
+        eachSpell(id, function(sid)
+            if not buffItems[sid] then buffItems[sid] = item end
+        end)
     end
     -- The game's item doesn't show what the spell is set to show (CdmOwn.GameDraws
     -- has the whole rule): a buff item tracked as its cooldown or both (Shield
@@ -487,6 +533,37 @@ local function claim(item)
 end
 
 
+-- Every item of one of the game's viewers, for this pass. A viewer the game hides
+-- stops updating its items, so they're let go and Daylight UI draws their spells.
+local function claimAll(v, name)
+    -- Edit Mode's Visibility choice for the row: shown only in a fight.
+    local E = Enum and Enum.CooldownViewerVisibleSetting
+    if v:IsShown() then
+        CD.EachItem(v, claim)
+    elseif AURA_VIEWERS[name] and E and E.InCombat ~= nil and v.visibleSetting == E.InCombat then
+        sleepRow(v, name)
+    else
+        CD.EachItem(v, release)
+    end
+end
+
+-- The editor's card leaves out the rows a buff can't use. A spell placed a moment
+-- ago had its card drawn before a pass looked at it, so the card is drawn again
+-- when the answer for the picked spell changed.
+local cardFor, cardTold
+local function redrawCard()
+    local Ed, Card = ns.CdmEditor, ns.CdmCard
+    local sel = Ed and Card and Ed.IsOpen() and Ed.Selected() or nil
+    if sel == nil or not Card.Shown() then
+        cardFor, cardTold = nil, nil
+        return
+    end
+    if cardFor == sel and cardTold == tracked[sel] then return end
+    local first = cardFor ~= sel
+    cardFor, cardTold = sel, tracked[sel]
+    if not first or tracked[sel] == false then DUI.SafeCall(Card.Draw) end
+end
+
 -- Starts or ends a pass for claim() and drawOurs().
 local function setPass(set, on, hide)
     passSet, passOn, passHide, passKnown = set, on, hide, nil
@@ -511,9 +588,14 @@ local function heldState(id, p, item)
             if buffUp(A.Watch(id).ids) then up = true end
         end
     elseif A and t then
-        up = buffUp(A.Watch(id).ids)
-        -- With no such item nothing can tell, and the card leaves its state rows out.
-        tracked[id] = false
+        local w = A.Watch(id)
+        up = buffUp(w.ids)
+        -- The game's buff item is in a row that only shows in a fight: until then
+        -- the aura reads plainly. With no item at all nothing can tell, and the
+        -- card leaves its state rows out.
+        tracked[id] = sleeps(w.ids)
+        w.reads = (up == nil and tracked[id]) or nil
+        if w.reads then up = A.Read(w) end
     end
     if up ~= nil then downs[id], tracked[id] = not up, true end
     -- Glow to recast runs on your own cast's clock, whoever draws the spell.
@@ -654,6 +736,7 @@ function Rows.Update()
     for k in pairs(ours) do ours[k] = nil end
     for k in pairs(drawn) do drawn[k] = nil end
     setPass(set, on, hide)
+    wipe(asleep)
     for name in pairs(KINDS) do
         local v = _G[name]
         if type(v) == "table" then
@@ -663,7 +746,7 @@ function Rows.Update()
             -- them. They're released and Daylight UI draws their spells. When it shows
             -- again they're claimed back (hook).
             hook(v)
-            if v:IsShown() then CD.EachItem(v, claim) else CD.EachItem(v, release) end
+            claimAll(v, name)
         end
     end
 
@@ -726,7 +809,16 @@ function Rows.Update()
             if holder then
                 local up = truthUp(id, holder)
                 local knows = up ~= nil or ns.CdmAuras.Knows(holder)
-                tracked[id] = knows
+                -- The game's item for this buff sits in a row that only shows in a
+                -- fight. It answers there, and out of one the aura reads plainly, so
+                -- the buff's options work all the time and the card keeps them.
+                local hasRow = not knows and not ns.CdmAuras.Unseen(id) and sleeps(holder.ids)
+                holder.reads = hasRow or nil
+                if hasRow then
+                    up = ns.CdmAuras.Read(holder)
+                    knows = up ~= nil
+                end
+                tracked[id] = knows or hasRow
                 local hide = knows and Fx.Get(p, "hideActive") == true
                 local sound = knows and Fx.Get(p, "buffSound") ~= "none"
                 -- An end sound needs the ups as well as the downs.
@@ -893,6 +985,7 @@ function Rows.Update()
     -- hidden) until a reload.
     -- The time on the game's bars, now that each spell has its bar.
     if ns.BuffBars then DUI.SafeCall(ns.BuffBars.SyncClocks) end
+    redrawCard()
     if Rows.onUpdate then Rows.onUpdate() end
 end
 

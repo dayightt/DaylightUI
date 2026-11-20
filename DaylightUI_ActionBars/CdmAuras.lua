@@ -986,6 +986,15 @@ function A.Knows(h)
     return type(h) == "table" and (h.face ~= nil or h.neverSecret == true)
 end
 
+-- The aura read straight off the unit: true or false where auras read plainly,
+-- nil in a fight or under the client's restrictions. For a buff whose game icon
+-- sits in a row the game shows only in combat, while out of one.
+function A.Read(h)
+    if type(h) ~= "table" or not readable() then return nil end
+    h.up = found(h)
+    return h.up
+end
+
 -- A buff changed. Holders that care whether they're up (h.wantsUp, set by CdmRows)
 -- check again, and any change runs the layout pass.
 function A.AuraChanged()
@@ -1008,6 +1017,10 @@ function A.AuraChanged()
         elseif h.wantsUp and h.neverSecret and h:IsShown() then
             local was = h.up
             if A.IsUp(h) ~= was then moved = true end
+        elseif h.reads and readable() then
+            -- No game icon answers for it, so the aura itself is the word.
+            local was = h.up
+            if A.Read(h) ~= was then moved = true end
         end
     end)
     if moved and ns.CdmRows then ns.CdmRows.Refresh() end
