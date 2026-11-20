@@ -16,6 +16,8 @@ DaylightUI:RegisterModule("Tooltip", {
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)
+        -- Before anything reads the sizes; a profile switch reloads, so this sees each one.
+        DaylightUI.SafeCall(ns.UpgradeSizes, DaylightUI.DB.Active())
         if off() then ns.Tooltip.BarOnly(mod) else ns.Tooltip.Build(mod) end
     end,
     OnSettingChanged = function(mod) if not off() then ns.Tooltip.Refresh(mod) end end,

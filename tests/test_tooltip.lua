@@ -212,6 +212,87 @@ T.test("tooltip: our font on the game's tooltip fonts, sized by the option", fun
     T.eq(GameTooltipText.__font[1], DaylightUI.Style.FONT)
 end)
 
+-- A font other than the one General uses, to tell a part's own pick apart.
+local function otherFont()
+    local Style = DaylightUI.Style
+    for _, key in ipairs(Style.FONT_ORDER) do
+        local file = Style.FontFileOf(key)
+        if file ~= Style.FONT then return key, file end
+    end
+end
+
+T.test("tooltip: titles, text and small text each take their own size and font", function()
+    login()
+    local Style = DaylightUI.Style
+    T.eq(GameTooltipTextSmall.__font[2], 12, "small text a little smaller")
+    DaylightUI:Set("Tooltip", "titleSize", 20)
+    DaylightUI:Set("Tooltip", "smallSize", 9)
+    stub.RunTimers()
+    T.eq(GameTooltipHeaderText.__font[2], 20)
+    T.eq(GameTooltipTextSmall.__font[2], 9)
+    T.eq(GameTooltipText.__font[2], 13, "the text keeps its size")
+    DaylightUI:Set("Tooltip", "textSize", 16)
+    stub.RunTimers()
+    T.eq(GameTooltipHeaderText.__font[2], 20, "a title of its own doesn't follow the text")
+
+    local key, file = otherFont()
+    DaylightUI:Set("Tooltip", "media.titleFont", key)
+    stub.RunTimers()
+    T.eq(GameTooltipHeaderText.__font[1], file)
+    T.eq(GameTooltipText.__font[1], Style.FONT, "the text keeps the tooltip font")
+    DaylightUI:Set("Tooltip", "media.titleFont", "general")
+    DaylightUI:Set("Tooltip", "media.font", key)
+    stub.RunTimers()
+    T.eq(GameTooltipTextSmall.__font[1], file, "small text follows the tooltip font")
+    T.eq(GameTooltipHeaderText.__font[1], file, "so do titles")
+end)
+
+T.test("tooltip: a changed text size keeps its titles and small text where they were", function()
+    login()
+    local up = stub.tooltip.UpgradeSizes
+    local p = { modules = { Tooltip = { textSize = 16 } } }
+    up(p)
+    T.eq(p.modules.Tooltip.titleSize, 18)
+    T.eq(p.modules.Tooltip.smallSize, 15)
+    p.modules.Tooltip.textSize = 10
+    up(p)
+    T.eq(p.modules.Tooltip.titleSize, 18, "only once")
+    local fresh = { modules = { Tooltip = {} } }
+    up(fresh)
+    T.isnil(fresh.modules.Tooltip.titleSize, "an untouched profile keeps the defaults")
+    fresh.modules.Tooltip.textSize = 16
+    up(fresh)
+    T.isnil(fresh.modules.Tooltip.titleSize, "a text size changed later leaves the titles alone")
+end)
+
+T.test("tooltip: a rich card's title and small lines take their own size and font", function()
+    login()
+    local Panel = stub.tooltip.RichPanel
+    local Style = DaylightUI.Style
+    local p = Panel.For(GameTooltip)
+    local function build()
+        Panel.Begin(p, "other")
+        Panel.Header(p, { title = "Thunderfury", sub = "Blessed Blade" })
+        Panel.Text(p, "Some words", nil, Style.SIZE.body)
+        Panel.Finish(p)
+        return p.items[1].title, p.items[1].sub, p.items[2].fs
+    end
+    local title, sub, body = build()
+    T.eq(title.size, Style.SIZE.title, "the defaults draw the card as it was")
+    T.eq(sub.size, Style.SIZE.small)
+    DaylightUI:Set("Tooltip", "titleSize", 30)
+    DaylightUI:Set("Tooltip", "smallSize", 6)
+    local key, file = otherFont()
+    DaylightUI:Set("Tooltip", "media.titleFont", key)
+    stub.RunTimers()
+    title, sub, body = build()
+    T.near(title.size, Style.SIZE.title * 2)
+    T.near(sub.size, Style.SIZE.small / 2)
+    T.eq(body.size, Style.SIZE.body)
+    T.eq(title.__font[1], file)
+    T.eq(body.__font[1], Style.FONT)
+end)
+
 -- A repaint also comes from a screen or UI scale change (an alt-tab can bring
 -- one). With nothing about the tooltip changed, the game's own tooltip fonts,
 -- its health bar and the tooltips' scale are left as they are.

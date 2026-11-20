@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         { "Unlock mode", "Lock a frame in place so it can't be moved by accident, and reach a frame hidden under another from its editor" },
         { "NPC window", "Quest pages show the quest's level next to its name" },
         { "Loot", "Loot rolls in Daylight UI style that show who picked Need, Greed or Pass, everyone's roll and who won. Several drops stack small, and two of the same item are marked" },
+        { "Tooltip", "Tooltip titles and small text each get their own size and font, apart from the main text" },
     }, changed = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
         { "Tooltip", "Tooltips fade out softly when the mouse leaves instead of vanishing at once" },

@@ -290,11 +290,12 @@ function Tip.BorderPair(unit, tip)
 end
 
 -- The game's tooltip fonts, set to Daylight UI's. They're shared font objects, so every
--- tooltip (and anything else using them) follows.
+-- tooltip (and anything else using them) follows. Each has its own size and
+-- font setting: titles, text, small text.
 Tip.FONTS = {
-    { name = "GameTooltipHeaderText", delta = 2 },
-    { name = "GameTooltipText", delta = 0 },
-    { name = "GameTooltipTextSmall", delta = -1 },
+    { name = "GameTooltipHeaderText", size = "titleSize", font = "title" },
+    { name = "GameTooltipText", size = "textSize" },
+    { name = "GameTooltipTextSmall", size = "smallSize", font = "small" },
 }
 
 local shadowed = setmetatable({}, { __mode = "k" })
@@ -303,7 +304,9 @@ function Tip.ApplyFonts()
     for _, f in ipairs(Tip.FONTS) do
         local obj = _G[f.name]
         if type(obj) == "table" and obj.SetFont then
-            DUI.GameFonts.SetObjectFont(obj, Style.FontFile(ns.MEDIA.font), (cfg.textSize + f.delta) * scale, "")
+            local slot = f.font and ns.MEDIA.fonts[f.font] or ns.MEDIA.font
+            local size = tonumber(cfg[f.size]) or ns.DEFAULTS[f.size]
+            DUI.GameFonts.SetObjectFont(obj, Style.FontFile(slot), size * scale, "")
             -- Every tooltip draws with these, so they're only touched once.
             if not shadowed[obj] then
                 shadowed[obj] = true
@@ -508,6 +511,31 @@ function Tip.GuildOf(unit)
     return guild, rank
 end
 
+-- Where a group member is, plain, or nil for anyone else (you, strangers,
+-- someone offline). The raid roster names the zone even inside an instance;
+-- a party member's comes from their map.
+function Tip.ZoneOf(unit)
+    if plain(UnitIsPlayer(unit)) ~= true or plain(UnitIsUnit(unit, "player")) == true then return nil end
+    local index = plain(UnitInRaid(unit))
+    if type(index) ~= "number" and plain(UnitInParty(unit)) ~= true then return nil end
+    if plain(UnitIsConnected(unit)) == false then return nil end
+    local zone
+    if type(index) == "number" and type(GetRaidRosterInfo) == "function" then
+        zone = plain((select(7, GetRaidRosterInfo(index))))
+    end
+    local M = C_Map
+    if (type(zone) ~= "string" or zone == "") and type(M) == "table"
+        and type(M.GetBestMapForUnit) == "function" and type(M.GetMapInfo) == "function" then
+        local id = plain(M.GetBestMapForUnit(unit))
+        local info = type(id) == "number" and M.GetMapInfo(id) or nil
+        zone = type(info) == "table" and plain(info.name) or nil
+    end
+    if type(zone) ~= "string" or zone == "" then return nil end
+    return zone
+end
+
+Tip.ZONE_LABEL = (ZONE or L["Zone"]) .. ":"
+
 -- Why a tooltip is muted ("combat", "gone", "pill"), or nil.
 function Tip.Muted(tip) return muted[tip] end
 
@@ -525,8 +553,15 @@ function Tip.AddExtras(tip, unit)
             end
         end
     end
-    -- The rich card draws the buffs and the target itself.
+    -- The rich card draws the buffs, the target and the zone itself.
     if ns.Rich.On(tip) then return end
+    local zone = Tip.ZoneOf(unit)
+    if zone and not Tip.HasLine(tip, zone) and not Tip.HasLine(tip, Tip.ZONE_LABEL) then
+        local ar, ag, ab = Style.Accent()
+        local ink = Style.INK.TEXT
+        tip:AddDoubleLine(Tip.ZONE_LABEL, zone, ar, ag, ab, ink[1], ink[2], ink[3])
+        if tip.Show and tip:IsShown() then tip:Show() end
+    end
     if cfg.buffs and plain(UnitIsPlayer(unit)) == true and plain(UnitIsFriend("player", unit)) == true then
         local rows = Tip.BuffIcons(unit)
         if rows then

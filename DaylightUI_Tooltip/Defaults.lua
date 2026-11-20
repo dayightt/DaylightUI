@@ -2,12 +2,18 @@
 
 local _, ns = ...
 
--- Bar texture and font picked separately for this area (Media.RegisterArea): health bar and tooltip text.
+-- Bar texture and fonts picked separately for this area (Media.RegisterArea):
+-- the health bar, the tooltip text, and the titles and small text, which
+-- follow the tooltip font until given their own.
 ns.MEDIA_BARS = { "health" }
-ns.MEDIA = DaylightUI.Media.RegisterArea("tooltip", "Tooltip", ns.MEDIA_BARS)
+ns.MEDIA_FONTS = { "title", "small" }
+ns.MEDIA = DaylightUI.Media.RegisterArea("tooltip", "Tooltip", ns.MEDIA_BARS, ns.MEDIA_FONTS)
+for _, k in ipairs(ns.MEDIA_FONTS) do
+    DaylightUI.Media.RegisterSlot(ns.MEDIA.fonts[k], "Tooltip", "media." .. k .. "Font", "font", ns.MEDIA.font)
+end
 
 ns.DEFAULTS = {
-    media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS),
+    media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS, ns.MEDIA_FONTS),
     -- "simple": the game's tooltip in the Daylight UI look; "rich": Daylight UI's
     -- own cards drawn over it (Rich/).
     style = "simple",
@@ -24,7 +30,9 @@ ns.DEFAULTS = {
     cursorX = 12, -- offset of the cursor tooltip's bottom-left corner from the cursor
     cursorY = 12,
     scale = 1,
-    textSize = 13,
+    textSize = 13,   -- every line
+    titleSize = 15,  -- a name, an item's name, a spell's name
+    smallSize = 12,  -- sub lines, the quote, small facts
     bgAlpha = 0.92,
     -- On by default, unlike the windows: tooltips stay a little more solid
     -- than the shared window opacity, as they always were.
@@ -46,3 +54,19 @@ ns.DEFAULTS = {
     hideInCombat = false, -- in combat, show unit tooltips only while Shift is held
     fadeOut = false, -- world object tooltips fade out like the game's (off: hide at once)
 }
+
+-- Titles and small text used to be the text size plus 2 and minus 1. A
+-- profile that changed the text size before they had sizes of their own
+-- keeps them where they were. Runs once per profile (tipUpgrade), on full or
+-- sparse settings alike.
+function ns.UpgradeSizes(p)
+    if type(p) ~= "table" or type(p.modules) ~= "table" then return end
+    local t = p.modules.Tooltip
+    if type(t) ~= "table" or (tonumber(t.tipUpgrade) or 0) >= 1 then return end
+    t.tipUpgrade = 1
+    local text = tonumber(t.textSize)
+    if not text or text == ns.DEFAULTS.textSize then return end
+    if t.titleSize == nil or t.titleSize == ns.DEFAULTS.titleSize then t.titleSize = text + 2 end
+    if t.smallSize == nil or t.smallSize == ns.DEFAULTS.smallSize then t.smallSize = text - 1 end
+end
+DaylightUI.DB.RegisterUpgrade(ns.UpgradeSizes)

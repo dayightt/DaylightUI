@@ -63,7 +63,31 @@ function Panel.Scale()
     return Panel.CARD * (cfg and tonumber(cfg.textSize) or 12) / 12
 end
 
-local function size(s) return s end
+-- Which part of the tooltip a card size is, for that part's size and font
+-- settings: "title" (a card's title and headings), "small" (sub lines, small
+-- facts, captions), or nil for the text.
+function Panel.Part(s)
+    if s >= Style.SIZE.head then return "title" end
+    if s <= Style.SIZE.small then return "small" end
+end
+
+-- The card is already scaled by the text size, so a title or small text only
+-- grows by how far its own size sits from where it would be at that text
+-- size (the defaults' gap kept).
+local function size(s)
+    local part = Panel.Part(s)
+    if not part then return s end
+    local cfg, D = ns.Tooltip.Config(), ns.DEFAULTS
+    local key = part .. "Size"
+    local text = cfg and tonumber(cfg.textSize) or D.textSize
+    local want = cfg and tonumber(cfg[key]) or D[key]
+    return s * want / math.max(1, text + D[key] - D.textSize)
+end
+
+local function slotOf(s)
+    local part = Panel.Part(s)
+    return part and ns.MEDIA.fonts[part] or font()
+end
 
 -- A one-line text's height comes from its size alone, measured once per
 -- layout on a hidden ruler in the same font. Read from each row's own text it
@@ -71,10 +95,15 @@ local function size(s) return s end
 -- uneven gaps.
 Panel.RULER = "Ag"
 local measuring -- the panel being laid out, while Finish runs
-local function lineHeight(s)
+local function lineHeight(s, slot)
     local p = measuring
     if p then
-        local cache = p.heights
+        slot = slot or font()
+        local cache = p.heights[slot]
+        if not cache then
+            cache = {}
+            p.heights[slot] = cache
+        end
         if cache[s] then return cache[s] end
         local r = p.ruler
         if not r then
@@ -82,6 +111,11 @@ local function lineHeight(s)
             r:SetWordWrap(false)
             r:Hide()
             p.ruler = r
+            r.slot = font()
+        end
+        if r.slot ~= slot then
+            r.slot = slot
+            Style.SetTextSlot(r, slot)
         end
         Style.SetTextSize(r, s)
         r:SetText(Panel.RULER)
@@ -337,8 +371,14 @@ end
 
 local function text(p, s, c, wrap)
     local fs = take(p, "text")
-    Style.SetTextSize(fs, size(s))
-    fs.size = size(s)
+    local slot = slotOf(s)
+    if fs.slot ~= slot then
+        fs.slot = slot
+        Style.SetTextSlot(fs, slot)
+    end
+    local z = size(s)
+    Style.SetTextSize(fs, z)
+    fs.size = z
     fs:SetWidth(0)
     fs:SetWordWrap(wrap and true or false)
     -- A wrapped sentence's lines ran into each other without it.
@@ -642,9 +682,9 @@ function place.header(p, item, y, inner)
         x = x + s + (spec.iconGap or 12)
         h = s
     end
-    local th = lineHeight(item.title.size)
+    local th = lineHeight(item.title.size, item.title.slot)
     local col = th
-    if item.sub then col = col + 2 + lineHeight(item.sub.size) end
+    if item.sub then col = col + 2 + lineHeight(item.sub.size, item.sub.slot) end
     local tagGap = spec.tagGap or 5
     local tagRows = 0
     if item.tags and #item.tags > 0 then
@@ -670,12 +710,12 @@ function place.header(p, item, y, inner)
     if isSecret(item.spec.title) or widthOf(item.title) > room + 1 then item.title:SetWidth(room) end
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
-        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + th - lineHeight(item.right.size)))
+        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + th - lineHeight(item.right.size, item.right.slot)))
     end
     local ty = top + th
     if item.sub then
         item.sub:SetPoint("TOPLEFT", p, "TOPLEFT", x, -(ty + 2))
-        ty = ty + 2 + lineHeight(item.sub.size)
+        ty = ty + 2 + lineHeight(item.sub.size, item.sub.slot)
     end
     if tagRows > 0 then
         for _, tag in ipairs(item.tags) do
@@ -692,14 +732,14 @@ end
 -- cut with "..." whenever the card was exactly as wide as its widest row.
 Panel.ROW_GAP_X = 16
 function place.row(p, item, y, inner)
-    local h = lineHeight(item.label.size)
+    local h = lineHeight(item.label.size, item.label.slot)
     local drop = 0
     if item.value then
         item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
         local room = inner - widthOf(item.value) - Panel.ROW_GAP_X
         if widthOf(item.label) > room + 1 then item.label:SetWidth(math.max(1, room)) end
         -- A bigger value: the label sits on the same baseline, not up at its top.
-        local vh = lineHeight(item.value.size)
+        local vh = lineHeight(item.value.size, item.value.slot)
         if vh > h then drop, h = vh - h, vh end
     end
     item.label:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + drop))
@@ -719,7 +759,7 @@ end
 
 function place.section(p, item, y)
     item.fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
-    return lineHeight(item.fs.size)
+    return lineHeight(item.fs.size, item.fs.slot)
 end
 
 function place.line(p, item, y, inner)
@@ -727,11 +767,11 @@ function place.line(p, item, y, inner)
     fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local room = inner - (tail and (4 + widthOf(tail)) or 0)
     if widthOf(fs) > room + 1 then fs:SetWidth(math.max(1, room)) end
-    local h = lineHeight(fs.size)
+    local h = lineHeight(fs.size, fs.slot)
     if tail then
         -- On the line's baseline.
         tail:SetPoint("BOTTOMLEFT", fs, "BOTTOMRIGHT", 4, 0)
-        h = math.max(h, lineHeight(tail.size))
+        h = math.max(h, lineHeight(tail.size, tail.slot))
     end
     return h
 end
@@ -825,7 +865,7 @@ function place.hints(p, item, y)
     for i, fs in ipairs(item.list) do
         fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + (i - 1) * Panel.HINT_H))
     end
-    return #item.list * Panel.HINT_H - (Panel.HINT_H - lineHeight(item.list[1].size))
+    return #item.list * Panel.HINT_H - (Panel.HINT_H - lineHeight(item.list[1].size, item.list[1].slot))
 end
 
 local SPACED = { rule = false, gap = false }
