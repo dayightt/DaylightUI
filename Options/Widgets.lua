@@ -2458,7 +2458,13 @@ function W.toggle(row, page, item)
     function b.Refresh() b.SetOn(Options.Get(page, item) == true) end
     b:SetScript("OnClick", function()
         if row.disabled then return end
-        Options.Set(page, item, Options.Get(page, item) ~= true)
+        if Options.Set(page, item, Options.Get(page, item) ~= true) and item.set then
+            -- A setter of its own writes past DUI:Set, so no SettingChanged redraws
+            -- the page: move this switch now, and let rows that hang on it follow.
+            b.Refresh()
+            local P = DUI.OptionsPanel
+            if page and P and P.IsShown and P.IsShown() then P.Refresh() end
+        end
     end)
     -- Clicking anywhere on the row flips it too.
     row:SetScript("OnMouseUp", function(_, button)
