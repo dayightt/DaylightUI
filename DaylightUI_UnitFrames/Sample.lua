@@ -100,7 +100,7 @@ end
 -- not on the player's profile; nothing is written and the real frames keep
 -- their settings.
 Sample.LOOKS = {
-    { key = "socket", name = "Set into the frame", line = "The border runs around both." },
+    { key = "socket", name = "2.0", line = "The border runs around both." },
     { key = "classic", name = "Classic", line = "The ring lies over the frame." },
 }
 Sample.LOOK_FRAME = 64    -- the room each sample frame gets, ring and name tab included

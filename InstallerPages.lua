@@ -69,10 +69,6 @@ function Pages.ClashesFor(module)
     return out
 end
 
--- Classes that can heal. Without a role from the game, the role page says so
--- instead of recommending one.
-Pages.HEALERS = { PRIEST = true, DRUID = true, SHAMAN = true, PALADIN = true, MONK = true, EVOKER = true }
-
 -- The frames one portrait choice sets. Not party, whose setup decides (the
 -- Healer setup's tiles have none, and a pick here mustn't add them back).
 Pages.PORTRAIT_UNITS = { "player", "target", "focus" }

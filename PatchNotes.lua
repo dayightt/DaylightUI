@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Bars", "Health, power, cast and swing bars, combo points, nameplates, the experience bar, meters, tooltips, quest bars and Cooldown Manager bars can each wear a gradient of two to five colors you pick, like the custom gradient accent. Pick Custom gradient in a bar's color menu" },
         { "Loot", "Prefer the game's own roll popups? A new switch brings them back in Daylight UI style, with how many players picked Need, Greed and Pass on each button" },
         { "Look", "Every window and panel has a Use Daylight UI global style switch. Turn it off to give that one its own border, corners, shadow and background" },
+        { "Setup guide", "A new setup guide: pick a ready-made setup and play, or let it walk you through your own, one choice at a time. /dui install to see it" },
     }, fixed = {
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },

@@ -136,11 +136,6 @@ function Installer.Recommended()
     return nil
 end
 
-function Installer.CanHeal()
-    local _, token = UnitClass("player")
-    return token ~= nil and DUI.InstallerPages.HEALERS[token] == true
-end
-
 function Installer.Greeting(hour)
     hour = tonumber(hour) or 12
     if hour >= 5 and hour < 12 then return L["Good morning, %s"] end

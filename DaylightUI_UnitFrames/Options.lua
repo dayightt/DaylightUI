@@ -1813,7 +1813,7 @@ local function framePage(id, label, desc, opts)
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         frame[#frame + 1] = { type = "dropdown", key = k("portraitLook"), label = "Portrait look", since = "2.0",
             values = ns.Socket.LOOKS, order = ns.Socket.LOOK_ORDER,
-            desc = "Set into the frame runs the frame's border on around the portrait, so the two read as one piece. Classic lays the ring over the frame's end, as before. A portrait on its own wears the same border as a ring.",
+            desc = "2.0 runs the frame's border on around the portrait, so the two read as one piece. Classic lays the ring over the frame's end, as before. A portrait on its own wears the same border as a ring.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         if opts.portraitFree then
             frame[#frame + 1] = { type = "dropdown", key = k("portraitAt"), label = "Portrait position",

@@ -17,7 +17,7 @@ local L = DUI.L
 local Socket = {}
 ns.Socket = Socket
 
-Socket.LOOKS = { socket = "Set into the frame", classic = "Classic" }
+Socket.LOOKS = { socket = "2.0", classic = "Classic" }
 Socket.LOOK_ORDER = { "socket", "classic" }
 -- The socket's own ring (tools/make_socket_art.py): a thin flat line round the
 -- picture, black on either side. In the portrait's radius R: the picture is
@@ -426,7 +426,7 @@ function Socket.Ask()
     DUI.Widgets.Ask({
         key = Socket.ASK_KEY, title = L["New portrait mode"],
         text = L["Portraits can now be set into their frame: the border runs around both as one piece. Which do you want? Each frame's page has it under Portrait look."],
-        yes = L["Set into the frame"], no = L["Keep Classic"],
+        yes = L["2.0"], no = L["Keep Classic"],
         preview = {
             height = ns.Sample.LOOK_FRAME + ns.Sample.LOOK_GAP + Style.SIZE.body + 4 + Style.SIZE.small + 2,
             show = function(holder)
