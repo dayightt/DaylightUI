@@ -1012,6 +1012,21 @@ function UF.PlaceText(fs, p, rel, rp, x, y, nx, ny)
     fs:SetPoint(p, rel, rp, x + (tonumber(nx) or 0), y + (tonumber(ny) or 0))
 end
 
+-- Where a frame's health text sits along its bar (healthTextPos inner |
+-- center | outer). Returns the anchor's side ("LEFT", "RIGHT" or "" for the
+-- middle), the direction that points inward from it, and a function giving
+-- the room the angled end needs there (only the inner end is angled).
+function UF.HealthTextSpot(f, cfg)
+    local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
+    local outer = inner == "LEFT" and "RIGHT" or "LEFT"
+    local pos = cfg.healthTextPos
+    if pos == "center" then return "", 0, function() return 0 end end
+    local h = pos == "outer" and outer or inner
+    local dir = h == "LEFT" and 1 or -1
+    if h == outer then return h, dir, function() return 0 end end
+    return h, dir, function(cut) return cut or 0 end
+end
+
 -- The nine spots a tile icon can sit in (role, marker, leader, dispel). sx/sy
 -- point inward from that spot, so one padding insets any of them.
 UF.ICON_SPOTS = {
@@ -1061,6 +1076,8 @@ function UF.SetTileName(f, cfg, text)
     f.tileName = {
         cutPad = cut,
         showPercent = cfg.showPercent == true,
+        -- The health text at the outer end hands the name the inner half.
+        healthOuter = cfg.healthTextPos == "outer",
         x = tonumber(cfg.nameX) or 0, y = tonumber(cfg.nameY) or 0,
         justify = (f.spec.group and UF.NAME_ALIGN[cfg.nameAlign]) or "CENTER",
         -- "bar": across the bar (above). Otherwise a Spots spot (namePos). A
@@ -1228,10 +1245,13 @@ function UF.PlaceTileName(f)
     local leftPad = 3 + (f.spec.slant == "left" and t.cutPad or 0)
     local rightPad = 3 + (f.spec.slant == "right" and t.cutPad or 0)
     -- Target of target and pet: clear of the health text, when it's shown.
-    if not f.spec.group and t.showPercent then rightPad = rightPad + 26 end
+    local textLeft = (f.spec.slant == "left") ~= (t.healthOuter == true)
+    if not f.spec.group and t.showPercent then
+        if t.healthOuter and textLeft then leftPad = leftPad + 26 else rightPad = rightPad + 26 end
+    end
     if t.outerHalf then
         local half = f:GetWidth() * 0.5
-        if f.spec.slant == "left" then leftPad = math.max(leftPad, half)
+        if textLeft then leftPad = math.max(leftPad, half)
         else rightPad = math.max(rightPad, half) end
     end
     local top = f.tallTile and -3 or 0
@@ -1637,35 +1657,34 @@ function UF.Layout(f, cfg, text, keepSize)
     f.healthMode, f.healthCustom = cfg.colorHealth, cfg.colorHealthCustom
     f.powerMode, f.powerCustom = cfg.colorPower, cfg.colorPowerCustom
     UF.PaintPercent(f)
-    -- Either size sits at the frame's inner end, clear of the angled edge.
-    local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
-    local dir = inner == "LEFT" and 1 or -1
+    -- Either size sits at the end healthTextPos picks: the inner end (clear of
+    -- the angled edge), the middle, or the outer end. The nudges go on top.
+    local h, dir, pad = UF.HealthTextSpot(f, cfg)
     local nx, ny = cfg.healthTextX, cfg.healthTextY
-    -- With a name row: on the row above the bar at its inner end (bigger with
-    -- the large number), sliding in with the row.
+    -- With a name row: on the row above the bar (bigger with the large
+    -- number), sliding in with the row.
     f.percentText:SetParent((f.nameRow and f.tab) or f.overlay)
     if f.nameRow and f.tab then
         Style.SetTextSize(f.percentText, f.bigNumber and text.big or text.percent)
-        UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.tab, "BOTTOM" .. inner, dir * UF.ROW_NUMBER_INSET,
+        UF.PlaceText(f.percentText, "BOTTOM" .. h, f.tab, "BOTTOM" .. h, dir * UF.ROW_NUMBER_INSET,
             UF.ROW_TEXT_LIFT, nx, ny)
-        f.percentText:SetJustifyH(inner)
     elseif f.backdropOn then
-        -- On the art at its inner bottom corner, just over the health strip.
+        -- On the art at its bottom, just over the health strip.
         Style.SetTextSize(f.percentText, f.bigNumber and text.big or text.percent)
-        UF.PlaceText(f.percentText, "BOTTOM" .. inner, f.health, "TOP" .. inner, (cut + UF.BIG_NUMBER_INSET) * dir,
+        UF.PlaceText(f.percentText, "BOTTOM" .. h, f.health, "TOP" .. h, dir * (pad(cut) + UF.BIG_NUMBER_INSET),
             UF.CARD_TEXT_LIFT, nx, ny)
-        f.percentText:SetJustifyH(inner)
     elseif f.bigNumber then
         Style.SetTextSize(f.percentText, text.big)
-        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + UF.BIG_NUMBER_INSET) * dir, -UF.BIG_NUMBER_DROP, nx, ny)
-        f.percentText:SetJustifyH(inner)
+        UF.PlaceText(f.percentText, h == "" and "CENTER" or h, f.health, h == "" and "CENTER" or h,
+            dir * (pad(cut) + UF.BIG_NUMBER_INSET), -UF.BIG_NUMBER_DROP, nx, ny)
     elseif f.tallTile then
-        UF.PlaceText(f.percentText, "BOTTOM", f.health, "BOTTOM", 0, 3, nx, ny)
-        f.percentText:SetJustifyH("CENTER")
+        -- Along the bottom, under the name along the top.
+        UF.PlaceText(f.percentText, "BOTTOM" .. h, f.health, "BOTTOM" .. h, dir * (pad(cut) + 3), 3, nx, ny)
     else
-        UF.PlaceText(f.percentText, inner, f.health, inner, (cut + 4) * dir, 0, nx, ny)
-        f.percentText:SetJustifyH(inner)
+        UF.PlaceText(f.percentText, h == "" and "CENTER" or h, f.health, h == "" and "CENTER" or h,
+            dir * (pad(cut) + 4), 0, nx, ny)
     end
+    f.percentText:SetJustifyH(h == "" and "CENTER" or h)
     f.percentText:SetShown(cfg.showPercent == true)
 
     UF.LayoutPortrait(f, cfg)
@@ -3936,7 +3955,9 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
     local inner = f.spec.slant == "left" and "LEFT" or "RIGHT"
     local pad = endPad or ((side and cut * (ph + Pixel.Px(f, 2)) / H or 0) + 4)
     -- Under the big health number, it lines up with it.
-    if not free and cfg.bigNumber == true and cfg.showPercent == true then pad = (cut or 0) + UF.BIG_NUMBER_INSET end
+    if not free and cfg.bigNumber == true and cfg.showPercent == true and (cfg.healthTextPos or "inner") == "inner" then
+        pad = (cut or 0) + UF.BIG_NUMBER_INSET
+    end
     local pos = cfg.powerTextPos or "inner"
     local nx, ny = cfg.powerTextX, cfg.powerTextY
     f.powerText:ClearAllPoints()

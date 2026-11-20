@@ -453,7 +453,7 @@ end
 local TEXT_ORDER = {
     showName = 10, lastNames = 11, nameOnBar = 12, namePos = 13, nameAlign = 14, nameTag = 15, nameX = 16, nameY = 17,
     nameColor = 18, nameCustom = 19, nameLimitLen = 20, ["media.nameFont"] = 21, ["size.name"] = 22,
-    showPercent = 30, healthText = 31, percentSign = 32, hideFullHealth = 33, percentColor = 34, percentCustom = 35,
+    showPercent = 30, healthText = 31, percentSign = 32, hideFullHealth = 33, healthTextPos = 33, percentColor = 34, percentCustom = 35,
     ["media.healthFont"] = 36, ["size.percent"] = 37, bigNumber = 38, ["size.big"] = 39, healthTextX = 40, healthTextY = 41,
     showPowerText = 50, powerFormat = 51, powerPercentSign = 52, hideFullPower = 53, powerTextPos = 54,
     ["media.powerFont"] = 55, ["size.power"] = 56, powerTextX = 57, powerTextY = 58,
@@ -1475,6 +1475,9 @@ local function petCard()
         { type = "dropdown", key = p("healthText"), label = "Pet health text format",
           values = UF.HEALTH_FORMATS, order = UF.HEALTH_FORMAT_ORDER, desc = "How the pets' health text is written.",
           disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
+        { type = "dropdown", key = p("healthTextPos"), label = "Pet health text position",
+          values = UF.POWER_TEXT_POS, order = UF.POWER_TEXT_POS_ORDER, desc = "Where along each pet's bar the health text sits.",
+          disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
         { type = "slider", key = "partyPetText.percent", label = "Pet health text size", min = 6, max = 24, step = 1,
           desc = "How big the pets' health text is.", disabled = offAny("party.enabled", p("enabled"), p("showPercent")) },
         fontRow(p("media.healthFont"), "Pet health text font", "The pets' health text", offAny("party.enabled", p("enabled"), p("showPercent"))),
@@ -1933,6 +1936,10 @@ local function framePage(id, label, desc, opts)
         text[#text + 1] = { type = "toggle", key = k("hideFullHealth"), invert = true, label = "Show health text at full",
             desc = "The health text shows at full health too. When off, it disappears while the unit is at full.",
             disabled = offAny(k("enabled"), k("showPercent")) }
+        text[#text + 1] = { type = "dropdown", key = k("healthTextPos"), label = "Health text position",
+            values = UF.POWER_TEXT_POS, order = UF.POWER_TEXT_POS_ORDER,
+            desc = "Where along the health bar the health text sits. The left / right nudge moves it from there.",
+            disabled = offAny(k("enabled"), k("showPercent")) }
     end
     if opts.healthText then
         text[#text + 1] = { type = "dropdown", key = k("percentColor"), label = "Health text color",
@@ -1946,7 +1953,7 @@ local function framePage(id, label, desc, opts)
     end
     if opts.big then
         text[#text + 1] = { type = "toggle", key = k("bigNumber"), label = "Large health number",
-            desc = "Shows the health text large in the frame's inner corner (in Ribbon, at the inner end of the row above the bar), in the Health text color.",
+            desc = "Shows the health text large, in the Health text color, at the end Health text position picks (in Ribbon, on the row above the bar).",
             disabled = offAny(k("enabled"), k("showPercent")) }
     end
     if opts.power then
@@ -2519,6 +2526,10 @@ local function raidPage(size)
             { type = "toggle", key = "raid.percentSign", label = "Health text % sign",
               desc = "62% rather than 62, when the health text shows a percent.",
               disabled = signOff(offAny("raid.enabled", "raid.showPercent"), "raid.healthText") },
+            { type = "dropdown", key = "raid.healthTextPos", label = "Health text position",
+              values = UF.POWER_TEXT_POS, order = UF.POWER_TEXT_POS_ORDER,
+              desc = "Where along each tile the health text sits. The left / right nudge moves it from there.",
+              disabled = offAny("raid.enabled", "raid.showPercent") },
             fontRow("raid.media.healthFont", "Health text font", "The raid tiles' health text", offAny("raid.enabled", "raid.showPercent")),
             { type = "slider", key = "raidText.name", label = "Name size", min = 6, max = 20, step = 1,
               desc = "How big the names on the tiles are.", disabled = off("raid.enabled") },
