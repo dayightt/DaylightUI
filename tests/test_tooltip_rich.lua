@@ -723,8 +723,8 @@ local function fillItem(tip, link, list, after, types, guid)
     local own = {}
     for i, t in ipairs(list) do
         if type(t) == "table" then
-            local c = t[3] or { 1, 1, 1 }
-            tip:AddDoubleLine(t[1], t[2], c[1], c[2], c[3], 1, 1, 1)
+            local c, rc = t[3] or { 1, 1, 1 }, t[4] or { 1, 1, 1 }
+            tip:AddDoubleLine(t[1], t[2], c[1], c[2], c[3], rc[1], rc[2], rc[3])
         else
             tip:AddLine(t)
         end
@@ -2641,6 +2641,14 @@ T.test("rich tooltip: every header tag in a color of what it says, its outline t
     head = Panel.Get(GameTooltip).items[1]
     T.rgb({ head.tags[2].text:GetTextColor() }, RI.SLOT_ARMOR, "a worn slot")
     T.rgb({ head.tags[4].text:GetTextColor() }, RI.BIND_TRADE, "binds when equipped: still free to trade")
+    T.rgb({ head.tags[3].text:GetTextColor() }, RI.ARMOR_COLORS[4], "plate you can wear in its own color")
+    -- Armor your class can't wear: the game paints its type red, and so does the tag.
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when equipped",
+        { "Legs", "Plate", nil, { 1, 0.125, 0.125 } } })
+    head = Panel.Get(GameTooltip).items[1]
+    T.eq(stub.Text(head.tags[3].text), "PLATE")
+    T.rgb({ head.tags[3].text:GetTextColor() }, DaylightUI.Style.INK.BAD, "armor you can't wear reads red")
+    T.rgb({ head.tags[2].text:GetTextColor() }, RI.SLOT_ARMOR, "the slot keeps its color")
     -- Plain trade goods: one tag in its class color.
     fillItem(GameTooltip, "cloth", { "Linen Cloth" })
     head = Panel.Get(GameTooltip).items[1]

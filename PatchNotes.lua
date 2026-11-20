@@ -23,6 +23,7 @@ DUI.PatchNotes = {
         { "Bags", "Clean Up with items kept in their slot no longer packs everything else at the bottom, and the \"Clean up toward the end\" switch works the right way round" },
         { "Bags", "Item tooltips show how many you have in your bank, even with only one character" },
         { "Tooltip", "The small tooltip in fights shows the enemy's name again, and creature tooltips in dungeons show your quest progress" },
+        { "Tooltip", "Armor and weapons your class can't use show their type (Leather, Mail, Plate...) in red, so you see it at a glance" },
         { "Cooldown Manager", "The paladin Aura and Blessing pieces count whichever aura or Blessing you have up, and Touch of Weakness shows as missing once it's used up" },
         { "Cooldown Manager", "A Forbearance bar or icon added by its ID shows again while you have it" },
         { "Cooldown Manager", "Buffs no longer slide in again when your spells change" },

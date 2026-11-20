@@ -385,8 +385,10 @@ local function sort(n, lines, own, info, groups)
             local words = right and (t .. "  " .. Items.Words(right)) or t
             g.facts[#g.facts + 1] = function(p) ns.RichPanel.Text(p, words, Style.INK.LABEL, Style.SIZE.small) end
         elseif info.slot and t == info.slot then
-            -- Shown in the slot tag.
+            -- Shown in the slot tag. The game paints the armor or weapon type
+            -- red when your class can't use it, so the tag goes red too.
             info.slotWord = right and Items.Words(right) or nil
+            info.cantUse = (line.hasRC and isRed(line.rc)) or isRed(c) or nil
         elseif t:find(P.level) then
             -- Shown in the item level tag.
         elseif t:find(P.durability) and inMade then
@@ -522,7 +524,8 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         tags[#tags + 1] = Items.Tag(info.slot, info.slotColor)
         local word = info.slotWord or info.sub
         if word and word ~= info.slot then
-            tags[#tags + 1] = Items.Tag(word, info.armor or info.subColor or info.kindColor)
+            tags[#tags + 1] = Items.Tag(word, info.cantUse and Style.INK.BAD
+                or info.armor or info.subColor or info.kindColor)
         end
     elseif info.kind then
         if info.sub and info.sub ~= info.kind and info.subColor then
