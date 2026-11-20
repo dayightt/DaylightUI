@@ -364,7 +364,7 @@ function Main.WatchLinks()
         local text = b:GetText()
         if type(text) ~= "string" or text == "" then return end
         if Main.frame.tab ~= "buy" then Main.ShowTab("buy") end
-        ns.BuyPage.Submit(text)
+        ns.BuyPage.Submit(text, true)
     end)
 end
 
