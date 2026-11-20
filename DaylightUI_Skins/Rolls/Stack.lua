@@ -110,15 +110,8 @@ local function now() return GetTime() end
 
 local function fighting() return InCombatLockdown and InCombatLockdown() == true end
 
--- Test mode with no real roll up: the sample's round plays in the stack. A
--- real roll ends it at once.
-local function testing()
-    return DUI.testMode == true and DUI.TestPartShown("rolls") and next(Data.drops) == nil
-end
-
 -- Every held roll, oldest first, with copies of one item next to each other.
 local function all()
-    if testing() then return ns.RollSample.Current(now()) end
     local list = {}
     for _, d in pairs(Data.drops) do list[#list + 1] = d end
     table.sort(list, function(a, b)
@@ -463,9 +456,8 @@ function RollStack.Tick(t)
             gone = true
         end
     end
-    if testing() and ns.RollSample.Advance(t) then gone = true end
     if gone then RollStack.Layout() end
-    if not next(Data.drops) and not testing() and RollStack.frame then RollStack.frame:SetScript("OnUpdate", nil) end
+    if not next(Data.drops) and RollStack.frame then RollStack.frame:SetScript("OnUpdate", nil) end
 end
 
 function RollStack.OnUpdate()
@@ -496,17 +488,13 @@ function RollStack.Apply()
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function() RollStack.Layout() end)
     DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() RollStack.Layout() end)
     DUI.On("StyleChanged", RollStack.Refresh)
-    DUI.On("TestModeChanged", RollStack.Refresh)
     -- The Loot Rolls handle moving (dragged, snapped, nudged, reset, sized):
     -- the cards come along as it goes.
     DUI.On("RollSlotMoved", function()
         if RollStack.frame and RollStack.frame:IsShown() then DUI.SafeCall(anchor) end
     end)
-    DUI.On("TestPartChanged", function(key) if key == "rolls" then RollStack.Refresh() end end)
     Data.Rebuild(now())
     RollStack.Layout()
 end
-
-DUI.RegisterTestPart("rolls", L["Loot rolls"], 88, function() return RollStack.frame ~= nil end)
 
 Engine.Register({ key = "rolls", skip = function() return not RollStack.On() end, apply = RollStack.Apply })

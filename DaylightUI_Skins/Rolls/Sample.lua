@@ -1,4 +1,4 @@
--- Made-up rolls for the options page's sample and for test mode: two copies of
+-- Made-up rolls for the options page's sample: two copies of
 -- one ring and a robe, at different points of a roll, with a group of seven.
 -- No game calls beyond item names; nothing here can roll on anything.
 
@@ -7,9 +7,6 @@ local DUI = DaylightUI
 local L = DUI.L
 
 local RollSample = {
-    LOOP = 22,      -- seconds one test mode round takes before it starts over
-    PICK_EVERY = 1.4,
-    ROLL_EVERY = 0.6,
     RING = 17063,   -- Band of Accuria
     ROBE = 19145,   -- Robe of Volatile Power
 }
@@ -86,53 +83,6 @@ function RollSample.Demo(now)
     rolling.mine = "need"
     rolling.players.Tomas.roll = 37
     return { won, open, rolling }
-end
-
--- Test mode's round: the open ring's picks come in one by one, then the
--- numbers, then a winner; after a pause it starts over.
-local round
-function RollSample.Current(now)
-    now = now or GetTime()
-    if not round or now - round.t0 >= RollSample.LOOP then
-        round = { t0 = now, drops = RollSample.Demo(now), step = 0 }
-        local d = round.drops[2]
-        d.start, d.duration = now, 14
-        for _, p in pairs(d.players) do p.pick, p.seq, p.roll = nil, nil, nil end
-        d.players.Bram.hasOne = true
-        d.mine = nil
-        round.drops[1].doneAt = now
-    end
-    return round.drops
-end
-
--- Moves the round on; true when something changed.
-function RollSample.Advance(now)
-    local drops = RollSample.Current(now)
-    local d, t = drops[2], now - round.t0
-    local n = #RollSample.GROUP
-    local want = math.floor(t / RollSample.PICK_EVERY)
-    local picks = math.min(n, want)
-    local rolls = math.max(0, math.floor((t - n * RollSample.PICK_EVERY) / RollSample.ROLL_EVERY))
-    local step = picks + rolls
-    if step == round.step then return false end
-    round.step = step
-    for i = 1, picks do
-        local g = RollSample.GROUP[i]
-        local p = d.players[g[1]:match("^(%S+)")]
-        if not p.pick then p.pick, p.seq = g[3], i; if p.self then d.mine = g[3] end end
-    end
-    local rolled = 0
-    for i = 1, n do
-        local g = RollSample.GROUP[i]
-        if g[4] and rolled < rolls then
-            rolled = rolled + 1
-            d.players[g[1]:match("^(%S+)")].roll = g[4]
-        end
-    end
-    if picks == n and rolled == 6 and not d.done then
-        d.players.Sera.won, d.winner, d.done, d.doneAt = true, "Sera", true, now
-    end
-    return true
 end
 
 -- The options page's sample: a compact card still being picked over a full

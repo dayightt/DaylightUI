@@ -656,20 +656,17 @@ T.test("rolls options: the page and its sample", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rolls test mode: the sample plays and a real roll ends it", function()
-    local S, RW = rollsLogin()
+T.test("rolls test mode: no sample rolls, and none in its list", function()
+    local S = rollsLogin()
     local St = S.RollStack
     DaylightUI.testMode = true
     DaylightUI.Fire("TestModeChanged", true)
-    T.truthy(#St.Shown() >= 2, "the sample's rolls")
-    T.truthy(St.frame:IsShown())
-    T.truthy(St.frame:GetScript("OnUpdate"), "it plays")
-    tick(S, 6)
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
-    T.eq(#St.Shown(), 1, "a real roll ends the sample"); T.eq(St.Shown()[1].rollID, id)
+    T.eq(#St.Shown(), 0, "no made-up rolls")
+    T.falsy(St.frame and St.frame:IsShown())
+    for _, p in ipairs(DaylightUI.TestBox.parts) do T.falsy(p.key == "rolls", "not a test mode part") end
     DaylightUI.testMode = false
     DaylightUI.Fire("TestModeChanged", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 -- Fixes from the review.
 T.test("rolls stack: a roll still waiting on your pick always shows", function()
