@@ -295,6 +295,37 @@ function Ed.SetAttach(id, side)
     Ed.Draw()
 end
 
+-- The layout pill's menu: a heading per talent set with the class's layouts
+-- under it. A pick is that talent set's layout from now on, kept after the editor
+-- closes, and the editor shows it.
+local function layoutKey(k)
+    local g, id = string.match(tostring(k), "^(%d+):(.+)$")
+    return tonumber(g), id
+end
+function Ed.LayoutMenu(owner)
+    local keys, values, titles = {}, {}, {}
+    local list = Data.Profiles()
+    for g = 1, Data.SETS do
+        local head = "set" .. g
+        keys[#keys + 1] = head
+        values[head] = string.format(g == DUI.DB.SpecGroup() and L["Talent set %d (in use)"] or L["Talent set %d"], g)
+        titles[head] = true
+        for _, p in ipairs(list) do
+            local k = g .. ":" .. p.id
+            keys[#keys + 1] = k
+            values[k] = p.name
+        end
+    end
+    DUI.Widgets.OpenMenu(owner, keys, values, nil, function(k)
+        local g, id = layoutKey(k)
+        if not g or not Data.Assign(g, id) then return end
+        Ed.SetGroup(g)
+    end, nil, { titles = titles, checked = function(k)
+        local g, id = layoutKey(k)
+        return g ~= nil and Data.Use(g) == id
+    end })
+end
+
 -- Which talent set's layout is being edited (nil = the one in use).
 function Ed.Group() return Data.CurrentIndex() end
 function Ed.SetGroup(g)
@@ -1056,8 +1087,7 @@ local function drawPill()
     local using = g == DUI.DB.SpecGroup()
     local prof = Data.Profile(Data.Use(g))
     local setText = string.format(using and L["Talent set %d (in use)"] or L["Talent set %d"], g)
-    ui.set.text:SetText(prof and string.format(L["%s: %s"], setText, tostring(prof.name)) or setText)
-    ui.set.FitWidth(120)
+    ui.set.SetLabel(prof and string.format(L["%s: %s"], setText, tostring(prof.name)) or setText, 120)
     ui.live.SetActive(live)
     ui.snap.Sync()
     ui.mag.Sync()
@@ -1360,10 +1390,8 @@ function build()
     local title = DUI.Style.Text(pill, DUI.Style.SIZE.title, "LEFT")
     title:SetPoint("LEFT", pill, "LEFT", 14, 0)
     title:SetText(L["Cooldown layout"])
-    ui.set = pillButton(pill, "", function()
-        local g = Ed.Group() % Data.SETS + 1
-        Ed.SetGroup(g)
-    end)
+    ui.set = W().MenuButton(pill, "", 26)
+    ui.set:SetScript("OnClick", function(b) Ed.LayoutMenu(b) end)
     ui.set:SetPoint("LEFT", title, "RIGHT", 14, 0)
     -- Import turns a game Cooldown Manager string into a new profile for this talent
     -- set. Reset empties the profile in use, with a confirm.

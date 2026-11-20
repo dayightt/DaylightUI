@@ -6951,6 +6951,33 @@ T.test("cdm editor: the top bar's Reset empties the layout after Click again; Im
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A player clicked the talent set button to use another layout; it only showed
+-- the other talent set, and closing the editor went back to the old one.
+T.test("cdm editor: the talent set button picks a layout for either talent set, kept after closing", function()
+    local DUI, AB, Ed, D = edWorld()
+    local first, other = D.NewProfile("First"), D.NewProfile("Second")
+    D.Assign(1, first)
+    local got
+    local W = DUI.Widgets
+    local was = W.OpenMenu
+    W.OpenMenu = function(owner, keys, values, current, onPick, width, opts)
+        got = { keys = keys, values = values, pick = onPick, opts = opts }
+    end
+    Ed.PillButton("set"):Click()
+    W.OpenMenu = was
+    T.truthy(got, "a menu opens")
+    T.truthy(got.opts.titles.set1 and got.opts.titles.set2, "a heading per talent set")
+    T.truthy(got.values["2:" .. other], "the class's layouts under each")
+    T.truthy(got.opts.checked("1:" .. first), "the one in use is ticked")
+    T.falsy(got.opts.checked("2:" .. other))
+    got.pick("2:" .. other)
+    T.eq(D.Use(2), other, "talent set 2 uses it")
+    T.eq(Ed.Group(), 2, "and the editor shows it")
+    Ed.Close()
+    T.eq(D.Use(2), other, "still picked after closing")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm editor: the picked spell's group gets an outline round all of it; a lone spell none", function()
     local DUI, AB, Ed, D = edWorld()
     local set = D.Current()
