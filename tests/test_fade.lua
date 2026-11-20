@@ -1431,22 +1431,9 @@ local function counted(f)
     return f
 end
 
-T.test("fade: frame buffers stay off by default, even for an area that asks", function()
-    local DUI = stub.Load()
-    local F = DUI.Fade
-    local f = counted(frame(false))
-    area(DUI, "w0", { mode = "ooc", alpha = 0.4, delay = 0, mouseover = true }, { f }, { whole = true })
-    settle(F)
-    T.falsy(f.buffer, "no buffer")
-    T.falsy(f.flat, "no flattened layers either")
-    T.eq(F.WholeCount(), 0)
-    T.eq(f:GetAlpha(), 0.4, "it still fades")
-end)
-
 T.test("fade: a whole area fades as one picture while it can fade, never its layers one by one", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local f = counted(frame(false))
     area(DUI, "w1", { mode = "ooc", alpha = 0.4, delay = 0, mouseover = true }, { f }, { whole = true })
     settle(F)
@@ -1469,7 +1456,6 @@ end)
 T.test("fade: buffers come off while the whole UI is faded away, and back after", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local f = counted(frame(false))
     area(DUI, "w1", { mode = "ooc", alpha = 0.4, delay = 0, mouseover = true }, { f }, { whole = true })
     settle(F)
@@ -1490,7 +1476,6 @@ end)
 T.test("fade: a frame's buffer only changes out of combat, and waits for the fight's end", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local f = counted(frame(false))
     stub.EnterCombat()
     F.Whole(f, "range", true)
@@ -1505,7 +1490,6 @@ end)
 T.test("fade: the UI fading skips a frame that never faded", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local f = counted(frame(false))
     F.Whole(f, "range", false)
     F.SetUIAlpha(0.5)
@@ -1517,7 +1501,6 @@ end)
 T.test("fade: replacing and emptying a mutable frame list releases departed buffers", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local a, b = counted(frame(false)), counted(frame(false))
     local list = { a }
     area(DUI, "whole", { mode = "always", alpha = 0.4, delay = 0, mouseover = false }, list, { whole = true })
@@ -1541,7 +1524,6 @@ end)
 T.test("fade: whole ownership follows list and setting changes while resting at full opacity", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local a, b = counted(frame(false)), counted(frame(false))
     local list = { a }
     local settings = { mode = "ooc", alpha = 0.4, delay = 0, mouseover = false }
@@ -1564,7 +1546,6 @@ end)
 T.test("fade: re-registering an area releases old frames and keeps an independent range request", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local a, b = counted(frame(false)), counted(frame(false))
     local settings = { mode = "always", alpha = 0.4, delay = 0, mouseover = false }
     area(DUI, "whole", settings, { a, b }, { whole = true })
@@ -1580,7 +1561,6 @@ end)
 T.test("fade: overlapping areas release only their own whole request", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local f = counted(frame(false))
     local settings = { mode = "always", alpha = 0.4, delay = 0, mouseover = false }
     local left, right = { f }, { f }
@@ -1600,7 +1580,6 @@ end)
 T.test("fade: a departed request queued in combat never enables a buffer afterwards", function()
     local DUI = stub.Load()
     local F = DUI.Fade
-    F.BUFFERS = true
     local f = counted(frame(false))
     local list = { f }
     stub.EnterCombat()
