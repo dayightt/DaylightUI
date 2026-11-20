@@ -55,11 +55,20 @@ function Tabs.SetKind(i, kind, on)
     if not tab then return end
     if kind == "all" then
         tab.all = on or nil
+        -- Everything on means every kind, even one it left out before.
+        if on and type(tab.kinds) == "table" then
+            for k, v in pairs(tab.kinds) do if v == false then tab.kinds[k] = nil end end
+        end
+    elseif tab.all and on then
+        -- An everything tab that left this kind out takes it back and stays everything.
+        if type(tab.kinds) == "table" then tab.kinds[kind] = nil end
+        tab.v = ns.Kinds.VERSION
     else
-        -- From "Everything": every kind on except the one toggled.
+        -- From "Everything": every kind on except the one toggled and any it left out.
         if tab.all then
+            local out = type(tab.kinds) == "table" and tab.kinds or {}
             tab.kinds = {}
-            for _, k in ipairs(ns.Kinds.ORDER) do tab.kinds[k] = true end
+            for _, k in ipairs(ns.Kinds.ORDER) do tab.kinds[k] = out[k] ~= false or nil end
         end
         tab.all = nil
         tab.kinds = tab.kinds or {}

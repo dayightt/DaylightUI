@@ -383,10 +383,11 @@ function Kinds.Of(id, event, args, text)
 end
 
 -- Default tabs for a new chat box: everything, guild, trade and loot (named with
--- the game's own strings).
+-- the game's own strings). General leaves out crafting: in a city it fills with
+-- every "X creates Y" nearby. The Loot tab still has them.
 function Kinds.DefaultTabs()
     local tabs = {
-        { name = _G.GENERAL or L["General"], all = true },
+        { name = _G.GENERAL or L["General"], all = true, kinds = { tradeskill = false } },
         { name = _G.GUILD or L["Guild"], kinds = { guild = true, officer = true } },
         { name = _G.TRADE or L["Trade"], kinds = { trade = true, [Kinds.SERVICES] = true, [Kinds.TRADE_LOCAL] = true } },
         { name = _G.LOOT or L["Loot"], kinds = { loot = true, money = true, currency = true, tradeskill = true,
@@ -398,10 +399,10 @@ function Kinds.DefaultTabs()
 end
 
 -- Does this tab show this kind? A custom channel without its own switch follows
--- "Other channels".
+-- "Other channels". An everything tab shows all but the kinds switched off in it.
 function Kinds.Shows(tab, kind)
     if type(tab) ~= "table" then return false end
-    if tab.all then return true end
+    if tab.all then return not (type(tab.kinds) == "table" and tab.kinds[kind] == false) end
     if type(tab.kinds) ~= "table" then return false end
     local on = tab.kinds[kind]
     if on == nil and Kinds.Own(kind) then on = tab.kinds.channel end

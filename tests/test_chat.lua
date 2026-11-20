@@ -5998,6 +5998,34 @@ T.test("chat daylight: tradeskills, currency, battlegrounds and the game's other
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("chat daylight: crafting lines stay off the General tab but show under Loot", function()
+    local Box = daylight()
+    local Kinds = stub.chatModule.Kinds
+    local Tabs = stub.chatModule.Tabs
+    local general, loot = Box.Tabs()[1], Box.Tabs()[4]
+    T.truthy(general.all, "General is still an everything tab")
+    T.falsy(Kinds.Shows(general, "tradeskill"), "no crafting lines on General")
+    T.truthy(Kinds.Shows(general, "say") and Kinds.Shows(general, "loot"), "everything else stays")
+    T.truthy(Kinds.Shows(loot, "tradeskill"), "the Loot tab has them")
+    -- Switching crafting back on keeps General an everything tab.
+    Tabs.SetKind(1, "tradeskill", true)
+    stub.RunTimers()
+    general = Box.Tabs()[1]
+    T.truthy(general.all and Kinds.Shows(general, "tradeskill"), "back on, still everything")
+    -- Switching one kind off from there leaves crafting on.
+    Tabs.SetKind(1, "loot", false)
+    stub.RunTimers()
+    general = Box.Tabs()[1]
+    T.truthy(general.kinds.tradeskill and not general.kinds.loot, "only loot went off")
+    -- Everything on again shows every kind.
+    DaylightUI:Set("Chat", "tabs", nil)
+    stub.RunTimers()
+    Tabs.SetKind(1, "all", true)
+    stub.RunTimers()
+    T.truthy(Kinds.Shows(Box.Tabs()[1], "tradeskill"), "Everything means everything")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: a tab's right-click menu opens its switches under Channels", function()
     daylight()
     local Tabs = stub.chatModule.Tabs
