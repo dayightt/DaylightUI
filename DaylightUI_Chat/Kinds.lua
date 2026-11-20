@@ -78,16 +78,24 @@ Kinds.SPLIT = {
     -- The rest of the game's chat settings, one switch each.
     [6] = { loot = { "tradeskill", "opening" }, money = { "currency" },
             system = { "pvp", "pet", "misc", "icons", "bnalert" } },
+    [7] = {}, -- not a split, see Kinds.LEFT_OUT
 }
-Kinds.VERSION = 6
+Kinds.VERSION = 7
+
+-- Kinds a saved tab stops showing at that tab version. Crafting reached every
+-- tab that showed everything, and loot tabs through the split above, so a busy
+-- city filled the chat with "X creates Y". A tab can switch it back on.
+Kinds.LEFT_OUT = {
+    [7] = { "tradeskill" },
+}
 
 -- Upgrades a saved tab: each old kind turns on its new kinds, only for splits
 -- not yet applied, so anything switched off since stays off. A channel's own
 -- switch predates its split, so if it was saved off it stays off.
 function Kinds.Upgrade(tab)
     if type(tab) ~= "table" or (tab.v or 1) >= Kinds.VERSION then return end
-    if type(tab.kinds) == "table" then
-        for v = (tab.v or 1) + 1, Kinds.VERSION do
+    for v = (tab.v or 1) + 1, Kinds.VERSION do
+        if type(tab.kinds) == "table" then
             for old, more in pairs(Kinds.SPLIT[v]) do
                 if tab.kinds[old] then
                     for _, k in ipairs(more) do
@@ -96,6 +104,17 @@ function Kinds.Upgrade(tab)
                 end
             end
         end
+        for _, k in ipairs(Kinds.LEFT_OUT[v] or {}) do
+            -- An everything tab leaves a kind out by a saved false.
+            if tab.all then
+                tab.kinds = type(tab.kinds) == "table" and tab.kinds or {}
+                tab.kinds[k] = false
+            elseif type(tab.kinds) == "table" then
+                tab.kinds[k] = nil
+            end
+        end
+    end
+    if type(tab.kinds) == "table" then
         for old, real in pairs(Kinds.RENAMED) do
             if tab.kinds[old] == false then tab.kinds[real] = false end
             tab.kinds[old] = nil

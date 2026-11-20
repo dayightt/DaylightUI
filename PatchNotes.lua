@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Chat", "Everyone's crafting no longer fills chat tabs you had renamed or changed, and lines you switched off in the game's chat settings stay off" },
+    } },
     { version = "2.0.1", date = "2026-11-20", summary = "Chat stops filling up with everyone's crafting, plus a few quick fixes.", fixed = {
         { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },
         { "Loot", "Winning a roll no longer shows a second \"You received\" box on top of the loot roll" },

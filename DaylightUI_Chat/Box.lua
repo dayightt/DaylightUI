@@ -469,10 +469,22 @@ local function carried(group)
     return false
 end
 
+-- Some chat window has the group, the combat log included. One no window has
+-- was switched off in the game's chat settings, so the box leaves it off too.
+local function wanted(group)
+    for i = 1, tonumber(_G.NUM_CHAT_WINDOWS) or 10 do
+        local cf = _G["ChatFrame" .. i]
+        if type(cf) == "table" and type(cf.ContainsMessageGroup) == "function" and cf:ContainsMessageGroup(group) then
+            return true
+        end
+    end
+    return false
+end
+
 function Box.HearGain(event, text)
     if not Box.On() or type(event) ~= "string" or secret(text) or type(text) ~= "string" then return end
     local group = event:sub(10)
-    if carried(group) then return end
+    if carried(group) or not wanted(group) then return end
     local info = type(ChatTypeInfo) == "table" and ChatTypeInfo[group]
     if type(info) ~= "table" then return end
     Box.Feed(fromEvent, text, info.r, info.g, info.b, info.id, nil, nil, event)
