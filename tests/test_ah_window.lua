@@ -25,6 +25,7 @@ local function gameAH()
         if event == "PLAYER_INTERACTION_MANAGER_FRAME_SHOW" then
             if not f then
                 f = CreateFrame("Frame", "AuctionHouseFrame", UIParent)
+                f:SetSize(800, 538)   -- Blizzard_AuctionHouseFrame.xml
                 f.CloseButton = CreateFrame("Button", nil, f)
                 -- Blizzard_AuctionHouseSearchBar.lua: SetSearchText is SearchBox:SetText
                 f.SearchBar = CreateFrame("Frame", nil, f)
@@ -127,6 +128,7 @@ T.test("ah window: the swap icon hands the AH to the game's window, its link bri
     T.truthy(AHW.IsOpen(), "the AH stays open in the game's window")
     T.eq(game():GetParent(), UIParent)
     T.truthy(game():IsShown())
+    T.eq(game():GetWidth(), 800, "the game's own width back, or its lists run past its edge")
     local link = A.swap.link
     T.truthy(link and link:IsShown(), "the game's window has a way back")
     -- the next visit stays the game's
