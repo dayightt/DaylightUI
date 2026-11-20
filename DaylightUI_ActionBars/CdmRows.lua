@@ -476,8 +476,8 @@ end
 
 -- A placed spell the game's own item draws: whether its buff is up, and its recast
 -- glow. A buff item answers for itself, and so does a cooldown icon that shows its
--- aura while it's up (Rend). A cooldown icon that never shows its aura (Bloodrage)
--- asks the game's buff item of the same spell.
+-- aura while it's up (Rend). A cooldown icon that never shows its aura (Mortal
+-- Strike) asks the game's buff item of the same spell.
 local function heldState(id, p, item)
     local A = ns.CdmAuras
     local t = trackOf(id, p)
@@ -486,6 +486,12 @@ local function heldState(id, p, item)
         up = itemUp(item, true)
     elseif A and A.Follows(id) and not A.GameBlind(id) then
         up = itemUp(item, false)
+        -- A buff under a linked spell (Bloodrage's): the game's buff item of the
+        -- spell sees it as well, and either one saying up is the game's word.
+        if up == false and not A.Follows(id, true) then
+            local seen = buffItemOf(A.Watch(id).ids)
+            if seen and itemUp(seen, true) then up = true end
+        end
     elseif A and t then
         local seen = buffItemOf(A.Watch(id).ids)
         if seen then up = itemUp(seen, true) end

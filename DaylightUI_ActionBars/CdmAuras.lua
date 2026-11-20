@@ -173,17 +173,41 @@ function A.Unique(id)
     return own ~= nil and ns.CdmCustom.Unique(own) or false
 end
 
--- Cooldowns the game shows by their aura while it's up (Rend, Thunder Clap).
--- Same test as CooldownViewerItemDataMixin:CanUseAuraForDisplay: hasAura set
--- and the HideAura flag clear.
-function A.Follows(id)
+-- Whether one of a cooldown's linked spells is itself a buff or debuff, by the
+-- game's spell data. A rank that only triggers one under another id (Charge and
+-- its stun) doesn't count: the icon looks for the linked ids alone.
+local function linkedAura(info)
+    local C = ns.CdmCustom
+    local links = info.linkedSpellIDs
+    if not C or type(links) ~= "table" then return false end
+    local own = C.Fact(plain(info.spellID))
+    local listed = {}
+    for _, sid in ipairs(own and own.auras or {}) do listed[sid] = true end
+    for _, sid in ipairs(links) do
+        sid = plain(sid)
+        local fact = sid and C.Fact(sid)
+        if sid and (listed[sid] or (fact and fact.on ~= nil and fact.auras == nil)) then return true end
+    end
+    return false
+end
+
+-- Cooldowns the game shows by their aura while it's up (Rend, Thunder Clap,
+-- Bloodrage). The game's icon takes any aura of yours whose spell is the row's
+-- own or one of its linked spells (CooldownViewerItemDataMixin's
+-- GetAssociatedAuraSpellPriority), unless the row is flagged HideAura
+-- (CanUseAuraForDisplay). Bloodrage's own spell puts no aura on you, so the game
+-- says hasAura false for it, and its icon still shows the buff: a linked spell.
+-- own = by the row's own spell alone, the rule older layouts were saved under.
+function A.Follows(id, own)
     if ns.CdmCustom and ns.CdmCustom.Is(id) then return false end   -- custom pieces follow their track
     local info = infoOf(id)
-    if not info or isSecret(info.hasAura) or info.hasAura ~= true then return false end
+    if not info then return false end
     local flags = plain(info.flags)
     local F = type(_G.Enum) == "table" and _G.Enum.CooldownSetSpellFlags
     local hide = type(F) == "table" and plain(F.HideAura) or 1
-    return not (flags and math.floor(flags / hide) % 2 == 1)
+    if flags and math.floor(flags / hide) % 2 == 1 then return false end
+    if not isSecret(info.hasAura) and info.hasAura == true then return true end
+    return own ~= true and linkedAura(info)
 end
 
 -- Every one of these spells' auras is never secret (C_Secrets), so a lookup by id

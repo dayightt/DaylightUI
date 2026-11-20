@@ -423,7 +423,7 @@ function Widget:HookScript(h, fn)
         error("bad argument #3 to '?' (Usage: local success = self:HookScript(scriptTypeName, script [, bindingType]))", 2)
     end
     local prev = self.__scripts[h]
-    local both = function(...) if prev then prev(...) end fn(...) end
+    local both = function(...) if prev then prev(...) end stub.Hooked(fn, ...) end
     -- Kept on the frame. A weak table here would keep every world alive, since
     -- LuaJIT's weak keys aren't ephemerons and fn reaches the frame.
     local parts = rawget(self, "__hookParts") or {}
@@ -2915,12 +2915,18 @@ end
 -- that whole loaded world alive (75 MB per Load, all walked by the garbage
 -- collector) and ran for every world before it.
 local hooks = {}
+-- An addon's hook that the game's own code reaches (stub.inGame, the game's
+-- Cooldown Manager in tests/cdmworld.lua) runs tainted, as it does in the client.
+function stub.Hooked(fn, ...)
+    if (stub.inGame or 0) > 0 and stub.IsAddonHandler(fn) then return Blizz.Tainted(fn, ...) end
+    return fn(...)
+end
 _G.hooksecurefunc = function(tbl, name, fn)
     if type(tbl) == "string" then tbl, name, fn = _G, tbl, name end
     local orig = tbl[name]
     local hook = function(...)
         local r = { orig(...) }
-        fn(...)
+        stub.Hooked(fn, ...)
         return unpack(r)
     end
     hooks[#hooks + 1] = { tbl = tbl, name = name, raw = rawget(tbl, name), hook = hook }
@@ -3429,6 +3435,9 @@ stub.feelOwner = nil
 
 function stub.Reset()
     unhookAll()
+    -- What a test world put in place beyond the fake game (tests/cdmworld.lua) goes with it.
+    for _, undo in ipairs(stub.onReset or {}) do undo() end
+    stub.onReset, stub.inGame = {}, 0
     for _, n in ipairs(named) do _G[n] = nil end
     for i = #frames, 1, -1 do frames[i] = nil end
     kids, byEvent = {}, {}
@@ -3658,6 +3667,8 @@ local secretWrapped = setmetatable({}, { __mode = "k" })
 -- since the client hides enemy players' class and name in a match.
 local function secretWhen(when, unit, mob)
     if stub.plainSecrets then return false end
+    -- The game's own code is untainted and reads everything plain.
+    if (stub.inGame or 0) > 0 then return false end
     if when == "always" then return true end
     local R = Enum.AddOnRestrictionType
     if when == "combat" then return stub.combat == true end

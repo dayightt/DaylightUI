@@ -81,8 +81,8 @@ end
 -- Own.Track says what it shows. The player's pick wins. Left unset:
 --   no buff or debuff                           nil, a plain cooldown
 --   a buff row spell                            "both" with a real cooldown, else "buff"
---   a cooldown whose icon shows its buff        "both" (Rend, Thunder Clap)
---   a cooldown whose icon never shows its buff  "cooldown" (Bloodrage), or "both" when
+--   a cooldown whose icon shows its buff        "both" (Rend, Thunder Clap, Bloodrage)
+--   a cooldown whose icon never shows its buff  "cooldown" (Mortal Strike), or "both" when
 --                                               the buff holds a count or there is no
 --                                               real cooldown to show (Slice and Dice)
 --
@@ -263,19 +263,20 @@ function Own.SpellOf(id)
     return info and plainNumber(info.spellID)
 end
 
--- A cooldown with a buff or debuff the game's icon doesn't show (Bloodrage). Either
--- the game says it has an aura but flags it HideAura, or it says none and Daylight UI's spell
--- list (CdmSpells) knows one. It can still be picked on the card.
+-- A cooldown with a buff or debuff the game's icon doesn't show. Either the game
+-- says it has an aura but flags it HideAura (Mortal Strike), or it says none, links
+-- none, and Daylight UI's spell list (CdmSpells) knows one (Charge's stun). It can
+-- still be picked on the card. own = by the row's own spell alone (CdmAuras.Follows).
 -- Racials the game files with no aura though they give a buff. Eureka! (Gnome) has
 -- one rank per power type, and its buff carries the same spell id.
 Own.RACIAL_AURAS = {
     [1259812] = true, [1259813] = true, [1259817] = true, [1259821] = true, [1259823] = true, -- Eureka!
 }
 
-function Own.QuietAura(id)
+function Own.QuietAura(id, own)
     local C = ns.CdmCustom
     if C and C.Is(id) then return false end
-    if ns.CdmAuras and ns.CdmAuras.Follows(id) then return false end
+    if ns.CdmAuras and ns.CdmAuras.Follows(id, own) then return false end
     local info = infoOf(id)
     if info and not isSecret(info.hasAura) and info.hasAura == true then return true end
     local sid = info and plainNumber(info.spellID)
@@ -449,8 +450,11 @@ function Own.KeepOldTracks(set)
             end
         elseif known[id] then
             local k = known[id]
-            local follows = A ~= nil and A.Follows(id)
-            local quiet = Own.QuietAura(id) or (not follows and Own.AuraOf(sid) ~= nil)
+            -- Those layouts were read by the row's own spell alone: a buff under a
+            -- linked spell (Bloodrage's) didn't count as shown by the game's icon.
+            local follows = A ~= nil and A.Follows(id, true)
+            local linked = A ~= nil and not follows and A.Follows(id)
+            local quiet = Own.QuietAura(id, true) or (not follows and Own.AuraOf(sid) ~= nil)
             if AURA[k.cat] or follows or quiet then
                 local hadCd = learnedCd or Own.HasCooldown(sid)
                 local old
@@ -461,8 +465,12 @@ function Own.KeepOldTracks(set)
                     old = (hadCd or not AURA[k.cat]) and "both" or "buff"
                 end
                 local now = Own.Track(id, p, known)
+                if linked and old == "cooldown" and now == "both" then
+                    -- As an icon it was the game's icon and still is. As a bar it
+                    -- was a cooldown bar, which only the pick keeps.
+                    if p.shape == "bar" then p.track, changed = old, true end
                 -- Unset and "cooldown" are the same picture for a spell with no buff known.
-                if old ~= now and not (old == "cooldown" and now == nil) then
+                elseif old ~= now and not (old == "cooldown" and now == nil) then
                     p.track, changed = old, true
                 end
             end
