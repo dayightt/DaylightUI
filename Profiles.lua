@@ -69,6 +69,9 @@ function Profiles.Snapshot(name)
         end
     end
     p.layout = EditMode.Export(name) or src.pendingLayout
+    -- The screen's shape it was made on, so an import on a wider or narrower
+    -- screen can bring the frames to the same places.
+    p.screen = { UIParent:GetWidth(), UIParent:GetHeight() }
     return p
 end
 
@@ -136,6 +139,11 @@ function Profiles.Check(v)
     for _, key in ipairs({ "general", "modules", "positions" }) do
         if v[key] ~= nil and type(v[key]) ~= "table" then return nil, L["the profile is damaged"] end
     end
+    local s = v.screen
+    if not (type(s) == "table" and type(s[1]) == "number" and type(s[2]) == "number" and s[1] > 0 and s[2] > 0
+            and s[1] < math.huge and s[2] < math.huge) then
+        v.screen = nil
+    end
     -- A damaged position would leave its frame unplaced at every login, so drop it.
     for key, pos in pairs(v.positions or {}) do
         if not DUI.Movers.Valid(pos) then v.positions[key] = nil end
@@ -195,6 +203,70 @@ function Profiles.Take(shared, take)
         if take[name] then p.modules[name] = copy(t) else p.modules[name] = copy(mine.modules[name]) end
     end
     return p
+end
+
+-- Fitting a shared profile's frames to another screen shape
+
+-- A string from before the screen was saved with it is taken as made on 16:9,
+-- the shape most players have.
+Profiles.SHAPE_DEFAULT = 16 / 9
+-- Shapes named in the import message, and how close a screen must be to one
+-- to be called it (3440x1440 is 2.39, sold as 21:9).
+Profiles.SHAPES = { { 4 / 3, "4:3" }, { 5 / 4, "5:4" }, { 16 / 10, "16:10" }, { 16 / 9, "16:9" },
+                    { 21 / 9, "21:9" }, { 32 / 9, "32:9" } }
+Profiles.SHAPE_NEAR = 0.04
+
+-- A width over a height as players know it ("21:9"), else "2.10:1".
+function Profiles.ShapeName(aspect)
+    local best, gap
+    for _, s in ipairs(Profiles.SHAPES) do
+        local g = math.abs(aspect - s[1]) / s[1]
+        if not gap or g < gap then best, gap = s[2], g end
+    end
+    if gap <= Profiles.SHAPE_NEAR then return best end
+    return string.format("%.2f:1", aspect)
+end
+
+-- The shared profile p with its frame positions fitted to this screen's
+-- shape. Spots are offsets from the screen's middle, so they stay put on any
+-- width; what changes is the edges. On a narrower screen the spots are pulled
+-- in with the width, so nothing ends up past an edge. On a wider one the
+-- spots stay, and the pieces that start at a screen edge (chat, info panel,
+-- raid, loot feed) and were never moved start that far in, at the edges the
+-- profile was made with, so the whole layout stays together in the middle.
+-- Returns a copy and the shapes (from, to), or p itself when the shapes match.
+function Profiles.Fit(p)
+    if type(p.positions) ~= "table" then return p end
+    local w, h = UIParent:GetWidth(), UIParent:GetHeight()
+    if not (w and h and w > 0 and h > 0) then return p end
+    local s = p.screen
+    local aspect = s and s[1] / s[2] or Profiles.SHAPE_DEFAULT
+    local band = h * aspect -- the width the profile was made with, in this screen's units
+    if math.abs(w - band) <= w * 0.01 then return p end
+    local out = copy(p)
+    local at = out.positions
+    if w < band then
+        local k = w / band
+        for _, v in pairs(at) do
+            local x = v[1] * k
+            if type(v.ax) == "number" then v.ax = v.ax + x - v[1] end
+            v[1] = x
+        end
+    else
+        local extra = (w - band) / 2
+        for _, key in ipairs(DUI.Movers.Keys()) do
+            if not at[key] then
+                local point, ax, ay, x, y, side = DUI.Movers.DefaultSpot(key)
+                if point and side ~= 0 then
+                    local shift = -side * extra
+                    local spot = { x + shift, y }
+                    if point ~= "CENTER" then spot.at, spot.ax, spot.ay = point, ax + shift, ay end
+                    at[key] = spot
+                end
+            end
+        end
+    end
+    return out, Profiles.ShapeName(aspect), Profiles.ShapeName(w / h)
 end
 
 -- The profiles
@@ -1268,14 +1340,21 @@ function Profiles.ShowImport()
             b.name:SetFocus()
             return
         end
-        local shared = picked() == count and pending or Profiles.Take(pending, take)
+        local shared, from, to = pending
+        if take[Profiles.POSITIONS] then shared, from, to = Profiles.Fit(pending) end
+        if picked() ~= count then shared = Profiles.Take(shared, take) end
         local made, why = Profiles.Create(named(), shared)
         if not made then
             warn(string.format(L["Can't import: %s."], tostring(why)))
             return
         end
         b:Hide()
-        DUI.Print(string.format(L["Imported the profile %s."], made))
+        if from and from ~= to then
+            DUI.Print(string.format(L["Imported the profile %s, its frames fitted from a %s screen to your %s one."],
+                made, from, to))
+        else
+            DUI.Print(string.format(L["Imported the profile %s."], made))
+        end
         Profiles.Choose(currentSlot(), made)
     end
     b.go:SetScript("OnClick", go)
