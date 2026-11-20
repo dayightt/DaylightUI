@@ -36,7 +36,6 @@ Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, sp
 Panel.FIXED = { unit = true, mob = true, node = true, item = true, compare = true, spell = true, cooldown = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.TAG_ROW_GAP = 4  -- between two rows of a header's tags
-Panel.HINT_H = 20      -- a hint line, 12 px text at 1.7 line height
 Panel.RULE_ALPHA = 0.25
 Panel.SHADE = 0.45     -- a bar colored from a curve: its dark end, as black over the fill
 Panel.BUFF, Panel.BUFF_GAP = 22, 4
@@ -601,20 +600,6 @@ function Panel.Tags(p, tags)
     end
 end
 
--- hints: { { key, what, color? }, ... }: the key in the accent (or its own
--- color: a spell's school), what it does TEXT.
-function Panel.Hints(p, hints)
-    local item = add(p, { kind = "hints", list = {} })
-    local Hex = DUI.Win.Parts.Hex
-    local r, g, b = Style.Accent()
-    local accent = Hex({ r, g, b })
-    for i, h in ipairs(hints) do
-        local fs = text(p, Style.SIZE.small, Style.INK.TEXT)
-        fs:SetText((h[3] and Hex(h[3]) or accent) .. h[1] .. "|r " .. h[2])
-        item.list[i] = fs
-    end
-end
-
 -- ---------------------------------------------------------------------
 -- Layout
 -- ---------------------------------------------------------------------
@@ -639,10 +624,6 @@ local function natural(item)
         return widthOf(item.fs)
     elseif k == "line" then
         return widthOf(item.fs) + (item.tail and (4 + widthOf(item.tail)) or 0)
-    elseif k == "hints" then
-        local w = 0
-        for _, fs in ipairs(item.list) do w = math.max(w, widthOf(fs)) end
-        return w
     elseif k == "tiles" then
         local w = 0
         for _, t in ipairs(item.list) do w = math.max(w, widthOf(t.value), widthOf(t.caption)) end
@@ -858,14 +839,6 @@ function place.icons(p, item, y, inner)
     end
     local rows = math.ceil(#item.list / per)
     return rows * s + math.max(0, rows - 1) * gap
-end
-
-function place.hints(p, item, y)
-    if #item.list == 0 then return 0 end
-    for i, fs in ipairs(item.list) do
-        fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + (i - 1) * Panel.HINT_H))
-    end
-    return #item.list * Panel.HINT_H - (Panel.HINT_H - lineHeight(item.list[1].size, item.list[1].slot))
 end
 
 local SPACED = { rule = false, gap = false }

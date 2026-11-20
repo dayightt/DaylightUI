@@ -1119,13 +1119,13 @@ T.test("rich tooltip: something new in a showing card fades its words in; a refi
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- Spells: the board's spell card, the math on Shift, the cooldown card on an
+-- Spells: the board's spell card, the cooldown card on an
 -- action button, and the frame alone in a fight. The game's own words
 -- (GlobalStrings) and what C_Spell answers for the spells this test knows.
 local WHITE_LINE, RANK_GRAY = { 1, 1, 1 }, { 0.5, 0.5, 0.5 }
 
 local function spells()
-    _G.MANA, _G.DAMAGE, _G.SHIFT_KEY_TEXT = "Mana", "Damage", "Shift"
+    _G.MANA, _G.DAMAGE = "Mana", "Damage"
     _G.STRING_SCHOOL_FROST, _G.STRING_SCHOOL_SHADOW, _G.STRING_SCHOOL_ARCANE = "Frost", "Shadow", "Arcane"
     Enum.TooltipDataType.UnitAura, Enum.TooltipDataType.Macro = 7, 25
     Enum.TooltipDataLineType = { SpellName = 13, SpellDescription = 34 }
@@ -1208,8 +1208,7 @@ T.test("rich tooltip: a spell's card, as the board lays it out", function()
     T.truthy(desc:find(H(INK.DAMAGE) .. "412|r to " .. H(INK.DAMAGE) .. "448|r", 1, true), "damage soft red: " .. desc)
     T.truthy(desc:find(H(frost) .. "40|r%", 1, true), "the slow in the school's color")
     T.truthy(desc:find(H(frost) .. "9|r sec", 1, true), "its duration too")
-    local hint = stub.Text(kinds(p, "hints")[1].list[1])
-    T.eq(hint, H(frost) .. "Shift|r the math", "Shift the math, the key in the school's color")
+    T.eq(#kinds(p, "hints"), 0, "no hint line under the card")
     T.eq(GameTooltipTextLeft4:GetAlpha(), 0, "the game's lines muted under the card")
     T.eq(GameTooltipTextLeft4:GetText(), FROSTBOLT[4][1], "and not repainted: the card reads the game's colors")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -1232,70 +1231,16 @@ T.test("rich tooltip: a spell's cooldown takes the range's tile", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rich tooltip: Shift lays a spell out as the math, and back", function()
-    local Tip, Panel = login("rich")
+T.test("rich tooltip: Shift changes nothing on a spell's card", function()
+    local _, Panel = login("rich")
     spells()
     fillSpell(116, FROSTBOLT)
     local p = Panel.Get(GameTooltip)
-    local INK = DaylightUI.Style.INK
     stub.shift = true
     update()
-    T.eq(stub.Text(p.items[1].fs), "Frostbolt", "Name · the math")
-    T.eq(stub.Text(p.items[1].tail), "· the math")
-    local rows = kinds(p, "row")
-    T.eq(stub.Text(rows[1].label), "Base")
-    T.eq(stub.Text(rows[1].value), "412 to 448", "the description's range")
-    local H = DaylightUI.Win.Parts.Hex
-    -- Frostbolt's own share (its slow costs it), not the rule's 2.5 / 3.5.
-    T.eq(stub.Text(rows[2].label), "Spell power " .. H(INK.OFF) .. "(81%)|r")
-    T.eq(stub.Text(rows[2].value), "+33", "40 spell power at 81%")
-    T.rgb({ rows[2].value:GetTextColor() }, INK.GOOD)
-    local tiles = kinds(p, "tiles")[1].list
-    T.eq(stub.Text(tiles[1].value), "185", "(430 + 33) over its 2.5 sec cast")
-    T.eq(stub.Text(tiles[1].caption), "DAMAGE / SEC")
-    T.rgb({ tiles[1].value:GetTextColor() }, Tip.SCHOOL_COLORS.Frost)
-    T.eq(stub.Text(tiles[2].value), "3.9", "463 per 120 mana")
-    T.eq(stub.Text(tiles[2].caption), "PER MANA")
-    T.eq(stub.Text(rows[3].label), "Spell ID 116")
-    T.eq(stub.Text(rows[3].value), "Frost · Bolt")
-    T.rgb({ rows[3].label:GetTextColor() }, INK.OFF)
-    T.eq(#kinds(p, "rule"), 2)
+    T.eq(p.items[1].kind, "header", "the card, as it was")
+    T.eq(stub.Text(p.items[1].title), "Frostbolt")
     stub.shift = false
-    update()
-    T.eq(p.items[1].kind, "header", "the card again")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
-T.test("rich tooltip: the spell power rule, and no number when it isn't known", function()
-    login("rich")
-    spells()
-    local S = stub.tooltip.RichSpells
-    local function shape(desc, castKind, castSecs)
-        return S.Shape({ desc = { desc }, castKind = castKind, castSecs = castSecs })
-    end
-    local dot = shape("Corrupts the target, causing 40 Shadow damage over 12 sec.", "instant")
-    T.eq(dot.kind, "over")
-    T.near(S.Coefficient(nil, dot), 12 / 15, 1e-9, "over time: its duration over 15")
-    local aoe = shape("Causes 34 to 38 Arcane damage to all enemies within 10 yards.", "instant")
-    T.truthy(aoe.area)
-    T.near(S.Coefficient(nil, aoe, 0), 1.5 / 3.5 * 0.5, 1e-9, "an instant area spell: the GCD's share, halved")
-    local slow = shape("Hurls a fiery ball for 600 to 700 Fire damage.", "cast", 6)
-    T.near(S.Coefficient(nil, slow, 6), 1, 1e-9, "never more than all of it")
-    local hybrid = shape("Burns the enemy for 11 Fire damage and then an additional 20 Fire damage over 15 sec.", "cast", 2)
-    T.eq(hybrid.kind, "hybrid")
-    T.isnil(S.Coefficient(nil, hybrid, 2), "a hit and a burn: not known without its own number")
-    local heal = shape("Heals the target of 45 damage over 15 sec.", "instant")
-    T.truthy(heal.heal, "a heal, though the game calls it damage")
-    local channel = shape("Causes 26 Arcane damage each second for 3 sec.", "channeled")
-    T.eq(channel.kind, "channel")
-    T.eq(channel.ticks, 3)
-    T.near(S.Coefficient(nil, channel), 3 / 3.5, 1e-9)
-    -- Another language: the base alone.
-    local was = DaylightUI.LOCALE
-    DaylightUI.LOCALE = "deDE"
-    local de = shape("Verursacht 40 Schattenschaden im Verlauf von 12 Sek.", "instant")
-    T.isnil(de and S.Coefficient(nil, de), "words it can't read: no spell power number")
-    DaylightUI.LOCALE = was
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1360,7 +1305,7 @@ T.test("rich tooltip: a recharging spell shows its charges; the global cooldown 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rich tooltip: in a fight a spell is the frame around the game's lines, painted as before, no math", function()
+T.test("rich tooltip: in a fight a spell is the frame around the game's lines, painted as before", function()
     local _, Panel = login("rich")
     spells()
     stub.shift = true
@@ -1372,7 +1317,7 @@ T.test("rich tooltip: in a fight a spell is the frame around the game's lines, p
     })
     local p = Panel.Get(GameTooltip)
     T.truthy(p.chrome, "the frame only")
-    T.eq(p.count, 0, "no pieces, no math")
+    T.eq(p.count, 0, "no pieces")
     T.eq(GameTooltipTextLeft3:GetAlpha(), 1, "the game's lines show")
     T.rgb(GameTooltipTextLeft3.__textColor, DaylightUI.Style.INK.TEXT, "the description painted as the skinned look does")
     T.eq(GameTooltipTextLeft3:GetText(), desc, "its text left as the game gave it")
@@ -1400,7 +1345,7 @@ T.test("rich tooltip: the Spell ID line and other addons' lines go under a rule"
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rich tooltip: an aura and a macro's spell get the card, no math; an item macro the plain one", function()
+T.test("rich tooltip: an aura and a macro's spell get the card; an item macro the plain one", function()
     local _, Panel = login("rich")
     spells()
     fillSpell(10157, {
@@ -1413,14 +1358,14 @@ T.test("rich tooltip: an aura and a macro's spell get the card, no math; an item
     T.truthy(stub.Text(kinds(p, "text")[1].fs):find("Increases Intellect by", 1, true), "the aura's sentence")
     T.eq(stub.Text(kinds(p, "text")[2].fs), "29 min remaining", "the time left small")
     T.eq(#kinds(p, "tiles"), 0, "no strip")
-    T.eq(#kinds(p, "hints"), 0, "no math for an aura")
+    T.eq(#kinds(p, "hints"), 0, "no hint for an aura")
     -- A macro casting Frostbolt: its lines carry the spell's line types.
     stub.ActionSlots({ [7] = { macro = 3, texture = 135846 } })
     fillSpell(3, FROSTBOLT, Enum.TooltipDataType.Macro, actionButton(7), { { type = 13 }, {}, {}, { type = 34 } })
     update()
     T.eq(p.kind, "spell")
     T.eq(p.items[1].icon.art:GetTexture(), 135846, "the icon from its action slot")
-    T.eq(#kinds(p, "hints"), 0, "its id is the macro's: no math")
+    T.eq(#kinds(p, "hints"), 0, "no hint for a macro")
     fillSpell(4, { "Hearthstone", { "Use: Returns you to your home.", nil, { 0, 1, 0 } } }, Enum.TooltipDataType.Macro, nil,
         { {}, {} })
     update()

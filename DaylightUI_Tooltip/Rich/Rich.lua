@@ -165,9 +165,7 @@ function Rich.Step(tip)
     if not isSecret(n) and n ~= s.lines then return Rich.Build(tip) end
     local sp = s.spell
     if sp and not p.chrome then
-        local Spells = ns.RichSpells
-        if Spells.WantsMath(sp) ~= (sp.math == true) then return Rich.Build(tip) end
-        if sp.ends and Spells.Tick(p, sp) then return Rich.Build(tip) end
+        if sp.ends and ns.RichSpells.Tick(p, sp) then return Rich.Build(tip) end
     end
     if not Panel.Fit(p) and not s.fromUnit then
         -- The size went secret since the build: the frame only.
