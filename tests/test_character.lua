@@ -1138,10 +1138,26 @@ T.test("character page: the stats scroll by whole pixels, so a group's 1 px line
     local page = openChar(ns)
     local seen
     page.stats.scroll.SetVerticalScroll = function(self, v) seen = v end
+    -- One UI unit per screen pixel first.
+    page.stats.scroll.GetEffectiveScale = function() return DaylightUI.Pixel.perfect end
     page.stats.bar.To(10.4)
     T.eq(seen, 10)
     page.stats.bar.To(10.6)
     T.eq(seen, 11)
+    -- At another scale a whole UI unit isn't a whole screen pixel.
+    page.stats.scroll.GetEffectiveScale = function() return DaylightUI.Pixel.perfect * 2 end
+    page.stats.bar.To(10.4)
+    T.eq(seen, 10.5, "half a UI unit is one screen pixel here")
+end)
+
+T.test("character slots: the icon snaps to whole pixels again when the scale changes", function()
+    local _, ns = charPage()
+    local page = openChar(ns)
+    local h = page.slots.Head
+    h.icon.GetEffectiveScale = function() return DaylightUI.Pixel.perfect / 0.7 end
+    ns.CharacterPage.Place(page)
+    T.eq(h.px, 48.3, "69 screen pixels at 0.7 units each")
+    T.eq(h.icon:GetWidth(), 48.3)
 end)
 
 T.test("character page: a group you click is folded and remembered", function()

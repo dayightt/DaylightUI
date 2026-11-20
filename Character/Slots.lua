@@ -101,6 +101,16 @@ end
 -- Quality outline in the bags' style: a soft rounded shell around the icon.
 local Edge = {}
 Edge.__index = Edge
+-- The outline sits a whole number of screen pixels out, so no side is
+-- thinner. Called again when the scale changes.
+function Edge:Fit()
+    local f, icon = self.frame, self.icon
+    local out = DUI.Pixel.Snap(f, self.px)
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", icon, "TOPLEFT", -out, out)
+    f:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", out, -out)
+end
+
 function Edge:SetVertexColor(r, g, b)
     local k = Slots.BAND_DIM
     Style.SetShellColors(self.shell, { r, g, b }, { r * k, g * k, b * k })
@@ -112,10 +122,8 @@ function Slots.Edge(icon, px)
     px = px or Slots.EDGE
     local parent = icon:GetObjectType() == "Texture" and icon:GetParent() or icon
     local f = CreateFrame("Frame", nil, parent)
-    local out = DUI.Pixel.Snap(f, px)   -- the outline sits a whole number of screen pixels out, so no side is thinner
-    f:SetPoint("TOPLEFT", icon, "TOPLEFT", -out, out)
-    f:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", out, -out)
-    local o = setmetatable({ frame = f }, Edge)
+    local o = setmetatable({ frame = f, icon = icon, px = px }, Edge)
+    o:Fit()
     o.shell = Style.Shell(f, { borderPx = px, noBevel = true, noBackground = true })
     o:SetVertexColor(Slots.EMPTY_EDGE[1], Slots.EMPTY_EDGE[2], Slots.EMPTY_EDGE[3])
     return o
@@ -129,8 +137,6 @@ function Slots.Make(parent, key, side, size, into)
     h.key, h.side, h.size = key, side, size or Slots.ICON
     h.icon = CreateFrame("Frame", nil, h)
     h.icon:SetSize(h.size, h.size)
-    h.px = DUI.Pixel.Snap(h.icon, h.size)   -- a whole number of screen pixels, so the outline is the same on every side
-    h.icon:SetSize(h.px, h.px)
     h.glow = band(h.icon, -2, Slots.EDGE, Slots.EDGE + 3, Slots.GLOW)
     h.glow:Hide()
     h.ring = band(h.icon, -1, Slots.EDGE, Slots.EDGE + 1, Slots.RING)
@@ -261,7 +267,12 @@ end
 function Slots.Layout(h, width, names, lead)
     lead = lead or 0
     local gap = Slots.GAP + lead
-    h:SetSize(width, h.px or h.size)
+    -- A whole number of screen pixels, so the outline is the same on every
+    -- side. Snapped on every layout, since the window's scale can change.
+    h.px = DUI.Pixel.Snap(h.icon, h.size)
+    h.icon:SetSize(h.px, h.px)
+    h.edge:Fit()
+    h:SetSize(width, h.px)
     h.gap = gap
     h.icon:ClearAllPoints()
     if h.side == "right" then
@@ -270,7 +281,7 @@ function Slots.Layout(h, width, names, lead)
         h.icon:SetPoint("LEFT", h, "LEFT", 0, 0)
     end
     stack(h, h.three == true)
-    local textW = math.max(0, width - (h.px or h.size) - gap)
+    local textW = math.max(0, width - h.px - gap)
     h.name:SetWidth(textW)
     h.line:SetWidth(textW)
     h.enchant:SetWidth(textW)

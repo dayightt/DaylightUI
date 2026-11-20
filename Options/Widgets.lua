@@ -2040,7 +2040,8 @@ W.SCROLL = { width = 4, track = { 1, 1, 1, 0.04 }, thumb = { 1, 1, 1, 0.22 }, th
 -- hidden when everything fits. Drag the thumb or click the track to jump.
 -- The wheel glides to where the notches add up.
 -- sf is a ScrollFrame, or any frame with opts.read/write.
--- opts: x (gap right of sf), step (px per notch), whole (scroll by whole pixels, so a 1 px line never falls between two), wheel = false (the caller
+-- opts: x (gap right of sf), step (px per notch), whole (scroll by whole screen pixels, so a 1 px line never falls
+-- between two), wheel = false (the caller
 -- handles the wheel and calls bar.Wake() or bar.Wheel(delta)), read() ->
 -- at, max, view (for lists that aren't ScrollFrames, any units), write(v),
 -- onScroll(v), parent, rest (alpha while it overflows but nothing is going
@@ -2075,7 +2076,7 @@ function W.Scroll(sf, opts)
         return sf:GetVerticalScroll() or 0, math.max(0, h - view), view
     end
     local function write(v)
-        if opts.write then opts.write(v) else sf:SetVerticalScroll(opts.whole and math.floor(v + 0.5) or v) end
+        if opts.write then opts.write(v) else sf:SetVerticalScroll(opts.whole and DUI.Pixel.Snap(sf, v) or v) end
         if opts.onScroll then opts.onScroll(v) end
     end
 
