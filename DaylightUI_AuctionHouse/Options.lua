@@ -15,6 +15,9 @@ ns.DEFAULTS = {
     askAbove = 1.5,
     dealBelow = 0.7,          -- a price at or under this share of the usual one shows as a deal
     undercut = 1,             -- copper under the cheapest when Sell fills a price (gear: whole silver)
+    undercutPct = 0,          -- a share under the cheapest instead (0 = the copper above)
+    chatPosts = false,        -- a chat line for each post
+    undercutAhead = 0,        -- My auctions: this many cheaper ones from others still count as fine
     hours = 24,               -- auction length, also Sell's last pick (2, 8 or 24)
     tooltip = true,
     tooltipUsual = false,     -- the usual price repeats the auction line on most items
@@ -77,10 +80,19 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Selling", items = {
             { type = "slider", key = "undercut", label = "Undercut by", min = 0, max = 100, step = 1, unit = "c",
+              disabled = function(get) return (get("undercutPct") or 0) > 0 end,
               desc = "How far under the cheapest one up Sell puts your price, in copper. Gear and recipes go a whole silver under, as the game only takes them in silver." },
+            { type = "slider", key = "undercutPct", label = "Undercut by percent", min = 0, max = 0.2, step = 0.01, unit = "%",
+              desc = "Goes a share under the cheapest instead, like 5% under. At 0% Sell uses the copper above." },
             { type = "dropdown", key = "hours", label = "Auction length",
               values = { [2] = "2 hours", [8] = "8 hours", [24] = "24 hours" }, order = { 2, 8, 24 },
               desc = "How long a new auction stays up. Picking another length on the Sell tab changes this too. Longer auctions cost a bigger deposit." },
+            { type = "toggle", key = "chatPosts", label = "A chat line for each post",
+              desc = "Each auction you post from Sell is written in chat with its price, so you can look back at what you put up." },
+        } },
+        { label = "My auctions", items = {
+            { type = "slider", key = "undercutAhead", label = "Leave it up with this many cheaper", min = 0, max = 50, step = 1,
+              desc = "My auctions marks yours as undercut only when more than this many items from others are cheaper than yours. At 0, one cheaper item is enough. A few cheap ones often sell out by themselves." },
         } },
     } },
     { id = "prices", label = "Prices",

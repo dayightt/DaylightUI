@@ -34,6 +34,7 @@ A.FOOT = 52
 A.ICON_W = 30
 A.HINT_GAP = 12
 A.BID_W = 110       -- the bid amount box
+A.SEARCH_W = 220    -- the search box beside the chips
 A.COLS = {
     { id = "icon", text = "", width = A.ICON_W },
     { id = "name", text = L["Item"], fill = true, sort = true },
@@ -56,7 +57,7 @@ A.SHORT = 7200      -- seconds left under which the time shows as running low
 A.AGE_TICK = 60     -- seconds between repaints of "checked 4 min ago"
 
 -- Sorted by what needs doing: undercut first, sold last.
-local RANK = { outbid = 1, undercut = 1, high = 6, lowest = 2, checking = 3, failed = 3, bidonly = 4, bid = 5, alone = 6, sold = 7 }
+local RANK = { outbid = 1, undercut = 1, high = 6, lowest = 2, few = 2, checking = 3, failed = 3, bidonly = 4, bid = 5, alone = 6, sold = 7 }
 local DASH = "\226\128\148"
 
 A.filter = "all"
@@ -98,16 +99,24 @@ end
 -- The cheapest price another seller asks for it, and how many they put up at
 -- that price. Your own and your other characters' are left out: posting never
 -- undercuts them. Gear compares only the same item (its suffix too).
+-- cheaper: how many of theirs are under yours, for the leeway setting.
 local function lowestOther(o, auctions)
-    local low, qty
+    local low, qty, cheaper = nil, nil, 0
     for _, a in ipairs(auctions or {}) do
         local n = (tonumber(a.qty) or 0) - (tonumber(a.own) or 0) - (tonumber(a.acct) or 0)
         if n > 0 and type(a.unit) == "number" and a.unit >= 1 and (a.key == nil or o.key == nil or a.key == o.key) then
             if not low or a.unit < low then low, qty = a.unit, n
             elseif a.unit == low then qty = qty + n end
+            if type(o.unit) == "number" and a.unit < o.unit then cheaper = cheaper + n end
         end
     end
-    return low, qty
+    return low, qty, cheaper
+end
+
+-- The cheaper items from others My auctions lets pass (the options).
+local function leeway()
+    local n = ns.Setting and ns.Setting("undercutAhead")
+    return type(n) == "number" and n or 0
 end
 
 -- What it cost to put up, lost when it's canceled. The game says it for a
@@ -146,8 +155,10 @@ local function statusOf(r)
     if c.err then return "failed", L["Couldn't check the price"], "WARN" end
     if not r.lowest then return "alone", L["No one else selling"], "LABEL" end
     if type(r.unit) ~= "number" then return "bidonly", L["No buyout to compare"], "LABEL" end
-    if r.lowest < r.unit then
+    if r.lowest < r.unit and (r.cheaper or 1) > leeway() then
         return "undercut", string.format(L["Undercut by %s"], money(r.unit - r.lowest, true)), "WARN"
+    elseif r.lowest < r.unit then
+        return "few", string.format(L["%d cheaper, left up"], r.cheaper or 0), "LABEL"
     end
     return "lowest", L["You're the lowest"], "GOOD"
 end
@@ -165,7 +176,7 @@ local function build()
             icon = info and info.icon, quality = info and info.quality,
         }
         if c and c.auctions then
-            r.lowest, r.lowQty = lowestOther(o, c.auctions)
+            r.lowest, r.lowQty, r.cheaper = lowestOther(o, c.auctions)
             r.commodity = c.auctions.commodity
             r.at = c.at
         end
@@ -211,7 +222,11 @@ function A.SortRows(list)
     end)
 end
 
+-- The words in the search box, lower case ("" shows everything).
+A.words = ""
+
 local function passes(r, filter)
+    if A.words ~= "" and not string.find(string.lower(r.name or ""), A.words, 1, true) then return false end
     filter = filter or A.filter
     if filter == "undercut" then return r.status == "undercut" end
     if filter == "bids" then return r.isBid == true end
@@ -253,6 +268,9 @@ local function whyOf(r)
         if cost > 0 then back = back .. " " .. string.format(L["Canceling costs %s."], money(cost)) end
         return string.format(L["Someone put up %s at %s (checked %s), %s under yours. Cancel it and post again from Sell to be the cheapest."],
             value(r.lowQty), money(r.lowest), when, money(r.unit - r.lowest)) .. " " .. back
+    elseif r.status == "few" then
+        return string.format(L["Only %s from others are cheaper than yours (checked %s), within what you let pass in the options. It stays up."],
+            value(r.cheaper or 0), when)
     elseif r.status == "lowest" then
         return string.format(L["Yours is the cheapest. The next one is %s at %s (checked %s): nothing to do."],
             value(r.lowQty), money(r.lowest), when)
@@ -684,6 +702,13 @@ function A.Build(p)
         end)
         page.chips[f.id] = chip
     end
+    page.search = W.Input(body, { search = true, hint = L["Find an auction"], onChange = function(text)
+        hush()
+        A.words = string.lower((tostring(text or ""):gsub("^%s+", ""):gsub("%s+$", "")))
+        A.Paint()
+    end })
+    page.search:SetWidth(A.SEARCH_W)
+    page.search:SetPoint("TOPRIGHT", body, "TOPRIGHT", -Parts.EDGE, -A.CHIPS_TOP)
     page.table = Parts.Table(body, {
         head = A.COLS, top = A.TABLE_TOP, bottom = A.FOOT,
         rowHeight = { line = Parts.LINE },

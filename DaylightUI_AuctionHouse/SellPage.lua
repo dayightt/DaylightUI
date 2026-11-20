@@ -204,7 +204,8 @@ function P.Decide(r)
         d.unit, d.mine = mineLow, true
         d.hint = L["the cheapest is yours: same price"]
     elseif lowest then
-        local under = ns.Setting("undercut") or 0
+        local pct = ns.Setting("undercutPct") or 0
+        local under = pct > 0 and math.floor(lowest * pct) or (ns.Setting("undercut") or 0)
         d.unit = math.max(step, ns.Post.Round(lowest - under, kind, true, r.key))
         d.lowest, d.lowestQty = lowest, lowestQty
         local by = lowest - d.unit
@@ -267,17 +268,22 @@ local function classRank()
 end
 
 -- The headings in order, each { id, name, rows (most valuable first), total, checking }.
+function P.IsPinned(key) return ns.DB.Table("sellPinned")[key] == true end
+function P.IsHidden(key) return ns.DB.Table("sellHidden")[key] == true end
+
+-- Pinned items sit in their own heading on top, hidden ones in one at the bottom.
 function P.Headings()
     if heads then return heads end
     local rank = classRank()
     local list, byId = {}, {}
     for _, r in ipairs(rows) do
         local c = r.classID
-        local id = "c:" .. tostring(c or "?")
+        local id, name, at = "c:" .. tostring(c or "?"), (c and ns.Items.ClassName(c)) or L["Other"], c and (rank[c] or 100 + c) or 100000
+        if P.IsHidden(r.key) then id, name, at = "hidden", L["Hidden"], math.huge
+        elseif P.IsPinned(r.key) then id, name, at = "pinned", L["Pinned"], -1 end
         local h = byId[id]
         if not h then
-            h = { id = id, name = (c and ns.Items.ClassName(c)) or L["Other"], rows = {}, total = 0, checking = 0,
-                  rank = c and (rank[c] or 100 + c) or 100000 }
+            h = { id = id, name = name, rows = {}, total = 0, checking = 0, rank = at, hidden = id == "hidden" or nil }
             byId[id] = h
             list[#list + 1] = h
         end
@@ -305,7 +311,7 @@ end
 function P.Order(id)
     local out = {}
     for _, h in ipairs(P.Headings()) do
-        if not id or h.id == id then
+        if (not id and not h.hidden) or h.id == id then
             for _, r in ipairs(h.rows) do out[#out + 1] = r end
         end
     end
@@ -444,13 +450,20 @@ end
 
 -- What the form shows for a row: qty, unit, hours.
 function P.Numbers(r)
-    local qty, unit = r.have, r.d.unit
+    local qty, unit = P.Amount(r), r.d.unit
     local e = P.edit
     if e then
         if e.qty then qty = e.qty end
         if e.unit then unit = e.unit end
     end
     return math.min(qty, r.have), unit, P.Hours()
+end
+
+-- How many Sell starts at: the amount you last posted of it, else all of it.
+function P.Amount(r)
+    local saved = ns.DB.Table("sellAmount")[r.key]
+    if type(saved) == "number" and saved >= 1 and saved < r.have then return saved end
+    return r.have
 end
 
 -- The next row after `key`: inside the heading being sold, else the whole
@@ -571,6 +584,12 @@ end
 local function posted(r, qty, unit)
     busy = false
     hush()
+    -- the amount posted comes back next time; all of it needs no note
+    ns.DB.Table("sellAmount")[r.key] = qty < r.have and qty or nil
+    if ns.Setting("chatPosts") then
+        local link = ns.Items.Hyperlink(r.key) or r.name
+        ns.Print(format(L["Posted %d %s at %s each."], qty, link, W.Money(unit, { color = false })))
+    end
     P.checked[r.key] = nil   -- yours is up now: its price is searched again
     P.edit = nil
     local nextRow = nextAfter(r.key)
@@ -885,24 +904,45 @@ function P.FillList()
     end
     for _, h in ipairs(shown) do
         stack:Section(h.name, {
-            value = sectionValue(h),
-            action = { text = L["Sell all"], onClick = function() P.SellAll(h.id, h.name) end },
+            value = not h.hidden and sectionValue(h) or nil,
+            action = not h.hidden and { text = L["Sell all"], onClick = function() P.SellAll(h.id, h.name) end } or nil,
             lit = P.selling ~= nil and P.selling.id == h.id,
         })
         for _, r in ipairs(h.rows) do
             lines[r.key] = stack:Line({
-                id = r.key, row = r, icon = r.icon, text = r.name, color = { Parts.QualityColor(r.quality) },
+                id = r.key, row = r, icon = r.icon, text = r.name,
+                color = h.hidden and Style.INK.OFF or { Parts.QualityColor(r.quality) },
                 sub = P.SubOf(r), value = r.worth and money(r.worth) or DASH,
                 valueColor = r.worth and Style.INK.MONEY or Style.INK.LABEL,
                 picked = P.picked == r.key, tooltip = lineTip,
                 link = function() return ns.Items.Hyperlink(r.key) end,
                 onClick = function() P.Pick(r.key, true) end,
+                onRightClick = function() P.LineMenu(r) end,
             })
         end
     end
     stack:End()
     stack:ScrollTo(at)
     if spots then stack:Ease(spots) end
+end
+
+-- A line's right-click: pin it on top, or hide it at the bottom of the list.
+function P.LineMenu(r)
+    local pinned, hidden = P.IsPinned(r.key), P.IsHidden(r.key)
+    W.OpenMenu(nil, { "pin", "hide" }, {
+        pin = pinned and L["Unpin"] or L["Pin to the top"],
+        hide = hidden and L["Show in the list again"] or L["Hide from the list"],
+    }, nil, function(k)
+        hush()
+        if k == "pin" then
+            ns.DB.Table("sellPinned")[r.key] = (not pinned) or nil
+            if not pinned then ns.DB.Table("sellHidden")[r.key] = nil end
+        else
+            ns.DB.Table("sellHidden")[r.key] = (not hidden) or nil
+            if not hidden then ns.DB.Table("sellPinned")[r.key] = nil end
+        end
+        P.Paint()
+    end, nil, { atCursor = true })
 end
 
 -- The line under the form: the latest notice in its role's color.

@@ -530,3 +530,63 @@ T.test("sell: a right click on a bag item puts it on Sell", function()
     T.falsy(DaylightUI.AuctionHouseSell(0, 1), "nothing once the Auction House is closed")
     quiet()
 end)
+
+T.test("sell: undercut by a percent, when set", function()
+    local A = load()
+    local page = open(A)
+    DaylightUI:Set("AuctionHouse", "undercutPct", 0.1)
+    A.SellPage.Pick("2592", true)   -- Wool Cloth, the cheapest at 32c
+    AHW.Settle()
+    T.eq(page.right.form.price:GetText(), "29c", "10% under 32c, a copper rounded down")
+    quiet()
+end)
+
+T.test("sell: the amount posted comes back next time, and a chat line says it", function()
+    local A = load()
+    local page = open(A)
+    DaylightUI:Set("AuctionHouse", "chatPosts", true)
+    A.SellPage.Pick("2589", true)   -- 20 Linen Cloth
+    AHW.Settle()
+    typeIn(page.right.form.qty, "5")
+    page.right.box.post:Click()
+    AHW.Settle()
+    local said = false
+    for _, m in ipairs(stub.chat) do if plain(m):find("Posted 5", 1, true) then said = true end end
+    T.truthy(said, "a chat line: " .. table.concat(stub.chat, " | "))
+    A.SellPage.Pick("2589", true)
+    AHW.Settle()
+    T.eq(page.right.form.qty:GetText(), "5", "5 again, not all 15 left")
+    quiet()
+end)
+
+T.test("sell: a right-click pins an item on top or hides it at the bottom", function()
+    local A = load()
+    local page = open(A)
+    local P = A.SellPage
+    local function names()
+        local out = {}
+        for _, b in ipairs(page.left.stack.used) do
+            if b:IsShown() and b.isSection then out[#out + 1] = "#" .. plain(b.spec and b.spec.text or "") end
+            if b:IsShown() and b.lineSpec then out[#out + 1] = plain(b.lineSpec.text) end
+        end
+        return out
+    end
+    lineOf(page, "Minor Healing Potion"):Click("RightButton")
+    DaylightUI.Widgets.MenuRow(1):Click()   -- Pin to the top
+    T.eq(P.Order()[1].key, "118", "pinned first")
+    lineOf(page, "Linen Cloth"):Click("RightButton")
+    DaylightUI.Widgets.MenuRow(2):Click()   -- Hide from the list
+    local order = {}
+    for _, r in ipairs(P.Order()) do order[#order + 1] = r.key end
+    T.falsy(table.concat(order, ","):find("2589", 1, true), "hidden: not in the order Post walks")
+    T.truthy(P.IsHidden("2589"))
+    T.truthy(lineOf(page, "Linen Cloth"), "still in the list, at the bottom, to bring back")
+    for _ = 1, 12 do   -- the menu fades shut before the next right-click opens it again
+        local d = DaylightUI.Motion.Driver()
+        if d then stub.RunOnUpdate(d, 0.1) end
+    end
+    lineOf(page, "Linen Cloth"):Click("RightButton")
+    DaylightUI.Widgets.MenuRow(2):Click()   -- Show in the list again
+    T.falsy(P.IsHidden("2589"))
+    quiet()
+end)

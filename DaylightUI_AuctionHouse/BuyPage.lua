@@ -49,6 +49,7 @@ BP.STEP_X = 48
 BP.LEVEL_W = 40
 BP.QTY_W = 52
 BP.BID_W = 100       -- the bid amount box
+BP.PRICE_W = 96      -- the max price box
 BP.DEAL = 70          -- a % at or under this is a deal (INK.GOOD), until the settings are read
 BP.RECENT_MAX = 10
 BP.CONFIRM_WAIT = 0.5 -- s a Confirm click is refused after its total shows or changes
@@ -77,7 +78,7 @@ BP.state = {
     open = nil, step = nil, pending = nil, closeDone = nil, opening = nil,
     quote = nil, buying = false, tell = nil, amount = 1, amountOf = nil, amountSet = false,
     want = nil, sort = { id = "unit", desc = false },
-    filters = { minLevel = nil, maxLevel = nil, usable = false, picked = {} },
+    filters = { minLevel = nil, maxLevel = nil, usable = false, picked = {}, maxPrice = nil },
 }
 local S = BP.state
 
@@ -603,8 +604,10 @@ local function answered(g, rows, reason, capped)
     if rows then
         if S.query and S.query.favorites then learnFavorites(rows) end
         local byKey = {}
+        local most = S.filters.maxPrice
         for _, r in ipairs(rows) do
-            if type(r.key) == "string" and not byKey[r.key] then
+            local dear = most and type(r.minPrice) == "number" and r.minPrice > most
+            if type(r.key) == "string" and not byKey[r.key] and not dear then
                 byKey[r.key] = true
                 S.rows[#S.rows + 1] = rowOf(r)
             end
@@ -1991,6 +1994,9 @@ function BP.FilterMenu()
             end
         end
     end
+    local exact = filterValue("ExactMatch", 5)
+    keys[#keys + 1], titles.tsearch, values.tsearch = "tsearch", true, gameWord("SEARCH", L["Search"])
+    keys[#keys + 1], values["f" .. exact] = "f" .. exact, filterName(exact)
     keys[#keys + 1], values.reset = "reset", L["Reset filters"]
     return keys, values, titles
 end
@@ -2092,7 +2098,7 @@ local function buildTools(right)
     page.rarity:SetScript("OnClick", function(owner)
         local keys, values, titles = BP.FilterMenu()
         W.OpenMenu(owner, keys, values, nil, BP.PickFilter, nil, {
-            titles = titles, keepOpen = true,
+            titles = titles, keepOpen = true, rows = #keys,
             checked = function(k)
                 local v = tonumber(string.match(tostring(k), "^f(%d+)$"))
                 return v ~= nil and BP.FilterOn(v)
@@ -2107,11 +2113,29 @@ local function buildTools(right)
         BP.ApplyFilters()
     end)
     page.usable:SetPoint("LEFT", page.rarity, "RIGHT", 8, 0)
+    page.maxPrice = W.Input(filterRow, { justify = "RIGHT", hint = L["Max price"] })
+    page.maxPrice:SetWidth(BP.PRICE_W)
+    page.maxPrice:SetPoint("LEFT", page.usable, "RIGHT", 8, 0)
+    page.maxPrice.was = ""
+    local function applyPrice(self)
+        local now = trim(self:GetText())
+        if now == self.was then return end
+        local c = now ~= "" and ns.SellPage.ReadMoney(now) or nil
+        if now ~= "" and not c then
+            self:SetText(self.was)
+            return BP.Tell(string.format(L["Type a price like %s."], plainMoney(50000)), "WARN")
+        end
+        self.was = now
+        S.filters.maxPrice = c
+        BP.ApplyFilters()
+    end
+    page.maxPrice:SetScript("OnEnterPressed", function(self) self:ClearFocus(); applyPrice(self) end)
+    page.maxPrice:HookScript("OnEditFocusLost", applyPrice)
     page.where = smallText(filterRow, "")
     page.where:SetJustifyH("RIGHT")
     page.where:SetWordWrap(false)
     page.where:SetPoint("RIGHT", filterRow, "RIGHT", 0, 0)
-    page.where:SetPoint("LEFT", page.usable, "RIGHT", 12, 0)
+    page.where:SetPoint("LEFT", page.maxPrice, "RIGHT", 12, 0)
 end
 
 -- ---------------------------------------------------------------------

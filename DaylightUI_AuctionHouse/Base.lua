@@ -61,6 +61,13 @@ function DB.RulesetData(rkey)
     return data
 end
 
+-- A saved table by name, made on first use (Sell's pins, hides and amounts).
+function DB.Table(field)
+    local r = root()
+    if type(r[field]) ~= "table" then r[field] = {} end
+    return r[field]
+end
+
 -- What vendors sell items for, by itemID (copper per unit, Vendor.lua).
 function DB.Vendor()
     local r = root()
