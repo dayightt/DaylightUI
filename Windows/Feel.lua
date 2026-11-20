@@ -300,16 +300,18 @@ function Feel.Size(frame, w, h, dur)
 end
 
 -- Lift one piece in after `delay` seconds. Fades to piece.restAlpha if set
--- (a dimmed gear slot), otherwise to 1.
-function Feel.Piece(piece, delay)
-    delay = delay or 0
+-- (a dimmed gear slot), otherwise to 1. dur and lift are for a showpiece
+-- that comes in slower and from further (the 2.0 welcome); lift 0 only fades.
+-- It's hidden at once, so nothing shows for a frame before its turn.
+function Feel.Piece(piece, delay, dur, lift)
+    delay, dur, lift = delay or 0, dur or Feel.PIECE, lift or Feel.LIFT
     stop(piece, "move")
     shift(piece, 0)
     piece:SetAlpha(0)
-    start(piece, "alpha", 0, piece.restAlpha or 1, Feel.PIECE, "sine", function(a) piece:SetAlpha(a) end, nil, delay)
-    if rest(piece) then
-        start(piece, "move", -Feel.LIFT, 0, Feel.PIECE, "cubic", function(v) shift(piece, v) end, nil, delay)
-        if delay > 0 then shift(piece, -Feel.LIFT) end
+    start(piece, "alpha", 0, piece.restAlpha or 1, dur, "sine", function(a) piece:SetAlpha(a) end, nil, delay)
+    if lift ~= 0 and rest(piece) then
+        start(piece, "move", -lift, 0, dur, "cubic", function(v) shift(piece, v) end, nil, delay)
+        if delay > 0 then shift(piece, -lift) end
     end
 end
 

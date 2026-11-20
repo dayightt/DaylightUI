@@ -176,6 +176,7 @@ Pages.TOUR = {
                   { "Nameplates", "scale", 1.2 }, { "Nameplates", "width", 190 }, { "Nameplates", "height", 20 } } },
           } },
           { label = "", needs = "Nameplates", rows = { { "Nameplates", "percent" }, { "Nameplates", "debuffs" }, { "Nameplates", "threat" } } },
+          { label = "Class icons on friendly players", needs = "Nameplates", look = "plateClassIcon" },
           { label = "Target outline light", needs = "Nameplates",
             cards = { scope = "Nameplates", key = "targetLight", draw = "glowPlate", cols = 3, height = 64 } },
       } },

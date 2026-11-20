@@ -5,9 +5,10 @@
 --
 -- The picked card lights up (outline, tick, circling lights and a soft
 -- bloom), the other look dims, and a fresh page plays both cards in one
--- after the other. The previews come from the modules that draw the real
--- thing (the unit frames' portrait sample, the tooltip's card sample), so
--- they follow the player's settings.
+-- after the other. The previews show the standard look, never the player's
+-- own settings: the unit frames' portrait sample and the tooltip's card
+-- sample draw the real thing, and the nameplates' crowd is drawn here from
+-- the defaults.
 
 local _, DUI = ...
 local L = DUI.L
@@ -19,8 +20,9 @@ DUI.InstallerLooks = Looks
 
 Looks.PAD = 12        -- around the preview inside its card
 Looks.DIM = 0.4       -- the look that isn't picked
-Looks.RISE = 16       -- how far each card rises as a page shows
-Looks.STAGGER = 0.09  -- between the two cards rising
+Looks.RISE = 10       -- how far the pair lifts in as a page shows
+Looks.STAGGER = 0.14  -- between the two cards rising
+Looks.FIRST = 0.12    -- the page slides in first
 Looks.BLOOM = 0.22    -- the picked card's bloom at its brightest
 
 -- Every frame one portrait pick reaches. A frame with its portrait off is left
@@ -69,7 +71,110 @@ Looks.KINDS = {
         box = function(parent) return moduleNs("Tooltip").RichSample.Looks(parent) end,
         apply = function(k, set) set("Tooltip", "style", k) end,
     },
+    plateClassIcon = {
+        title = "Class icons on nameplates", rail = "Class icons",
+        desc = "Friendly players can show their class icon by their name, so you can spot the healer in a crowd. Pick the look you like.",
+        -- On puts the icon above the name: friendly plates show only the name
+        -- unless their bars are on, so there's open space over it.
+        keys = { "above", "none" }, new = "above",
+        ref = { "Nameplates", "friendly.classIcon" },
+        -- Any spot of the icon counts as on: it was placed already.
+        shown = function(v) return (v == nil or v == "none") and "none" or "above" end,
+        available = function()
+            return DUI:GetModule("Nameplates") ~= nil and DUI.InstallerPages.Find("Nameplates", "friendly.classIcon") ~= nil
+        end,
+        box = function(parent) return Looks.Crowd(parent) end,
+        -- On only switches it on: an icon already placed before or after the name stays there.
+        apply = function(k, set)
+            if k == "none" or DUI:Get("Nameplates", "friendly.classIcon") == "none" then
+                set("Nameplates", "friendly.classIcon", k)
+            end
+        end,
+    },
 }
+
+-- The nameplates' preview: a few friendly players' names over the world, in
+-- their class colors at the standard name size, with or without the default
+-- class icon above each, as the plates draw it. Same shape as the other
+-- previews. x is a name's middle across, y its row down (0 top, 1 bottom).
+Looks.CROWD = {
+    { name = "Navani", class = "PRIEST", x = 0.26, y = 0 },
+    { name = "Kaladin", class = "WARRIOR", x = 0.68, y = 0.5 },
+    { name = "Jasnah", class = "MAGE", x = 0.38, y = 1 },
+}
+Looks.CROWD_H = 104
+Looks.CROWD_LOOKS = {
+    { key = "above", name = "Class icons", line = "The class icon above each name." },
+    { key = "none", name = "Names only", line = "Just the name, as before." },
+}
+Looks.ICON_LIFT = 1   -- the gap under the icon, as on the plates
+Looks.CROWD_GAP = 14  -- between the crowd and its caption
+
+-- The friendly name size and icon share the nameplates start with.
+local function plateSizes()
+    local ns = moduleNs("Nameplates")
+    local f = type(ns) == "table" and type(ns.DEFAULTS) == "table" and ns.DEFAULTS.friendly or {}
+    local size = tonumber(f.nameSize) or Style.SIZE.body
+    return size, math.floor(size * (tonumber(f.classIconScale) or 1.3) + 0.5)
+end
+
+function Looks.Crowd(parent)
+    local box = CreateFrame("Frame", nil, parent)
+    box.frames, box.names, box.lines = {}, {}, {}
+    local size, iconSize = plateSizes()
+    for _, look in ipairs(Looks.CROWD_LOOKS) do
+        local f = CreateFrame("Frame", nil, box)
+        f.people = {}
+        for i, who in ipairs(Looks.CROWD) do
+            local p = { who = who }
+            p.name = Style.Text(f, size, "CENTER")
+            p.name:SetText(who.name)
+            p.icon = f:CreateTexture(nil, "ARTWORK")
+            p.icon:SetTexture(DUI.MEDIA .. "class\\" .. string.lower(who.class) .. ".tga")
+            p.icon:SetSize(iconSize, iconSize)
+            p.icon:SetPoint("BOTTOM", p.name, "TOP", 0, Looks.ICON_LIFT)
+            p.icon:SetShown(look.key ~= "none")
+            f.people[i] = p
+        end
+        -- Each name keeps room over it for an icon, in both looks, so the
+        -- two crowds stand in the same spots.
+        f.iconUp = iconSize + Looks.ICON_LIFT
+        f.block = f.iconUp + size
+        box.frames[look.key] = f
+        box.names[look.key] = Style.Text(box, Style.SIZE.body, "CENTER")
+        box.names[look.key]:SetText(L[look.name])
+        box.lines[look.key] = Style.Text(box, Style.SIZE.small, "CENTER")
+        box.lines[look.key]:SetText(L[look.line])
+    end
+    box.HEIGHT = Looks.CROWD_H + Looks.CROWD_GAP + Style.SIZE.body + 4 + Style.SIZE.small + 2
+    function box.Refresh(width)
+        width = (type(width) == "number" and width > 0) and width or 460
+        box:SetSize(width, box.HEIGHT)
+        local half = width / 2
+        for i, look in ipairs(Looks.CROWD_LOOKS) do
+            local f, mid = box.frames[look.key], (i - 0.5) * half
+            local fw = half - 32
+            f:SetSize(fw, Looks.CROWD_H)
+            f:ClearAllPoints()
+            f:SetPoint("TOP", box, "TOPLEFT", mid, 0)
+            for _, p in ipairs(f.people) do
+                p.name:ClearAllPoints()
+                p.name:SetPoint("TOP", f, "TOPLEFT", p.who.x * fw, -(f.iconUp + p.who.y * (Looks.CROWD_H - f.block)))
+                p.name:SetTextColor(Style.ClassTextColor(p.who.class))
+            end
+            local name, line = box.names[look.key], box.lines[look.key]
+            Style.InkText(name, "VALUE")
+            Style.InkText(line, "LABEL")
+            name:ClearAllPoints()
+            name:SetPoint("TOP", box, "TOPLEFT", mid, -(Looks.CROWD_H + Looks.CROWD_GAP))
+            name:SetWidth(half - 8)
+            line:ClearAllPoints()
+            line:SetPoint("TOP", name, "BOTTOM", 0, -4)
+            line:SetWidth(half - 8)
+        end
+    end
+    return box
+end
 
 function Looks.Available(kind)
     local spec = Looks.KINDS[kind]
@@ -81,8 +186,10 @@ end
 
 -- The setting in use, as the tour reads it.
 function Looks.Current(kind)
-    local r = Looks.KINDS[kind].ref
-    return DUI:Get(r[1], r[2])
+    local spec = Looks.KINDS[kind]
+    local v = DUI:Get(spec.ref[1], spec.ref[2])
+    if spec.shown then v = spec.shown(v) end
+    return v
 end
 
 function Looks.Apply(kind, k, set)
@@ -169,19 +276,25 @@ function Looks.Picker(parent, kind, opts)
         if not f.picking then f.Paint(false) end
     end
 
-    -- Both looks rise in, the first a moment before the second; the dimming
-    -- of the one not picked waits until they've landed.
+    -- The pair rises in as one piece; the second look only fades in, a moment
+    -- after the first. Moving each card, drawing and word on its own made them
+    -- drop and shake out of step in game: the drawings are shrunk with
+    -- SetScale and laid out again as they show. The dimming of the look not
+    -- picked waits until everything has landed.
     function f.Play()
         if not M.On() then return end
         f.Paint(false, true)
+        local Feel = DUI.Win.Feel
+        Feel.Piece(f, Looks.FIRST, M.SLOW, Looks.RISE)
         for i, k in ipairs(spec.keys) do
-            local delay = (i - 1) * Looks.STAGGER
-            local art, name, line = parts(box, k)
-            for _, r in ipairs({ f.cards[k], art or false, name or false, line or false }) do
-                if r then M.SlideIn(r, 0, -Looks.RISE, M.NORMAL, delay) end
+            if i > 1 then
+                local art, name, line = parts(box, k)
+                for _, r in ipairs({ f.cards[k], art or false, name or false, line or false }) do
+                    if r then Feel.Piece(r, Looks.FIRST + (i - 1) * Looks.STAGGER, M.SLOW, 0) end
+                end
             end
         end
-        C_Timer.After(#spec.keys * Looks.STAGGER + M.NORMAL, function()
+        C_Timer.After(Looks.FIRST + #spec.keys * Looks.STAGGER + M.SLOW, function()
             if f:IsVisible() then f.Paint(true) end
         end)
     end

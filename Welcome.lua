@@ -27,7 +27,7 @@ Welcome.WIDTH, Welcome.HEIGHT = 900, 625
 Welcome.TITLE_SIZE = 28    -- a showpiece's title
 Welcome.TITLE_TOP = 22     -- under the banner's plaque
 Welcome.INTRO_GAP = 20
-Welcome.RULE_W, Welcome.RULE_GAP, Welcome.RULE_SLIDE = 150, 24, 30
+Welcome.RULE_W, Welcome.RULE_GAP = 150, 24
 Welcome.DIAMOND = 6
 Welcome.PLAQUE_W, Welcome.PLAQUE_H, Welcome.PLAQUE_SLANT = 190, 26, 8
 Welcome.MARGIN, Welcome.GAP = 26, 11
@@ -41,12 +41,12 @@ Welcome.COIN = 16
 Welcome.TILE_FILL, Welcome.TILE_EDGE = 0.14, 0.45
 Welcome.GO_W, Welcome.GO_H, Welcome.GO_GAP = 268, 44, 22
 Welcome.DOT, Welcome.DOT_ON, Welcome.DOT_GAP, Welcome.DOTS_GAP, Welcome.DOT_HUE = 8, 18, 10, 18, 0.62
-Welcome.RISE = 16          -- how far each card rises in
-Welcome.STAGGER = 0.06     -- between one card and the next
-Welcome.AFTER_SUN = 0.25   -- the words wait this long for the sunrise to start
+Welcome.LIFT = 10          -- how far each piece lifts in
+Welcome.STAGGER = 0.1      -- between one card and the next
+Welcome.AFTER_SUN = 0.3    -- the words wait this long for the sunrise to start
 
 -- The slides after the news, one per new look (InstallerLooks.KINDS).
-Welcome.CHOICES = { "portraitLook", "tooltipStyle" }
+Welcome.CHOICES = { "portraitLook", "tooltipStyle", "plateClassIcon" }
 
 -- What's new: the first one is the tall card. go = a choice slide the card
 -- opens; hue = its icon's spot along the Daylight sweep.
@@ -61,7 +61,7 @@ Welcome.NEWS = {
       text = "See who picked Need, Greed or Pass, everyone's roll and who won." },
     { icon = "ui-section-cooldowns.png", title = "Cooldown Manager", hue = 0.2,
       text = "Rebuilt from the ground up: fewer missing spells, and glows that stay right in a fight." },
-    { icon = "ui-section-plates.png", title = "Nameplates", hue = 0.45,
+    { icon = "ui-section-plates.png", title = "Nameplates", go = "plateClassIcon", hue = 0.45,
       text = "Class icons on friendly players, power numbers on the bar, and short names that fit." },
 }
 
@@ -381,31 +381,27 @@ local function buildNews(parent, width)
     function page.Play()
         page.go.SetLabel(#run.slides > 1 and L["Let's go"] or (DONE or L["Done"]))
         page.Dots()
-        if not M.On() then return end
-        local t = Welcome.AFTER_SUN
-        local k = page.chrome
-        M.SlideIn(k.plaque, 0, -6, M.NORMAL, t)
-        -- Stepped by hand like the banner's glow: an alpha animation on a
-        -- texture in this window drew wrong in game.
-        for _, line in ipairs({ k.lineL, k.lineR }) do
-            line:SetAlpha(0)
-            C_Timer.After(t + M.FAST, function()
-                M.Tween(line, 0, 1, M.SLOW, function(a) line:SetAlpha(a) end)
-            end)
-        end
-        t = t + M.FAST
-        M.SlideIn(page.greet, 0, -8, M.NORMAL, t)
-        M.SlideIn(page.ruleL, Welcome.RULE_SLIDE, 0, M.SLOW, t + M.FAST)
-        M.SlideIn(page.ruleR, -Welcome.RULE_SLIDE, 0, M.SLOW, t + M.FAST)
-        M.Fade(page.intro, 0, 1, M.SLOW, t + M.NORMAL)
-        t = t + M.NORMAL + M.FAST
+        -- Everything is hidden at once, then lifts in its turn at the slow
+        -- speed, stepped by hand like the window kit's pages (smooth at any UI
+        -- scale; animation groups moved in whole pixels and drew wrong here).
+        local Feel = DUI.Win.Feel
+        local t, slow, beat, k, lift = Welcome.AFTER_SUN, M.SLOW, M.FAST, page.chrome, Welcome.LIFT
+        Feel.Piece(k.plaque, t, slow, lift / 2)
+        Feel.Piece(k.lineL, t + beat, slow, 0)
+        Feel.Piece(k.lineR, t + beat, slow, 0)
+        t = t + beat
+        Feel.Piece(page.greet, t, slow, lift)
+        Feel.Piece(page.ruleL, t + beat, slow, 0)
+        Feel.Piece(page.ruleR, t + beat, slow, 0)
+        Feel.Piece(page.intro, t + 2 * beat, slow, lift / 2)
+        t = t + 3 * beat
         for i, c in ipairs(page.cards) do
-            M.SlideIn(c, 0, -Welcome.RISE, M.NORMAL, t + (i - 1) * Welcome.STAGGER)
+            Feel.Piece(c, t + (i - 1) * Welcome.STAGGER, slow, lift)
         end
-        t = t + #page.cards * Welcome.STAGGER + M.FAST
-        M.SlideIn(page.go, 0, -Welcome.RISE / 2, M.NORMAL, t)
-        M.SlideIn(page.dots, 0, -4, M.NORMAL, t + M.FAST)
-        C_Timer.After(t + M.NORMAL, function()
+        t = t + #page.cards * Welcome.STAGGER
+        Feel.Piece(page.go, t, slow, lift)
+        Feel.Piece(page.dots, t + beat, slow, 0)
+        C_Timer.After(t + slow, function()
             if page:IsVisible() then page.go.Shine() end
         end)
     end
@@ -445,7 +441,7 @@ local function buildChoice(parent, width, kind)
     function page.Refresh() page.picker.Refresh() end
     function page.Play()
         page.picker.Play()
-        DUI.Motion.Fade(page.hint, 0, 1, DUI.Motion.NORMAL, DUI.Motion.NORMAL)
+        DUI.Win.Feel.Piece(page.hint, DUI.Motion.SLOW, DUI.Motion.SLOW, 0)
     end
     return page
 end
@@ -471,17 +467,17 @@ function Welcome.Go(i)
         run.pages[i] = page
     end
     if kind == "news" then
-        UI.SetPage(page, { full = true, veil = true, dir = dir })
+        UI.SetPage(page, { full = true, veil = true, still = true, dir = dir })
     else
         local spec = Looks.KINDS[kind]
         UI.SetPage(page, {
-            dir = dir, rail = true, veil = true, step = i - 1, total = #run.slides - 1,
+            dir = dir, rail = true, veil = true, still = true, step = i - 1, total = #run.slides - 1,
             title = L[spec.title], desc = L[spec.desc], later = Looks.Later(kind), back = true,
             next = run.picks[kind] ~= nil and nextText(i) or nil,
         })
         local steps = {}
         for n, s in ipairs(run.slides) do
-            steps[n] = { id = n, label = s == "news" and L["What's new"] or L[Looks.KINDS[s].title] }
+            steps[n] = { id = n, label = s == "news" and L["What's new"] or L[Looks.KINDS[s].rail or Looks.KINDS[s].title] }
         end
         UI.SetRail(steps, i, run.visited, Welcome.Go)
     end

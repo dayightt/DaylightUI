@@ -142,6 +142,7 @@ local ALLOW = {
     ["Vivenna"] = "the PvP frames' second sample flag carrier (names aren't translated)",
     ["Syl"] = "the unit frames' sample pet (names aren't translated)",
     ["Kaladin"] = "a sample party/raid member (names aren't translated)",
+    ["Jasnah"] = "a sample friendly player in the welcome's class icons preview (names aren't translated)",
     ["Lift"] = "a sample party member (names aren't translated)",
     ["Bridge Four"] = "the nameplate preview's sample guild (names aren't translated)",
     ["Band of Accuria"] = "the loot roll sample's item (the game's own name in game, its English one in the tests)",

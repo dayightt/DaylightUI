@@ -463,8 +463,12 @@ function UI.SetPage(page, opts)
     frame.scroll.bar.Stop()
     frame.scroll:SetVerticalScroll(0)
     page:Show()
-    UI.Slide(page, opts.dir or 1)
-    if pin then UI.Slide(pin, opts.dir or 1) end
+    -- still: the page brings its own pieces in (the 2.0 welcome), so no slide
+    -- under them moving the same pieces a second way.
+    if not opts.still then
+        UI.Slide(page, opts.dir or 1)
+        if pin then UI.Slide(pin, opts.dir or 1) end
+    end
     if opts.full then UI.Sunrise() end
     UI.SetVeil(opts.veil == true)
 end
