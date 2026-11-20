@@ -49,6 +49,7 @@ DUI.PatchNotes = {
         { "Group finder", "Listed as a tank or healer, inviting someone no longer turns you into Damage" },
         { "Professions", "Recipes with a cooldown, like Arcanite Bar or Mooncloth, show how long until you can make them again" },
         { "Professions", "The Abilities row shows the open profession's spells first and fits more of them, so Cooking's can always be dragged to a bar" },
+        { "Quests", "With ready quests kept at the bottom of the tracker, they no longer jump back up into their zones every time a quest updates in a fight" },
         { "Nameplates", "Quest marks show on mobs you still need inside dungeons too" },
         { "Party and raid frames", "No more Lua errors after someone leaves the party or raid" },
         { "World map", "With OpenMap, the map fades in on its first open after a reload instead of jumping in" },
