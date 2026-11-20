@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         { "Look", "Every window and panel has a Use Daylight UI global style switch. Turn it off to give that one its own border, corners, shadow and background" },
         { "Setup guide", "A new setup guide: pick a ready-made setup and play, or let it walk you through your own, one choice at a time. /dui install to see it" },
     }, fixed = {
+        { "Characters", "When the game forgot your realm's name at login, Daylight UI treated you as a new character: your Cooldown Manager layout and other saved things looked gone. You now stay yourself, and anything saved in the meantime is folded back in" },
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
         { "Cooldown Manager", "With the game's Tracked Buffs row set to show only in combat, a buff's Hide, glow and sound options went missing from its card and did nothing out of combat. They are back and work in and out of a fight" },

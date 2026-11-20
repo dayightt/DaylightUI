@@ -168,17 +168,6 @@ local function copy(v)
 end
 DB.Copy = copy
 
--- This character's first name and realm as "First-Realm", the key every
--- character used before last names were added (DaylightMogul still uses it).
--- Nil while the game doesn't know the name yet (it says "Unknown" early in
--- loading). GetRealmName is stable at every point.
-function DB.ShortKey()
-    local name = UnitName and UnitName("player")
-    if type(name) ~= "string" or name == "" or name == (UNKNOWNOBJECT or "Unknown") then return nil end
-    local realm = GetRealmName and GetRealmName() or ""
-    return name .. "-" .. tostring(realm)
-end
-
 -- This character's last name (UnitFullName's second value on this client),
 -- or nil before it's available (early in loading) or if there is none.
 local function lastName()
@@ -187,6 +176,46 @@ local function lastName()
     if DUI.IsSecret(first) or DUI.IsSecret(last) then return nil end
     if type(first) ~= "string" or type(last) ~= "string" or last == "" then return nil end
     return first, last
+end
+
+-- The realm this character was saved under before, when the saved data holds it
+-- under exactly one realm. Found ones are kept for the session.
+local foundRealm = {}
+local function savedRealm(name)
+    if foundRealm[name] then return foundRealm[name] end
+    local sv = _G.DaylightUIDB
+    local chars = type(sv) == "table" and type(sv.characters) == "table" and sv.characters or nil
+    if not chars then return nil end
+    local realm
+    for key in pairs(chars) do
+        local who, r = string.match(tostring(key), "^(.-)%-(.+)$")
+        if who == name and r then
+            if realm and realm ~= r then return nil end
+            realm = r
+        end
+    end
+    foundRealm[name] = realm
+    return realm
+end
+
+-- The realm name. On some logins the game hands back an empty realm name for a
+-- whole session (seen in game); keyed on that, the character started over with
+-- nothing saved. Then the realm it was saved under before stands in.
+local function realmOf(first)
+    local realm = GetRealmName and GetRealmName()
+    if type(realm) == "string" and realm ~= "" then return realm end
+    local f, last = lastName()
+    return (f and savedRealm(f .. " " .. last)) or savedRealm(first) or ""
+end
+
+-- This character's first name and realm as "First-Realm", the key every
+-- character used before last names were added (DaylightMogul still uses it).
+-- Nil while the game doesn't know the name yet (it says "Unknown" early in
+-- loading).
+function DB.ShortKey()
+    local name = UnitName and UnitName("player")
+    if type(name) ~= "string" or name == "" or name == (UNKNOWNOBJECT or "Unknown") then return nil end
+    return name .. "-" .. realmOf(name)
 end
 
 -- This character as "First Last-Realm". Two characters can share a first
@@ -218,10 +247,20 @@ DB.OWN_KEYS = { inventory = true, money = true, mailName = true, ledger = true, 
 -- character's (matching mail name, else same class); those are then removed.
 function DB.AdoptOldKeys()
     local key, short = DB.CharKey(), DB.ShortKey()
-    local first, last = lastName()
-    if not key or not first then return end
-    local chars = DB.Root().characters
+    if not key then return end
     local c = DB.Character()
+    local chars = DB.Root().characters
+    -- An entry saved while the game gave no realm name ("First Last-"): this
+    -- entry's own values win, the rest comes along.
+    local bare = string.match(key, "^(.-%-)")
+    if bare and bare ~= key and type(chars[bare]) == "table" then
+        for k, v in pairs(chars[bare]) do
+            if c[k] == nil then c[k] = v end
+        end
+        chars[bare] = nil
+    end
+    local first, last = lastName()
+    if not first then return end
     local old = first .. "-" .. last
     if old ~= key and old ~= short and type(chars[old]) == "table" then
         for k, v in pairs(chars[old]) do

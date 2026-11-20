@@ -727,6 +727,49 @@ T.test("characters: one entry each, by first and last name and realm; old keys f
     _G.GetRealmName = nil
 end)
 
+-- Seen in game: a whole session where GetRealmName returned "". The character was
+-- saved as "Muscle Crowe-", got a fresh entry and lost its Cooldown Manager pick.
+T.test("characters: an empty realm name from the game keeps the character on its own entry", function()
+    talents(1, 1)
+    local DUI = stub.Load({ module = true, before = function()
+        fakeEncoding()
+        _G.GetRealmName = function() return "" end
+        stub.units.player = { name = "Muscle", lastName = "Crowe", isPlayer = true, class = "WARRIOR" }
+        DaylightUIDB = { version = 2, profileData = { Default = {}, Healer = {} }, characters = {
+            ["Muscle Crowe-Realm 7 PvE"] = { profile = "Healer", install = "installed", cdm = { use = { "p1" } } },
+            ["Other Person-Realm 2"] = { profile = "Default" },
+        } }
+    end })
+    local chars = DaylightUIDB.characters
+    T.eq(DUI.DB.CharKey(), "Muscle Crowe-Realm 7 PvE", "the realm it was saved under")
+    T.eq(DUI.DB.Character().cdm.use[1], "p1", "its layout pick kept")
+    T.isnil(chars["Muscle Crowe-"], "no entry without a realm")
+    T.eq(DUI.DB.ActiveName(), "Healer")
+    _G.GetRealmName = nil
+end)
+
+T.test("characters: an entry saved without a realm is folded back into the real one", function()
+    talents(1, 1)
+    local DUI = stub.Load({ module = true, before = function()
+        fakeEncoding()
+        _G.GetRealmName = function() return "Realm 7 PvE" end
+        stub.units.player = { name = "Muscle", lastName = "Crowe", isPlayer = true, class = "WARRIOR" }
+        DaylightUIDB = { version = 2, profileData = { Default = {}, Healer = {} }, characters = {
+            ["Muscle Crowe-Realm 7 PvE"] = { profile = "Healer", install = "installed", cdm = { use = { "p1" } } },
+            ["Muscle Crowe-"] = { profile = "Default", install = "installed", cdm = { use = { "p2" } },
+                questRecent = { [1150] = 1 } },
+        } }
+    end })
+    local chars = DaylightUIDB.characters
+    local mine = chars["Muscle Crowe-Realm 7 PvE"]
+    T.eq(DUI.DB.CharKey(), "Muscle Crowe-Realm 7 PvE")
+    T.eq(mine.cdm.use[1], "p1", "the real entry's pick wins")
+    T.eq(mine.profile, "Healer")
+    T.eq(mine.questRecent and mine.questRecent[1150], 1, "what only the stray had comes along")
+    T.isnil(chars["Muscle Crowe-"], "and the stray is gone")
+    _G.GetRealmName = nil
+end)
+
 -- Two characters with the same first name (Boopy Dadoopy, Boopy Mcdoopy) used to
 -- share one "Boopy-Realm" entry: each saw the other's bags and bank.
 T.test("characters: two with the same first name each keep their own bags; settings carry to both", function()
