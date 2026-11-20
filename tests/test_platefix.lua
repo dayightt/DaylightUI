@@ -181,6 +181,29 @@ T.test("platefix: the report carries a log of what happened before step 1", func
     T.truthy(R.LogSize() <= R.LOG_SIZE, "kept to a size")
 end)
 
+T.test("platefix: the last loading screen, zone change and lost control stay in the report past the log", function()
+    local NP = login()
+    local R = DaylightUI.PlateReport
+    _G.GetRealZoneText = function() return "Tirisfal Glades" end
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    stub.Advance(300)
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    stub.Advance(95)
+    stub.FireEvent("PLAYER_CONTROL_GAINED")
+    _G.GetRealZoneText = function() return "Undercity" end
+    stub.FireEvent("ZONE_CHANGED_NEW_AREA")
+    -- A busy minute pushes all of it out of the log.
+    for i = 1, R.LOG_SIZE + 5 do stub.FireEvent("CVAR_UPDATE", "setting" .. i, "1") end
+    stub.Advance(60)
+    local line = R.Travel()
+    T.truthy(line:find("loading screens 1 (last -7:35 into Tirisfal Glades)", 1, true), line)
+    T.truthy(line:find("zone change -1:00 into Undercity", 1, true), line)
+    T.truthy(line:find("control last back -1:00 after 95 s", 1, true), line)
+    NP.Manager.Fix()
+    local text = NP.Manager.FixReport(1)
+    T.truthy(text:find("Travel: loading screens 1", 1, true), "in the report: " .. text)
+end)
+
 T.test("platefix: the log keeps only the latest moments, and the same thing again counts up", function()
     login()
     local R = DaylightUI.PlateReport

@@ -308,8 +308,8 @@ UIParent:HookScript("OnShow", function() R.Note("UI shown"); R.Restore("UI shown
 function R.Restore(after)
     if not UIParent:IsShown() or InCombatLockdown() then return end
     R.restoring = "Daylight UI after " .. after
-    if type(SetUIVisibility) == "function" then pcall(SetUIVisibility, true) end
-    if type(SetInWorldUIVisibility) == "function" then pcall(SetInWorldUIVisibility, true) end
+    if type(SetUIVisibility) == "function" then DUI.SafeCall(SetUIVisibility, true) end
+    if type(SetInWorldUIVisibility) == "function" then DUI.SafeCall(SetInWorldUIVisibility, true) end
     R.restoring = nil
 end
 local RESTORE_AFTER = {
@@ -317,6 +317,38 @@ local RESTORE_AFTER = {
     CINEMATIC_STOP = "a cinematic", STOP_MOVIE = "a movie",
 }
 for event, what in pairs(RESTORE_AFTER) do DUI.RegisterEvent(event, function() R.Restore(what) end) end
+
+-- Players say the plates go around travel: a loading screen, a flight, a
+-- hearthstone, a character change. The log only reaches back a minute or so,
+-- so the last of each is kept apart from it, with how long ago it was. A
+-- flight shows as control lost for a minute or more.
+R.travel = { loads = 0 }
+local function zoneNow()
+    local z = type(GetRealZoneText) == "function" and plain(GetRealZoneText()) or nil
+    return R.Cut(tostring(z), 40)
+end
+DUI.RegisterEvent("LOADING_SCREEN_DISABLED", function()
+    local t = R.travel
+    t.loads, t.loadAt, t.loadZone = t.loads + 1, clock(), zoneNow()
+end)
+DUI.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
+    R.travel.zoneAt, R.travel.zone = clock(), zoneNow()
+end)
+DUI.RegisterEvent("PLAYER_CONTROL_LOST", function() R.travel.lostAt = clock() end)
+DUI.RegisterEvent("PLAYER_CONTROL_GAINED", function()
+    local t = R.travel
+    if t.lostAt then t.backAt, t.lostFor, t.lostAt = clock(), clock() - t.lostAt, nil end
+end)
+
+function R.Travel()
+    local t, now = R.travel, clock()
+    local load = t.loadAt and string.format("last %s into %s", ago(t.loadAt, now), tostring(t.loadZone)) or "none yet"
+    local zone = t.zoneAt and string.format("%s into %s", ago(t.zoneAt, now), tostring(t.zone)) or "none yet"
+    local control = t.lostAt and string.format("lost now, for %.0f s", now - t.lostAt)
+        or t.backAt and string.format("last back %s after %.0f s", ago(t.backAt, now), t.lostFor)
+        or "never lost"
+    return string.format("Travel: loading screens %d (%s); zone change %s; control %s", t.loads, load, zone, control)
+end
 
 -- Speech bubbles go with the plates, so the report counts them too (only
 -- anyone talking nearby gives one), with the game's bubble settings.
@@ -373,7 +405,7 @@ function R.InWorldBack()
                 -- gets the plates back here without a /reload.
                 if type(SetUIVisibility) == "function" and UIParent:IsShown() then
                     R.cycling = true
-                    pcall(SetUIVisibility, true)
+                    DUI.SafeCall(SetUIVisibility, true)
                     R.cycling = nil
                 end
                 -- The game hands its plates back out a moment after the switch
@@ -516,6 +548,7 @@ function R.World(startedAt)
     out[#out + 1] = string.format("%s min since login or /reload, zone %s (%s), restricted=%s",
         up and string.format("%.0f", up) or "?", R.Cut(tostring(zone), R.ZONE_MAX), tostring(kind),
         tostring(DUI.Restricted() == true))
+    out[#out + 1] = R.Travel()
     local words = {}
     for _, name in ipairs(R.REPORT_CVARS) do
         local v = R.CVar(name)
@@ -843,12 +876,12 @@ R.FIX = {
             local v = R.CVar(name)
             if v then
                 was[name] = v
-                pcall(SetCVar, name, "0")
+                DUI.SafeCall(SetCVar, name, "0")
             end
         end
         local done = R.FixHold()
         C_Timer.After(R.FIX_GAP, function()
-            for name, v in pairs(was) do pcall(SetCVar, name, v) end
+            for name, v in pairs(was) do DUI.SafeCall(SetCVar, name, v) end
             done()
         end)
         return "the game's plates switched off and on (" .. R.OFF .. ")"
@@ -858,7 +891,7 @@ R.FIX = {
         local done = 0
         for _, name in ipairs(R.PLATE_CVARS) do
             local v = gameDefault(name)
-            if v and pcall(SetCVar, name, v) then done = done + 1 end
+            if v and DUI.SafeCall(SetCVar, name, v) then done = done + 1 end
         end
         return string.format("%d plate settings back to the game's defaults", done)
     end,
