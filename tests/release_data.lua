@@ -1685,7 +1685,7 @@ return {
     },
     ["damageFont"] = "Interface\\AddOns\\DaylightUI\\Media\\fonts\\ExpresswayFree.ttf",
     ["lastVersion"] = "test",
-    ["notesSeen"] = "2.0",
+    ["notesSeen"] = "2.0.1",
     ["oneStandard"] = true,
     ["profileData"] = {
       ["DPS/Tank"] = {
@@ -7860,5 +7860,5 @@ return {
     ["general.windowTintColor.2"] = 0.078,
     ["general.windowTintColor.3"] = 0.09,
   },
-  ["version"] = "2.0",
+  ["version"] = "2.0.1",
 }
