@@ -155,7 +155,7 @@ ns.DEFAULTS = {
         partyCustom = { 0.667, 0.667, 1.0 }, -- the game's party chat blue (names, and the marks below)
         partyMark = "none", -- mark beside party and raid names, which keep their color: "none", "before", "around" (Plate.ShowGroupMark)
         classIcon = "none", -- a player's class icon by the name: "none", "before", "after", "above" (Plate.ShowClassIcon)
-        classIconSize = 0, -- 0 = follow the name size
+        classIconScale = 1.3, -- the icon's size as a share of the name's
         guildColor = "class", guildCustom = { INK.GOOD[1], INK.GOOD[2], INK.GOOD[3] }, guildSize = 0,
         roleColor = "tan", roleCustom = { INK.MONEY[1], INK.MONEY[2], INK.MONEY[3] }, roleSize = 0,
         namePos = "above", nameX = 0, nameY = 0, -- with the health bar on; name-only stays centered

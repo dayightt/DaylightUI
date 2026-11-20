@@ -4447,6 +4447,7 @@ end)
 T.test("nameplates: a friendly player's class icon sits by the name, in the picked icon style", function()
     login()
     local DUI = DaylightUI
+    local Plate = stub.nameplates.Plate
     local set = function(k, v) DUI:Set("Nameplates", k, v) end
     stub.units.nameplate3 = { name = "Stabitha", isPlayer = true, class = "ROGUE", hostile = true, reaction = 2,
         health = 50, maxHealth = 100 }
@@ -4471,8 +4472,13 @@ T.test("nameplates: a friendly player's class icon sits by the name, in the pick
     point, rel, relPoint = friend.classIcon:GetPoint(1)
     T.eq(point .. relPoint, "RIGHTLEFT", "a name on the bar keeps it before the name, off the bar")
     set("friendly.enabled", false); set("friendly.namePos", "above"); stub.RunTimers()
-    set("friendly.classIconSize", 20); stub.RunTimers()
-    T.eq(friend.classIcon:GetWidth(), 20, "its own size")
+    local small = friend.classIcon:GetWidth()
+    set("friendly.classIconScale", 2); stub.RunTimers()
+    local big = friend.classIcon:GetWidth()
+    T.truthy(big > small, "a bigger share is a bigger icon")
+    T.eq(big, math.floor(Plate.NameSize(friend, Plate.Cfg(friend)) * 2 + 0.5), "a share of the name's size")
+    set("friendly.classIconScale", 0.5); stub.RunTimers()
+    T.truthy(friend.classIcon:GetWidth() < small, "a smaller share is a smaller icon")
     -- The icon picked for the class on the unit frames wins.
     local was = DUI.ClassIcon
     DUI.ClassIcon = function(token) return "picked\\" .. token, 0, 0.5, 0, 0.5 end

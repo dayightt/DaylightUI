@@ -188,7 +188,7 @@ Sample.PARTS = {
         "friendly.guildColor", "friendly.guildCustom", "friendly.guildSize",
         "friendly.roleColor", "friendly.roleCustom", "friendly.roleSize" },
       move = NAME_MOVE }, -- hangs off the name, so they move together
-    { label = "Class icon", at = at("classIcon"), keys = { "friendly.classIcon", "friendly.classIconSize" },
+    { label = "Class icon", at = at("classIcon"), keys = { "friendly.classIcon", "friendly.classIconScale" },
       move = NAME_MOVE },
     { label = "Quest mark", at = function(p) return { p.quest, p.questCount } end,
       keys = { "quest", "questCount", "questPos", "questX", "questY" },

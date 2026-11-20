@@ -2146,7 +2146,6 @@ end
 -- Class icon by a friendly player's name (friendly.classIcon "before" or "after"):
 -- the icon picked for that class in the unit frames' Class icons setting, so it
 -- matches the party and raid frames. NPCs have no class and get none.
-Plate.CLASS_ICON_SCALE = 1.3 -- size, as a fraction of the name's, when its own size is 0
 Plate.CLASS_ICON_GAP = 3
 Plate.CLASS_ICON_HALO = 0.55 -- the dark halo's strength
 Plate.CLASS_ICON_HALO_SIZE = 1.7 -- the halo's size, as a fraction of the icon's
@@ -2185,9 +2184,8 @@ function Plate.ClassIconToken(p)
 end
 
 function Plate.ClassIconSize(p, c)
-    local own = c.classIconSize or 0
-    if own > 0 then return own end
-    return math.max(8, math.floor(Plate.NameSize(p, c) * Plate.CLASS_ICON_SCALE + 0.5))
+    -- A share of the name's size, so it follows the name as that changes.
+    return math.max(6, math.floor(Plate.NameSize(p, c) * (c.classIconScale or 1.3) + 0.5))
 end
 
 -- How far the class icon reaches out from the name on one side, with its gap
