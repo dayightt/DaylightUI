@@ -10,6 +10,7 @@
 --       events = { REPLICATE_ITEM_LIST_UPDATE = function(...) return true end },
 --       search = false,                     -- true: counts toward SEARCH_PER_MINUTE
 --       timeout = 10,                       -- seconds from sending to the answer
+--       wait = 90,                          -- optional: seconds it may wait in line before it's sent
 --       onDone = function(ok, reason) end,
 --   })
 --
@@ -238,6 +239,21 @@ function AH.Request(spec)
         return false
     end
     queue[#queue + 1] = req
+    -- A request that may only wait so long for its turn leaves the line then,
+    -- unsent: the game's throttle can stay busy for minutes, and a full scan
+    -- shouldn't sit on "asking" all that time.
+    local wait = tonumber(spec.wait)
+    if wait then
+        C_Timer.After(wait, function()
+            if req.finished or current == req then return end
+            for i, queued in ipairs(queue) do
+                if queued == req then
+                    table.remove(queue, i)
+                    return finish(req, false, "timeout")
+                end
+            end
+        end)
+    end
     pump()
     return true
 end

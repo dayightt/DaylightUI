@@ -348,7 +348,28 @@ function Main.Close() shut(false) end
 -- The AH is open with the game's frame parked: this window, on Buy. Asked on
 -- AHOpened and again when the follower sees the frame show (the game's order
 -- of AUCTION_HOUSE_SHOW and the frame's show is its own).
+-- Shift-clicking an item while the AH is open puts its name in the game's
+-- search box (the game's ChatFrameUtil.InsertLink, which only asks whether
+-- AuctionHouseFrame is visible, and under the veil it is). This window sits in
+-- its place, so it takes the name from there and searches it on Buy.
+local watchedBox
+function Main.WatchLinks()
+    local g = Main.Game()
+    local bar = g and g.SearchBar
+    local box = type(bar) == "table" and bar.SearchBox
+    if type(box) ~= "table" or box == watchedBox or type(box.HookScript) ~= "function" then return end
+    watchedBox = box
+    box:HookScript("OnTextChanged", function(b, typed)
+        if typed or not (Main.IsOpen() and Main.Docked()) then return end
+        local text = b:GetText()
+        if type(text) ~= "string" or text == "" then return end
+        if Main.frame.tab ~= "buy" then Main.ShowTab("buy") end
+        ns.BuyPage.Submit(text)
+    end)
+end
+
 function Main.Take()
+    Main.WatchLinks()
     if not Main.Docked() then return end   -- in a fight, or the game's is picked
     if Main.IsOpen() then return end
     Main.opened = true

@@ -26,6 +26,8 @@ DUI.PatchNotes = {
         { "Tooltip", "Long tags and titles on tooltips, like long guild ranks or pet owner names in German, wrap onto a second line instead of running off the edge" },
         { "Tooltip", "With a weapon in each hand, comparing a weapon says which hand each of yours is in, and your main hand sits next to the item" },
         { "Tooltip", "Hovering a spell on your action bars while it's on cooldown still shows what it does, with the time left added" },
+        { "Auction House", "A full scan no longer gets stuck on \"Asking the Auction House\" when the game never takes the request. It stops and says so, and you can scan again" },
+        { "Auction House", "Shift-clicking an item in your bags or a profession searches for it on Buy, like in the game's own Auction House" },
     }, new = {
         { "Tooltip", "Rich tooltip cards can leave out the creature's face and the player's class icon" },
         { "Chat", "A chat tab can leave out other people's loot and rolls and keep only yours" },

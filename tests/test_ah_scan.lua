@@ -682,3 +682,18 @@ T.test("scan_ended_on_a_stop", function()
     T.deq(ends, { { false, "Full scan stopped: the Auction House was closed. Nothing was kept." } })
     T.isnil(M.Scan.Progress())
 end)
+
+-- The game's message line never says it's ready again (seen as a scan stuck
+-- on "Asking" for minutes): the scan gives up with a sentence instead of
+-- waiting forever, and a new one can start.
+T.test("scan_gives_up_when_the_game_never_takes_the_ask", function()
+    local M = load(many(10, 10))
+    AHW.Open()
+    AHW.Throttle(true)
+    T.eq(M.Scan.Full(), true)
+    AHW.Advance(M.Replicate.TIMEOUT + 1)
+    T.eq(said("Full scan stopped: the Auction House didn't answer."), 1, "stopped with a sentence")
+    T.isnil(M.Scan.Progress(), "not running any more")
+    T.eq(M.Replicate.Running(), false)
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
