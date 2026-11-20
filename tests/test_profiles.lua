@@ -619,6 +619,53 @@ T.test("profiles: importing makes a new profile, chosen for this character", fun
     T.eq(stub.Asked(), "profile", "asked to reload into it")
 end)
 
+T.test("profiles: importing only some parts keeps yours for the rest", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    local P = DUI.Profiles
+    DUI:Set("UnitFrames", "swing.height", 30)
+    DUI:Set("general", "softness", 0.9)
+    local text = P.Encode(P.Snapshot())
+    DUI:Set("UnitFrames", "swing.height", 12)
+    DUI:Set("general", "softness", 0.1)
+    stub.Dismiss()
+    P.ShowImport()
+    local box = _G.DaylightUIProfileBox
+    box.edit:SetText(text)
+    local keys, rows = {}, {}
+    for i, part in ipairs(P.Parts(P.Decode(text))) do keys[part.key] = i; rows[i] = box.parts.rows[i] end
+    T.truthy(keys.general and keys.UnitFrames and keys.positions, "appearance, each module and positions listed")
+    T.eq(rows[keys.UnitFrames].text.__text, "Unit Frames", "by the module's own name")
+    T.truthy(rows[keys.general].switch.on, "all on to start")
+    rows[keys.general]:GetScript("OnClick")()
+    T.falsy(rows[keys.general].switch.on, "a click on the row switches it off")
+    T.truthy(string.find(box.status.__text, "The rest stay as yours", 1, true), "says it takes only some")
+    box.name:SetText("Half")
+    box.go:GetScript("OnClick")()
+    T.falsy(box:IsShown(), "imported")
+    local made = DaylightUIDB.profileData.Half
+    T.eq(made.modules.UnitFrames.swing.height, 30, "the part taken is theirs")
+    T.eq(made.general.softness, 0.1, "the part left out is yours")
+end)
+
+T.test("profiles: import with every part switched off does nothing", function()
+    local DUI = login()
+    local P = DUI.Profiles
+    local text = P.Encode(P.Snapshot())
+    P.ShowImport()
+    local box = _G.DaylightUIProfileBox
+    box.edit:SetText(text)
+    for i = 1, #P.Parts(P.Decode(text)) do box.parts.rows[i]:GetScript("OnClick")() end
+    T.truthy(string.find(box.status.__text, "at least one", 1, true), "asks for a part")
+    box.name:SetText("Nothing")
+    box.go:GetScript("OnClick")()
+    T.truthy(box:IsShown(), "still open")
+    T.isnil(DaylightUIDB.profileData.Nothing, "no profile made")
+    box.edit:SetText("")
+    T.eq(box.parts.h, 0, "the parts fold away when the text goes")
+end)
+
 T.test("profiles: the share window: export shows the text; import checks it as it's pasted", function()
     local DUI = login()
     local P = DUI.Profiles
@@ -634,7 +681,8 @@ T.test("profiles: the share window: export shows the text; import checks it as i
     box.edit:SetText("nonsense")
     T.truthy(string.find(box.status.__text, "Can't import", 1, true))
     box.edit:SetText(text)
-    T.truthy(string.find(box.status.__text, "Settings for", 1, true), "what it holds, before anything's changed")
+    T.truthy(string.find(box.status.__text, "Takes all", 1, true), "what it takes, before anything's changed")
+    T.truthy(box.parts:IsShown(), "a switch per part")
     box.go:GetScript("OnClick")()
     T.truthy(box:IsShown(), "not without a name")
     T.truthy(string.find(box.status.__text, "name", 1, true), "asked for one")

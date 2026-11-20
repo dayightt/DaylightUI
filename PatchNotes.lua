@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", new = {
+        { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours" },
+    } },
     { version = "2.1.1", date = "2026-11-20", summary = "Game windows that follow the Daylight UI scale, and a big batch of fixes for bags, tooltips, the Cooldown Manager and more.", changed = {
         { "Skins", "The game's windows, like the trade window, now shrink or grow with the Daylight UI scale" },
         { "Nameplates", "The class icon by a friendly player's name grows and shrinks with the name" },

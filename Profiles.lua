@@ -160,6 +160,43 @@ function Profiles.Summary(p)
     return string.format(L["Settings for %s."], table.concat(parts, "; "))
 end
 
+-- The parts of a shared profile that can be taken on their own, in the order
+-- the import box lists them: appearance, each module A to Z, frame positions,
+-- the Edit Mode layout. Each is { key, label }; a module's key is its name.
+Profiles.GENERAL, Profiles.POSITIONS, Profiles.LAYOUT = "general", "positions", "layout"
+
+function Profiles.Parts(p)
+    local out = {}
+    if type(p.general) == "table" then out[#out + 1] = { key = Profiles.GENERAL, label = L["Appearance"] } end
+    local mods = {}
+    for name, t in pairs(p.modules or {}) do
+        if type(t) == "table" then
+            local mod = DUI:GetModule(name)
+            mods[#mods + 1] = { key = name, label = L[mod and (mod.label or mod.name) or name] }
+        end
+    end
+    table.sort(mods, function(a, b) return a.label < b.label end)
+    for _, m in ipairs(mods) do out[#out + 1] = m end
+    if type(p.positions) == "table" then out[#out + 1] = { key = Profiles.POSITIONS, label = L["Frame positions"] } end
+    if type(p.layout) == "string" then out[#out + 1] = { key = Profiles.LAYOUT, label = L["Edit Mode layout"] } end
+    return out
+end
+
+-- A shared profile with only the parts in take (a set of Parts keys) kept;
+-- every other part is swapped for the active profile's own, so turning a part
+-- off on import means keeping yours.
+function Profiles.Take(shared, take)
+    local mine = Profiles.Snapshot()
+    local p = { v = shared.v, modules = {} }
+    p.general = copy(take[Profiles.GENERAL] and shared.general or mine.general)
+    p.positions = copy(take[Profiles.POSITIONS] and shared.positions or mine.positions)
+    p.layout = take[Profiles.LAYOUT] and shared.layout or mine.layout
+    for name, t in pairs(shared.modules or {}) do
+        if take[name] then p.modules[name] = copy(t) else p.modules[name] = copy(mine.modules[name]) end
+    end
+    return p
+end
+
 -- The profiles
 
 -- Every saved profile's name, the standard one (DPS/Tank) first if present,
@@ -1000,7 +1037,19 @@ local function buildBox()
     local area = W.TextArea(box, { width = Profiles.BOX[1] - 2 * E, onEscape = function() DUI.Motion.Vanish(box) end })
     area:SetPoint("TOPLEFT", box.hint, "BOTTOMLEFT", 0, -14)
     area:SetPoint("RIGHT", box, "RIGHT", -E, 0)
-    area:SetPoint("BOTTOM", box, "BOTTOM", 0, 70)
+    -- The parts to take, between the text and the status line: no height and
+    -- hidden until a profile is pasted (Profiles.ShowParts).
+    local parts = CreateFrame("Frame", nil, box)
+    parts:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", E, 66)
+    parts:SetPoint("RIGHT", box, "RIGHT", -E, 0)
+    parts:SetHeight(1)
+    parts:Hide()
+    parts.head = W.Font(parts, W.BODY, SIZE.small, C.dim, "LEFT")
+    parts.head:SetPoint("TOPLEFT", parts, "TOPLEFT", 0, -6)
+    parts.head:SetText(L["Take these parts. Whatever you switch off stays as yours."])
+    parts.rows = {}
+    box.parts = parts
+    area:SetPoint("BOTTOM", parts, "TOP", 0, 0)
     box.area, box.edit = area, area.edit
     box.status = W.Font(box, W.BODY, SIZE.small, C.dim, "LEFT")
     box.status:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", E, 46)
@@ -1025,6 +1074,74 @@ local function buildBox()
     DUI.Motion.Window(box, 6)
 end
 
+Profiles.PART_ROW = 22 -- a part's row in the import box
+Profiles.PART_HEAD = 26 -- the line over them
+Profiles.PART_GIVE = 90 -- how much the pasted text gives up for them (it's read by then)
+
+-- One part's row: its name, and a switch at the right. A click anywhere on
+-- the row flips it, like an options row.
+local function partRow(parts, i)
+    local W = DUI.Widgets
+    local row = parts.rows[i]
+    if row then return row end
+    row = CreateFrame("Button", nil, parts)
+    row:SetHeight(Profiles.PART_ROW)
+    row.text = W.Font(row, W.BODY, SIZE.body, W.COLORS.text, "LEFT")
+    row.text:SetPoint("LEFT", row, "LEFT", 0, 0)
+    row.switch = W.Switch(row)
+    row.switch:SetPoint("RIGHT", row, "RIGHT", -12, 0)
+    row.text:SetPoint("RIGHT", row.switch, "LEFT", -8, 0)
+    row.switch:SetScript("OnClick", function() row.Flip() end)
+    row:SetScript("OnClick", function() row.switch:Click() end)
+    parts.rows[i] = row
+    return row
+end
+
+-- Grows (or shrinks) the box so the parts fit, easing its height.
+local function fitParts(h)
+    local parts = box.parts
+    local from = parts.h or 0
+    parts.h = h
+    DUI.Motion.Tween(parts, from, h, DUI.Motion.NORMAL, function(v)
+        parts:SetHeight(math.max(1, v))
+        box:SetHeight(Profiles.BOX[2] + v - math.min(v, Profiles.PART_GIVE))
+    end)
+    DUI.Motion.AlphaTo(parts, h > 0 and 1 or 0, DUI.Motion.NORMAL, true)
+end
+
+-- Lists list (Profiles.Parts) as switches, all on; onChange(take) runs with
+-- the set of parts switched on whenever one flips. nil list hides them.
+function Profiles.ShowParts(list, onChange)
+    if not box then buildBox() end
+    local parts = box.parts
+    if not list or #list == 0 then
+        fitParts(0)
+        return
+    end
+    local take = {}
+    local half = math.ceil(#list / 2)
+    local colW = (Profiles.BOX[1] - 2 * DUI.Win.EDGE) / 2
+    for i, part in ipairs(list) do
+        local row = partRow(parts, i)
+        local col, line = (i > half) and 1 or 0, (i - 1) % half
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", parts, "TOPLEFT", col * colW, -Profiles.PART_HEAD - line * Profiles.PART_ROW)
+        row:SetWidth(colW)
+        row.text:SetText(part.label)
+        take[part.key] = true
+        row.switch.SetOn(true)
+        function row.Flip()
+            take[part.key] = not take[part.key] or nil
+            row.switch.SetOn(take[part.key] == true)
+            onChange(take)
+        end
+        row:Show()
+    end
+    for i = #list + 1, #parts.rows do parts.rows[i]:Hide() end
+    fitParts(Profiles.PART_HEAD + half * Profiles.PART_ROW + 4)
+    onChange(take)
+end
+
 local function showBox(title, hint)
     if not box then buildBox() end
     DUI.Win.Repaint(box) -- the accent line in the current accent
@@ -1032,6 +1149,15 @@ local function showBox(title, hint)
     box.hint:SetText(hint)
     box.status:SetText("")
     box.edit:SetScript("OnTextChanged", nil)
+    if not box:IsShown() then
+        -- Opened afresh: back to its own size, no parts.
+        DUI.Motion.Tween(box.parts, 0, 0, 0)
+        box.parts.h = 0
+        box.parts:Hide()
+        box:SetHeight(Profiles.BOX[2])
+    else
+        Profiles.ShowParts(nil)
+    end
     box:Show()
     box:Raise()
     return box
@@ -1074,9 +1200,31 @@ function Profiles.ShowImport()
     b.name:Show()
     b.name:SetText("")
     b.edit:SetText("")
-    local pending
+    local pending, take, count, shown
     local function named() return strtrim(b.name:GetText() or "") end
-    local function ready() b.go:SetAlpha((pending and named() ~= "") and 1 or 0.4) end
+    local function picked()
+        local n = 0
+        for _ in pairs(take or {}) do n = n + 1 end
+        return n
+    end
+    local function ready() b.go:SetAlpha((pending and picked() > 0 and named() ~= "") and 1 or 0.4) end
+    -- How many parts it takes, the number in the accent.
+    local function said()
+        local W = DUI.Widgets
+        local n = picked()
+        if n == 0 then
+            b.status:SetText(L["Switch on at least one part to import."])
+            W.TextColor(b.status, W.COLORS.warn)
+            return
+        end
+        local pop = DUI.Win.Parts.Hex({ Style.Pop() })
+        if n == count then
+            b.status:SetText(string.format(L["Takes all %s parts."], pop .. n .. "|r"))
+        else
+            b.status:SetText(string.format(L["Takes %s of %s parts. The rest stay as yours."], pop .. n .. "|r", count))
+        end
+        W.TextColor(b.status, W.COLORS.text)
+    end
     local function check(_, user)
         -- Pasted as one long line: shown in lines so it fits the box.
         local now = b.edit:GetText()
@@ -1085,13 +1233,20 @@ function Profiles.ShowImport()
             return
         end
         local p, why = Profiles.Decode(b.edit:GetText())
-        pending = p
         local W = DUI.Widgets
         if p then
-            b.status:SetText(Profiles.Summary(p))
-            W.TextColor(b.status, W.COLORS.text)
+            -- The same string pasted again keeps the switches as they are.
+            if now ~= shown then
+                local list = Profiles.Parts(p)
+                count = #list
+                Profiles.ShowParts(list, function(t) take = t; said(); ready() end)
+            end
+            pending, shown = p, now
+            said()
         else
-            b.status:SetText(b.edit:GetText() == "" and "" or string.format(L["Can't import: %s."], why))
+            pending, take, shown = nil, nil, nil
+            Profiles.ShowParts(nil)
+            b.status:SetText(now == "" and "" or string.format(L["Can't import: %s."], why))
             W.TextColor(b.status, W.COLORS.warn)
         end
         ready()
@@ -1107,12 +1262,14 @@ function Profiles.ShowImport()
     end
     local function go()
         if not pending then return end
+        if picked() == 0 then return end
         if named() == "" then
             warn(L["Give it a name first."])
             b.name:SetFocus()
             return
         end
-        local made, why = Profiles.Create(named(), pending)
+        local shared = picked() == count and pending or Profiles.Take(pending, take)
+        local made, why = Profiles.Create(named(), shared)
         if not made then
             warn(string.format(L["Can't import: %s."], tostring(why)))
             return
