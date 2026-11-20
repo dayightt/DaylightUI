@@ -2010,6 +2010,24 @@ T.test("rich tooltip: a spell's tiles take what their words need", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game: a quest's heading on an item's card ("[24M] INVESTIGACIONES ACERCA
+-- DE LA CORRUPCION") ran past the card's edge: it wraps onto a second line.
+T.test("rich tooltip: a quest heading longer than the card wraps instead of running past it", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local p = Panel.Get(GameTooltip)
+    Panel.Begin(p, "item")
+    Panel.Section(p, "[20] Short")
+    local _, shortH = Panel.Finish(p)
+    Panel.Begin(p, "item")
+    Panel.Section(p, "[24M] Research about the corruption of the old world and more")
+    local _, longH = Panel.Finish(p)
+    T.truthy(longH > shortH + 8, "a second line, not one running past the card")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: "Scalping Tomahawk of H..." lost the words that say what the
 -- item is for. A name too long for the card takes a second line.
 T.test("rich tooltip: a long item name wraps instead of being cut", function()

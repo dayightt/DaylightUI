@@ -4061,6 +4061,7 @@ function W.HeroButton(parent, text, h)
 end
 
 W.TILE_H, W.TILE_CUT, W.TILE_PAD = 40, 5, 8
+W.TILE_ROOM = 1.08
 
 -- A value tile: a value over its caption (CAST, COST, RANGE), in a faint box
 -- with its bottom-right corner cut. t.Set(value, caption, color); color is the
@@ -4094,7 +4095,9 @@ function W.Tile(parent, font)
         local a, b = t.valueRuler:GetStringWidth(), t.captionRuler:GetStringWidth()
         if type(a) ~= "number" or DUI.IsSecret(a) then a = 0 end
         if type(b) ~= "number" or DUI.IsSecret(b) then b = 0 end
-        return math.max(a, b) + 2 * W.TILE_PAD
+        -- The game draws a line a few percent wider than it measures (its letters
+        -- are placed on whole pixels), so the measure gets a little room.
+        return math.max(a, b) * W.TILE_ROOM + 2 * W.TILE_PAD
     end
     function t.Set(value, caption, color)
         t.valueRuler:SetText(value or "")

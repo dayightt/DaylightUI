@@ -29,6 +29,7 @@ Panel.CUT = 12         -- the card's bottom-right corner
 Panel.ICON_CUT = 8
 Panel.LIGHT_H = 2      -- the colored line along the top
 Panel.MIN_W = 160
+Panel.TEXT_ROOM = 1.05 -- the game draws a line a little wider than it measures
 Panel.SHRINK_MIN = 0.7  -- a title's longest word may shrink the letters this far to fit
 Panel.GROW = 1.3       -- a fixed card widens this much at most, for a long tag or tile
 -- Each kind's card is as wide as its board; anything else is as wide as it
@@ -861,9 +862,20 @@ function place.text(p, item, y, inner)
     return lines * (fs.size + Panel.LINE_EXTRA) + (lines - 1) * Panel.LINE_SPACING
 end
 
-function place.section(p, item, y)
-    item.fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
-    return lineHeight(item.fs.size, item.fs.slot)
+function place.section(p, item, y, inner)
+    local fs = item.fs
+    fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
+    local one = lineHeight(fs.size, fs.slot)
+    -- A quest's name and its tags can be longer than the card: they wrap onto a
+    -- second line (the game's measure is a little short, hence the margin).
+    if widthOf(fs) * Panel.TEXT_ROOM > inner then
+        fs:SetWidth(inner)
+        fs:SetWordWrap(true)
+        fs:SetMaxLines(2)
+        fs:SetSpacing(Panel.LINE_SPACING)
+        return 2 * one + Panel.LINE_SPACING
+    end
+    return one
 end
 
 function place.line(p, item, y, inner)
