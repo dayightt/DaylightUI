@@ -407,10 +407,14 @@ T.test("bags: the tooltip counts switch off", function()
     T.eq(#tipRows(ns, { id = 1 }), 5, "back on")
 end)
 
-T.test("bags: item counts show only when another character has some", function()
+T.test("bags: item counts show only when some are outside this character's bags", function()
     local ns = countWorld()
     T.eq(#tipRows(ns, { id = 6 }), 0, "only in this character's bags: nothing added")
-    T.eq(#tipRows(ns, { id = 4 }), 0, "this character and the account bank: nothing either")
+    local banked = tipRows(ns, { id = 4 })
+    T.eq(#banked, 4, "this character and the account bank: both counted, then the total")
+    T.eq(plainText(banked[2][2]), "Bags 1")
+    T.eq(plainText(banked[3][2]), "1", "the account bank")
+    T.eq(plainText(banked[4][2]), "2", "the total")
     local rows = tipRows(ns, { id = 9 })
     T.eq(rows[2][1], "Alt", "only on another character: just that one")
     T.eq(plainText(rows[2][2]), "Bags 1")
@@ -5952,7 +5956,8 @@ end)
 T.test("bags: with the game's clean up toward the end on, kept-slot Clean Up fills from the last slot back", function()
     local ns = login({ view = "grid" })
     keepWorld()
-    local rev = true
+    -- The game's right-to-left flag off is what packs toward the end.
+    local rev = false
     C_Container.GetSortBagsRightToLeft = function() return rev end
     local f = open(ns)
     ns.Keep.Toggle(0, 3, 30)
@@ -8439,3 +8444,77 @@ T.test("bags: in a fight, Win.Held reads the bag's table of held slots without c
     stub.LeaveCombat()
 end)
 
+
+T.test("bags: a long cleanup in batches ends with every slot in place and filled", function()
+    for _, view in ipairs({ "grid", "categories" }) do
+        local ns, f
+        if view == "grid" then ns = login(); f = open(ns); ns.Relayout() else ns, f = catLogin() end
+        local W, Feel = ns.Window, DaylightUI.Win.Feel
+        local ok, err = pcall(function()
+            local runDue = timedTimers()
+            -- Scatter items through both bags, with stacks of the same item.
+            for _, bag in ipairs({ 0, 1 }) do
+                for s = 1, world.sizes[bag] do world.items[bag][s] = nil end
+            end
+            local n = 0
+            for _, spot in ipairs({ {0,2},{0,5},{0,9},{0,11},{0,14},{0,16},{1,1},{1,4},{1,7},{1,8},{1,12} }) do
+                n = n + 1
+                local id = (n % 4) + 1
+                world.items[spot[1]][spot[2]] = { iconFileID = 900 + n, stackCount = n, quality = 1, hyperlink = "|Hitem:" .. (20 + id) .. "|h" }
+            end
+            stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE", 1)
+            stub.FireEvent("BAG_UPDATE_DELAYED")
+            stub.Advance(2); runDue()
+            settleFeel()
+            f.sort:GetScript("OnClick")(f.sort)
+            -- The server packs everything to the front, a move at a time, in slow batches.
+            local list = {}
+            for _, bag in ipairs({ 0, 1 }) do
+                for s = 1, world.sizes[bag] do list[#list + 1] = { bag, s } end
+            end
+            local step = 0
+            for i, to in ipairs(list) do
+                if not world.items[to[1]][to[2]] then
+                    for j = i + 1, #list do
+                        local from = list[j]
+                        if world.items[from[1]][from[2]] then
+                            world.items[to[1]][to[2]] = world.items[from[1]][from[2]]
+                            world.items[from[1]][from[2]] = nil
+                            stub.FireEvent("BAG_UPDATE", to[1])
+                            if from[1] ~= to[1] then stub.FireEvent("BAG_UPDATE", from[1]) end
+                            stub.FireEvent("BAG_UPDATE_DELAYED")
+                            break
+                        end
+                    end
+                    step = step + 1
+                    stub.Advance(step % 2 == 0 and 0.45 or 0.05)
+                    runDue()
+                    local d = DaylightUI.Win.Feel.Driver()
+                    if d then stub.RunOnUpdate(d, 0.05) end
+                end
+            end
+            stub.Advance(5); runDue()
+            settleFeel()
+            T.isnil(f.sorting, view .. ": the hold let go")
+            T.truthy(filledRight(f), view .. ": every icon is what's there")
+            for _, s in ipairs(f.set.Slots()) do T.falsy(Feel.Moving(s.button), view .. ": nothing still moving") end
+            -- Laid out again from scratch, nothing should move.
+            local spots = {}
+            for _, s in ipairs(f.set.Slots()) do if s.button:IsShown() then spots[s.button] = { at(s.button) } end end
+            f.stale = true
+            ns.Relayout()
+            for _, s in ipairs(f.set.Slots()) do
+                if s.button:IsShown() and spots[s.button] then
+                    local x, y = at(s.button)
+                    T.eq(x, spots[s.button][1], view .. ": slot " .. s.bag .. ":" .. s.button:GetID() .. " x in place")
+                    T.eq(y, spots[s.button][2], view .. ": slot " .. s.bag .. ":" .. s.button:GetID() .. " y in place")
+                else
+                    T.truthy(not s.button:IsShown() or spots[s.button], view .. ": no slot appears on a fresh layout")
+                end
+            end
+        end)
+        stub.ResetTimers()
+        T.truthy(ok, tostring(err))
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
+end)
