@@ -2,7 +2,7 @@
 -- left; the search box (with suggestions from items already seen), the
 -- filter row, one row per item cheapest first, and the footer that buys.
 --
--- Searches run on Enter, a category, a chip, the rarity menu or a level box
+-- Searches run on Enter, a category, a chip, the filter menu or a level box
 -- (Enter or leaving it), never per keystroke: typing only drives the
 -- suggestions. Each search is one ns.Browse.Query; only the newest one's rows
 -- ever show (ns.AH.Drop drops the one before it).
@@ -48,6 +48,7 @@ BP.ICON_X = 44        -- the item name starts after its icon
 BP.STEP_X = 48
 BP.LEVEL_W = 40
 BP.QTY_W = 52
+BP.BID_W = 100       -- the bid amount box
 BP.DEAL = 70          -- a % at or under this is a deal (INK.GOOD), until the settings are read
 BP.RECENT_MAX = 10
 BP.CONFIRM_WAIT = 0.5 -- s a Confirm click is refused after its total shows or changes
@@ -76,7 +77,7 @@ BP.state = {
     open = nil, step = nil, pending = nil, closeDone = nil, opening = nil,
     quote = nil, buying = false, tell = nil, amount = 1, amountOf = nil, amountSet = false,
     want = nil, sort = { id = "unit", desc = false },
-    filters = { minLevel = nil, maxLevel = nil, rarity = nil, usable = false },
+    filters = { minLevel = nil, maxLevel = nil, usable = false, picked = {} },
 }
 local S = BP.state
 
@@ -88,6 +89,7 @@ local function hex(c) return Parts.Hex(c) end
 local function value(text) return hex(Style.INK.VALUE) .. text .. "|r" end
 local function pop(text) return hex({ Style.Pop() }) .. text .. "|r" end
 local function money(c) return W.Money(c, { pad = true }) end
+local function plainMoney(c) return ns.SellPage.PlainMoney(c) end
 local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
 local function animated(region) return region ~= nil and region:IsVisible() and Motion.On() end
 
@@ -124,7 +126,7 @@ local function sameSearch(a, b)
 end
 
 local function remember(q)
-    if not q.path and trim(q.text) == "" then return end
+    if q.favorites or (not q.path and trim(q.text) == "") then return end
     local list = saved("recent")
     for i = #list, 1, -1 do
         if type(list[i]) ~= "table" or sameSearch(list[i], q) then table.remove(list, i) end
@@ -155,11 +157,33 @@ function BP.IsFavorite(itemID)
     return false
 end
 
-function BP.SetFavorite(itemID, on)
+-- Kept here and in the game's own favorites (account-wide on its server), so
+-- a star set in either window shows in both. itemKey: the result's own.
+function BP.SetFavorite(itemID, on, itemKey)
     if type(itemID) ~= "number" then return end
     local list = saved("favorites")
     for i = #list, 1, -1 do if list[i] == itemID then table.remove(list, i) end end
     if on then table.insert(list, 1, itemID) end
+    local api = C_AuctionHouse
+    if not (ns.AH.IsOpen() and api and api.SetFavoriteItem) then return end
+    if api.FavoritesAreAvailable and api.FavoritesAreAvailable() ~= true then return end
+    if on and api.HasMaxFavorites and api.HasMaxFavorites() == true then return end
+    local key = type(itemKey) == "table" and itemKey or (api.MakeItemKey and api.MakeItemKey(itemID))
+    if key then api.SetFavoriteItem(key, on == true) end
+end
+
+-- The game's favorites a favorites search found, added to the list here
+-- (stars set in the game's own window, or on another computer).
+local function learnFavorites(rows)
+    local list = saved("favorites")
+    local have = {}
+    for _, id in ipairs(list) do have[id] = true end
+    for _, r in ipairs(rows) do
+        if type(r.itemID) == "number" and not have[r.itemID] then
+            have[r.itemID] = true
+            list[#list + 1] = r.itemID
+        end
+    end
 end
 
 -- ---------------------------------------------------------------------
@@ -382,8 +406,9 @@ end
 -- Searching: the game's browse query, one row per item
 -- ---------------------------------------------------------------------
 
-local QUALITY = { { "PoorQuality", 6 }, { "CommonQuality", 7 }, { "UncommonQuality", 8 }, { "RareQuality", 9 },
-    { "EpicQuality", 10 }, { "LegendaryQuality", 11 }, { "ArtifactQuality", 12 } }
+-- name, the API docs' number, the item quality
+local QUALITY = { { "PoorQuality", 6, 0 }, { "CommonQuality", 7, 1 }, { "UncommonQuality", 8, 2 },
+    { "RareQuality", 9, 3 }, { "EpicQuality", 10, 4 }, { "LegendaryQuality", 11, 5 }, { "ArtifactQuality", 12, 6 } }
 
 -- The client's enum value, the API docs' number when the enum is missing.
 local function filterValue(name, fallback)
@@ -392,15 +417,62 @@ local function filterValue(name, fallback)
     return fallback
 end
 
+-- filter value -> the item quality it stands for
+local function qualityOf(v)
+    for _, q in ipairs(QUALITY) do
+        if filterValue(q[1], q[2]) == v then return q[3] end
+    end
+end
+
+-- Like the game's window: every quality on, every "only" filter off.
+function BP.FilterOn(v)
+    local picked = S.filters.picked[v]
+    if picked ~= nil then return picked end
+    return qualityOf(v) ~= nil
+end
+
+-- How many filters differ from the game's defaults (Usable has its own chip).
+function BP.FiltersChanged()
+    local n = 0
+    for v, on in pairs(S.filters.picked) do
+        if on ~= (qualityOf(v) ~= nil) then n = n + 1 end
+    end
+    return n
+end
+
+-- The columns the server can sort by, as the game's own headers do. A long
+-- list is cut at Browse.MAX_PAGES, so the server's order picks which rows come.
+local SERVER_SORT = { name = "Name", level = "Level", unit = "Price" }
+
+function BP.Sorts()
+    local order = Enum and Enum.AuctionHouseSortOrder
+    if type(order) ~= "table" or type(order.Price) ~= "number" then return {} end
+    local key = SERVER_SORT[S.sort.id]
+    local out = {}
+    if key and key ~= "Price" and type(order[key]) == "number" then
+        out[1] = { sortOrder = order[key], reverseSort = S.sort.desc }
+    end
+    out[#out + 1] = { sortOrder = order.Price, reverseSort = key == "Price" and S.sort.desc or false }
+    return out
+end
+
 -- The AuctionHouseBrowseQuery for a search on screen. The quality filters go
--- always, from the rarity picked up: the game's own UI always sends them.
+-- always, each one switched on: the game's own UI always sends them.
 function BP.QueryOf(q)
+    if q.favorites then return { searchString = "", sorts = BP.Sorts(), favorites = true } end
     local f = S.filters
-    local query = { searchString = trim(q.text), sorts = ns.Search.PriceSort(),
+    local query = { searchString = trim(q.text), sorts = BP.Sorts(),
         minLevel = f.minLevel, maxLevel = f.maxLevel }
     local filters = {}
-    if f.usable then filters[#filters + 1] = filterValue("UsableOnly", 2) end
-    for k = (f.rarity or 0) + 1, #QUALITY do filters[#filters + 1] = filterValue(QUALITY[k][1], QUALITY[k][2]) end
+    local usable = filterValue("UsableOnly", 2)
+    if f.usable then filters[#filters + 1] = usable end
+    for _, q in ipairs(QUALITY) do
+        local v = filterValue(q[1], q[2])
+        if BP.FilterOn(v) then filters[#filters + 1] = v end
+    end
+    for v, on in pairs(f.picked) do
+        if on and v ~= usable and not qualityOf(v) then filters[#filters + 1] = v end
+    end
     local node = q.path and Cat.Find(q.path)
     if node then
         if node.implicitFilter then filters[#filters + 1] = node.implicitFilter end
@@ -529,6 +601,7 @@ local function answered(g, rows, reason, capped)
     if g ~= S.gen then return end
     S.running = false
     if rows then
+        if S.query and S.query.favorites then learnFavorites(rows) end
         local byKey = {}
         for _, r in ipairs(rows) do
             if type(r.key) == "string" and not byKey[r.key] then
@@ -537,7 +610,9 @@ local function answered(g, rows, reason, capped)
             end
         end
         if capped then
-            S.capped = string.format(L["Showing the cheapest %s: add words to narrow it."], ns.Thousands(capped))
+            local cheapest = S.sort.id == "unit" and not S.sort.desc
+            S.capped = string.format(cheapest and L["Showing the cheapest %s: add words to narrow it."]
+                or L["Showing the first %s in this order: add words to narrow it."], ns.Thousands(capped))
         end
     else
         S.problem = searchSentence(reason)
@@ -609,6 +684,12 @@ function BP.Submit(text, anywhere)
     return BP.Run({ text = text, path = path, label = path and q.label or nil })
 end
 
+-- Every favorite and its price in one list, like the game's star button.
+function BP.SearchFavorites()
+    if page.box:GetText() ~= "" then page.box:SetText("") end
+    return BP.Run({ text = "", favorites = true, label = L["Favorites"] })
+end
+
 function BP.Again()
     if S.query then BP.Run(S.query) end
 end
@@ -630,8 +711,9 @@ local function shownSteps(d)
 end
 
 -- Steps from ns.Search.Item's auctions, cheapest first. A commodity's are one
--- per price; gear's one per auction of the row's key that can be bought (a
--- bid-only one can't). The player's own are marked, never bought.
+-- per price; gear's one per auction of the row's key, those with a buyout
+-- first, then the ones that only take bids. The player's own are marked,
+-- never bought.
 local function stepsOf(row, auctions)
     local usual = row.usual
     local steps = {}
@@ -648,9 +730,13 @@ local function stepsOf(row, auctions)
     for _, a in ipairs(auctions or {}) do
         if type(a.qty) == "number" and a.qty > 0 and type(a.unit) == "number" then
             if a.auctionID then
-                if (want == nil or a.key == nil or a.key == want) and type(a.buyout) == "number" and a.buyout > 0 then
-                    steps[#steps + 1] = { kind = "step", auctionID = a.auctionID, unit = a.unit, buyout = a.buyout,
-                        qty = a.qty, owner = a.owner, timeLeft = a.timeLeft, pct = pctOf(a.unit, usual),
+                local buyout = type(a.buyout) == "number" and a.buyout > 0 and a.buyout or nil
+                local minBid = type(a.minBid) == "number" and a.minBid > 0 and a.minBid or nil
+                if (want == nil or a.key == nil or a.key == want) and (buyout or minBid) then
+                    local unit = buyout and a.unit or nil
+                    steps[#steps + 1] = { kind = "step", auctionID = a.auctionID, unit = unit, buyout = buyout,
+                        minBid = minBid, bid = (a.bid or 0) > 0 and a.bid or nil,
+                        qty = a.qty, owner = a.owner, timeLeft = a.timeLeft, pct = pctOf(unit, usual),
                         mine = (type(a.own) == "number" and a.own > 0) or nil }
                 end
             else
@@ -658,6 +744,14 @@ local function stepsOf(row, auctions)
                 steps[#steps + 1] = { kind = "step", unit = a.unit, qty = a.qty, own = own, pct = pctOf(a.unit, usual) }
             end
         end
+    end
+    if auctions and not auctions.commodity then
+        table.sort(steps, function(x, y)
+            if (x.unit ~= nil) ~= (y.unit ~= nil) then return x.unit ~= nil end
+            local a, b = x.unit or x.minBid or 0, y.unit or y.minBid or 0
+            if a ~= b then return a < b end
+            return (x.auctionID or 0) < (y.auctionID or 0)
+        end)
     end
     return steps
 end
@@ -668,7 +762,7 @@ local function freshLine(row)
     local qty, low = 0, nil
     for _, s in ipairs(row.steps) do
         qty = qty + s.qty
-        if not s.mine and buyable(s) > 0 and (low == nil or s.unit < low) then low = s.unit end
+        if not s.mine and buyable(s) > 0 and s.unit and (low == nil or s.unit < low) then low = s.unit end
     end
     row.qty = qty
     if low then row.unit = low end
@@ -747,8 +841,14 @@ end
 local function gearWhy(d)
     local out = {}
     local cheapest
+    local bidOnly
     for _, s in ipairs(d.steps) do
-        if not s.mine and (cheapest == nil or s.unit < cheapest.unit) then cheapest = s end
+        if not s.mine and s.unit and (cheapest == nil or s.unit < cheapest.unit) then cheapest = s end
+        if not s.mine and not s.unit and s.minBid and (bidOnly == nil or s.minBid < bidOnly.minBid) then bidOnly = s end
+    end
+    if not cheapest and bidOnly then
+        return string.format(L["Only bids on this one: the next bid is at least %s. The highest bid when time runs out wins it."],
+            money(bidOnly.minBid))
     end
     if not cheapest then return L["That auction is yours."] end
     local up = 0
@@ -935,9 +1035,12 @@ local LEFT_BAND = { [0] = L["under 30 min left"], [1] = L["under 2 h left"], [2]
 
 function BP.StepText(s)
     if s.auctionID then
-        local who = s.mine and L["Yours"] or s.owner or L["An auction"]
+        local out = s.mine and L["Yours"] or s.owner or L["An auction"]
         local band = LEFT_BAND[s.timeLeft]
-        return band and (who .. SEP .. band) or who
+        if band then out = out .. SEP .. band end
+        if s.bid then out = out .. SEP .. string.format(L["bid %s"], money(s.bid))
+        elseif s.minBid and not s.unit then out = out .. SEP .. string.format(L["bids from %s"], money(s.minBid)) end
+        return out
     end
     local n = ns.Thousands(s.qty)
     if s.own and s.own >= s.qty then return string.format(L["%s at this price, all yours"], n) end
@@ -957,8 +1060,8 @@ local function fillStep(b, d, cols)
     local mine = d.mine or (d.own ~= nil and d.own >= d.qty)
     x.qty:SetText(ns.Thousands(d.qty))
     Style.InkText(x.qty, mine and "LABEL" or "pop")
-    x.unit:SetText(money(d.unit))
-    Style.InkText(x.unit, "VALUE")
+    x.unit:SetText(d.unit and money(d.unit) or L["bids only"])
+    Style.InkText(x.unit, d.unit and "VALUE" or "LABEL")
     x.pct:SetText(d.pct and (d.pct .. "%") or "")
     Style.InkText(x.pct, pctRole(d.pct))
     if not d.auctionID then Parts.PickLine(b, covered()[d] == true) end
@@ -994,6 +1097,7 @@ function BP.Opened(d)
         for _, s in ipairs(d.steps) do if not s.mine then S.step = s; break end end
         S.step = S.step or d.steps[1]
     end
+    BP.FillBid()
     -- Start at one, as the game's own window does. A click on a price step
     -- still takes everything through it in one go.
     if d.commodity and (S.amountOf ~= d or not S.amountSet) then
@@ -1081,6 +1185,7 @@ function BP.PickStep(s)
     if not s.auctionID then return BP.AmountThrough(s) end
     if S.step == s or s.mine then return end
     S.step = s
+    BP.FillBid()
     BP.PaintPick()
     BP.PaintFooter()
 end
@@ -1090,7 +1195,7 @@ function BP.RowMenu(d)
     if type(d.itemID) ~= "number" then return end
     local on = BP.IsFavorite(d.itemID)
     W.OpenMenu(nil, { "fav" }, { fav = on and L["Remove from favorites"] or L["Add to favorites"] }, nil, function()
-        BP.SetFavorite(d.itemID, not on)
+        BP.SetFavorite(d.itemID, not on, d.itemKey)
         BP.Tell(string.format(on and L["%s is off your favorites."] or L["%s is on your favorites now."], nameOf(d)), "LABEL")
         if Left.mode == "favorites" then Left.Fill(true) end
     end, nil, { atCursor = true })
@@ -1309,6 +1414,45 @@ function BP.BuyItem(s)
     BP.PaintFooter()
 end
 
+-- The bid box starts at the least the picked auction's next bid can be.
+function BP.FillBid()
+    if not (page and page.bid) then return end
+    local s = S.step
+    page.bid:SetText(s and s.minBid and plainMoney(s.minBid) or "")
+end
+
+function BP.BidItem(s)
+    local d = S.open
+    if not d or S.buying or not s.minBid then return end
+    local text = trim(page.bid:GetText())
+    local amount = text == "" and s.minBid or ns.SellPage.ReadMoney(text)
+    if type(amount) ~= "number" or amount < s.minBid then
+        return BP.Tell(string.format(L["Bid at least %s."], money(s.minBid)), "WARN")
+    end
+    if s.buyout and amount >= s.buyout then
+        return BP.Tell(L["That's the buyout or more: buy it out instead."], "WARN")
+    end
+    BP.Tell(nil)
+    local token = {}
+    S.buying = token
+    local ok, why = ns.Buy.Bid(s.auctionID, amount, s.buyout or 0, function(done, reason, detail)
+        if S.buying ~= token then return end
+        S.buying = false
+        if done then
+            BP.Tell(string.format(L["Bid %s on %s. It's yours by mail if no one bids more."], money(amount), nameOf(d)), "GOOD")
+        else
+            BP.Tell(sentence(reason, detail), "WARN")
+        end
+        if S.open == d and ns.AH.IsOpen() then BP.OpenRow(d) end
+        BP.PaintFooter()
+    end)
+    if not ok then
+        S.buying = false
+        BP.Tell(sentence(why), "WARN")
+    end
+    BP.PaintFooter()
+end
+
 -- ---------------------------------------------------------------------
 -- The footer: [main] [amount] ... the count or a sentence ... [Search again]
 -- ---------------------------------------------------------------------
@@ -1401,7 +1545,7 @@ function BP.PaintFooter()
     if not page then return end
     local d = S.open
     local one, two
-    local box = false
+    local box, bidBox = false, false
     hint = nil
     local q = S.quote
     if q then
@@ -1427,17 +1571,25 @@ function BP.PaintFooter()
             hint = L["That auction is yours."]
         elseif S.step then
             local s = S.step
-            local warn, pct = ns.Buy.Check(d.key, s.unit)
-            -- a row of many: one click buys one, at its price
-            one = { id = "buy:" .. s.auctionID,
-                text = string.format((s.qty or 1) > 1 and L["Buy 1 for %s"] or L["Buy for %s"], money(s.buyout)),
-                ask = warn and askWords(pct) or nil,
-                onClick = function() BP.BuyItem(s) end }
+            local bid = s.minBid and { id = "bid:" .. s.auctionID, text = L["Bid"], onClick = function() BP.BidItem(s) end }
+            if s.buyout then
+                local warn, pct = ns.Buy.Check(d.key, s.unit)
+                -- a row of many: one click buys one, at its price
+                one = { id = "buy:" .. s.auctionID,
+                    text = string.format((s.qty or 1) > 1 and L["Buy 1 for %s"] or L["Buy for %s"], money(s.buyout)),
+                    ask = warn and askWords(pct) or nil,
+                    onClick = function() BP.BuyItem(s) end }
+                two = bid
+            else
+                one = bid
+            end
+            bidBox = bid ~= nil
         end
         -- searched again (after a buy): nothing to click until the steps are back
         if d.opening then
             if one then one.off = true end
-            box = false
+            if two then two.off = true end
+            box, bidBox = false, false
         end
     end
     one = one or { id = "idle", text = L["Buy"], off = true }
@@ -1445,7 +1597,18 @@ function BP.PaintFooter()
         off = S.query == nil or S.running or not ns.AH.IsOpen(), onClick = function() BP.Again() end }
     BP.SetSlots({ one, two, again })
     BP.PaintAmount(box)
+    BP.PaintBidBox(bidBox and (two and 2 or 1) or nil)
     BP.PaintStat()
+end
+
+-- The bid box sits after the Bid button (slot 1 for bid-only gear, else 2).
+function BP.PaintBidBox(slot)
+    local box = page.bid
+    if slot then
+        box:ClearAllPoints()
+        box:SetPoint("LEFT", page.foot.buttons[slot], "RIGHT", 8, 0)
+    end
+    ease(box, slot and true or false)
 end
 
 function BP.PaintAmount(on)
@@ -1485,7 +1648,7 @@ function BP.PaintStat()
     end
     -- between whatever shows on the left (Buy, the amount, Cancel) and Search again
     local buttons = page.foot.buttons
-    local leftOf = (buttons[2] and showing(buttons[2]) and buttons[2])
+    local leftOf = (showing(page.bid) and page.bid) or (buttons[2] and showing(buttons[2]) and buttons[2])
         or (showing(page.amount) and page.amount) or buttons[1]
     stat:ClearAllPoints()
     stat:SetPoint("RIGHT", buttons[3], "LEFT", -12, 0)
@@ -1531,6 +1694,15 @@ local function buildFooter(right)
     box:HookScript("OnEditFocusLost", function(self) self:SetText(tostring(S.amount or 1)) end)
     box:Hide()
     page.amount = box
+    local bid = W.Input(page.foot.frame, { justify = "RIGHT", hint = plainMoney(12000) })
+    bid:SetWidth(BP.BID_W)
+    bid:SetFrameLevel(page.foot.frame:GetFrameLevel() + 3)
+    bid:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        if S.step then BP.BidItem(S.step) end
+    end)
+    bid:Hide()
+    page.bid = bid
 end
 
 -- ---------------------------------------------------------------------
@@ -1611,7 +1783,14 @@ end
 local function fillFavorites(stack)
     local list = BP.Favorites()
     stack:Section(L["Favorites"], { value = #list > 0 and tostring(#list) or nil })
-    if #list == 0 then return empty(stack, L["No favorites yet. Right-click an item in the results to add it."]) end
+    local api = C_AuctionHouse
+    local game = api and api.HasFavorites and api.HasFavorites() == true
+    if #list == 0 and not game then
+        return empty(stack, L["No favorites yet. Right-click an item in the results to add it."])
+    end
+    local q = S.query
+    row(stack, { id = "fav:all", text = L["Search all favorites"], onClick = BP.SearchFavorites },
+        q ~= nil and q.favorites == true)
     for _, id in ipairs(list) do
         local info = ns.Items.Info(id)
         local name = info and info.name
@@ -1748,33 +1927,93 @@ end
 -- The tools: the search box, the filter row
 -- ---------------------------------------------------------------------
 
-BP.RARITY_KEYS = { "any", "common", "uncommon", "rare", "epic" }
-local RARITY_Q = { common = 1, uncommon = 2, rare = 3, epic = 4 }
-local RARITY_NAMES = { L["Poor"], L["Common"], L["Uncommon"], L["Rare"], L["Epic"] }
+local QUALITY_NAMES = { [0] = L["Poor"], L["Common"], L["Uncommon"], L["Rare"], L["Epic"], L["Legendary"], L["Artifact"] }
+local ONLY_NAMES = {
+    UncollectedOnly = { "AUCTION_HOUSE_FILTER_UNCOLLECTED_ONLY", L["Uncollected only"] },
+    CurrentExpansionOnly = { "AUCTION_HOUSE_FILTER_CURRENTEXPANSION_ONLY", L["Current expansion only"] },
+    UpgradesOnly = { "AUCTION_HOUSE_FILTER_UPGRADES_ONLY", L["Upgrades only"] },
+    ExactMatch = { "AUCTION_HOUSE_FILTER_EXACT_MATCH", L["Exact name only"] },
+}
 
--- The game's quality names, "and better".
-function BP.RarityMenu()
-    local values = { any = L["Any rarity"] }
-    for key, q in pairs(RARITY_Q) do
-        local game = _G["ITEM_QUALITY" .. q .. "_DESC"]
-        values[key] = string.format(L["%s and better"], type(game) == "string" and game or RARITY_NAMES[q + 1])
-    end
-    return BP.RARITY_KEYS, values
+local function gameWord(name, fallback)
+    local v = _G[name]
+    return (type(v) == "string" and v ~= "") and v or fallback
 end
 
-local function rarityKey()
-    for key, q in pairs(RARITY_Q) do if q == S.filters.rarity then return key end end
-    return "any"
+-- A filter's words: a quality in its own color, the rest the game's own.
+local function filterName(v)
+    local q = qualityOf(v)
+    if q then return hex({ Parts.QualityColor(q) }) .. gameWord("ITEM_QUALITY" .. q .. "_DESC", QUALITY_NAMES[q]) .. "|r" end
+    local e = Enum and Enum.AuctionHouseFilter
+    for key, words in pairs(ONLY_NAMES) do
+        if filterValue(key, -1) == v then return gameWord(words[1], words[2]) end
+    end
+    if type(e) == "table" then
+        for key, n in pairs(e) do if n == v then return tostring(key) end end
+    end
+    return tostring(v)
+end
+
+-- The game's filter groups (its filter menu's sections); the qualities alone
+-- when the game has none to give.
+function BP.FilterGroups()
+    local api = C_AuctionHouse
+    local groups = api and api.GetFilterGroups and api.GetFilterGroups()
+    if type(groups) == "table" and #groups > 0 then return groups end
+    local list = {}
+    for _, q in ipairs(QUALITY) do list[#list + 1] = filterValue(q[1], q[2]) end
+    return { { filters = list } }
+end
+
+-- The filter menu: the game's sections and their switches (Usable has its
+-- own chip), then Reset to the defaults.
+function BP.FilterMenu()
+    local keys, values, titles = {}, {}, {}
+    local usable = filterValue("UsableOnly", 2)
+    for i, g in ipairs(BP.FilterGroups()) do
+        local rows = {}
+        local qualities = false
+        for _, v in ipairs(type(g.filters) == "table" and g.filters or {}) do
+            if type(v) == "number" and v ~= usable then
+                rows[#rows + 1] = v
+                if qualityOf(v) then qualities = true end
+            end
+        end
+        if #rows > 0 then
+            local t = "t" .. i
+            keys[#keys + 1], titles[t] = t, true
+            local name = _G.GetAHFilterCategoryName and g.category and GetAHFilterCategoryName(g.category)
+            values[t] = (type(name) == "string" and name ~= "") and name
+                or (qualities and gameWord("AUCTION_HOUSE_FILTER_CATEGORY_RARITY", L["Rarity"])) or L["Other"]
+            for _, v in ipairs(rows) do
+                local k = "f" .. v
+                keys[#keys + 1], values[k] = k, filterName(v)
+            end
+        end
+    end
+    keys[#keys + 1], values.reset = "reset", L["Reset filters"]
+    return keys, values, titles
+end
+
+function BP.PickFilter(k)
+    if k == "reset" then
+        S.filters.picked = {}
+    else
+        local v = tonumber(string.match(tostring(k), "^f(%d+)$"))
+        if not v then return end
+        S.filters.picked[v] = not BP.FilterOn(v)
+    end
+    BP.ApplyFilters()
 end
 
 -- The filter row as the state has it; the category on the right.
 function BP.PaintTools()
     if not page then return end
-    local _, values = BP.RarityMenu()
-    page.rarity.SetLabel(values[rarityKey()])
+    local changed = BP.FiltersChanged()
+    page.rarity.SetLabel(changed > 0 and string.format(L["Filters %s"], pop(tostring(changed))) or L["Filters"])
     page.usable.SetOn(S.filters.usable)
     local q = S.query
-    local label = q and q.path and q.label or ""
+    local label = q and (q.path or q.favorites) and q.label or ""
     local was = page.where:GetText()
     page.where:SetText(label)
     if animated(page.where) and was ~= label and label ~= "" then Motion.Fade(page.where, 0, 1, Motion.FAST) end
@@ -1849,13 +2088,16 @@ local function buildTools(right)
     dash:SetPoint("LEFT", page.from, "RIGHT", 6, 0)
     page.to = levelBox(filterRow, "60")
     page.to:SetPoint("LEFT", dash, "RIGHT", 6, 0)
-    page.rarity = W.MenuButton(filterRow, L["Any rarity"])
+    page.rarity = W.MenuButton(filterRow, L["Filters"])
     page.rarity:SetScript("OnClick", function(owner)
-        local keys, values = BP.RarityMenu()
-        W.OpenMenu(owner, keys, values, rarityKey(), function(k)
-            S.filters.rarity = RARITY_Q[k]
-            BP.ApplyFilters()
-        end)
+        local keys, values, titles = BP.FilterMenu()
+        W.OpenMenu(owner, keys, values, nil, BP.PickFilter, nil, {
+            titles = titles, keepOpen = true,
+            checked = function(k)
+                local v = tonumber(string.match(tostring(k), "^f(%d+)$"))
+                return v ~= nil and BP.FilterOn(v)
+            end,
+        })
     end)
     page.rarity:SetPoint("LEFT", page.to, "RIGHT", 12, 0)
     page.usable = W.Chip(filterRow, L["Usable"])
@@ -1932,6 +2174,8 @@ function BP.Build(p)
         link = function(d) return ns.Items.RowLink(d.kind == "step" and S.open or d) end,
         onSort = function(id, desc)
             S.sort.id, S.sort.desc = id, desc
+            -- a cut-off list asks the server again in the new order
+            if S.capped and SERVER_SORT[id] and S.query then return BP.Run(S.query) end
             BP.SortRows()
             BP.Rebuild(true)
         end,

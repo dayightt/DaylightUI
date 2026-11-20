@@ -335,3 +335,21 @@ T.test("ah window: the link brings ours back after a login with the game's picke
     T.truthy(AHW.IsOpen())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("ah window: your gold shows at the right of the sub line and follows it", function()
+    local A = load()
+    local gold = 123456
+    _G.GetMoney = function() return gold end
+    AHW.Open()
+    frame(A)
+    local f = A.Window.frame
+    T.truthy(plain(f.money):find("12", 1, true), plain(f.money))
+    gold = 223456
+    stub.FireEvent("PLAYER_MONEY")
+    for _ = 1, 10 do
+        local d = DaylightUI.Motion.Driver()
+        if d then stub.RunOnUpdate(d, 0.1) end
+    end
+    T.truthy(plain(f.money):find("22", 1, true), "counted to the new amount: " .. plain(f.money))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

@@ -92,7 +92,8 @@ end
 -- opts.offer: leave the first-visit card wanted (no full scan, not offered).
 local function load(opts)
     opts = opts or {}
-    local _, A = AHW.Load({ auctions = opts.auctions or auctions(), commodities = { [RUNECLOTH] = true, [BOLT] = true } }, {
+    local _, A = AHW.Load({ auctions = opts.auctions or auctions(), commodities = { [RUNECLOTH] = true, [BOLT] = true },
+        favorites = opts.favorites }, {
         before = function()
             _G.AuctionHouseFrame = nil
             gameAH()
@@ -264,13 +265,15 @@ T.test("ah buy page: a category browses the game's own filters", function()
     T.eq(A.BuyPage.state.query.path, "trade-goods/cloth")
     T.eq(textOf(page.where), "Trade Goods / Cloth")
     T.eq(page.box:GetText() or "", "", "a category isn't words in the box")
-    -- the filter row goes with it: uncommon and better leaves the cloth out
+    -- the filter row goes with it: poor and common switched off leave the cloth out
     page.rarity:Click()
-    menuRow("uncommon"):Click()
+    menuRow("f6"):Click()
+    menuRow("f7"):Click()
     AHW.Settle()
     q = lastQuery()
     T.falsy(has(q.filters, 6) or has(q.filters, 7), "no poor or common")
     T.truthy(has(q.filters, 8) and has(q.filters, 12), "uncommon up to artifact")
+    T.eq(textOf(page.rarity.text), "Filters 2")
     T.eq(q.itemClassFilters[1].classID, 7, "still the category")
     T.eq(#page.table.rows, 0)
     page.usable:Click()
@@ -279,6 +282,34 @@ T.test("ah buy page: a category browses the game's own filters", function()
     enter(page.from, "50")
     AHW.Settle()
     T.eq(lastQuery().minLevel, 50)
+    quiet()
+end)
+
+-- Like the game's filter menu: each quality its own switch, the game's other
+-- filters beside them, and Reset back to the defaults.
+T.test("ah buy page: each filter switches on its own, as in the game's menu", function()
+    local A, page = load()
+    C_AuctionHouse.GetFilterGroups = function()
+        return { { category = 1, filters = { 2, 4 } }, { category = 2, filters = { 6, 7, 8, 9, 10, 11, 12 } } }
+    end
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    page.rarity:Click()
+    menuRow("f9"):Click()   -- rare off, epic still on
+    menuRow("f4"):Click()   -- upgrades only
+    AHW.Settle()
+    local q = lastQuery()
+    T.truthy(has(q.filters, 8) and has(q.filters, 10), "uncommon and epic")
+    T.falsy(has(q.filters, 9), "not rare")
+    T.truthy(has(q.filters, 4), "UpgradesOnly")
+    T.falsy(has(q.filters, 2), "Usable has its own chip")
+    T.eq(textOf(page.rarity.text), "Filters 2")
+    menuRow("reset"):Click()
+    AHW.Settle()
+    q = lastQuery()
+    T.truthy(has(q.filters, 9), "every quality again")
+    T.falsy(has(q.filters, 4))
+    T.eq(textOf(page.rarity.text), "Filters")
     quiet()
 end)
 
@@ -450,6 +481,75 @@ T.test("ah buy page: gear buys in one click", function()
     quiet()
 end)
 
+-- The game's window lists gear that only takes bids, and bids on any
+-- auction that takes them.
+T.test("ah buy page: gear takes bids, bid-only auctions included", function()
+    local list = auctions()
+    list[7].minBid, list[7].bid = 10500, 10000   -- Mira's 1g 20s sword has a bid of 1g
+    list[#list + 1] = { itemID = SWORD, name = "Short Sword", count = 1, buyout = 0, minBid = 3000, quality = 2,
+        level = 10, classID = 2, subClassID = 7, owner = "Kel" }
+    local A, page = load({ auctions = list })
+    enter(page.box, "short sword")
+    AHW.Settle()
+    local t = page.table
+    t:Row(1):Click()
+    AHW.Settle()
+    tween(A, 1)
+    T.eq(kinds(t), "line,step,step,step,why", "the bid-only one is listed")
+    T.truthy(textOf(t:Row(3).name):find("bid 1", 1, true), textOf(t:Row(3).name))
+    T.truthy(textOf(t:Row(4).name):find("bids from 30", 1, true), textOf(t:Row(4).name))
+    T.eq(textOf(t:Row(4).cells.unit), "bids only")
+    local foot = page.foot.buttons
+    T.eq(textOf(foot[1].text), "Buy for 90", "the cheapest buyout first")
+    T.falsy(page.bid:IsShown(), "Brann's takes no bids")
+    -- Mira's: Buy or Bid
+    t:Row(3):Click()
+    tween(A, 1)
+    T.eq(textOf(foot[2].text), "Bid")
+    T.truthy(page.bid:IsShown())
+    T.eq(page.bid:GetText(), "1g 5s", "the least next bid")
+    page.bid:SetText("1g 50s")
+    foot[2]:Click()
+    T.eq(AHW.Calls("PlaceBid"), 0, "at or over the buyout isn't a bid")
+    T.eq(textOf(page.stat), "That's the buyout or more: buy it out instead.")
+    -- Kel's: bids only
+    t:Row(4):Click()
+    tween(A, 1)
+    T.eq(textOf(foot[1].text), "Bid")
+    T.eq(page.bid:GetText(), "30s")
+    foot[1]:Click()
+    local log = AHW.Log("PlaceBid")
+    T.eq(log[1][2], 3000)
+    AHW.Settle()
+    tween(A, 1)
+    T.truthy(textOf(page.stat):find("It's yours by mail if no one bids more.", 1, true), textOf(page.stat))
+    quiet()
+end)
+
+-- The game's headers sort on the server: a list cut at its last page asks
+-- again in the new order, so the right rows come.
+T.test("ah buy page: a cut-off list sorts on the server", function()
+    local A, page = load()
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    local sorts = lastQuery().sorts
+    T.eq(#sorts, 1)
+    T.eq(sorts[1].sortOrder, 0, "price, as the game's window starts")
+    local t = page.table
+    t.head.cells.name:Click()
+    AHW.Settle()
+    T.eq(AHW.Calls("SendBrowseQuery"), 1, "the whole list is here: sorted in place")
+    A.BuyPage.state.capped = "cut"
+    t.head.cells.level:Click()
+    AHW.Settle()
+    T.eq(AHW.Calls("SendBrowseQuery"), 2, "asked again")
+    sorts = lastQuery().sorts
+    T.eq(sorts[1].sortOrder, 2, "by level")
+    T.falsy(sorts[1].reverseSort)
+    T.eq(sorts[2].sortOrder, 0, "then price")
+    quiet()
+end)
+
 T.test("ah buy page: far over usual asks once more", function()
     local A, page = load()
     local Ink = DaylightUI.Style.INK
@@ -526,6 +626,32 @@ T.test("ah buy page: favorites and recent searches are saved", function()
     fav:Click("RightButton")
     menuRow("off"):Click()
     T.deq(DaylightUIAuctionDB.favorites, {})
+    quiet()
+end)
+
+-- The game's own favorites: one search lists them all with their prices (its
+-- star button), a star set in its window shows here, and one set here goes to it.
+T.test("ah buy page: favorites are the game's too", function()
+    local A, page = load({ favorites = { HELM } })
+    local BP, Left = A.BuyPage, A.BuyPage.Left
+    Left.Show("favorites")
+    local before = AHW.Calls("SearchForFavorites")
+    leftRow(A, "Search all favorites"):Click()
+    AHW.Settle()
+    T.eq(AHW.Calls("SearchForFavorites"), before + 1)
+    T.eq(#page.table.rows, 1)
+    T.eq(page.table.rows[1].itemID, HELM)
+    T.truthy(BP.IsFavorite(HELM), "the game's star is one here too")
+    T.eq(textOf(page.where), "Favorites")
+    T.eq(#(DaylightUIAuctionDB.recent or {}), 0, "not a recent search")
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    page.table:Row(1):Click("RightButton")
+    menuRow("fav"):Click()
+    local log = AHW.Log("SetFavoriteItem")
+    T.eq(#log, 1, "sent to the game's favorites")
+    T.eq(log[1][1].itemID, RUNECLOTH)
+    T.eq(log[1][2], true)
     quiet()
 end)
 

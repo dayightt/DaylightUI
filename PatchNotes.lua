@@ -12,7 +12,9 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
-        { "Auction House", "Recipes show the skill they need, like the game's own window, and you can sort them by it" },
+        { "Auction House", "Bid on gear again, including auctions that only take bids, and follow your bids on a new Bids list under My auctions, like the game's own window. My auctions columns sort, and your gold shows in the window" },
+        { "Auction House", "Selling gear takes a starting bid, a click on a listing copies its price, and a right-click on a bag item picks it to sell" },
+        { "Auction House", "Searching works like the game's window: each quality has its own filter, recipes show and sort by the skill they need, long lists sort on the server, and the game's favorites show up in one search" },
     } },
     { version = "2.1.2", date = "2026-11-20", summary = "Your profiles and Cooldown Manager layouts are back. Blizzard quietly changed how the game reports realms, to stop layer hopping, and that unhooked characters from their profiles. Nothing was lost.", new = {
         { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. The Profit button over the list puts the best earners first" },

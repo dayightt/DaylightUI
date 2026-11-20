@@ -557,10 +557,15 @@ function Items.Dress(btn)
     local pushed = btn.GetPushedTexture and btn:GetPushedTexture()
     if pushed then pushed:SetColorTexture(0, 0, 0, 0.3) end
     -- Alt-right-click picks this item's group (the game does nothing with that
-    -- click on a bag item).
+    -- click on a bag item). A plain right click at the Auction House also puts
+    -- the item on the Sell tab of Daylight UI's auction window when it's open.
     btn:HookScript("OnClick", function(self, button)
-        if button == "RightButton" and IsAltKeyDown and IsAltKeyDown() and ns.Categories then
+        if button ~= "RightButton" then return end
+        if IsAltKeyDown and IsAltKeyDown() and ns.Categories then
             ns.Categories.Menu(self)
+        elseif DUI.AuctionHouseSell and not (IsModifierKeyDown and IsModifierKeyDown()) then
+            local bag, slot = bagAndSlotOf(self)
+            if type(bag) == "number" and type(slot) == "number" then DUI.AuctionHouseSell(bag, slot) end
         end
     end)
     -- A locked item's slot takes no clicks at a vendor or while Disenchant is targeting.

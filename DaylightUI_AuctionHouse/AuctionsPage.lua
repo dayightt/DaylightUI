@@ -33,19 +33,22 @@ A.TABLE_TOP = 96
 A.FOOT = 52
 A.ICON_W = 30
 A.HINT_GAP = 12
+A.BID_W = 110       -- the bid amount box
 A.COLS = {
     { id = "icon", text = "", width = A.ICON_W },
-    { id = "name", text = L["Item"], fill = true },
-    { id = "qty", text = L["Qty"], width = 46, justify = "RIGHT" },
-    { id = "unit", text = L["Yours"], width = 100, justify = "RIGHT" },
-    { id = "lowest", text = L["Lowest other"], width = 100, justify = "RIGHT" },
-    { id = "left", text = L["Left"], width = 44, justify = "RIGHT" },
-    { id = "status", text = L["Status"], width = 170 },
+    { id = "name", text = L["Item"], fill = true, sort = true },
+    { id = "qty", text = L["Qty"], width = 46, justify = "RIGHT", sort = true },
+    { id = "unit", text = L["Yours"], width = 100, justify = "RIGHT", sort = true },
+    { id = "bid", text = L["Bid"], width = 92, justify = "RIGHT", sort = true },
+    { id = "lowest", text = L["Lowest other"], width = 100, justify = "RIGHT", sort = true },
+    { id = "left", text = L["Left"], width = 44, justify = "RIGHT", sort = true },
+    { id = "status", text = L["Status"], width = 170, sort = true },
 }
 A.FILTERS = {
     { id = "all", text = L["All"] },
     { id = "undercut", text = L["Undercut"] },
     { id = "sold", text = L["Sold"] },
+    { id = "bids", text = L["Bids"] },
 }
 A.QUIET = 4         -- seconds the background checks wait after a click on the page
 A.GAP = 1           -- seconds between two checks
@@ -53,10 +56,11 @@ A.SHORT = 7200      -- seconds left under which the time shows as running low
 A.AGE_TICK = 60     -- seconds between repaints of "checked 4 min ago"
 
 -- Sorted by what needs doing: undercut first, sold last.
-local RANK = { undercut = 1, lowest = 2, checking = 3, failed = 3, bidonly = 4, bid = 5, alone = 6, sold = 7 }
+local RANK = { outbid = 1, undercut = 1, high = 6, lowest = 2, checking = 3, failed = 3, bidonly = 4, bid = 5, alone = 6, sold = 7 }
 local DASH = "\226\128\148"
 
 A.filter = "all"
+A.sort = { id = "status", desc = false }   -- status = what needs doing first
 A.picked = nil       -- auctionID
 A.checked = {}       -- itemID -> { at (GetTime), auctions } or { at, err }
 A.readAt = nil       -- when the owned list was last read (GetTime)
@@ -75,6 +79,9 @@ local function hush() quietUntil = GetTime() + A.QUIET end
 local function money(c, plain) return W.Money(c, { pad = true, color = not plain }) end
 local function value(text) return Parts.Hex(Style.INK.VALUE) .. tostring(text) .. "|r" end
 local function pop(text) return Parts.Hex({ Style.Pop() }) .. text .. "|r" end
+
+-- The game gives a bid's time left only as a band.
+local BAND = { [0] = L["<30 min"], [1] = L["<2 h"], [2] = L["<12 h"], [3] = L["<48 h"] }
 
 local function leftText(s)
     if type(s) ~= "number" then return DASH end
@@ -128,6 +135,10 @@ local function bidLocks(r)
 end
 
 local function statusOf(r)
+    if r.isBid then
+        if r.high then return "high", L["You're the highest bidder"], "GOOD" end
+        return "outbid", L["Outbid"], "WARN"
+    end
     if r.sold then return "sold", L["Sold: in your mailbox"], "GOOD" end
     if bidLocks(r) then return "bid", L["Has a bid: can't cancel"], "LABEL" end
     local c = A.checked[r.itemID]
@@ -161,7 +172,38 @@ local function build()
         r.status, r.text, r.role = statusOf(r)
         rows[#rows + 1] = r
     end
-    table.sort(rows, function(a, b)
+    for _, o in ipairs(ns.Post.MyBids()) do
+        local info = ns.Items.Info(o.itemID)
+        local r = {
+            kind = "line", isBid = true, auctionID = o.auctionID, key = o.key, itemID = o.itemID, qty = 1,
+            unit = o.buyout, buyout = o.buyout, bid = o.bid, minBid = o.minBid, band = o.band, high = o.high,
+            name = (info and ns.Items.KeyName(o.key, info.name)) or string.format(L["Item %d"], o.itemID or 0),
+            icon = info and info.icon, quality = info and info.quality,
+        }
+        r.status, r.text, r.role = statusOf(r)
+        rows[#rows + 1] = r
+    end
+    A.SortRows(rows)
+end
+
+-- By the picked column; an empty cell goes last either way, then what
+-- needs doing first, then by name.
+function A.SortRows(list)
+    local id, desc = A.sort.id, A.sort.desc
+    local function value(r)
+        if id == "status" then return RANK[r.status] or 9 end
+        if id == "bid" then return (r.bid or 0) > 0 and r.bid or nil end
+        if id == "left" and r.sold then return nil end
+        return r[id]
+    end
+    table.sort(list, function(a, b)
+        local x, y = value(a), value(b)
+        if x ~= y then
+            if x == nil then return false end
+            if y == nil then return true end
+            if desc then return x > y end
+            return x < y
+        end
         local ra, rb = RANK[a.status] or 9, RANK[b.status] or 9
         if ra ~= rb then return ra < rb end
         if a.name ~= b.name then return a.name < b.name end
@@ -172,6 +214,8 @@ end
 local function passes(r, filter)
     filter = filter or A.filter
     if filter == "undercut" then return r.status == "undercut" end
+    if filter == "bids" then return r.isBid == true end
+    if r.isBid then return false end
     if filter == "sold" then return r.sold == true end
     return true
 end
@@ -187,11 +231,19 @@ end
 
 -- Only an auction still up, and not locked by a bid, can be canceled.
 local function cancellable(r)
-    return r ~= nil and not r.sold and not bidLocks(r)
+    return r ~= nil and not r.isBid and not r.sold and not bidLocks(r)
 end
 
 -- The words under the picked row: what its status means and what to do.
 local function whyOf(r)
+    if r.status == "high" then
+        return string.format(L["Your bid of %s is the highest. It's yours when its time runs out, unless someone bids more or buys it out."],
+            money(r.bid))
+    elseif r.status == "outbid" then
+        local out = string.format(L["Someone bid %s, more than you. Bid at least %s to win it back."], money(r.bid), money(r.minBid))
+        if r.buyout then out = out .. " " .. string.format(L["Or buy it out for %s."], money(r.buyout)) end
+        return out
+    end
     local when = agoText(r.at)
     if r.status == "undercut" then
         local dep = depositOf(r)
@@ -267,7 +319,10 @@ function A.Read()
     ns.Post.Owned(function(list)
         if list then A.readAt = GetTime() end
         refresh()
-        C_Timer.After(0, A.CheckNext)
+        ns.Post.Bids(function()
+            refresh()
+            C_Timer.After(0, A.CheckNext)
+        end)
     end)
     A.Paint()
 end
@@ -337,11 +392,64 @@ function A.Cancel()
     if not over then A.Paint() end
 end
 
+-- The amount in the bid box, or the least the next bid can be.
+local function bidAmount(r)
+    local text = page.bidBox and page.bidBox:GetText() or ""
+    if text == "" then return r.minBid end
+    return ns.SellPage.ReadMoney(text)
+end
+
+local BID_SAYS = {
+    gold = L["Not enough gold."],
+    buyout = L["That's the buyout or more: buy it out instead."],
+    busy = SAYS.late, throttled = SAYS.throttled, closed = SAYS.closed, timeout = SAYS.timeout,
+    failed = L["Someone else bid more, or it sold. Check again."],
+}
+
+-- After a bid or buyout the bids are read again, so the list says where you stand.
+local function bidDone(done, reason, said, words)
+    busy = false
+    if done then A.Say(words, "GOOD")
+    else A.Say(said or BID_SAYS[reason] or SAYS.error, "WARN") end
+    if ns.AH.IsOpen() then ns.Post.Bids(refresh) end
+    A.Paint()
+end
+
+function A.PlaceBid()
+    if busy then return end
+    hush()
+    local r = rowOf(A.picked)
+    if not (r and r.isBid) then return end
+    local amount = bidAmount(r)
+    if type(amount) ~= "number" or amount < (r.minBid or 0) then
+        return A.Say(string.format(L["Bid at least %s."], money(r.minBid or 0)), "WARN")
+    end
+    local ok, why = ns.Buy.Bid(r.auctionID, amount, r.buyout or 0, function(done, reason, said)
+        bidDone(done, reason, said, string.format(L["Bid %s on %s."], money(amount), r.name))
+    end)
+    if ok then busy = true else A.Say(BID_SAYS[why] or SAYS.error, "WARN") end
+    A.Paint()
+end
+
+function A.BuyOut()
+    if busy then return end
+    hush()
+    local r = rowOf(A.picked)
+    if not (r and r.isBid and r.buyout) then return end
+    local ok, why = ns.Buy.Item(r.auctionID, r.buyout, function(done, reason, said)
+        bidDone(done, reason, said, string.format(L["Bought %s for %s: it's in your mailbox."], r.name, money(r.buyout)))
+    end)
+    if ok then busy = true else A.Say(BID_SAYS[why] or SAYS.error, "WARN") end
+    A.Paint()
+end
+
 -- A click on a row picks it; its why glides open under it.
 function A.Pick(id)
     hush()
     if id == A.picked then return end
     A.picked = id
+    local r = rowOf(id)
+    if page.bidBox then page.bidBox:SetText(r and r.isBid and ns.SellPage.PlainMoney(r.minBid or 0) or "") end
     A.Paint()
 end
 
@@ -359,7 +467,7 @@ local function place(b, fs, cols, id)
     fs:Show()
 end
 
-local CELLS = { "qty", "unit", "lowest", "left", "status" }
+local CELLS = { "qty", "unit", "bid", "lowest", "left", "status" }
 
 local function fillLine(b, d, cols)
     local icon, name = cols.icon, cols.name
@@ -376,10 +484,18 @@ local function fillLine(b, d, cols)
     Style.InkText(b.cells.qty, "pop")
     b.cells.unit:SetText(d.unit and money(d.unit) or DASH)
     Style.InkText(b.cells.unit, d.unit and "VALUE" or "LABEL")
+    local bid = (d.bid or 0) > 0 and d.bid or nil
+    b.cells.bid:SetText(bid and money(bid) or DASH)
+    Style.InkText(b.cells.bid, bid and "VALUE" or "LABEL")
     b.cells.lowest:SetText(d.lowest and money(d.lowest) or DASH)
     Style.InkText(b.cells.lowest, d.lowest and "VALUE" or "LABEL")
-    b.cells.left:SetText(d.sold and DASH or leftText(d.left))
-    Style.InkText(b.cells.left, (not d.sold and type(d.left) == "number" and d.left < A.SHORT) and "WARN" or "LABEL")
+    if d.isBid then
+        b.cells.left:SetText(BAND[d.band] or DASH)
+        Style.InkText(b.cells.left, (d.band == 0 or d.band == 1) and "WARN" or "LABEL")
+    else
+        b.cells.left:SetText(d.sold and DASH or leftText(d.left))
+        Style.InkText(b.cells.left, (not d.sold and type(d.left) == "number" and d.left < A.SHORT) and "WARN" or "LABEL")
+    end
     b.cells.status:SetText(d.text or "")
     Style.InkText(b.cells.status, d.role or "LABEL")
 end
@@ -404,7 +520,9 @@ local function paintHead()
     end
     local up, worth, sold, soldWorth = 0, 0, 0, 0
     for _, r in ipairs(rows) do
-        if r.sold then sold, soldWorth = sold + 1, soldWorth + (r.buyout or 0)
+        if r.isBid then
+            -- a bid isn't yours to sell
+        elseif r.sold then sold, soldWorth = sold + 1, soldWorth + (r.buyout or 0)
         else up, worth = up + 1, worth + (r.buyout or 0) end
     end
     page.title:SetText(string.format(up == 1 and L["%d auction up"] or L["%d auctions up"], up))
@@ -420,7 +538,7 @@ local function paintHead()
 end
 
 local function paintChips()
-    local n = { all = 0, undercut = 0, sold = 0 }
+    local n = { all = 0, undercut = 0, sold = 0, bids = 0 }
     for _, r in ipairs(rows) do
         for _, f in ipairs(A.FILTERS) do
             if passes(r, f.id) then n[f.id] = n[f.id] + 1 end
@@ -438,8 +556,27 @@ local function paintChips()
     end
 end
 
+-- A bid's footer: Bid (the amount in the box, the least next bid to start)
+-- and Buy out when it has a buyout.
+local function paintBidFooter(r)
+    local open = ns.AH.IsOpen()
+    local list = { { text = busy and L["Bidding..."] or L["Bid"], primary = true, off = busy or not open,
+        onClick = function() A.PlaceBid() end } }
+    if r.buyout then
+        list[2] = { text = string.format(L["Buy out %s"], money(r.buyout, true)), beside = true, off = busy or not open,
+            onClick = function() A.BuyOut() end }
+    end
+    page.foot:Set(list)
+    page.bidBox:ClearAllPoints()
+    page.bidBox:SetPoint("LEFT", page.foot.buttons[#list], "RIGHT", A.HINT_GAP, 0)
+    W.EaseShown(page.bidBox, true)
+    page.hint:SetText("")
+end
+
 local function paintFooter()
     local r = rowOf(A.picked)
+    if r and r.isBid then return paintBidFooter(r) end
+    W.EaseShown(page.bidBox, false)
     local label, hint = L["Cancel"], ""
     if busy then
         label = L["Canceling..."]
@@ -469,6 +606,8 @@ function A.Paint()
     build()
     paintHead()
     paintChips()
+    -- on Bids that column is the auction's buyout, not your price
+    page.table.head.cells.unit.text:SetText(A.filter == "bids" and L["Buyout"] or L["Yours"])
     if not busy and not rowOf(A.picked) then
         A.picked = nil
         for _, r in ipairs(rows) do
@@ -551,6 +690,11 @@ function A.Build(p)
         make = { line = makeLine },
         fill = { line = fillLine },
         link = ns.Items.RowLink,
+        onSort = function(id, desc)
+            hush()
+            A.sort.id, A.sort.desc = id, desc
+            A.Paint()
+        end,
         onClick = function(_, d)
             if d.kind == "line" then A.Pick(d.auctionID) end
         end,
@@ -564,10 +708,18 @@ function A.Build(p)
             if GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(b) then GameTooltip:Hide() end
         end,
     })
+    page.table.head:SetSort(A.sort.id, A.sort.desc)
     page.empty = Style.Text(body, Style.SIZE.body, "CENTER")
     Style.InkText(page.empty, "LABEL")
     page.empty:SetPoint("CENTER", page.table.view, "CENTER", 0, 0)
     page.foot = Parts.Footer(body)
+    page.bidBox = W.Input(page.foot.frame, { justify = "RIGHT", hint = ns.SellPage.PlainMoney(12000) })
+    page.bidBox:SetWidth(A.BID_W)
+    page.bidBox:SetScript("OnEnterPressed", function(self)
+        self:ClearFocus()
+        A.PlaceBid()
+    end)
+    page.bidBox:Hide()
     page.hint = Style.Text(page.foot.frame, Style.SIZE.small, "LEFT")
     Style.InkText(page.hint, "LABEL")
     page.hint:SetWordWrap(false)
@@ -610,7 +762,10 @@ end
 
 -- The key binding: the Cancel button, in the key press.
 function A.Key()
-    if visible() and ns.AH.IsOpen() then A.Cancel() end
+    if not (visible() and ns.AH.IsOpen()) then return end
+    local r = rowOf(A.picked)
+    if r and r.isBid then return A.PlaceBid() end
+    A.Cancel()
 end
 
 local function reset()

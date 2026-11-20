@@ -321,6 +321,60 @@ function Post.Owned(onDone)
 end
 
 function Post.Mine() return mine end
+-- The auctions you bid on (the game's Bids list). high: you're the highest
+-- bidder; minBid is the least the next bid can be.
+local bids = {}
+local function readBids()
+    local a = api()
+    local list = {}
+    local me = UnitGUID and UnitGUID("player")
+    if issecretvalue and issecretvalue(me) then me = nil end
+    local n = tonumber(a.GetNumBids and a.GetNumBids()) or 0
+    for i = 1, n do
+        local r = a.GetBidInfo(i)
+        if type(r) == "table" and type(r.auctionID) == "number" then
+            local id = type(r.itemKey) == "table" and r.itemKey.itemID or nil
+            local key
+            if type(r.itemLink) == "string" then key = ns.Items.Key(r.itemLink)
+            else key = ns.Items.KeyOf(r.itemKey) or ns.Items.Key(id) end
+            local buyout = tonumber(r.buyoutAmount)
+            if buyout and buyout <= 0 then buyout = nil end
+            list[#list + 1] = {
+                auctionID = r.auctionID, key = key, itemID = id or ns.Items.ID(key), link = r.itemLink, qty = 1,
+                bid = tonumber(r.bidAmount) or 0, minBid = tonumber(r.minBid) or 0, buyout = buyout, unit = buyout,
+                band = r.timeLeft, high = me ~= nil and r.bidder == me,
+            }
+        end
+    end
+    return list
+end
+
+function Post.Bids(onDone)
+    local a = api()
+    if not (a and a.QueryBids) then
+        if onDone then ns.SafeCall(onDone, nil, "error") end
+        return false, "error"
+    end
+    local ok = ns.AH.Request({
+        name = "bids",
+        events = { BIDS_UPDATED = function() return true end },
+        send = function() a.QueryBids({}, {}) end,
+        onDone = function(done, reason)
+            if not done then
+                if onDone then ns.SafeCall(onDone, nil, reason) end
+                return
+            end
+            bids = readBids()
+            ns.Fire("OwnedChanged")
+            if onDone then ns.SafeCall(onDone, bids) end
+        end,
+    })
+    if not ok then return false, "closed" end
+    return true
+end
+
+function Post.MyBids() return bids end
+
 
 -- The price key of one of your auctions by its ID, for the ledger: the
 -- owned list read last, else what the client says of it (GetAuctionInfoByID,

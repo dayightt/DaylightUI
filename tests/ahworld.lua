@@ -959,6 +959,19 @@ local function install()
     end)
     -- The player's favorites (spec.favorites), searched into the one browse list.
     def("HasFavorites", function() return #S().favorites > 0 end)
+    def("FavoritesAreAvailable", function() return true end)
+    def("IsFavoriteItem", function(key)
+        checkKey("IsFavoriteItem", key)
+        for _, id in ipairs(S().favorites) do if id == key.itemID then return true end end
+        return false
+    end)
+    def("SetFavoriteItem", function(key, on)
+        checkKey("SetFavoriteItem", key)
+        local list = S().favorites
+        for i = #list, 1, -1 do if list[i] == key.itemID then table.remove(list, i) end end
+        if on then list[#list + 1] = key.itemID end
+        fire("AUCTION_HOUSE_FAVORITES_UPDATED")
+    end)
     def("SearchForFavorites", function(sorts)
         if type(sorts) ~= "table" then error("SearchForFavorites: bad argument #1 (sorts)", 2) end
         send("SearchForFavorites", function()
@@ -1289,6 +1302,32 @@ local function install()
             fire("OWNED_AUCTIONS_UPDATED")
         end)
     end)
+    -- The auctions the player bid on (PlaceBid below the buyout): QueryBids answers
+    -- BIDS_UPDATED, GetBidInfo(i) is the docs' BidInfo. An auction's outbid = true
+    -- makes someone else the highest bidder.
+    def("QueryBids", function(sorts, auctionIDs)
+        if type(sorts) ~= "table" or type(auctionIDs) ~= "table" then
+            error("QueryBids: bad arguments (sorts, auctionIDs: tables)", 3)
+        end
+        send("QueryBids", function()
+            local list = {}
+            for _, a in ipairs(S().auctions) do if a.myBid then list[#list + 1] = a end end
+            S().bids = list
+            fire("BIDS_UPDATED")
+        end)
+    end)
+    def("GetNumBids", function() return #(S().bids or {}) end)
+    def("GetBidInfo", function(index)
+        local a = type(index) == "number" and S().bids and S().bids[index]
+        if not a then return nil end
+        local count = math.max(a.count or 1, 1)
+        return {
+            auctionID = a.auctionID, itemKey = { itemID = a.itemID, itemLevel = 0, itemSuffix = 0, battlePetSpeciesID = 0 },
+            itemLink = linkOf(a), timeLeft = a.timeLeft or 3, minBid = a.nextBid or (a.bid or 0) + 100,
+            bidAmount = a.bid, buyoutAmount = (a.buyout or 0) > 0 and math.floor(a.buyout / count) or nil,
+            bidder = a.outbid and "Player-1-OTHER" or UnitGUID("player"),
+        }
+    end)
     def("GetNumOwnedAuctions", function() return #S().owned end)
     def("HasFullOwnedAuctionResults", function() return true end)
     def("GetOwnedAuctionInfo", function(index)
@@ -1509,7 +1548,7 @@ function AHW.world(spec)
             moreEvents = copy(spec.moreEvents or { "added", "updated" }),
             auctions = {}, commodities = copy(spec.commodities or {}), neverCache = copy(spec.neverCache or {}),
             missing = copy(spec.missing or {}), uncached = {}, loading = {},
-            replicate = {}, commodity = {}, items = {}, searches = {}, browse = nil,
+            replicate = {}, commodity = {}, items = {}, searches = {}, browse = nil, bids = {},
             quoteBump = spec.quoteBump or 0, quoteFails = spec.quoteFails == true,
             quoteSeconds = spec.quoteSeconds or 300,
             soldOut = copy(spec.soldOut or {}), purchase = nil,

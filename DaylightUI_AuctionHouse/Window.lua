@@ -39,6 +39,7 @@ Main.TABS = {
     { id = "sell", text = L["Sell"] },
     { id = "auctions", text = L["My auctions"] },
 }
+Main.MONEY_GAP = 8          -- your gold, under the X
 Main.AGE_TICK = 60          -- seconds between repaints of the sub line's age while open
 Main.SEP = "  \194\183  "   -- "  ·  " between the sub line's parts
 Main.LINK_BUSY = 0.35       -- the Full scan link while a scan runs
@@ -118,6 +119,24 @@ function Main.Header()
     end
 end
 
+
+-- Your gold at the right end of the sub line, as the game's window shows it.
+-- A change counts to the new amount.
+local moneyKey = {}
+function Main.PaintMoney(instant)
+    local f = Main.frame
+    if not (f and f.money) then return end
+    local now = GetMoney and GetMoney() or 0
+    if issecretvalue and issecretvalue(now) then return end
+    local was = f.moneyShown
+    f.moneyShown = now
+    local function show(v) f.money:SetText(W.Money(math.floor(v + 0.5))) end
+    if instant or not was or was == now or not f:IsVisible() then
+        Motion.Tween(moneyKey, now, now, 0, show)
+    else
+        Motion.Tween(moneyKey, was, now, Motion.NORMAL, show)
+    end
+end
 
 -- The sub line's items-known number counts up after a scan.
 function Main.CountKnown(from, to)
@@ -498,6 +517,10 @@ function Main.Build(mod)
     link:SetScript("OnClick", function() Main.FullScan() end)
     link:Hide()
     Main.scanLink = link
+    f.money = Style.Text(f, Style.SIZE.small, "RIGHT")
+    f.money:SetPoint("TOPRIGHT", f.close, "BOTTOMRIGHT", -2, -Main.MONEY_GAP)
+    f.money:SetWordWrap(false)
+    Main.PaintMoney(true)
     if ns.ScanBand then ns.ScanBand.Build(f) end
     Win.Keys(f, Main.OnKey)
     Win.Drag(f, { save = Main.SaveSpot, reset = Main.ResetSpot })
@@ -520,12 +543,27 @@ ns.On("RulesetChanged", repaint)
 ns.On("PricesChanged", function() Main.Header() end)
 ns.On("AHOpened", function()
     repaint()
+    Main.PaintMoney(true)
     Main.Take()
 end)
+ns.RegisterEvent("PLAYER_MONEY", function() Main.PaintMoney() end)
 ns.On("AHClosed", function() Main.Left() end)
 ns.On("ScanStarted", function() Main.ScanChanged() end)
 ns.On("ScanEnded", function() Main.ScanChanged() end)
 ns.RegisterEvent("PLAYER_REGEN_DISABLED", function() Main.FightStarts() end)
+
+-- A right click on a bag item while this window has the Auction House: it
+-- goes on Sell, as the game's own window takes it. True when it was taken.
+function Main.SellFromBag(bag, slot)
+    if not (Main.IsOpen() and Main.Covers()) then return false end
+    local key = ns.Bags.KeyAt(bag, slot)
+    if not key then return false end
+    Main.ShowTab("sell")
+    if not ns.SellPage.Row(key) then return false end
+    ns.SellPage.Pick(key, true)
+    return true
+end
+DUI.AuctionHouseSell = Main.SellFromBag
 
 -- The key binding (Bindings.xml): Post or Cancel the next one.
 _G.BINDING_NAME_DAYLIGHTUI_AH_ACT = L["Auction House: post or cancel the next one"]

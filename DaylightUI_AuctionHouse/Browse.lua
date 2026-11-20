@@ -6,6 +6,8 @@
 -- query: the game's AuctionHouseBrowseQuery { searchString, sorts, minLevel,
 -- maxLevel, filters (Enum.AuctionHouseFilter values), itemClassFilters
 -- ({ classID, subClassID, inventoryType } each) }, built by the Search tab;
+-- favorites = true lists the game's favorites instead (SearchForFavorites,
+-- the game's star button), into the same browse list;
 -- sorts is {} when missing. tag: what ns.AH.Drop(tag) ends it by (default
 -- "search": the window drops stale work when the player asks for something
 -- else). rows, in the client's order: { itemKey (the game's), itemID, key,
@@ -184,7 +186,8 @@ ask = function(j, more)
         events = events,
         send = function()
             if not more then
-                C_AuctionHouse.SendBrowseQuery(j.query)
+                if j.favorites then C_AuctionHouse.SearchForFavorites(j.query.sorts)
+                else C_AuctionHouse.SendBrowseQuery(j.query) end
                 return
             end
             -- the list is full already (HasFull said no just before: never
@@ -210,6 +213,7 @@ function Browse.Query(query, onDone, tag)
             searchString = query.searchString, sorts = query.sorts or {}, minLevel = query.minLevel,
             maxLevel = query.maxLevel, filters = query.filters, itemClassFilters = query.itemClassFilters,
         },
+        favorites = query.favorites == true,
         onDone = onDone or function() end, tag = tag or Browse.TAG, rkey = ns.Ruleset.Key(),
         set = ns.Rows.New(), rows = {}, pages = 0,
     }

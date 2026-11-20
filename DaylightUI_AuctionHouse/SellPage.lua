@@ -45,9 +45,9 @@ P.FORM_STEP = 32
 P.LABEL_W = 96
 P.BOX_W = 220
 P.BOX_H = 140
-P.SAID_TOP = 172
-P.WHY_TOP = 192
-P.LOWER_TOP = 262        -- what's up now and the daily lows
+P.SAID_TOP = 204
+P.WHY_TOP = 224
+P.LOWER_TOP = 294        -- what's up now and the daily lows
 P.DAYS = 14
 P.DAY_H = 120
 P.QUIET = 4              -- seconds the background checks wait after the player picks, types or posts
@@ -68,7 +68,7 @@ P.AH_COLS = {
 P.picked = nil      -- the price key on the form
 P.selling = nil     -- the heading being sold ("Sell all"): { id, name, keys }
 P.checked = {}      -- key -> { auctions, at, err } searched this visit
-P.edit = nil        -- what the player typed for the picked item: { qty, unit, bad }
+P.edit = nil        -- what the player typed for the picked item: { qty, unit, bad, bid, badBid }
 P.message = nil     -- the line under the form: { text, role }
 
 local page
@@ -503,6 +503,11 @@ local function typed(which, text, user)
     if which == "qty" then
         local n = tonumber(text)
         P.edit.qty = n and math.max(0, floor(n)) or 0
+    elseif which == "bid" then
+        local trimmed = (text or ""):match("^%s*(.-)%s*$")
+        local c = trimmed ~= "" and P.ReadMoney(trimmed) or nil
+        P.edit.bid = c
+        P.edit.badBid = trimmed ~= "" and c == nil
     else
         local trimmed = (text or ""):match("^%s*(.-)%s*$")
         local c = trimmed ~= "" and P.ReadMoney(trimmed) or nil
@@ -621,6 +626,22 @@ function P.Post()
     -- A typed price off the step the Auction House takes (gear and recipes:
     -- whole silver) goes up to the next one, shown first, never posted unseen.
     local kind = P.Kind(r.key, r.classID)
+    local bid = kind == "item" and P.edit and P.edit.bid or nil
+    if kind == "item" and P.edit and P.edit.badBid then
+        return P.Say(format(L["Type the starting bid like %s, or leave it empty."], P.PlainMoney(12000)), "WARN")
+    end
+    if bid and bid >= unit then return P.Say(L["The starting bid has to be under the price."], "WARN") end
+    if bid then
+        local bidStep = ns.Post.Round(bid, kind, false, r.key)
+        if bidStep ~= bid then
+            P.edit.bid = bidStep
+            page.right.form.bid:SetText(P.PlainMoney(bidStep))
+            if bidStep >= unit then return P.Say(L["The starting bid has to be under the price."], "WARN") end
+            P.Say(format(L["The Auction House takes whole silver only for this item: a starting bid of %s. Click Post to post it."],
+                money(bidStep)), "WARN")
+            return P.Paint()
+        end
+    end
     local onStep = ns.Post.Round(unit, kind, false, r.key)
     if onStep ~= unit then
         P.edit = P.edit or {}
@@ -639,7 +660,7 @@ function P.Post()
         end
         P.Paint()
         P.CheckNext()
-    end)
+    end, bid)
     if ok then
         busy = true
         P.Say(nil)
@@ -734,7 +755,30 @@ function P.PaintBox()
     else hint, role = d.hint, d.far and "WARN" or "LABEL" end
     form.hint:SetText(hint or "")
     Style.InkText(form.hint, role)
+    local bidHint, bidRole
+    if P.Kind(r.key, r.classID) ~= "item" then bidHint, bidRole = L["Stackable goods sell at their price only"], "OFF"
+    elseif P.edit and P.edit.badBid then bidHint, bidRole = format(L["like %s"], P.PlainMoney(12000)), "WARN"
+    elseif P.edit and P.edit.bid and unit and P.edit.bid >= unit then bidHint, bidRole = L["under the price"], "WARN"
+    elseif P.edit and P.edit.bid then bidHint, bidRole = L["buyers can bid, or pay the price"], "LABEL"
+    else bidHint, bidRole = L["optional: buyout only"], "LABEL" end
+    form.bidHint:SetText(bidHint)
+    Style.InkText(form.bidHint, bidRole)
     page.right.why:Set(P.WhyOf(r))
+end
+
+-- A click on a listing takes its price, as in the game's own window.
+function P.Match(unit)
+    local r = P.picked and byKey[P.picked]
+    if not (r and type(unit) == "number" and unit >= 1) then return end
+    hush()
+    local price = ns.Post.Round(unit, P.Kind(r.key, r.classID), false, r.key)
+    P.edit = P.edit or {}
+    P.edit.unit, P.edit.bad = price, nil
+    local box = page.right.form.price
+    if box:HasFocus() then box:ClearFocus() end
+    box:SetText(P.PlainMoney(price))
+    ns.Post.Forget()
+    P.PaintBox()
 end
 
 local function paintAH(r)
@@ -798,6 +842,12 @@ local function paintForm(r)
         form.price:SetText(unit and P.PlainMoney(unit) or "")
     end
     for h, chip in pairs(form.chips) do chip.SetOn(h == hours) end
+    local single = P.Kind(r.key, r.classID) == "item"
+    W.EaseShown(form.bid, single, instant)
+    if not form.bid:HasFocus() and not (P.edit and P.edit.badBid) then
+        local bid = P.edit and P.edit.bid
+        form.bid:SetText(bid and P.PlainMoney(bid) or "")
+    end
     local c = P.checked[r.key]
     if c and not c.err then watchAge(r.key, c) end
     P.PaintBox()
@@ -908,7 +958,7 @@ local function buildForm(right, sale)
     local form = CreateFrame("Frame", nil, sale)
     form:SetPoint("TOPLEFT", right, "TOPLEFT", Parts.EDGE, -P.FORM_TOP)
     form:SetPoint("RIGHT", right, "RIGHT", -(P.BOX_W + 2 * Parts.EDGE), 0)
-    form:SetHeight(3 * P.FORM_STEP)
+    form:SetHeight(4 * P.FORM_STEP)
     label(form, L["How many"], 0)
     form.qty = W.Input(form, { numeric = true, justify = "CENTER", onChange = function(text, user) typed("qty", text, user) end })
     form.qty:SetWidth(64)
@@ -930,8 +980,9 @@ local function buildForm(right, sale)
     form.price:SetWidth(120)
     form.price:SetPoint("TOPLEFT", form, "TOPLEFT", P.LABEL_W, -P.FORM_STEP)
     form.hint = Style.Text(form, Style.SIZE.small, "LEFT")
+    -- the right end on the price line itself: the form's own middle is a line lower
     form.hint:SetPoint("LEFT", form.price, "RIGHT", 10, 0)
-    form.hint:SetPoint("RIGHT", form, "RIGHT", 0, 0)
+    form.hint:SetPoint("RIGHT", form, "TOPRIGHT", 0, -(P.FORM_STEP + W.INPUT_H / 2))
     form.hint:SetWordWrap(false)
     label(form, L["How long"], 2 * P.FORM_STEP)
     form.chips = {}
@@ -950,6 +1001,14 @@ local function buildForm(right, sale)
         x = x + chip:GetWidth() + W.CHIP_GAP
         form.chips[h] = chip
     end
+    label(form, L["Starting bid"], 3 * P.FORM_STEP)
+    form.bid = W.Input(form, { hint = L["none"], onChange = function(text, user) typed("bid", text, user) end })
+    form.bid:SetWidth(120)
+    form.bid:SetPoint("TOPLEFT", form, "TOPLEFT", P.LABEL_W, -3 * P.FORM_STEP)
+    form.bidHint = Style.Text(form, Style.SIZE.small, "LEFT")
+    form.bidHint:SetPoint("LEFT", form.bid, "RIGHT", 10, 0)
+    form.bidHint:SetPoint("RIGHT", form, "TOPRIGHT", 0, -(3 * P.FORM_STEP + W.INPUT_H / 2))
+    form.bidHint:SetWordWrap(false)
     right.form = form
 end
 
@@ -1057,6 +1116,7 @@ local function buildLower(right)
             b.mine = W.Tag(b)
         end },
         fill = { line = fillAH },
+        onClick = function(_, d) P.Match(d.unit) end,
     })
     right.ahEmpty = Style.Text(left, Style.SIZE.body, "CENTER")
     Style.InkText(right.ahEmpty, "LABEL")
