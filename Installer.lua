@@ -46,6 +46,9 @@ Installer.ROLE_TEXT = {
     Healer = L["Your party and raid as square tiles under you, dispels easy to spot."],
     ["Immersive Preset"] = L["Calm for questing: bars and your frame fade after a fight, the micro menu waits for the mouse. All shown in dungeons."],
 }
+-- The opening's sunrise: its height, the band of the art it shows and how far
+-- right of center its frame sits.
+Installer.OPENING_BANNER = { height = 190, crop = { 0.286, 0.750 }, shift = 27 }
 -- The ready-made setups the welcome and the role page offer, in order.
 Installer.READY = { "DPS/Tank", "Healer", "Immersive Preset" }
 
@@ -163,9 +166,10 @@ function Installer.Greeting(hour)
     return L["Good evening, %s"]
 end
 
--- "Good evening, First Last" with the name in class color. The last name is
--- left off when the client doesn't provide one (or hides it).
-function Installer.GreetingText()
+-- "Good evening, First Last" with the name in class color (or in color, an
+-- { r, g, b }). The last name is left off when the client doesn't provide
+-- one (or hides it).
+function Installer.GreetingText(color)
     local name = UnitName("player") or ""
     if type(UnitFullName) == "function" then
         local first, last = UnitFullName("player")
@@ -176,6 +180,7 @@ function Installer.GreetingText()
     end
     local _, token = UnitClass("player")
     local r, g, b = DUI.Style.RawClassColor(token)
+    if color then r, g, b = color[1], color[2], color[3] end
     if r then
         name = string.format("|cff%02x%02x%02x%s|r", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5),
             math.floor(b * 255 + 0.5), name)
@@ -370,6 +375,7 @@ function Installer.Show()
     }
     Installer.pages = {}
     UI.Open({
+        width = UI.SHOW_W, height = UI.SHOW_H, lit = true,
         close = Installer.OnClosed,
         next = Installer.Next,
         back = Installer.Back,
@@ -561,7 +567,8 @@ function Installer.Go(id)
     -- The game stays dimmed behind every step so the guide is the focus.
     local opts = { dir = dir, veil = true }
     if id == "welcome" then
-        opts.full = true
+        opts.bare, opts.still = true, true
+        opts.banner = Installer.OPENING_BANNER
     elseif id == "finish" then
         opts.rail = tour
         opts.title, opts.desc = Installer.FinishWords()
@@ -577,6 +584,7 @@ function Installer.Go(id)
     end
     UI.SetPage(page, opts)
     if page.Refresh then page.Refresh() end
+    if id == "welcome" and page.Play then page.Play() end
     if id == "finish" and page.ended ~= nil then page.ShowEnd(page.ended) end
     if opts.rail then UI.SetRail(steps, i, flow.visited, Installer.Go) end
     UI.Spotlight(def and def.spotlight or nil)

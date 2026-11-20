@@ -77,7 +77,9 @@ Installer.lua
 InstallerDraft.lua
 InstallerPages.lua
 InstallerCards.lua
+InstallerScreen.lua
 InstallerUI.lua
+InstallerChrome.lua
 InstallerSteps.lua
 InstallerPlugins.lua
 InstallerLooks.lua

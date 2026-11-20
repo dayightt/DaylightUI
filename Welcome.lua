@@ -23,12 +23,11 @@ Welcome.LOGIN_DELAY = 2  -- after the plugins' guides look (1 s), before the por
 Welcome.WAIT = 5         -- while the guide's window is busy, look again this often
 Welcome.TRIES = 24       -- for about two minutes
 -- The window, and the news slide's layout (from the approved mock-up).
-Welcome.WIDTH, Welcome.HEIGHT = 900, 625
+Welcome.WIDTH, Welcome.HEIGHT = DUI.InstallerUI.SHOW_W, DUI.InstallerUI.SHOW_H
 Welcome.TITLE_SIZE = 28    -- a showpiece's title
 Welcome.TITLE_TOP = 22     -- under the banner's plaque
 Welcome.INTRO_GAP = 20
 Welcome.RULE_W, Welcome.RULE_GAP = 150, 24
-Welcome.DIAMOND = 6
 Welcome.PLAQUE_W, Welcome.PLAQUE_H, Welcome.PLAQUE_SLANT = 190, 26, 8
 Welcome.MARGIN, Welcome.GAP = 26, 11
 Welcome.FEATURE_W = 270
@@ -108,13 +107,7 @@ end
 -- news, the Let's go button and a dot per slide. Everything comes in after
 -- the sunrise, a piece at a time.
 
--- Letters spread out, for the plaque and the line under the title. Only for
--- text in the Latin alphabet: other scripts stay as they are.
-function Welcome.Spaced(text)
-    text = Style.Upper(text or "")
-    if text:find("[\128-\255]") then return text end
-    return (text:gsub(" ", "  "):gsub("(%S)", "%1 "):gsub(" $", ""))
-end
+Welcome.Spaced = DUI.InstallerChrome.Spaced
 
 local function hex(c) return DUI.Win.Parts.Hex(c) end
 
@@ -206,32 +199,7 @@ local function featureCard(parent, item)
     return c
 end
 
--- A line that fades out away from its inner end, with a small diamond there.
-local function rule(parent, width, toLeft)
-    local r = CreateFrame("Frame", nil, parent)
-    r:SetSize(width, Welcome.DIAMOND)
-    r.line = r:CreateTexture(nil, "ARTWORK")
-    r.line:SetTexture("Interface\\Buttons\\WHITE8X8")
-    r.line:SetHeight(DUI.Pixel.Px(r, 1))
-    r.line:SetPoint("LEFT", r, "LEFT", 0, 0)
-    r.line:SetPoint("RIGHT", r, "RIGHT", 0, 0)
-    r.diamond = r:CreateTexture(nil, "OVERLAY")
-    r.diamond:SetTexture("Interface\\Buttons\\WHITE8X8")
-    r.diamond:SetSize(Welcome.DIAMOND, Welcome.DIAMOND)
-    r.diamond:SetRotation(math.pi / 4)
-    r.diamond:SetPoint("CENTER", r, toLeft and "RIGHT" or "LEFT", 0, 0)
-    function r.Paint()
-        local c = Style.GRADIENT_SHAPE[toLeft and 1 or 2]
-        if toLeft then
-            Style.Gradient(r.line, "HORIZONTAL", c[1], c[2], c[3], 0, c[1], c[2], c[3], 0.8)
-        else
-            Style.Gradient(r.line, "HORIZONTAL", c[1], c[2], c[3], 0.8, c[1], c[2], c[3], 0)
-        end
-        r.diamond:SetVertexColor(c[1], c[2], c[3], 1)
-    end
-    r.Paint()
-    return r
-end
+local function rule(parent, width, toLeft) return DUI.InstallerChrome.Rule(parent, width, toLeft) end
 
 -- What sits on the window itself while the news shows: the plaque on the
 -- banner's lower edge with its lines.
@@ -242,14 +210,9 @@ local function buildChrome(page)
     k:SetAllPoints(win)
     k:SetFrameLevel(win:GetFrameLevel() + 30)
     k:EnableMouse(false)
-    local p = CreateFrame("Frame", nil, k)
-    p:SetSize(Welcome.PLAQUE_W, Welcome.PLAQUE_H)
+    local p = DUI.InstallerChrome.Plaque(k, Welcome.PLAQUE_H, Welcome.PLAQUE_SLANT, 24)
+    p:SetWidth(Welcome.PLAQUE_W)
     p:SetPoint("CENTER", win, "TOP", 0, -(UI.BANNER_H - 8))
-    p.shell = Style.Shell(p, { borderPx = 1, flat = true, noBevel = true, cornerPx = 0, shadowPx = 0,
-        shadowAlpha = 0, bgAlpha = 0.95 })
-    Style.Slant(p, "both", Welcome.PLAQUE_SLANT, nil, "left")
-    p.text = Style.Text(p, SIZE.body, "CENTER")
-    p.text:SetPoint("CENTER", p, "CENTER", 0, 0)
     k.plaque = p
     for i, toLeft in ipairs({ true, false }) do
         local line = k:CreateTexture(nil, "ARTWORK")
@@ -266,11 +229,10 @@ local function buildChrome(page)
     end
     function k.Paint()
         local a, z = Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
-        Style.SetShellColors(p.shell, z, nil, { a, z })
-        p.text:SetText(hex(Style.INK.LABEL) .. Welcome.Spaced(L["Version"]) .. "|r   "
+        p.Paint()
+        p.Set(hex(Style.INK.LABEL) .. Welcome.Spaced(L["Version"]) .. "|r   "
             .. hex(Style.INK.VALUE) .. Welcome.Spaced("2.0") .. "|r")
-        local w = p.text:GetStringWidth()
-        if type(w) == "number" and w > 0 then p:SetWidth(math.max(Welcome.PLAQUE_W, math.ceil(w) + 48)) end
+        if p:GetWidth() < Welcome.PLAQUE_W then p:SetWidth(Welcome.PLAQUE_W) end
         Style.Gradient(k.lineL, "HORIZONTAL", a[1], a[2], a[3], 0, a[1], a[2], a[3], 0.9)
         Style.Gradient(k.lineR, "HORIZONTAL", z[1], z[2], z[3], 0.9, z[1], z[2], z[3], 0)
     end

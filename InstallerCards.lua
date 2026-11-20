@@ -101,6 +101,186 @@ function Cards.Text(card, text, size, color)
     return fs
 end
 
+-- A showpiece card (the guide's opening): a picture on the stage color at the
+-- top, a title and a line under it, a slanted tag top right and a tick top
+-- left. Hovered it lifts; picked, its outline and a soft glow take the
+-- Daylight gradient and it blooms once; the others dim. opts: titleSize,
+-- lineSize, noLine (the line becomes the card's tooltip).
+Cards.SHOW_DIM, Cards.SHOW_LIFT, Cards.SHOW_BLOOM = 0.78, 3, 5
+Cards.SHOW_INSET = 11      -- the picture in from the card's sides and top
+Cards.SHOW_TITLE_GAP, Cards.SHOW_LINE_GAP, Cards.SHOW_LINE_PAD = 9, 3, 12
+Cards.SHOW_TAG_SLANT = 5
+function Cards.Show(parent, width, height, pictureHeight, opts)
+    opts = opts or {}
+    local M = DUI.Motion
+    local c = CreateFrame("Button", nil, parent)
+    c:SetSize(width, height)
+    local inner = CreateFrame("Frame", nil, c)
+    c.inner = inner
+    local lift = 0
+    local function place(dy)
+        lift = dy
+        inner:ClearAllPoints()
+        inner:SetPoint("TOPLEFT", c, "TOPLEFT", 0, dy)
+        inner:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", 0, dy)
+    end
+    place(0)
+    local function liftTo(dy, dur) M.Tween(inner, lift, dy, dur or M.FAST, place) end
+
+    local one = DUI.Pixel.Px(c, 1)
+    local function plainTex(layer, sub)
+        local t = inner:CreateTexture(nil, layer, nil, sub)
+        t:SetTexture("Interface\\Buttons\\WHITE8X8")
+        return t
+    end
+    inner.bg = plainTex("BACKGROUND")
+    inner.bg:SetAllPoints(inner)
+    W.Tint(inner.bg, C.card)
+    local edges = {}
+    for _, side in ipairs({ "top", "bottom", "left", "right" }) do
+        local t = plainTex("BORDER")
+        if side == "top" or side == "bottom" then
+            local p = side == "top" and "TOP" or "BOTTOM"
+            t:SetPoint(p .. "LEFT", inner, p .. "LEFT", 0, 0)
+            t:SetPoint(p .. "RIGHT", inner, p .. "RIGHT", 0, 0)
+            t:SetHeight(one)
+        else
+            local p = side == "left" and "LEFT" or "RIGHT"
+            t:SetPoint("TOP" .. p, inner, "TOP" .. p, 0, 0)
+            t:SetPoint("BOTTOM" .. p, inner, "BOTTOM" .. p, 0, 0)
+            t:SetWidth(one)
+        end
+        edges[side] = t
+    end
+    c.edges = edges
+
+    local inset = one + Cards.SHOW_INSET
+    c.picture = CreateFrame("Frame", nil, inner)
+    c.picture:SetPoint("TOPLEFT", inner, "TOPLEFT", inset, -inset)
+    c.picture:SetSize(width - 2 * inset, pictureHeight)
+    c.picture.bg = c.picture:CreateTexture(nil, "BACKGROUND")
+    c.picture.bg:SetTexture("Interface\\Buttons\\WHITE8X8")
+    c.picture.bg:SetAllPoints(c.picture)
+    W.Tint(c.picture.bg, C.stage)
+    c.picture:SetClipsChildren(true)
+
+    c.title = W.Font(inner, W.TITLE, opts.titleSize or SIZE.head, C.value, "CENTER")
+    c.title:SetPoint("TOP", c.picture, "BOTTOM", 0, -Cards.SHOW_TITLE_GAP)
+    c.line = W.Font(inner, W.BODY, opts.lineSize or SIZE.small, Style.INK.LABEL, "CENTER")
+    c.line:SetWordWrap(true)
+    c.line:SetMaxLines(2)
+    c.line:SetJustifyV("TOP")
+    -- Placed from the picture, not from the title: a text's own height is
+    -- only known once the game has drawn it.
+    local below = Cards.SHOW_TITLE_GAP + math.ceil((opts.titleSize or SIZE.head) * 1.2) + Cards.SHOW_LINE_GAP
+    c.line:SetPoint("TOPLEFT", c.picture, "BOTTOMLEFT", Cards.SHOW_LINE_PAD - inset, -below)
+    c.line:SetPoint("TOPRIGHT", c.picture, "BOTTOMRIGHT", inset - Cards.SHOW_LINE_PAD, -below)
+    c.line:SetHeight(math.ceil((opts.lineSize or SIZE.small) * 2.6))
+    c.line:SetShown(not opts.noLine)
+
+    -- The tick and the tag sit over the picture and everything drawn in it.
+    c.over = CreateFrame("Frame", nil, inner)
+    c.over:SetAllPoints(inner)
+    c.over:SetFrameLevel(inner:GetFrameLevel() + 60)
+    c.tick = W.Icon(c.over, "ui-check.png", 12, C.text, "OVERLAY")
+    c.tick:SetPoint("TOPLEFT", inner, "TOPLEFT", 10, -9)
+    c.tick:Hide()
+
+    -- The tag: a slanted pill, its fill turning to the gradient when picked.
+    local tag = W.Tag(c.over)
+    tag:SetPoint("TOPRIGHT", inner, "TOPRIGHT", -8, -8)
+    tag.fill = tag:CreateTexture(nil, "BORDER", nil, 1)
+    tag.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
+    tag.fill:SetAllPoints(tag)
+    Style.Clip(tag, tag.fill, "inner")
+    Style.Slant(tag, "both", Cards.SHOW_TAG_SLANT, nil, "left")
+    Style.SetTextSize(tag.text, SIZE.tiny)
+    tag:Hide()
+    c.tagFrame = tag
+
+    local function paintTag()
+        if c.picked then W.TintDaylight(tag.fill, 0.55) else W.Tint(tag.fill, C.track) end
+    end
+    local function paintEdges()
+        if c.picked then
+            local a, z = Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
+            W.TintDaylight(edges.top)
+            W.TintDaylight(edges.bottom)
+            edges.left:SetVertexColor(a[1], a[2], a[3], 1)
+            edges.right:SetVertexColor(z[1], z[2], z[3], 1)
+        else
+            W.Tint(edges.top, C.cardLit)
+            for _, k in ipairs({ "bottom", "left", "right" }) do W.Tint(edges[k], C.cardEdge) end
+        end
+    end
+    function c.Paint()
+        paintEdges()
+        paintTag()
+        Style.PaintAccent(c.tick, 1)
+    end
+
+    -- The words a tag says, as written (not in capitals).
+    function c.SetTag(text)
+        if type(text) == "string" and text ~= "" then
+            tag.Set(text, Style.INK.TEXT)
+            tag.text:SetText(text)
+            tag.FitWidth()
+            tag:Show()
+        else
+            tag:Hide()
+        end
+        paintTag()
+    end
+
+    function c.SetPicked(on, animate)
+        on = on == true
+        local was = c.picked == true
+        c.picked = on
+        paintEdges()
+        paintTag()
+        if on and animate and not was and M.On() then
+            -- The tick pops: it grows into place, stepped by hand.
+            c.tick:Show()
+            M.Tween(c.tick, 0.5, 1, M.NORMAL, function(k) c.tick:SetSize(12 * k, 12 * k) end)
+        else
+            c.tick:SetShown(on)
+        end
+        W.GlowAround(c, on, { frame = inner, style = "breathe",
+            lo = Style.GRADIENT_SHAPE[1], hi = Style.GRADIENT_SHAPE[2] })
+        if on and animate and not was then
+            -- The pick blooms once: the card lifts further and settles back.
+            local rest = c:IsMouseOver() and Cards.SHOW_LIFT or 0
+            M.Tween(inner, lift, Cards.SHOW_BLOOM, M.SLOW / 2, place, function()
+                M.Tween(inner, Cards.SHOW_BLOOM, rest, M.SLOW / 2, place)
+            end)
+        end
+    end
+
+    -- Dimmed while another card is picked; a hovered one comes back to full.
+    function c.SetDim(on, animate)
+        c.dim = on == true
+        c.restAlpha = c.dim and Cards.SHOW_DIM or 1
+        local to = (c.dim and not c.hover) and Cards.SHOW_DIM or 1
+        if animate then M.AlphaTo(c, to, M.NORMAL) else c:SetAlpha(to) end
+    end
+
+    c:SetScript("OnEnter", function()
+        c.hover = true
+        liftTo(Cards.SHOW_LIFT)
+        if c.dim then M.AlphaTo(c, 1, M.FAST) end
+        if c.tooltip then W.Tooltip(c, c.tooltip[1], c.tooltip[2]) end
+    end)
+    c:SetScript("OnLeave", function()
+        c.hover = false
+        liftTo(0)
+        if c.dim then M.AlphaTo(c, Cards.SHOW_DIM, M.FAST) end
+        W.HideTooltip()
+    end)
+    c:HookScript("OnShow", c.Paint)
+    c.Paint()
+    return c
+end
+
 -- One option as a row of cards, one per choice, with the current one
 -- selected. opts:
 --   keys      the choices, in order

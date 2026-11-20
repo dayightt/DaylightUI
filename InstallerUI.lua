@@ -17,6 +17,7 @@ local UI = {}
 DUI.InstallerUI = UI
 
 UI.WIDTH, UI.HEIGHT = 760, 520
+UI.SHOW_W, UI.SHOW_H = 900, 625 -- a showpiece: the guide's own pages and the 2.0 welcome
 UI.RAIL = 170 -- the step list's width
 -- Matches the window kit's spacing (Windows/, loaded after this file): its
 -- edge (Win.EDGE), title line (Win.TITLE_Y) and footer room (Npc.FOOT).
@@ -113,6 +114,8 @@ local function buildBanner()
     b.sunrise:SetSize(h * 2 / (crop[2] - crop[1]), h)
     b.sunrise:SetPoint("TOP", b, "TOP", 0, -8)
     b.sunrise.sky:Hide() -- b.back is the only sky, so there's no seam at the logo's edges
+    -- The sunrise takes its crop when it's made: one per crop asked for.
+    b.sunrises = { [crop[1] .. ":" .. crop[2]] = b.sunrise }
     -- A wash of Daylight colors across the whole banner, additive (it would hide
     -- anything behind it otherwise), in its own frame above the sunrise so it
     -- covers the middle as well as the sides.
@@ -125,7 +128,52 @@ local function buildBanner()
     b.glow:SetPoint("TOPLEFT", b, "TOPLEFT", 12, -8)
     b.glow:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -12, 8)
     b.glow:SetAlpha(UI.GLOW_ALPHA)
+    b.over = over
     frame.banner = b
+end
+
+-- The banner for the welcome (full) or for a bare page at its own height,
+-- crop and spot: spec = { height, crop = { top, bottom }, shift }, nil for
+-- the welcome's. The sky and the wash span the whole banner.
+local function placeBanner(spec)
+    local b = frame.banner
+    local crop = spec and spec.crop or UI.BANNER_CROP
+    local key = crop[1] .. ":" .. crop[2]
+    local sr = b.sunrises[key]
+    if not sr then
+        sr = DUI.Options.NewSunrise(b.sky, crop)
+        sr.sky:Hide()
+        b.sunrises[key] = sr
+        b.over:SetFrameLevel(math.max(b.over:GetFrameLevel(), sr:GetFrameLevel() + 5))
+    end
+    for _, other in pairs(b.sunrises) do other:SetShown(other == sr) end
+    b.sunrise = sr
+    b:ClearAllPoints()
+    b.back:ClearAllPoints()
+    b.glow:ClearAllPoints()
+    sr:ClearAllPoints()
+    if spec then
+        -- The sky and art fill the banner corner to corner; the window's edge is round it.
+        b:SetPoint("TOPLEFT", frame, "TOPLEFT", 12, -12)
+        b:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -12, -12)
+        b:SetHeight(spec.height)
+        b.back:SetAllPoints(b)
+        b.glow:SetAllPoints(b)
+        sr:SetSize(spec.height * 2 / (crop[2] - crop[1]), spec.height)
+        sr:SetPoint("TOP", b, "TOP", spec.shift or 0, 0)
+    else
+        b:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+        b:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, 0)
+        b:SetHeight(UI.BANNER_H)
+        local h = UI.BANNER_H - 16
+        b.back:SetPoint("TOPLEFT", b, "TOPLEFT", 12, -8)
+        b.back:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -12, 8)
+        b.glow:SetPoint("TOPLEFT", b, "TOPLEFT", 12, -8)
+        b.glow:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -12, 8)
+        sr:SetSize(h * 2 / (crop[2] - crop[1]), h)
+        sr:SetPoint("TOP", b, "TOP", 0, -8)
+    end
+    b.back:SetTexCoord(0, 1, crop[1], crop[2])
 end
 
 local function buildRail()
@@ -403,17 +451,24 @@ local function button(b, on)
 end
 
 -- Puts a page in the window. opts: full (the welcome: banner, no sidebar,
--- header or footer), rail, veil, step and total ("Step 2 of 6"), over (a
+-- header or footer), bare (the page lays out the whole window itself: no
+-- sidebar, header, footer or scroll bar, so its spots are the window's;
+-- banner = { height, crop, shift } puts the sunrise over it), rail, veil,
+-- step and total ("Step 2 of 6"), over (a
 -- plugin's name before the step), title, desc,
 -- later (an options page for "Change it later"), back (show Back), next
 -- (Next's text, nil hides it), dir (1 forward, -1 back).
 function UI.SetPage(page, opts)
     if not frame then build() end
-    local rail = opts.rail == true and not opts.full
+    local bare = opts.bare == true
+    local rail = opts.rail == true and not opts.full and not bare
+    local banner = opts.full == true or (bare and opts.banner ~= nil)
     frame.rail:SetShown(rail)
-    frame.banner:SetShown(opts.full == true)
-    frame.header:SetShown(not opts.full)
-    frame.footer:SetShown(not opts.full)
+    frame.banner:SetShown(banner)
+    if banner then placeBanner(not opts.full and opts.banner or nil) end
+    frame.header:SetShown(not opts.full and not bare)
+    frame.footer:SetShown(not opts.full and not bare)
+    frame.scroll.bar:SetShown(not bare)
     local left = (rail and UI.RAIL or 0) + UI.PAD
     frame.header:ClearAllPoints()
     frame.header:SetPoint("TOPLEFT", frame, "TOPLEFT", left, -UI.TOP)
@@ -423,7 +478,7 @@ function UI.SetPage(page, opts)
     frame.footer:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
     -- A page may pin a part above the rest (the Frames page's samples). It sits
     -- under the header and stays put while the rest of the page scrolls below it.
-    local pin = not opts.full and page.pinned or nil
+    local pin = not opts.full and not bare and page.pinned or nil
     if frame.pinned and frame.pinned ~= pin then frame.pinned:Hide() end
     frame.pinned = pin
     local top = UI.TOP + UI.HEADER + 12 -- under the rule, the kit's spacing (Parts.Stack's top)
@@ -436,7 +491,9 @@ function UI.SetPage(page, opts)
         top = top + pin:GetHeight() + UI.PIN_GAP
     end
     frame.scroll:ClearAllPoints()
-    if opts.full then
+    if bare then
+        frame.scroll:SetAllPoints(frame)
+    elseif opts.full then
         frame.scroll:SetPoint("TOPLEFT", frame, "TOPLEFT", UI.PAD, -UI.BANNER_H)
         frame.scroll:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -UI.PAD, UI.PAD)
     else
@@ -469,7 +526,7 @@ function UI.SetPage(page, opts)
         UI.Slide(page, opts.dir or 1)
         if pin then UI.Slide(pin, opts.dir or 1) end
     end
-    if opts.full then UI.Sunrise() end
+    if banner then UI.Sunrise() end
     UI.SetVeil(opts.veil == true)
 end
 

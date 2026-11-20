@@ -6,6 +6,7 @@
 
 local _, DUI = ...
 local W = DUI.Widgets
+local Style = DUI.Style
 local SIZE = DUI.Style.SIZE -- the text size scale
 local C = W.COLORS
 local Cards = DUI.InstallerCards
@@ -84,194 +85,296 @@ end
 
 -- Welcome
 
--- A greeting under the banner, a line about DaylightUI, and three cards that
--- each act on click. For a character not set up yet: Quick setup, Let me
--- choose, Use a setup I have (when there is one). For one already set up:
--- Keep my setup (selected), Let me choose, Quick setup. Built once per setup
--- shape (Installer.lua's key for it) and reused; the picks live on the
--- running flow (Installer.flow), set by Reset.
-builders.welcome = function(parent, width)
-    local I = DUI.Installer
+-- The opening: the sunrise, a greeting, "How do you play?" and a row of
+-- equal cards: the three ready-made setups and Make it mine, with "Keep my
+-- setup" first for a set-up character (or "Use a setup I have" when the
+-- account has other profiles) and a card per profile pack after Make it mine.
+-- A click only picks a card; the big button under them starts it. The page
+-- owns the whole window (UI.SetPage's bare), so its spots are the window's.
+-- Built once per setup shape (Installer.lua's key for it) and reused; the
+-- picks live on the running flow (Installer.flow), set by Reset.
+Steps.SHOW = {
+    plaque = 186, title = 228, ask = 272, cards = 300, left = 24, gap = 12, cardH = 200,
+    acts = 516, hint = 530, line = 573, goW = 300, goH = 48, menuW = 170, menuH = 32, menuGap = 14,
+    -- By how many cards there are: width, picture height, title and line sizes.
+    sizes = { [4] = { 204, 104, SIZE.head, SIZE.small }, [5] = { 161, 82, 14, 11 }, [6] = { 132, 66, 14, 11, true } },
+    most = 6,
+    -- The opening's pieces rise in after the sunrise (seconds).
+    at = 1.2, step = 0.1, cardsAt = 1.45, hintAt = 1.9, lift = 10,
+}
+
+-- The cards the opening shows, in order: { key, title, line, state }.
+local function openingCards()
+    local I, P = DUI.Installer, DUI.Profiles
     local flow = I.flow
-    local page = stack(parent, width)
-    page.cards = {}
-
-    local greet = CreateFrame("Frame", nil, page)
-    greet.text = W.Font(greet, W.TITLE, SIZE.title, C.text, "CENTER")
-    greet.text:SetAllPoints(greet)
-    page.greeting = greet.text
-    page.Add(greet, 26, 6)
-
-    local intro = CreateFrame("Frame", nil, page)
-    intro.text = W.Font(intro, W.BODY, SIZE.body, C.dim, "CENTER")
-    intro.text:SetWordWrap(true)
-    intro.text:SetAllPoints(intro)
-    intro.text:SetText(flow.mode == "showcase" and I.TEXT.showcase or I.TEXT.intro)
-    page.Add(intro, 36, 16)
-
-    local showcase = flow.mode == "showcase"
-    local hasMine = showcase or #I.ExistingProfiles() > 0
-    local n = hasMine and 3 or 2
-    local cw = (width - (n - 1) * Cards.GAP) / n
-    local row = CreateFrame("Frame", nil, page)
     local list = {}
-
-    local function card(title, text)
-        local c = Cards.Card(row)
-        c.title = W.Font(c.inner, W.TITLE, SIZE.head, C.text)
-        c.title:SetPoint("TOPLEFT", c.inner, "TOPLEFT", 14, -16)
-        c.title:SetText(title)
-        c.text = Cards.Text(c, text)
-        c.text:SetPoint("TOPLEFT", c.title, "BOTTOMLEFT", 0, -8)
-        c.text:SetPoint("RIGHT", c.inner, "RIGHT", -14, 0)
-        list[#list + 1] = c
-        return c
+    local showcase = flow.mode == "showcase"
+    if showcase or #I.ExistingProfiles() > 0 then
+        local name = DUI.DB.ActiveName()
+        list[#list + 1] = { key = "keep", title = showcase and L["Keep my setup"] or L["Use a setup I have"],
+            line = showcase and L["Stay on the profile you have now, as it is."]
+                or L["Put this character on a profile you already have, as it is."],
+            state = { role = I.RoleShape(showcase and name or (I.ExistingProfiles()[1] or name)), fight = true } }
     end
-
-    -- One button per ready-made setup, stacked from the bottom up (the last one
-    -- lowest), each explaining itself on hover.
-    local function quick()
-        local c = card(L["Quick setup"], L["Everything on, with DaylightUI picks. How do you play?"])
-        local below
-        for _, it in ipairs({ { "leveling", L["Immersive Preset"], "Immersive Preset" }, { "healer", L["Healer"], "Healer" },
-                              { "dps", L["Damage / Tank"], "DPS/Tank" } }) do
-            local b = W.Button(c.inner, it[2], 26)
-            if below then
-                b:SetPoint("BOTTOMLEFT", below, "TOPLEFT", 0, 6)
-                b:SetPoint("BOTTOMRIGHT", below, "TOPRIGHT", 0, 6)
-            else
-                b:SetPoint("BOTTOMLEFT", c.inner, "BOTTOMLEFT", 14, 14)
-                b:SetPoint("BOTTOMRIGHT", c.inner, "BOTTOMRIGHT", -14, 14)
-            end
-            b:SetScript("OnClick", function() I.Start("quick", it[3]) end)
-            b:HookScript("OnEnter", function() W.Tooltip(b, it[2], I.ROLE_TEXT[it[3]]) end)
-            b:HookScript("OnLeave", W.HideTooltip)
-            c[it[1]] = b
-            below = b
-        end
-        page.cards.quick = c
-    end
-
-    local function tour()
-        local c = card(L["Let me choose"], L["A two-minute tour of everything DaylightUI does, picking as you go. Nothing is saved until you finish."])
-        c:SetScript("OnClick", function() I.Start("tour") end)
-        page.cards.tour = c
-    end
-
-    -- A profile they already have. "keep" offers every profile with the active
-    -- one selected; otherwise every one except DPS/Tank.
-    local function mine(keep)
-        local names = keep and DUI.Profiles.Names() or I.ExistingProfiles()
-        if #names == 0 then return end
-        page.names = names
-        local c = card(keep and L["Keep my setup"] or L["Use a setup I have"],
-            keep and L["Stay on your profile as it is, or pick another."] or L["Put this character on a profile you already have, as it is."])
-        c.use = W.Button(c.inner, keep and L["Keep it"] or L["Use this"], 28)
-        c.use:SetPoint("BOTTOMLEFT", c.inner, "BOTTOMLEFT", 14, 14)
-        c.use:SetPoint("BOTTOMRIGHT", c.inner, "BOTTOMRIGHT", -14, 14)
-        c.use:SetScript("OnClick", function() I.Start(keep and "keep" or "existing", I.flow and I.flow.profile) end)
-        local item = { type = "dropdown", label = "Profile", desc = "A profile from the Profiles page, used as it is.",
-            choices = function()
-                local values = {}
-                for _, name in ipairs(names) do values[name] = name end
-                return values, names
-            end,
-            get = function() return I.flow and I.flow.profile end,
-            set = function(v) if I.flow then I.flow.profile = v end end }
-        c.pick = W.CompactRow(c.inner, {}, item, cw - 28)
-        c.pick:SetPoint("BOTTOMLEFT", c.use, "TOPLEFT", 0, 8)
-        if keep then
-            c.SetSelected(true)
-            c.SetTag(L["In use"])
-        end
-        page.cards.mine = c
-    end
-
-    if showcase then
-        mine(true); tour(); quick()
-    else
-        quick(); tour()
-        if hasMine then mine(false) end
-    end
-    for i, c in ipairs(list) do
-        c:SetSize(cw, 178)
-        c:SetPoint("TOPLEFT", row, "TOPLEFT", (i - 1) * (cw + Cards.GAP), 0)
-    end
-    page.Add(row, 178, 8)
-
-    -- One card per profile pack (Profiles.RegisterPack), three per row, with its
-    -- author and a button per profile that works like a Quick setup.
-    local P = DUI.Profiles
+    list[#list + 1] = { key = "DPS/Tank", title = L["Damage / Tank"], line = L["Frames by your character, party down the side."],
+        state = { role = "DPS/Tank", fight = true } }
+    list[#list + 1] = { key = "Healer", title = L["Healer"], line = L["Party and raid tiles front and center for click-healing."],
+        state = { role = "Healer", fight = true } }
+    list[#list + 1] = { key = "Immersive Preset", title = L["Immersive"],
+        line = L["Everything fades until you need it. The world comes first."],
+        state = { role = "Immersive Preset", fight = false } }
+    list[#list + 1] = { key = "mine", title = L["Make it mine"], line = L["Pick your own look, one easy choice at a time."],
+        state = { role = "blueprint" } }
     local packs = {}
     for _, id in ipairs(P.PACK_ORDER) do
         local entries = P.PackProfiles(P.PACKS[id])
         if #entries > 0 then packs[#packs + 1] = { pack = P.PACKS[id], entries = entries } end
     end
+    if #list + #packs > Steps.SHOW.most then
+        list[#list + 1] = { key = "packs", title = L["Profile packs"],
+            line = L["Ready-made setups from other authors."], state = { role = "DPS/Tank", fight = true }, packs = packs }
+    else
+        for _, p in ipairs(packs) do
+            local by = p.pack.author and string.format(L["By %s."], p.pack.author)
+            list[#list + 1] = { key = "pack:" .. p.pack.id, title = p.pack.label,
+                line = by and p.pack.desc and (by .. " " .. p.pack.desc) or by or p.pack.desc or "",
+                state = { role = I.RoleShape(p.entries[1].name), fight = true }, packs = { p }, pack = p.pack }
+        end
+    end
+    return list
+end
+
+builders.welcome = function(parent)
+    local I = DUI.Installer
+    local Chrome, Screen, Feel, M = DUI.InstallerChrome, DUI.InstallerScreen, DUI.Win.Feel, DUI.Motion
+    local S = Steps.SHOW
+    local UI = DUI.InstallerUI
+    local page = CreateFrame("Frame", nil, parent)
+    page:SetSize(UI.SHOW_W, UI.SHOW_H)
+    local showcase = I.flow.mode == "showcase"
+
+    -- The plaque sits on the banner's lower edge, so it goes above the banner.
+    page.plaque = Chrome.Plaque(page)
+    page.plaque:SetPoint("TOP", page, "TOP", 0, -S.plaque)
+    page.plaque:SetFrameLevel(UI.Frame():GetFrameLevel() + 30)
+    page.plaque.Set(Chrome.Spaced(L["First light"]))
+    page.title = Chrome.Title(page)
+    page.title:SetPoint("TOP", page, "TOP", 0, -S.title)
+    page.ask = W.Font(page, W.BODY, SIZE.small, Style.INK.LABEL, "CENTER")
+    page.ask:SetPoint("TOP", page, "TOP", 0, -S.ask)
+    page.ask:SetText(Chrome.Spaced(L["How do you play?"]))
+
+    local defs = openingCards()
+    local size = S.sizes[math.max(4, math.min(#defs, 6))]
+    local cw, ph = size[1], size[2]
+    page.cards = {}
     page.packs = {}
-    if #packs > 0 then
-        heading(page, "Profile packs")
-        local cols = math.min(#packs, 3)
-        local pw = (width - (cols - 1) * Cards.GAP) / cols
-        for first = 1, #packs, cols do
-            local line = CreateFrame("Frame", nil, page)
-            local most = 0
-            for i = first, math.min(first + cols - 1, #packs) do most = math.max(most, #packs[i].entries) end
-            local ch = math.max(178, 92 + most * 32)
-            for i = first, math.min(first + cols - 1, #packs) do
-                local pack, entries = packs[i].pack, packs[i].entries
-                local c = Cards.Card(line)
-                c.title = W.Font(c.inner, W.TITLE, SIZE.head, C.text)
-                c.title:SetPoint("TOPLEFT", c.inner, "TOPLEFT", 14, -16)
-                c.title:SetPoint("RIGHT", c.inner, "RIGHT", -14, 0)
-                c.title:SetText(pack.label)
-                local by = pack.author and string.format(L["By %s."], pack.author)
-                c.text = Cards.Text(c, by and pack.desc and (by .. " " .. pack.desc) or by or pack.desc or "")
-                c.text:SetPoint("TOPLEFT", c.title, "BOTTOMLEFT", 0, -8)
-                c.text:SetPoint("RIGHT", c.inner, "RIGHT", -14, 0)
-                c.buttons = {}
-                local below
-                for k = #entries, 1, -1 do
-                    local e = entries[k]
-                    local b = W.Button(c.inner, e.name, 26)
-                    if below then
-                        b:SetPoint("BOTTOMLEFT", below, "TOPLEFT", 0, 6)
-                        b:SetPoint("BOTTOMRIGHT", below, "TOPRIGHT", 0, 6)
-                    else
-                        b:SetPoint("BOTTOMLEFT", c.inner, "BOTTOMLEFT", 14, 14)
-                        b:SetPoint("BOTTOMRIGHT", c.inner, "BOTTOMRIGHT", -14, 14)
-                    end
-                    b:SetScript("OnClick", function() I.Start("quick", e.name) end)
-                    if e.sub then
-                        b:HookScript("OnEnter", function() W.Tooltip(b, e.name, e.sub) end)
-                        b:HookScript("OnLeave", W.HideTooltip)
-                    end
-                    c.buttons[e.name] = b
-                    below = b
+    page.defs = {}
+    for i, d in ipairs(defs) do
+        local c = Cards.Show(page, cw, S.cardH, ph, { titleSize = size[3], lineSize = size[4], noLine = size[5] })
+        c.key = d.key
+        c:SetPoint("TOPLEFT", page, "TOPLEFT", S.left + (i - 1) * (cw + S.gap), -S.cards)
+        c.title:SetText(d.title)
+        c.line:SetText(d.line)
+        if size[5] then c.tooltip = { d.title, d.line } end
+        local screen = Screen.New(c.picture, cw - 2 * (1 + Cards.SHOW_INSET))
+        screen:SetPoint("CENTER", c.picture, "CENTER", 0, 0)
+        screen.Set(d.state, true)
+        c.screen = screen
+        c:SetScript("OnClick", function() page.Pick(d.key, true) end)
+        if d.pack then page.packs[d.pack.id] = c end
+        page.cards[i] = c
+        page.defs[d.key] = d
+    end
+
+    page.hint = W.Font(page, W.BODY, SIZE.small, Style.INK.LABEL, "CENTER")
+    page.hint:SetPoint("TOP", page, "TOP", 0, -S.hint)
+    page.hint:SetText(L["Pick one to start. Everything can be changed later."])
+    page.go = W.HeroButton(page, L["Play now"], S.goH)
+    page.go:SetWidth(S.goW)
+    page.go.SetLabel(L["Play now"])
+    page.go:Hide()
+    page.goLine = W.Font(page, W.BODY, SIZE.small, Style.INK.LABEL, "CENTER")
+    page.goLine:SetPoint("TOP", page, "TOP", 0, -S.line)
+    page.goLine:Hide()
+    page.profile = W.MenuButton(page, "", S.menuH)
+    page.profile:SetWidth(S.menuW)
+    page.profile:Hide()
+
+    -- The profiles the menu button offers for the picked card: { names, label(name) }.
+    local function menuFor(key)
+        local d = page.defs[key]
+        if key == "keep" then
+            local names = showcase and DUI.Profiles.Names() or I.ExistingProfiles()
+            -- A character on the stand-in (nothing saved yet) still sees its profile's name.
+            if #names == 0 then names = { DUI.DB.ActiveName() } end
+            return names, function(n) return n end
+        elseif d and d.packs then
+            local names, labels = {}, {}
+            for _, p in ipairs(d.packs) do
+                for _, e in ipairs(p.entries) do
+                    names[#names + 1] = e.name
+                    labels[e.name] = key == "packs" and string.format(L["%s, by %s"], e.name, p.pack.author or p.pack.label)
+                        or e.name
                 end
-                c:SetSize(pw, ch)
-                c:SetPoint("TOPLEFT", line, "TOPLEFT", (i - first) * (pw + Cards.GAP), 0)
-                page.packs[pack.id] = c
             end
-            page.Add(line, ch, 12)
+            return names, function(n) return labels[n] or n end
         end
     end
 
-    -- A new run of the guide starts its profile pick on the active profile.
-    function page.Reset()
-        local names = page.names
-        if not (names and I.flow) then return end
-        I.flow.profile = names[1]
-        for _, name in ipairs(names) do
-            if name == DUI.DB.ActiveName() then I.flow.profile = name end
-        end
-        page.cards.mine.pick.Refresh()
+    local function fitWidth(b)
+        local text = b.text:GetText()
+        b.SetLabel(text, S.menuW)
+        b:SetWidth(S.menuW)
     end
-    page.Reset()
+
+    page.profile:SetScript("OnClick", function(b)
+        local names, label = menuFor(page.picked)
+        if not names then return end
+        local values = {}
+        for _, n in ipairs(names) do values[n] = label(n) end
+        W.OpenMenu(b, names, values, I.flow and I.flow.profile, function(v)
+            if I.flow then I.flow.profile = v end
+            b.SetLabel(label(v), S.menuW)
+            fitWidth(b)
+        end, S.menuW)
+    end)
+
+    -- The button row for the picked card: its words, its line and, for a
+    -- profile pick, the menu beside it (the pair centered).
+    local function acts(animate)
+        local key = page.picked
+        page.hint:SetShown(key == nil)
+        if not key then
+            page.go:Hide(); page.goLine:Hide(); page.profile:Hide()
+            return
+        end
+        local d = page.defs[key]
+        local words, line
+        if key == "mine" then
+            words, line = L["Let's go"], L["The guide walks you through it, one easy choice at a time. About 2 minutes."]
+        elseif key == "keep" then
+            words = showcase and L["Keep it"] or L["Use this"]
+            line = L["Nothing changes. Pick another profile from the list to move this character onto it."]
+        elseif d and d.pack then
+            words = L["Play now"]
+            line = d.pack.author and string.format(L["By %s. One reload and you're in."], d.pack.author)
+                or L["One reload and you're in."]
+        else
+            words, line = L["Play now"], L["One reload and you're in."]
+        end
+        -- The keep card always names its profile; a pack's list only when it has a choice.
+        local names, label = menuFor(key)
+        local menu = names ~= nil and (key == "keep" or #names > 1)
+        if names and I.flow then
+            local keep = false
+            for _, n in ipairs(names) do if n == I.flow.profile then keep = true end end
+            if not keep then
+                I.flow.profile = names[1]
+                for _, n in ipairs(names) do if n == DUI.DB.ActiveName() then I.flow.profile = n end end
+            end
+            page.profile.SetLabel(label(I.flow.profile), S.menuW)
+            fitWidth(page.profile)
+        end
+        local first = not page.go:IsShown()
+        page.go.SetLabel(words)
+        page.go:SetWidth(S.goW)
+        page.go:ClearAllPoints()
+        page.profile:ClearAllPoints()
+        if menu then
+            local total = S.menuW + S.menuGap + S.goW
+            local left = (UI.SHOW_W - total) / 2
+            page.profile:SetPoint("TOPLEFT", page, "TOPLEFT", left, -(S.acts + (S.goH - S.menuH) / 2))
+            page.go:SetPoint("TOPLEFT", page, "TOPLEFT", left + S.menuW + S.menuGap, -S.acts)
+        else
+            page.go:SetPoint("TOP", page, "TOP", 0, -S.acts)
+        end
+        page.goLine:SetText(line)
+        local wasMenu = page.profile:IsShown()
+        page.profile:SetShown(menu)
+        page.go:Show()
+        page.goLine:Show()
+        if animate and first then
+            Feel.Piece(page.go, 0, M.SLOW, S.lift)
+            Feel.Piece(page.goLine, S.step, M.SLOW, S.lift)
+            if menu then Feel.Piece(page.profile, 0, M.SLOW, S.lift) end
+        elseif animate then
+            M.Fade(page.goLine, 0, 1, M.FAST)
+            if menu and not wasMenu then Feel.Piece(page.profile, 0, M.NORMAL, 0) end
+        end
+    end
+
+    -- Picks a card (nothing is written: the button starts it).
+    function page.Pick(key, animate)
+        local was = page.picked
+        page.picked = key
+        for _, c in ipairs(page.cards) do
+            c.SetPicked(c.key == key, animate and key ~= was)
+            c.SetDim(key ~= nil and c.key ~= key, animate)
+        end
+        if animate and key ~= was and DUI.Sound then DUI.Sound.Play("toggle") end
+        acts(animate)
+    end
+
+    page.go:SetScript("OnClick", function()
+        local key, flow = page.picked, I.flow
+        if not (key and flow) then return end
+        if key == "mine" then
+            I.Start("tour")
+        elseif key == "keep" then
+            I.Start(showcase and "keep" or "existing", flow.profile)
+        elseif page.defs[key] and page.defs[key].packs then
+            I.Start("quick", flow.profile)
+        else
+            I.Start("quick", key)
+        end
+    end)
 
     function page.Refresh()
-        page.greeting:SetText(I.GreetingText())
-        if page.cards.mine then page.cards.mine.pick.Refresh() end
+        local Installer = DUI.Installer
+        local r, g, b = Style.Accent()
+        page.title.Set(Installer.GreetingText({ r, g, b }))
+        page.title.Paint()
+        page.plaque.Paint()
+        local rec = Installer.Recommended()
+        for _, c in ipairs(page.cards) do
+            if c.key == "keep" and showcase then
+                c.SetTag(L["In use"])
+            elseif c.key == rec then
+                c.SetTag(L["Suggested for you"])
+            else
+                c.SetTag(nil)
+            end
+        end
     end
+
+    -- A new run starts with nothing picked, or with "Keep my setup" for a set-up character.
+    function page.Reset()
+        if I.flow then I.flow.profile = nil end
+        page.go:Hide()
+        page.Pick(showcase and "keep" or nil, false)
+    end
+
+    -- After the sunrise: the plaque, the title, the question, the cards one by
+    -- one, then the hint (or the button, when something is picked already).
+    function page.Play()
+        local slow = M.SLOW
+        Feel.Piece(page.plaque, S.at, slow, S.lift / 2)
+        Feel.Piece(page.title, S.at + S.step, slow, S.lift)
+        Feel.Piece(page.ask, S.at + 2 * S.step, slow, S.lift / 2)
+        for i, c in ipairs(page.cards) do Feel.Piece(c, S.cardsAt + (i - 1) * S.step, slow, S.lift) end
+        local last = S.cardsAt + #page.cards * S.step
+        if page.picked then
+            if page.profile:IsShown() then Feel.Piece(page.profile, last, slow, S.lift) end
+            Feel.Piece(page.go, last, slow, S.lift)
+            Feel.Piece(page.goLine, last + S.step, slow, S.lift)
+        else
+            Feel.Piece(page.hint, S.hintAt, slow, S.lift / 2)
+        end
+    end
+
+    page.Reset()
+    page.Refresh()
     return page
 end
 
