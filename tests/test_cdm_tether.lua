@@ -895,30 +895,27 @@ test("cdm tether: the frame list starts with where you put it, then each area's 
         "a language that names them the other way round sorts them the other way round")
 end)
 
-test("cdm tether: a switched-off frame or a saved frame not here is listed in its area, named and marked; a ready one or one that would loop is plain", function()
+test("cdm tether: a switched-off frame or a saved frame not here is listed in its area and named so; a ready one or one that would loop by its plain name", function()
     local world = tetherWorld({ unitFrames = true, lead = false })
     local DUI, Tether = world.DUI, world.Tether
     local L = DUI.L
     hangOff(lead("plugin.Test.onGroup"), pieceFrame(1, 11))
     Tether.Stale()
     T.eq(Tether.State("plugin.Test.onGroup"), "loop")
-    local values, keys, _, off = Tether.Choices()
+    local values, keys = Tether.Choices()
     local switchedOffName = L["%s (off)"]:format(L["Personal Display"])
     T.truthy(indexOf(keys, "unitframes.personal"), "a switched-off frame is still listed, so it can be picked")
-    T.eq(off["unitframes.personal"], true, "marked off")
     T.eq(values["unitframes.personal"], switchedOffName)
     local plainNames = { ["unitframes.player"] = L["Player"], [Tether.NONE] = L["Where you put it"],
         ["plugin.Test.onGroup"] = "plugin.Test.onGroup" }
     for key, name in pairs(plainNames) do
-        T.isnil(off[key], key .. " isn't marked off")
         T.eq(values[key], name, key .. " listed by its plain name")
     end
     local titles
-    values, keys, titles, off = Tether.Choices("buffs.buff")
+    values, keys, titles = Tether.Choices("buffs.buff")
     local notHereName = L["%s (not here)"]:format("buffs.buff")
     T.eq(Tether.State("buffs.buff"), "missing")
     T.eq(headingsOf(values, keys, titles)["buffs.buff"], L["Buffs"], "under its own area's heading")
-    T.eq(off["buffs.buff"], true, "marked off")
     T.eq(values["buffs.buff"], notHereName, "by its saved key")
     lead("plugin.Boxes.box")
     values, keys, titles = Tether.Choices("plugin.Alpha.gone")
@@ -951,7 +948,7 @@ test("cdm tether: X and Y are measured from a lead there to follow, switched off
     expectMeasuredFrom(nil, fromMiddle, "a lead that would loop")
 end)
 
-test("cdm card: Attach to is the Group tab's first row, a full column wide under its heading; picking a frame that can't be measured or would loop leaves the group following nothing; a saved one not here shows by its key, in the off color", function()
+test("cdm card: Attach to is the Group tab's first row, a full column wide under its heading; picking a frame that can't be measured or would loop leaves the group following nothing; a saved one not here shows by its key", function()
     local world = tetherWorld({ pick = true })
     local DUI, D, Tether, set, row = world.DUI, world.D, world.Tether, world.set, world.row
     local Card = world.AB.CdmCard
@@ -990,13 +987,11 @@ test("cdm card: Attach to is the Group tab's first row, a full column wide under
     local box = row.frame.control
     T.eq(row.item.get(), "plugin.Gone.frame")
     T.eq(box.text:GetText(), notHere, "its saved key, not where you put it")
-    T.rgb({ box.text:GetTextColor() }, DUI.Style.INK.OFF, "in the off color")
     box:Click()
     local listed = visibleMenuRowOf(DUI.Widgets, "plugin.Gone.frame")
     T.truthy(listed, "in view as the list opens")
     T.truthy(listed.check:IsShown(), "ticked as the current choice")
     T.eq(listed.text:GetText(), notHere)
-    T.rgb({ listed.text:GetTextColor() }, DUI.Style.INK.OFF, "in the off color in the list")
 end)
 
 test("cdm card: picking a switched-off frame that has a place on screen attaches the group where it is, its X and Y its middle from the lead's point", function()

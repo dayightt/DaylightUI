@@ -192,11 +192,6 @@ function Tether.MeasuredFrom(set, id)
     return L["Measured from the middle of the screen."]
 end
 
-function Tether.IsUnavailable(key)
-    if not Data.IsFrameKey(key) then return false end
-    return unavailableNameFormat(Tether.State(key)) ~= nil
-end
-
 local function isListedLead(key, entry)
     if entry.proxy or isCdmFrame(entry.frame) then return false end
     return key:find("^cdm%.") == nil
@@ -232,7 +227,7 @@ end
 
 -- For W.dropdown. A saved lead not here for this character still shows. New tables each call.
 function Tether.Choices(savedKey)
-    local values, keys, titles, off = { [Tether.NONE] = L["Where you put it"] }, { Tether.NONE }, {}, {}
+    local values, keys, titles = { [Tether.NONE] = L["Where you put it"] }, { Tether.NONE }, {}
     local areas, listed = areasInOrder(), {}
     for _, key in ipairs(DUI.Movers.Keys()) do
         local entry = DUI.Movers.Get(key)
@@ -253,11 +248,10 @@ function Tether.Choices(savedKey)
             sortByLabel(area.keys)
             for _, key in ipairs(area.keys) do
                 keys[#keys + 1], values[key] = key, Tether.Name(key)
-                if Tether.IsUnavailable(key) then off[key] = true end
             end
         end
     end
-    return values, keys, titles, off
+    return values, keys, titles
 end
 
 local function isPlainNumber(value)

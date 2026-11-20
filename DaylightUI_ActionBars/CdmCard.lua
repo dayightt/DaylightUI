@@ -473,8 +473,7 @@ local function attachTo()
     local Tether = ns.CdmTether
     local item = chain("tether", { type = "dropdown", label = "Attach to",
         desc = "Which frame this group follows. It keeps its spot beside that frame as the frame moves, but still shows and fades by its own rules.",
-        shownAs = function(v) return Tether.Name(v) end,
-        offShown = function(v) return Tether.IsUnavailable(v) end })
+        shownAs = function(v) return Tether.Name(v) end })
     local readSavedTether = item.get
     item.get = function()
         local value = readSavedTether()
