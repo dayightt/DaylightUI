@@ -390,6 +390,9 @@ local function truthUp(id, holder)
     -- own cast. Where the holder can read it whoever cast it, that's the better
     -- word; where it can't, yours being up or down is the best there is.
     if A and A.GameBlind(id) and A.Knows(holder) then return nil end
+    -- A row that doesn't list the rank you know: its item saying up is still true
+    -- (a lower rank), but its silence isn't a down.
+    if A and A.Short(id) then return buffUp(holder and holder.ids) == true or nil end
     local item = auraItems[id] or (elsewhereAura[id] and elsewhere[id]) or nil
     if item then return itemUp(item, true) end
     if auraHolders[id] then return itemUp(auraHolders[id], false) end
@@ -590,6 +593,8 @@ local function heldState(id, p, item)
     elseif A and t then
         local w = A.Watch(id)
         up = buffUp(w.ids)
+        -- A row that doesn't list the rank you know can't call the buff down.
+        if up == false and A.Short(id) then up = nil end
         -- The game's buff item is in a row that only shows in a fight: until then
         -- the aura reads plainly. With no item at all nothing can tell, and the
         -- card leaves its state rows out.

@@ -697,3 +697,68 @@ T.test("cdm game: the card is drawn again once a just-placed buff has been looke
     Ed.Close()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The game's item finds an aura only by the spell ids its row lists. Some rows
+-- stop at rank 1: Sap's lists none of the debuffs its higher ranks leave, and
+-- Touch of Weakness's lists the debuff on your attacker but not the buff's own
+-- higher ranks. With such a rank learned the item stays dark while the aura is up,
+-- so its "down" is no answer and Daylight UI draws the aura itself.
+local SAP, SAP_2 = 6770, 2070
+local TOUCH_3 = 19262
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: Sap from a rank the game's row doesn't list shows on the sapped target (" .. shape .. ")", function()
+    stub.knownSpells = {}
+    local DUI, AB, D, R = classWorld("ROGUE", SAP, { SAP, SAP_2 })
+    local id = CW.ID(SAP, BUFFS)
+    local set = D.Current()
+    D.AddPiece(set, id, shape, 0, 0)
+    pass(AB)
+    stub.EnterCombat()
+    CW.Aura("target", SAP_2, { harmful = true, duration = 35 }); stub.RunTimers()
+    T.falsy(CW.Item(id).isActive, "the game's item never sees rank 2's debuff")
+    T.eq(R.DrawnBy(id), shape == "bar" and "aura bar" or "aura icon", "so Daylight UI draws it")
+    T.truthy(pieceFrame(id):IsShown(), "and its piece is on screen")
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id)
+    T.truthy(h.ids[SAP_2], "watching rank 2's debuff")
+    local onTarget = false
+    for _, k in ipairs(h.containers) do
+        if k.unit == "target" and string.find(k.filter, "HARMFUL", 1, true) then onTarget = true end
+    end
+    T.truthy(onTarget, "among your debuffs on the target")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm game: Touch of Weakness from a rank the game's row doesn't list isn't called missing (" .. shape .. ")", function()
+    stub.knownSpells = {}
+    local DUI, AB, D, R, Fx = classWorld("PRIEST", TOUCH, { TOUCH, 19261, TOUCH_3 })
+    local id = CW.ID(TOUCH, BUFFS)
+    local set = D.Current()
+    D.AddPiece(set, id, shape, 0, 0)
+    set.pieces[id].missingGlow = true
+    pass(AB)
+    CW.Aura("player", TOUCH_3, { duration = 600 }); stub.RunTimers()
+    stub.EnterCombat(); stub.RunTimers()
+    T.falsy(CW.Item(id).isActive, "the game's item never sees rank 3's buff")
+    T.eq(R.DrawnBy(id), shape == "bar" and "aura bar" or "aura icon", "so Daylight UI draws it")
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id)
+    T.truthy(h.ids[TOUCH_3], "watching rank 3's buff")
+    T.falsy(Fx.GlowShown(h), "the buff is up: no missing glow from the item's silence")
+    T.eq(R.Tracked(id), false, "nothing can tell in a fight, so the card leaves the state rows out")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm game: a row that lists every rank you know keeps the game's item as its word (" .. shape .. ")", function()
+    stub.knownSpells = {}
+    local DUI, AB, D, R = classWorld("ROGUE", SAP, { SAP })
+    local id = CW.ID(SAP, BUFFS)
+    D.AddPiece(D.Current(), id, shape, 0, 0)
+    pass(AB)
+    T.falsy(AB.CdmAuras.GameBlind(id), "rank 1 alone is on the row")
+    CW.Aura("target", SAP, { harmful = true, duration = 25 }); stub.RunTimers()
+    T.truthy(CW.Item(id).isActive, "the game's item sees it")
+    T.truthy(R.Tracked(id), "and answers for it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end

@@ -150,8 +150,50 @@ end
 function A.GameBlind(id)
     local own, C = ownKey(id), ns.CdmCustom
     return own ~= nil and (C.Trap(own) or C.OnPet(own) or C.SummonFacts(own) ~= nil
-        or C.Shared(own) or C.Unique(own))
+        or C.Shared(own) or C.Unique(own) or A.Short(id))
 end
+
+-- The game's item finds an aura only by the spell ids its row lists, and some rows
+-- stop short of the ranks a spell has: Sap's lists none of the debuffs its higher
+-- ranks leave, Touch of Weakness's none of the buff's. With such a rank learned the
+-- item stays dark while the aura is up, so its "down" means nothing. True when the
+-- highest rank you know puts up an aura under its own id that no row of the spell
+-- lists. Kept per piece until the spells or the game's rows change.
+local short = {}
+function A.Short(id)
+    local v = short[id]
+    if v ~= nil then return v end
+    v = false
+    local own, C = ownKey(id), ns.CdmCustom
+    local top = own ~= nil and C.Learned(own) or nil
+    local fact = top and C.Fact(top)
+    local CV, cats = _G.C_CooldownViewer, type(_G.Enum) == "table" and _G.Enum.CooldownViewerCategory
+    if fact and fact.on ~= nil and fact.auras == nil
+        and type(CV) == "table" and type(CV.GetCooldownViewerCategorySet) == "function" and type(cats) == "table" then
+        local ranks, listed, rows = C.Ranks(own), {}, 0
+        for _, cat in pairs(cats) do
+            local list = type(cat) == "number" and CV.GetCooldownViewerCategorySet(cat, true) or nil
+            for _, cid in ipairs(type(list) == "table" and list or {}) do
+                local info = plain(cid) and infoOf(cid)
+                if info and (cid == id or ranks[plain(info.spellID)]) then
+                    rows = rows + 1
+                    for _, k in ipairs({ "spellID", "overrideSpellID", "overrideTooltipSpellID", "linkedSpellID" }) do
+                        local s = plain(info[k]); if s then listed[s] = true end
+                    end
+                    for _, s in ipairs(type(info.linkedSpellIDs) == "table" and info.linkedSpellIDs or {}) do
+                        if plain(s) then listed[s] = true end
+                    end
+                end
+            end
+        end
+        v = rows > 0 and not listed[top]
+    end
+    short[id] = v
+    return v
+end
+local function forgetShort() for k in pairs(short) do short[k] = nil end end
+DUI.RegisterEvent("SPELLS_CHANGED", forgetShort)
+for _, e in ipairs(ns.CdmData.INFO_EVENTS) do DUI.RegisterEvent(e, forgetShort) end
 
 -- The game's item never sees this aura at all: a trap's debuff, a buff on your pet,
 -- a summoned helper. (A buff others can cast too it does see, only never theirs.)
