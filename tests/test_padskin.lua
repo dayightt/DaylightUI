@@ -48,6 +48,14 @@ T.test("padskin: every button of the game's bars wears the look, none moved or r
     done()
 end)
 
+T.test("padskin: no range dot, which the font draws as a box; the icon fades instead", function()
+    local DUI, main = setup(true)
+    local b = main.PageUnit.actionBars.topBar.actionButtons[5]
+    b.RangeIndicator:Show()
+    T.eq(b.RangeIndicator:GetAlpha(), 0)
+    done()
+end)
+
 T.test("padskin: the D-pad side is square, the face buttons round, as the game has them", function()
     local DUI, main = setup(true)
     local bar = main.PageUnit.actionBars.topBar

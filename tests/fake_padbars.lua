@@ -50,6 +50,10 @@ local function makeButton(parent, name)
         b[k]:SetAtlas("gamepad-actionbar-" .. k)
         b[k]:Hide()
     end
+    -- The game's range dot, shown on every range-checked slot (RefreshRange).
+    b.RangeIndicator = b:CreateFontString()
+    b.RangeIndicator:SetText(RANGE_INDICATOR or "ic")
+    b.RangeIndicator:Hide()
     b.ButtonIcon = CreateFrame("Frame", nil, b)
     b.ButtonIcon.__w, b.ButtonIcon.__h = 15, 15
     b.ButtonIcon.__points = { { "TOPRIGHT", b, "TOPRIGHT", -1, -1 } }

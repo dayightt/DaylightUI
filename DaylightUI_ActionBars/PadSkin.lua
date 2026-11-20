@@ -58,6 +58,11 @@ local function dress(b, i, bar)
         local tex = b[key]
         if type(tex) == "table" and tex.SetTexture then tex:SetTexture(nil) end
     end
+    -- The game's range dot is a bullet character the Daylight UI font has no glyph for,
+    -- so it drew a box. Out of range already fades the icon. The game only shows, hides
+    -- and tints the dot, so an alpha of 0 holds.
+    local dot = b.RangeIndicator
+    if type(dot) == "table" and dot.SetAlpha then dot:SetAlpha(0) end
     if bar.isGamepadPossessBar then ns.Skin.SetPet(b) end
     ns.Skin.SetPad(b, i >= PadSkin.ROUND_FROM)
     ns.Skin.Apply(b)
