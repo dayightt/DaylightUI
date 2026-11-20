@@ -208,14 +208,18 @@ function Layout.Build(snap, o, measure)
         return o.filter ~= "zone" or g.name == snap.zone or (snap.here and snap.here[g.name])
     end
     -- Quests ready to hand in can gather in their own section after the rest.
-    -- Never mid-fight: nothing moves under the mouse until it ends.
-    local ready, rest = {}, {}
-    if o.readyLast and not o.frozen then
+    -- In a fight the section keeps the quests it had before it (o.frozenReady), so
+    -- nothing moves under the mouse: one turning ready waits in its zone until the end.
+    local ready, rest, readyIDs = {}, {}, {}
+    if o.readyLast then
+        local inReady = o.frozen and o.frozenReady
+            and function(q) return o.frozenReady[q.id] == true end
+            or function(q) return q.state == "ready" end
         for _, g in ipairs(snap.groups) do
             local keep = {}
             for _, q in ipairs(g.quests) do
-                if q.state == "ready" then
-                    if shownZone(g) then ready[#ready + 1] = q end
+                if inReady(q) then
+                    if shownZone(g) then ready[#ready + 1] = q; readyIDs[q.id] = true end
                 else
                     keep[#keep + 1] = q
                 end
@@ -260,7 +264,7 @@ function Layout.Build(snap, o, measure)
             for _, a in ipairs(snap.achievements) do push(achBlock(a, o, measure, gap)) end
         end
     end
-    return blocks, y
+    return blocks, y, readyIDs
 end
 
 -- What changed between two layouts, by key.

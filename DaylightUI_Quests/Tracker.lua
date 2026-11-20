@@ -128,6 +128,7 @@ function Tracker.Options()
              recent = db.sort == "recent" and Tracker.Recent() or nil, near = Tracker.near,
              frozen = InCombatLockdown() and Tracker.order or nil,
              frozenZones = InCombatLockdown() and Tracker.zoneOrder or nil,
+             frozenReady = InCombatLockdown() and Tracker.readyIDs or nil,
              foldReady = db.foldReady, readyLast = db.readyLast, emptyHeader = db.emptyHeader }
 end
 
@@ -467,7 +468,7 @@ function Tracker.Render(animate, ifChanged)
         end
     end
     Tracker.NoteProgress(snap)
-    local blocks, height = ns.Layout.Build(snap, Tracker.Options(), Tracker.Measure)
+    local blocks, height, readyIDs = ns.Layout.Build(snap, Tracker.Options(), Tracker.Measure)
     if ifChanged and not Tracker.held and ns.Layout.Same(shown, blocks) then
         Tracker.reasons = { enter = {}, leave = {}, far = {}, fold = false }
         return
@@ -533,6 +534,7 @@ function Tracker.Render(animate, ifChanged)
         local zones = {}
         for i, g in ipairs(snap.groups) do zones[g.name] = i end
         Tracker.zoneOrder = zones
+        Tracker.readyIDs = readyIDs
     end
     local ends, now = Tracker.timerEnds, GetTime()
     for k in pairs(ends) do ends[k] = nil end

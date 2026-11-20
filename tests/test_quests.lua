@@ -2893,6 +2893,34 @@ T.test("ready last: quests ready to hand in gather in their own section after th
     T.deq(order(Tr), before, "off: back in their zones")
 end)
 
+-- Seen in game: with the section folded, every kill in a fight brought the ready
+-- quests back up into their zones, and they dropped down again after it.
+local function readyHeader(Tr)
+    for _, b in ipairs(Tr.shown) do if b.kind == "header" and b.id == "ready" then return b end end
+end
+T.test("ready last: in a fight the ready section stays as it was, folded or not", function()
+    local Tr = tracker({ quests = { QW.quest(1, "A", { complete = true }), QW.quest(2, "B", { objs = kills(1) }),
+        QW.quest(3, "C", { objs = kills(1) }) } })
+    DaylightUI:Set("Quests", "readyLast", true)
+    DaylightUI.DB.Character().questFolds = { ready = true }
+    stub.RunTimers()
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.deq(order(Tr), { 2, 3 }, "folded: only the quests still to do show")
+    stub.EnterCombat()
+    QW.state.quests[2].objs = kills(2)
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.deq(order(Tr), { 2, 3 }, "a kill in a fight brings no ready quest back up")
+    T.truthy(readyHeader(Tr), "the section stays")
+    QW.state.quests[3].complete = true
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.deq(order(Tr), { 2, 3 }, "one turning ready in a fight waits in its zone")
+    T.eq(readyHeader(Tr).count, "1")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.deq(order(Tr), { 2 }, "after it, it goes down")
+    T.eq(readyHeader(Tr).count, "2")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- A dungeon's quests and one from outside it, tracked; inside, the game's
 -- zone is the dungeon's name.
 local function dungeon(opts)
