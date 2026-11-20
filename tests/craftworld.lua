@@ -187,7 +187,8 @@ function PW.SetBag(itemID, n)
 end
 
 -- A skill point: the rank goes up and the list event comes.
--- Items an enchant can go on: { { guid, name, enchant = what's on it } }.
+-- Items an enchant can go on: { { guid, name, enchant = what's on it, stacks = its
+-- stack size (gear: none) } }.
 function PW.EnchantItems(list) S().enchantItems = list end
 
 -- The game's rule (its REPLACE_TRADESKILL_ENCHANT dialog): an item with an enchant
@@ -304,6 +305,7 @@ local function install()
     C_Item.GetItemName = function(loc) return loc.name end
     C_Item.GetItemIcon = function(loc) return loc.icon or 134952 end
     C_Item.GetItemQuality = function(loc) return loc.quality or 2 end
+    C_Item.GetItemMaxStackSize = function(loc) return loc.stacks or 1 end
     C_Item.ReplaceTradeskillEnchant = function()
         record("ReplaceTradeskillEnchant")
         if S().crafting then S().crafting.asking = nil end
@@ -460,7 +462,12 @@ local function install()
             if refused("CraftEnchant") then return end
             local r = recipe(id)
             if not (r and target) then return end
-            S().crafting = { id = id, name = r.name, mats = r.mats, left = n or 1, target = target }
+            -- The game's own window only ever asks for more than one cast onto an item
+            -- that stacks (ProfessionsCraftingPageMixin:GetCraftableCount counts gear as
+            -- one). Asked for more on gear, the first cast lands and no other starts, with
+            -- no event to say so (a player's "Making 2 of 29").
+            local casts = (target.stacks or 1) > 1 and (n or 1) or 1
+            S().crafting = { id = id, name = r.name, mats = r.mats, left = casts, target = target }
             askReplace(S().crafting)
         end,
         GetEnchantItems = function()

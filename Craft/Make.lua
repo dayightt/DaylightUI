@@ -12,10 +12,12 @@
 --
 -- An enchant (isEnchantingRecipe) with no item picked is cast once with CraftEnchant
 -- and no target, and the game asks the player to click the item. With an item picked
--- ("Enchant on", on the recipe side) it goes straight onto it as many times as asked,
--- so leveling on one pair of bracers is one press. The game's "replace this enchant?"
--- prompt is shown the first time; after that the existing enchant is one the player
--- just applied, so it's answered automatically.
+-- ("Enchant on", on the recipe side) each press goes straight onto it, once: the game's
+-- own window never asks for a second cast on a piece of gear, and a run asked for
+-- anyway stopped after its first. Only an item that stacks (a scroll to store the
+-- enchant in) takes an amount and Enchant all, as in the game's window. The game's
+-- "replace this enchant?" prompt is shown the first time; after that the existing
+-- enchant is one the player just applied, so it's answered automatically.
 
 local _, DUI = ...
 DUI.Craft = DUI.Craft or {}
@@ -81,8 +83,10 @@ function Make.Targets(r)
     for _, guid in ipairs(guids) do
         local loc = not secret(guid) and plain(C_Item.GetItemLocation, guid)
         if loc then
+            local stack = plain(C_Item.GetItemMaxStackSize, loc)
             out[#out + 1] = { guid = guid, loc = loc, name = plain(C_Item.GetItemName, loc) or "",
-                icon = plain(C_Item.GetItemIcon, loc), quality = plain(C_Item.GetItemQuality, loc) }
+                icon = plain(C_Item.GetItemIcon, loc), quality = plain(C_Item.GetItemQuality, loc),
+                stacks = type(stack) == "number" and stack > 1 }
         end
     end
     return out
@@ -98,6 +102,16 @@ function Make.TargetFor(r)
         if byGuid[guid] then return byGuid[guid], list end
     end
     return nil, list
+end
+
+-- Can this recipe be made several times in one go? Anything but an enchant can. An
+-- enchant only onto an item that stacks, the game's own rule for its Enchant All
+-- button (ProfessionsCraftingPageMixin:ValidateControls): gear takes one cast a press.
+function Make.Many(r)
+    if not r then return false end
+    if not r.enchant then return true end
+    local target = Make.TargetFor(r)
+    return target ~= nil and target.stacks == true
 end
 
 function Make.SetTarget(guid)
@@ -202,12 +216,12 @@ end
 function Make.Create()
     local r = Make.recipe
     if not r or r.count < 1 then return end
-    Make.Start(r, (r.enchant and not Make.TargetFor(r)) and 1 or (Make.amount or 1))
+    Make.Start(r, Make.Many(r) and (Make.amount or 1) or 1)
 end
 
 function Make.CreateAll()
     local r = Make.recipe
-    if not r or r.count < 2 or (r.enchant and not Make.TargetFor(r)) then return end
+    if not r or r.count < 2 or not Make.Many(r) then return end
     Make.Start(r, r.count)
 end
 
@@ -371,7 +385,7 @@ function Make.PadKeys(f)
         run = function() Make.Create() end, when = function() return can(1) end,
         hold = { label = function() return allWords(Make.recipe.count, Make.recipe.enchant) end,
                  run = function() Make.CreateAll() end,
-                 when = function() return can(2) and not (Make.recipe.enchant and not Make.TargetFor(Make.recipe)) end } })
+                 when = function() return can(2) and Make.Many(Make.recipe) end } })
 end
 
 -- The footer for recipe r (nil: none selected). A new recipe starts at one.
@@ -386,7 +400,7 @@ function Make.Paint(r)
         if Make.box then Make.box:Hide() end
         return
     end
-    local many = not r.enchant or Make.TargetFor(r) ~= nil
+    local many = Make.Many(r)
     local waiting = ns.Data.Waiting(r.id)
     local list = { { text = verb(r), primary = true, off = r.count < 1 or waiting, onClick = Make.Create } }
     if many then
