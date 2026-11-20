@@ -2183,6 +2183,8 @@ function stub.SecureClick(b, button, down)
             if text == "/reload" then ReloadUI()
             elseif type(text) == "string" then slashLine(text) end
         end
+        -- Type "spell": a test world that cares what a cast does sets stub.CastSpell.
+        if acts and attr("type") == "spell" and stub.CastSpell then stub.CastSpell(attr("spell")) end
         if acts and b:GetAttribute("type") == "attribute" then
             local frame = b:GetAttribute("attribute-frame") or b
             local name = b:GetAttribute("attribute-name")

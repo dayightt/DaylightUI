@@ -12,6 +12,7 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
+        { "Professions", "The Herbalism and Fishing tabs in the profession window open Gardening and Bait and Tackle again" },
         { "Unit frames", "The red combat glow on square portraits is as soft as on round ones" },
         { "Unit frames", "No more error when a cast is interrupted again right after another interrupt" },
         { "Quests", "Zone names in the quest tracker no longer pile on top of each other when quests come in right after logging in" },
