@@ -34,9 +34,11 @@ ns.DEFAULTS = {
     titleSize = 15,  -- a name, an item's name, a spell's name
     smallSize = 12,  -- sub lines, the quote, small facts
     bgAlpha = 0.92,
-    -- On by default, unlike the windows: tooltips stay a little more solid
-    -- than the shared window opacity, as they always were.
+    -- Their own border and background, on by default unlike the windows:
+    -- tooltips stay a little more solid than the shared window opacity, as
+    -- they always were. Off, both follow General.
     bgAlphaOwn = true,
+    borderPx = 8,
     classColors = true,     -- players' names in their class color
     classBorder = true, -- class-colored border too
     borderGradient = false, -- border uses the unit's class (or reaction) gradient

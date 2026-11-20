@@ -202,6 +202,20 @@ T.test("tooltip: any other tooltip is skinned the first time it's filled", funct
     T.truthy(Tip.Shell(other))
 end)
 
+T.test("tooltip: its own border thickness, or General's with its own look off", function()
+    local Tip = login()
+    local Style = DaylightUI.Style
+    T.eq(Style.BorderPx(GameTooltip), 8, "as thick as every other frame out of the box")
+    DaylightUI:Set("Tooltip", "borderPx", 5)
+    stub.RunTimers()
+    T.eq(Style.BorderPx(GameTooltip), 5, "its own thickness")
+    DaylightUI:Set("general", "borderPx", 10)
+    DaylightUI:Set("Tooltip", "bgAlphaOwn", false)
+    stub.RunTimers()
+    T.eq(Style.BorderPx(GameTooltip), 10, "General's, with its own look off")
+    T.eq(Tip.BackAlpha(), DaylightUI.DB.General().windowAlpha, "and General's background")
+end)
+
 T.test("tooltip: our font on the game's tooltip fonts, sized by the option", function()
     login()
     T.eq(GameTooltipText.__font[2], 13)

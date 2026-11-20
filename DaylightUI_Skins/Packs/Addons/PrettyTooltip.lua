@@ -33,7 +33,6 @@ Engine.AddonSwitch({ key = "prettytooltip", addon = ADDON, label = "PrettyToolti
 local PS = {
     EDGE = 0.36, -- edge brightness as a fraction of its accent
     PLAIN = 0.08, -- r, g, b within this of each other = white or gray, no border color
-    BORDER = 3, -- same as the Daylight tooltips (Tooltip.lua Tip.BORDER)
     -- Its art on the panel, hidden. Icon, level badge and rules stay.
     ART = { "halo", "background", "glow", "header" },
     ART_LISTS = { "edges", "shades" },
@@ -58,7 +57,7 @@ end
 
 local function opts()
     local alpha = DUI:Get("Tooltip", "bgAlpha")
-    return { borderPx = PS.BORDER, flat = true, noBevel = true, bgAlpha = plain(alpha) and alpha or nil }
+    return { flat = true, noBevel = true, bgAlpha = plain(alpha) and alpha or nil }
 end
 
 -- The tab above a compare panel, like the Daylight tooltips' (Tip.SkinHeader).

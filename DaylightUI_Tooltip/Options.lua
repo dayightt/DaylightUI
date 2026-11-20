@@ -2,7 +2,15 @@
 
 local _, ns = ...
 
+-- The background switch also gives the tooltips their own border, so it's one
+-- "own look" switch with both rows under it.
 local backRows = DaylightUI.Options.BackAlphaRows("bgAlpha", "Tooltip")
+backRows[1].label = "Own border and background"
+backRows[1].since = "2.0"
+backRows[1].desc = "Gives the tooltips their own border thickness and background opacity, set in the rows below. When off, they follow General > Appearance like every window."
+local ownOff = function(get) return get("bgAlphaOwn") ~= true end
+backRows[3] = { type = "slider", key = "borderPx", label = "Tooltip border thickness", min = 0, max = 16, step = 1, unit = "px", since = "2.0",
+    desc = "How thick the border around the tooltips is. 0 leaves no outline.", hidden = ownOff }
 
 ns.OPTIONS = { pages = {
     { id = "tooltip", label = "Tooltips",
@@ -70,7 +78,7 @@ ns.OPTIONS = { pages = {
                 { since = "1.9.7", follows = { slot = "tooltip.font", label = "Tooltip font" } }),
         } },
         { label = "Look", items = {
-            backRows[1], backRows[2],
+            backRows[1], backRows[2], backRows[3],
             { type = "toggle", key = "classColors", label = "Class-colored names",
               desc = "A player's name in their class color; other units in their reaction's color." },
             { type = "toggle", key = "classBorder", label = "Class-colored border",

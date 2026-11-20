@@ -23,9 +23,9 @@ ns.Tooltip = Tip
 -- data. The aura buttons' tooltip is different: see Tip.StyleAuraTooltip.
 Tip.NAMED = { "GameTooltip", "ItemRefTooltip", "ShoppingTooltip1", "ShoppingTooltip2",
               "ItemRefShoppingTooltip1", "ItemRefShoppingTooltip2", "EmbeddedItemTooltip", "BuffFrameTooltip" }
--- A slim, plain border. No warm band, since a tooltip has no bars inside to
--- cover the band's corner pieces. Class and quality colors tint all of it.
-Tip.BORDER = 3
+-- A plain border, as thick as the tooltips' own setting or General's. No warm
+-- band, since a tooltip has no bars inside to cover the band's corner
+-- pieces. Class and quality colors tint all of it.
 Tip.BAR_GAP = 3 -- gap between the tooltip and its health bar
 -- Free-standing tooltips the Size setting scales (embedded ones scale with
 -- their parent frame).
@@ -53,6 +53,14 @@ function Tip.Config() return cfg end
 -- The background opacity of the skinned look, or of the rich card ("rich").
 function Tip.BackAlpha(which)
     return Style.BackAlpha(cfg and cfg.bgAlphaOwn, cfg and (which == "rich" and cfg.richAlpha or cfg.bgAlpha))
+end
+
+-- The border thickness every tooltip shell takes (a shell's borderPx function,
+-- read at each layout): the tooltips' own with their own look on, else g,
+-- General's.
+function Tip.BorderPx(g)
+    local own = cfg and cfg.bgAlphaOwn == true and tonumber(cfg.borderPx)
+    return own or g
 end
 
 -- To get rid of a tooltip, set alpha 0, never Hide(). Hiding the game's
@@ -133,7 +141,7 @@ function Tip.Skin(tip)
     -- frame (Tip.HideArt). No hook on its SetAlpha: the game's own calls to a
     -- hooked method failed with "attempt to call a nil value".
     Tip.HideArt(tip)
-    local s = Style.Shell(tip, { borderPx = Tip.BORDER, flat = true, noBevel = true, bgAlpha = backAlpha() })
+    local s = Style.Shell(tip, { borderPx = Tip.BorderPx, flat = true, noBevel = true, bgAlpha = backAlpha() })
     skinned[tip] = s
     -- A clicked item's close button (ItemRefTooltip.CloseButton). Done here,
     -- not in Skins, since this module can run without it.
@@ -183,12 +191,12 @@ function Tip.SkinHeader(tip)
     for _, r in ipairs({ h:GetRegions() }) do
         if r.GetObjectType and r:GetObjectType() == "Texture" then r:SetAlpha(0) end
     end
-    local s = Style.Shell(h, { borderPx = Tip.BORDER, flat = true, noBevel = true, bgAlpha = backAlpha() })
+    local s = Style.Shell(h, { borderPx = Tip.BorderPx, flat = true, noBevel = true, bgAlpha = backAlpha() })
     if not s then return end
     s:ClearAllPoints()
     -- The header's left edge is the tooltip's.
     s:SetPoint("TOPRIGHT", h, "TOPRIGHT")
-    s:SetPoint("BOTTOMLEFT", tip, "TOPLEFT", 0, -DUI.Pixel.Px(tip, Tip.BORDER))
+    s:SetPoint("BOTTOMLEFT", tip, "TOPLEFT", 0, -DUI.Pixel.Px(tip, Style.BorderPx(h)))
     Style.LayoutShell(s)
     headers[tip] = s
     if type(h.Label) == "table" then Style.InkText(h.Label, "LABEL") end
@@ -1904,7 +1912,7 @@ Tip.WHITE = "Interface\\Buttons\\WHITE8X8"
 function Tip.StyleAuraTooltip()
     local inbound = _G.AuraContainerInbound
     if type(inbound) ~= "table" or type(inbound.SetTooltipBackdrop) ~= "function" or not CreateColor then return end
-    local edge = DUI.Pixel.Px(UIParent, Tip.BORDER)
+    local edge = DUI.Pixel.Px(UIParent, Tip.BorderPx(Style.BorderPx()))
     local bg, border = Style.BACKGROUND, Style.BORDER
     pcall(inbound.SetTooltipBackdrop, {
         backdropInfo = {
