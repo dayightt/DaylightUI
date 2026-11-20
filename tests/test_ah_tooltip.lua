@@ -76,6 +76,9 @@ end
 T.test("ah tooltip: price, usual and age for an item seen at the AH", function()
     local M = load()
     M.Store.Record("US-PvE", tostring(HERB), 105, 60, NOW - 2 * 3600)
+    T.deq(lefts(fill(link(HERB))), { "Auction", "Seen 2 h ago" }, "the usual price is off by default")
+    local setting = M.Setting
+    M.Setting = function(key) if key == "tooltipUsual" then return true end return setting(key) end
     local rows = fill(link(HERB))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
     T.deq(lefts(rows), { "Auction", "Usual", "Seen 2 h ago" })
@@ -95,11 +98,11 @@ T.test("ah tooltip: Shift prices the whole stack, and the hint says so", functio
     M.Store.Record("US-PvE", tostring(HERB), 100, 60, NOW - 120)
     _G.C_Container = { GetContainerItemInfo = function() return { stackCount = 20 } end }
     local rows = fill(link(HERB), true)
-    T.deq(lefts(rows), { "Auction", "Usual", "Seen 2 min ago  ·  Shift: the whole stack" })
+    T.deq(lefts(rows), { "Auction", "Seen 2 min ago  ·  Shift: the whole stack" })
     stub.shift = true
     rows = fill(link(HERB), true)
     stub.shift = nil
-    T.deq(lefts(rows), { "Auction", "Usual, stack of 20", "Seen 2 min ago" })
+    T.deq(lefts(rows), { "Auction", "Seen 2 min ago" })
     T.eq(rows[2].right, DaylightUI.Widgets.Money(2000))
 end)
 
@@ -108,7 +111,7 @@ T.test("ah tooltip: the lines go in once when the post-call runs twice", functio
     M.Store.Record("US-PvE", tostring(HERB), 100, 60, NOW)
     fill(link(HERB))
     M.Tooltip.OnItem(GameTooltip, { hyperlink = link(HERB) })
-    T.deq(lefts(GameTooltip.__rows), { "Auction", "Usual", "Seen 1 min ago" })
+    T.deq(lefts(GameTooltip.__rows), { "Auction", "Seen 1 min ago" })
 end)
 
 T.test("ah tooltip: no line while DaylightMogul owns the Auction House", function()
