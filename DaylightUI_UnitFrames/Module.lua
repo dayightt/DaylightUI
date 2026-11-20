@@ -17,6 +17,21 @@ DaylightUI:RegisterModule("UnitFrames", {
     OnSettingChanged = function(mod, path)
         if ns.AuraLists.IsListPath(path) then ns.AuraLists.Changed() else ns.Refresh(mod, path) end
     end,
+    -- Several settings changed together (DUI.Batch): the frames redraw once,
+    -- as far as the widest of them reaches.
+    OnSettingsChanged = function(mod, paths)
+        local lists, last = false, nil
+        for _, path in ipairs(paths) do
+            if ns.AuraLists.IsListPath(path) then
+                lists = true
+            else
+                if last then ns.Refresh(mod, last, true) end
+                last = path
+            end
+        end
+        if lists then ns.AuraLists.Changed() end
+        if last then ns.Refresh(mod, last) end
+    end,
     OnStyleChanged = function(mod) ns.Refresh(mod) end,
     -- Sample frames shown inside other windows, like the setup guide (Sample.lua).
     Samples = function(_, parent) return ns.Sample.Pair(parent) end,

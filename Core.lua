@@ -856,6 +856,36 @@ function DUI.FlushHeldStyle()
     DUI.NotifyStyleChanged()
 end
 
+-- Several settings written together (DUI.Batch): each module hears about them
+-- once at the end instead of redrawing for every one. batched[scope] lists
+-- its changed paths in order, each once.
+local batched
+local function tellBatch(scope, mod, paths)
+    if mod.OnSettingsChanged then
+        DUI.AfterCombat(function() moduleCall(mod, mod.OnSettingsChanged, mod, paths) end, "settings:" .. scope)
+        return
+    end
+    local db = scopeTable(scope)
+    for _, path in ipairs(paths) do tellModule(scope, mod, path, db and DUI.DB.GetPath(db, path)) end
+end
+
+-- Runs fn, then tells each module about every setting fn wrote, once per
+-- module: one with OnSettingsChanged(mod, paths) gets the list in one call,
+-- the others OnSettingChanged once per path. SettingChanged still fires for
+-- each write as it happens. A batch inside a batch joins the outer one.
+function DUI.Batch(fn)
+    if batched then return DUI.SafeCall(fn) end
+    batched = { order = {} }
+    local ok = DUI.SafeCall(fn)
+    local list = batched
+    batched = nil
+    for _, scope in ipairs(list.order) do
+        local mod = modules[scope]
+        if mod and mod.OnSettingChanged then tellBatch(scope, mod, list[scope].paths) end
+    end
+    return ok
+end
+
 function DUI:Set(scope, path, value)
     local t = scopeTable(scope)
     if not t then return false end
@@ -863,6 +893,17 @@ function DUI:Set(scope, path, value)
     DUI.DB.Keep()
     if scope == "general" then
         if not DUI.NoRepaint(path) then DUI.NotifyStyleChanged() end
+    elseif batched then
+        local b = batched[scope]
+        if not b then
+            b = { paths = {}, seen = {} }
+            batched[scope] = b
+            batched.order[#batched.order + 1] = scope
+        end
+        if not b.seen[path] then
+            b.seen[path] = true
+            b.paths[#b.paths + 1] = path
+        end
     else
         local mod = modules[scope]
         if mod.OnSettingChanged then

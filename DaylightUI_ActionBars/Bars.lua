@@ -448,13 +448,24 @@ end
 
 -- A setting changed (called after combat). Shape settings re-lay the bars, anything
 -- else is just the look.
-function Bars.SettingChanged(mod, path)
-    -- A bar's Show picked by hand: HideEmptyOld must leave it alone.
-    local picked = type(path) == "string" and string.match(path, "^bars%.([^%.]+)%.visible$")
-    if picked and type(mod.db.checkEmptyBars) == "table" then mod.db.checkEmptyBars[picked] = nil end
-    if type(path) == "string" and string.match(path, "^bars%.") then Bars.Relayout() end
-    if type(path) ~= "string" or string.find(path, "^cdmBarFx") then DUI.BarFx.Refresh() end
-    if mod.db.skinMenus and (type(path) ~= "string" or string.find(path, "^micro")) then ns.Menus.PaintMicro() end
+function Bars.SettingChanged(mod, path) Bars.SettingsChanged(mod, { path or false }) end
+
+-- Several settings changed together (DUI.Batch): one layout and one refresh
+-- for all of them.
+function Bars.SettingsChanged(mod, paths)
+    local relayout, fx, micro = false, false, false
+    for _, path in ipairs(paths) do
+        if type(path) ~= "string" then path = nil end
+        -- A bar's Show picked by hand: HideEmptyOld must leave it alone.
+        local picked = path and string.match(path, "^bars%.([^%.]+)%.visible$")
+        if picked and type(mod.db.checkEmptyBars) == "table" then mod.db.checkEmptyBars[picked] = nil end
+        if path and string.match(path, "^bars%.") then relayout = true end
+        if not path or string.find(path, "^cdmBarFx") then fx = true end
+        if not path or string.find(path, "^micro") then micro = true end
+    end
+    if relayout then Bars.Relayout() end
+    if fx then DUI.BarFx.Refresh() end
+    if mod.db.skinMenus and micro then ns.Menus.PaintMicro() end
     Bars.Refresh(mod)
 end
 

@@ -356,12 +356,15 @@ end
 -- A bar animation change (or a profile or style change) puts every animated
 -- bar in step, cast and swing bars and samples too (the core's BarFx).
 local pendingFx = false
-function ns.Refresh(mod, path)
+-- hold: only note what needs redrawing; the next call without it redraws
+-- everything noted so far at once.
+function ns.Refresh(mod, path, hold)
     local top = type(path) == "string" and string.match(path, "^[^%.]+")
     if not top or string.find(path, "barFx", 1, true) then pendingFx = true end
     local unit = top and UNIT_OF[top]
     if unit then pendingUnits[unit] = true end
     pendingReach = math.max(pendingReach, unit and ONE or (top and REACH[top]) or ALL)
+    if hold then return end
     DUI.AfterCombat(function()
         local reach, units = pendingReach, pendingUnits
         pendingReach, pendingUnits = 0, {}

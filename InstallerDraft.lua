@@ -106,6 +106,8 @@ function Draft.Seed(name)
             from = DUI.DB.Fill(pd[name])
         end
     end
+    -- Written as one batch: each part of the UI redraws once for all of them.
+    DUI.Batch(function()
     for k in pairs(state.tracked) do
         if not state.picked[k] then
             local scope, path = split(k)
@@ -122,19 +124,26 @@ function Draft.Seed(name)
             end
         end
     end
+    end)
 end
 
 -- Restores every changed key in the active profile, either live (repainting
 -- as it goes) or straight into the saved tables of a profile about to be left.
 local function putBack(live)
     local p = DUI.DB.Root().profileData[state.profile]
+    if live then
+        -- One batch, so each part of the UI redraws once.
+        DUI.Batch(function()
+            for k in pairs(state.originals) do
+                local scope, path = split(k)
+                DUI:Set(scope, path, original(k))
+            end
+        end)
+        return
+    end
     for k in pairs(state.originals) do
         local scope, path = split(k)
-        if live then
-            DUI:Set(scope, path, original(k))
-        elseif type(p) == "table" then
-            DUI.DB.SetPath(scopeIn(p, scope), path, original(k))
-        end
+        if type(p) == "table" then DUI.DB.SetPath(scopeIn(p, scope), path, original(k)) end
     end
 end
 

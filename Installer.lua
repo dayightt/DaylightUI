@@ -450,6 +450,11 @@ end
 
 -- Writes a pick through the draft, so the real UI behind the window shows it.
 function Installer.Pick(q, key)
+    -- One batch: each part of the UI redraws once for all the settings a pick writes.
+    DUI.Batch(function() Installer.PickNow(q, key) end)
+end
+
+function Installer.PickNow(q, key)
     local flow = Installer.flow
     if not (flow and q) then return end
     local D, P = DUI.InstallerDraft, DUI.InstallerPages
