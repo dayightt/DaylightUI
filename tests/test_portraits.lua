@@ -355,7 +355,10 @@ end)
 
 T.test("the bezel covers a 3D model's straight edges", function()
     local DUI, ns = login()
+    -- Measures the classic ring, whose art fills the whole portrait.
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
     DUI:Set("UnitFrames", "player.portrait", "3d")
+    stub.RunTimers()
     local p = ns.frames.player.portrait
     local R = p:GetWidth() / 2
     local solidFrom = p.rim:GetWidth() / 2 * 0.84
@@ -571,6 +574,9 @@ T.test("the level badge moves to a spot of its own, circle and digits together",
         stub.units.player = { name = "Me", isPlayer = true, class = "PALADIN", level = 8 }
     end)
     DUI:Set("UnitFrames", "player.showLevel", true)
+    -- The classic ring keeps the badge on the portrait, so leaving and coming
+    -- back shows in what it hangs off.
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
     stub.RunTimers()
     local f = ns.frames.player
     local st = f.status
@@ -621,6 +627,9 @@ end)
 
 T.test("the level badge matches the ring and keeps its size without a portrait", function()
     local DUI, ns = login()
+    -- The round badge: a portrait set into its frame wears a tag instead.
+    DUI:Set("UnitFrames", "target.portraitLook", "classic")
+    stub.RunTimers()
     local f = ns.frames.target
     local badge = f.status.icons.level
     stub.units.target = { name = "Wolf", isPlayer = false, reaction = 2, level = 10 }
@@ -972,6 +981,9 @@ end)
 
 T.test("ring color: the class gradient by default, light gray, or dark like the frame's border", function()
     local DUI, ns = login()
+    -- Measures the classic ring's own art and sizes.
+    DUI:Set("UnitFrames", "target.portraitLook", "classic")
+    stub.RunTimers()
     local f, p = ns.frames.target, ns.frames.target.portrait
     stub.units.target = { name = "Zap", isPlayer = true, class = "MAGE", reaction = 2 }
     ns.UF.UpdateAll(f, true)
@@ -1004,6 +1016,9 @@ end)
 
 T.test("ring color: the accent on every frame, or the Daylight gradient", function()
     local DUI, ns = login()
+    -- Measures the classic ring's own art and sizes.
+    DUI:Set("UnitFrames", "target.portraitLook", "classic")
+    stub.RunTimers()
     local f, p = ns.frames.target, ns.frames.target.portrait
     stub.units.target = { name = "Zap", isPlayer = true, class = "MAGE", reaction = 2 }
     DUI:Set("general", "accent", "gradient")
@@ -1034,6 +1049,9 @@ end)
 
 T.test("ring color: with a gradient ring the red ring is lit from above too", function()
     local DUI, ns = login()
+    -- Measures the classic ring's own art and sizes.
+    DUI:Set("UnitFrames", "target.portraitLook", "classic")
+    stub.RunTimers()
     local f, p = ns.frames.target, ns.frames.target.portrait
     DUI:Set("UnitFrames", "target.portraitRing", "light")
     ns.UF.UpdateAll(f, true)
@@ -1141,6 +1159,9 @@ end)
 
 T.test("ring color: an enemy whose class the game hides gets its class color", function()
     local DUI, ns = login()
+    -- Measures the classic ring's own art and sizes.
+    DUI:Set("UnitFrames", "target.portraitLook", "classic")
+    stub.RunTimers()
     DUI:Set("UnitFrames", "target.portraitRing", "class")
     stub.units.target = { name = "Rival", isPlayer = true, class = "MAGE", classHidden = true, reaction = 2 }
     local f, p = ns.frames.target, ns.frames.target.portrait
@@ -1154,6 +1175,10 @@ T.test("ring thickness and its middle line: the ring and everything drawn on it 
     local DUI, ns = login(function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
     end)
+    -- Measures the classic ring's own art and sizes.
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    DUI:Set("UnitFrames", "target.portraitLook", "classic")
+    stub.RunTimers()
     local UF = ns.UF
     local f = ns.frames.player
     local p = f.portrait
@@ -1200,6 +1225,10 @@ T.test("square and angled portraits: every layer takes the shape's art, lights r
     local DUI, ns = login(function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
     end)
+    -- Measures the classic ring's own art and sizes.
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    DUI:Set("UnitFrames", "target.portraitLook", "classic")
+    stub.RunTimers()
     local UF = ns.UF
     local f, p = ns.frames.target, ns.frames.target.portrait
     wolf(nil)
@@ -1408,4 +1437,586 @@ T.test("no portrait and no name tab: icons beside the frame, combat and elite on
     T.truthy(t.crest:IsShown(), "with the tab back, the badge is back")
     T.isnil(ts.opts.borderColor, "and the border is plain")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("shell join: pieces in the shell's own border layers, painted with it", function()
+    local DUI, ns = login()
+    local Style = DUI.Style
+    local f = ns.frames.player
+    local s = Style.GetShell(f)
+    local j = Style.ShellJoin(f)
+    T.truthy(j, "a unit frame's shell takes a join")
+    T.eq(Style.ShellJoin(f), j, "made once")
+    T.eq(j.outline:GetParent(), s); T.eq(j.band:GetParent(), s); T.eq(j.shadow:GetParent(), s)
+    local layer, sub = j.outline:GetDrawLayer(); T.eq(layer, "BORDER"); T.eq(sub, 0)
+    layer, sub = j.band:GetDrawLayer(); T.eq(layer, "BORDER"); T.eq(sub, 3, "above the shell's band and lit line, so they never cross it")
+    layer, sub = j.shadow:GetDrawLayer(); T.eq(layer, "BACKGROUND"); T.eq(sub, -8)
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    stub.RunTimers()
+    ns.UF.UpdateAll(f, true)
+    T.falsy(j.outline:IsShown() or j.band:IsShown() or j.shadow:IsShown(), "hidden until its owner lays it out")
+    Style.PaintShellColors(s)
+    local r, g, b, a = j.outline:GetVertexColor()
+    T.near(r, Style.BORDER[1], 1e-6); T.near(a, DUI:Get("general", "borderAlpha"), 1e-6)
+end)
+
+T.test("shell join: its own band color for aggro, and back", function()
+    local DUI, ns = login()
+    local Style = DUI.Style
+    local f = ns.frames.player
+    local s, j = Style.GetShell(f), Style.ShellJoin(f)
+    Style.SetJoinBand(j, s, { 1, 0, 0 })
+    local r, g, b = j.band:GetVertexColor()
+    T.near(r, 1, 1e-6); T.near(g, 0, 1e-6)
+    T.falsy(s.opts.bandColor, "the bar's own border keeps its color")
+    Style.SetJoinBand(j, s, nil)
+    T.falsy(j.color)
+    Style.JoinBandFromBoolean(j, s, true, { 1, 0, 0 })
+    T.truthy(j.band.__vertexFromBoolean, "the client picks the color from a secret flag")
+end)
+
+T.test("shell join: a set that lives elsewhere is painted with a shell's colors", function()
+    local DUI, ns = login()
+    local Style = DUI.Style
+    local f = ns.frames.player
+    local own = { outline = f:CreateTexture(), band = f:CreateTexture(), shadow = f:CreateTexture(), side = "left" }
+    Style.PaintJoin(own, Style.GetShell(f))
+    local r, _, _, a = own.outline:GetVertexColor()
+    T.near(r, Style.BORDER[1], 1e-6); T.near(a, DUI:Get("general", "borderAlpha"), 1e-6)
+end)
+
+T.test("shell join: follows a see-through border and a gradient border", function()
+    local DUI, ns = login()
+    local Style = DUI.Style
+    local f = ns.frames.target
+    local j = Style.ShellJoin(f)
+    j.side = "right"
+    DUI:Set("general", "borderAlpha", 0.5)
+    stub.RunTimers()
+    Style.PaintShellColors(Style.GetShell(f))
+    local _, _, _, a = j.outline:GetVertexColor()
+    T.near(a, 0.5, 1e-6)
+    DUI:Set("general", "gradientBorder", true)
+    stub.RunTimers()
+    Style.PaintShellColors(Style.GetShell(f))
+    local _, hi = Style.AccentPair()
+    if hi then
+        local r = j.band:GetVertexColor()
+        T.near(r, hi[1], 1e-6, "the right end takes the sweep's right color")
+    end
+end)
+
+T.test("socket: crop and join math", function()
+    local _, ns = login()
+    local S = ns.Socket
+    -- A circle of 10 at (0, 20), a box from x 4..100, y 4..36.
+    local x0, x1, y0, y1, u0, u1, v0, v1 = S.Crop(0, 20, 10, 4, 100, 4, 36)
+    T.near(x0, 4, 1e-9); T.near(x1, 10, 1e-9); T.near(y0, 10, 1e-9); T.near(y1, 30, 1e-9)
+    T.near(u0, 0.7, 1e-9); T.near(u1, 1, 1e-9); T.near(v0, 0, 1e-9); T.near(v1, 1, 1e-9)
+    T.falsy(S.Crop(-50, 20, 10, 4, 100, 4, 36), "no overlap")
+    T.near(S.JoinX(10, 6, 3, false), 5, 1e-9)       -- sqrt(100 - 36) - 3
+    T.near(S.JoinX(10, 6, 3, true), 7, 1e-9)
+    T.falsy(S.JoinX(5, 6, 3, false), "a ring shorter than the bar has no join")
+end)
+
+T.test("socket: by default the ring's outer band is part of the frame's border", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF, Style, Pixel = ns.UF, DUI.Style, DUI.Pixel
+    local f = ns.frames.player
+    local p = f.portrait
+    UF.UpdateAll(f, true)
+    local one, T_ = Pixel.Px(f, 1), Pixel.Px(f, Style.BorderPx(f))
+    local j = Style.GetShell(f).join
+    T.truthy(f.socketOn)
+    T.truthy(j.outline:IsShown() and j.band:IsShown() and j.shadow:IsShown())
+    T.eq(j.outline.__texture, DUI.MEDIA .. "socket-disc.png")
+    T.near(j.outline:GetWidth(), p:GetWidth(), 1e-6, "as big as the portrait")
+    T.near(j.band:GetWidth(), p:GetWidth() - 2 * one, 1e-6, "one pixel of outline round the band")
+    T.falsy(p.shadow:IsShown(), "one shadow, under the join")
+    -- The mock-up's measurements, built out from the classic ring's radius.
+    local S = ns.Socket
+    local Rb = DaylightUI.Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * S.SIZE / 2)
+    local outside = (S.PICTURE + S.HAIR) * Rb / S.RING_WIDTHS.normal
+    T.near(p.mask:GetWidth() / 2, S.PICTURE * Rb, 1e-6, "the picture is Classic's size, 0.755 of its radius")
+    T.near(p.ring:GetWidth() * S.RING_OUTER / 2, outside, 1e-6, "the line's outside")
+    T.near(outside - (S.PICTURE + S.HAIR) * Rb, 0.09 * Rb, 0.002 * Rb, "the line is 0.09 of the radius thick")
+    T.near(p:GetWidth() / 2, outside + T_, 1e-6, "then the frame's whole border")
+    T.near(p.disc:GetWidth() / 2, outside + one, 1e-6, "one pixel of black between the line and the band")
+    T.truthy(p.ring:GetTexture():find("socket-ring-normal", 1, true), "the socket's own thin line")
+    T.truthy(f.socket.gap:IsShown(), "the bar is cut back")
+    T.truthy(f.socket.gap:GetWidth() <= f:GetWidth() - 2 * T_ + 1e-6, "only inside the border")
+    T.truthy(f.socket.gap:GetHeight() <= f:GetHeight() - 2 * T_ + 1e-6)
+    T.truthy(p.vignette:IsShown())
+    T.truthy(f.__hitRect[1] < 0, "still clickable")
+end)
+
+T.test("socket: Classic is the ring as it was", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF = ns.UF
+    local f = ns.frames.player
+    local p = f.portrait
+    UF.UpdateAll(f, true)
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    local j = DUI.Style.GetShell(f).join
+    T.falsy(f.socketOn)
+    T.falsy(j.outline:IsShown() or j.band:IsShown() or j.shadow:IsShown())
+    T.falsy(f.socket.gap:IsShown()); T.falsy(p.vignette:IsShown())
+    T.truthy(p.shadow:IsShown())
+    local R = DaylightUI.Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE / 2)
+    T.near(p:GetWidth(), 2 * R, 1e-6, "the classic ring's own size")
+    T.near(p.ring:GetWidth(), 2 * R / UF.RING_OUTER, 1e-6)
+    T.eq(p.ring:GetTexture(), (UF.RingFiles("normal", true)))
+    T.near(f.ringReach, R + R * UF.PORTRAIT_OUT, 1e-6)
+end)
+
+T.test("socket: a taller frame grows the portrait, the band stays the border's thickness", function()
+    local DUI, ns = login()
+    local UF, Pixel = ns.UF, DUI.Pixel
+    local f = ns.frames.player
+    UF.UpdateAll(f, true)
+    local before = f.portrait:GetWidth()
+    DUI:Set("UnitFrames", "player.height", 70)
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    local j, one = DUI.Style.GetShell(f).join, Pixel.Px(f, 1)
+    T.truthy(f.portrait:GetWidth() > before)
+    T.near(j.outline:GetWidth(), f.portrait:GetWidth(), 1e-6)
+    T.near(j.outline:GetWidth() - j.band:GetWidth(), 2 * one, 1e-6)
+    T.truthy(f.socket.gap:GetHeight() <= f:GetHeight() + 1e-6)
+end)
+
+T.test("socket: square and angled use their own shape for every piece", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.target
+    stub.units.target = { name = "Wolf", health = 5, maxHealth = 10 }
+    for _, shape in ipairs({ "square", "angled" }) do
+        DUI:Set("UnitFrames", "target.portraitShape", shape)
+        stub.RunTimers()
+        UF.UpdateAll(f, true)
+        local art = UF.ShapeArt(shape, true)
+        local j = DUI.Style.GetShell(f).join
+        T.eq(j.outline.__texture, DUI.MEDIA .. "portrait-" .. art .. "-hole.png", shape)
+        T.eq(j.band.__texture, DUI.MEDIA .. "portrait-" .. art .. "-hole.png")
+        T.eq(j.shadow.__texture, DUI.MEDIA .. "portrait-" .. art .. "-shadow.png")
+        T.eq(f.socket.gap.__texture, DUI.MEDIA .. "portrait-" .. art .. "-hole.png")
+        T.eq(j.side, "right", "the target's portrait is at its right end")
+    end
+end)
+
+T.test("socket: a thin border has no band; no portrait, no socket", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.player
+    DUI:Set("general", "borderPx", 2)
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    local j = DUI.Style.GetShell(f).join
+    T.truthy(j.outline:IsShown()); T.falsy(j.band:IsShown(), "a plain border is all outline")
+    DUI:Set("UnitFrames", "player.portrait", "none")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    T.falsy(f.socketOn); T.falsy(j.outline:IsShown()); T.falsy(f.socket.gap:IsShown())
+end)
+
+T.test("socket: a portrait on its own is a whole ring, and leaves its frame whole", function()
+    local DUI, ns = login()
+    local UF, Style, Pixel = ns.UF, DUI.Style, DUI.Pixel
+    local f = ns.frames.player
+    local p = f.portrait
+    UF.UpdateAll(f, true)
+    local s = Style.GetShell(f)
+    DUI:Set("UnitFrames", "player.portraitAt", "free")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    -- The portrait: the same band, closed, on the portrait itself.
+    T.truthy(f.socketOn); T.truthy(f.portraitFree)
+    local own = p.own
+    T.eq(ns.Socket.Join(f), own)
+    T.eq(own.outline:GetParent(), p); T.eq(own.band:GetParent(), p)
+    T.truthy(own.outline:IsShown() and own.band:IsShown() and own.shadow:IsShown())
+    local one = Pixel.Px(f.portraitHolder, 1)
+    T.near(own.outline:GetWidth(), p:GetWidth(), 1e-6)
+    T.near(own.band:GetWidth(), p:GetWidth() - 2 * one, 1e-6)
+    T.truthy(p.vignette:IsShown())
+    T.falsy(p.shadow:IsShown(), "one shadow, its own")
+    T.truthy(p.top:GetFrameLevel() > p:GetFrameLevel(), "the inner ring stays over its own band in the holder")
+    T.truthy(p.model:GetFrameLevel() > p:GetFrameLevel())
+    local r = own.outline:GetVertexColor()
+    T.near(r, Style.BORDER[1], 1e-6, "in its frame's border color")
+    -- The frame: nothing left behind.
+    T.falsy(s.join.outline:IsShown() or s.join.band:IsShown() or s.join.shadow:IsShown(), "no band left on the frame")
+    T.falsy(f.socket.gap:IsShown(), "no cut-back")
+    T.falsy(f.socket.cast:IsShown(), "no cast shadow")
+    T.falsy(s.opts.coveredEnd, "its rounded corners are back")
+    T.eq(f.ringInset, 0); T.eq(f.ringReach, 0)
+    T.falsy(f.socketJoinX)
+    local _, rel = f.status.icons.level:GetPoint(1)
+    T.eq(rel, p, "the level badge rides at the ring's foot")
+    -- And back on the frame, with no reload.
+    DUI:Set("UnitFrames", "player.portraitAt", "frame")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    T.falsy(own.outline:IsShown() or own.band:IsShown() or own.shadow:IsShown(), "its own ring is put away")
+    T.truthy(s.join.outline:IsShown() and f.socket.gap:IsShown(), "the socket is back")
+    T.eq(ns.Socket.Join(f), s.join)
+end)
+
+T.test("socket: a portrait on its own in Classic is the old ring", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.player
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    DUI:Set("UnitFrames", "player.portraitAt", "free")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    T.falsy(f.socketOn); T.truthy(f.portrait.shadow:IsShown())
+    T.falsy(f.portrait.own and f.portrait.own.outline:IsShown())
+end)
+
+T.test("socket: a 3D model stays inside the inner ring", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF = ns.UF
+    local f = ns.frames.player
+    DUI:Set("UnitFrames", "player.portrait", "3d")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    local p = f.portrait
+    local inner = p.ring:GetWidth() * UF.RING_OUTER / 2
+    T.truthy(p.model:IsShown())
+    T.truthy(p.model:GetWidth() * math.sqrt(2) / 2 <= inner + 1e-6, "its corners end under the ring, not over the band")
+    local _, _, opening = UF.RingFiles("slim")
+    T.truthy(p.rim:GetWidth() / 2 >= inner * (opening - 0.01) - 1e-6, "the bezel reaches the thin ring's opening")
+end)
+
+T.test("socket: the level badge sits where the ring meets the bar's bottom edge", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", level = 60, health = 5, maxHealth = 10 }
+    end)
+    local UF = ns.UF
+    local f = ns.frames.player
+    UF.UpdateAll(f, true)
+    local pt, rel, rp, x, y = f.status.icons.level:GetPoint(1)
+    T.eq(pt, "CENTER"); T.eq(rel, f); T.eq(rp, "BOTTOMLEFT")
+    T.near(x, f.socketJoinX, 1e-6); T.near(y, 0, 1e-6)
+    T.truthy(x > 0, "on the bar, past its end")
+    local badge = f.status.icons.level
+    local R = f.portrait:GetWidth() / 2
+    T.eq(badge.__texture, ns.UF.LEVEL_TAG_FILE, "a slanted tag")
+    T.near(badge:GetWidth(), 0.7 * R, 1e-6); T.near(badge:GetHeight(), 0.4 * R, 1e-6)
+    local Rb = f.portrait.mask:GetWidth() / 2 / ns.Socket.PICTURE
+    T.near(x, 0.7 * R - Rb * ns.UF.PORTRAIT_OUT, 1e-6, "0.7 of the radius past the ring's middle")
+    T.rgb(badge.__vertex, { 1, 1, 1 }, "its own colors, untinted")
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    pt, rel = f.status.icons.level:GetPoint(1)
+    T.eq(rel, f.portrait, "Classic keeps it at the ring's foot")
+    T.eq(f.status.icons.level.__texture, DaylightUI.MEDIA .. "status-level.png", "and round")
+end)
+
+T.test("socket: the smallest portrait still meets the bar's edges, the tag on its join", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.player
+    DUI:Set("UnitFrames", "player.portraitScale", 0.6)
+    stub.RunTimers()
+    UF.UpdateAll(f, true)
+    T.truthy(f.socketOn); T.truthy(f.socketJoinX)
+    local _, rel = f.status.icons.level:GetPoint(1)
+    T.eq(rel, f)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("socket: aggro reddens the whole ring, outer band too, and leaves the bar's border", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.target
+    wolf(3)
+    UF.UpdateAll(f, true)
+    UF.UpdateThreat(f)
+    local s = DUI.Style.GetShell(f)
+    local red = UF.THREAT_COLORS.aggro
+    T.truthy(s.join.color, "the outer band goes red at once")
+    T.near(s.join.color[1], red[1], 1e-6)
+    T.truthy(f.socket.gapBand:IsShown(), "the band over the bar shows")
+    T.rgb(f.socket.gapBand.__vertex, red, "and goes red with the rest of the ring")
+    T.falsy(s.opts.bandColor, "the bar's border stays calm")
+    wolf(nil)
+    UF.UpdateThreat(f)
+    T.falsy(s.join.color, "and comes back")
+end)
+
+T.test("socket: a secret tanking answer goes to the client for the band too", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.target
+    wolf(nil)
+    UF.UpdateAll(f, true)
+    UF.ApplyThreat(f, nil, stub.Secret(true))
+    local j = DUI.Style.GetShell(f).join
+    T.truthy(j.band.__vertexFromBoolean); T.truthy(j.flag ~= nil)
+    UF.ApplyThreat(f, nil, nil)
+    T.isnil(j.flag)
+end)
+
+T.test("socket: a portrait on its own goes red on its own ring, never on the frame it left", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.target
+    DUI:Set("UnitFrames", "target.portraitAt", "free")
+    stub.RunTimers()
+    wolf(3)
+    UF.UpdateAll(f, true)
+    UF.UpdateThreat(f)
+    local s = DUI.Style.GetShell(f)
+    T.truthy(f.portrait.own.color, "its own band is red")
+    T.falsy(s.join and s.join.color, "nothing on the frame")
+    T.falsy(s.opts.bandColor)
+end)
+
+T.test("socket: each frame's Portrait card has the look, for a portrait on its own too", function()
+    local DUI, ns = login()
+    for _, id in ipairs({ "player", "target", "focus", "party" }) do
+        T.eq(DUI:Get("UnitFrames", id .. ".portraitLook"), "socket", id)
+    end
+    DUI.OptionsPanel.Show("UnitFrames.player")
+    local item
+    for _, card in ipairs(DUI.OptionsPanel.PageFrame().cards) do
+        for _, row in ipairs(card.rows) do
+            if row.item.label == "Portrait look" then item = row.item end
+        end
+    end
+    T.truthy(item, "a row on the Player page")
+    local get = function(key) return DUI:Get("UnitFrames", key) end
+    T.falsy(item.disabled(get))
+    DUI:Set("UnitFrames", "player.portraitAt", "free")
+    T.falsy(item.disabled(get), "a portrait on its own picks its look too")
+    DUI:Set("UnitFrames", "player.portrait", "none")
+    T.truthy(item.disabled(get))
+end)
+
+T.test("upgrade step 21: a profile from before keeps the classic ring; a new one starts set into the frame", function()
+    local _, ns = login()
+    local p = { modules = { UnitFrames = { groupFrames = 20, target = { portraitLook = "socket" } } } }
+    ns.UpgradeGroupFrames(p)
+    local uf = p.modules.UnitFrames
+    for _, id in ipairs({ "player", "target", "focus", "party", "arena" }) do
+        T.eq(uf[id].portraitLook, "classic", id)
+    end
+    -- A player from several releases back runs every older step first, then this.
+    p = { modules = { UnitFrames = { groupFrames = 12 } } }
+    ns.UpgradeGroupFrames(p)
+    T.eq(p.modules.UnitFrames.player.portraitLook, "classic")
+    p = {}
+    ns.UpgradeGroupFrames(p)
+    T.isnil(p.modules.UnitFrames.player, "a new profile reads the default")
+    local DUI = login()
+    T.eq(DUI:Get("UnitFrames", "player.portraitLook"), "socket")
+end)
+
+-- A player updating from before Socket portraits: their profile has run the
+-- unit frames' upgrade steps up to 20.
+local function returning(player)
+    local DUI, ns = stub.Load({ module = true, before = function()
+        DaylightUIDB = { version = "1.9.6", notesSeen = "1.9.6", installerSeen = true,
+                         profileData = { ["DPS/Tank"] = { general = {}, positions = {},
+                                         modules = { UnitFrames = { groupFrames = 20, player = player } } } } }
+    end })
+    stub.Dismiss()
+    return DUI, ns
+end
+
+T.test("new portrait mode: a returning player is asked once, sees both looks, and keeps what they pick", function()
+    local DUI, ns = returning()
+    local S = ns.Socket
+    T.eq(DUI:Get("UnitFrames", "player.portraitLook"), "classic", "the upgrade kept the classic ring")
+    T.truthy(S.ShouldAsk())
+    S.Ask()
+    local asking = DUI.Widgets.Asking()
+    T.eq(asking.key, S.ASK_KEY)
+    T.eq(asking.title, "New portrait mode")
+    T.truthy(DaylightUIAsk.preview:IsShown(), "the box shows the two looks")
+    local box = S.askBox
+    T.truthy(box.frames.socket.socketOn, "one sample is set into its frame")
+    T.falsy(box.frames.classic.socketOn, "the other is the classic ring")
+    T.eq(DUI:Get("UnitFrames", "player.portraitLook"), "classic", "showing it changes nothing")
+    stub.Answer(true)
+    for _, id in ipairs({ "player", "target", "focus", "party" }) do
+        T.eq(DUI:Get("UnitFrames", id .. ".portraitLook"), "socket", id)
+    end
+    T.truthy(DUI.DB.Root().portraitLookAsked)
+    T.falsy(S.ShouldAsk(), "never again on this account")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("new portrait mode: Keep Classic changes nothing; a new player is never asked; not in a fight", function()
+    local DUI, ns = returning()
+    ns.Socket.Ask()
+    stub.Answer(false)
+    T.eq(DUI:Get("UnitFrames", "player.portraitLook"), "classic")
+    T.falsy(ns.Socket.ShouldAsk())
+    local _, fresh = login()
+    T.falsy(fresh.Socket.ShouldAsk(), "a new profile starts set into the frame")
+    DUI, ns = returning()
+    stub.EnterCombat()
+    ns.Socket.Ask()
+    T.isnil(stub.Asked(), "nothing opens in a fight")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(stub.Asked(), ns.Socket.ASK_KEY, "it comes once the fight ends")
+end)
+
+T.test("socket: aggro stays on the ring when it detaches or re-attaches, and through a repaint", function()
+    local DUI, ns = login()
+    local UF, Style = ns.UF, DUI.Style
+    local f = ns.frames.target
+    wolf(3)
+    UF.UpdateAll(f, true)
+    UF.UpdateThreat(f)
+    DUI:Set("UnitFrames", "target.portraitAt", "free")
+    stub.RunTimers()
+    T.truthy(f.portrait.own.color, "the ring on its own is still red")
+    DUI:Set("UnitFrames", "target.portraitAt", "frame")
+    stub.RunTimers()
+    local s = Style.GetShell(f)
+    T.truthy(s.join.color, "and red again back on the frame")
+    UF.ApplyThreat(f, nil, stub.Secret(true))
+    local picks = 0
+    local pick = s.join.band.SetVertexColorFromBoolean
+    s.join.band.SetVertexColorFromBoolean = function(...) picks = picks + 1; return pick(...) end
+    Style.PaintShellColors(s)
+    T.eq(picks, 1, "a repaint hands the secret flag to the client again")
+end)
+
+T.test("a light made on the portrait after it was first placed keeps its place over it", function()
+    local DUI, ns = login()
+    local UF = ns.UF
+    local f = ns.frames.player
+    UF.UpdateAll(f, true)
+    local late = CreateFrame("Frame", nil, f.portrait)
+    late:SetFrameLevel(f.portrait:GetFrameLevel() + 4)
+    DUI:Set("UnitFrames", "player.portraitAt", "free")
+    stub.RunTimers()
+    T.eq(late:GetFrameLevel(), f.portrait:GetFrameLevel() + 4)
+end)
+
+T.test("new portrait mode: the two samples show a portrait even with the player's off", function()
+    local _, ns = returning({ portrait = "none" })
+    ns.Socket.Ask()
+    T.eq(stub.Asked(), ns.Socket.ASK_KEY, "the target's classic ring still asks")
+    T.truthy(ns.Socket.askBox.frames.socket.portrait:IsShown())
+    T.truthy(ns.Socket.askBox.frames.classic.portrait:IsShown())
+end)
+
+T.test("socket: the border curves on into the bar the same at the top and the bottom", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF = ns.UF
+    local f = ns.frames.player
+    UF.UpdateAll(f, true)
+    local j = DUI.Style.GetShell(f).join
+    for i = 1, 2 do
+        T.truthy(j.bands[i]:IsShown(), "a fillet at the top and the bottom edge, one piece with its own edge")
+        T.falsy(j.outlines[i]:IsShown())
+        T.eq(j.bands[i].__texture, DUI.MEDIA .. "socket-fillet.png")
+    end
+    local s = DUI.Style.GetShell(f)
+    T.falsy(s.lit:IsShown(), "no lit line on top that the bottom doesn't have")
+    local _, _, _, _, top = j.bands[1]:GetPoint(1)
+    local _, _, _, _, bottom = j.bands[2]:GetPoint(2)
+    T.near(top, f:GetHeight() - bottom, 1e-6, "the same at the top and the bottom")
+    T.truthy(f.socket.gapBand:IsShown(), "inside the bar the ring keeps its band")
+    T.eq(f.socket.gapBand:GetVertexColor(), (j.band:GetVertexColor()), "in the band's color")
+    DUI:Set("UnitFrames", "player.portraitShape", "square")
+    stub.RunTimers()
+    T.falsy(j.bands[1]:IsShown() or j.bands[2]:IsShown(), "square: a clean right angle, no fillet")
+    T.truthy(f.socket.gapBand:IsShown(), "and its band all the way round")
+    DUI:Set("UnitFrames", "player.portraitAt", "free")
+    stub.RunTimers()
+    T.falsy(j.outlines[1]:IsShown() or j.bands[1]:IsShown(), "on its own, nothing left on the frame")
+    T.truthy(DUI.Style.GetShell(f).lit:IsShown(), "and the frame's lit line is back")
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("socket: a fillet's box follows the ring and the bar's edge", function()
+    local _, ns = login()
+    local S = ns.Socket
+    local x0, x1, y0, y1 = S.FilletBox(1, 0.75)
+    T.near(x0, 0.3735, 1e-3); T.near(x1, 1.0614, 1e-3); T.near(y0, 0.75, 1e-9); T.near(y1, 0.9276, 1e-3)
+    T.falsy(S.FilletBox(0.7, 0.75), "no fillet without a join")
+end)
+
+T.test("socket: with a border as thin as the mock-up's the measurements are its own", function()
+    local DUI, ns = login()
+    DUI:Set("general", "borderPx", 5)
+    stub.RunTimers()
+    local f = ns.frames.player
+    ns.UF.UpdateAll(f, true)
+    local p, S = f.portrait, ns.Socket
+    local Rb = DUI.Pixel.Snap(f, f:GetHeight() * ns.UF.PORTRAIT_SIZE * S.SIZE / 2)
+    local one = DUI.Pixel.Px(f, 1)
+    T.near(p.mask:GetWidth() / 2, 0.755 * Rb, 1e-6, "the picture")
+    T.near(p.ring:GetWidth() * S.RING_OUTER / 2, 0.875 * Rb, 0.002 * Rb, "the line's outside")
+    local T_ = DUI.Pixel.Px(f, DUI.Style.BorderPx(f))
+    T.near(p:GetWidth() / 2, 0.875 * Rb + T_, 0.002 * Rb, "the line, then the frame's whole border")
+end)
+
+T.test("new portrait mode: the two samples are the standard frame, not the player's own setup", function()
+    local DUI, ns = returning({ portrait = "3d", portraitRing = "light", height = 60, nameOnBar = true })
+    local box = ns.Sample.Looks(UIParent)
+    box.Refresh(340)
+    for _, key in ipairs({ "socket", "classic" }) do
+        local f = box.frames[key]
+        T.eq(f.portraitMode, ns.DEFAULTS.player.portrait, key .. ": the default picture")
+        T.near(f:GetHeight(), ns.DEFAULTS.player.height, 1, key .. ": the default height, not the player's 60")
+    end
+    T.eq(DUI:Get("UnitFrames", "player.height"), 60, "the player's own settings untouched")
+    T.falsy(box.frames.socket.status.icons.pvp:IsShown(), "no PvP badge on the looks")
+    for _, key in ipairs({ "socket", "classic" }) do
+        local f = box.frames[key]
+        T.falsy((f.heals and f.heals:IsShown()) or (f.absorbs and f.absorbs:IsShown())
+            or (f.overshield and f.overshield:IsShown()), key .. ": no heal or shield bars at the health's end")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("socket: no bar of the frame draws over the ring, and it holds still while the portrait pops in", function()
+    local DUI, ns = login()
+    local f = ns.frames.target
+    stub.units.target = { name = "Wolf", isPlayer = false, reaction = 2, threat = 3 }
+    ns.UF.UpdateAll(f, true)
+    local p = f.portrait
+    for _, bar in ipairs({ f.health, f.power }) do
+        if bar then T.truthy(bar:GetFrameLevel() < f.socket:GetFrameLevel(), "the bars sit under the ring's part over the bar") end
+    end
+    T.truthy(f.socket:GetFrameLevel() < p:GetFrameLevel(), "and the portrait, with its glow, over it")
+    local _, _, _, x = f.socket.gap:GetPoint(1)
+    ns.UF.PlacePortrait(f, 0.5)
+    local _, _, _, x2 = f.socket.gap:GetPoint(1)
+    T.eq(f.socket.gap:GetParent(), f.socket, "not on the portrait, which pops")
+    T.near(x2, x, 1e-9, "unmoved mid-pop")
+    ns.UF.PlacePortrait(f, 1)
+end)
+
+T.test("socket: square, no lit line on the bar to end at the square's side", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "player.portraitShape", "square")
+    stub.RunTimers()
+    local f = ns.frames.player
+    T.falsy(DUI.Style.GetShell(f).lit:IsShown())
+    DUI:Set("UnitFrames", "player.portraitLook", "classic")
+    stub.RunTimers()
+    T.truthy(DUI.Style.GetShell(f).lit:IsShown(), "Classic keeps the frame's lit line")
 end)

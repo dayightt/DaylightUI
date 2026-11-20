@@ -1641,6 +1641,9 @@ T.test("installer tour: the ring color is one choice for every frame, each card 
     T.rgb(accentBand.__vertex, { 0.2, 0.7, 0.4 }, "a one-color accent's ring")
     T.isnil(accentBand.__gradient, "its gradient cleared")
     T.truthy(picker.cards.daylight.portraitArt.band.__gradient, "a Daylight gradient ring")
+    local join = class.portraitJoin
+    T.truthy(join and join.outline:IsShown(), "the sketch's ring is set into its frame")
+    T.truthy(string.find(class.portraitArt.band.__texture, "portrait-band-thin", 1, true), "with the thinner inner ring")
     press(light)
     for _, u in ipairs({ "player", "target", "focus" }) do
         T.eq(DUI:Get("UnitFrames", u .. ".portraitRing"), "light", u)

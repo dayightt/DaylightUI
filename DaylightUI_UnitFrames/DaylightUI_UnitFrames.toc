@@ -48,6 +48,7 @@ DruidBars.lua
 Personal.lua
 Arrive.lua
 Moments.lua
+Socket.lua
 Upgrade.lua
 Units.lua
 TestMode.lua

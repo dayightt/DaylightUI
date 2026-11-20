@@ -93,3 +93,96 @@ function Sample.Layout(box)
     them:ClearAllPoints()
     them:SetPoint("LEFT", box, "CENTER", dx, dy)
 end
+
+-- Two player samples side by side, one per portrait look, each named under it
+-- (the "New portrait mode" question and the welcome). Both are the standard
+-- player frame from the defaults, so the two looks compare on their own and
+-- not on the player's profile; nothing is written and the real frames keep
+-- their settings.
+Sample.LOOKS = {
+    { key = "socket", name = "Set into the frame", line = "The border runs around both." },
+    { key = "classic", name = "Classic", line = "The ring lies over the frame." },
+}
+Sample.LOOK_FRAME = 64    -- the room each sample frame gets, ring and name tab included
+Sample.LOOK_GAP = 6
+
+function Sample.Looks(parent)
+    local Style = DUI.Style
+    local L = DUI.L
+    local box = CreateFrame("Frame", nil, parent)
+    box.frames, box.names, box.lines = {}, {}, {}
+    local spec
+    for _, s in ipairs(ns.SPECS) do
+        if s.unit == "player" then spec = s end
+    end
+    for _, look in ipairs(Sample.LOOKS) do
+        local f = CreateFrame("Button", nil, box)
+        UF.Build(f, spec)
+        f:EnableMouse(false)
+        box.frames[look.key] = f
+        local name = Style.Text(box, Style.SIZE.body, "CENTER")
+        name:SetText(L[look.name])
+        box.names[look.key] = name
+        local line = Style.Text(box, Style.SIZE.small, "CENTER")
+        line:SetText(L[look.line])
+        box.lines[look.key] = line
+    end
+    box.HEIGHT = Sample.LOOK_FRAME + Sample.LOOK_GAP + Style.SIZE.body + 4 + Style.SIZE.small + 2
+    function box.Refresh(width) Sample.LayoutLooks(box, width) end
+    return box
+end
+
+function Sample.LayoutLooks(box, width)
+    local D = ns.DEFAULTS
+    if not (D and ns.module) then return end
+    local Style = DUI.Style
+    width = (type(width) == "number" and width > 0) and width or 340
+    box:SetSize(width, box.HEIGHT)
+    local half = width / 2
+    for i, look in ipairs(Sample.LOOKS) do
+        local f = box.frames[look.key]
+        local base, text = ns.ConfigFor(D, f.spec)
+        local cfg = {}
+        for k, v in pairs(base) do cfg[k] = v end
+        cfg.portraitLook = look.key
+        cfg.portraitAt = "frame"
+        cfg.style = "daylight"
+        f.iconStyle, f.classIcons = D.portraits.icons, D.portraits.classIcons
+        f:SetScale(1)
+        f:SetSize(2 * Pixel.Snap(f, cfg.width / 2), 2 * Pixel.Snap(f, cfg.height / 2))
+        UF.Layout(f, cfg, text, true)
+        -- The two looks are about the portrait: no PvP badge on them.
+        local you = Sample.You()
+        you.pvp = false
+        f.test = you
+        UF.ShowSample(f)
+        -- Nor incoming heals or shields: their bars at the health's end can
+        -- leave a sliver even at nothing, which reads as part of the look.
+        for _, bar in ipairs({ f.heals, f.absorbs, f.overshield }) do
+            if bar then
+                bar:Hide()
+                if bar.wedge then bar.wedge:Hide() end
+            end
+        end
+        -- Shrink to the room: the bar and the ring past its end across, the
+        -- ring (or the name tab over the bar) up and down.
+        local reach = Sample.Reach(f)
+        local p = f.portrait
+        local tall = math.max(f:GetHeight() + 2 * ((f.tab and f.tab:IsShown()) and (f.tabHeight or UF.TAB_HEIGHT) or 0),
+            (p and p:IsShown()) and p:GetHeight() or 0)
+        local scale = math.min(1, (half - 16) / (f:GetWidth() + reach), Sample.LOOK_FRAME / tall)
+        f:SetScale(scale)
+        local mid = (i - 0.5) * half
+        f:ClearAllPoints()
+        f:SetPoint("CENTER", box, "TOPLEFT", (mid + reach / 2 * scale) / scale, -(Sample.LOOK_FRAME / 2) / scale)
+        local name, line = box.names[look.key], box.lines[look.key]
+        Style.InkText(name, "VALUE")
+        Style.InkText(line, "LABEL")
+        name:ClearAllPoints()
+        name:SetPoint("TOP", box, "TOPLEFT", mid, -(Sample.LOOK_FRAME + Sample.LOOK_GAP))
+        name:SetWidth(half - 8)
+        line:ClearAllPoints()
+        line:SetPoint("TOP", name, "BOTTOM", 0, -4)
+        line:SetWidth(half - 8)
+    end
+end

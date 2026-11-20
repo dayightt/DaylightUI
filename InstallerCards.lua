@@ -330,10 +330,12 @@ end
 local RING_COLOR = { 0.34, 0.34, 0.36 }
 
 -- The ring's band in a ring color for your class (like UF.PaintRing).
-local function paintBand(band, mode)
-    band:SetTexture(DUI.MEDIA .. "portrait-band.png")
+-- base: the band's art name, "portrait-band" or a thinner one.
+local function paintBand(band, mode, base)
+    base = DUI.MEDIA .. (base or "portrait-band")
+    band:SetTexture(base .. ".png")
     if mode == "accent" then
-        if not Style.AccentPair() then band:SetTexture(DUI.MEDIA .. "portrait-band-lit.png") end
+        if not Style.AccentPair() then band:SetTexture(base .. "-lit.png") end
         Style.PaintAccent(band, 1, "VERTICAL")
     elseif mode == "daylight" then
         local a, b = Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
@@ -384,7 +386,42 @@ local function drawPortrait(card, ringOf, w, h)
     r:SetFrameLevel(bar:GetFrameLevel() + 6)
     r:SetSize(2 * R, 2 * R)
     r:SetPoint("CENTER", bar, "LEFT", -off, 0)
-    local inner = R * 0.772
+    -- Set into the frame (the unit frames' default look): the bar's border runs
+    -- on round the ring through the shell's own layers, the bar is cut back
+    -- under it, and the ring inside is one step thinner.
+    local socket = DUI:Get("UnitFrames", "player.portraitLook") ~= "classic"
+    local Rk, ratio, bandArt = R, 0.772, "portrait-band"
+    if socket then
+        local one = DUI.Pixel.Px(bar, 1)
+        Rk, ratio, bandArt = R - math.max(0, T - one), 0.85, "portrait-band-thin"
+        local j = Style.ShellJoin(bar)
+        j.side = "left"
+        for _, piece in ipairs({ j.outline, j.band }) do
+            piece:SetTexture(DUI.MEDIA .. "crest-disc.png")
+            piece:ClearAllPoints()
+            piece:SetPoint("CENTER", bar, "LEFT", -off, 0)
+        end
+        j.outline:SetSize(2 * R, 2 * R)
+        j.band:SetSize(2 * (R - one), 2 * (R - one))
+        j.outline:Show()
+        j.band:SetShown(Style.IsHeavy(Style.GetShell(bar)))
+        Style.PaintJoin(j, Style.GetShell(bar))
+        -- The cut-back: the part of the ring's disc over the bar's inside.
+        local gap = r:CreateTexture(nil, "BACKGROUND", nil, -1)
+        gap:SetTexture(DUI.MEDIA .. "crest-disc.png")
+        gap:SetVertexColor(Style.BORDER[1], Style.BORDER[2], Style.BORDER[3], 1)
+        local x0, x1 = off + T, 2 * R
+        local y = math.min(R, H / 2 - T)
+        if x1 > x0 then
+            gap:SetTexCoord(x0 / (2 * R), 1, (R - y) / (2 * R), (R + y) / (2 * R))
+            gap:SetPoint("BOTTOMLEFT", r, "LEFT", x0, -y)
+            gap:SetPoint("TOPRIGHT", r, "LEFT", x1, y)
+        else
+            gap:Hide()
+        end
+        card.portraitJoin = { outline = j.outline, band = j.band, gap = gap }
+    end
+    local inner = Rk * ratio
     local disc = r:CreateTexture(nil, "BACKGROUND")
     disc:SetTexture(DUI.MEDIA .. "crest-disc.png")
     disc:SetVertexColor(0.02, 0.02, 0.02, 1)
@@ -400,8 +437,8 @@ local function drawPortrait(card, ringOf, w, h)
     m:SetPoint("CENTER", r, "CENTER", 0, 0)
     t:AddMaskTexture(m)
     local band = r:CreateTexture(nil, "OVERLAY")
-    paintBand(band, ringOf())
-    band:SetSize(2 * R / 0.6, 2 * R / 0.6)
+    paintBand(band, ringOf(), bandArt)
+    band:SetSize(2 * Rk / 0.6, 2 * Rk / 0.6)
     band:SetPoint("CENTER", r, "CENTER", 0, 0)
     art.ring, art.band = r, band
     bar:SetPoint("LEFT", a, "LEFT", math.ceil(reach) + 2, 0)
@@ -409,7 +446,7 @@ local function drawPortrait(card, ringOf, w, h)
     card.portraitArt = art
     card.redraw = function()
         fill:SetTexture(Style.BarFile())
-        if art.band then paintBand(art.band, ringOf()) end
+        if art.band then paintBand(art.band, ringOf(), bandArt) end
     end
     return a
 end

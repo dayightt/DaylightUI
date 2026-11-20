@@ -1568,7 +1568,7 @@ local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true
     showInParty = true, direction = true, growLeft = true, growUp = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
-local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
+local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitLook = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
     portraitRingWidth = true, portraitRingLine = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true }
 local function splitFrame(prefix, items, power)
     local basic, bars, portrait = {}, {}, {}
@@ -1743,6 +1743,10 @@ local function framePage(id, label, desc, opts)
             values = UF.PORTRAIT_SHAPES, order = UF.PORTRAIT_SHAPE_ORDER,
             desc = "A round ring, a square, or a square with its outer side angled like the frame's end. The aggro fill, arrival light and elite frame follow the shape.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
+        frame[#frame + 1] = { type = "dropdown", key = k("portraitLook"), label = "Portrait look", since = "2.0",
+            values = ns.Socket.LOOKS, order = ns.Socket.LOOK_ORDER,
+            desc = "Set into the frame runs the frame's border on around the portrait, so the two read as one piece. Classic lays the ring over the frame's end, as before. A portrait on its own wears the same border as a ring.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         if opts.portraitFree then
             frame[#frame + 1] = { type = "dropdown", key = k("portraitAt"), label = "Portrait position",
                 values = { frame = "On the frame", free = "On its own (unlock to move)" }, order = { "frame", "free" },
@@ -1764,8 +1768,9 @@ local function framePage(id, label, desc, opts)
             desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle", since = "1.8.1",
-            desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band.",
-            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
+            desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band. A portrait set into its frame has a thin ring with no line.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get)
+                or get(k("portraitLook")) ~= "classic" end, hidden = onCard }
         if opts.dragon then
             frame[#frame + 1] = { type = "toggle", key = k("portraitDragon"), label = "Dragon around the portrait",
                 desc = "The elite dragon wraps your own portrait too.",

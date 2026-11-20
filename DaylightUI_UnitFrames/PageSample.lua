@@ -78,7 +78,7 @@ PageSample.PARTS = {
     { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep", "%s.backPower", "%s.backPowerAlpha" },
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
       linkIf = function(f) return not f.powerLine end },
-    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
+    { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitLook", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },
     { label = "Card picture", at = at("backdrop"), keys = { "%s.portrait", "%s.stripHeight" } },
     -- On the bar the name moves to a spot. In its tab, the tab slides along the
     -- frame's top (tabMove, UF.TabDots). On a name row it doesn't move.

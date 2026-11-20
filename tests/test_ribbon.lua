@@ -161,10 +161,15 @@ T.test("Ribbon: the ring spans the whole ribbon, centered on it", function()
     local p = f.portrait
     T.truthy(p:IsShown())
     local H = f:GetHeight() + f.hitTop + f.foot
-    T.near(p:GetWidth(), 2 * DaylightUI.Pixel.Snap(f, H * ns.STYLES.ribbon.ring))
+    -- Set into the frame the ring is built out from that radius (Socket.lua).
+    local S = ns.Socket
+    T.near(p.mask:GetWidth() / 2, S.PICTURE * DaylightUI.Pixel.Snap(f, H * ns.STYLES.ribbon.ring * S.SIZE), 1e-6)
     T.near(f.portraitY, (f.hitTop - f.foot) / 2)
     local _, _, _, _, y = p:GetPoint(1)
     T.near(y, f.portraitY)
+    local T_ = DUI.Pixel.Px(f, DUI.Style.BorderPx(f))
+    T.truthy(f.socketOn, "Ribbon takes the socket too")
+    T.truthy(f.socket.gap:GetHeight() <= f:GetHeight() - 2 * T_ + 1e-6, "the cut-back stays inside the bar, not the name row or line")
 end)
 
 T.test("Ribbon without a portrait: threat colors the bar's border (the row has none)", function()

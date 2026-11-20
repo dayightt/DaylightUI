@@ -98,6 +98,12 @@ UF.CREST_COLORS = { gold = { 0.94, 0.77, 0.31 }, silver = { 0.84, 0.86, 0.90 } }
 -- crest's color instead, and the status icons stand this far off its outer end.
 UF.BARE_ICON_GAP = 3
 UF.CREST_SIZE = 22
+-- The level tag on a socket's join (tools/make_socket_art.py): its height and
+-- width as shares of the ring's radius. It wears its own colors, the frame
+-- border's, so the badge's tint is left off it.
+UF.LEVEL_TAG = 0.4
+UF.LEVEL_TAG_W = 0.7
+UF.LEVEL_TAG_FILE = DUI.MEDIA .. "socket-tag.png"
 -- Portrait rings are flat graphic bands (tools/make_elite_ring.py), their
 -- outer edge at RING_OUTER of the image's half-size. An elite's dragon wraps
 -- the same ring from behind (tools/make_dragon_border.py). It has no ring of
@@ -247,6 +253,7 @@ UF.LEVEL_SELF_COLOR = DUI.Style.INK.VALUE  -- warm white, like names and the big
 UF.LEVEL_NUDGE = { 1, -0.75 }
 -- Without a portrait the badge is smaller, and the digits sat low in it.
 UF.LEVEL_NUDGE_BARE = { 1, 0.75 }
+UF.LEVEL_NUDGE_TAG = { 0, 0 }   -- the socket's tag: its middle is the art's
 UF.LEVEL_UP_BUMP = 1.4  -- how big the level badge swells as you gain a level, easing back (SLOW)
 UF.LEVEL_LIFT = 0.3     -- difficulty colors eased toward white so they read on the dark badge
 UF.SKULL_SIZE = 0.62    -- the skull, as a fraction of the badge
@@ -322,6 +329,7 @@ UF.RING_INNER = 0.772
 -- solid in to 84% of that), covering a 3D model's straight edges. Only the 3D
 -- portrait needs it. Icons and faces run right up to the ring.
 UF.RIM_OUTER = 0.80
+UF.RIM_SOLID = 0.84
 -- Class icons overfill the opening so the round mask crops them evenly at the
 -- ring. Width as a fraction of the opening's radius (2 fills it exactly).
 UF.CLASS_ICON_FILL = 2.3
@@ -845,14 +853,35 @@ function UF.CreatePortraitHolder(f)
     return h
 end
 
+-- Each frame inside the portrait keeps its place above the portrait when the
+-- portrait changes level: its offset is noted the first time it is seen, before
+-- the portrait moves, and set again outright, so the ring stays over the band
+-- whether or not the client moves children along with their parent.
+local function noteLevels(frame)
+    for _, c in ipairs({ frame:GetChildren() }) do
+        if type(c.levelOffset) == "nil" then c.levelOffset = c:GetFrameLevel() - frame:GetFrameLevel() end
+        noteLevels(c)
+    end
+end
+local function relevel(frame)
+    for _, c in ipairs({ frame:GetChildren() }) do
+        if c.levelOffset then
+            c:SetFrameLevel(frame:GetFrameLevel() + c.levelOffset)
+            relevel(c)
+        end
+    end
+end
+
 -- Puts the portrait, and the status icons that ride on it, on the frame or in
 -- its holder. Pieces inside the secure frame can't be anchored to a frame of
 -- the addon's own, so the icons go along with the ring.
 function UF.HomePortrait(f)
     local p = f.portrait
     local home = f.portraitFree and f.portraitHolder or f
+    noteLevels(p)
     if p:GetParent() ~= home then p:SetParent(home) end
     p:SetFrameLevel(home:GetFrameLevel() + (home == f and 6 or 1))
+    relevel(p)
     local st = f.status
     if st then
         -- The player can keep the icons on the frame instead (portraitIconsStay).
@@ -1930,8 +1959,11 @@ function UF.LayoutPortrait(f, cfg)
     f.ringReach = 0
     f.portraitOverlap = 0
     local shell = Style.GetShell(f)
-    if shell then shell.opts.coveredEnd = nil end
-    if not p then return end
+    if shell then shell.opts.coveredEnd, shell.opts.noLit = nil, nil end
+    if not p then
+        ns.Socket.Layout(f, nil)
+        return
+    end
     local mode = UF.PortraitMode(f, cfg)
     local holder = f.portraitHolder
     local free = UF.PORTRAIT_FREE[f.spec.unit] and cfg.portraitAt == "free"
@@ -1949,41 +1981,59 @@ function UF.LayoutPortrait(f, cfg)
     f.portraitMode = mode
     if mode == "none" then
         p:Hide()
+        ns.Socket.Layout(f, nil)
         UF.SetHitRect(f, 0, 0)
         return
     end
     f.ringColor = cfg.portraitRing
     local outerRight = f.spec.slant == "left"
     f.portraitScale = tonumber(cfg.portraitScale) or 1
+    local socket = ns.Socket.Wanted(f, cfg, mode)
+    -- The socket's portrait is drawn a size bigger at the same Portrait size.
+    local scale = f.portraitScale * (socket and ns.Socket.SIZE or 1)
     local R
     if f.ringShare then
         -- As tall as the whole frame with its row and line, centered on it.
         local up, down = f.hitTop or 0, f.foot or 0
-        R = Pixel.Snap(f, (f:GetHeight() + up + down) * f.ringShare * f.portraitScale)
+        R = Pixel.Snap(f, (f:GetHeight() + up + down) * f.ringShare * scale)
         f.portraitY = (up - down) / 2
     else
-        R = Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * f.portraitScale / 2)
+        R = Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * scale / 2)
         f.portraitY = 0
     end
     if f.portraitFree then
         f.portraitY = 0
         holder:SetScale(DUI.Movers.Scale(holder.key))
-        holder:SetSize(2 * R, 2 * R)
     end
+    -- Its middle sits where the classic ring's does.
     local off = R * UF.PORTRAIT_OUT
     local shapeArt = UF.ShapeArt(cfg.portraitShape, outerRight)
+    -- Set into the frame, the ring is built from the inside out on the classic
+    -- ring's radius: the picture keeps its size and the frame's border goes
+    -- round the socket's thin line, so a thicker border makes the whole ring a
+    -- little bigger, as it makes the bar heavier. R becomes its outer edge.
+    local Rb = R
+    if socket then R = ns.Socket.Outer(f, Rb, cfg.portraitRingWidth, shapeArt) end
+    if f.portraitFree then holder:SetSize(2 * R, 2 * R) end
     p.shapeArt = shapeArt
     p.corners = UF.ShapeCorners(shapeArt)
     -- A square's half-side, or the ring's radius: how far it reaches each way.
     local half = shapeArt and R * UF.SQUARE or R
     f.portraitOverlap = half - off  -- how far the ring reaches over the bar
-    local ratio
-    f.ringFile, f.ringLitFile, ratio = UF.RingFiles(cfg.portraitRingWidth, cfg.portraitRingLine, shapeArt)
-    local inner = R * ratio
+    local Rk, ratio, inner
+    if socket then
+        Rk, ratio, inner = ns.Socket.RingSize(Rb, cfg.portraitRingWidth)
+        f.ringFile, f.ringLitFile = ns.Socket.RingFiles(cfg.portraitRingWidth, shapeArt)
+    else
+        Rk = R
+        f.ringFile, f.ringLitFile, ratio = UF.RingFiles(cfg.portraitRingWidth, cfg.portraitRingLine, shapeArt)
+        inner = Rk * ratio
+    end
+    local k = Rk / R
     p:SetSize(2 * R, 2 * R)
     f.portraitEdge, f.portraitX = outerRight and "RIGHT" or "LEFT", outerRight and off or -off
     UF.PlacePortrait(f, 1)
-    local art = 2 * R / UF.RING_OUTER
+    local art = 2 * Rk / UF.RING_OUTER
     p.ring:SetSize(art, art)
     if shapeArt then
         -- A square elite wears a gold frame with corner thorns, drawn in the
@@ -2014,9 +2064,13 @@ function UF.LayoutPortrait(f, cfg)
     p.threatBand:SetSize(art, art)
     p.pulse:SetSize(art, art)
     p.fill:SetSize(art, art)
-    p.head:SetSize(0.8 * R, 0.8 * R)
-    p.radius = half * (1 + ratio) / 2   -- the band's middle
-    p.rim:SetSize(2 * R * UF.RIM_OUTER, 2 * R * UF.RIM_OUTER)
+    p.head:SetSize(0.8 * Rk, 0.8 * Rk)
+    p.radius = half * k * (1 + ratio) / 2   -- the band's middle
+    -- The bezel reaches the ring's opening (a thin ring's opening is wider than
+    -- the bezel, and a 3D model's corners showed in the gap), and the model's
+    -- straight edges stay where the bezel is solid.
+    local rimOuter = math.max(UF.RIM_OUTER, ratio - 0.01)
+    p.rim:SetSize(2 * Rk * rimOuter, 2 * Rk * rimOuter)
     p.model:ClearAllPoints()
     if shapeArt then
         -- The opening is the outer shape scaled down, so one image of it
@@ -2031,6 +2085,12 @@ function UF.LayoutPortrait(f, cfg)
         p.halo:SetTexture(glow)
         p.mask:SetSize(box, box)
         p.disc:SetSize(box + 2, box + 2)
+        if socket then
+            -- Black from the frame's band in to the picture: the gap and the
+            -- hairlines on either side of the socket's thin line.
+            local back = 2 * math.max(0, half - ns.Socket.Inset(f))
+            p.disc:SetSize(back, back)
+        end
         p.shadow:SetSize(4.2 * half, 4.2 * half)
         p.halo:SetSize(UF.SQUARE_HALO * half, UF.SQUARE_HALO * half)
         -- A model can't be masked: it fills the opening's straight part, its
@@ -2048,9 +2108,17 @@ function UF.LayoutPortrait(f, cfg)
         p.shadow:SetSize(2.6 * R, 2.6 * R)
         p.halo:SetSize(UF.HALO_SIZE * R, UF.HALO_SIZE * R)
         p.disc:SetSize(2 * inner + 2, 2 * inner + 2)
+        if socket then
+            local back = 2 * math.max(0, R - ns.Socket.Inset(f))
+            p.disc:SetSize(back, back)
+            -- A disc made for this size: the old small one shows its steps.
+            p.disc:SetTexture(ns.Socket.DISC)
+            p.mask:SetTexture(ns.Socket.DISC, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        end
         p.mask:SetSize(2 * inner, 2 * inner)
         -- The model's corners reach just under the ring's outer edge.
-        local side = 2 * R * 0.97 / math.sqrt(2)
+        -- Never past the ring's outer edge, where the frame's band begins.
+        local side = 2 * Rk * math.min(1 / math.sqrt(2), math.max(0.97 / math.sqrt(2), UF.RIM_SOLID * rimOuter + 0.001))
         p.model:SetSize(side, side)
         p.model:SetPoint("CENTER", p, "CENTER", 0, 0)
         p.classSize = UF.CLASS_ICON_FILL * inner
@@ -2066,10 +2134,18 @@ function UF.LayoutPortrait(f, cfg)
         p.pulse:SetTexture(f.ringFile)
         p.fill:SetSwipeTexture(f.ringFile)
     end
+    -- One shadow: the socket's, under the join, replaces the ring's own.
+    p.shadow:SetShown(not socket)
+    -- The socket's black backing reaches out to the frame's band, so the aggro
+    -- glow goes above it there, or the backing hides it right round the ring.
+    p.halo:SetDrawLayer("BACKGROUND", socket and 1 or -7)
+    local geo = socket and { R = R, half = half, off = off, outerRight = outerRight, shapeArt = shapeArt,
+        opening = shapeArt and inner * UF.SQUARE or inner, free = f.portraitFree } or nil
     p:Show()
     if f.portraitFree then
         -- On its own: the frame keeps its whole length and its own hit rect.
         holder:SetShown(f:IsShown())
+        ns.Socket.Layout(f, geo)
         UF.SetHitRect(f, 0, 0)
         return
     end
@@ -2088,6 +2164,7 @@ function UF.LayoutPortrait(f, cfg)
     if shell and half > edge and along - off >= corner then
         shell.opts.coveredEnd = outerRight and "right" or "left"
     end
+    ns.Socket.Layout(f, geo)
     UF.SetHitRect(f, outerRight and 0 or -reach, outerRight and -reach or 0)
 end
 
@@ -3099,6 +3176,7 @@ function UF.ApplyThreat(f, level, flag)
         f.threatNow = (c and ring) and c or nil
         f.threatFlag = ring and flag or nil
         UF.PaintElite(f)
+        ns.Socket.Threat(f, f.threatNow, f.threatFlag)
     end
     -- No portrait: the name tab's border while it shows, else the frame's own
     -- (tiles, party buttons without a tab, a name row, which has none, and a
@@ -3325,6 +3403,14 @@ function UF.LayoutStatus(f, cfg)
     local icons = st.icons
     local scale = f.iconScale or {}
     for _, t in pairs(icons) do t:ClearAllPoints() end
+    -- The round badge, unless the portrait's socket gives it a tag below.
+    icons.level:SetTexture(DUI.MEDIA .. UF.STATUS.level.file)
+    icons.level:SetTexCoord(0, 1, 0, 1)
+    if f.levelTagged then
+        f.levelTagged = nil
+        local m = f.levelRing or UF.LEVEL_RING
+        icons.level:SetVertexColor(m[1], m[2], m[3], 1)
+    end
     -- The crown and role icon at home are nudged from there (leaderX/Y,
     -- roleX/Y), and sized by Corner crown / Role icon size once picked.
     local ln, rn = f.leaderNudge or UF.NO_NUDGE, f.roleNudge or UF.NO_NUDGE
@@ -3342,8 +3428,24 @@ function UF.LayoutStatus(f, cfg)
         icons.leader:SetPoint("CENTER", p, "CENTER", ln.x, R * 0.98 + ln.y)
         icons.rest:SetPoint("CENTER", p, "CENTER", out * R * 0.82, R * 0.82)
         icons.pvp:SetPoint("CENTER", p, "CENTER", out * R * 0.82, -R * 0.82)
-        icons.level:SetPoint("CENTER", p, "CENTER", 0, -R * 0.9)
-        Style.SetTextSize(st.levelText, math.max(8, math.floor(R * 0.38 + 0.5)))
+        if f.socketOn and f.socketJoinX then
+            -- Set into the frame: a slanted tag on the join, where the ring
+            -- meets the bar's bottom edge, leaning like the frame's end.
+            local outer = outerRight and "RIGHT" or "LEFT"
+            icons.level:SetPoint("CENTER", f, "BOTTOM" .. outer, -out * f.socketJoinX, 0)
+            if not f.levelSpot then
+                local z = R * (scale.level or 1)
+                icons.level:SetTexture(UF.LEVEL_TAG_FILE)
+                icons.level:SetTexCoord(outerRight and 1 or 0, outerRight and 0 or 1, 0, 1)
+                icons.level:SetSize(UF.LEVEL_TAG_W * z, UF.LEVEL_TAG * z)
+                icons.level:SetVertexColor(1, 1, 1, 1)
+                f.levelTagged = true
+            end
+            Style.SetTextSize(st.levelText, math.max(8, math.floor(R * 0.25 + 0.5)))
+        else
+            icons.level:SetPoint("CENTER", p, "CENTER", 0, -R * 0.9)
+            Style.SetTextSize(st.levelText, math.max(8, math.floor(R * 0.38 + 0.5)))
+        end
         if icons.role then
             local z = f.rolePicked or R * UF.ROLE_SIZE
             icons.role:SetSize(z, z)
@@ -3412,10 +3514,10 @@ function UF.LayoutStatus(f, cfg)
         icons.level:ClearAllPoints()
         icons.level:SetPoint(at.point, f, at.relPoint, at.x, at.y)
     end
-    local nudge = onRing and UF.LEVEL_NUDGE or UF.LEVEL_NUDGE_BARE
+    local nudge = f.levelTagged and UF.LEVEL_NUDGE_TAG or onRing and UF.LEVEL_NUDGE or UF.LEVEL_NUDGE_BARE
     st.levelText:ClearAllPoints()
     st.levelText:SetPoint("CENTER", icons.level, "CENTER", nudge[1], nudge[2])
-    local b = icons.level:GetWidth() * UF.SKULL_SIZE
+    local b = icons.level:GetHeight() * UF.SKULL_SIZE
     st.skull:SetSize(b, b)
 end
 
@@ -4104,7 +4206,8 @@ function UF.ApplyCrest(f, c)
         end
         if f.status then
             local m = f.crestShown and UF.ELITE_RING_COLORS[kind] or UF.LEVEL_RING
-            f.status.icons.level:SetVertexColor(m[1], m[2], m[3], 1)
+            f.levelRing = m
+            if not f.levelTagged then f.status.icons.level:SetVertexColor(m[1], m[2], m[3], 1) end
         end
         -- The tab's lit top edge. A name row has no shell to edge.
         f.tabEdge:SetShown(f.crestShown and not f.nameRow)

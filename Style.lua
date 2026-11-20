@@ -1229,9 +1229,9 @@ end
 -- shell wins over it. A shell's own pair (borderPair, e.g. a tooltip's class
 -- gradient) sweeps its outline the same way, over its borderColor. sweep is
 -- the pair, or false.
-function Style.PaintShellColors(s)
-    local g = general()
-    local ba = shellAlpha(s, g)
+-- The outline's and band's sweeps for a shell (each a pair, or false/nil) and
+-- its border alpha, shared by the shell itself and a join painted with it.
+local function shellSweeps(s, g)
     local opts = s.opts
     local lo, hi
     if g.gradientBorder and CreateColor ~= nil then lo, hi = Style.AccentPair() end
@@ -1240,6 +1240,13 @@ function Style.PaintShellColors(s)
     local own = CreateColor ~= nil and opts.borderPair or nil
     local sweepBorder = own or (pair and not heavy and not opts.borderColor and pair)
     local sweepBand = pair and heavy and not opts.bandColor and pair
+    return shellAlpha(s, g), sweepBorder, sweepBand
+end
+
+function Style.PaintShellColors(s)
+    local g = general()
+    local opts = s.opts
+    local ba, sweepBorder, sweepBand = shellSweeps(s, g)
     local bc, dc = opts.borderColor or Style.BORDER, opts.bandColor or Style.BAND
     local r, g2, b = bc[1], bc[2], bc[3]
     for key, tex in pairs(s.border) do putColor(tex, key, r, g2, b, ba, sweepBorder) end
@@ -1252,6 +1259,91 @@ function Style.PaintShellColors(s)
     for key, tex in pairs(s.band) do putColor(tex, key, r, g2, b, ba, sweepBand) end
     for side, tex in pairs(s.bandSlant) do putColor(tex, side, r, g2, b, ba, sweepBand) end
     if cut then putColor(cut.band, "BOTTOMRIGHT", r, g2, b, ba, sweepBand) end
+    if s.join then Style.PaintJoin(s.join, s) end
+end
+
+-- A join: pieces another frame lays into a shell's own border layers, so a
+-- shape drawn there (a portrait's ring) merges with the border instead of
+-- lying over it. The outline sits with the shell's outline, the shadow with
+-- its shadow, the band just above the shell's band and lit line, so the
+-- frame's own strips never cross it. The owner sets the art, sizes and points.
+function Style.ShellJoin(frame)
+    local s = shellOf[frame]
+    if not s or s.lean then return nil end
+    if s.join then return s.join end
+    local j = {
+        outline = s:CreateTexture(nil, "BORDER", nil, 0),
+        band = s:CreateTexture(nil, "BORDER", nil, 3),
+        shadow = s:CreateTexture(nil, "BACKGROUND", nil, -8),
+    }
+    j.outline:Hide(); j.band:Hide(); j.shadow:Hide()
+    s.join = j
+    Style.PaintJoin(j, s)
+    return j
+end
+
+-- Paints a join-shaped set (outline, band, shadow, side, color) with shell
+-- s's colors, wherever its textures live. side ("left" or "right") picks the
+-- end of a border sweep it takes. The band's own color (aggro) wins, then a
+-- highlight or sweep on the shell, else the shell's band color. Optional
+-- outlines and bands (lists) are more pieces of the frame's own border.
+function Style.PaintJoin(j, s)
+    local g = general()
+    local opts = s.opts
+    local ba, sweepBorder, sweepBand = shellSweeps(s, g)
+    local side = j.side or "left"
+    local bc = opts.borderColor or Style.BORDER
+    putColor(j.outline, side, bc[1], bc[2], bc[3], ba, sweepBorder)
+    -- Pieces of the frame's own border around the join (fillets where it meets
+    -- the bar's edges): the shell's colors, never aggro's.
+    local dc = opts.bandColor or Style.BAND
+    for _, t in ipairs(j.outlines or {}) do putColor(t, side, bc[1], bc[2], bc[3], ba, sweepBorder) end
+    for _, t in ipairs(j.bands or {}) do putColor(t, side, dc[1], dc[2], dc[3], ba, sweepBand) end
+    local c = j.color or opts.bandColor
+    -- j.rings: more of the ring's own band (painted with it, aggro too).
+    local function paintBand(t)
+        if type(j.flag) ~= "nil" and j.boolColors and t.SetVertexColorFromBoolean then
+            -- A secret answer: the client keeps picking the color.
+            t:SetVertexColorFromBoolean(j.flag, j.boolColors.on, j.boolColors.off)
+        elseif c then
+            t:SetVertexColor(c[1], c[2], c[3], ba)
+        elseif sweepBand then
+            putColor(t, side, 1, 1, 1, ba, sweepBand)
+        else
+            -- The frame's band is one flat color, so the ring's is too.
+            t:SetVertexColor(dc[1], dc[2], dc[3], ba)
+        end
+    end
+    paintBand(j.band)
+    for _, t in ipairs(j.rings or {}) do paintBand(t) end
+    local sc = opts.shadowColor or BLACK
+    j.shadow:SetVertexColor(sc[1], sc[2], sc[3], (opts.shadowAlpha or g.shadowAlpha) * (j.shadowK or 1))
+end
+
+-- The join's band in its own color ({ r, g, b }), or nil to hand it back to the
+-- shell's colors. The shell's own border is never touched.
+function Style.SetJoinBand(j, s, color)
+    j.color, j.flag = color, nil
+    Style.PaintJoin(j, s)
+end
+
+-- The same from a secret flag: the client picks the color, false = the band's
+-- normal color. The two color objects are kept until the color or alpha moves.
+function Style.JoinBandFromBoolean(j, s, flag, color)
+    if not j.band.SetVertexColorFromBoolean then return end
+    local a = shellAlpha(s, general())
+    local c = j.boolColors
+    if not (c and c.a == a and c[1] == color[1] and c[2] == color[2] and c[3] == color[3]) then
+        local nd = Style.BAND
+        c = { a = a, color[1], color[2], color[3],
+              on = CreateColor(color[1], color[2], color[3], a), off = CreateColor(nd[1], nd[2], nd[3], a) }
+        j.boolColors = c
+    end
+    j.color, j.flag = nil, flag
+    j.band:SetVertexColorFromBoolean(flag, c.on, c.off)
+    for _, t in ipairs(j.rings or {}) do
+        if t.SetVertexColorFromBoolean then t:SetVertexColorFromBoolean(flag, c.on, c.off) end
+    end
 end
 
 -- A cut corner's own border (Style.CutShell): a line along the cut as thick as
@@ -1676,7 +1768,9 @@ function Style.LayoutShell(s)
         s.lit:SetPoint("TOPRIGHT", s, "TOPRIGHT", -litFrom(angled, under, "right", eR, inset, insetUnder), -one)
         s.lit:SetHeight(one)
     end
-    s.lit:SetShown(heavy and not joined)
+    -- opts.noLit: no lit top line (a frame with a portrait set into it: the
+    -- line would end at the portrait on top and the bottom has none).
+    s.lit:SetShown(heavy and not joined and not s.opts.noLit)
     Style.PaintShellColors(s)
     Style.LayoutSlant(s:GetParent())
 end

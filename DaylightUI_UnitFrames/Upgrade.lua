@@ -557,6 +557,19 @@ ns.UPGRADE_STEPS[20] = function(uf)
     c.at, c.slantLeft, c.slantUnder = "middle", nil, nil
 end
 
+-- 21: portraits can be set into their frame's border, the new default.
+-- Profiles from before keep the classic ring until the player picks (they are
+-- asked once which look they want). A value equal to the new default in an
+-- old profile was never picked: the setting didn't exist.
+ns.UPGRADE_STEPS[21] = function(uf, _, _, run)
+    if not run or run.from == 0 then return end
+    for _, id in ipairs({ "player", "target", "focus", "party", "arena" }) do
+        if type(uf[id]) ~= "table" then uf[id] = {} end
+        local t = uf[id]
+        if t.portraitLook == nil or t.portraitLook == "socket" then t.portraitLook = "classic" end
+    end
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 -- Each step also gets this run: from = the last step done before it (0 for a
 -- new profile), picked = settings an earlier step set from the player's own

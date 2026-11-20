@@ -716,6 +716,8 @@ T.test("you join a party in a fight: the new member's frame shows, dressed and s
     T.near(b:GetWidth(), DUI:Get("UnitFrames", "party.width"), 1, "with its size")
     T.eq(b.nameText.__text, "Kaladin")
     T.eq(b.auraSet.debuffs.__unit, "party1", "its auras are the member's")
+    T.truthy(b.socketOn, "the socket is laid out in a fight: nothing in it is protected")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("a party turns into a raid in a fight: the raid tiles take over from the party frames", function()

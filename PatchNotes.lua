@@ -12,6 +12,8 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
+        { "Auction House", "A brand new Auction House, built from the ground up in Daylight UI style! Buy, Sell and My auctions tabs, cheapest deals first, the price filled in for you when you sell, and outbid auctions moved to the top so you never miss one. Buy a whole stack in two clicks, and it double-checks before you pay way over the usual price" },
+        { "Auction House", "Every item tooltip shows its auction price: the last one seen, the usual one, and how long ago. Hold Shift to price the whole stack. Know what your loot is worth the moment it drops!" },
         { "Nameplates", "Friendly players can show their class icon by their name, in the icon style you picked for each class (Nameplates, Friendly)" },
         { "Nameplates", "Mana, rage or energy can be written on the nameplate power bar" },
         { "Nameplates", "Long nameplate names can be shortened to initials, so they no longer run over the health text" },
@@ -20,6 +22,8 @@ DUI.PatchNotes = {
         { "NPC window", "Quest pages show the quest's level next to its name" },
         { "Loot", "Loot rolls in Daylight UI style that show who picked Need, Greed or Pass, everyone's roll and who won. Several drops stack small, and two of the same item are marked" },
         { "Tooltip", "Tooltip titles and small text each get their own size and font, apart from the main text" },
+        { "Tooltip", "Tooltips can have their own border thickness and background, or follow the rest of Daylight UI (Tooltips, Look)" },
+        { "Unit frames", "A gorgeous new portrait look! Portraits now sit right inside their frame, with one border flowing around both as a single seamless piece. It's the slickest your unit frames have ever looked. You're asked once which look you want, and each frame's Portrait tab lets you switch any time" },
     }, changed = {
         { "Cooldown Manager", "Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor" },
         { "Tooltip", "Tooltips fade out softly when the mouse leaves instead of vanishing at once" },
@@ -27,9 +31,10 @@ DUI.PatchNotes = {
         { "Tooltip", "Quests in an NPC's tooltip mark dungeon and elite quests with a short D or E, so long quest names fit" },
         { "Chat", "Hovering an item link in chat shows just that item. Hold Shift to compare it with your gear, or turn the compare back on in Chat options" },
     }, fixed = {
+        { "Tooltip", "Tooltip borders are as thick as every other frame's instead of thinner" },
         { "Action bars", "Bars that switch page while you hold Shift can be rearranged: with your spellbook open, just drag a spell, no Shift needed" },
         { "Action bars", "Druids: the main bar switches to its Prowl page while you prowl, like the game's own bar" },
-        { "Cooldown Manager", "Buff and debuff glows, sounds and hiding stay right in a fight: no more buffs shown as missing while they're up, or left on after they ended" },
+        { "Cooldown Manager", "Rebuilt the backend of the CDM for greater support and less missing spells or inconsistencies" },
         { "Bags", "Quest items that are also a food or other consumable, like Kravel's Crate, always go under Quest items" },
         { "Bags", "Your bag no longer stays dimmed after you hover a bag in the bag row, at a vendor or anywhere else" },
         { "Chat", "Speech bubbles are the game's size again instead of shrinking when your UI scale is small, and no longer stay invisible after a dungeon" },
@@ -39,6 +44,7 @@ DUI.PatchNotes = {
         { "Threat meter", "The threat meter keeps updating in dungeons instead of stopping until a reload, and the tank's bar at 100% fills all the way" },
         { "Info panel", "With the game's controller mode on, clicking the gold, bags, gear or friends text no longer leaves \"action blocked\" errors while you walk around" },
         { "NPC window", "No more \"action blocked\" error from the Back button on quest pages: the game doesn't allow it, so the button is gone" },
+        { "Legacy", "Clicking a Legacy challenge's popup or tracked challenge no longer shows a Lua error, and opens on that challenge" },
         { "Group finder", "Groups for some dungeons, like The Shaper's Terrace, no longer list more open spots than the dungeon has room for" },
         { "Group finder", "Listed as a tank or healer, inviting someone no longer turns you into Damage" },
         { "Professions", "Recipes with a cooldown, like Arcanite Bar or Mooncloth, show how long until you can make them again" },
