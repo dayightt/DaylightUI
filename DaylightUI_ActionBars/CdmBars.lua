@@ -386,6 +386,21 @@ local function shieldShown(h, btn, up)
     h.shieldUp = on
 end
 
+-- The client refuses OnShow and OnHide on its aura button ("blocked by secret
+-- aspects"), but it plays a shown animation as the button comes up and stops it
+-- as the aura clears. An empty group that keeps playing until then tells both.
+local function watchShown(h, btn)
+    if type(btn.AddAuraShownAnimation) ~= "function" then return end
+    local ag = btn:CreateAnimationGroup()
+    local still = ag:CreateAnimation("Translation")
+    still:SetOffset(0, 0)
+    still:SetDuration(3600)
+    ag:SetLooping("REPEAT")
+    ag:SetScript("OnPlay", function() shieldShown(h, btn, true) end)
+    ag:SetScript("OnStop", function() shieldShown(h, btn, false) end)
+    DUI.SafeCall(btn.AddAuraShownAnimation, btn, ag)
+end
+
 -- Places Daylight UI's shield bar where the client's bar is (same numbers as LayoutButton), in
 -- the bar's color, with the amount on the right where the time was ("Show shield
 -- amount") and the name while the button wears the bar's look itself (h.bare). It's
@@ -682,9 +697,7 @@ local function initButton(h, btn)
     try(Style.SetAuraTime, btn, parts.time, nil, Style.ClockFormatter())
     try(btn.SetApplicationCount, btn, parts.count)
     ns.CdmEffects.MakeSlide(btn, h)
-    -- Shown and hidden, for the shield bar (Daylight UI's, outside the button).
-    try(btn.HookScript, btn, "OnShow", function() shieldShown(h, btn, true) end)
-    try(btn.HookScript, btn, "OnHide", function() shieldShown(h, btn, false) end)
+    if h.isShield then watchShown(h, btn) end
     DUI.SafeCall(B.LayoutButton, h, btn, parts)
 end
 

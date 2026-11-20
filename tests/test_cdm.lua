@@ -4707,10 +4707,10 @@ T.test("cdm rows: a shield the game files as a cooldown fills by the shield left
     T.eq(rawget(full, "__value"), 250, "the full stays")
     stub.Advance(1)
     -- It lands, then soaks: the bar drains and its full value is kept.
-    btn:Hide()
+    stub.AuraVisible(btn, false)
     stub.units.player = stub.units.player or {}
     stub.units.player.absorbs = stub.Secret(300)
-    btn:Show()
+    stub.AuraVisible(btn, true)
     T.eq(s:GetAlpha(), 1, "shown while the shield is up")
     local _, hi = s:GetMinMaxValues()
     T.eq(rawget(hi, "__value"), 300)
@@ -4726,7 +4726,7 @@ T.test("cdm rows: a shield the game files as a cooldown fills by the shield left
     T.eq(k.__refreshes or 0, n, "no rebuild for an enemy target")
     -- The client rebuilding its button (gone and straight back) keeps the full value.
     stub.Advance(1)
-    btn:Hide(); btn:Show()
+    stub.AuraVisible(btn, false); stub.AuraVisible(btn, true)
     stub.units.player.absorbs = stub.Secret(90)
     stub.FireEvent("UNIT_ABSORB_AMOUNT_CHANGED", "player")
     _, hi = s:GetMinMaxValues()
@@ -8093,10 +8093,10 @@ T.test("cdm custom: a shield's bar fills by the shield left, its full when it la
     T.eq(parts.bar:GetStatusBarTexture():GetAlpha(), 0, "the client's time fill gives way")
     T.eq(parts.time:GetAlpha(), 0, "and its time")
     -- It lands: the amount is its full value, and the hits after drain it.
-    btn:Hide()
+    stub.AuraVisible(btn, false)
     stub.units.player.absorbs = stub.Secret(480)
     stub.EnterCombat()
-    btn:Show()
+    stub.AuraVisible(btn, true)
     local lo, hi = s:GetMinMaxValues()
     T.eq(rawget(hi, "__value"), 480, "full at the amount it landed with")
     T.eq(rawget(s.text:GetText(), "__value"), "480")

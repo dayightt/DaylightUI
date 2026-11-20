@@ -407,21 +407,24 @@ function Widget:IsForbidden() return self.__forbidden == true end
 -- A frame inside a client aura button has secret aspects (its shown state is
 -- secret), so the client refuses a show or hide handler on it, even while the
 -- button is being created. The game's error: "Frame:SetScript(): Cannot assign
--- script handler for 'onshow' (blocked by secret aspects)".
+-- script handler for 'onshow' (blocked by secret aspects)". HookScript too, on
+-- the button itself: "Button:HookScript(): Cannot assign script handler for
+-- 'onhide' (blocked by secret aspects)".
 local SECRET_ASPECT_SCRIPTS = { OnShow = "onshow", OnHide = "onhide" }
-local function refuseSecretAspect(self, h)
+local function refuseSecretAspect(self, h, how)
     if rawget(self, "__inAura") and SECRET_ASPECT_SCRIPTS[h] and rawget(self, "__type") ~= "AnimationGroup" then
-        error(string.format("Frame:SetScript(): Cannot assign script handler for '%s' (blocked by secret aspects)",
-            SECRET_ASPECT_SCRIPTS[h]), 3)
+        error(string.format("Frame:%s(): Cannot assign script handler for '%s' (blocked by secret aspects)",
+            how, SECRET_ASPECT_SCRIPTS[h]), 3)
     end
 end
-function Widget:SetScript(h, fn) refuseSecretAspect(self, h); self.__scripts[h] = fn end
+function Widget:SetScript(h, fn) refuseSecretAspect(self, h, "SetScript"); self.__scripts[h] = fn end
 function Widget:GetScript(h) return self.__scripts[h] end
 function Widget:HookScript(h, fn)
     -- The game: "Usage: local success = self:HookScript(scriptTypeName, script [, bindingType])"
     if type(fn) ~= "function" then
         error("bad argument #3 to '?' (Usage: local success = self:HookScript(scriptTypeName, script [, bindingType]))", 2)
     end
+    refuseSecretAspect(self, h, "HookScript")
     local prev = self.__scripts[h]
     local both = function(...) if prev then prev(...) end stub.Hooked(fn, ...) end
     -- Kept on the frame. A weak table here would keep every world alive, since
