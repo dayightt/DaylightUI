@@ -11,23 +11,22 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
-        { "Professions", "The Herbalism and Fishing tabs in the profession window open Gardening and Bait and Tackle again" },
-        { "Action bars", "A hidden micro menu no longer pops up on a vehicle's action bar" },
-        { "Unit frames", "The red combat glow on square portraits is as soft as on round ones" },
-        { "Unit frames", "No more error when a cast is interrupted again right after another interrupt" },
-        { "Quests", "Zone names in the quest tracker no longer pile on top of each other when quests come in right after logging in" },
-        { "Info panel", "Battleground capture bars, like Arathi Basin's flags, no longer hide under the minimap. They sit beside it and can be moved in unlock mode" },
+    { version = "Unreleased" },
+    { version = "2.1", date = "2026-11-20", summary = "Better tooltips, an Auction House scan that no longer gets stuck, battleground flags out from under the minimap, and lots of small fixes.", fixed = {
+        { "Tooltip", "Spells on cooldown still show what they do, and recipes show both the recipe's binding and the item's" },
+        { "Tooltip", "Long tags and titles wrap instead of running off the edge, and weapon compares say which hand each of yours is in" },
+        { "Auction House", "A full scan no longer gets stuck on \"Asking the Auction House\". It stops and says so, and you can scan again" },
+        { "Auction House", "Shift-clicking an item in your bags or a profession searches for it on Buy" },
+        { "Auction House", "On Sell, what you get no longer covers its own label when it's worth a gold or more" },
+        { "Info panel", "Battleground capture bars, like Arathi Basin's flags, no longer hide under the minimap and can be moved in unlock mode" },
         { "Buffs", "Buffs and debuffs next to the minimap can be dragged in unlock mode" },
-        { "Character", "Hovering Spell Damage lists every school again, Shadow included, and says the top number is your best one" },
-        { "Social", "Appearing offline now shows as \"Appearing offline\" at the top of the social window instead of \"Available\"" },
-        { "Auction House", "On Sell, what you get when it sells no longer covers its own label when it's worth a gold or more" },
-        { "Tooltip", "A recipe's tooltip shows the recipe's own binding at the top and what the item it makes binds as down with that item and its materials" },
-        { "Tooltip", "Long tags and titles on tooltips, like long guild ranks or pet owner names in German, wrap onto a second line instead of running off the edge" },
-        { "Tooltip", "With a weapon in each hand, comparing a weapon says which hand each of yours is in, and your main hand sits next to the item" },
-        { "Tooltip", "Hovering a spell on your action bars while it's on cooldown still shows what it does, with the time left added" },
-        { "Auction House", "A full scan no longer gets stuck on \"Asking the Auction House\" when the game never takes the request. It stops and says so, and you can scan again" },
-        { "Auction House", "Shift-clicking an item in your bags or a profession searches for it on Buy, like in the game's own Auction House" },
+        { "Chat", "A tab with Tradeskills on shows only your own crafting, not everyone's nearby" },
+        { "Quests", "Zone names in the quest tracker no longer pile on top of each other right after logging in" },
+        { "Professions", "The Herbalism and Fishing tabs open Gardening and Bait and Tackle again" },
+        { "Action bars", "A hidden micro menu no longer pops up on a vehicle's action bar" },
+        { "Unit frames", "The combat glow on square portraits is as soft as on round ones, and a rare error after two quick interrupts is gone" },
+        { "Character", "Hovering Spell Damage lists every school again, Shadow included" },
+        { "Social", "Appearing offline shows as \"Appearing offline\" at the top of the social window instead of \"Available\"" },
     }, new = {
         { "Tooltip", "Rich tooltip cards can leave out the creature's face and the player's class icon" },
     } },

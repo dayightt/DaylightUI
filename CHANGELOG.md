@@ -1,3 +1,26 @@
+# DaylightUI 2.1
+
+Better tooltips, an Auction House scan that no longer gets stuck, battleground flags out from under the minimap, and lots of small fixes.
+
+## New
+- Tooltip: Rich tooltip cards can leave out the creature's face and the player's class icon
+
+## Fixed
+- Tooltip: Spells on cooldown still show what they do, and recipes show both the recipe's binding and the item's
+- Tooltip: Long tags and titles wrap instead of running off the edge, and weapon compares say which hand each of yours is in
+- Auction House: A full scan no longer gets stuck on "Asking the Auction House". It stops and says so, and you can scan again
+- Auction House: Shift-clicking an item in your bags or a profession searches for it on Buy
+- Auction House: On Sell, what you get no longer covers its own label when it's worth a gold or more
+- Info panel: Battleground capture bars, like Arathi Basin's flags, no longer hide under the minimap and can be moved in unlock mode
+- Buffs: Buffs and debuffs next to the minimap can be dragged in unlock mode
+- Chat: A tab with Tradeskills on shows only your own crafting, not everyone's nearby
+- Quests: Zone names in the quest tracker no longer pile on top of each other right after logging in
+- Professions: The Herbalism and Fishing tabs open Gardening and Bait and Tackle again
+- Action bars: A hidden micro menu no longer pops up on a vehicle's action bar
+- Unit frames: The combat glow on square portraits is as soft as on round ones, and a rare error after two quick interrupts is gone
+- Character: Hovering Spell Damage lists every school again, Shadow included
+- Social: Appearing offline shows as "Appearing offline" at the top of the social window instead of "Available"
+
 # DaylightUI 2.0.1
 
 Chat stops filling up with everyone's crafting, plus a few quick fixes.
