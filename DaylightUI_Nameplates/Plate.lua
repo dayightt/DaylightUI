@@ -1467,9 +1467,16 @@ function Plate.PaintThreatBar(p, c)
     if not G then return end
     if cfg().threatFill == "pair" then
         G.Paint(p.health, Plate.THREAT_PAIR[p.threatState])
-    elseif c.healthColor == "classGradient" or c.healthColor == "gradient" then
+    elseif Plate.GradientBar(c) then
         G.PaintFrom(p.health, p.threatNow)
     end
+end
+
+-- Whether a plate's health bar color is a gradient, so a single color laid
+-- over it (threat, a special mob) becomes one too.
+function Plate.GradientBar(c)
+    local m = c.healthColor
+    return m == "classGradient" or m == "gradient" or m == "customGradient"
 end
 
 -- A special mob's color on the bar (Plate.MobKind). On a gradient bar (class
@@ -1477,7 +1484,7 @@ end
 -- (Plate.PaintThreatBar); otherwise flat, already set. bar: the health bar (a
 -- real plate's or the preview's).
 function Plate.PaintKindBar(bar, c, rgb)
-    if DUI.Gradients and (c.healthColor == "classGradient" or c.healthColor == "gradient") then
+    if DUI.Gradients and Plate.GradientBar(c) then
         DUI.Gradients.PaintFrom(bar, rgb)
     end
 end
@@ -1657,6 +1664,7 @@ function Plate.UpdateBarColor(p)
     -- unit's color unless the plugin holds that too.
     if Plate.Owned("healthFill") then
         Style.SetBarGradient(p.health, false)
+        Style.ClearBarStops(p.health)
         p.health:GetStatusBarTexture():SetVertexColor(1, 1, 1, 1)
         if not Plate.Owned("healthBack") then Plate.SetBackColor(p.health, r, g, b) end
         if not p.layersOff then
@@ -1681,6 +1689,8 @@ function Plate.UpdateBarColor(p)
     if c.healthColor == "classGradient" and not onBar and not kc and DUI.Gradients then
         DUI.Gradients.PaintUnit(p.health, u)
     end
+    local own = c.healthColor == "customGradient" and not onBar and not kc and DUI.Gradients
+    if own then DUI.Gradients.PaintStops(p.health, c.healthGradient) end
     if kc then Plate.PaintKindBar(p.health, c, kc) end
     if onBar then Plate.PaintThreatBar(p, c) end
     -- A player whose class the game hides: the class layers carry the color.
@@ -1703,6 +1713,9 @@ function Plate.UpdateBarColor(p)
     if isSecret(tapped) then
         local fill = p.health:GetStatusBarTexture()
         if fill and fill.SetVertexColorFromBoolean then
+            -- A custom gradient's colors lie over a white fill, so untapped
+            -- stays white; tapped, they shade the gray instead.
+            if own then r, g, b = 1, 1, 1 end
             pcall(fill.SetVertexColorFromBoolean, fill, tapped, tappedColor(), untappedColor(r, g, b))
         end
     elseif tapped then

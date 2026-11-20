@@ -1203,3 +1203,31 @@ T.test("cast bars inside the target and focus frames hold each mask once", funct
         end
     end
 end)
+
+T.test("a custom gradient fill: your colors on yours, the other bars' own on theirs", function()
+    local DUI, ns = stub.Load({ module = true })
+    DUI:Set("UnitFrames", "casts.fill", "customGradient")
+    DUI:Set("UnitFrames", "casts.customGradient.count", 2)
+    DUI:Set("UnitFrames", "casts.customGradient.c1", { 1, 0, 0 })
+    DUI:Set("UnitFrames", "targetCasts.customGradient.count", 2)
+    DUI:Set("UnitFrames", "targetCasts.customGradient.c1", { 0, 0, 1 })
+    stub.RunTimers()
+    stub.units.target = { name = "Mob", cast = { name = "Fireball", notInterruptible = false, duration = stub.Duration(1) } }
+    stub.units.player = { name = "Me", isPlayer = true, class = "MAGE",
+                          cast = { name = "Frostbolt", notInterruptible = false, duration = stub.Duration(1) } }
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    local function first(h) return DUI.Style.FillColors(h.bar:GetStatusBarTexture())[3] end
+    T.eq(first(ns.playerCastbar), DUI.Gradients.Stops(DUI:Get("UnitFrames", "casts.customGradient"))[1][3], "yours starts red")
+    T.truthy(first(ns.targetCastbar) > 0.5, "the target's starts blue")
+    T.truthy(ns.playerCastbar.bar:GetStatusBarTexture().__gradient, "two colors: the fill's own gradient")
+
+    -- An interrupt shows its own color, with no gradient left over it.
+    DUI:Set("UnitFrames", "casts.customGradient.count", 3)
+    stub.RunTimers()
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    ns.CastBar.Interrupted(ns.playerCastbar)
+    local c = DUI:Get("UnitFrames", "casts.interrupted")
+    T.eq(DUI.Style.FillColors(ns.playerCastbar.bar:GetStatusBarTexture())[1], c[1], "the interrupted color")
+    T.isnil(DUI.Style.FillStops(ns.playerCastbar.bar:GetStatusBarTexture()), "the gradient's colors gone")
+end)

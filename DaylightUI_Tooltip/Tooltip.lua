@@ -223,6 +223,15 @@ end
 
 local barR, barG, barB -- Daylight UI's health bar color, if any
 local barKey -- or its gradient pair (Gradient on)
+local barStops -- or a custom gradient's saved colors
+
+-- Puts the health bar back to the game's own color: none of Daylight UI's left.
+local function forgetBar()
+    barR, barG, barB, barKey, barStops = nil, nil, nil, nil, nil
+    if type(GameTooltipStatusBar) == "table" and GameTooltipStatusBar.GetStatusBarTexture then
+        DUI.Style.ClearBarStops(GameTooltipStatusBar)
+    end
+end
 
 -- The game refilling a tooltip from data (an item's, every 0.2 s while hovered)
 -- empties its info, clears the tooltip and runs the data post-calls (which tint
@@ -270,7 +279,7 @@ function Tip.ResetColors(tip, later)
         Tip.Colors(tip, nil)
     end
     if tip == GameTooltip then
-        barR, barG, barB, barKey = nil, nil, nil, nil
+        forgetBar()
         Tip.PaintHiddenClass(nil)
     end
 end
@@ -349,7 +358,8 @@ function Tip.StyleBar()
         -- the bar's method: that taints the game's health code, which then
         -- fails on the secret health values it gets.
         bar:HookScript("OnValueChanged", function(self)
-            if barKey then DUI.Gradients.Paint(self, barKey)
+            if barStops then DUI.Gradients.PaintStops(self, barStops)
+            elseif barKey then DUI.Gradients.Paint(self, barKey)
             elseif barR then self:SetStatusBarColor(barR, barG, barB) end
         end)
     end
@@ -387,9 +397,22 @@ function Tip.BarGradient()
     return mode == "gradient"
 end
 
+-- The custom gradient the health bar wears (its own, or the unit frames'
+-- health bars' when it matches them), or nil.
+function Tip.BarStops()
+    if not DUI.Gradients then return nil end
+    local mode = cfg.barGradient
+    if mode == "frames" and DUI:Get("UnitFrames", "colors.health") == "customGradient" then
+        return DUI:Get("UnitFrames", "colors.healthGradient")
+    end
+    if mode == "customGradient" then return cfg.barStops end
+    return nil
+end
+
 -- Another bar painted like the health bar right now (the fading copy of it).
 function Tip.PaintLike(other, bar)
-    if barKey then DUI.Gradients.Paint(other, barKey)
+    if barStops then DUI.Gradients.PaintStops(other, barStops)
+    elseif barKey then DUI.Gradients.Paint(other, barKey)
     elseif barR then other:SetStatusBarColor(barR, barG, barB)
     else
         local r, g, b, a = bar:GetStatusBarColor()
@@ -397,14 +420,19 @@ function Tip.PaintLike(other, bar)
     end
 end
 
--- The unit's color, or its class (or reaction) gradient pair.
+-- The unit's color, its class (or reaction) gradient pair, or a custom gradient.
 local function colorBar(unit, r, g, b)
     local bar = GameTooltipStatusBar
     if type(bar) ~= "table" then return end
     barR, barG, barB = r, g, b
-    barKey = Tip.BarGradient() and DUI.Gradients.KeyFor(unit) or nil
-    if barKey then DUI.Gradients.Paint(bar, barKey)
-    else bar:SetStatusBarColor(r, g, b) end
+    barStops = Tip.BarStops()
+    barKey = not barStops and Tip.BarGradient() and DUI.Gradients.KeyFor(unit) or nil
+    if barStops then DUI.Gradients.PaintStops(bar, barStops)
+    elseif barKey then DUI.Gradients.Paint(bar, barKey)
+    else
+        bar:SetStatusBarColor(r, g, b)
+        DUI.Style.NoteFillRGB(bar:GetStatusBarTexture(), r, g, b)
+    end
     Tip.PaintHiddenClass(nil)
 end
 
@@ -413,7 +441,8 @@ end
 function Tip.PaintHiddenClass(id)
     local bar = GameTooltipStatusBar
     if type(bar) ~= "table" then return end
-    if type(id) == "nil" then
+    -- A custom gradient isn't by class: it stays, with no class over it.
+    if type(id) == "nil" or Tip.BarStops() then
         if Tip.classLayers then DUI.Gradients.PaintClassLayers(Tip.classLayers, nil, nil) end
         return
     end
@@ -1978,7 +2007,7 @@ end
 
 function Tip.OnBarUnit(tip)
     if tip ~= GameTooltip then return end
-    barR, barG, barB, barKey = nil, nil, nil, nil
+    forgetBar()
     Tip.PaintHiddenClass(nil)
     local ok, _, unit = pcall(tip.GetUnit, tip)
     unit = ok and plain(unit) or nil

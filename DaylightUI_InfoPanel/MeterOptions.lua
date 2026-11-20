@@ -324,9 +324,10 @@ local KEEP_ORDER = { "nothing", "ask", "reset" }
 
 local function barColorChoices()
     if kind() == "threat" then
-        return { class = "Class color", threat = "By threat", custom = "One color" }, { "class", "threat", "custom" }
+        return { class = "Class color", threat = "By threat", custom = "One color", customGradient = "Custom gradient" },
+            { "class", "threat", "custom", "customGradient" }
     end
-    return { class = "Class color", custom = "One color" }, { "class", "custom" }
+    return { class = "Class color", custom = "One color", customGradient = "Custom gradient" }, { "class", "custom", "customGradient" }
 end
 local function headerChoices()
     if kind() == "threat" then return { always = "Always", off = "Off" }, { "always", "off" } end
@@ -407,7 +408,7 @@ function MO.Page()
         win({ type = "toggle", key = "win.headerTotal", label = "Group total in the header", kinds = METER,
               desc = "Everyone's total for the fight, beside its length." }),
         win({ type = "dropdown", key = "win.barColor", label = "Bar color", kinds = BARS, choices = barColorChoices,
-              desc = "Each bar in its player's class color or all in one color; a threat meter can color each bar by how close that player is to pulling." }),
+              desc = "Each bar in its player's class color, all in one color, or all in a gradient of colors you pick; a threat meter can color each bar by how close that player is to pulling." }),
         win({ type = "color", key = "win.barCustom", label = "Custom bar color", kinds = BARS,
               hidden = function(get) return get("win.barColor") ~= "custom" end,
               desc = "The bars' color when Bar color is One color." }),
@@ -439,6 +440,18 @@ function MO.Page()
               desc = "Players' last names after their first on the threat meters. When off, first names only, which fit the narrow rows better." }),
     }
     local what = "every meter's and threat meter's bars"
+    -- A gradient in colors of the player's own, right under the bar color pick.
+    for i, item in ipairs(rows) do
+        if item.key == "win.barCustom" then
+            local stops = DUI.Options.StopsRows("win.barGradient", { what = "meter bar", bar = "the meter's bars", since = "2.2",
+                shown = function(get) return get("win.barColor") == "customGradient" end })
+            for k, row in ipairs(stops) do
+                row.kinds = BARS
+                table.insert(rows, i + k, win(row))
+            end
+            break
+        end
+    end
     rows[#rows + 1] = DUI.Options.BarRow("media.meter", "Meter bar", what)
     rows[#rows + 1] = DUI.Options.BackRow("media.meter", "Meter bar", what)
     rows[#rows + 1] = DUI.Options.FontRow("media.meterFont", "Meter font", "Names and numbers on every meter and threat meter")

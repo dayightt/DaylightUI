@@ -202,6 +202,7 @@ ST.PAIR_KEYS = { main = "SWING_MAIN", off = "SWING_OFF", ranged = "SWING_RANGED"
 
 local function setColor(row)
     local queued = row.def.melee and row.holder.queued
+    Style.ClearBarStops(row.bar)
     -- The Gradients page's pairs (Fill style): your class's with Class color,
     -- else one per hand. A queued attack (Heroic Strike, Cleave...) has its own.
     if ST.PAIR and DUI.Gradients then
@@ -210,6 +211,12 @@ local function setColor(row)
         elseif ST.PAIR_CLASS then key = DUI.Gradients.KeyFor("player") end
         Style.SetBarGradient(row.bar, false)
         DUI.Gradients.Paint(row.bar, key)
+        return
+    end
+    -- Your own gradient on every hand. A queued attack keeps its own color.
+    if ST.STOPS and not queued and DUI.Gradients then
+        Style.SetBarGradient(row.bar, false)
+        DUI.Gradients.PaintStops(row.bar, ST.STOPS)
         return
     end
     -- The Daylight gradient (Fill style). A queued attack keeps its own color.
@@ -1202,6 +1209,7 @@ function ST.Layout(h, cfg, castbar)
     end
     ST.GRADIENT = cfg.fill == "daylight"
     ST.PAIR = cfg.fill == "pair"
+    ST.STOPS = cfg.fill == "customGradient" and cfg.customGradient or nil
     ST.PAIR_CLASS = cfg.classColor == true
     -- Or your class color for every hand (a queued attack keeps its own).
     if cfg.classColor then

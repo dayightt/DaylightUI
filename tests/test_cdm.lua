@@ -9127,3 +9127,28 @@ T.test("cdm state: a buff others can cast too takes the game's item for your own
     noCategories()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("cdm bars: a custom gradient fill, the spell's own or its group's; only a bar takes one", function()
+    local DUI, AB, set = fxWorld()
+    local D, CD, S = AB.CdmData, AB.Cooldowns, DUI.Style
+    local stops = { count = 3, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 }, c3 = { 0, 0, 1 } }
+    T.eq(D.SetSpellValue(set, 11, "barStops", stops), false, "an icon has no fill")
+    set.pieces[11].shape = "bar"
+    T.eq(D.SetSpellValue(set, 11, "barStops", { count = 3, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 } }), false, "a counted color missing")
+    T.eq(D.SetSpellValue(set, 11, "barStops", { count = "3" }), false)
+    T.eq(D.SetSpellValue(set, 11, "barStops", stops), true)
+    T.eq(set.pieces[11].barStops.count, 3)
+    T.truthy(set.pieces[11].barStops ~= stops, "a copy")
+    T.eq(D.SetSpellValue(set, 11, "barMode", "customGradient"), true)
+
+    local bar = S.Bar(UIParent)
+    local fill = bar:GetStatusBarTexture()
+    CD.ColourBase({}, bar, {}, "class", set.pieces[11])
+    T.eq(#S.FillStops(fill), 3, "the spell's own colors")
+    CD.ColourBase({}, bar, {}, "customGradient", { barMode = "block" },
+        { count = 4, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 }, c3 = { 0, 0, 1 }, c4 = { 1, 1, 0 } })
+    T.eq(#S.FillStops(fill), 4, "the group's")
+    CD.ColourBase({}, bar, {}, "customGradient", { barMode = "solid", barColor = { 1, 0, 0 } })
+    T.isnil(S.FillStops(fill), "a spell's own solid color wins")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

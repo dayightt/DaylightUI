@@ -91,8 +91,9 @@ ns.DEFAULTS = {
     casts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
               interrupted = { 0.52, 0.17, 0.15 }, flash = true,
               -- fill: "plain" (the colors above), "daylight" (the Daylight
-              -- gradient) or "pair" (the Gradients page's Cast / Channel pairs).
-              classColor = false, fill = "pair",
+              -- gradient), "pair" (the Gradients page's Cast / Channel pairs)
+              -- or "customGradient" (the colors in customGradient).
+              classColor = false, fill = "pair", customGradient = DaylightUI.Style.DefaultStops(),
               -- Target and focus: an interrupt animation (Motion.KICKS) and
               -- "Kicked by <name>" to the right of the bar or "below" it.
               -- kickMark: a thin line on an enemy's cast where your
@@ -108,18 +109,19 @@ ns.DEFAULTS = {
                      slant = false, insideTextSize = 0, reverseFill = false },
     -- The target's and focus's own cast bar colors.
     targetCasts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
-                    interrupted = { 0.52, 0.17, 0.15 }, classColor = false },
+                    interrupted = { 0.52, 0.17, 0.15 }, classColor = false, customGradient = DaylightUI.Style.DefaultStops() },
     -- Swing timers: under the player cast bar (attach) or on their own mover.
     swing = { enabled = true, attach = true, mainHand = true, width = 204, height = 14, visibility = "swinging",
               shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 },   -- its own border (UF.OwnShell)
               offHand = true, ranged = true, stopCue = false, rangeText = false, showText = true, queue = true, classColor = false, fill = "pair",
+              customGradient = DaylightUI.Style.DefaultStops(),   -- fill "customGradient": every hand's bar in these colors
               slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, showIcon = false, textSize = 12, reverseFill = false, spacing = 0, growUp = false,
               colors = { main = { 0.80, 0.68, 0.46 }, off = { 0.62, 0.56, 0.46 }, ranged = { 0.50, 0.66, 0.52 },
                          queued = { 0.86, 0.44, 0.32 } } },
     combo = { enabled = true, size = 14, fullRed = true,
         height = 0, gap = 3, x = 0, y = 0,
         color = { 1.0, 0.82, 0.25 }, fullColor = { 0.95, 0.22, 0.2 },
-        colorMode = "color", fullAll = false, empty = 0.4, border = 2, slant = true, anchor = "target",
+        colorMode = "color", customGradient = DaylightUI.Style.DefaultStops(), fullAll = false, empty = 0.4, border = 2, slant = true, anchor = "target",
         side = "below", align = "inner", stretch = false },
     party = { enabled = true, texts = textSlots(), nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 13, powerTextPos = "inner", width = 170, height = 34, showPower = true, powerHeight = 7, spacing = 38, showName = true, nameOnBar = false,
               showPercent = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitShape = "round", portraitLook = "socket", portraitRingWidth = "normal", portraitRingLine = true,
@@ -259,6 +261,7 @@ ns.DEFAULTS = {
     look = { slant = 0.21, style = "daylight" },
     -- Every frame's colors (Colors.lua).
     colors = { health = "classGradient", mirrorGradient = true, healthColor = { 0.35, 0.75, 0.35 }, backBrightness = 0.4,
+               healthGradient = DaylightUI.Style.DefaultStops(), powerGradient = DaylightUI.Style.DefaultStops(),
                power = "gradient", powerColor = { 0.3, 0.5, 0.95 }, name = "white",
                threat = "health", threatColor = { 0.92, 0.2, 0.18 }, threatWarn = { 1.0, 0.55, 0.12 },
                healColor = { 0.55, 0.95, 0.6 }, absorbColor = { 0.85, 0.92, 1.0 }, absorbStyle = "stripes", overheal = true,
@@ -317,7 +320,11 @@ ns.LOOK_FRAMES = { "player", "target", "targettarget", "pet", "focus", "party", 
 for _, k in ipairs(ns.LOOK_FRAMES) do
     local d = ns.DEFAULTS[k]
     d.colorHealth, d.colorHealthCustom = "global", { 0.35, 0.75, 0.35 }
-    if d.powerHeight then d.colorPower, d.colorPowerCustom = "global", { 0.3, 0.5, 0.95 } end
+    d.colorHealthGradient = DaylightUI.Style.DefaultStops()
+    if d.powerHeight then
+        d.colorPower, d.colorPowerCustom = "global", { 0.3, 0.5, 0.95 }
+        d.colorPowerGradient = DaylightUI.Style.DefaultStops()
+    end
     -- The empty part of each bar: "global" follows the Colors page, "dim" a
     -- darker copy of the bar's color, "custom" one color. Opacity 0 to 1.
     for _, bar in ipairs(d.powerHeight and { "Health", "Power" } or { "Health" }) do
@@ -333,6 +340,7 @@ do
     local d = ns.DEFAULTS.personal
     d.colorHealth, d.colorHealthCustom = "player", { 0.35, 0.75, 0.35 }
     d.colorPower, d.colorPowerCustom = "player", { 0.3, 0.5, 0.95 }
+    d.colorHealthGradient, d.colorPowerGradient = DaylightUI.Style.DefaultStops(), DaylightUI.Style.DefaultStops()
     d.shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 }
     d.media = { health = G, healthBack = G, power = G, powerBack = G, healthFont = G, powerFont = G }
     -- ownAngle: lean by its own angle, lean (the cut as a share of its

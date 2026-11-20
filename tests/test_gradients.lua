@@ -345,3 +345,106 @@ T.test("gradients off: the Gradients page's switch, the rows that stop mattering
         end
     end
 end)
+
+-- A bar's own custom gradient (Gradients.PaintStops, Style.PaintBarStops).
+local function stopPieces(bar)
+    local out = {}
+    for _, r in ipairs({ bar:GetRegions() }) do
+        if r.GetBlendMode and r:GetBlendMode() == "MOD" and tostring(r:GetTexture()):find("WHITE8x8", 1, true) then
+            out[#out + 1] = r
+        end
+    end
+    return out
+end
+
+local function ends(t)
+    local g = t.__gradient
+    local a, b = g[2], g[3]
+    return string.format("%.2f,%.2f,%.2f>%.2f,%.2f,%.2f", a.r, a.g, a.b, b.r, b.g, b.b)
+end
+
+T.test("three or more colors lay a piece per quarter of the fill, two use the fill's own gradient", function()
+    local DUI = stub.Load()
+    DUI:Set("general", "softness", 0)
+    DUI:Set("general", "brightness", 1)
+    local bar = DUI.Style.Bar(UIParent)
+    bar:SetSize(200, 20)
+    local cfg = { count = 3, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 }, c3 = { 0, 0, 1 },
+                  c4 = { 1, 1, 1 }, c5 = { 1, 1, 1 } }
+    DUI.Gradients.PaintStops(bar, cfg)
+    local pieces = stopPieces(bar)
+    T.eq(#pieces, 4)
+    T.eq(ends(pieces[1]), "1.00,0.00,0.00>0.50,0.50,0.00")
+    T.eq(ends(pieces[2]), "0.50,0.50,0.00>0.00,1.00,0.00", "the middle color lands exactly on the half")
+    T.eq(ends(pieces[4]), "0.00,0.50,0.50>0.00,0.00,1.00")
+    for _, t in ipairs(pieces) do T.truthy(t:IsShown()) end
+    local fill = bar:GetStatusBarTexture()
+    T.deq(bar.__barColor, { 1, 1, 1, 1 }, "the fill is white under them, so they color it")
+    local _, sub = fill:GetDrawLayer()
+    local _, psub = pieces[1]:GetDrawLayer()
+    T.eq(psub, sub + 1, "just over the fill")
+    T.eq(#DUI.Style.FillStops(fill), 3, "Flow is handed every color")
+
+    DUI.Gradients.PaintStops(bar, cfg, nil, true)
+    T.eq(ends(pieces[1]), "0.00,0.00,1.00>0.00,0.50,0.50", "mirrored, it runs the other way")
+
+    cfg.count = 2
+    DUI.Gradients.PaintStops(bar, cfg)
+    for _, t in ipairs(pieces) do T.falsy(t:IsShown(), "two colors need no pieces") end
+    T.truthy(fill.__gradient, "the fill's own gradient")
+
+    cfg.count = 5
+    DUI.Gradients.PaintStops(bar, cfg)
+    T.truthy(pieces[1]:IsShown())
+    DUI.Gradients.Paint(bar, "MAGE")
+    for _, t in ipairs(pieces) do T.falsy(t:IsShown(), "another paint takes them off") end
+    DUI.Gradients.PaintStops(bar, cfg)
+    DUI.Style.SetBarColor(bar, 1, 0, 0)
+    for _, t in ipairs(pieces) do T.falsy(t:IsShown(), "a plain color too") end
+
+    DUI:Set("general", "gradients.off", true)
+    DUI.Gradients.PaintStops(bar, cfg)
+    for _, t in ipairs(pieces) do T.falsy(t:IsShown(), "gradients off paints it flat") end
+    T.deq(bar.__barColor, { 0, 0, 1, 1 }, "at its middle (the third of five)")
+end)
+
+T.test("a vertical gradient stacks the pieces up the fill", function()
+    local DUI = stub.Load()
+    DUI:Set("general", "gradients.orientation", "VERTICAL")
+    local bar = DUI.Style.Bar(UIParent)
+    DUI.Gradients.PaintStops(bar, { count = 3, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 }, c3 = { 0, 0, 1 } })
+    local pieces = stopPieces(bar)
+    T.eq(pieces[1].__gradient[1], "VERTICAL")
+    local _, rel, rp = pieces[1]:GetPoint(3)
+    T.eq(rel, bar:GetStatusBarTexture())
+    T.eq(rp, "BOTTOM", "the first starts at the bottom")
+end)
+
+T.test("Flow covering the bar hides the pieces, and they come back when it stops", function()
+    local DUI = stub.Load()
+    local bar = DUI.Style.Bar(UIParent)
+    bar:SetSize(200, 20)
+    local cfg = { count = 4, c1 = { 1, 0, 0 }, c2 = { 0, 1, 0 }, c3 = { 0, 0, 1 }, c4 = { 1, 1, 0 } }
+    local fx = { style = "flow" }
+    DUI.Gradients.PaintStops(bar, cfg)
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, DUI.BarFx.Reader(function() return fx end))
+    local pieces = stopPieces(bar)
+    T.truthy(DUI.BarFx.FlowShown(bar))
+    for _, t in ipairs(pieces) do T.falsy(t:IsShown(), "under Flow") end
+    fx.style = "none"
+    DUI.BarFx.Apply(bar)
+    for _, t in ipairs(pieces) do T.truthy(t:IsShown(), "back when Flow stops") end
+end)
+
+T.test("the accent's custom gradient fills a bar with every color too", function()
+    local DUI = stub.Load()
+    DUI:Set("general", "accent", "customGradient")
+    DUI:Set("general", "accentGradient.count", 3)
+    local bar = DUI.Style.Bar(UIParent)
+    DUI.Style.PaintAccentBar(bar)
+    T.eq(#stopPieces(bar), 4)
+    T.truthy(stopPieces(bar)[2]:IsShown())
+    DUI:Set("general", "accent", "class")
+    DUI.Style.PaintAccentBar(bar)
+    T.falsy(stopPieces(bar)[2]:IsShown())
+end)

@@ -18,8 +18,8 @@ ns.CdmEffects = Fx
 -- activeGlow false; Daylight UI's aura holders: CdmAuras.SetSwipe). activeGlow false hides
 -- the game's swipe while the buff is up (the timer stays). activeColor {r,g,b,a}
 -- recolors it, nil = the accent (Fx.ActiveColor).
--- Bars only: barMode "block" | "solid" | "gradient" (barColor {r,g,b}, barGradient
--- {lo,hi}), backMode "block" | "solid" | "gradient" (backColor {r,g,b,a},
+-- Bars only: barMode "block" | "solid" | "gradient" | "customGradient" (barColor
+-- {r,g,b}, barGradient {lo,hi}, barStops { count, c1 to c5 }), backMode "block" | "solid" | "gradient" (backColor {r,g,b,a},
 -- backGradient {lo,hi}); nil colors follow the block's look. showName, nameAlign
 -- "left" | "center". fillBy "shield" | "time": a shield spell's bar fills by the
 -- shield left (CdmBars.IsShield). shieldAmount shows the amount left on it.

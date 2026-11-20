@@ -680,6 +680,7 @@ function ns.Build(mod)
     -- The old second meter becomes the player's first window (its own
     -- upgrade, on the profile in use, before anything is built from it).
     DUI.SafeCall(ns.Windows.Upgrade, DUI.DB.Active())
+    DUI.SafeCall(ns.UpgradeXPStops, DUI.DB.Active())
     Panel.Build(mod)
     Panel.inCombat = InCombatLockdown()
     local list = {}   -- (one table, refilled: the fade asks often)

@@ -428,6 +428,23 @@ T.test("tooltip: the health bar takes the class gradient when set to, and keeps 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("tooltip: the health bar in a custom gradient keeps every color as health changes", function()
+    login()
+    local S = DaylightUI.Style
+    local tex = GameTooltipStatusBar:GetStatusBarTexture()
+    DaylightUI:Set("Tooltip", "barGradient", "customGradient")
+    stub.RunTimers()
+    show(GameTooltip, Enum.TooltipDataType.Unit, function(t) t.__unit = "mouseover" end)
+    T.eq(#S.FillStops(tex), 3, "three colors by default")
+    GameTooltipStatusBar:GetScript("OnValueChanged")(GameTooltipStatusBar)
+    T.eq(#S.FillStops(tex), 3, "still every color after the game recolors it")
+    DaylightUI:Set("Tooltip", "barGradient", "flat")
+    stub.RunTimers()
+    show(GameTooltip, Enum.TooltipDataType.Unit, function(t) t.__unit = "mouseover" end)
+    T.isnil(S.FillStops(tex), "flat again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("tooltip: items of uncommon quality and up get a border in their color", function()
     local Tip = login(function() stub.qualities = { rare = 3, common = 1 } end)
     local s = Tip.Shell(GameTooltip)

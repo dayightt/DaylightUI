@@ -486,3 +486,57 @@ T.test("colors: a frame's own health and power colors win over the Colors page's
     ns.UF.UpdateAll(me, true)
     T.rgb(me.health.__barColor, { S.ClassColor("MAGE") }, "back to the Colors page's")
 end)
+
+-- The MOD pieces a fill in three or more colors wears (Style.PaintBarStops).
+local function piecesOn(bar)
+    local n = 0
+    for _, r in ipairs({ bar:GetRegions() }) do
+        if r.GetBlendMode and r:GetBlendMode() == "MOD" and r:IsShown() and r.__gradient then n = n + 1 end
+    end
+    return n
+end
+
+T.test("colors: a custom gradient on every health or power bar, or on one frame's own", function()
+    local DUI, ns = login()
+    stub.units.player = { name = "Me", isPlayer = true, class = "MAGE", health = 50, maxHealth = 100, pct = 50 }
+    stub.units.target = { name = "Bob", isPlayer = true, class = "MAGE", health = 50, maxHealth = 100, pct = 50 }
+    -- Flow (on by default) lays its own rolling colors over the whole fill.
+    for _, path in ipairs({ "player.barFx.health", "player.barFx.power", "target.barFx.health" }) do
+        DUI:Set("UnitFrames", path .. ".style", "none")
+    end
+    DUI:Set("UnitFrames", "colors.health", "customGradient")
+    stub.RunTimers()
+    local me, them = ns.frames.player, ns.frames.target
+    ns.UF.UpdateAll(me, true)
+    ns.UF.UpdateAll(them, true)
+    T.eq(piecesOn(me.health), 4, "three colors by default: a piece per quarter")
+    T.eq(piecesOn(them.health), 4, "every frame")
+    local first = DUI.Gradients.Stops(DUI:Get("UnitFrames", "colors.healthGradient"))[1]
+    local mine = DUI.Style.FillStops(me.health:GetStatusBarTexture())
+    local theirs = DUI.Style.FillStops(them.health:GetStatusBarTexture())
+    T.eq(mine[1], first, "yours starts at the first color")
+    T.eq(theirs[#theirs], first, "the target's mirrors it")
+
+    DUI:Set("UnitFrames", "colors.health", "class")
+    DUI:Set("UnitFrames", "player.colorHealth", "customGradient")
+    DUI:Set("UnitFrames", "player.colorHealthGradient.count", 2)
+    DUI:Set("UnitFrames", "player.colorPower", "customGradient")
+    stub.RunTimers()
+    ns.UF.UpdateAll(me, true)
+    ns.UF.UpdateAll(them, true)
+    T.eq(piecesOn(me.health), 0, "two colors: the fill's own gradient")
+    T.truthy(me.health:GetStatusBarTexture().__gradient)
+    T.eq(piecesOn(me.power), 4, "the player's own power gradient")
+    T.eq(piecesOn(them.health), 0, "the target back on class colors, pieces off")
+
+    me.state = "dead"
+    stub.units.player.dead = true
+    ns.UF.UpdateAll(me, true)
+    T.eq(piecesOn(me.health), 0, "dead: the plain dead color")
+
+    DUI:Set("UnitFrames", "player.barFx.power.style", "flow")
+    stub.RunTimers()
+    ns.UF.UpdateAll(me, true)
+    T.eq(piecesOn(me.power), 0, "under Flow the pieces hide; Flow rolls the colors")
+    T.eq(#DUI.Style.FillStops(me.power:GetStatusBarTexture()), 3)
+end)

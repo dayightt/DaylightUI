@@ -446,22 +446,21 @@ T.test("a card with a module's own content or a color pair spans every column", 
 end)
 
 T.test("a color pair hidden right now leaves its card narrow; showing it widens the card", function()
-    local DUI = stub.Load({ infopanel = true })
+    local DUI = stub.Load({ nameplates = true })
     local P = DUI.OptionsPanel
-    P.Show("InfoPanel.xp")
+    P.Show("Nameplates.threat")
     local pf = P.PageFrame()
-    pf.SetTab("Look")
     pf.Layout("")
     local look
     for _, card in ipairs(pf.cards) do
-        if card.group.label == "Experience bar look" then look = card end
+        if card.group.label == "Threat colors" then look = card end
     end
-    T.truthy(look, "Experience bar look card")
-    T.falsy(look.wide, "custom color hidden: a narrow card")
+    T.truthy(look, "Threat colors card")
+    T.falsy(look.wide, "pairs hidden: a narrow card")
     T.truthy(look:GetWidth() < pf:GetWidth(), "it sits in a column")
-    DUI:Set("InfoPanel", "xp.color", "custom")
+    DUI:Set("Nameplates", "threatFill", "pair")
     pf.Layout()
-    T.truthy(look.wide, "custom color shown: a wide card")
+    T.truthy(look.wide, "pairs shown: a wide card")
     T.eq(look:GetWidth(), pf:GetWidth())
 end)
 

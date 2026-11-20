@@ -420,6 +420,9 @@ end
 
 local COLOR_MODES = { values = { block = "Group's", solid = "Solid", gradient = "Gradient" },
     order = { "block", "solid", "gradient" } }
+-- A bar's fill can also run through colors picked for it.
+local FILL_MODES = { values = { block = "Group's", solid = "Solid", gradient = "Gradient", customGradient = "Custom gradient" },
+    order = { "block", "solid", "gradient", "customGradient" } }
 
 -- "Unhook it": free the piece where it is now.
 local function unhook()
@@ -524,7 +527,7 @@ Card.ROWS = {
         { show = both(isBar, isCooldown), item = spell("chargeLines", { type = "toggle", label = "Charge lines",
             desc = "A spell with charges: the bar is cut into one piece per charge." }) },
         { show = isBar, item = spell("barMode", { type = "dropdown", label = "Fill",
-            values = COLOR_MODES.values, order = COLOR_MODES.order }) },
+            values = FILL_MODES.values, order = FILL_MODES.order }) },
         { show = function(...) return isBar(...) and opt("barMode") == "solid" end,
           item = spell("barColor", { type = "color", label = "Fill color" }) },
         { show = function(...) return isBar(...) and opt("barMode") == "gradient" end,
@@ -580,9 +583,9 @@ Card.ROWS = {
         { show = both(chainHas("bar"), several), item = look("height", { type = "slider", label = "Bar height",
             min = 10, max = 40, step = 1, unit = "px" }, true) },
         { show = chainHas("bar"), item = look("color", { type = "dropdown", label = "Bar color",
-            values = { class = "Class", gradient = "Daylight", spell = "Per spell" },
-            order = { "class", "gradient", "spell" },
-            desc = "Class uses your class's pair from the Gradients page. Daylight is the Daylight UI gradient." }, true) },
+            values = { class = "Class", gradient = "Daylight", spell = "Per spell", customGradient = "Custom gradient" },
+            order = { "class", "gradient", "spell", "customGradient" },
+            desc = "Class uses your class's pair from the Gradients page. Daylight is the Daylight UI gradient. Custom gradient runs through colors you pick." }, true) },
         { show = chainHas("bar"), item = look("back", { type = "dropdown", label = "Background",
             values = { dark = "Dark", solid = "Solid", gradient = "Gradient" },
             order = { "dark", "solid", "gradient" },
@@ -718,6 +721,56 @@ Card.ROWS = {
             desc = "Frees it right where it is, with everything hanging off it.", func = unhook } },
     },
 }
+
+-- A custom gradient's rows (how many colors, then each one), all kept in one
+-- saved table that read() and write(t) get and set: right under the row whose
+-- key is after.
+local ORDINAL = { "First", "Second", "Third", "Fourth", "Fifth" }
+local function addStops(rows, after, prefix, read, write, shown)
+    local function cur()
+        local v = read()
+        return type(v) == "table" and v or DUI.Style.DefaultStops()
+    end
+    local function put(k, v)
+        local t = {}
+        for kk, vv in pairs(cur()) do t[kk] = vv end
+        t[k] = v
+        write(t)
+    end
+    local new = { { show = shown, item = { type = "slider", key = prefix .. ".count", label = "Gradient colors",
+        min = 2, max = DUI.Style.CUSTOM_STOPS_MAX, step = 1, since = "2.2",
+        desc = "How many colors the custom gradient runs through, left to right.",
+        get = function() return cur().count end, set = function(v) put("count", v) end } } }
+    for i = 1, DUI.Style.CUSTOM_STOPS_MAX do
+        new[#new + 1] = { show = function(...) return shown(...) and (i <= 2 or (cur().count or 2) >= i) end,
+            item = { type = "color", key = prefix .. ".c" .. i, label = ORDINAL[i] .. " color", since = "2.2",
+                desc = i == 1 and "Where the custom gradient starts." or "The next color along the custom gradient.",
+                get = function() return cur()["c" .. i] end, set = function(v) put("c" .. i, v) end } }
+    end
+    for i, r in ipairs(rows) do
+        if r.item and r.item.key == after then
+            for k, row in ipairs(new) do table.insert(rows, i + k, row) end
+            return
+        end
+    end
+end
+
+do
+    local function spellStops() local _, _, p = picked(); return p and ns.CdmEffects.Get(p, "barStops") end
+    addStops(Card.ROWS.look, "cdm.card.barMode", "cdm.card.barStops", spellStops, function(t)
+        local set, id = picked()
+        if id and Data.SetSpellValue(set, id, "barStops", t) then changed() end
+    end, function(...) return isBar(...) and opt("barMode") == "customGradient" end)
+    addStops(Card.ROWS.look, "cdm.card.chain.color", "cdm.card.chain.barStops", function()
+        local set, id = picked()
+        if not id then return nil end
+        local c = set.chains[Data.Root(set, id)]
+        return type(c) == "table" and type(c.look) == "table" and c.look.barStops or nil
+    end, function(t)
+        local set, id = picked()
+        if id and Data.SetLook(set, id, "barStops", t, true) then changed() end
+    end, both(chainHas("bar"), chainLooks("color", "customGradient")))
+end
 
 -- Show in (CdmEffects.FORMS): one switch per form, stance or stealth of the class,
 -- under its heading, on by default. Off leaves the spell out in that form.

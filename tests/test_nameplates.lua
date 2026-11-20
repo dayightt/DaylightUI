@@ -4826,3 +4826,20 @@ T.test("nameplates: Shorten long names keeps the last word, initials before it; 
     local p = added("nameplate1")
     T.eq(p.name:GetText(), "S. C. Commander")
 end)
+
+T.test("nameplates: a custom gradient on the health bar; a tapped mob still goes gray", function()
+    login()
+    DaylightUI:Set("Nameplates", "healthColor", "customGradient")
+    stub.RunTimers()
+    local p = added("nameplate1")
+    local S = DaylightUI.Style
+    local fill = p.health:GetStatusBarTexture()
+    T.eq(#S.FillStops(fill), 3, "three colors by default")
+    stub.units.nameplate1.tapped = true
+    stub.FireEvent("UNIT_FLAGS", "nameplate1")
+    T.isnil(S.FillStops(fill), "tapped: gray")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.units.nameplate1.tapped = false
+    stub.FireEvent("UNIT_FLAGS", "nameplate1")
+    T.eq(#S.FillStops(fill), 3, "and back")
+end)

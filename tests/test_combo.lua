@@ -345,3 +345,24 @@ T.test("one power event, and only a combo point change redraws the row", functio
     T.eq(n, 3, "a form change still updates")
     ns.Combo.Update = real
 end)
+
+T.test("a custom gradient runs along the row, each pip its stretch of it", function()
+    local DUI, ns = login("ROGUE")
+    DUI:Set("UnitFrames", "combo.colorMode", "customGradient")
+    DUI:Set("UnitFrames", "combo.fullRed", false)
+    DUI:Set("UnitFrames", "combo.customGradient.count", 2)
+    DUI:Set("UnitFrames", "combo.customGradient.c1", { 1, 0, 0 })
+    DUI:Set("UnitFrames", "combo.customGradient.c2", { 0, 0, 1 })
+    stub.RunTimers()
+    local pips = ns.combo.pips
+    local function ends(i)
+        local lo, hi = DUI.Style.FillColors(pips[i].bar:GetStatusBarTexture())
+        return lo, hi
+    end
+    local lo1, hi1 = ends(1)
+    local lo2 = ends(2)
+    local _, hi5 = ends(5)
+    T.truthy(lo1[1] > lo1[3], "the first pip starts red")
+    T.truthy(hi5[3] > hi5[1], "the last ends blue")
+    T.near(hi1[1], lo2[1], 1e-6, "each pip picks up where the one before ended")
+end)

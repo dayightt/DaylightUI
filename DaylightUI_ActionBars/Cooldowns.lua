@@ -642,7 +642,7 @@ end
 -- page (like the unit frames and swing timer), the Daylight gradient, or one color
 -- per spell. The background comes from CD.BackOf.
 function CD.Colour(item, bar, p, mode, block)
-    CD.ColourBase(item, bar, p, mode)
+    CD.ColourBase(item, bar, p, mode, nil, block and ns.CdmData.Look(block, "barStops"))
     local Fx = ns.CdmEffects
     local b = Fx and Fx.ButtonOf(item) or item.button
     local back, v
@@ -654,10 +654,20 @@ function CD.Colour(item, bar, p, mode, block)
 end
 
 -- button = the spell's saved options when the item isn't held yet (CdmBars).
-function CD.ColourBase(item, bar, p, mode, button)
+-- stops = the block's custom gradient, for mode "customGradient".
+function CD.ColourBase(item, bar, p, mode, button, stops)
     local Fx = ns.CdmEffects
     local b = button or (Fx and Fx.ButtonOf(item)) or item.button
     local own = Fx and Fx.Get(b, "barMode")
+    Style.ClearBarStops(bar)
+    local G = DUI.Gradients
+    -- A gradient in colors picked for this spell, or for its whole group.
+    if G and (own == "customGradient" or ((own == nil or own == "block") and mode == "customGradient")) then
+        local mine = own == "customGradient" and Fx.Get(b, "barStops") or stops
+        Style.SetBarGradient(bar, false)
+        G.PaintStops(bar, type(mine) == "table" and mine or Style.DefaultStops(), paint(p))
+        return
+    end
     if own == "solid" and type(Fx.Get(b, "barColor")) == "table" then
         local c = b.barColor
         Style.SetBarGradient(bar, false)

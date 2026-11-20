@@ -9,10 +9,12 @@
 --   gradient       by health: green full, yellow at half, red low. The client
 --                  reads the color off a curve, so secret health still works.
 --   custom         a single custom color
+--   customGradient two to five colors picked for it (Gradients.PaintStops)
 --   dark           a near-black fill with the missing part in the unit's color
 --   daylight, accent  your own frame only: the Daylight gradient, or your
 --                  accent from General (gradient accents included)
--- Power: by power type, its gradient, or one color. Names: white or the unit's color.
+-- Power: by power type, its gradient, one color or a custom gradient. Names:
+-- white or the unit's color.
 -- The text formats and the health gradient come from the core (Health.lua).
 
 local _, ns = ...
@@ -105,6 +107,12 @@ local function customHealth(f)
     return UF.colors.healthColor
 end
 
+-- The custom gradient the active mode uses: the frame's own, or the Colors page's.
+function UF.HealthStops(f)
+    if f.healthMode == "customGradient" and type(f.healthStops) == "table" then return f.healthStops end
+    return UF.colors and UF.colors.healthGradient
+end
+
 -- A piece of f claimed by a plugin (DaylightUI.API's Paint: "healthFill",
 -- "powerFill", "name"...) is left to the plugin and never colored here.
 -- Reads from an empty table while no plugin claims anything.
@@ -195,6 +203,7 @@ function UF.PaintHealth(f, r, g, b, pct)
     -- stays in the unit's color unless the plugin holds that too.
     if UF.Owned(f, "healthFill") then
         Style.SetBarGradient(f.health, false)
+        Style.ClearBarStops(f.health)
         f.health:SetStatusBarColor(1, 1, 1, 1)
         if not UF.Owned(f, "healthBack") then UF.SetBackColor(f.health, r, g, b) end
         return false
@@ -226,6 +235,10 @@ function UF.PaintHealth(f, r, g, b, pct)
     -- reaction). Painted last, returning false so no plain color clears it.
     if mode == "classGradient" and not f.state and DUI.Gradients then
         DUI.Gradients.Paint(f.health, gradientKey(f), UF.SetBarColor, UF.MirrorGradient(f))
+        return false
+    end
+    if mode == "customGradient" and not f.state and DUI.Gradients then
+        DUI.Gradients.PaintStops(f.health, UF.HealthStops(f), UF.SetBarColor, UF.MirrorGradient(f))
         return false
     end
     if f.state or mode == "class" then
@@ -261,18 +274,23 @@ end
 -- f (optional): its frame, whose own power color wins.
 function UF.PaintPower(bar, token, unit, f)
     if f and bar == f.power and UF.Owned(f, "powerFill") then
+        Style.ClearBarStops(bar)
         bar:SetStatusBarColor(1, 1, 1, 1)
         if not UF.Owned(f, "powerBack") then UF.SetBackColor(bar, Style.PowerColor(token)) end
         return
     end
     local mode, custom = UF.colors and UF.colors.power, UF.colors and UF.colors.powerColor
+    local stops = UF.colors and UF.colors.powerGradient
     if f and f.powerMode and f.powerMode ~= "global" then
         mode = f.powerMode
         if mode == "custom" and type(f.powerCustom) == "table" then custom = f.powerCustom end
+        if mode == "customGradient" and type(f.powerStops) == "table" then stops = f.powerStops end
     end
+    local mirror = (unit == "target" or unit == "targettarget") and not (UF.colors and UF.colors.mirrorGradient == false)
     if mode == "gradient" and DUI.Gradients then
-        local mirror = (unit == "target" or unit == "targettarget") and not (UF.colors and UF.colors.mirrorGradient == false)
         DUI.Gradients.Paint(bar, DUI.Gradients.PowerKey(token), UF.SetBarColor, mirror)
+    elseif mode == "customGradient" and DUI.Gradients then
+        DUI.Gradients.PaintStops(bar, stops, UF.SetBarColor, mirror)
     elseif mode == "custom" and type(custom) == "table" then
         local c = custom
         UF.SetBarColor(bar, Style.Soften(c[1], c[2], c[3]))

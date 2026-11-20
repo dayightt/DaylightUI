@@ -116,6 +116,7 @@ ns.DEFAULTS = {
     powerGap = 2, -- ...gap under the health bar
     powerColor = "type", -- ...color: "type" (the power type's pair from the Gradients page) or "custom"
     powerCustom = { 0.3, 0.52, 0.95 }, -- ...color for "custom"
+    powerGradient = DaylightUI.Style.DefaultStops(), -- ...colors for "customGradient"
     powerText = false, -- power as text on the power bar
     powerFormat = "percent", -- ...written as one of Health.POWER_FORMATS
     powerTextSize = 0, -- ...0 = follows the power bar's height
@@ -161,14 +162,15 @@ ns.DEFAULTS = {
         namePos = "above", nameX = 0, nameY = 0, -- with the health bar on; name-only stays centered
         percentPos = "right", percentX = 0, percentY = 0,
         levelPos = "left", levelX = 0, levelY = 0,
-        healthColor = "classGradient", healthCustom = { 0.3, 0.7, 0.35 },
+        healthColor = "classGradient", healthCustom = { 0.3, 0.7, 0.35 }, healthGradient = DaylightUI.Style.DefaultStops(),
         myBuffs = false, -- your own buffs and HoTs above the name
         myBuffSize = 18,
         maxMyBuffs = 4,
         myBuffSpot = "above", myBuffGrow = "center", myBuffX = 0, myBuffY = 0,
     },
-    healthColor = "classGradient", -- class (players) and reaction, "classGradient", "gradient" by health, or "custom"
+    healthColor = "classGradient", -- class (players) and reaction, "classGradient", "gradient" by health, "custom" or "customGradient"
     healthCustom = { 0.75, 0.3, 0.28 },
+    healthGradient = DaylightUI.Style.DefaultStops(), -- the colors for "customGradient"
     -- Special mobs get their own bar color over Health bar color (threat and tapped
     -- still win). Off by default.
     bossBar = false, bossColor = { 0.95, 0.66, 0.2 }, -- boss (UnitIsBossMob, or a world boss)
@@ -189,7 +191,8 @@ ns.DEFAULTS = {
     threatWarn = { 1.0, 0.55, 0.12 }, -- about to switch targets
     threatLost = { 0.98, 0.84, 0.26 }, -- on someone else: lost, or never had it
     castColor = { 0.78, 0.62, 0.30 },
-    castFill = "pair", -- "plain" (castColor), "daylight" (logo gradient), "pair" (Gradients page)
+    castFill = "pair", -- "plain" (castColor), "daylight" (logo gradient), "pair" (Gradients page), "customGradient"
+    castGradient = DaylightUI.Style.DefaultStops(), -- the colors for "customGradient"
     slant = true, -- angled bar end
     clickPad = 4, -- extra click area around the name and bar
     stacking = "stack", -- "stack" (plates spread apart), "overlap", or "game" (the game's setting)

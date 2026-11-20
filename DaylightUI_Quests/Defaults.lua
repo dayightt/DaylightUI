@@ -101,8 +101,9 @@ ns.DEFAULTS = {
         focusMode = "accent",       -- priority quest icon: accent | daylight | gradient | class | custom
         focus = { 0.64, 0.37, 0.78 },
         focusTitle = false,         -- the priority quest's title in that color too
-        barMode = "accent",         -- accent | class | custom
+        barMode = "accent",         -- accent | class | custom | customGradient
         bar = { 0.72, 0.70, 0.66 },
+        barGradient = DaylightUI.Style.DefaultStops(),   -- the colors for "customGradient"
     },
     fade = DaylightUI.Fade.Defaults(),
 }

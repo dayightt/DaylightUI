@@ -311,7 +311,7 @@ T.test("info panel: the XP bar's gradient, in its own color or the class's", fun
     T.eq(XP.bar.__barColor[1], XP.COLOR[1], "back to flat blue")
 end)
 
-T.test("info panel: the XP bar's color pick: accent, class, blue, or a pair of your own", function()
+T.test("info panel: the XP bar's color pick: accent, class, blue, or a gradient of your own", function()
     local DUI = login()
     local XP = stub.infopanel.XP
     local fill = XP.bar:GetStatusBarTexture()
@@ -320,10 +320,13 @@ T.test("info panel: the XP bar's color pick: accent, class, blue, or a pair of y
     DUI:Set("InfoPanel", "xp.color", "blue")
     T.truthy(fill.__gradient[3] ~= class, "blue is not the class pair")
     DUI:Set("InfoPanel", "xp.color", "custom")
-    DUI:Set("InfoPanel", "xp.customHi", { 0, 1, 0 })
-    T.truthy(fill.__gradient, "the custom pair as a gradient")
+    DUI:Set("InfoPanel", "xp.customGradient.c2", { 0, 1, 0 })
+    T.truthy(fill.__gradient, "two colors: the fill's own gradient")
+    DUI:Set("InfoPanel", "xp.customGradient.count", 4)
+    T.eq(#DUI.Style.FillStops(fill), 4, "four: every one along the bar")
+    DUI:Set("InfoPanel", "xp.customGradient.count", 2)
     DUI:Set("InfoPanel", "xp.gradient", false)
-    T.eq(XP.bar.__barColor[2], 1, "plain: the pair's bright end")
+    T.near(XP.bar.__barColor[2], select(2, DUI.Style.Soften(0, 1, 0)), 1e-6, "plain: the last color")
     DUI:Set("InfoPanel", "xp.gradient", true)
     DUI:Set("InfoPanel", "xp.color", "class")
     DUI:Set("InfoPanel", "xp.classColor", false)
@@ -3634,4 +3637,28 @@ T.test("info panel: the XP bar's border is never thicker than the general border
     T.eq(B(2), 2, "a thin general border: as thin")
     T.eq(B(4), 3)
     T.eq(B(8), 4)
+end)
+
+T.test("info panel: an old two-color experience bar gradient moves into the custom gradient's first two colors", function()
+    local DUI = login()
+    local p = { modules = { InfoPanel = { xp = { color = "custom", customLo = { 1, 0, 0 }, customHi = { 0, 0, 1 } } } } }
+    stub.infopanel.UpgradeXPStops(p)
+    local xp = p.modules.InfoPanel.xp
+    T.deq(xp.customGradient.c1, { 1, 0, 0 }); T.deq(xp.customGradient.c2, { 0, 0, 1 })
+    T.isnil(xp.customLo); T.isnil(xp.customHi)
+    T.truthy(p.xpStops1, "once")
+    T.eq(DUI:Get("InfoPanel", "xp.customGradient.count"), 2, "untouched, it's still a pair")
+end)
+
+T.test("info panel: meter bars in a custom gradient, or its middle with Bar gradient off", function()
+    local DUI = login()
+    local Meter = stub.infopanel.Meter
+    local sb = DUI.Style.Bar(UIParent)
+    local cfg = { barColor = "customGradient", gradient = true, barGradient = DUI.Style.DefaultStops() }
+    Meter.PaintBar(sb, { classFilename = "MAGE" }, nil, cfg)
+    T.eq(#DUI.Style.FillStops(sb:GetStatusBarTexture()), 3, "every color along the bar")
+    cfg.gradient = false
+    Meter.PaintBar(sb, { classFilename = "MAGE" }, nil, cfg)
+    T.isnil(DUI.Style.FillStops(sb:GetStatusBarTexture()), "flat")
+    T.rgb(sb.__barColor, { DUI.Gradients.StopsMid(cfg.barGradient) }, "at the middle")
 end)

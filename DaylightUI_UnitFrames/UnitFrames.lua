@@ -1654,8 +1654,8 @@ function UF.Layout(f, cfg, text, keepSize)
     f.percentColorMode, f.percentCustom = cfg.percentColor, cfg.percentCustom
     f.nameLimitLen = cfg.nameLimitLen
     -- Its own bar colors ("global" or nil uses the Colors page, Colors.lua).
-    f.healthMode, f.healthCustom = cfg.colorHealth, cfg.colorHealthCustom
-    f.powerMode, f.powerCustom = cfg.colorPower, cfg.colorPowerCustom
+    f.healthMode, f.healthCustom, f.healthStops = cfg.colorHealth, cfg.colorHealthCustom, cfg.colorHealthGradient
+    f.powerMode, f.powerCustom, f.powerStops = cfg.colorPower, cfg.colorPowerCustom, cfg.colorPowerGradient
     UF.PaintPercent(f)
     -- Either size sits at the end healthTextPos picks: the inner end (clear of
     -- the angled edge), the middle, or the outer end. The nudges go on top.
