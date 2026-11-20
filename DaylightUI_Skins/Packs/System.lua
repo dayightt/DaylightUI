@@ -269,6 +269,8 @@ local LootRoll = {
     WARN_AT = 0.25, -- fraction of time left when the timer turns to warn
     SWEEP = { width = 110, dur = 0.7, alpha = 0.45 },
     RISE = 14, -- px the popup glides up when opening
+    -- The buttons that show how many players picked them.
+    COUNTED = { NeedButton = "need", GreedButton = "greed", TransmogButton = "transmog", PassButton = "pass" },
 }
 ns.LootRoll = LootRoll
 local rolls = setmetatable({}, { __mode = "k" }) -- popup -> the pieces added to it
@@ -366,10 +368,58 @@ local function followTimer(r, timer)
     end
 end
 
+-- How many players picked each way on a roll. Disenchant counts as Greed: the
+-- popup has no button of its own for it.
+function LootRoll.Tally(drop)
+    local n = { need = 0, greed = 0, transmog = 0, pass = 0 }
+    if type(drop) ~= "table" or type(drop.players) ~= "table" then return n end
+    for _, p in pairs(drop.players) do
+        local kind = p.pick == "disenchant" and "greed" or p.pick
+        if n[kind] then n[kind] = n[kind] + 1 end
+    end
+    return n
+end
+
+-- The counts on a popup's buttons, from the roll data the Daylight UI roll
+-- window uses too. A roll the data doesn't know yet (open across a reload) is
+-- started from the game's roll API.
+function LootRoll.PaintCounts(f)
+    local r = rolls[f]
+    local Data = ns.RollData
+    if not (r and r.counts and Data) then return end
+    local id = f.rollID
+    if type(id) ~= "number" or not f:IsShown() then return end
+    r.rollID = id
+    local drop = Data.drops[id] or Data.Start(id, nil, GetTime())
+    local n = LootRoll.Tally(drop)
+    local M = DUI.Motion
+    for kind, fs in pairs(r.counts) do
+        local v = n[kind] or 0
+        DUI.Style.InkText(fs, "pop")
+        if v > 0 then
+            M.CountTo(fs, v, tostring, M.FAST)
+            M.AlphaTo(fs, 1, M.FAST)
+        elseif fs:IsShown() then
+            M.AlphaTo(fs, 0, M.FAST, true)
+        end
+    end
+end
+
+-- A popup reused for a new roll starts its counts from nothing.
+local function clearCounts(r)
+    for _, fs in pairs(r.counts or {}) do
+        fs.__duiCountKey = nil
+        fs:SetText("")
+        fs:Hide()
+    end
+end
+
 -- Each time a roll opens on the popup: colors, sub line, motion.
 local function openRoll(Kit, f)
     local r = rolls[f]
     if not r then return end
+    clearCounts(r)
+    LootRoll.PaintCounts(f)
     local Style, M = DUI.Style, DUI.Motion
     local quality, bop = rollInfo(f)
     local color = LootRoll.QualityColor(quality)
@@ -469,6 +519,19 @@ local function dress(Kit, f)
             need:ClearAllPoints()
             need:SetPoint("RIGHT", greed, "LEFT", -G, 0)
         end
+        -- How many players picked each button, at its bottom right corner.
+        -- Outlined, since it sits over the dice and coins.
+        r.counts = {}
+        for key, kind in pairs(LootRoll.COUNTED) do
+            local b = box[key]
+            if type(b) == "table" and b.CreateFontString then
+                local fs = b:CreateFontString(nil, "OVERLAY")
+                Style.DressText(fs, Style.SIZE.tiny, { outline = "OUTLINE" })
+                fs:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 2, -2)
+                fs:Hide()
+                r.counts[kind] = fs
+            end
+        end
     end
 
     -- Name on one line, sub line below.
@@ -513,6 +576,9 @@ local function dress(Kit, f)
         f:HookScript("OnHide", function()
             r.low = nil
             if r.rise then r.rise:Stop() end
+            -- Nothing shows this roll any more, so its data can go.
+            if r.rollID and ns.RollData then ns.RollData.Remove(r.rollID) end
+            r.rollID = nil
         end)
     end
     if f:IsShown() then openRoll(Kit, f) end
@@ -544,6 +610,15 @@ Engine.Register({ key = "lootroll", pack = "system", skip = function() return ns
         if type(_G[fn]) == "function" then hooksecurefunc(fn, soon) end
     end
     DUI.RegisterEvent("START_LOOT_ROLL", soon)
+    -- Everyone's picks, for the counts on the buttons. A pick shows at once.
+    if ns.RollData then
+        ns.RollData.Wire()
+        local function paintAll()
+            for f in pairs(rolls) do LootRoll.PaintCounts(f) end
+        end
+        DUI.On("RollChanged", function() DUI.SafeCall(paintAll) end)
+        DUI.On("StyleChanged", function() DUI.SafeCall(paintAll) end)
+    end
     all()
 end })
 

@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. The Profit button over the list puts the best earners first" },
         { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours" },
+        { "Loot", "Prefer the game's own roll popups? A new switch brings them back in Daylight UI style, with how many players picked Need, Greed and Pass on each button" },
     }, fixed = {
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
