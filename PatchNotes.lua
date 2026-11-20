@@ -22,6 +22,7 @@ DUI.PatchNotes = {
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
         { "Cooldown Manager", "With the game's Tracked Buffs row set to show only in combat, a buff's Hide, glow and sound options went missing from its card and did nothing out of combat. They are back and work in and out of a fight" },
         { "Cooldown Manager", "Sap, Touch of Weakness and other buffs and debuffs learned at a higher rank now show their time. Before, Sap never showed and Touch of Weakness always looked missing" },
+        { "Controller", "Clicking, selling or using an item in the bags no longer makes the game block the controller with a \"DaylightUI_Bags has been blocked\" message until a reload" },
         { "Auction House", "Searching for a name with a category picked, like One-Handed Axes, now searches only that category instead of the whole Auction House. Click the category again to search everywhere" },
     } },
     { version = "2.1.1", date = "2026-11-20", summary = "Game windows that follow the Daylight UI scale, and a big batch of fixes for bags, tooltips, the Cooldown Manager and more.", changed = {

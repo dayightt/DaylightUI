@@ -42,6 +42,11 @@ local function setup(opts)
             return n, (world.family or {})[bag] or 0
         end,
         HasContainerItem = function(bag, slot) return world.items[bag] and world.items[bag][slot] ~= nil end,
+        GetContainerItemCooldown = function(bag, slot)
+            local c = world.cooldowns and world.cooldowns[bag .. ":" .. slot]
+            if c then return c[1], c[2], c[3] end
+            return 0, 0, 1
+        end,
         SetItemSearch = function(t) world.searched = t end,
         SortBags = function() world.sorted = world.sorted + 1 end,
         ContainerIDToInventoryID = function(id) return 30 + id end,
@@ -118,8 +123,27 @@ local function setup(opts)
             -- gray while the item can't be used yet (ContainerFrame.lua, SetItemButtonTextureVertexColor).
             function f:UpdateCooldown(...)
                 self.calls.UpdateCooldown = { ... }
+                self:SetHasItem(...)
                 if ... then self.icon:SetVertexColor(1, 1, 1) end
             end
+            -- The template's key (ContainerFrame.xml) and the two fields the game's
+            -- controller code reads straight off a bag button (ContainerFrame.lua:
+            -- SetHasItem, SetReadable, and UpdateCooldown calls SetHasItem). A field
+            -- keeps the taint of whoever ran the method that wrote it.
+            f.buttonContext = "ButtonContext_ContainerFrameItemButton"
+            function f:SetHasItem(has)
+                self.calls.SetHasItem = { has }
+                self.hasItem = has and 1 or nil
+                if (stub.inSecure or 0) == 0 then stub.Mark(self, "hasItem", "DaylightUI_Bags") end
+            end
+            function f:SetReadable(readable)
+                self.calls.SetReadable = { readable }
+                self.readable = readable
+                if (stub.inSecure or 0) == 0 then stub.Mark(self, "readable", "DaylightUI_Bags") end
+            end
+            function f:HasItem() return self.hasItem end
+            function f:IsReadable() return self.readable end
+            function f:GetBagID() return self.bagID or self:GetParent():GetID() end
             -- The new-item shimmer: UpdateNewItem starts the sweep and the pulse, like the game's.
             f.flash = f:CreateTexture()
             f.NewItemTexture = f:CreateTexture()
@@ -162,6 +186,10 @@ local function setup(opts)
     _G.SetItemButtonCount = function(b, n) if b.calls then b.calls.count = n end; b.count = n end
     _G.SetItemButtonDesaturated = function(b, v) b.calls.locked = v end
     _G.ClearItemButtonOverlay = function() end
+    -- Cooldown.lua: a running cooldown is set, anything else cleared.
+    _G.CooldownFrame_Set = function(cd, start, duration, enable)
+        cd.set = (enable and enable ~= 0 and start > 0 and duration > 0) and { start, duration } or nil
+    end
     _G.GameTooltip = _G.GameTooltip or CreateFrame("GameTooltip", "GameTooltip", UIParent)
     function GameTooltip:SetOwner() end
     function GameTooltip:SetInventoryItem() return true end
@@ -5386,11 +5414,15 @@ T.test("bags: a burst of cooldown events is one pass over the open bag, the fram
     local B = ns.Bags
     T.truthy(rawequal(B.Slots(), B.Slots()), "the slot list is kept, not built per ask")
     local c = countCalls(ns.Items, "FillCooldown")
+    world.cooldowns = { ["0:1"] = { 100, 30, 1 } }
     for _ = 1, 5 do stub.FireEvent("BAG_UPDATE_COOLDOWN") end
     T.eq(c.n, 0, "nothing yet")
     stub.RunTimers()
     T.eq(c.n, 32, "one pass: each slot once")
-    T.truthy(B.buttons[0][1].calls.UpdateCooldown, "the cooldowns are drawn")
+    T.deq(B.buttons[0][1].Cooldown.set, { 100, 30 }, "the cooldowns are drawn")
+    T.isnil(B.buttons[0][2].Cooldown.set, "none where nothing is cooling down")
+    T.isnil(B.buttons[0][1].calls.UpdateCooldown, "never through the button's own UpdateCooldown")
+    world.cooldowns = nil
     c.undo()
     -- A bag that grows: the next list has its new slots.
     local before = B.Slots()
@@ -6895,6 +6927,186 @@ T.test("bags on a controller: at a vendor an item with no value is used securely
     _G.MerchantFrame:Hide(); _G.MerchantFrame = nil
     world.items[0][1].hasNoValue = nil
     _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
+-- The game's side of a bag click with the controller UI on, line for line where
+-- it reads something an addon could have written.
+--   ContainerFrameItemButton_OnClick ends in the "ContainerFrameItemButton.OnItemClicked"
+--   event, and the game's own (parked) combined bag answers it by refreshing its
+--   controller footer (Gamepad_OnItemClicked). QUEST_ACCEPTED and a bag update
+--   refresh it too while the game counts its bags open (UpdateIfShown, Update).
+--   The footer's conditions run on SmartNavigation's current button whenever it
+--   carries the bag button template's buttonContext, so on a Daylight UI slot
+--   too: they read button.hasItem, button:IsReadable() and button:GetBagID().
+--   The refresh then makes a new binding group (RefreshBindingGroup), and
+--   GamepadMode.CreateBindingGroup reads and writes one file-local counter,
+--   nextBindingGroupId (BindingSetFactory.lua).
+-- So one tainted read there leaves the counter tainted for the session. Every
+-- footer refresh of any game window reads it afterwards, puts its bindings on the
+-- stack tainted, and the interact icon's SetPreferredGamepadInteractTarget
+-- (MainActionBarFrame.lua UpdateInteractIcons) is refused, named after the addon.
+local function padGame(current)
+    local game = { blocked = {}, counter = nil }
+    local by   -- the addon the running game code is tainted by
+    local function read(t, k)
+        local secure, who = issecurevariable(t, k)
+        if not secure then by = by or who end
+        return t[k]
+    end
+    local function createBindingGroup()
+        by = by or game.counter
+        game.counter = by
+    end
+    local function refreshBagFooter()
+        local button = current()
+        if button and read(button, "buttonContext") == "ButtonContext_ContainerFrameItemButton" then
+            read(button, "hasItem")     -- Gamepad_IsClickContextActionValid and four more
+            read(button, "readable")    -- Gamepad_IsReadActionValid, through IsReadable
+            read(button, "bagID")       -- GetBagID, before the holder's ID
+        end
+        createBindingGroup()
+    end
+    local function run(fn)
+        by = nil
+        stub.inSecure = (stub.inSecure or 0) + 1
+        local ok, err = pcall(fn)
+        stub.inSecure = stub.inSecure - 1
+        by = nil
+        if not ok then error(err, 0) end
+    end
+    _G.SmartNavigation = { GetCurrentButton = function() return current() end }
+    -- A click on a bag button (the mouse, or the controller's key through a secure
+    -- button's clickbutton), and an event that refreshes the footer.
+    function game.Click() run(refreshBagFooter) end
+    function game.Event() run(refreshBagFooter) end
+    -- Any game window taking the controller afterwards (the world map, a vendor),
+    -- then the interact icon as the soft target changes.
+    function game.Later()
+        run(function()
+            createBindingGroup()
+            if by then
+                game.blocked[#game.blocked + 1] = by
+                stub.FireEvent("ADDON_ACTION_FORBIDDEN", by, "SetPreferredGamepadInteractTarget()")
+            end
+        end)
+    end
+    return game
+end
+
+T.test("bags on a controller: a click on an item leaves nothing tainted for the game's controller to read", function()
+    local ns = login()
+    world.items[0][1].isReadable = true
+    padOn()
+    local f = open(ns)
+    stub.RunTimers()
+    local at = ns.Bags.buttons[0][1]
+    local game = padGame(function() return at end)
+    local ok, err = pcall(function()
+        -- The mouse sells an item at a vendor (the slot's own click), then the
+        -- player walks away and comes near an innkeeper.
+        game.Click()
+        game.Later()
+        T.deq(game.blocked, {}, "the game's own controller call goes through")
+        for _, k in ipairs({ "buttonContext", "hasItem", "readable", "bagID" }) do
+            local secure, who = issecurevariable(at, k)
+            T.truthy(secure, "the slot's " .. k .. " is the game's own, not written by " .. tostring(who))
+        end
+        -- A quest accepted with the bag open, a slot that emptied and filled again.
+        world.items[0][1] = nil
+        stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+        world.items[0][1] = { iconFileID = 101, stackCount = 1, quality = 1, hyperlink = "|Hitem:1|h", isReadable = true }
+        stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+        stub.FireEvent("BAG_UPDATE_COOLDOWN"); stub.RunTimers()
+        game.Event()
+        for _, row in pairs(ns.Bags.buttons) do
+            for _, slotButton in pairs(row) do
+                at = slotButton
+                game.Click()
+            end
+        end
+        game.Later()
+        T.deq(game.blocked, {}, "after every slot was filled, emptied and clicked")
+        T.falsy(stub.ChatContains("blocked"), "and no line in chat")
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+        T.truthy(f:IsShown())
+    end)
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+    if not ok then error(err, 0) end
+end)
+
+-- What the button's own SetHasItem, SetReadable and UpdateCooldown did for a
+-- player, now done without them.
+T.test("bags: cooldown, dimmed icon, pointer and tooltip without the button's own item fields", function()
+    local ns = login()
+    world.items[0][1].isReadable = true
+    -- A cooldown that hasn't started counting (enable 0) dims the icon, as the game's does.
+    world.cooldowns = { ["0:1"] = { 100, 30, 0 }, ["0:2"] = { 100, 30, 1 } }
+    open(ns)
+    local B = ns.Bags
+    local letter, plain, empty = B.buttons[0][1], B.buttons[0][2], B.buttons[0][3]
+    stub.FireEvent("BAG_UPDATE_COOLDOWN"); stub.RunTimers()
+    local r = letter.icon:GetVertexColor()
+    T.near(r, 0.4, 0.001, "dim while it can't be used yet")
+    T.isnil(letter.Cooldown.set)
+    T.deq(plain.Cooldown.set, { 100, 30 }, "the sweep on a running cooldown")
+    T.falsy(empty.Cooldown:IsShown(), "an empty slot shows none")
+    for _, b in ipairs({ letter, plain, empty }) do
+        T.isnil(b.calls.SetHasItem); T.isnil(b.calls.SetReadable); T.isnil(b.calls.UpdateCooldown)
+    end
+    -- The pointer: a magnifier on something to read, or with the dressing-room key
+    -- held, never at a vendor (the sell pointer) or while a spell is targeting.
+    local cursor, dress, selling, targeting = nil, false, false, false
+    local olds = { ShowInspectCursor, IsModifiedClick, CanSellItems, SpellIsTargeting }
+    _G.ShowInspectCursor = function() cursor = "inspect" end
+    _G.IsModifiedClick = function(action) return action == "DRESSUP" and dress end
+    _G.CanSellItems = function() return selling end
+    _G.SpellIsTargeting = function() return targeting end
+    local owner
+    GameTooltip.GetOwner = function() return owner end
+    local function hover(b)
+        cursor = nil
+        b:GetScript("OnEnter")(b)
+        owner = b
+        return cursor
+    end
+    local function refresh()   -- the game's slot resets the pointer, then the tooltip's update ends
+        cursor = nil
+        local update = GameTooltip:GetScript("OnUpdate")
+        if update then update(GameTooltip, 0.2) end
+        return cursor
+    end
+    T.eq(hover(letter), "inspect", "a letter reads")
+    T.eq(refresh(), "inspect", "and stays so through the tooltip's refresh")
+    selling = true
+    T.isnil(refresh(), "the sell pointer at a vendor")
+    selling, targeting = false, true
+    T.isnil(refresh(), "a targeting spell keeps its own")
+    targeting = false
+    letter:GetScript("OnLeave")(letter)
+    T.isnil(refresh(), "nothing once the pointer left")
+    T.isnil(hover(plain), "a plain item has none")
+    dress = true
+    T.eq(refresh(), "inspect", "the dressing-room key held over an item")
+    plain:GetScript("OnLeave")(plain)
+    T.isnil(hover(empty), "never on an empty slot")
+    empty:GetScript("OnLeave")(empty)
+    dress = false
+    -- The tooltip of the slot under the pointer follows a refill, and goes with the item.
+    local updated, hidden = 0, 0
+    plain.UpdateTooltip = function() updated = updated + 1 end
+    local hide = GameTooltip.Hide
+    GameTooltip.Hide = function() hidden = hidden + 1 end
+    ns.Items.Fill(plain, plain)
+    T.eq(updated, 1); T.eq(hidden, 0)
+    world.items[0][2] = nil
+    ns.Items.Fill(plain, plain)
+    T.eq(updated, 1); T.eq(hidden, 1, "the item left: so does its tooltip")
+    ns.Items.Fill(plain, letter)
+    T.eq(hidden, 1, "another slot's tooltip is left alone")
+    GameTooltip.Hide, GameTooltip.GetOwner = hide, nil
+    _G.ShowInspectCursor, _G.IsModifiedClick, _G.CanSellItems, _G.SpellIsTargeting = olds[1], olds[2], olds[3], olds[4]
+    world.cooldowns = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- The game's delete question can't be asked from addon code: it opens inside

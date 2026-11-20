@@ -264,6 +264,34 @@ local function stillUnderPointer(slotButton)
     return slotButton.IsMouseOver ~= nil and slotButton:IsMouseOver() == true
 end
 
+-- The magnifier over an item the dressing-room key would try on, or one that can
+-- be read. The game's slot picks its pointer from hasItem and readable, which
+-- Items.Fill leaves alone, and sets it again on every tooltip refresh. So this
+-- runs after the slot's own enter and after each of the tooltip's updates.
+local cursorSlot   -- the slot under the pointer
+local tooltipWatched = false
+
+function Items.Cursor()
+    local slotButton = cursorSlot
+    if not slotButton or spellTargeting() or type(ShowInspectCursor) ~= "function" then return end
+    local tryOn = slotButton.dluiShown ~= nil and type(IsModifiedClick) == "function" and IsModifiedClick("DRESSUP")
+    local selling = type(CanSellItems) == "function" and CanSellItems()
+    if tryOn or (slotButton.dluiReadable and not selling) then ShowInspectCursor() end
+end
+
+local function cursorOver(slotButton)
+    -- Only the game's own bag button: an alt's saved item has no pointer of its own.
+    if not slotButton.GetBagID then return end
+    cursorSlot = slotButton
+    if not tooltipWatched and GameTooltip and GameTooltip.HookScript then
+        tooltipWatched = true
+        GameTooltip:HookScript("OnUpdate", function(tip)
+            if cursorSlot and tip:GetOwner() == cursorSlot then Items.Cursor() end
+        end)
+    end
+    Items.Cursor()
+end
+
 -- keepSlot: remember the slot, so a later event can put the button back on it.
 -- enteringCombat: called from PLAYER_REGEN_DISABLED, which comes just before the
 -- lockdown, so the button can still be moved off even if the game says combat.
@@ -541,6 +569,7 @@ function Items.Dress(btn)
     btn:HookScript("OnEnter", function(self)
         Items.NoCompare(self)
         Items.Hover(self, true)
+        cursorOver(self)
         -- Entered again through the secure use button over it (Items.UseOver):
         -- the pointer never left this slot, so the rest already ran.
         if enteringFromUseButton then return end
@@ -552,11 +581,13 @@ function Items.Dress(btn)
         -- The pointer just went onto the secure use button over this slot: still here.
         if useSlot == self and useButton and useButton:IsShown() and useButton:IsMouseOver() then return end
         Items.Hover(self, false)
+        if cursorSlot == self then cursorSlot = nil end
         if useSlot == self then Items.UseOff() end
     end)
     -- No leave comes when the slot hides under the pointer, so let go here.
     btn:HookScript("OnHide", function(self)
         Items.Hover(self, false, true)
+        if cursorSlot == self then cursorSlot = nil end
         if useSlot == self then Items.UseOff() end
     end)
     btn:HookScript("PreClick", function(self)
@@ -1205,7 +1236,14 @@ function Items.Fill(btn, tooltipOwner)
     btn.dluiTexture, btn.dluiShown = texture, shown
     -- The item this slot shows on screen, so an eased layout can glide it from here.
     btn.dluiKey = info and (info.itemID or info.hyperlink) or nil
-    call(btn, "SetHasItem", shown)
+    btn.dluiReadable = readable or nil
+    -- Never the button's SetHasItem, SetReadable or UpdateCooldown (it calls
+    -- SetHasItem): run from here they leave hasItem and readable tainted on the
+    -- slot. With the controller UI on, the game's own bag reads both straight off
+    -- the slot the D-pad is on, each time any bag item is clicked or a quest is
+    -- accepted, and from that read on it refuses its own controller calls until a
+    -- reload. What those fields did here is done by Items.Cooldown,
+    -- Items.Cursor and the tooltip check below.
     call(btn, "SetItemButtonTexture", shown)
     -- The game's SetItemButtonTexture puts the whole picture back, so the icon's own
     -- frame showed inside the ring until the next layout. Crop it again every fill.
@@ -1229,9 +1267,11 @@ function Items.Fill(btn, tooltipOwner)
     if type(btn.NewItemTexture) == "table" and btn.NewItemTexture.Hide then btn.NewItemTexture:Hide() end
     call(btn, "UpdateJunkItem", quality, noValue)
     call(btn, "UpdateItemContextMatching")
-    call(btn, "UpdateCooldown", shown)
-    call(btn, "SetReadable", readable)
-    call(btn, "CheckUpdateTooltip", tooltipOwner)
+    Items.Cooldown(btn, bag, slot, shown ~= nil)
+    -- The slot under the pointer changed: its tooltip follows, or goes with the item.
+    if tooltipOwner == btn then
+        if shown then call(btn, "UpdateTooltip") elseif GameTooltip then GameTooltip:Hide() end
+    end
     -- The addon's search decides (the game's own name search is kept empty).
     local w = windowOf(btn)
     call(btn, "SetMatchesSearch", Items.Fits(bag, slot, info, w, quest))
@@ -1322,14 +1362,34 @@ function Items.FillLocked(btn)
     Items.Paint(btn, info ~= nil and (info.iconFileID or btn.dluiShown) ~= nil, info and info.quality, info and info.itemID, holder:GetID())
 end
 
+-- The cooldown sweep, and the dimmed icon of an item that can't be used yet, drawn
+-- the way the button's own UpdateCooldown does (see Items.Fill for why not by it).
+function Items.Cooldown(btn, bag, slot, has)
+    local cd = btn.Cooldown
+    if type(cd) ~= "table" or ns.Saved.Is(bag) then return end
+    if not has then cd:Hide() return end
+    local read, set = C_Container.GetContainerItemCooldown, CooldownFrame_Set
+    if type(read) ~= "function" or type(set) ~= "function" then return end
+    local start, duration, enable = read(bag, slot)
+    if type(start) ~= "number" or type(duration) ~= "number" or isSecret(start) or isSecret(duration) or isSecret(enable) then
+        return
+    end
+    set(cd, start, duration, enable)
+    local icon = btn.icon or btn.Icon
+    if type(icon) == "table" and icon.SetVertexColor then
+        local v = (duration > 0 and enable == 0) and 0.4 or 1
+        icon:SetVertexColor(v, v, v)
+    end
+end
+
 -- Only the cooldown. onlyFull skips empty slots (their last Fill cleared it).
 function Items.FillCooldown(btn, onlyFull)
     local holder = btn:GetParent()
     local ok, has = pcall(C_Container.HasContainerItem, holder:GetID(), btn:GetID())
     if onlyFull and not (ok and has) then return end
-    call(btn, "UpdateCooldown", ok and has)
-    -- The game's UpdateCooldown paints the icon white on every call, which took
-    -- the red off items that can't be used.
+    Items.Cooldown(btn, holder:GetID(), btn:GetID(), ok and has)
+    -- The cooldown paints the icon white or dim on every call, which took the
+    -- red off items that can't be used.
     if btn.dluiUnusable then Items.Tint(btn, true) end
 end
 
