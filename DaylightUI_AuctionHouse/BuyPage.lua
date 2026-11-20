@@ -429,16 +429,55 @@ function BP.Usual(key)
 end
 
 local waiting = {}   -- itemID -> rows waiting for the game to load its name
+local skillWait = {} -- itemID -> recipe rows waiting for the server's skill
+
+local function recipeClass()
+    return Enum and Enum.ItemClass and Enum.ItemClass.Recipe or 9
+end
+
+-- The skill a recipe needs, as the game's own Skill column reads it. The
+-- server sends it a while after the results, so a row may wait for it.
+local function skillOf(row)
+    local api = C_AuctionHouse
+    if not (api and api.GetExtraBrowseInfo and type(row.itemKey) == "table") then return nil end
+    local v = api.GetExtraBrowseInfo(row.itemKey)
+    if type(v) == "number" and v > 0 then return v end
+    local list = skillWait[row.itemID] or {}
+    skillWait[row.itemID] = list
+    list[#list + 1] = row
+    return nil
+end
 
 local function fillInfo(row)
     -- The Lvl column is the level needed to use it, like the level filter,
-    -- not the item level (blank when anyone can use it).
+    -- not the item level (blank when anyone can use it). A recipe shows the
+    -- skill it needs instead, like the game's window.
     local name, quality, _, icon, _, req = ns.Items.Row(row.itemID)
     if not name then return false end
     if row.key ~= row.base and row.itemKey then ns.Items.LearnKey(row.itemKey) end
     row.name, row.quality, row.level, row.icon = ns.Items.KeyName(row.key, name), quality, req, icon
+    local _, _, classID = ns.Items.Gear(row.itemID)
+    if classID == recipeClass() then row.level = skillOf(row) end
     row.cantUse = ns.Items.CanUse(row.itemID) == false or nil
     return true
+end
+
+-- True when a search sits inside the Recipes category.
+function BP.InRecipes(q)
+    local node = q and q.path and Cat.Find(q.path)
+    local root = node and Cat.Find(node.path[1])
+    for _, f in ipairs(root and root.filters or {}) do
+        if f.classID == recipeClass() then return true end
+    end
+    return false
+end
+
+-- The level column's heading follows the category, as in the game's window.
+function BP.PaintLevelHead()
+    local cell = page and page.table and page.table.head.cells.level
+    if not cell then return end
+    local skill = _G.AUCTION_HOUSE_BROWSE_HEADER_RECIPE_SKILL or L["Skill"]
+    cell.text:SetText(BP.InRecipes(S.query) and skill or L["Lvl"])
 end
 
 local function rowOf(r)
@@ -525,7 +564,9 @@ function BP.Run(q, pickItem)
     S.query, S.rows, S.problem, S.capped, S.tell = q, {}, nil, nil, nil
     S.open, S.step, S.pending, S.closeDone, S.opening, S.want = nil, nil, nil, nil, nil, pickItem
     for id in pairs(waiting) do waiting[id] = nil end   -- the old rows' names aren't wanted now
+    for id in pairs(skillWait) do skillWait[id] = nil end
     remember(q)
+    BP.PaintLevelHead()
     BP.PaintTools()
     Left.Fill(true)
     if not ns.AH.IsOpen() then
@@ -549,7 +590,9 @@ function BP.Clear()
     S.query, S.rows, S.problem, S.capped, S.tell, S.running = nil, {}, nil, nil, nil, nil
     S.open, S.step, S.pending, S.closeDone, S.opening, S.want = nil, nil, nil, nil, nil, nil
     for id in pairs(waiting) do waiting[id] = nil end
+    for id in pairs(skillWait) do skillWait[id] = nil end
     ns.AH.Drop(ns.Browse.TAG)
+    BP.PaintLevelHead()
     BP.PaintTools()
     Left.Fill(true)
     BP.Changed(true)
@@ -1943,6 +1986,15 @@ local function itemLoaded(_, itemID)
     if list or (Left.mode == "favorites" and BP.IsFavorite(itemID)) then repaintSoon() end
 end
 ns.RegisterEvent("GET_ITEM_INFO_RECEIVED", itemLoaded)
+
+ns.RegisterEvent("EXTRA_BROWSE_INFO_RECEIVED", function(_, itemID)
+    local list = type(itemID) == "number" and skillWait[itemID]
+    if not list then return end
+    skillWait[itemID] = nil
+    for _, r in ipairs(list) do r.level = skillOf(r) end
+    BP.SortRows()
+    repaintSoon()
+end)
 ns.RegisterEvent("ITEM_DATA_LOAD_RESULT", itemLoaded)
 
 -- New prices (a scan, a search): the usual column again, not under a pick.

@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Auction House", "Recipes show the skill they need, like the game's own window, and you can sort them by it" },
+    } },
     { version = "2.1.2", date = "2026-11-20", summary = "Your profiles and Cooldown Manager layouts are back. Blizzard quietly changed how the game reports realms, to stop layer hopping, and that unhooked characters from their profiles. Nothing was lost.", new = {
         { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. The Profit button over the list puts the best earners first" },
         { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours. On an ultrawide or other screen shape than the one it was made on, its frames are brought in to the same places instead of spreading to your screen's edges" },

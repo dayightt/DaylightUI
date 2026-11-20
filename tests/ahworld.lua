@@ -442,6 +442,14 @@ function AHW.Waiting() return #S().queue end
 
 local function ready() return not S().throttled and not S().busy end
 
+-- The server's extra browse info for an item arrives (a recipe's skill).
+function AHW.SendExtra(itemID)
+    for _, a in ipairs(S().auctions) do
+        if a.itemID == itemID then a.skillLate = nil end
+    end
+    fire("EXTRA_BROWSE_INFO_RECEIVED", itemID)
+end
+
 function AHW.Open()
     if S().open then return end
     S().open = true
@@ -885,6 +893,16 @@ local function install()
         if type(itemID) ~= "number" then error("MakeItemKey: bad argument #1 (itemID, a number)", 3) end
         return { itemID = itemID, itemLevel = itemLevel or levelOf(itemID), itemSuffix = itemSuffix or 0,
             battlePetSpeciesID = battlePetSpeciesID or 0 }
+    end)
+    -- A recipe's skill (the game's Skill column) or a piece of gear's level.
+    -- Like the server, nothing until it has sent it (an auction's skillLate:
+    -- AHW.SendExtra(itemID) sends it and fires EXTRA_BROWSE_INFO_RECEIVED).
+    def("GetExtraBrowseInfo", function(key)
+        checkKey("GetExtraBrowseInfo", key)
+        for _, a in ipairs(S().auctions) do
+            if a.itemID == key.itemID and a.skill and not a.skillLate then return a.skill end
+        end
+        return nil
     end)
     def("GetItemKeyInfo", function(key)
         checkKey("GetItemKeyInfo", key)

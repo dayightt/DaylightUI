@@ -10,6 +10,7 @@ local stub = require("stub")
 
 local RKEY = "US-PvE"
 local RUNECLOTH, BOLT, HELM, SWORD = 14047, 14048, 20001, 2207
+local PATTERN_HIGH, PATTERN_LOW = 14468, 4292
 local DAY = 86400
 
 -- The game's AuctionHouseFrame as the game drives it (test_ah_window's).
@@ -46,6 +47,8 @@ local function fakeCategories()
             { name = "Plate", filters = { f(4, 4, 1) } } } },
         { name = "Trade Goods", filters = { f(7, 5) }, subCategories = {
             { name = "Cloth", filters = { f(7, 5) } } } },
+        { name = "Recipes", filters = { f(9) }, subCategories = {
+            { name = "Tailoring", filters = { f(9, 2) } } } },
         { name = "WoW Token", filters = {} },
     }
 end
@@ -166,6 +169,37 @@ T.test("ah buy page: Lvl is the level to wear it, not the item level", function(
     AHW.Settle()
     T.eq(page.table.rows[1].itemID, HELM)
     T.eq(textOf(page.table:Row(1).cells.level), "60", "required level, item level is 65")
+end)
+
+-- The game's own window shows the skill a recipe needs in that column
+-- (Recipes' detail column) and sorts by it.
+T.test("ah buy page: recipes show the skill they need, sortable", function()
+    local list = auctions()
+    list[#list + 1] = { itemID = PATTERN_HIGH, name = "Pattern: Runecloth Bag", count = 1, buyout = 50000,
+        level = 1, classID = 9, subClassID = 2, skill = 260 }
+    list[#list + 1] = { itemID = PATTERN_LOW, name = "Pattern: Green Woolen Bag", count = 1, buyout = 90000,
+        level = 1, classID = 9, subClassID = 2, skill = 95, skillLate = true }
+    local A, page = load({ auctions = list })
+    local t = page.table
+    leftRow(A, "Recipes"):Click()
+    AHW.Settle()
+    T.eq(textOf(t.head.cells.level.text), "Skill", "the game's word for Recipes")
+    T.eq(#t.rows, 2)
+    T.eq(t.rows[1].itemID, PATTERN_HIGH, "cheapest first")
+    T.eq(textOf(t:Row(1).cells.level), "260")
+    T.eq(textOf(t:Row(2).cells.level), "", "the server hasn't sent it yet")
+    AHW.SendExtra(PATTERN_LOW)
+    frame()
+    T.eq(textOf(t:Row(2).cells.level), "95", "filled when it arrives")
+    t.head.cells.level:Click()
+    frame()
+    T.eq(t.rows[1].itemID, PATTERN_LOW, "lowest skill first")
+    T.eq(t.rows[2].itemID, PATTERN_HIGH)
+    enter(page.box, "lionheart")
+    leftRow(A, "Recipes"):Click()   -- unpick: search everywhere
+    AHW.Settle()
+    T.eq(textOf(t.head.cells.level.text), "Lvl", "back to the level to use it")
+    quiet()
 end)
 
 T.test("ah buy page: a search fills one row per item, cheapest first", function()
