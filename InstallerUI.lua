@@ -537,15 +537,6 @@ function UI.SetNext(text)
     if text then frame.next.text:SetText(text) end
 end
 
--- New header text on the visible page (after Finish has run). The text fades
--- in and the page stays put. back = false hides Back.
-function UI.Retitle(title, desc, back)
-    if not frame then return end
-    say(frame.header.title, T(title or ""))
-    say(frame.header.desc, T(desc or ""))
-    button(frame.back, back == true)
-end
-
 -- The sidebar
 
 local function railItem(i)
@@ -661,8 +652,11 @@ end
 -- The Finish page's Reload: a secure button running /reload. Addon code can't
 -- call ReloadUI on this client, but a click on a secure macro button can.
 -- Created out of combat and parented to UIParent (the window must stay free
--- to hide in combat), laid over `over` while shown. Returns false when it
--- can't be shown now, and the guide uses the popup instead.
+-- to hide in combat), laid over `over` (the page's hero button) while shown.
+-- It draws nothing itself: the button under it shows through, and the mouse
+-- over it and presses on it are passed down so that one lights as usual.
+-- Returns false when it can't be shown now, and the guide uses the popup
+-- instead.
 function UI.ShowReload(over)
     if InCombatLockdown() then return false end
     -- A timer from the Finish checklist can fire after the window closed.
@@ -675,14 +669,24 @@ function UI.ShowReload(over)
         reload:SetAttribute("macrotext", "/reload")
         reload:RegisterForClicks("AnyUp", "AnyDown")
         reload:SetFrameStrata("HIGH")
-        reload.bg = W.Round(reload, "BACKGROUND")
-        reload.bg:SetAllPoints(reload)
+        -- Its words, for the game's own button readers; the hero button under it shows them.
         reload.text = W.Font(reload, W.TITLE, SIZE.head, C.text, "CENTER")
         reload.text:SetPoint("CENTER", reload, "CENTER", 0, 0)
-        reload.text:SetText(L["Reload"])
+        reload.text:SetAlpha(0)
+        local function pass(script)
+            return function()
+                local b = reload.over
+                local fn = b and b:GetScript(script)
+                if fn then DUI.SafeCall(fn, b) end
+            end
+        end
+        reload:SetScript("OnEnter", pass("OnEnter"))
+        reload:SetScript("OnLeave", pass("OnLeave"))
+        reload:SetScript("OnMouseDown", pass("OnMouseDown"))
+        reload:SetScript("OnMouseUp", pass("OnMouseUp"))
     end
-    W.TintAccent(reload.bg)
-    W.TextColor(reload.text, W.OnAccent())
+    reload.over = over
+    reload.text:SetText(over and over.text and over.text:GetText() or L["Reload"])
     reload:ClearAllPoints()
     reload:SetAllPoints(over)
     reload:SetFrameLevel((frame and frame:GetFrameLevel() or 10) + 30)

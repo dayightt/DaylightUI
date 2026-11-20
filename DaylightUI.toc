@@ -83,6 +83,7 @@ InstallerChrome.lua
 InstallerSteps.lua
 InstallerPlugins.lua
 InstallerLooks.lua
+InstallerDuel.lua
 Welcome.lua
 Profiles.lua
 Alts.lua

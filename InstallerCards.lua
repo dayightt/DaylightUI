@@ -1,7 +1,7 @@
 -- Setup guide building blocks: picture cards (one choice among several, or an
--- action), a picker that lays out a row of them, module tiles, clash cards,
--- and the small drawings inside cards (a screen with frames, a health bar, a
--- bag, a font sample, a color). Everything is drawn in code from the options
+-- action), a picker that lays out a row of them, the opening's showpiece
+-- cards, the pictures on the question pages, and the small drawings inside
+-- plugins' cards (a screen with frames, a health bar, a bag, a font sample, a color). Everything is drawn in code from the options
 -- window's shapes and colors, so it follows the accent and needs no images.
 
 local _, DUI = ...
@@ -15,8 +15,6 @@ DUI.InstallerCards = Cards
 
 Cards.GAP = 10        -- between cards
 Cards.LIFT = 2 -- how far a card rises on hover
-Cards.TILE_H = 84     -- a module tile's height
-Cards.CLASH_H = 70    -- a clash card's height
 
 -- A rounded panel with an outline that lifts on hover. When selected it gets
 -- an accent outline and a tick in the corner. A tag is a small pill in that
@@ -99,6 +97,31 @@ function Cards.Text(card, text, size, color)
     fs:SetJustifyV("TOP")
     fs:SetText(text or "")
     return fs
+end
+
+-- A showpiece's tag: W.Tag at the tiny size, slanted a little more, its
+-- words as written (not capitals) and a fill that turns to the Daylight
+-- gradient when lit. t.Say(text) returns whether there are words to show.
+function Cards.ShowTag(parent)
+    local tag = W.Tag(parent)
+    tag.fill = tag:CreateTexture(nil, "BORDER", nil, 1)
+    tag.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
+    tag.fill:SetAllPoints(tag)
+    Style.Clip(tag, tag.fill, "inner")
+    Style.Slant(tag, "both", Cards.SHOW_TAG_SLANT, nil, "left")
+    Style.SetTextSize(tag.text, SIZE.tiny)
+    function tag.Lit(on)
+        if on then W.TintDaylight(tag.fill, 0.55) else W.Tint(tag.fill, C.track) end
+    end
+    function tag.Say(text)
+        if type(text) ~= "string" or text == "" then return false end
+        tag.Set(text, Style.INK.TEXT)
+        tag.text:SetText(text)
+        tag.FitWidth()
+        return true
+    end
+    tag.Lit(false)
+    return tag
 end
 
 -- A showpiece card (the guide's opening): a picture on the stage color at the
@@ -186,21 +209,12 @@ function Cards.Show(parent, width, height, pictureHeight, opts)
     c.tick:SetPoint("TOPLEFT", inner, "TOPLEFT", 10, -9)
     c.tick:Hide()
 
-    -- The tag: a slanted pill, its fill turning to the gradient when picked.
-    local tag = W.Tag(c.over)
+    local tag = Cards.ShowTag(c.over)
     tag:SetPoint("TOPRIGHT", inner, "TOPRIGHT", -8, -8)
-    tag.fill = tag:CreateTexture(nil, "BORDER", nil, 1)
-    tag.fill:SetTexture("Interface\\Buttons\\WHITE8X8")
-    tag.fill:SetAllPoints(tag)
-    Style.Clip(tag, tag.fill, "inner")
-    Style.Slant(tag, "both", Cards.SHOW_TAG_SLANT, nil, "left")
-    Style.SetTextSize(tag.text, SIZE.tiny)
     tag:Hide()
     c.tagFrame = tag
 
-    local function paintTag()
-        if c.picked then W.TintDaylight(tag.fill, 0.55) else W.Tint(tag.fill, C.track) end
-    end
+    local function paintTag() tag.Lit(c.picked) end
     local function paintEdges()
         if c.picked then
             local a, z = Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
@@ -219,16 +233,8 @@ function Cards.Show(parent, width, height, pictureHeight, opts)
         Style.PaintAccent(c.tick, 1)
     end
 
-    -- The words a tag says, as written (not in capitals).
     function c.SetTag(text)
-        if type(text) == "string" and text ~= "" then
-            tag.Set(text, Style.INK.TEXT)
-            tag.text:SetText(text)
-            tag.FitWidth()
-            tag:Show()
-        else
-            tag:Hide()
-        end
+        tag:SetShown(tag.Say(text))
         paintTag()
     end
 
@@ -332,69 +338,6 @@ function Cards.Picker(parent, opts)
             if c.redraw then c.redraw() end
         end
     end
-    f.Refresh()
-    return f
-end
-
--- A module tile: its name with an on/off switch (the options' own toggle,
--- reading get() and writing set(on)) and a one-line pitch below. Dimmed with
--- no switch when not installed.
-function Cards.Tile(parent, mod, width, get, set, installed)
-    local t = CreateFrame("Frame", nil, parent)
-    t:SetSize(width, Cards.TILE_H)
-    t.bg = W.Round(t, "BACKGROUND")
-    t.bg:SetAllPoints(t)
-    W.Tint(t.bg, C.card)
-    if installed then
-        local item = { type = "toggle", label = mod.label, desc = mod.pitch, get = get, set = set }
-        t.row = W.CompactRow(t, {}, item, width - 24)
-        t.row:SetPoint("TOPLEFT", t, "TOPLEFT", 12, -10)
-    else
-        t.name = W.Font(t, W.BODY, SIZE.body, C.faint)
-        t.name:SetPoint("TOPLEFT", t, "TOPLEFT", 12, -16)
-        t.name:SetText(string.format(L["%s (not installed)"], L[mod.label]))
-    end
-    t.pitch = W.Font(t, W.BODY, SIZE.small, installed and C.dim or C.faint)
-    t.pitch:SetWordWrap(true)
-    t.pitch:SetJustifyV("TOP")
-    t.pitch:SetPoint("TOPLEFT", t, "TOPLEFT", 12, -40)
-    t.pitch:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -12, 8)
-    t.pitch:SetText(L[mod.pitch])
-    function t.Refresh()
-        if t.row then t.row.Refresh() end
-    end
-    t.Refresh()
-    return t
-end
-
--- Another addon doing one of Daylight UI's modules' jobs, with the two ways out: Daylight UI's
--- (listed first) or theirs. get() -> "ours" | "theirs"; set(v).
-function Cards.Clash(parent, clash, width, get, set)
-    local f = CreateFrame("Frame", nil, parent)
-    f:SetSize(width, Cards.CLASH_H)
-    f.bg = W.Round(f, "BACKGROUND")
-    f.bg:SetAllPoints(f)
-    W.Tint(f.bg, C.card)
-    f.edge = W.Round(f, "BORDER", 0, true)
-    f.edge:SetAllPoints(f)
-    W.Tint(f.edge, C.warn, 0.6)
-    f.text = W.Font(f, W.BODY, SIZE.body, C.text)
-    f.text:SetPoint("TOPLEFT", f, "TOPLEFT", 12, -12)
-    f.text:SetPoint("RIGHT", f, "RIGHT", -12, 0)
-    f.text:SetText(string.format(L["%s is also on. Both change your %s."], clash.label, L[clash.what]))
-    f.ours = W.Button(f, L["Use DaylightUI's"], 26)
-    f.ours:SetWidth(150)
-    f.ours:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 10)
-    f.theirs = W.Button(f, string.format(L["Keep %s"], clash.label), 26)
-    f.theirs.FitWidth(150)
-    f.theirs:SetPoint("LEFT", f.ours, "RIGHT", 8, 0)
-    function f.Refresh()
-        local v = get()
-        f.ours.SetActive(v ~= "theirs")
-        f.theirs.SetActive(v == "theirs")
-    end
-    f.ours:SetScript("OnClick", function() set("ours"); f.Refresh() end)
-    f.theirs:SetScript("OnClick", function() set("theirs"); f.Refresh() end)
     f.Refresh()
     return f
 end
@@ -1007,4 +950,441 @@ function Cards.Draw.bagview(card, key, w, h)
         end
     end
     return a
+end
+
+
+-- Pictures for the guide's questions (InstallerDuel). Each makes a frame of
+-- the width asked for, drawn from the frames' own pieces and colors; the
+-- sky, ground and the mob under a plate are the picture's own art.
+Cards.Picture = {}
+local Pic = Cards.Picture
+
+local WHITE8 = "Interface\\Buttons\\WHITE8X8"
+local SKY = {
+    { 0.106, 0.165, 0.290 }, { 0.227, 0.208, 0.376 }, { 0.478, 0.290, 0.416 }, { 0.788, 0.471, 0.369 },
+}
+local SKY_AT = { 0, 0.36, 0.60, 0.72 }
+local GROUND, GROUND_LOW, GROUND_AT = { 0.110, 0.106, 0.086 }, { 0.082, 0.078, 0.059 }, 0.725
+local FIGURE = { 0.063, 0.059, 0.047 }
+local ART_PLATE = { 0.043, 0.043, 0.051 }
+local PANEL = { 0.078, 0.078, 0.090 }
+local SLOT, SLOT_FULL, SLOT_FULL_LOW = { 0.133, 0.133, 0.153 }, { 0.29, 0.29, 0.345 }, { 0.169, 0.169, 0.2 }
+local DEBUFFS = { { { 0.478, 0.29, 0.659 }, { 0.227, 0.141, 0.314 } }, { { 0.659, 0.376, 0.227 }, { 0.314, 0.188, 0.11 } },
+                  { { 0.227, 0.541, 0.353 }, { 0.11, 0.251, 0.188 } } }
+Pic.SKY_RATIO = 0.58
+
+local function tex(parent, layer, sub)
+    local t = parent:CreateTexture(nil, layer or "ARTWORK", nil, sub)
+    t:SetTexture(WHITE8)
+    return t
+end
+local function vertical(t, top, low)
+    t:SetVertexColor(1, 1, 1, 1)
+    if t.SetGradient and CreateColor then
+        t:SetGradient("VERTICAL", CreateColor(low[1], low[2], low[3], 1), CreateColor(top[1], top[2], top[3], 1))
+    else
+        t:SetVertexColor(top[1], top[2], top[3], 1)
+    end
+end
+
+-- The frame's edge round a panel: a dark line, the warm band, a dark line.
+local function framed(f)
+    for i, spec in ipairs({ { 5, Style.BORDER }, { 4, Style.BAND }, { 1, Style.BORDER } }) do
+        local t = tex(f, "BACKGROUND", i - 8)
+        t:SetPoint("TOPLEFT", f, "TOPLEFT", -spec[1], spec[1])
+        t:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", spec[1], -spec[1])
+        t:SetVertexColor(spec[2][1], spec[2][2], spec[2][3], 1)
+    end
+end
+
+-- The small screen (InstallerScreen) in a state.
+function Pic.screen(parent, state, width)
+    local s = DUI.InstallerScreen.New(parent, width)
+    s.Set(state, true)
+    return s
+end
+
+-- The sky the plate, crowd and quest pictures stand on: dusk down to the
+-- ground line, framed like a window of the game.
+function Pic.Sky(parent, width)
+    local f = CreateFrame("Frame", nil, parent)
+    local h = math.floor(width * Pic.SKY_RATIO + 0.5)
+    f:SetSize(width, h)
+    f:SetClipsChildren(true)
+    framed(f)
+    for i = 1, 4 do
+        local t = tex(f, "BACKGROUND")
+        local top, low = SKY_AT[i], SKY_AT[i + 1] or GROUND_AT
+        t:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -top * h)
+        t:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -top * h)
+        t:SetHeight(math.max(0.01, (low - top) * h))
+        vertical(t, SKY[i], SKY[i + 1] or SKY[4])
+    end
+    local ground = tex(f, "BACKGROUND", 1)
+    ground:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -GROUND_AT * h)
+    ground:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)
+    vertical(ground, GROUND, GROUND_LOW)
+    return f
+end
+
+-- A shelled bar of the frames' own look, filled share of the way, leaning.
+local function leanBar(parent, w, fillH, share, thin, lean)
+    local bar = styleBar(parent, fillH, thin)
+    bar:SetWidth(w)
+    Style.Slant(bar, "both", math.floor(bar:GetHeight() * math.tan(math.rad(lean)) + 0.5), nil, "left")
+    bar.fill:ClearAllPoints()
+    local T = DUI.Pixel.Px(bar, Style.BorderPx(bar))
+    bar.fill:SetPoint("TOPLEFT", bar, "TOPLEFT", T, -T)
+    bar.fill:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", T, T)
+    bar.fill:SetWidth(math.max(1, (w - 2 * T) * share))
+    return bar
+end
+
+-- An accent value's two colors (a single color gives the same twice).
+local function accentPair(key)
+    if key == "gradient" then return Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2] end
+    if key == "classGradient" and Style.ClassAccentPair() then return Style.ClassAccentPair() end
+    if key == "customGradient" and Style.CustomAccentStops() then
+        local stops = Style.CustomAccentStops()
+        return stops[1], stops[#stops]
+    end
+    if key == "class" or key == "classGradient" then local c = classColor(); return c, c end
+    if key == "custom" then
+        local c = DUI:Get("general", "accentColor")
+        if type(c) == "table" and type(c[1]) == "number" then return c, c end
+        return Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
+    end
+    return Style.ACCENT, Style.ACCENT
+end
+Cards.AccentPair = accentPair
+
+local function paintPair(t, lo, hi, orientation)
+    t:SetVertexColor(1, 1, 1, 1)
+    if t.SetGradient and CreateColor then
+        t:SetGradient(orientation or "HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
+    else
+        t:SetVertexColor(hi[1], hi[2], hi[3], 1)
+    end
+end
+
+-- A round portrait with your class icon in the frames' warm ring.
+local function portrait(parent, size)
+    local r = CreateFrame("Frame", nil, parent)
+    r:SetSize(size, size)
+    local _, token = UnitClass("player")
+    local disc = r:CreateTexture(nil, "BACKGROUND")
+    disc:SetTexture(DUI.MEDIA .. "crest-disc.png")
+    disc:SetVertexColor(0.02, 0.02, 0.02, 1)
+    disc:SetAllPoints(r)
+    local icon = r:CreateTexture(nil, "ARTWORK")
+    icon:SetTexture(DUI.MEDIA .. "class\\" .. string.lower(type(token) == "string" and token or "warrior") .. ".tga")
+    icon:SetSize(size * 0.95, size * 0.95)
+    icon:SetPoint("CENTER", r, "CENTER", 0, 0)
+    local m = r:CreateMaskTexture()
+    m:SetTexture(DUI.MEDIA .. "crest-disc.png", "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+    m:SetSize(size * 0.8, size * 0.8)
+    m:SetPoint("CENTER", r, "CENTER", 0, 0)
+    icon:AddMaskTexture(m)
+    local band = r:CreateTexture(nil, "OVERLAY")
+    paintBand(band, "dark")
+    band:SetSize(size / 0.6, size / 0.6)
+    band:SetPoint("CENTER", r, "CENTER", 0, 0)
+    r.band = band
+    return r
+end
+
+-- The sample frame a color is shown on: a portrait, a health bar three
+-- quarters full in that color with its number, a power bar and a name tag.
+-- Drawn at 250 x 66 and scaled to the width asked for.
+Pic.FRAME_W, Pic.FRAME_H = 250, 66
+function Pic.accent(parent, key, width)
+    local f = CreateFrame("Frame", nil, parent)
+    local k = math.min(1, width / Pic.FRAME_W)
+    f:SetSize(Pic.FRAME_W * k, Pic.FRAME_H * k)
+    local inner = CreateFrame("Frame", nil, f)
+    inner:SetSize(Pic.FRAME_W, Pic.FRAME_H)
+    inner:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+    inner:SetScale(k)
+    local hp = leanBar(inner, 186, 24, 0.76, false, 24)
+    hp:SetPoint("TOPLEFT", inner, "TOPLEFT", 52, -17)
+    local lo, hi = accentPair(key)
+    hp.fill:SetTexture(WHITE8)
+    paintPair(hp.fill, lo, hi)
+    hp.value = W.Font(hp, W.TITLE, SIZE.title, C.value, "RIGHT")
+    hp.value:SetPoint("RIGHT", hp, "RIGHT", -16, 0)
+    hp.value:SetText("2.5K")
+    local power = leanBar(inner, 150, 7, 0.62, true, 24)
+    power:SetPoint("TOPLEFT", inner, "TOPLEFT", 50, -48)
+    local red = Style.REACTION.hostile
+    power.fill:SetTexture(WHITE8)
+    paintPair(power.fill, { red[1] * 0.65, red[2] * 0.65, red[3] * 0.65 }, red)
+    local face = portrait(inner, 56)
+    face:SetPoint("TOPLEFT", inner, "TOPLEFT", 0, -5)
+    face:SetFrameLevel(hp:GetFrameLevel() + 6)
+    local name = CreateFrame("Frame", nil, inner)
+    name:SetFrameLevel(hp:GetFrameLevel() + 4)
+    name:SetPoint("TOPLEFT", inner, "TOPLEFT", 92, 3)
+    name:SetHeight(16)
+    name.bg = tex(name, "BACKGROUND")
+    name.bg:SetAllPoints(name)
+    W.Tint(name.bg, C.window)
+    name.text = W.Font(name, W.BODY, 11, C.value, "CENTER")
+    name.text:SetPoint("CENTER", name, "CENTER", 0, 0)
+    name.text:SetText(UnitName("player") or "Tester")
+    local nw = name.text:GetStringWidth()
+    name:SetWidth((type(nw) == "number" and nw > 0 and nw or 36) + 18)
+    f.health, f.power, f.face = hp, power, face
+    return f
+end
+
+-- A color's closed strip: an upright bar of it in a frame's edge, the
+-- gradient running bottom to top.
+function Pic.accentBar(parent, key)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(14, 150)
+    framed(f)
+    local t = tex(f, "ARTWORK")
+    t:SetAllPoints(f)
+    local lo, hi = accentPair(key)
+    paintPair(t, lo, hi, "VERTICAL")
+    return f
+end
+
+local function fontFile(key)
+    local def = Style.FontEntry(key)
+    return def and def.file or STANDARD_TEXT_FONT or W.BODY
+end
+Cards.FontFile = fontFile
+
+-- A font, open: "Tester 2.5K" big, a line of stats under it.
+function Pic.font(parent, key, width)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(width, 36 * 1.2 + 2 + 14 * 1.2)
+    local file = fontFile(key)
+    f.big = f:CreateFontString(nil, "OVERLAY")
+    f.big:SetFont(file, 36, "")
+    f.big:SetPoint("TOP", f, "TOP", 0, 0)
+    f.big:SetShadowOffset(1, -1)
+    f.big:SetShadowColor(0, 0, 0, 0.7)
+    W.TextColor(f.big, C.value)
+    local r, g, b = Style.Accent()
+    f.big:SetText(string.format("%s |cff%02x%02x%02x2.5K|r", UnitName("player") or "Tester",
+        math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5), math.floor(b * 255 + 0.5)))
+    f.small = f:CreateFontString(nil, "OVERLAY")
+    f.small:SetFont(file, 14, "")
+    f.small:SetPoint("TOP", f.big, "BOTTOM", 0, -2)
+    W.TextColor(f.small, Style.INK.LABEL)
+    f.small:SetText(L["Level 60 Warrior   128 - 193 Damage"])
+    return f
+end
+
+-- A font, closed: "Aa" in it.
+function Pic.fontMini(parent, key)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(40, 34)
+    f.text = f:CreateFontString(nil, "OVERLAY")
+    f.text:SetFont(fontFile(key), 27, "")
+    f.text:SetPoint("CENTER", f, "CENTER", 0, 0)
+    W.TextColor(f.text, C.value)
+    f.text:SetText(L["Aa"])
+    return f
+end
+
+-- One enemy's nameplate over the sky, at the size and with the parts asked
+-- for: opts = { size = "small" | "medium" | "large", percent, debuffs }.
+-- Sizes are the Nameplates presets' own: width, height, scale.
+Pic.PLATES = { small = { 150, 14, 0.85 }, medium = { 170, 16, 1 }, large = { 190, 20, 1.2 } }
+function Pic.plate(parent, opts, width)
+    opts = opts or {}
+    local f = Pic.Sky(parent, width)
+    local d = Pic.PLATES[opts.size or "medium"] or Pic.PLATES.medium
+    local pw, ph = math.floor(d[1] * d[3] + 0.5), math.floor(d[2] * d[3] + 0.5)
+    local p = CreateFrame("Frame", nil, f)
+    p:SetWidth(pw)
+    local debH = opts.debuffs ~= false and (18 + 5) or 0
+    local nameH = math.floor(12 * d[3] + 0.5)
+    local total = debH + nameH + 5 + ph + 10 + 44
+    p:SetHeight(total)
+    p:SetPoint("CENTER", f, "CENTER", 0, 0)
+    p.debuffs = {}
+    for i = 1, 3 do
+        local b = CreateFrame("Frame", nil, p)
+        b:SetSize(18, 18)
+        b:SetPoint("TOPLEFT", p, "TOPLEFT", (i - 1) * 22, 0)
+        local edge = tex(b, "BACKGROUND")
+        edge:SetPoint("TOPLEFT", b, "TOPLEFT", -1, 1)
+        edge:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 1, -1)
+        edge:SetVertexColor(Style.BORDER[1], Style.BORDER[2], Style.BORDER[3], 1)
+        local t = tex(b, "ARTWORK")
+        t:SetAllPoints(b)
+        vertical(t, DEBUFFS[i][1], DEBUFFS[i][2])
+        b:SetShown(opts.debuffs ~= false)
+        p.debuffs[i] = b
+    end
+    p.name = W.Font(p, W.BODY, nameH, C.value, "CENTER")
+    p.name:SetPoint("TOP", p, "TOP", 0, -debH)
+    p.name:SetText(L["Defias Pillager"])
+    p.bar = CreateFrame("Frame", nil, p)
+    p.bar:SetSize(pw, ph)
+    p.bar:SetPoint("TOP", p, "TOP", 0, -(debH + nameH + 5))
+    -- The edge round the bar (a dark line, the band, a dark line), all leaning.
+    local cut = math.floor(ph * math.tan(math.rad(18)) + 0.5)
+    for i, spec in ipairs({ { 4, Style.BORDER }, { 3, Style.BAND }, { 1, Style.BORDER }, { 0, ART_PLATE } }) do
+        local t = tex(p.bar, "BACKGROUND", i - 8)
+        t:SetPoint("TOPLEFT", p.bar, "TOPLEFT", -spec[1], spec[1])
+        t:SetPoint("BOTTOMRIGHT", p.bar, "BOTTOMRIGHT", spec[1], -spec[1])
+        t:SetVertexColor(spec[2][1], spec[2][2], spec[2][3], 1)
+        Style.Clip(p.bar, t, "outer")
+    end
+    p.fill = tex(p.bar, "ARTWORK")
+    p.fill:SetPoint("TOPLEFT", p.bar, "TOPLEFT", 0, 0)
+    p.fill:SetPoint("BOTTOMLEFT", p.bar, "BOTTOMLEFT", 0, 0)
+    p.fill:SetWidth(pw * 0.72)
+    local red = Style.REACTION.hostile
+    paintPair(p.fill, { red[1] * 0.65, red[2] * 0.65, red[3] * 0.65 }, red)
+    Style.Clip(p.bar, p.fill, "outer")
+    Style.Slant(p.bar, "both", cut, nil, "left")
+    p.percent = W.Font(p.bar, W.BODY, math.floor(11 * d[3] + 0.5), C.value, "RIGHT")
+    p.percent:SetPoint("RIGHT", p.bar, "RIGHT", -8, 0)
+    p.percent:SetText("72%")
+    p.percent:SetShown(opts.percent ~= false)
+    -- The mob under its plate: a dark figure, round on top.
+    p.mob = CreateFrame("Frame", nil, f)
+    p.mob:SetSize(40, 44)
+    p.mob:SetPoint("TOP", p.bar, "BOTTOM", 0, -10)
+    local head = p.mob:CreateTexture(nil, "ARTWORK")
+    head:SetTexture(DUI.MEDIA .. "crest-disc.png")
+    head:SetSize(40, 40)
+    head:SetPoint("TOP", p.mob, "TOP", 0, 0)
+    local body = tex(p.mob, "ARTWORK")
+    body:SetPoint("TOPLEFT", p.mob, "TOPLEFT", 0, -20)
+    body:SetPoint("BOTTOMRIGHT", p.mob, "BOTTOMRIGHT", 0, 0)
+    for _, t in ipairs({ head, body }) do t:SetVertexColor(FIGURE[1], FIGURE[2], FIGURE[3], 1) end
+    f.plate = p
+    return f
+end
+
+-- A bag, laid out three ways: grouped under headings, one grid, or a list.
+Pic.BAG_W, Pic.SLOT_PX, Pic.SLOT_GAP = 196, 17, 3
+local function slot(parent, filled)
+    local s = CreateFrame("Frame", nil, parent)
+    s:SetSize(Pic.SLOT_PX, Pic.SLOT_PX)
+    local edge = tex(s, "BACKGROUND")
+    edge:SetPoint("TOPLEFT", s, "TOPLEFT", -1, 1)
+    edge:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", 1, -1)
+    edge:SetVertexColor(Style.BORDER[1], Style.BORDER[2], Style.BORDER[3], 1)
+    local t = tex(s, "ARTWORK")
+    t:SetAllPoints(s)
+    if filled then vertical(t, SLOT_FULL, SLOT_FULL_LOW) else t:SetVertexColor(SLOT[1], SLOT[2], SLOT[3], 1) end
+    local lit = tex(s, "ARTWORK", 1)
+    lit:SetPoint("TOPLEFT", s, "TOPLEFT", 0, 0)
+    lit:SetPoint("TOPRIGHT", s, "TOPRIGHT", 0, 0)
+    lit:SetHeight(1)
+    lit:SetVertexColor(Style.BAND_LIT[1], Style.BAND_LIT[2], Style.BAND_LIT[3], 1)
+    return s
+end
+function Pic.bags(parent, key, width)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetWidth(Pic.BAG_W)
+    framed(f)
+    f.bg = tex(f, "BACKGROUND", 1)
+    f.bg:SetAllPoints(f)
+    f.bg:SetVertexColor(PANEL[1], PANEL[2], PANEL[3], 1)
+    local x0, y = 10, 9
+    local per = math.floor((Pic.BAG_W - 20 + Pic.SLOT_GAP) / (Pic.SLOT_PX + Pic.SLOT_GAP))
+    local function grid(n, full)
+        for i = 1, n do
+            local col, row = (i - 1) % per, math.floor((i - 1) / per)
+            local s = slot(f, i <= full)
+            s:SetPoint("TOPLEFT", f, "TOPLEFT", x0 + col * (Pic.SLOT_PX + Pic.SLOT_GAP), -(y + row * (Pic.SLOT_PX + Pic.SLOT_GAP)))
+        end
+        y = y + math.ceil(n / per) * (Pic.SLOT_PX + Pic.SLOT_GAP) - Pic.SLOT_GAP
+    end
+    if key == "categories" then
+        for i, g in ipairs({ { L["Weapons"], 4 }, { L["Consumables"], 7 }, { L["Trade goods"], 5 } }) do
+            if i > 1 then y = y + 6 end
+            local h = W.Font(f, W.BODY, SIZE.tiny, C.value)
+            h:SetPoint("TOPLEFT", f, "TOPLEFT", x0, -y)
+            h:SetText(DUI.InstallerChrome.Spaced(g[1]))
+            Style.InkText(h, "pop")
+            y = y + SIZE.tiny + 5
+            grid(g[2], g[2])
+        end
+    elseif key == "grid" then
+        grid(27, 16)
+    else
+        for i, name in ipairs({ L["Blade of the Dawn"], L["Healing Potion"], L["Linen Cloth"], L["Copper Ore"], L["Hearthstone"] }) do
+            if i > 1 then y = y + 8 end
+            local s = slot(f, true)
+            s:SetPoint("TOPLEFT", f, "TOPLEFT", x0, -y)
+            local t = W.Font(f, W.BODY, 11, Style.INK.TEXT)
+            t:SetPoint("LEFT", s, "RIGHT", 8, 0)
+            t:SetText(name)
+            y = y + Pic.SLOT_PX
+        end
+    end
+    f:SetHeight(y + 10)
+    return f
+end
+
+-- The quest helper: the tracker box in the corner, and with the helper on
+-- a trail of gold dots to a lit marker.
+Pic.TRAIL = { { 18, 84 }, { 26, 76 }, { 35, 70 }, { 45, 66 }, { 55, 60 }, { 63, 52 } }
+function Pic.quest(parent, key, width)
+    local f = Pic.Sky(parent, width)
+    local w, h = f:GetWidth(), f:GetHeight()
+    local box = CreateFrame("Frame", nil, f)
+    box:SetPoint("TOPRIGHT", f, "TOPRIGHT", -8, -8)
+    box:SetWidth(w * 0.42)
+    box.bg = tex(box, "BACKGROUND")
+    box.bg:SetAllPoints(box)
+    box.bg:SetVertexColor(PANEL[1], PANEL[2], PANEL[3], 0.8)
+    local y = 6
+    local gold = Style.INK.MONEY
+    for _, part in ipairs({ { L["Wanted: Hogger"], 1 }, { L["The Fargodeep Mine"], 2 } }) do
+        local t = W.Font(box, W.BODY, 9, gold)
+        t:SetPoint("TOPLEFT", box, "TOPLEFT", 8, -y)
+        t:SetText(part[1])
+        y = y + 9 + 3
+        for _ = 1, part[2] do
+            local l = tex(box, "ARTWORK")
+            l:SetSize((w * 0.42 - 16) * 0.8, 3)
+            l:SetPoint("TOPLEFT", box, "TOPLEFT", 8, -y)
+            l:SetVertexColor(Style.INK.TEXT[1], Style.INK.TEXT[2], Style.INK.TEXT[3], 0.5)
+            y = y + 3 + 6
+        end
+    end
+    box:SetHeight(y)
+    f.trail = {}
+    if key == "yes" then
+        for i, p in ipairs(Pic.TRAIL) do
+            local d = f:CreateTexture(nil, "ARTWORK")
+            d:SetTexture(DUI.MEDIA .. "crest-disc.png")
+            d:SetSize(6, 6)
+            d:SetPoint("TOPLEFT", f, "TOPLEFT", p[1] / 100 * w, -p[2] / 100 * h)
+            d:SetVertexColor(gold[1], gold[2], gold[3], 1)
+            f.trail[i] = d
+        end
+        local m = tex(f, "OVERLAY")
+        m:SetSize(14, 14)
+        m:SetPoint("TOPLEFT", f, "TOPLEFT", 0.70 * w, -0.34 * h)
+        m:SetRotation(math.pi / 4)
+        paintPair(m, Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2])
+        f.marker = m
+    end
+    return f
+end
+
+-- Another addon, by name, on a plain panel (the "who draws it?" question).
+function Pic.addon(parent, name, width)
+    local f = CreateFrame("Frame", nil, parent)
+    f:SetSize(width, math.floor(width * Pic.SKY_RATIO + 0.5))
+    framed(f)
+    f.bg = tex(f, "BACKGROUND", 1)
+    f.bg:SetAllPoints(f)
+    f.bg:SetVertexColor(PANEL[1], PANEL[2], PANEL[3], 1)
+    f.text = W.Font(f, W.TITLE, 28, C.value, "CENTER")
+    f.text:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.text:SetText(name or "")
+    return f
 end

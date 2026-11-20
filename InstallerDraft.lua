@@ -92,12 +92,20 @@ function Draft.NeedsReload() return state ~= nil and state.reload == true end
 
 -- Shows another profile's values for every tracked key the player hasn't
 -- picked. name is the profile the character will end up on. Nil, the active
--- profile, or one that doesn't exist yet restores seeded keys.
+-- profile, or one that doesn't exist (and isn't ready-made) restores seeded keys.
 function Draft.Seed(name)
     if not state then return end
     local pd = DUI.DB.Root().profileData
     local from
-    if name ~= nil and name ~= state.profile and type(pd[name]) == "table" then from = DUI.DB.Fill(pd[name]) end
+    if name ~= nil and name ~= state.profile then
+        -- A ready-made layout is shown as it's built, clean, whether or not
+        -- it's saved yet (Finish builds it the same way).
+        if DUI.Profiles.IsReady(name) then
+            from = DUI.DB.Fill(DUI.Profiles.ReadyData(name))
+        elseif type(pd[name]) == "table" then
+            from = DUI.DB.Fill(pd[name])
+        end
+    end
     for k in pairs(state.tracked) do
         if not state.picked[k] then
             local scope, path = split(k)

@@ -155,26 +155,24 @@ T.test("welcome: never on a brand-new account, never in a fight", function()
     T.truthy(DUI.Welcome.Running(), "once it ends")
 end)
 
-T.test("tour: the portrait and tooltip looks pick through the draft, with both drawn", function()
+T.test("guide: the portrait and tooltip questions pick through the draft, with both looks drawn", function()
     local DUI = stub.Load({ module = true, tooltip = true })
-    local D, Steps = DUI.InstallerDraft, DUI.InstallerSteps
-    D.Begin()
-    local frames = Steps.Build("frames", UIParent, 500)
-    local picker = frames.pickers.portraitLook
-    T.truthy(picker, "the Frames page has the portrait look")
-    picker.Refresh()
-    T.truthy(picker.cards.socket.selected, "a new player starts on the new look")
-    press(picker.cards.classic)
+    stub.RunTimers()
+    local I, D = DUI.Installer, DUI.InstallerDraft
+    if not I.flow then I.Show() end
+    I.Start("tour")
+    local q = I.QuestionById("portrait")
+    T.truthy(q, "the portrait question")
+    T.eq(I.Answer(q), "socket", "a new player starts on the new look")
+    I.Go("q:portrait")
+    T.truthy(I.pages.duel.span, "both looks drawn across the two columns")
+    I.Pick(q, "classic")
     T.eq(DUI:Get("UnitFrames", "player.portraitLook"), "classic")
     T.truthy(D.Picked("UnitFrames", "player.portraitLook"))
-    local everyday = Steps.Build("everyday", UIParent, 500)
-    picker = everyday.pickers.tooltipStyle
-    T.truthy(picker, "the Everyday page has the tooltip look")
-    picker.Refresh()
-    local was = DUI:Get("Tooltip", "style")
-    T.truthy(picker.cards[was].selected, "the setup's own look is picked")
+    q = I.QuestionById("tooltip")
+    local was = I.Answer(q)
     local other = was == "rich" and "simple" or "rich"
-    press(picker.cards[other])
+    I.Pick(q, other)
     T.eq(DUI:Get("Tooltip", "style"), other)
     T.truthy(D.Picked("Tooltip", "style"))
     D.Revert()
@@ -239,16 +237,16 @@ T.test("welcome: an icon already placed keeps its spot; Names only turns it off"
     T.eq(DUI:Get("Nameplates", "friendly.classIcon"), "none")
 end)
 
-T.test("tour: the Nameplates page has the class icons, picked through the draft", function()
+T.test("guide: the class icons question picks through the draft", function()
     local DUI = stub.Load({ module = true, nameplates = true })
-    local D = DUI.InstallerDraft
-    D.Begin()
-    local plates = DUI.InstallerSteps.Build("plates", UIParent, 500)
-    local picker = plates.pickers.plateClassIcon
-    T.truthy(picker, "the Nameplates page has the class icons")
-    picker.Refresh()
-    T.truthy(picker.cards.none.selected, "off to start")
-    press(picker.cards.above)
+    stub.RunTimers()
+    local I, D = DUI.Installer, DUI.InstallerDraft
+    if not I.flow then I.Show() end
+    I.Start("tour")
+    local q = I.QuestionById("plateIcons")
+    T.truthy(q, "the class icons question")
+    T.eq(I.Answer(q), "none", "off to start")
+    I.Pick(q, "above")
     T.eq(DUI:Get("Nameplates", "friendly.classIcon"), "above")
     T.truthy(D.Picked("Nameplates", "friendly.classIcon"))
     D.Revert()

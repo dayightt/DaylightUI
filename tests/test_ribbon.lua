@@ -298,16 +298,8 @@ T.test("Ribbon: every option of the player, target, focus and party pages works"
     T.eq(ns.frames.player.style, "ribbon", "still Ribbon at the end")
 end)
 
-T.test("the setup guide's Frames page offers the style as two drawn cards", function()
+T.test("the setup guide can still draw the frame style on a plugin's cards", function()
     local DUI = login()
-    local found
-    for _, step in ipairs(DUI.InstallerPages.TOUR) do
-        for _, g in ipairs(step.groups or {}) do
-            if g.cards and g.cards.key == "look.style" then found = g end
-        end
-    end
-    T.truthy(found, "a Frame style group")
-    T.eq(found.cards.draw, "frameStyle")
     for _, key in ipairs({ "daylight", "ribbon" }) do
         local card = { inner = CreateFrame("Frame") }
         T.noerror(function() DUI.InstallerCards.Draw.frameStyle(card, key, 140, 50) end)

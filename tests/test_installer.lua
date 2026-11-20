@@ -45,6 +45,32 @@ local function go(DUI) press(DUI.Installer.pages.welcome.go) end
 local function card(DUI, key)
     for _, c in ipairs(DUI.Installer.pages.welcome.cards) do if c.key == key then return c end end
 end
+
+-- Lets every tween and lift run to its end.
+local function settle(DUI)
+    for _ = 1, 120 do
+        stub.Advance(0.05)
+        for _, d in ipairs({ DUI.Motion.Driver(), DUI.Win.Feel.Driver() }) do
+            local tick = d and d:GetScript("OnUpdate")
+            if tick then tick(d, 0.05) end
+        end
+    end
+    stub.RunTimers()
+end
+
+local function question(n, over)
+    local q = { part = "Test", ask = "Which?", what = "A thing.", step = 2, total = 5, nextText = "Next", current = "b", choices = {} }
+    for i = 1, n do
+        local k = string.char(96 + i)
+        q.choices[i] = { key = k, name = "Choice " .. k, line = "Line " .. k,
+            picture = function(parent, w) local f = CreateFrame("Frame", nil, parent); f:SetSize(w, 100); return f end,
+            closed = function(parent) local f = CreateFrame("Frame", nil, parent); f:SetSize(14, 150); return f end }
+    end
+    for k, v in pairs(over or {}) do q[k] = v end
+    return q
+end
+
+local function plainText(fs) return (fs:GetText() or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") end
 -- A summary line on the finish page as drawn: "name: value", or its sentence.
 local function lineText(l)
     local value = l.value:GetText() or ""
@@ -178,27 +204,27 @@ T.test("installer draft: Commit into the profile in use keeps the picks", functi
     T.eq(DaylightUIDB.profileData[DUI.DB.DEFAULT].general.accent, "class")
 end)
 
-T.test("installer draft: Seed shows the target profile's look but never undoes a pick", function()
+T.test("installer draft: Seed shows a saved profile's look but never undoes a pick", function()
     local DUI = login()
     local D = DUI.InstallerDraft
-    local made = DUI.Profiles.AddPreset("Healer")
+    local made = DUI.Profiles.Create("Mine", nil, DUI.DB.DEFAULT)
     local pd = DaylightUIDB.profileData
-    pd.Healer.general.font = "poppins"
-    pd.Healer.general.accent = "class"
+    pd[made].general.font = "poppins"
+    pd[made].general.accent = "class"
     local font, accent = DUI:Get("general", "font"), DUI:Get("general", "accent")
     D.Begin()
     D.Track("general", "font")
     D.Track("general", "accent")
     D.Set("general", "accent", "gradient")
     D.Seed(made)
-    T.eq(DUI:Get("general", "font"), "poppins", "Healer's font shown")
+    T.eq(DUI:Get("general", "font"), "poppins", "its font shown")
     T.eq(DUI:Get("general", "accent"), "gradient", "the pick kept")
     D.Seed(nil)
     T.eq(DUI:Get("general", "font"), font, "seeded back when the target changes")
     D.Seed(made)
     D.Commit(made)
-    T.eq(pd.Healer.general.font, "poppins")
-    T.eq(pd.Healer.general.accent, "gradient")
+    T.eq(pd[made].general.font, "poppins")
+    T.eq(pd[made].general.accent, "gradient")
     T.eq(pd[DUI.DB.DEFAULT].general.font, font, "Default untouched")
     T.eq(pd[DUI.DB.DEFAULT].general.accent, accent)
 end)
@@ -213,32 +239,40 @@ T.test("installer draft: a preview left by a crash is undone at the next login",
     T.isnil(DUI.DB.Character().installDraft)
 end)
 
-T.test("installer pages: every option the tour offers exists in the options", function()
+T.test("installer questions: every one writes a setting the options have, with a value that setting takes", function()
     local DUI = login({ module = true, bags = true, chat = true, infopanel = true, tooltip = true, qol = true, nameplates = true, quests = true })
     local P = DUI.InstallerPages
-    for _, page in ipairs(P.TOUR) do
-        for _, g in ipairs(page.groups or {}) do
-            for _, r in ipairs(P.Refs(g)) do
-                T.truthy(P.Find(r[1], r[2]), page.id .. ": " .. r[1] .. " " .. r[2])
+    local n = 0
+    for _, part in ipairs(P.PARTS) do
+        for _, q in ipairs(part.questions) do
+            n = n + 1
+            T.truthy(type(q.ask) == "string" and type(q.what) == "string" and type(q.short) == "string", q.id .. " has its words")
+            if q.option then
+                local _, item = P.Find(q.option[1], q.option[2])
+                T.truthy(item, q.id .. ": an options row")
+                local values = item.values or (item.choices and item.choices())
+                for _, v in ipairs(q.only) do
+                    if type(v) ~= "boolean" then T.truthy(values and values[v], q.id .. ": takes " .. tostring(v)) end
+                end
             end
+            for _, pr in ipairs(q.presets or {}) do
+                for _, st in ipairs(pr.set) do T.truthy(P.Find(st[1], st[2]), q.id .. ": " .. st[2]) end
+            end
+            for _, st in ipairs(q.bundle and q.bundle.set or {}) do T.truthy(P.Find(st[1], st[2]), q.id .. ": " .. st[2]) end
+            if q.look then T.truthy(DUI.InstallerLooks.KINDS[q.look], q.id .. ": a look") end
         end
     end
-    for _, k in ipairs(P.Keys(P.Quick())) do T.truthy(P.Find(k[1], k[2]), "quick: " .. k[1] .. " " .. k[2]) end
-    T.truthy(P.Find("UnitFrames", "player.portrait"), "portraits")
+    T.eq(n, 14)
+    for _, k in ipairs(P.Keys(P.Questions("quick"))) do T.truthy(P.Find(k[1], k[2]), "quick: " .. k[1] .. " " .. k[2]) end
     T.eq(P.Where("appearance"), "General > Appearance")
     T.eq(P.Module("Bags").addon, "DaylightUI_Bags")
 end)
 
-T.test("installer pages: a group needs its module", function()
+T.test("installer pages: a question needs its module", function()
     local DUI = login()
     local P = DUI.InstallerPages
-    local bags
-    for _, g in ipairs(P.Get("everyday").groups) do
-        if g.needs == "Bags" and g.cards then bags = g end
-    end
-    T.falsy(P.GroupAvailable(bags), "no bag module loaded")
-    local accent = P.Get("look").groups[1]
-    T.truthy(P.GroupAvailable(accent), "the core's own options always are")
+    T.falsy(P.Asks(P.Question("bags")), "no bag module loaded")
+    T.truthy(P.Asks(P.Question("accent")), "the core's own options always are")
     T.falsy(P.Loaded("Bags")); T.truthy(P.Loaded("general"))
 end)
 
@@ -277,30 +311,6 @@ T.test("installer cards: a tag takes the tick's corner", function()
     T.truthy(c.tick:IsShown())
 end)
 
-T.test("installer cards: a module tile switches through its item; not installed has no switch", function()
-    local DUI = login()
-    local Cards = DUI.InstallerCards
-    local on = true
-    local mod = DUI.InstallerPages.MODULES[1]
-    local tile
-    tile = Cards.Tile(UIParent, mod, 260, function() return on end, function(v) on = v; tile.Refresh() end, true)
-    tile.row.control:Click()
-    T.eq(on, false, "switched off")
-    local missing = Cards.Tile(UIParent, mod, 260, function() return false end, function() end, false)
-    T.isnil(missing.row)
-    T.truthy(string.find(missing.name:GetText(), "not installed", 1, true))
-end)
-
-T.test("installer cards: a clash card picks ours or theirs", function()
-    local DUI = login()
-    local v
-    local card = DUI.InstallerCards.Clash(UIParent, DUI.InstallerPages.CLASHES[3], 500,
-        function() return v end, function(x) v = x end)
-    T.truthy(card.ours.active, "ours first")
-    press(card.theirs)
-    T.eq(v, "theirs"); T.truthy(card.theirs.active); T.falsy(card.ours.active)
-end)
-
 T.test("installer cards: every drawing builds", function()
     local DUI = login()
     local Cards = DUI.InstallerCards
@@ -321,6 +331,29 @@ T.test("installer cards: every drawing builds", function()
         T.noerror(function() kc:GetScript("OnEnter")(kc) end, k .. ": hovered")
         T.truthy(kc.kick:IsShown() and kc.kick.style == k, k .. " plays on the card as the mouse comes onto it")
     end
+    -- The question pages' pictures, at the widths the page asks for.
+    local P = Cards.Picture
+    local function built(f, w, what)
+        T.truthy(type(f) == "table" and f.GetWidth, what .. ": a frame")
+        if w then T.near(f:GetWidth(), w, 1, what .. ": as wide as asked") end
+    end
+    for _, w in ipairs({ 300, 210 }) do
+        built(P.screen(UIParent, { role = "Healer", fight = true }, w), w, "screen")
+        built(P.Sky(UIParent, w), w, "sky")
+        for _, k in ipairs(DUI.Style.ACCENT_ORDER) do built(P.accent(UIParent, k, w), math.min(w, 250), "accent " .. k) end
+        for _, k in ipairs(DUI.Style.FONT_PICKS) do built(P.font(UIParent, k, w), w, "font " .. k) end
+        for _, k in ipairs({ "small", "medium", "large" }) do built(P.plate(UIParent, { size = k }, w), w, "plate " .. k) end
+        for _, k in ipairs({ "categories", "grid", "list" }) do built(P.bags(UIParent, k, w), 196, "bags " .. k) end
+        for _, k in ipairs({ "yes", "no" }) do built(P.quest(UIParent, k, w), w, "quest " .. k) end
+        built(P.addon(UIParent, "Plater", w), w, "addon")
+    end
+    for _, k in ipairs(DUI.Style.ACCENT_ORDER) do built(P.accentBar(UIParent, k), 14, "accent bar " .. k) end
+    for _, k in ipairs(DUI.Style.FONT_PICKS) do built(P.fontMini(UIParent, k), nil, "font sample " .. k) end
+    T.eq(P.plate(UIParent, { size = "large" }, 250).plate:GetWidth(), math.floor(190 * 1.2 + 0.5), "a large plate")
+    T.eq(P.plate(UIParent, { size = "small" }, 250).plate:GetWidth(), math.floor(150 * 0.85 + 0.5), "a small plate")
+    local off = P.plate(UIParent, { percent = false, debuffs = false }, 250).plate
+    T.falsy(off.percent:IsShown(), "no number"); for _, b in ipairs(off.debuffs) do T.falsy(b:IsShown(), "no debuffs") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("installer window: a tour page has the rail, header and footer; Escape closes it", function()
@@ -543,31 +576,32 @@ T.test("installer: a set-up character isn't asked at login before the game has i
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown())
 end)
 
-T.test("installer: Quick setup, Damage / Tank: the standard layout, set up, and a Reload button", function()
+T.test("installer: Quick setup, Damage / Tank: arriving on Finish sets it up, and its one button reloads", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    T.eq(#saved.layouts, 0, "nothing written before")
     choose(DUI, "DPS/Tank"); go(DUI)
     T.eq(DUI.Installer.flow.page, "finish")
-    T.eq(#saved.layouts, 0, "nothing written before Finish")
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank")
     T.truthy(layoutNamed("DaylightUI - DPS/Tank"), "the layout written")
     T.eq(saved.activeLayout, 3, "and in use")
     T.eq(DUI.Installer.State(), "installed")
     T.eq(DaylightUIDB.installerSeen, DUI.Installer.VERSION)
+    local page = DUI.Installer.pages.finish
+    T.eq(page.go.text:GetText(), "Reload and play")
+    T.eq(page.tags[1].value:GetText(), "Damage / Tank")
     stub.RunTimers()
     local b = DUI.InstallerUI.ReloadButton()
-    T.truthy(b and b:IsShown(), "the Reload button")
+    T.truthy(b and b:IsShown(), "the reload button, over the page's one button")
     T.eq(b:GetAttribute("macrotext"), "/reload")
-    T.falsy(stub.reloaded, "never ReloadUI from our own code")
-    for _, c in ipairs(DUI.Installer.pages.finish.checks) do T.truthy(c:IsShown(), "every line ticked") end
+    T.eq(b.text:GetText(), "Reload and play")
+    T.falsy(stub.reloaded, "never ReloadUI from addon code")
 end)
 
 T.test("installer: Quick setup, Healer: the healer profile and its own layout", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "Healer"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     local h = DaylightUIDB.profileData.Healer
     T.truthy(h, "the Healer profile")
     -- What makes it the Healer one comes from the setup itself, whatever
@@ -590,7 +624,6 @@ T.test("installer: the first profile starts with the info panel's meter closed",
         T.eq(DUI:Get("InfoPanel", "meter.enabled"), false, "folded before the guide too")
         stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
         choose(DUI, key); go(DUI)
-        press(DUI.Installer.pages.finish.finish)
         local name = DUI.Profiles.Chosen("character")
         T.eq(DaylightUIDB.profileData[name].modules.InfoPanel.meter.enabled, false, key .. ": folded")
     end
@@ -609,9 +642,8 @@ T.test("installer: Quick setup, Immersive Preset: a new character gets the calm 
     T.truthy(c, "an Immersive Preset card")
     T.noerror(function() c:GetScript("OnEnter")(c); c:GetScript("OnLeave")(c) end, "its hover")
     choose(DUI, "Immersive Preset"); go(DUI)
-    T.eq(DUI.Installer.flow.page, "questhelp", "the quests loaded: the quest helper's question first")
+    T.eq(DUI.Installer.flow.page, "q:quest", "the quests loaded: the quest helper's question first")
     DUI.Installer.Next()
-    press(DUI.Installer.pages.finish.finish)
     local p = DaylightUIDB.profileData["Immersive Preset"]
     T.truthy(p, "the Immersive Preset profile")
     T.eq(DUI.Installer.PresetShare(p, "Immersive Preset"), 1, "every setting of the Immersive Preset setup")
@@ -658,23 +690,11 @@ T.test("installer: the game stays dimmed behind every step, welcome to finish", 
     end
 end)
 
-T.test("installer: the role page offers DPS / Tank, Healer and Immersive Preset, three to a row", function()
-    local DUI = login()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    DUI.Installer.Start("tour")
-    DUI.Installer.Go("role")
-    local picker = DUI.Installer.pages.role.pickers.character
-    T.truthy(picker.cards["Immersive Preset"], "an Immersive Preset card")
-    T.noerror(function() picker.cards["Immersive Preset"]:GetScript("OnClick")(picker.cards["Immersive Preset"]) end)
-    T.eq(DUI.Installer.flow.roles.character, "Immersive Preset")
-    T.noerror(function() DUI.InstallerCards.Draw.role(picker.cards["Immersive Preset"], "Immersive Preset", 100, 60) end)
-end)
 
 T.test("installer: renaming a profile renames its layout, presets kept first in the save", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "Healer"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     closeGuide()
     local _, before = layoutNamed("DaylightUI - Healer")
     T.eq(DUI.EditMode.RenameLayout("Healer", "Mine"), true)
@@ -688,12 +708,10 @@ T.test("installer: picking Healer, then DPS / Tank, moves the character over and
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "Healer"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "Healer")
     closeGuide()
     DUI.RunCommand("install")
     choose(DUI, "DPS/Tank"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank", "on the DPS/Tank profile")
     local _, index = layoutNamed("DaylightUI - DPS/Tank")
     T.eq(C_EditMode.GetLayouts().activeLayout, index, "its layout in use")
@@ -713,7 +731,6 @@ T.test("installer: the welcome offers a profile they have only when there is one
     -- starts from settings older than profiles), else the only one there.
     T.eq(DUI.Installer.flow.profile, DUI.DB.Saved("DPS/Tank") and "DPS/Tank" or "Mine", "picked")
     choose(DUI, "DPS/Tank"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank", "Quick setup still works with a profile around")
 end)
 
@@ -725,7 +742,6 @@ T.test("installer: Use a setup I have puts the character on it, as it is", funct
     DUI.Installer.flow.profile = "Mine"                -- picked in the list
     choose(DUI, "keep"); go(DUI)
     T.eq(DUI.Installer.flow.path, "existing")
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "Mine")
     T.eq(DaylightUIDB.profileData.Mine.general.accent, "class", "left as it was")
     T.isnil(DaylightUIDB.profileData.Healer, "no ready-made profile made")
@@ -744,7 +760,6 @@ T.test("installer: Use a setup I have offers DPS/Tank too, once there's another 
     T.eq(names[1], "DPS/Tank", "listed, first")
     T.eq(names[2], "Healer")
     DUI.Installer.Start("existing", "DPS/Tank")
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank")
     T.eq(DaylightUIDB.profileData["DPS/Tank"].general.accent, "class", "left as it was")
 end)
@@ -761,7 +776,6 @@ T.test("installer: another character on the account can use the first one's setu
     T.eq(DUI.Installer.flow.mode, "new")
     -- DPS/Tank is the first one's profile: its card puts this one on it.
     choose(DUI, "DPS/Tank"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank")
     T.eq(DaylightUIDB.profileData["DPS/Tank"].general.accent, "class", "as the first one left it")
     T.eq(saved.activeLayout, 3, "ours active for this character")
@@ -781,12 +795,11 @@ T.test("installer: a set-up character sees the guide once per account, with Keep
     T.eq(keep.tagFrame.text:GetText(), "In use")
     T.eq(DUI.Installer.flow.profile, "DPS/Tank", "the profile in use")
     go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     stub.RunTimers()
-    T.truthy(DUI.Installer.pages.finish.done:IsShown(), "nothing to reload: Done")
+    T.eq(DUI.Installer.pages.finish.go.text:GetText(), "Done", "nothing to reload: Done")
     local b = DUI.InstallerUI.ReloadButton()
     T.falsy(b and b:IsShown())
-    press(DUI.Installer.pages.finish.done)
+    press(DUI.Installer.pages.finish.go)
     T.falsy(DaylightUIInstaller:IsShown())
     reload()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
@@ -945,47 +958,67 @@ T.test("installer: Healer again leaves an edited Healer profile alone", function
     T.eq(DUI.Profiles.Chosen("character"), "Healer")
 end)
 
-T.test("installer: when the layout can't be placed, Finish says why and changes nothing", function()
+T.test("installer: when the layout can't be placed, Finish says why, changes nothing, and Try again works", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "DPS/Tank"); go(DUI)
     EditModeManagerFrame:Show()                        -- Edit Mode open: the game won't take a layout
-    press(DUI.Installer.pages.finish.finish)
-    T.truthy(string.find(DUI.Installer.pages.finish.status:GetText() or "", "Edit Mode is open", 1, true), "says why")
+    choose(DUI, "DPS/Tank"); go(DUI)
+    local page = DUI.Installer.pages.finish
+    T.truthy(string.find(page.line:GetText() or "", "Edit Mode is open", 1, true), "says why")
+    T.eq(page.title.text:GetText(), "Almost there")
     T.isnil(DUI.Installer.State(), "not set up")
     T.eq(#saved.layouts, 0)
     EditModeManagerFrame:Hide()
-    press(DUI.Installer.pages.finish.finish)
-    T.eq(DUI.Installer.State(), "installed", "tried again")
+    press(page.go)
+    T.eq(page.go.text:GetText(), "Reload and play")
+    T.eq(DUI.Installer.State(), "installed", "Try again")
 end)
 
-T.test("installer: with controller mode on, Finish explains and writes nothing", function()
+T.test("installer finish: when it can't finish it says why, Try again works, and Back returns", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "DPS/Tank"); go(DUI)
-    Enum.InputDeviceInterfaceType = { Mkb = 0, Gamepad = 1 }
-    local first = EditModePresetLayoutManager.presetLayoutInfo[1]
-    first.interfaceStyle = 1
-    press(DUI.Installer.pages.finish.finish)
-    first.interfaceStyle = nil
-    T.truthy(string.find(DUI.Installer.pages.finish.status:GetText() or "", "Controller mode", 1, true), "says why")
+    local pad = true
+    local was = DUI.EditMode.GamepadMode
+    DUI.EditMode.GamepadMode = function() return pad end
+    choose(DUI, "mine"); go(DUI)
+    DUI.Installer.ToFinish()
+    local page = DUI.Installer.pages.finish
+    T.falsy(DUI.Installer.flow.finished)
+    T.truthy(string.find(page.line:GetText(), "Controller mode", 1, true))
+    T.eq(page.go.text:GetText(), "Try again"); T.truthy(page.back:IsShown())
     T.eq(#saved.layouts, 0)
     T.isnil(DUI.Installer.State())
+    stub.RunTimers()
+    T.falsy(DUI.InstallerUI.ReloadButton() and DUI.InstallerUI.ReloadButton():IsShown())
+    press(page.back)
+    T.truthy(string.find(DUI.Installer.flow.page, "^q:"), "back on the last question")
+    DUI.Installer.ToFinish()
+    pad = false
+    press(page.go)
+    T.truthy(DUI.Installer.flow.finished); T.falsy(page.back:IsShown())
+    T.eq(page.go.text:GetText(), "Reload and play")
+    DUI.EditMode.GamepadMode = was
 end)
 
-T.test("installer: in combat the guide steps aside, and Finish waits for the end of it", function()
+T.test("installer finish: a fight never shows the reload button, and Finish waits for its end", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "DPS/Tank"); go(DUI)
+    choose(DUI, "DPS/Tank")
     stub.EnterCombat()
     T.falsy(DaylightUIInstaller:IsShown(), "out of the way")
     T.truthy(DUI.Installer.flow, "not closed")
-    DUI.Installer.Finish()
+    go(DUI)
     T.isnil(DUI.Installer.State(), "waits")
-    stub.LeaveCombat()
+    T.falsy(DUI.Installer.flow.finished, "waits for the fight to end")
+    local b = DUI.InstallerUI.ReloadButton()
+    T.falsy(b and b:IsShown())
+    stub.LeaveCombat(); stub.RunTimers()
+    T.truthy(DUI.Installer.flow.finished)
     T.eq(DUI.Installer.State(), "installed", "finished after combat")
     T.truthy(DaylightUIInstaller:IsShown(), "back")
     T.eq(DUI.Installer.flow.page, "finish")
+    b = DUI.InstallerUI.ReloadButton()
+    T.truthy(b and b:IsShown(), "the reload button once the fight is over")
 end)
 
 T.test("installer: reload prompts wait while the guide is open", function()
@@ -1039,18 +1072,6 @@ T.test("installer: greetings by the hour, and a role only when the game says one
     T.eq(I.Recommended(), "DPS/Tank")
 end)
 
-T.test("installer tour: Look previews live, and closing puts it back", function()
-    local DUI = login()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("look")
-    local accent = DUI.Installer.pages.look.pickers["general.accent"]
-    press(accent.cards.class)
-    T.eq(DUI:Get("general", "accent"), "class", "shown straight away")
-    T.truthy(accent.cards.class.selected)
-    closeGuide()
-    T.eq(DUI:Get("general", "accent"), "classGradient", "put back")
-end)
 
 -- Typing into an edit box, as the player does.
 local function typeIn(box, text)
@@ -1058,166 +1079,7 @@ local function typeIn(box, text)
     box:GetScript("OnTextChanged")(box, true)
 end
 
--- (The profile in use left as it was when the picks go elsewhere: the
--- "installer draft: Commit moves the picks" test.)
-T.test("installer tour: Look's picks are saved as the character's own profile; DPS/Tank left as it was", function()
-    local DUI = login()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    local font = DUI:Get("general", "font")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("look")
-    local page = DUI.Installer.pages.look
-    press(page.pickers["general.font"].cards.poppins)
-    local heavy = DUI:Get("general", "heavyBorder")
-    page.rows["general.heavyBorder"].control:Click()
-    T.eq(DUI:Get("general", "heavyBorder"), not heavy, "the switch flipped")
-    DUI.Installer.Go("finish")
-    local finish = DUI.Installer.pages.finish
-    local said = false
-    for _, l in ipairs(finish.lines) do
-        if l:IsShown() and string.find(lineText(l), "Poppins", 1, true) then said = true end
-    end
-    T.truthy(said, "the summary names the pick")
-    T.truthy(finish.saveAs:IsShown(), "a name to save it as")
-    T.eq(finish.saveAs:GetText(), "Tester", "the character's name to start")
-    T.truthy(string.find(finish.shared:GetText() or "", "new profile", 1, true), "says it's a new one")
-    press(finish.finish)
-    local pd = DaylightUIDB.profileData
-    T.eq(pd.Tester.general.font, "poppins")
-    T.eq(pd.Tester.general.heavyBorder, not heavy)
-    T.eq(DUI.Profiles.Chosen("character"), "Tester", "the character on it")
-    T.truthy(layoutNamed("DaylightUI - Tester"), "with a layout of its own")
-    T.eq(pd["DPS/Tank"].general.font, font, "DPS/Tank as it was")
-    T.eq(pd["DPS/Tank"].general.heavyBorder, heavy)
-end)
 
-T.test("installer tour: typing a profile's name saves into it, and says when other characters share it", function()
-    local DUI = login()
-    DUI.DB.Root().characters["Alt-Realm"] = { profile = "DPS/Tank" }
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("look")
-    press(DUI.Installer.pages.look.pickers["general.font"].cards.poppins)
-    DUI.Installer.Go("finish")
-    local finish = DUI.Installer.pages.finish
-    typeIn(finish.saveAs, "dps/tank")
-    T.truthy(string.find(finish.shared:GetText() or "", "shared with Alt", 1, true), "warned")
-    press(finish.finish)
-    T.eq(DUI.Profiles.Chosen("character"), "DPS/Tank", "on the one named, whatever the case")
-    T.eq(DaylightUIDB.profileData["DPS/Tank"].general.font, "poppins", "the pick in it")
-    T.isnil(DaylightUIDB.profileData.Tester, "no profile of its own")
-end)
-
-T.test("installer tour: a new name makes that profile; an empty one stops Finish", function()
-    local DUI = login()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("finish")
-    local finish = DUI.Installer.pages.finish
-    typeIn(finish.saveAs, "  ")
-    press(finish.finish)
-    T.falsy(DUI.Installer.flow.finished, "not finished")
-    T.truthy(string.find(finish.status:GetText() or "", "name", 1, true), "says why")
-    typeIn(finish.saveAs, "Raid Night")
-    press(finish.finish)
-    T.truthy(DUI.Installer.flow.finished)
-    T.eq(DUI.Profiles.Chosen("character"), "Raid Night")
-    T.isnil(DaylightUIDB.profileData.Tester)
-end)
-
-T.test("installer tour: the frames page shows your frame and a target in the window, not on the screen", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("frames")
-    T.falsy(DUI.testMode, "no sample frames on the screen")
-    local spot = DUI.InstallerUI.Spots()[1]
-    T.falsy(spot and spot:IsShown(), "no spotlight")
-    local samples = DUI.Installer.pages.frames.samples
-    T.truthy(samples, "samples in the window")
-    local you, them = samples.frames.player, samples.frames.target
-    T.truthy(you and them, "your frame and a target")
-    T.eq(you:GetParent(), samples, "inside the window")
-    T.falsy(you:IsMouseEnabled(), "only to look at")
-    T.truthy(you.test and them.test, "filled with samples")
-    T.eq(them.test.name, "Torol Sadeas", "the test mode's target")
-end)
-
-T.test("installer tour: the frames page's samples stay pinned at the top while its options scroll", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("frames")
-    local page = DUI.Installer.pages.frames
-    local pin = page.pinned
-    T.truthy(pin, "a pinned part")
-    T.eq(page.samples:GetParent(), pin, "the samples in it")
-    T.eq(pin:GetParent(), DaylightUIInstaller, "on the window, not in the scrolling page")
-    T.truthy(pin:IsShown())
-    local _, _, _, _, pinY = pin:GetPoint(1)
-    local _, _, _, _, scrollY = DaylightUIInstaller.scroll:GetPoint(1)
-    T.truthy(scrollY <= pinY - pin:GetHeight(), "the options scroll under it")
-    DUI.Installer.Go("look")
-    T.falsy(pin:IsShown(), "gone on another page")
-    local _, _, _, _, lookY = DaylightUIInstaller.scroll:GetPoint(1)
-    T.eq(lookY, pinY, "the scrolling part back up top")
-end)
-
-T.test("installer tour: the window's samples show each pick on the frames page", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("frames")
-    local page = DUI.Installer.pages.frames
-    local you, them = page.samples.frames.player, page.samples.frames.target
-    press(page.pickers.portraits.cards["3d"])
-    T.eq(DUI:Get("UnitFrames", "player.portrait"), "3d", "one portrait choice sets every frame")
-    T.eq(DUI:Get("UnitFrames", "target.portrait"), "3d")
-    T.eq(you.portraitMode, "3d", "the sample shows it")
-    T.truthy(you.portrait:IsShown())
-    press(page.pickers.portraits.cards.none)
-    T.falsy(you.portrait:IsShown(), "no portrait: the ring goes")
-    T.falsy(them.portrait:IsShown())
-    press(page.pickers["UnitFrames.colors.health"].cards.class)
-    local red = them.health.__barColor
-    press(page.pickers["UnitFrames.colors.health"].cards.gradient)
-    local now = them.health.__barColor
-    T.truthy(red and now and (red[1] ~= now[1] or red[2] ~= now[2] or red[3] ~= now[3]), "the health color repainted")
-end)
-
--- Seen in game: the player had its own "Daylight" saved, so
--- picking Ribbon here changed the target but not the player.
-T.test("installer tour: the Frame style cards restyle every frame, a frame's own pick too, and closing puts it back", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    DUI:Set("UnitFrames", "player.style", "daylight")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("frames")
-    local page = DUI.Installer.pages.frames
-    press(page.pickers["UnitFrames.look.style"].cards.ribbon)
-    stub.RunTimers()
-    T.eq(DUI:Get("UnitFrames", "player.style"), "global", "the player follows the pick")
-    T.eq(page.samples.frames.player.style, "ribbon", "the player sample wears Ribbon")
-    T.eq(page.samples.frames.target.style, "ribbon", "the target sample too")
-    T.truthy(page.pickers["UnitFrames.look.style"].cards.ribbon.selected, "the Ribbon card picked")
-    closeGuide()
-    T.eq(DUI:Get("UnitFrames", "player.style"), "daylight", "its own pick put back")
-    T.eq(DUI:Get("UnitFrames", "look.style"), "daylight")
-end)
-
-T.test("installer tour: closing on the frames page puts every preview back and leaves nothing on the screen", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("frames")
-    local before = DUI:Get("UnitFrames", "player.portrait")
-    press(DUI.Installer.pages.frames.pickers.portraits.cards["3d"])
-    closeGuide()
-    T.falsy(DUI.testMode, "samples off")
-    T.eq(DUI:Get("UnitFrames", "player.portrait"), before, "put back")
-    local spot = DUI.InstallerUI.Spots()[1]
-    T.falsy(spot and spot:IsShown(), "no spotlight left behind")
-end)
 
 -- With the quest tracker loaded, Quick setup asks one question between
 -- the setup's button and Finish: the quest helper or not. Yes picks
@@ -1228,27 +1090,21 @@ T.test("installer: Quick setup asks about the quest helper before Finish; yes go
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     T.eq(DUI:Get("Quests", "nav.arrow"), false, "off by default")
     choose(DUI, "Healer"); go(DUI)
-    T.eq(DUI.Installer.flow.page, "questhelp")
+    T.eq(DUI.Installer.flow.page, "q:quest")
     local ids = {}
     for _, s in ipairs(DUI.Installer.Steps()) do ids[#ids + 1] = s.id end
-    T.eq(table.concat(ids, ","), "welcome,questhelp,finish", "only the quick pages")
-    local page = DUI.Installer.pages.questhelp
-    T.truthy(page.picker.cards.no.selected, "no until asked")
-    T.truthy(page.hint and page.hint:IsShown(), "says QuestieDB is needed")
-    press(page.picker.cards.yes)
-    T.truthy(page.picker.cards.yes.selected)
-    for _, s in ipairs(DUI.InstallerPages.Get("questhelp").bundle.set) do
+    T.eq(table.concat(ids, ","), "welcome,q:quest,finish", "only the quick question")
+    local duel = DUI.Installer.pages.duel
+    T.eq(duel.picked, "no", "what's in use: the marker is off")
+    T.eq(plainText(duel.stepText), "Step 1 of 1"); T.eq(duel.next.text:GetText(), "Finish")
+    press(duel.choices[1])
+    T.eq(duel.picked, "yes")
+    for _, s in ipairs(DUI.InstallerPages.Question("quest").bundle.set) do
         if not s.addon then T.eq(DUI:Get(s[1], s[2]), s[3], "previewed: " .. s[2]) end
     end
     T.eq(DUI:Get("Quests", "nav.arrow"), false, "no arrow without QuestieDB")
-    DUI.Installer.Next()
+    press(duel.next)
     T.eq(DUI.Installer.flow.page, "finish")
-    local said = false
-    for _, l in ipairs(DUI.Installer.pages.finish.lines) do
-        if l:IsShown() and string.find(string.lower(lineText(l)), "the quest helper", 1, true) then said = true end
-    end
-    T.truthy(said, "the summary says so")
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "Healer")
     local q = DaylightUIDB.profileData.Healer.modules.Quests
     T.eq(q.nav.marker, true, "in the Healer profile")
@@ -1260,9 +1116,7 @@ T.test("installer: with QuestieDB on, the quest helper's yes takes the arrow too
     stub.loadedAddOns.QuestieDB = true
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "DPS/Tank"); go(DUI)
-    local page = DUI.Installer.pages.questhelp
-    T.falsy(page.hint, "nothing missing to say")
-    press(page.picker.cards.yes)
+    press(DUI.Installer.pages.duel.choices[1])
     T.eq(DUI:Get("Quests", "nav.arrow"), true)
 end)
 
@@ -1272,13 +1126,13 @@ T.test("installer: the quest helper's no, or closing the guide, puts its setting
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     local arrow = DUI:Get("Quests", "nav.arrow")
     choose(DUI, "DPS/Tank"); go(DUI)
-    local page = DUI.Installer.pages.questhelp
-    press(page.picker.cards.yes)
+    local duel = DUI.Installer.pages.duel
+    press(duel.choices[1])
     T.eq(DUI:Get("Quests", "nav.arrow"), true)
-    press(page.picker.cards.no)
+    press(duel.choices[2])
     T.eq(DUI:Get("Quests", "nav.arrow"), arrow, "no: back")
     T.falsy(DUI.InstallerDraft.Picked("Quests", "nav.arrow"))
-    press(page.picker.cards.yes)
+    press(duel.choices[1])
     closeGuide()
     T.eq(DUI:Get("Quests", "nav.arrow"), arrow, "closed: back")
 end)
@@ -1291,168 +1145,37 @@ T.test("installer: without the quest tracker, Quick setup goes straight to Finis
     T.falsy(DUI.InstallerDraft.Active(), "no draft to keep")
 end)
 
-T.test("installer tour: Questing comes after Everyday when the quest tracker is loaded", function()
-    local DUI = login({ quests = true, bags = true })
-    local ids = {}
-    for _, def in ipairs(DUI.InstallerPages.Tour()) do ids[#ids + 1] = def.id end
-    T.eq(table.concat(ids, ","), "modules,role,look,bars,calm,everyday,questing")
-end)
 
-T.test("installer tour: pages for modules that aren't loaded are left out", function()
-    local DUI = login()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    T.truthy(DUI.Installer.HasStep("look"), "the core's own look")
-    T.falsy(DUI.Installer.HasStep("frames"), "no unit frames loaded")
-    T.falsy(DUI.Installer.HasStep("everyday"))
-    T.falsy(DUI.Installer.HasStep("qol"))
-end)
 
-T.test("installer tour: Everyday shows the bag view as pictures; quality of life says what each helper does", function()
-    local DUI = login({ bags = true, qol = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("everyday")
-    press(DUI.Installer.pages.everyday.pickers["Bags.view"].cards.grid)
-    T.eq(DUI:Get("Bags", "view"), "grid")
-    DUI.Installer.Go("qol")
-    local _, item = DUI.InstallerPages.Find("QoL", "fastLoot")
-    T.truthy(DUI.Installer.pages.qol.rows["QoL.fastLoot"], "a row")
-    T.eq(DUI.Installer.pages.qol.notes["QoL.fastLoot"]:GetText(), item.desc, "its help printed under it")
-end)
 
-T.test("installer tour: What's included lists every module; a switch applies to this character only, at Finish", function()
-    local DUI = login()
-    stub.installedAddOns = { DaylightUI_ActionBars = true, DaylightUI_Bags = true }
-    stub.loadedAddOns = { DaylightUI_ActionBars = true, DaylightUI_Bags = true }
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    T.eq(DUI.Installer.flow.page, "modules", "the tour starts here")
-    local page = DUI.Installer.pages.modules
-    T.eq(T.count(page.tiles), #DUI.InstallerPages.MODULES, "every module")
-    T.truthy(page.tiles.DaylightUI_Bags.row, "installed: a switch")
-    T.isnil(page.tiles.DaylightUI_Chat.row, "not installed: none")
-    page.tiles.DaylightUI_Bags.row.control:Click()
-    T.eq(DUI.Installer.flow.modules.DaylightUI_Bags, false)
-    T.isnil(stub.addonState.DaylightUI_Bags, "nothing until Finish")
-    DUI.Installer.Go("finish")
-    press(DUI.Installer.pages.finish.finish)
-    T.eq(stub.addonState.DaylightUI_Bags[UnitGUID("player")], false, "off for this character only")
-    T.isnil(stub.addonState.DaylightUI_ActionBars, "the rest left alone")
-    stub.RunTimers()
-    T.truthy(DUI.InstallerUI.ReloadButton():IsShown(), "a reload to apply it")
-end)
 
-T.test("installer tour: a clash starts on ours; keeping theirs switches ours off and leaves theirs on", function()
-    local DUI = login()
-    stub.installedAddOns = { DaylightUI_Bags = true, Baganator = true }
-    stub.loadedAddOns = { DaylightUI_Bags = true, Baganator = true }
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    local clash = DUI.Installer.pages.modules.clashes.Baganator
-    T.truthy(clash, "Baganator named")
-    T.truthy(clash.ours.active, "ours first")
-    press(clash.theirs)
-    T.eq(DUI.Installer.flow.modules.DaylightUI_Bags, false, "our bags off with it")
-    DUI.Installer.Go("finish")
-    press(DUI.Installer.pages.finish.finish)
-    T.eq(stub.addonState.DaylightUI_Bags[UnitGUID("player")], false, "ours off")
-    T.isnil(stub.addonState.Baganator, "theirs left on")
-end)
 
-T.test("installer: Quick setup turns a clashing addon off, and says so first", function()
+T.test("installer: Quick setup asks about a clashing addon, and Daylight UI's pick turns it off", function()
     local DUI = login()
     stub.installedAddOns = { DaylightUI_Bags = true, Baganator = true }
     stub.loadedAddOns = { DaylightUI_Bags = true, Baganator = true }
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "DPS/Tank"); go(DUI)
-    local said = false
-    for _, l in ipairs(DUI.Installer.pages.finish.lines) do
-        if l:IsShown() and string.find(lineText(l), "Baganator", 1, true) then said = true end
-    end
-    T.truthy(said, "the summary names it")
-    press(DUI.Installer.pages.finish.finish)
+    T.eq(DUI.Installer.flow.page, "q:clash:Baganator", "asked first")
+    local duel = DUI.Installer.pages.duel
+    T.eq(duel.picked, "ours", "Daylight UI lit")
+    T.isnil(DUI.Installer.flow.clashes.Baganator, "nothing answered before it is passed")
+    press(duel.next)
+    T.eq(DUI.Installer.flow.page, "finish")
     T.eq(stub.addonState.Baganator[UnitGUID("player")], false)
 end)
 
-T.test("installer tour: the role page recommends from the game's role; a pick shows that profile's look", function()
-    local DUI = login({ before = function()
-        _G.GetSpecialization = function() return 1 end
-        _G.GetSpecializationRole = function() return "HEALER" end
-    end })
-    DUI.Profiles.AddPreset("Healer")
-    DaylightUIDB.profileData.Healer.general.accent = "class"
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    T.eq(DUI.Installer.flow.roles.character, "Healer", "the recommended role picked first")
-    T.eq(DUI:Get("general", "accent"), "class", "Healer's look shown")
-    DUI.Installer.Go("role")
-    local picker = DUI.Installer.pages.role.pickers.character
-    T.eq(picker.cards.Healer.tag.text:GetText(), "Recommended for you")
-    press(picker.cards["DPS/Tank"])
-    T.eq(DUI.Installer.flow.roles.character, "DPS/Tank")
-    T.eq(DUI:Get("general", "accent"), "classGradient", "back to the look in use")
-    closeGuide()
-    T.eq(DUI:Get("general", "accent"), "classGradient")
-end)
 
-T.test("installer tour: with dual spec, each talent set gets its own pick", function()
-    local DUI = login({ specGroups = 2 })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("role")
-    local pickers = DUI.Installer.pages.role.pickers
-    T.truthy(pickers[1] and pickers[2], "a row per talent set")
-    press(pickers[2].cards.Healer)
-    DUI.Installer.Go("finish")
-    press(DUI.Installer.pages.finish.finish)
-    T.eq(DUI.Profiles.Chosen(1), "Tester", "the set in use: saved as named")
-    T.eq(DUI.Profiles.Chosen(2), "Healer")
-end)
 
 T.test("installer tour: with dual spec, both sets on the same layout share the named profile", function()
     local DUI = login({ specGroups = 2 })
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("finish")
-    press(DUI.Installer.pages.finish.finish)
+    DUI.Installer.ToFinish()
     T.eq(DUI.Profiles.Chosen(1), "Tester")
     T.eq(DUI.Profiles.Chosen(2), "Tester")
 end)
 
-T.test("installer tour: a set-up character's own profile is a card, picked and in use", function()
-    local DUI = login()
-    local made = DUI.Profiles.Create("Mine", nil, DUI.DB.DEFAULT)
-    DUI.Installer.Install(DUI.Installer.EXISTING, made)
-    stub.RunTimers()
-    DaylightUIDB.installerSeen = nil
-    DUI = reload()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    T.eq(DUI.Installer.flow.mode, "showcase")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("role")
-    local picker = DUI.Installer.pages.role.pickers.character
-    T.truthy(picker.cards.Mine, "its own card")
-    T.truthy(picker.cards.Mine.selected, "picked")
-    T.eq(picker.cards.Mine.tag.text:GetText(), "In use")
-    T.eq(picker.cards.Mine.label:GetText(), "Keep Mine")
-    DUI.Installer.Go("finish")
-    T.eq(DUI.Installer.pages.finish.saveAs:GetText(), "Mine", "saved back into it")
-end)
-
-T.test("installer: Quick setup has no name to save as", function()
-    local DUI = login()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "DPS/Tank"); go(DUI)
-    T.falsy(DUI.Installer.pages.finish.saveAs:IsShown())
-end)
-
-T.test("installer tour: with every module loaded, every page appears", function()
-    local DUI = login({ module = true, bags = true, chat = true, infopanel = true, tooltip = true, qol = true })
-    local ids = {}
-    for _, def in ipairs(DUI.InstallerPages.Tour()) do ids[#ids + 1] = def.id end
-    T.eq(table.concat(ids, ","), "modules,role,look,frames,bars,calm,everyday,questing,qol")
-end)
 
 T.test("installer: General > Home runs the guide again", function()
     local DUI = login()
@@ -1467,37 +1190,7 @@ T.test("installer: General > Home runs the guide again", function()
     T.truthy(DaylightUIInstaller:IsShown())
 end)
 
-T.test("installer tour: switching a module's tile off leaves its clashing addon on", function()
-    local DUI = login()
-    stub.installedAddOns = { DaylightUI_Bags = true, Baganator = true }
-    stub.loadedAddOns = { DaylightUI_Bags = true, Baganator = true }
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    local page = DUI.Installer.pages.modules
-    page.tiles.DaylightUI_Bags.row.control:Click()
-    T.truthy(page.clashes.Baganator.theirs.active, "the card follows the tile")
-    DUI.Installer.Go("finish")
-    press(DUI.Installer.pages.finish.finish)
-    T.eq(stub.addonState.DaylightUI_Bags[UnitGUID("player")], false, "ours off")
-    T.isnil(stub.addonState.Baganator, "theirs left on: some bags stay")
-end)
 
-T.test("installer tour: a module with two clashing addons answers both together", function()
-    local DUI = login()
-    stub.installedAddOns = { DaylightUI_InfoPanel = true, EllesmereUIMinimap = true, EllesmereUIDamageMeters = true }
-    stub.loadedAddOns = { DaylightUI_InfoPanel = true, EllesmereUIMinimap = true, EllesmereUIDamageMeters = true }
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    local clashes = DUI.Installer.pages.modules.clashes
-    press(clashes.EllesmereUIMinimap.theirs)
-    T.truthy(clashes.EllesmereUIDamageMeters.theirs.active, "the other card follows")
-    DUI.Installer.Go("finish")
-    press(DUI.Installer.pages.finish.finish)
-    T.eq(stub.addonState.DaylightUI_InfoPanel[UnitGUID("player")], false, "ours off")
-    T.isnil(stub.addonState.EllesmereUIDamageMeters, "their damage meter left on")
-    press(clashes.EllesmereUIDamageMeters.ours)
-    T.truthy(clashes.EllesmereUIMinimap.ours.active, "and back together")
-end)
 
 T.test("installer: Quick setup leaves a clashing addon alone when our module isn't installed", function()
     local DUI = login()
@@ -1505,7 +1198,6 @@ T.test("installer: Quick setup leaves a clashing addon alone when our module isn
     stub.loadedAddOns = { Baganator = true }
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "DPS/Tank"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     T.isnil(stub.addonState.Baganator, "nothing to replace it with")
 end)
 
@@ -1515,7 +1207,6 @@ T.test("installer: closing during the Finish checklist leaves no Reload button o
     stub.loadedAddOns = { DaylightUI_Bags = true }
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "DPS/Tank"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     closeGuide()
     stub.RunTimers()
     T.falsy(DaylightUIInstaller:IsShown(), "closed")
@@ -1523,38 +1214,7 @@ T.test("installer: closing during the Finish checklist leaves no Reload button o
     T.truthy(b == nil or not b:IsShown(), "no button left floating")
 end)
 
-T.test("installer tour: the Custom accent swatch and the bar strips repaint on a pick", function()
-    local DUI = login()
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("look")
-    local page = DUI.Installer.pages.look
-    local swatch = page.pickers["general.accent"].cards.custom.swatch
-    -- What the color picker's callback does with the player's color.
-    DUI.InstallerDraft.Set("general", "accentColor", { 0.1, 0.2, 0.3 })
-    local r, g, b = swatch:GetVertexColor()
-    T.near(r, 0.1); T.near(g, 0.2); T.near(b, 0.3)
-    DUI.InstallerDraft.Set("general", "accent", "custom")
-    local tex = page.pickers["general.barTexture"]
-    for _, c in pairs(tex.cards) do
-        local sr, sg, sb = c.strip:GetVertexColor()
-        T.near(sr, 0.1, nil, c.key); T.near(sg, 0.2); T.near(sb, 0.3)
-    end
-    closeGuide()
-end)
 
-T.test("installer tour: the health cards follow a bar texture picked after they were drawn", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("frames")
-    local health = DUI.Installer.pages.frames.pickers["UnitFrames.colors.health"]
-    DUI.Style.BarFile = function() return "Interface\\other-bar" end
-    DUI.Installer.Go("look")
-    DUI.Installer.Go("frames")
-    T.eq(health.cards.class.bar.fill:GetTexture(), "Interface\\other-bar", "redrawn on show")
-    closeGuide()
-end)
 
 T.test("installer: running the guide again builds no new listeners", function()
     local DUI = login()
@@ -1571,13 +1231,11 @@ T.test("installer: running the guide again builds no new listeners", function()
         closeGuide()
     end
     tour()
-    local first, look = n, DUI.Installer.pages.look
-    T.truthy(first > 0, "the tour's pages listen")
+    local first = n
     tour()
     tour()
     DUI.On = on
     T.eq(n, first, "none added by running it again")
-    T.eq(DUI.Installer.pages.look, look, "the same page reused")
 end)
 
 T.test("installer: hiding the Reload button lets go of the page it was laid over", function()
@@ -1598,59 +1256,6 @@ T.test("installer: hiding the Reload button lets go of the page it was laid over
     T.eq(b:GetNumPoints(), 0, "and let go once it may be touched")
 end)
 
-T.test("installer: a checklist cut short by closing doesn't tick on in the next run", function()
-    local DUI = login()
-    stub.installedAddOns = { DaylightUI_Bags = true }
-    stub.loadedAddOns = { DaylightUI_Bags = true }
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "DPS/Tank"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
-    closeGuide()
-    DUI.Installer.Show()
-    choose(DUI, "DPS/Tank"); go(DUI)
-    local finish = DUI.Installer.pages.finish
-    stub.RunTimers()
-    T.truthy(finish.finish:IsShown(), "Finish to press again")
-    for _, c in ipairs(finish.checks) do T.falsy(c:IsShown(), "no line ticked") end
-    T.isnil(finish.ended)
-end)
-
-T.test("installer tour: the ring color is one choice for every frame, each card a ring in that color", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("frames")
-    local page = DUI.Installer.pages.frames
-    local picker = page.pickers.portraitRing
-    T.truthy(picker, "a Ring color choice")
-    local light, dark, class = picker.cards.light, picker.cards.dark, picker.cards.class
-    T.truthy(class.selected, "the class gradient to start with")
-    T.isnil(light.portraitArt.band.__gradient, "a gray ring")
-    T.eq(dark.portraitArt.band.__gradient[1], "VERTICAL", "the dark ring lit at the top")
-    T.truthy(class.portraitArt.band.__gradient, "a class gradient ring")
-    local accentBand = picker.cards.accent.portraitArt.band
-    DUI:Set("general", "accent", "gradient")
-    picker.cards.accent.redraw()
-    T.truthy(accentBand.__gradient, "a gradient accent's ring")
-    DUI:Set("general", "accent", "custom")
-    DUI:Set("general", "accentColor", { 0.2, 0.7, 0.4 })
-    picker.cards.accent.redraw()
-    T.rgb(accentBand.__vertex, { 0.2, 0.7, 0.4 }, "a one-color accent's ring")
-    T.isnil(accentBand.__gradient, "its gradient cleared")
-    T.truthy(picker.cards.daylight.portraitArt.band.__gradient, "a Daylight gradient ring")
-    local join = class.portraitJoin
-    T.truthy(join and join.outline:IsShown(), "the sketch's ring is set into its frame")
-    T.truthy(string.find(class.portraitArt.band.__texture, "portrait-band-thin", 1, true), "with the thinner inner ring")
-    press(light)
-    for _, u in ipairs({ "player", "target", "focus" }) do
-        T.eq(DUI:Get("UnitFrames", u .. ".portraitRing"), "light", u)
-    end
-    T.isnil(page.samples.frames.player.portrait.ring.__gradient, "the sample shows it")
-    closeGuide()
-    T.eq(DUI:Get("UnitFrames", "player.portraitRing"), "class", "put back on close")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
 -- ---------------------------------------------------------------------
 -- Profile packs (Profiles.RegisterPack) in the guide
 -- ---------------------------------------------------------------------
@@ -1669,65 +1274,15 @@ T.test("installer: a profile pack gets a welcome card; its button sets the chara
     go(DUI)
     T.eq(DUI.Installer.flow.page, "finish")
     T.truthy(string.find(DUI.Installer.Summary()[1].text, "Test UI", 1, true), "named as the pack names it")
-    press(DUI.Installer.pages.finish.finish)
     T.eq(DUI.Profiles.Chosen("character"), "Test UI")
     T.eq(DaylightUIDB.profileData["Test UI"].general.borderPx, 3, "the pack's settings")
     T.truthy(layoutNamed("DaylightUI - Test UI"), "its own layout")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("installer tour: a pack's profiles are role cards, credited, drawn by their role; picked, the character's own profile starts from it", function()
-    local DUI = login()
-    DUI.RegisterPack("TestPack", { label = "Test UI", author = "Someone",
-        profiles = { { name = "Test UI Healer", data = { general = { borderPx = 3 } }, role = "Healer" } } })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    local I = DUI.Installer
-    I.Start("tour")
-    I.Go("role")
-    local picker = I.pages.role.pickers.character
-    local c = picker.cards["Test UI Healer"]
-    T.truthy(c, "a card")
-    T.eq(I.RoleCardLabel("Test UI Healer"), "Test UI Healer", "its own name, not Keep ...")
-    T.eq(I.RoleTag("Test UI Healer"), "by Someone")
-    T.eq(I.RoleShape("Test UI Healer"), "Healer", "the drawing its role says")
-    c:GetScript("OnClick")(c)
-    T.eq(I.flow.roles.character, "Test UI Healer")
-    I.Go("finish")
-    local name = I.SaveAs()
-    T.truthy(name and name ~= "Test UI Healer", "saved under the character's own name")
-    press(I.pages.finish.finish)
-    T.eq(DaylightUIDB.profileData[name].general.borderPx, 3, "made from the pack's profile")
-    T.isnil(DaylightUIDB.profileData["Test UI Healer"], "the pack's own left unmade")
-end)
 
-T.test("installer: a pack's extras set up other addons at Finish, only loaded ones, each with its switch", function()
-    for _, keep in ipairs({ true, false }) do
-        local DUI = login()
-        stub.loadedAddOns.Details = true
-        local ran = 0
-        DUI.RegisterPack("X", { label = "X UI", profiles = { { name = "X UI", data = {} } },
-            extras = { { addon = "Details", label = "Details!", apply = function() ran = ran + 1 end },
-                       { addon = "BigWigs", apply = function() error("not loaded: never run") end } } })
-        stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-        choose(DUI, "pack:X"); go(DUI)
-        local fin = DUI.Installer.pages.finish
-        T.eq(#DUI.Installer.Extras(), 1, "only the loaded one")
-        local r = fin.extras[1]
-        T.truthy(r:IsShown())
-        T.truthy(string.find(stub.Text(r.text), "Details!", 1, true), "says which addon")
-        T.truthy(string.find(stub.Text(r.text), "X UI", 1, true), "and whose setup")
-        T.truthy(r.switch.on, "on to start with")
-        if not keep then
-            press(r.switch)
-            T.falsy(r.switch.on, "switched off")
-        end
-        press(fin.finish)
-        T.eq(ran, keep and 1 or 0, keep and "run" or "left alone")
-        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-    end
-end)
 
-T.test("installer tour: with Questie on, the modules page asks which quest tracker", function()
+T.test("installer: with Questie on, a question asks which quest tracker", function()
     local profile = { trackerEnabled = true }
     local DUI = login({ quests = true, before = function()
         stub.installedAddOns.Questie, stub.loadedAddOns.Questie = true, true
@@ -1735,29 +1290,23 @@ T.test("installer tour: with Questie on, the modules page asks which quest track
     end })
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "mine"); go(DUI)
-    local card = DUI.Installer.pages.modules.clashes.Questie
-    T.truthy(card, "Questie's card")
-    T.truthy(card.ours.active, "ours first")
-    press(card.theirs)
+    local I = DUI.Installer
+    local q = I.QuestionById("clash:Questie")
+    T.truthy(q, "Questie's question")
+    T.eq(I.Answer(q), "ours", "ours first")
+    I.Pick(q, "theirs")
     T.eq(DUI:Get("Quests", "tracker"), false, "Questie's tracker picked")
     T.eq(DUI.DB.Root().questieAsked, true, "not asked again after the guide")
-    T.truthy(card.theirs.active)
+    T.eq(I.Answer(q), "theirs")
     _G.Questie = nil
 end)
 
-T.test("installer tour: without Questie no tracker question", function()
-    local DUI = login({ quests = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    T.isnil(DUI.Installer.pages.modules.clashes.Questie)
-end)
 
 -- An account whose DPS/Tank was changed (here: raid tiles from the old
 -- healer frames) and a character that has a profile of its own name already.
 local function changedStandard(DUI)
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "DPS/Tank"); go(DUI)
-    press(DUI.Installer.pages.finish.finish)
     closeGuide()
     local mods = DaylightUIDB.profileData["DPS/Tank"].modules
     mods.UnitFrames = mods.UnitFrames or {}
@@ -1770,9 +1319,7 @@ local function tourPick(DUI, key)
     local I = DUI.Installer
     if not DaylightUIInstaller:IsShown() then DUI.RunCommand("install") end
     I.Start("tour")
-    I.Go("role")
-    local c = I.pages.role.pickers.character.cards[key]
-    c:GetScript("OnClick")(c)
+    I.Pick(I.QuestionById("role"), key)
     return I
 end
 local function raidOf(name)
@@ -1785,9 +1332,8 @@ T.test("installer tour: a ready-made card is the layout its picture shows, whate
     local DUI = login()
     changedStandard(DUI)
     local I = tourPick(DUI, "DPS/Tank")
-    I.Go("finish")
     local name = I.SaveAs()
-    press(I.pages.finish.finish)
+    I.ToFinish()
     local raid, pos = raidOf(name)
     T.isnil(raid.width, "the standard tiles, not the changed DPS/Tank's")
     T.isnil(raid.fillVertical)
@@ -1799,18 +1345,16 @@ T.test("installer tour: picking a layout rebuilds the character's own profile fr
     local DUI = login()
     changedStandard(DUI)
     local I = tourPick(DUI, "Healer")
-    I.Go("finish")
     local name = I.SaveAs()
-    press(I.pages.finish.finish)
+    I.ToFinish()
     closeGuide()
     T.eq(raidOf(name).width, 60, "made as Healer")
     -- Again, picking DPS / Tank this time, and one look pick on the way.
     I = tourPick(DUI, "DPS/Tank")
     DUI.InstallerDraft.Set("general", "accent", "daylight")
-    I.Go("finish")
     T.eq(I.SaveAs(), name, "saved under the same name")
     T.truthy(string.find(I.SaveNote() or "", "DPS / Tank", 1, true), "the note says what it's rebuilt from")
-    press(I.pages.finish.finish)
+    I.ToFinish()
     T.isnil(raidOf(name).width, "rebuilt as DPS / Tank: no healer tiles")
     T.eq(DaylightUIDB.profileData[name].general.accent, "daylight", "with the pick made on the way")
     T.truthy(I.flow.reload, "reloads into it")
@@ -1818,75 +1362,27 @@ T.test("installer tour: picking a layout rebuilds the character's own profile fr
     -- Keep: as it is.
     DaylightUIDB.profileData[name].modules.UnitFrames.raid = { width = 50 }
     I = tourPick(DUI, name)
-    I.Go("finish")
-    press(I.pages.finish.finish)
+    I.ToFinish()
     T.eq(raidOf(name).width, 50, "kept")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- The things players see first (bars, plates, fading), as presets of a few
--- settings each.
-T.test("installer summary: a Show X switch (invert) says on when you see it", function()
-    local DUI = login({ module = true })
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.InstallerDraft.Set("ActionBars", "hideEmpty", false)
-    DUI.Installer.Go("finish")
-    local said = {}
-    for _, l in ipairs(DUI.Installer.pages.finish.lines) do
-        if l:IsShown() then said[#said + 1] = lineText(l) end
-    end
-    local all = table.concat(said, " | ")
-    T.truthy(all:find("Show empty buttons (on)", 1, true), all)
-    DUI.InstallerDraft.Revert()
-end)
 
-T.test("installer calm page: a preset shows picked with the Unit Frames off", function()
-    local DUI = login({})
-    T.falsy(DUI.InstallerPages.Loaded("UnitFrames"), "no unit frames here")
-    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
-    choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("calm")
-    press(DUI.Installer.pages.calm.pickers["Out of a fight"].cards.calm)
-    T.eq(DUI:Get("ActionBars", "bars.main.fade.mode"), "ooc")
-    local group
-    for _, def in ipairs(DUI.InstallerPages.Tour()) do
-        if def.id == "calm" then
-            for _, g in ipairs(def.groups) do if g.presets then group = g end end
-        end
-    end
-    local p = DUI.InstallerPages.PresetOn(group)
-    T.eq(p and p.id, "calm", "the Calm card is the picked one")
-    DUI.InstallerDraft.Revert()
-end)
 
-T.test("installer tour: the bars, plates and calm pages pick their presets through the draft", function()
+T.test("installer questions: the bars, plates and calm questions pick their presets through the draft", function()
     local DUI = login({ nameplates = true, module = true })
-    local ids = {}
-    for _, def in ipairs(DUI.InstallerPages.Tour()) do ids[#ids + 1] = def.id end
-    T.truthy(table.concat(ids, ","):find("bars,plates,calm", 1, true), table.concat(ids, ","))
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "mine"); go(DUI)
-    DUI.Installer.Go("bars")
-    local bars = DUI.Installer.pages.bars.pickers["Bars on screen"]
-    press(bars.cards.one)
+    local I = DUI.Installer
+    I.Pick(I.QuestionById("bars"), "one")
     T.eq(DUI:Get("ActionBars", "bars.bar2.visible"), "hidden", "one row: bar 2 hidden")
     T.eq(DUI:Get("ActionBars", "bars.left.visible"), "hidden")
-    DUI.Installer.Go("plates")
-    press(DUI.Installer.pages.plates.pickers.Size.cards.large)
+    I.Pick(I.QuestionById("plateSize"), "large")
     T.eq(DUI:Get("Nameplates", "scale"), 1.2); T.eq(DUI:Get("Nameplates", "height"), 20)
-    DUI.Installer.Go("calm")
-    press(DUI.Installer.pages.calm.pickers["Out of a fight"].cards.float)
+    I.Pick(I.QuestionById("calm"), "float")
     T.eq(DUI:Get("UnitFrames", "player.fade.mode"), "float")
     T.eq(DUI:Get("ActionBars", "bars.main.fade.mode"), "float")
-    DUI.Installer.Go("finish")
-    local said = {}
-    for _, l in ipairs(DUI.Installer.pages.finish.lines) do
-        if l:IsShown() then said[#said + 1] = lineText(l) end
-    end
-    local all = table.concat(said, " | ")
-    T.truthy(all:find("One row", 1, true), "the summary names the preset: " .. all)
-    T.truthy(all:find("Large", 1, true), all)
+    T.eq(I.Answer(I.QuestionById("calm")), "float")
     -- X puts it all back (every pick is a draft).
     DUI.InstallerDraft.Revert()
     T.eq(DUI:Get("ActionBars", "bars.bar2.visible"), "always")
@@ -2114,4 +1610,246 @@ T.test("installer opening: with motion off every piece is there at once", functi
     local page = DUI.Installer.pages.welcome
     for _, c in ipairs(page.cards) do T.eq(c:GetAlpha(), 1) end
     T.eq(page.title:GetAlpha(), 1); T.eq(page.plaque:GetAlpha(), 1); T.eq(page.hint:GetAlpha(), 1)
+end)
+
+
+T.test("installer question: three choices split the area in three, the one in use is lit, and Next works untouched", function()
+    local DUI = login()
+    local Duel = DUI.InstallerDuel
+    local picked, went
+    local page = Duel.New(UIParent)
+    page.Set(question(3, { pick = function(k) picked = k end, next = function() went = true end }))
+    T.eq(#page.choices, 3); T.eq(#page.lines, 2)
+    T.eq(page.picked, "b")
+    T.near(page.choices[2].wash:GetAlpha(), 0.3, 0.001); T.near(page.choices[1].wash:GetAlpha(), 0.07, 0.001)
+    -- Each column is a third of the area, and its words are centered on it.
+    local _, rel, _, x = page.choices[2]:GetPoint(1)
+    T.eq(rel, page.area); T.near(x, 292, 0.01); T.near(page.choices[2]:GetWidth(), 292, 0.01)
+    local point, holder, relPoint = page.choices[1].content:GetPoint(1)
+    T.eq(point, "CENTER"); T.eq(holder, page.choices[1]); T.eq(relPoint, "CENTER")
+    T.eq(page.ask:GetText(), "Which?"); T.eq(plainText(page.stepText), "Step 2 of 5")
+    settle(DUI)
+    T.near(page.bar:GetWidth(), 260 * 2 / 5, 1)
+    press(page.next); T.truthy(went, "Next needs no pick"); T.isnil(picked)
+    press(page.choices[1]); T.eq(picked, "a"); T.eq(page.picked, "a")
+    settle(DUI)
+    T.near(page.choices[1].wash:GetAlpha(), 0.3, 0.05)
+    T.truthy(page.choices[1].tick:IsShown()); T.falsy(page.choices[2].tick:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("installer question: when what's in use is none of the choices nothing is lit, and Next still works", function()
+    local DUI = login()
+    local went
+    local page = DUI.InstallerDuel.New(UIParent)
+    local q = question(4, { next = function() went = true end })
+    q.current = nil
+    page.Set(q)
+    T.eq(#page.choices, 4, "four still split"); T.isnil(page.picked)
+    for _, c in ipairs(page.choices) do T.near(c.wash:GetAlpha(), 0.07, 0.001) end
+    T.truthy(string.find(page.hint:GetText(), "your setup keeps what it has", 1, true))
+    press(page.next); T.truthy(went)
+    q.warn = "Tester is made again from Healer, with your picks."
+    page.Set(q)
+    T.eq(page.hint:GetText(), q.warn)
+    q.warn, q.first, q.current = nil, true, "a"
+    page.Set(q)
+    T.eq(page.hint:GetText(), "Click the one you like, then press Next. Not sure? Just press Next: it keeps the one that's lit.")
+end)
+
+T.test("installer question: ten choices fan out, the picked one open until the mouse opens another", function()
+    local DUI = login()
+    local page = DUI.InstallerDuel.New(UIParent)
+    page.Set(question(10, { current = "a" }))
+    settle(DUI)
+    -- A strip's share of the fan: its width less the 2-wide edge every strip after the first has.
+    local function share(i) return page.choices[i]:GetWidth() - (i > 1 and 2 or 0) end
+    T.near(share(1) / share(2), 5.5, 0.1)
+    page.choices[4]:GetScript("OnEnter")(page.choices[4]); settle(DUI)
+    T.near(share(4) / share(1), 5.5, 0.1, "the one under the mouse opens instead")
+    T.near(page.choices[4].content:GetAlpha(), 1, 0.01); T.near(page.choices[4].mini:GetAlpha(), 0, 0.01)
+    page.choices[4]:GetScript("OnLeave")(page.choices[4]); settle(DUI)
+    T.near(share(1) / share(4), 5.5, 0.1, "and the picked one opens again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("installer question: with motion off nothing waits hidden", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    DUI:Set("general", "motion", false)
+    local page = DUI.InstallerDuel.New(UIParent)
+    page.Set(question(2)); page.Play()
+    T.eq(page.ask:GetAlpha(), 1); T.eq(page.choices[2]:GetAlpha(), 1)
+end)
+
+local EVERY = { module = true, nameplates = true, tooltip = true, bags = true, quests = true }
+-- Every part loaded (the bag window needs the game's container calls, which
+-- this test world doesn't fill in: answered with nothing).
+local function every(extra)
+    local o = { before = function()
+        _G.C_Container = _G.C_Container or setmetatable({}, { __index = function() return function() end end })
+    end }
+    for k, v in pairs(EVERY) do o[k] = v end
+    for k, v in pairs(extra or {}) do o[k] = v end
+    return o
+end
+
+T.test("installer: Make it mine walks fourteen questions, each with its pick lit, and Next alone gets to the end", function()
+    local DUI = login(every())
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "mine"); go(DUI)
+    local I = DUI.Installer
+    T.eq(I.flow.page, "q:role")
+    local duel = I.pages.duel
+    T.eq(plainText(duel.stepText), "Step 1 of 14")
+    local unlit = {}
+    for i = 1, 14 do
+        if duel.picked == nil then unlit[#unlit + 1] = I.flow.page end
+        T.eq(duel.next.text:GetText(), i == 14 and "Finish" or "Next")
+        press(duel.next)
+    end
+    T.eq(table.concat(unlit, ","), "", "every question has its pick lit")
+    T.eq(I.flow.page, "finish")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("installer: a pick shows on the real UI at once, Back keeps it, and X puts everything back", function()
+    local DUI = login(every())
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    local was = DUI:Get("general", "font")
+    choose(DUI, "mine"); go(DUI)
+    local I = DUI.Installer
+    I.Go("q:font")
+    press(I.pages.duel.choices[8])
+    T.eq(DUI:Get("general", "font"), "russo")
+    I.Back(); I.Next()
+    T.eq(I.flow.page, "q:font"); T.eq(I.pages.duel.picked, "russo")
+    closeGuide()
+    T.eq(DUI:Get("general", "font"), was)
+    T.truthy(DUI.Installer.State() ~= "installed")
+end)
+
+T.test("installer: with nameplates off its four questions are left out and the count follows", function()
+    local DUI = login(every({ nameplates = false }))
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "mine"); go(DUI)
+    for _, q in ipairs(DUI.Installer.Questions()) do T.truthy(q.part ~= "Nameplates", q.id) end
+    T.eq(#DUI.Installer.Questions(), 10)
+    T.eq(plainText(DUI.Installer.pages.duel.stepText), "Step 1 of 10")
+end)
+
+T.test("installer: another addon drawing nameplates is asked about right after the layout, in both paths, and nothing is switched off unasked", function()
+    local function start(key)
+        local DUI = login(every())
+        stub.installedAddOns.DaylightUI_Nameplates, stub.installedAddOns.Plater, stub.loadedAddOns.Plater = true, true, true
+        stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+        choose(DUI, key); go(DUI)
+        return DUI
+    end
+    local DUI = start("mine")
+    local I = DUI.Installer
+    T.eq(I.Questions()[1].id, "role"); T.truthy(I.Questions()[2].clash, "the clash is the second question")
+    T.eq(I.Questions()[2].part, "Other addons")
+    T.falsy(I.ClashTakesOver(I.Questions()[2].clash), "not answered before it is asked")
+    I.Pick(I.Questions()[2], "theirs")
+    for _, q in ipairs(I.Questions()) do T.truthy(q.part ~= "Nameplates", "nameplate questions are gone") end
+    closeGuide()
+    DUI = start("DPS/Tank")
+    T.truthy(DUI.Installer.Questions()[1].clash, "Quick setup asks too")
+    T.eq(DUI.Installer.flow.page, "q:clash:Plater")
+end)
+
+T.test("installer draft: a ready-made layout that isn't saved yet still shows its own values", function()
+    local DUI = login(every())
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "mine"); go(DUI)
+    local I = DUI.Installer
+    T.isnil(DaylightUIDB.profileData["Immersive Preset"], "not saved")
+    I.Pick(I.Questions()[1], "Immersive Preset")
+    local fade = DUI.DB.GetPath(DUI.Profiles.ReadyData("Immersive Preset").modules.ActionBars, "bars.main.fade.mode")
+    T.truthy(fade ~= nil and fade ~= DUI:GetModule("ActionBars").defaults.bars.main.fade.mode, "Immersive has its own fade")
+    T.eq(DUI:Get("ActionBars", "bars.main.fade.mode"), fade, "Immersive's own fade shows at once")
+    T.isnil(I.Answer(I.QuestionById("calm")), "none of the three: nothing lit")
+    while I.flow.page ~= "finish" do press(I.pages.duel.next) end
+    local saved = DaylightUIDB.profileData[DUI.Profiles.Chosen("character")]
+    T.eq(DUI.DB.GetPath(saved.modules.ActionBars, "bars.main.fade.mode"), fade, "and pressing only Next keeps it")
+end)
+
+T.test("installer: a character whose name is already someone's profile saves beside it, never over it", function()
+    local DUI = login({ before = function()
+        DaylightUIDB = { installerSeen = 1e9, profileData = { Tester = { general = { font = "lato" }, positions = {}, modules = {} } },
+                         characters = { ["Tester-Other"] = { profile = "Tester", install = "installed" } } }
+    end })
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "mine"); go(DUI)
+    T.eq(DUI.Installer.SaveAs(), "Tester 2")
+    DUI.Installer.ToFinish()
+    T.eq(DaylightUIDB.profileData.Tester.general.font, "lato", "the other character's profile is untouched")
+    T.eq(DUI.Profiles.Chosen("character"), "Tester 2")
+end)
+
+T.test("installer: a pack's extras are asked before saving, on by default", function()
+    local DUI = login()
+    stub.loadedAddOns.Details = true
+    local ran = 0
+    DUI.RegisterPack("X", { label = "X UI", profiles = { { name = "X UI", data = {} } },
+        extras = { { addon = "Details", label = "Details!", apply = function() ran = ran + 1 end },
+                   { addon = "BigWigs", apply = function() error("not loaded: never run") end } } })
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "pack:X"); go(DUI)
+    local I = DUI.Installer
+    local qs = I.Questions()
+    local q = qs[#qs]
+    T.truthy(q.extra, "the last question is the extra"); T.eq(#qs, 1, "only the loaded addon's")
+    T.eq(I.Answer(q), "yes")
+    T.eq(I.pages.duel.ask:GetText(), "Set up Details! to match?")
+    I.Pick(q, "no")
+    T.falsy(I.ExtraOn(q.extra.key))
+    I.Pick(q, "yes")
+    press(I.pages.duel.next)
+    T.eq(ran, 1, "run at Finish")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("installer: a fight on a question hides the guide and brings it back on the same one", function()
+    local DUI = login(every())
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "mine"); go(DUI)
+    DUI.Installer.Go("q:bars")
+    press(DUI.Installer.pages.duel.choices[3])
+    stub.EnterCombat(); T.falsy(DUI.InstallerUI.IsShown())
+    stub.LeaveCombat(); T.truthy(DUI.InstallerUI.IsShown()); T.eq(DUI.Installer.flow.page, "q:bars")
+    T.eq(DUI.Installer.pages.duel.picked, "sides", "the same pick lit")
+end)
+
+T.test("installer: Quick setup asks only the quest helper, then finishes", function()
+    local DUI = login(every())
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "DPS/Tank"); go(DUI)
+    T.eq(DUI.Installer.flow.page, "q:quest")
+    T.eq(DUI.Installer.pages.duel.next.text:GetText(), "Finish")
+end)
+
+T.test("installer: Make it mine puts every talent set on the one layout picked", function()
+    local DUI = login(every({ specGroups = 2 }))
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "mine"); go(DUI)
+    local I = DUI.Installer
+    I.Pick(I.QuestionById("role"), "Healer")
+    for _, slot in ipairs(I.Slots()) do T.eq(I.flow.roles[slot], "Healer", tostring(slot)) end
+end)
+
+T.test("installer finish: the tags name the layout and only what was changed", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "mine"); go(DUI)
+    local I = DUI.Installer
+    T.eq(I.Tags()[2].label, "Everything else")
+    I.Pick(I.QuestionById("font"), "russo")
+    local tags = I.Tags()
+    T.eq(tags[1].label, "Layout"); T.eq(tags[2].label, "Font"); T.eq(tags[2].value, "Russo One"); T.eq(#tags, 2)
+    I.ToFinish()
+    local page = I.pages.finish
+    T.eq(page.tags[2].value:GetText(), "Russo One")
+    T.eq(page.title.text:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""), "Your UI is ready, Tester")
 end)

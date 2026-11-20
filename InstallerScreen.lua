@@ -588,3 +588,17 @@ function Screen.New(parent, width)
     f.Set(nil, true)
     return f
 end
+
+-- The state for the picks so far in the setup guide: the layout, the action
+-- bars, what fades out of a fight, the cast bar's spot and the portraits, in
+-- a fight. Questions not asked keep the picture's own.
+function Screen.FromFlow()
+    local I = DUI.Installer
+    local state = { fight = true, role = I.RoleShape(I.Target() or "DPS/Tank") }
+    for key, id in pairs({ bars = "bars", calm = "calm", cast = "cast", portrait = "portrait" }) do
+        local q = I.QuestionById(id)
+        local v = q and I.Answer(q)
+        if v ~= nil then state[key] = v end
+    end
+    return state
+end

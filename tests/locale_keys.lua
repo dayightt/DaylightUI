@@ -187,6 +187,20 @@ function K.Walk(DUI, keys)
             end
         end
     end
+    for _, part in ipairs(P.PARTS or {}) do
+        local at = "guide " .. part.id
+        add(part.title, at)
+        for _, q in ipairs(part.questions) do
+            add(q.ask, at); add(q.what, at); add(q.short, at)
+            for _, v in pairs(q.labels or {}) do add(v, at) end
+            for _, v in pairs(q.subs or {}) do add(v, at) end
+            for _, p in ipairs(q.presets or {}) do add(p.label, at); add(p.sub, at) end
+            if q.bundle then
+                add(q.bundle.yes[1], at); add(q.bundle.yes[2], at); add(q.bundle.no[1], at); add(q.bundle.no[2], at)
+            end
+        end
+    end
+    for _, line in pairs(DUI.InstallerSteps.ROLE_LINES or {}) do add(line, "guide layout") end
     local W = DUI.Welcome
     for _, item in ipairs(W and W.NEWS or {}) do    
         add(item.title, "welcome news"); add(item.text, "welcome news")

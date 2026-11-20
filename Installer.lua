@@ -29,18 +29,6 @@ DUI.Installer = Installer
 
 Installer.VERSION = 2 -- bump to show a new guide to already set-up characters once
 Installer.EXISTING = "existing"
-Installer.CHECK_STEP = 0.3     -- seconds between the Finish checklist's lines
-Installer.TEXT = {
-    intro = L["DaylightUI replaces your frames, bars, bags, chat and more with a soft, minimal look. Let's set this character up."],
-    showcase = L["DaylightUI has a new setup guide. Take the tour to see everything it can do, or keep your setup as it is."],
-}
-Installer.CHECKLIST = { L["Profile saved"], L["Layout placed"], L["Modules updated"], L["All set"] }
--- Shown under Finish. Each is a sentence with a hole for the command (drawn highlighted).
-Installer.TIPS = {
-    { "/dui", L["%s opens the settings."] },
-    { "/dui unlock", L["%s lets you move frames; right-click a handle to put one back."] },
-    { "/dui install", L["Run this guide again from General > Home, or with %s."] },
-}
 Installer.ROLE_TEXT = {
     ["DPS/Tank"] = L["Party on the left, you and your target low in the middle."],
     Healer = L["Your party and raid as square tiles under you, dispels easy to spot."],
@@ -49,6 +37,7 @@ Installer.ROLE_TEXT = {
 -- The opening's sunrise: its height, the band of the art it shows and how far
 -- right of center its frame sits.
 Installer.OPENING_BANNER = { height = 190, crop = { 0.286, 0.750 }, shift = 27 }
+Installer.FINISH_BANNER = { height = 170, crop = { 0.293, 0.742 }, shift = 1 }
 -- The ready-made setups the welcome and the role page offer, in order.
 Installer.READY = { "DPS/Tank", "Healer", "Immersive Preset" }
 
@@ -150,13 +139,6 @@ end
 function Installer.CanHeal()
     local _, token = UnitClass("player")
     return token ~= nil and DUI.InstallerPages.HEALERS[token] == true
-end
-
--- Shown on the role page when the game gives no role but the class can heal.
-function Installer.HealHint()
-    if not Installer.Recommended() and Installer.CanHeal() then
-        return L["Your class can heal; pick Healer if you do."]
-    end
 end
 
 function Installer.Greeting(hour)
@@ -332,8 +314,8 @@ end
 
 -- The flow
 
--- Tour pages for the chosen way in: all of them for the tour, the few marked
--- quick for Quick setup, none for a profile used as is.
+-- Plugins' pages for the chosen way in (Pages.PLUGIN): all of Make it
+-- mine's, the quick ones for Quick setup, none for a profile used as is.
 function Installer.TourPages()
     local flow, P = Installer.flow, DUI.InstallerPages
     if flow and flow.path == "tour" then return P.Tour() end
@@ -341,11 +323,56 @@ function Installer.TourPages()
     return {}
 end
 
--- The pages for the chosen way in, in order: { { id, label } }.
+-- The questions for the chosen way in, in order: the layout (Make it mine),
+-- one per other addon doing a Daylight UI part's job, the parts' questions,
+-- then one per extra of a picked profile pack. Each is a Pages.PARTS question
+-- or { id, clash | extra, part }.
+function Installer.Questions()
+    local flow, P = Installer.flow, DUI.InstallerPages
+    local out = {}
+    if not (flow and (flow.path == "tour" or flow.path == "quick")) then return out end
+    local list = P.Questions(flow.path)
+    if list[1] and list[1].role then table.insert(out, table.remove(list, 1)) end
+    -- Only where Daylight UI's own part is installed: otherwise there's
+    -- nothing to choose between.
+    for _, c in ipairs(P.Clashes()) do
+        local mod = P.Module(c.module)
+        if mod and P.AddonInstalled(mod.addon) then
+            out[#out + 1] = { id = "clash:" .. c.addon, clash = c, part = L["Other addons"], short = c.label }
+        end
+    end
+    -- With Questie on, which quest tracker to show (both addons stay on;
+    -- the Quests module's own question asks the same outside the guide).
+    local quests = DUI:GetModule("Quests")
+    local choice = quests and quests.enabled and quests.ns and quests.ns.Choice
+    if choice and quests.ns.Bridge and quests.ns.Bridge.Loaded() then
+        out[#out + 1] = { id = "clash:Questie", questie = choice, part = L["Other addons"], short = "Questie",
+            clash = { module = "Quests", addon = "Questie", label = "Questie", what = "quest tracker" } }
+    end
+    for _, q in ipairs(list) do out[#out + 1] = q end
+    for _, x in ipairs(Installer.Extras()) do
+        local entry = DUI.Profiles.PackOf(flow.roles[Installer.CurrentSlot()])
+        local pack = entry and entry.pack
+        out[#out + 1] = { id = "extra:" .. x.key, extra = x, part = pack and pack.label or L["Profile packs"],
+            short = x.extra.label or x.extra.addon }
+    end
+    return out
+end
+
+-- A question of this run by id (without its "q:").
+function Installer.QuestionById(id)
+    for _, q in ipairs(Installer.Questions()) do
+        if q.id == id then return q end
+    end
+end
+
+-- The steps for the chosen way in, in order: { { id, label } }. A question's
+-- id is "q:<its id>".
 function Installer.Steps()
     local flow = Installer.flow
     local out = { { id = "welcome", label = L["Welcome"] } }
     if flow and (flow.path == "tour" or flow.path == "quick") then
+        for _, q in ipairs(Installer.Questions()) do out[#out + 1] = { id = "q:" .. q.id, label = q.short } end
         for _, def in ipairs(Installer.TourPages()) do out[#out + 1] = { id = def.id, label = def.title } end
     end
     if flow and flow.path then out[#out + 1] = { id = "finish", label = L["Finish"] } end
@@ -358,6 +385,127 @@ function Installer.HasStep(id)
     end
     return false
 end
+
+-- Answers
+
+-- What a question's options value is as one of its choices, or nil when it
+-- is none of them.
+local function among(q, v)
+    for _, k in ipairs(q.only or {}) do
+        if k == v then return v end
+    end
+end
+
+-- The bundle's answer: picked, else "yes" when every one of its settings is
+-- already as yes would set it.
+local function bundleNow(q)
+    local flow = Installer.flow
+    local picked = flow and flow.bundles and flow.bundles[q.id]
+    if picked then return picked end
+    for _, s in ipairs(q.bundle.set) do
+        local can = s.addon == nil or DUI.InstallerPages.AddonOn(s.addon)
+        if can and DUI.InstallerPages.Loaded(s[1]) and DUI:Get(s[1], s[2]) ~= s[3] then return "no" end
+    end
+    return "yes"
+end
+
+-- What's in use now for a question: one of its choices' keys, or nil when
+-- it's none of them (a custom gradient accent, a font outside the ten,
+-- Immersive's own fades).
+function Installer.Answer(q)
+    local flow = Installer.flow
+    if not (flow and q) then return nil end
+    local P = DUI.InstallerPages
+    if q.role then return flow.roles[Installer.CurrentSlot()] end
+    if q.questie then return DUI:Get("Quests", "tracker") == false and "theirs" or "ours" end
+    if q.clash then
+        local mod = P.Module(q.clash.module)
+        if mod and flow.modules[mod.addon] == false then return "theirs" end
+        return flow.clashes[q.clash.addon] or "ours"
+    end
+    if q.extra then return Installer.ExtraOn(q.extra.key) and "yes" or "no" end
+    if q.bundle then return bundleNow(q) end
+    if q.option then return among(q, DUI:Get(q.option[1], q.option[2])) end
+    if q.presets then
+        local p = P.PresetOn(q)
+        return p and p.id or nil
+    end
+    if q.look then return DUI.InstallerLooks.Current(q.look) end
+end
+
+-- A choice's name as the question page shows it.
+function Installer.ChoiceName(q, key)
+    for _, c in ipairs(DUI.InstallerSteps.Choices(q)) do
+        if c.key == key then return c.name end
+    end
+    return tostring(key)
+end
+
+-- Notes what each question's answer is as the picked layout begins, for the
+-- "Daylight's pick" tags and the Finish page. Questions already picked keep
+-- what they had.
+local function noteStart()
+    local flow = Installer.flow
+    if not flow then return end
+    flow.start = flow.start or {}
+    for _, q in ipairs(Installer.Questions()) do
+        if not (flow.picked and flow.picked[q.id]) then flow.start[q.id] = Installer.Answer(q) end
+    end
+end
+
+-- Writes a pick through the draft, so the real UI behind the window shows it.
+function Installer.Pick(q, key)
+    local flow = Installer.flow
+    if not (flow and q) then return end
+    local D, P = DUI.InstallerDraft, DUI.InstallerPages
+    flow.picked = flow.picked or {}
+    flow.picked[q.id] = true
+    if q.role then
+        for _, slot in ipairs(Installer.Slots()) do Installer.PickRole(slot, key) end
+        noteStart()
+    elseif q.questie then
+        q.questie.Pick(key == "theirs" and "questie" or "ours")
+    elseif q.clash then
+        Installer.PickClash(q.clash, key)
+    elseif q.extra then
+        Installer.SetExtra(q.extra.key, key == "yes")
+    elseif q.bundle then
+        Installer.PickBundle(q, key)
+    elseif q.option then
+        local scope, path = q.option[1], q.option[2]
+        local _, item = P.Find(scope, path)
+        D.Set(scope, path, key, item and item.reload == true)
+        if key == "custom" and q.colorKey and DUI.Widgets and DUI.Widgets.PickCustom then
+            local c = DUI:Get(scope, q.colorKey) or { DUI.Style.ACCENT[1], DUI.Style.ACCENT[2], DUI.Style.ACCENT[3] }
+            DUI.Widgets.PickCustom(c, function(col) D.Set(scope, q.colorKey, col) end)
+        end
+    elseif q.presets then
+        for _, p in ipairs(q.presets) do
+            if p.id == key then
+                for _, s in ipairs(p.set) do
+                    if P.Loaded(s[1]) then D.Set(s[1], s[2], s[3]) end
+                end
+            end
+        end
+    elseif q.look then
+        DUI.InstallerLooks.Apply(q.look, key, D.Set)
+    end
+end
+
+-- A question passed without a pick keeps what's lit. For the other addons
+-- that is "Daylight UI draws it", written now, since nothing is switched
+-- off before its question is asked.
+local function settle(q)
+    local flow = Installer.flow
+    if not (flow and q and q.clash) or q.questie then return end
+    if not (flow.picked and flow.picked[q.id]) then Installer.PickClash(q.clash, "ours") end
+end
+
+-- Every question not reached keeps what's lit (Finish now, Play now).
+local function settleAll()
+    for _, q in ipairs(Installer.Questions()) do settle(q) end
+end
+Installer.SettleAll = settleAll
 
 function Installer.Show()
     if InCombatLockdown() then
@@ -397,8 +545,9 @@ function Installer.OpenToSave()
     Installer.Show()
 end
 
--- One of the welcome's ways in: "quick" (arg is "DPS/Tank", "Healer" or
--- "Immersive Preset"), "tour", or "existing" / "keep" (arg is a profile name).
+-- One of the opening's ways in: "quick" (arg is a ready-made or pack
+-- profile's name), "tour" (Make it mine), or "existing" / "keep" (arg is a
+-- profile name, used as it is).
 function Installer.Start(path, arg)
     local flow = Installer.flow
     if not flow then return end
@@ -406,35 +555,41 @@ function Installer.Start(path, arg)
     if D.Active() then D.Revert() end
     flow.path, flow.finished, flow.saveAs = path, nil, nil
     flow.roles, flow.modules, flow.clashes, flow.extras, flow.bundles = {}, {}, {}, {}, {}
+    flow.start, flow.picked = {}, {}
     Installer.pages.finish = nil
     for _, m in ipairs(P.MODULES) do
         if P.AddonInstalled(m.addon) then flow.modules[m.addon] = path == "quick" or P.AddonOn(m.addon) end
     end
     if path == "quick" or path == "tour" then
-        for _, c in ipairs(P.Clashes()) do Installer.PickClash(c, "ours") end
-    end
-    if path == "quick" then
-        for _, slot in ipairs(Installer.Slots()) do flow.roles[slot] = arg end
-        -- Its few tour pages pick through the draft too, showing the setup's own
-        -- values until the player picks.
-        local quick = P.Quick()
-        if #quick > 0 then
+        -- Every talent set on one layout: the setup's, or for Make it mine the
+        -- one that suits this character.
+        local layout = path == "quick" and arg or Installer.DefaultRole(Installer.CurrentSlot())
+        for _, slot in ipairs(Installer.Slots()) do flow.roles[slot] = layout end
+        -- Its questions pick through the draft, showing the layout's own values
+        -- until the player picks.
+        local qs = path == "tour" and P.Questions("tour") or P.Questions("quick")
+        local pages = Installer.TourPages()
+        local list = {}
+        for _, q in ipairs(qs) do list[#list + 1] = q end
+        for _, def in ipairs(pages) do list[#list + 1] = def end
+        if #list > 0 then
             D.Begin()
-            for _, k in ipairs(P.Keys(quick)) do D.Track(k[1], k[2]) end
+            for _, k in ipairs(P.Keys(list)) do D.Track(k[1], k[2]) end
             D.Seed(Installer.Target())
-            for _, def in ipairs(quick) do
-                for _, s in ipairs(def.bundle and def.bundle.always or {}) do D.Set(s[1], s[2], s[3]) end
+            for _, q in ipairs(list) do
+                for _, s in ipairs(q.bundle and q.bundle.always or {}) do D.Set(s[1], s[2], s[3]) end
             end
         end
-    elseif path == "tour" then
-        for _, slot in ipairs(Installer.Slots()) do flow.roles[slot] = Installer.DefaultRole(slot) end
-        D.Begin()
-        for _, k in ipairs(P.Keys()) do D.Track(k[1], k[2]) end
-        D.Seed(Installer.Target())
+        noteStart()
     else
         flow.roles[Installer.CurrentSlot()] = arg
     end
-    Installer.Go(Installer.Steps()[2].id)
+    local steps = Installer.Steps()
+    if steps[2] and steps[2].id ~= "finish" then
+        Installer.Go(steps[2].id)
+    else
+        Installer.ToFinish()
+    end
 end
 
 function Installer.PickRole(slot, name)
@@ -521,12 +676,6 @@ local function shape(id)
         return table.concat({ flow.mode, tostring(Installer.Recommended() or ""),
             table.concat(showcase and P.Names() or Installer.ExistingProfiles(), ","),
             table.concat(P.PackNames(), ",") }, "|")
-    elseif id == "role" then
-        local keys, shapes = Installer.RoleChoices(), {}
-        for i, k in ipairs(keys) do shapes[i] = Installer.RoleShape(k) end
-        return table.concat({ table.concat(keys, ","), table.concat(shapes, ","),
-            table.concat(Installer.Slots(), ","), tostring(Installer.CurrentSlot()),
-            tostring(Installer.HealHint() or "") }, "|")
     end
     return ""
 end
@@ -555,62 +704,131 @@ function Installer.Go(id)
     end
     id = steps[i].id
     local dir = (flow.index and i < flow.index) and -1 or 1
-    local def = P.Get(id)
     flow.page, flow.index = id, i
     flow.visited[id] = true
-    local tour = flow.path == "tour"
-    local page = Installer.pages[id]
-    if not page then
-        page = pageFor(id, UI.ContentWidth(id ~= "welcome" and tour))
-        Installer.pages[id] = page
-    end
     -- The game stays dimmed behind every step so the guide is the focus.
     local opts = { dir = dir, veil = true }
+    local qid = string.match(id, "^q:(.+)$")
+    if qid then
+        -- One question page, reused for every question and every run.
+        local page = Installer.pages.duel or built.duel
+        if not page then
+            page = DUI.InstallerDuel.New(UI.Body())
+            page:Hide()
+            built.duel = page
+        end
+        Installer.pages.duel = page
+        page.Set(DUI.InstallerSteps.Question(Installer.QuestionById(qid), i - 1, #steps - 2))
+        opts.bare, opts.still = true, true
+        UI.SetPage(page, opts)
+        page.Play()
+        UI.Spotlight(nil)
+        return
+    end
+    local def = P.Get(id)
+    local page = Installer.pages[id]
+    if not page then
+        page = pageFor(id, UI.ContentWidth(false))
+        Installer.pages[id] = page
+    end
     if id == "welcome" then
         opts.bare, opts.still = true, true
         opts.banner = Installer.OPENING_BANNER
     elseif id == "finish" then
-        opts.rail = tour
-        opts.title, opts.desc = Installer.FinishWords()
-        opts.back = not flow.finished
+        opts.bare, opts.still = true, true
+        opts.banner = Installer.FINISH_BANNER
     else
-        -- Quick setup's one or two pages skip the step list.
-        opts.rail = tour
-        if tour then opts.step, opts.total = i - 1, #steps - 2 end
+        -- A plugin's page: header and footer, counted with the questions.
+        opts.step, opts.total = i - 1, #steps - 2
         opts.title, opts.desc = def.title, def.desc
         opts.later = P.Later(def)
         opts.back = true
-        opts.next = i == #steps - 1 and L["Review"] or (NEXT or L["Next"])
+        opts.next = i == #steps - 1 and L["Finish"] or (NEXT or L["Next"])
     end
     UI.SetPage(page, opts)
     if page.Refresh then page.Refresh() end
-    if id == "welcome" and page.Play then page.Play() end
-    if id == "finish" and page.ended ~= nil then page.ShowEnd(page.ended) end
-    if opts.rail then UI.SetRail(steps, i, flow.visited, Installer.Go) end
+    if (id == "welcome" or id == "finish") and page.Play then page.Play() end
     UI.Spotlight(def and def.spotlight or nil)
 end
 
--- The finish page's header, before Finish and after it has run.
-function Installer.FinishWords()
-    if Installer.flow and Installer.flow.finished then
-        return L["All set"], L["Everything's in place."]
+-- Arriving on the Finish page (the last question's Finish, Finish now, Play
+-- now with nothing to ask) saves: the page shows what was done. What it shows
+-- is kept first, since once saved the picks may sit in another profile than
+-- the one on screen. In a fight it waits for the fight to end.
+function Installer.ToFinish()
+    local flow = Installer.flow
+    if not flow then return end
+    if InCombatLockdown() then
+        DUI.AfterCombat(Installer.ToFinish, "installer finish")
+        return
     end
-    return L["Ready when you are"], L["Here's what Finish will do. Nothing has been saved yet."]
+    settleAll()
+    if not flow.finished then
+        flow.tags = Installer.Tags()
+        flow.screen = DUI.InstallerScreen.FromFlow()
+        Installer.Finish()
+    end
+    Installer.Go("finish")
+end
+
+-- The Finish page's tags: the layout first, then what was changed from what
+-- the layout started with (at most five, then "and N more"), or "Everything
+-- else: Daylight's picks" when nothing was. Each { label, value }.
+Installer.TAGS_MOST = 5
+function Installer.Tags()
+    local flow = Installer.flow
+    local out = {}
+    if not flow then return out end
+    local role = flow.roles[Installer.CurrentSlot()]
+    if role then
+        out[1] = { label = L["Layout"], value = role == "DPS/Tank" and L["Damage / Tank"]
+            or role == "Immersive Preset" and L["Immersive"] or Installer.RoleLabel(role) }
+    end
+    local changed = {}
+    for _, q in ipairs(Installer.Questions()) do
+        if not q.role then
+            local now = Installer.Answer(q)
+            local start = (flow.start or {})[q.id]
+            -- Quick setup names its questions' answers; Make it mine only what changed.
+            if now ~= nil and (now ~= start or flow.path == "quick") then
+                changed[#changed + 1] = { label = L[q.short] or q.short, value = Installer.ChoiceName(q, now) }
+            end
+        end
+    end
+    for i = 1, math.min(#changed, Installer.TAGS_MOST) do out[#out + 1] = changed[i] end
+    if #changed > Installer.TAGS_MOST then
+        out[#out + 1] = { label = L["and"], value = string.format(L["%d more"], #changed - Installer.TAGS_MOST) }
+    elseif #changed == 0 and flow.path ~= "quick" then
+        out[#out + 1] = { label = L["Everything else"], value = L["Daylight's picks"] }
+    end
+    return out
 end
 
 function Installer.Next()
     local flow = Installer.flow
     if not flow then return end
+    -- A question passed keeps what's lit; it may change the steps after it.
+    local qid = flow.page and string.match(flow.page, "^q:(.+)$")
+    if qid then settle(Installer.QuestionById(qid)) end
     local steps = Installer.Steps()
-    local s = steps[(flow.index or 1) + 1]
-    if s then Installer.Go(s.id) end
+    local at = flow.index or 1
+    for n, s in ipairs(steps) do
+        if s.id == flow.page then at = n end
+    end
+    local s = steps[at + 1]
+    if not s then return end
+    if s.id == "finish" then Installer.ToFinish() else Installer.Go(s.id) end
 end
 
 function Installer.Back()
     local flow = Installer.flow
     if not flow then return end
     local steps = Installer.Steps()
-    local s = steps[(flow.index or 2) - 1]
+    local at = flow.index or 2
+    for n, s in ipairs(steps) do
+        if s.id == flow.page then at = n end
+    end
+    local s = steps[at - 1]
     if s then Installer.Go(s.id) end
 end
 
@@ -713,6 +931,13 @@ function Installer.Summary()
         add(L["Turns off, as DaylightUI does their job: %s"], L["Turns off"], joinNames(others, 3), modPage)
     end
     if flow.path == "tour" or flow.path == "quick" then
+        for _, q in ipairs(Installer.Questions()) do
+            local now = Installer.Answer(q)
+            if not q.role and flow.picked and flow.picked[q.id] and now ~= nil and now ~= (flow.start or {})[q.id] then
+                local name = Installer.ChoiceName(q, now)
+                out[#out + 1] = { text = string.format(L["%s: %s"], q.short, name), label = q.short, value = name }
+            end
+        end
         for _, def in ipairs(Installer.TourPages()) do
             local picks = picksOn(def)
             if #picks > 0 then
@@ -736,10 +961,12 @@ local function named(name)
     end
 end
 
--- The tour's "Save your setup as": what the player typed, else the
--- character's name when the picked layout is a ready-made one (so the picks
--- don't change a profile other characters may share), else the picked
--- profile's own name. Nil outside the tour.
+-- Where Make it mine saves: the picked profile when it's one of the
+-- player's own, else a profile named after the character (so the picks don't
+-- change a profile other characters may share). When that name is already a
+-- profile this character isn't on (the same name on another realm), the
+-- first free "Name 2", "Name 3"... so nobody else's profile is made over.
+-- Nil outside Make it mine.
 function Installer.SaveAs()
     local flow = Installer.flow
     if not (flow and flow.path == "tour") then return nil end
@@ -747,7 +974,22 @@ function Installer.SaveAs()
     local target = Installer.Target()
     if target and not DUI.Profiles.IsReady(target) then return target end
     local me = UnitName("player")
-    return type(me) == "string" and me ~= "" and me or target
+    if not (type(me) == "string" and me ~= "") then return target end
+    -- The profiles this character was put on itself (not a fallback it runs on
+    -- before it has one of its own).
+    local mine, c = {}, DUI.DB.Character()
+    for _, name in ipairs({ c.profile, type(c.specProfiles) == "table" and c.specProfiles[1] or nil,
+                            type(c.specProfiles) == "table" and c.specProfiles[2] or nil }) do
+        if type(name) == "string" then mine[string.lower(name)] = true end
+    end
+    local function taken(name)
+        local have = named(name)
+        return have ~= nil and not mine[string.lower(have)]
+    end
+    if not taken(me) then return me end
+    local n = 2
+    while taken(me .. " " .. n) do n = n + 1 end
+    return me .. " " .. n
 end
 
 -- Whether Finish rebuilds the saved profile `have` from the picked layout:
@@ -756,7 +998,17 @@ local function rebuilds(have, picked)
     return picked ~= nil and have ~= picked and type(DUI.DB.Root().profileData[have]) == "table"
 end
 
--- Under the tour's name box: where the picks go and who else that affects.
+-- The layout question's warning: only when the pick makes a saved profile
+-- over again from another layout.
+function Installer.SaveNoteWarning()
+    local name = Installer.SaveAs()
+    name = name and strtrim(name)
+    if not name or name == "" then return nil end
+    local have = named(name)
+    if have and rebuilds(have, Installer.Target()) then return Installer.SaveNote() end
+end
+
+-- Where the picks go and who else that affects.
 function Installer.SaveNote()
     local name = Installer.SaveAs()
     name = name and strtrim(name)
@@ -917,19 +1169,25 @@ local function applyModules(flow)
     return changed
 end
 
+-- Saves everything: the profile, the layout, the modules, the extras.
+-- Returns true, or false and why in a sentence for the Finish page. In
+-- combat it waits for the fight to end and says so.
 function Installer.Finish()
     local flow = Installer.flow
-    if not flow or flow.finished or not flow.path then return end
+    if not flow or not flow.path then return false end
+    if flow.finished then return true end
     local page = Installer.pages.finish
-    local function say(text) if page and page.Status then page.Status(text) end end
+    local function done(ok, why)
+        flow.status = not ok and why or nil
+        if page and page.Refresh and page:IsVisible() then page.Refresh() end
+        return ok, why
+    end
     if InCombatLockdown() then
-        say(L["You're in combat; this finishes as soon as it ends."])
         DUI.AfterCombat(Installer.Finish, "installer")
-        return
+        return false, L["You're in combat; this finishes as soon as it ends."]
     end
     if EditMode.GamepadMode() then
-        say(L["Controller mode is on. Turn it off (Options > Controller), press Finish, then turn it back on."])
-        return
+        return done(false, L["Controller mode is on. Turn it off (Options > Controller), then press Try again."])
     end
     local P, D = DUI.Profiles, DUI.InstallerDraft
     local active = DUI.DB.ActiveName()
@@ -941,8 +1199,7 @@ function Installer.Finish()
         target, why = resolve(flow.roles[slot])
     end
     if not target then
-        say(string.format(L["Couldn't finish: %s."], tostring(why)))
-        return
+        return done(false, string.format(L["Couldn't finish: %s."], tostring(why)))
     end
     -- Rebuilt: the picks on screen go in first (the active profile may be this
     -- very one), then it replaces the old one.
@@ -952,10 +1209,8 @@ function Installer.Finish()
     end
     local ok, written, err = placeLayout(target)
     if not ok then
-        say(string.format(L["Couldn't place the layout: %s. Then press Finish again."], tostring(err)))
-        return
+        return done(false, string.format(L["Couldn't place the layout: %s. Then press Try again."], tostring(err)))
     end
-    say(nil)
     local reload = written or fresh ~= nil or target ~= active or D.NeedsReload()
     if D.Active() then D.Commit(target) end
     for _, s in ipairs(Installer.Slots()) do
@@ -983,9 +1238,7 @@ function Installer.Finish()
     DUI.DB.Character().tourOffer = true
     flow.finished, flow.reload = true, reload
     DUI.InstallerUI.Spotlight(nil)
-    local title, desc = Installer.FinishWords()
-    DUI.InstallerUI.Retitle(title, desc, false)
-    if page and page.RunChecklist then page.RunChecklist(reload) end
+    return done(true)
 end
 
 -- When the secure Reload button can't be shown (in combat, or the client

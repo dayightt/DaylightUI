@@ -27,7 +27,6 @@ end
 
 function Steps.Has(def)
     return builders[def.id] ~= nil or ((def.groups ~= nil or ownContent(def)) and builders.groups ~= nil)
-        or (def.bundle ~= nil and builders.bundle ~= nil)
 end
 
 -- Builds a page by id, hidden until the window shows it.
@@ -37,7 +36,7 @@ end
 
 -- Builds a page from its definition (plugins' own guides have no id in the tour).
 function Steps.BuildDef(def, parent, width)
-    local make = builders[def.id] or (def.bundle and builders.bundle) or builders.groups
+    local make = builders[def.id] or builders.groups
     local page = make(parent, width, def)
     page:Hide()
     return page
@@ -380,314 +379,203 @@ end
 
 -- Finish
 
--- What Finish will do (a card with a line per part, each with Change), a
--- note when the profile is shared, a status line for anything in the way,
--- then Finish, Reload or Done with ticks appearing below it, and a card of
--- useful commands at the bottom.
-Steps.FINISH_ROW = 30 -- one line of the summary card
-Steps.FINISH_NAMES = 0.34 -- share of the card's width for the names column
-Steps.FINISH_W = 260 -- width of Finish, Reload and Done, centered
-Steps.FINISH_H = 40
-Steps.TIP_ROW = 20 -- one line of the Good to know card
+-- The Finish page: arriving here saved everything (Installer.ToFinish), so it
+-- shows the after: the sunrise, "All set", your screen with your picks, a tag
+-- per pick that was made, and one button that reloads into it. When saving
+-- couldn't run it says why, its button tries again and Back returns to the
+-- last question. The page owns the whole window, so its spots are the window's.
+Steps.FINISH = {
+    plaque = 166, title = 208, screen = { x = 285, y = 258, w = 330, h = 186 }, tags = 462, tagSide = 60, tagGap = 6,
+    tagRowGap = 6, go = 508, goW = 300, goH = 48, line = 565,
+    tagPad = 10, tagH = 24, tagSlant = 7, tagWordGap = 8,
+    -- The pieces rise in after the sunrise (seconds).
+    at = 1.2, step = 0.1, screenAt = 1.45, tagsAt = 1.5, tagStep = 0.08, goAt = 2.1, lineAt = 2.2, lift = 10,
+}
 
--- "just the quest tracker" -> "Just the quest tracker", since a value starts its column.
-local function capital(text)
-    return (string.gsub(text, "^%l", string.upper))
+-- A tag: a small spaced label and the pick after it, in a slanted pill.
+local function finishTag(parent)
+    local F = Steps.FINISH
+    local t = W.Tag(parent)
+    t:SetHeight(F.tagH)
+    t.text:Hide()
+    Style.Slant(t, "both", F.tagSlant, nil, "left")
+    t.label = W.Font(t, W.BODY, SIZE.tiny, Style.INK.LABEL)
+    t.label:SetPoint("LEFT", t, "LEFT", F.tagPad, 0)
+    t.value = W.Font(t, W.BODY, SIZE.small, Style.INK.TEXT)
+    t.value:SetPoint("LEFT", t.label, "RIGHT", F.tagWordGap, 0)
+    function t.Say(label, value)
+        t.label:SetText(DUI.InstallerChrome.Spaced(label or ""))
+        t.value:SetText(value or "")
+        local a, b = t.label:GetStringWidth(), t.value:GetStringWidth()
+        a = type(a) == "number" and a or 40
+        b = type(b) == "number" and b or 60
+        t:SetWidth(math.ceil(a + F.tagWordGap + b + 2 * F.tagPad))
+    end
+    return t
 end
 
-builders.finish = function(parent, width)
-    local I = DUI.Installer
-    local M = DUI.Motion
+builders.finish = function(parent)
+    local I, M, Feel = DUI.Installer, DUI.Motion, DUI.Win.Feel
+    local Chrome, UI, F = DUI.InstallerChrome, DUI.InstallerUI, Steps.FINISH
     local page = CreateFrame("Frame", nil, parent)
-    page:SetWidth(width)
-    page:SetHeight(1)
-    local inner = width - 2 * W.PAD
-    local namesW = math.floor(inner * Steps.FINISH_NAMES)
+    page:SetSize(UI.SHOW_W, UI.SHOW_H)
 
-    -- What Finish does: a card with a line per part, its name (tan), its value
-    -- (white) and Change. A part with no name is a sentence.
-    page.card = W.Card(page, nil, { label = L["Your setup"], items = {} })
-    page.card:SetWidth(width)
-    page.lines = {}
-    local function line(i)
-        local l = page.lines[i]
-        if l then return l end
-        l = CreateFrame("Frame", nil, page.card)
-        l:SetSize(width, Steps.FINISH_ROW)
-        l.line = l:CreateTexture(nil, "BORDER") -- W.Row's divider between lines
-        l.line:SetColorTexture(C.line[1], C.line[2], C.line[3], C.line[4])
-        l.line:SetHeight(1)
-        l.line:SetPoint("TOPLEFT", l, "TOPLEFT", W.PAD, 0)
-        l.line:SetPoint("TOPRIGHT", l, "TOPRIGHT", -W.PAD, 0)
-        l.change = W.Link(l) -- accent and growing underline on hover
-        l.change.SetLabel(L["Change"])
-        l.change:SetPoint("RIGHT", l, "RIGHT", -W.PAD, 0)
-        l.name = W.Font(l, W.BODY, SIZE.body, C.dim)
-        l.name:SetPoint("LEFT", l, "LEFT", W.PAD, 0)
-        l.name:SetWidth(namesW - 8)
-        l.value = W.Font(l, W.BODY, SIZE.body, C.value)
-        page.lines[i] = l
-        return l
+    page.plaque = Chrome.Plaque(page)
+    page.plaque:SetPoint("TOP", page, "TOP", 0, -F.plaque)
+    page.plaque:SetFrameLevel(UI.Frame():GetFrameLevel() + 30)
+    page.title = Chrome.Title(page)
+    page.title:SetPoint("TOP", page, "TOP", 0, -F.title)
+
+    -- Your screen, in a frame's edge with the picked card's two-color glow.
+    local S = F.screen
+    page.holder = CreateFrame("Frame", nil, page)
+    page.holder:SetPoint("TOPLEFT", page, "TOPLEFT", S.x, -S.y)
+    page.holder:SetSize(S.w, S.h)
+    for i, spec in ipairs({ { 5, Style.BORDER }, { 4, Style.BAND }, { 1, Style.BORDER } }) do
+        local e = page.holder:CreateTexture(nil, "BACKGROUND", nil, i - 8)
+        e:SetTexture("Interface\\Buttons\\WHITE8X8")
+        e:SetPoint("TOPLEFT", page.holder, "TOPLEFT", -spec[1], spec[1])
+        e:SetPoint("BOTTOMRIGHT", page.holder, "BOTTOMRIGHT", spec[1], -spec[1])
+        e:SetVertexColor(spec[2][1], spec[2][2], spec[2][3], 1)
+    end
+    page.screen = DUI.InstallerScreen.New(page.holder, S.w)
+    page.screen:SetPoint("TOPLEFT", page.holder, "TOPLEFT", 0, 0)
+
+    page.tags = {}
+    page.tagRow = CreateFrame("Frame", nil, page)
+    page.tagRow:SetPoint("TOPLEFT", page, "TOPLEFT", F.tagSide, -F.tags)
+    page.tagRow:SetSize(UI.SHOW_W - 2 * F.tagSide, F.tagH)
+
+    page.go = W.HeroButton(page, L["Reload and play"], F.goH)
+    page.go:SetWidth(F.goW)
+    page.go:SetPoint("TOP", page, "TOP", 0, -F.go)
+    page.line = W.Font(page, W.BODY, SIZE.small, Style.INK.LABEL, "CENTER")
+    page.line:SetPoint("TOP", page, "TOP", 0, -F.line)
+    page.line:SetWidth(UI.SHOW_W - 2 * F.tagSide)
+    page.back = W.Button(page, BACK or L["Back"], DUI.InstallerDuel.FOOT.backH)
+    page.back:SetWidth(DUI.InstallerDuel.FOOT.backW)
+    local row = UI.SHOW_H - DUI.InstallerDuel.FOOT.bottom - DUI.InstallerDuel.FOOT.height / 2
+    page.back:SetPoint("LEFT", page, "TOPLEFT", DUI.InstallerDuel.FOOT.side, -row)
+    page.back:SetScript("OnClick", function() I.Back() end)
+
+    -- The tags, centered in rows that wrap inside the page's sides.
+    local function layTags(list)
+        for i, spec in ipairs(list) do
+            local t = page.tags[i]
+            if not t then t = finishTag(page.tagRow); page.tags[i] = t end
+            t.Say(spec.label, spec.value)
+            t:Show()
+        end
+        for i = #list + 1, #page.tags do page.tags[i]:Hide() end
+        local room = UI.SHOW_W - 2 * F.tagSide
+        local rows, cur, w = {}, {}, 0
+        for i = 1, #list do
+            local t = page.tags[i]
+            local tw = t:GetWidth()
+            if #cur > 0 and w + F.tagGap + tw > room then
+                rows[#rows + 1] = { list = cur, w = w }
+                cur, w = {}, 0
+            end
+            w = w + (#cur > 0 and F.tagGap or 0) + tw
+            cur[#cur + 1] = t
+        end
+        if #cur > 0 then rows[#rows + 1] = { list = cur, w = w } end
+        for r, rowSpec in ipairs(rows) do
+            local x = (room - rowSpec.w) / 2
+            for _, t in ipairs(rowSpec.list) do
+                t:ClearAllPoints()
+                t:SetPoint("TOPLEFT", page.tagRow, "TOPLEFT", x, -(r - 1) * (F.tagH + F.tagRowGap))
+                x = x + t:GetWidth() + F.tagGap
+            end
+        end
     end
 
-    -- Another addon a pack sets up (Installer.Extras): a switch that's on until
-    -- the player turns it off, still shown after Finish.
-    page.extras = {}
-    local function extraRow(i)
-        local r = page.extras[i]
-        if r then return r end
-        r = CreateFrame("Frame", nil, page)
-        r:SetSize(width, 24)
-        r.switch = W.Switch(r)
-        r.switch:SetPoint("LEFT", r, "LEFT", 0, 0)
-        r.text = W.Font(r, W.BODY, SIZE.body, C.text)
-        r.text:SetPoint("LEFT", r.switch, "RIGHT", 10, 0)
-        r.text:SetPoint("RIGHT", r, "RIGHT", 0, 0)
-        r.switch:SetScript("OnClick", function()
-            if not r.key or (I.flow and I.flow.finished) then return end
-            I.SetExtra(r.key, not I.ExtraOn(r.key))
-            r.switch.SetOn(I.ExtraOn(r.key))
-        end)
-        page.extras[i] = r
-        return r
+    -- Where the secure reload button lies over the page's one button, once it has landed.
+    local function reloadOver()
+        local flow = I.flow
+        if not (flow and flow.finished and flow.reload and page:IsVisible()) then return end
+        if not UI.ShowReload(page.go) then page.fallback = true end
     end
 
-    local function wrapped(size, color, justify)
-        local fs = W.Font(page, W.BODY, size, color, justify)
-        fs:SetWordWrap(true)
-        fs:SetJustifyV("TOP")
-        fs:SetWidth(width)
-        return fs
-    end
-    page.shared = wrapped(SIZE.small, C.dim)
-    -- The tour's "Save your setup as" (Installer.SaveAs), with a note below
-    -- saying where it goes.
-    page.saveLabel = W.Font(page, W.BODY, SIZE.small, C.dim)
-    page.saveLabel:SetText(L["Save your setup as"])
-    local box = W.Input(page, { height = 28, maxLetters = DUI.Profiles.MAX_NAME,
-        onChange = function(text, userInput)
-            if not (userInput and I.flow) then return end
-            I.flow.saveAs = text
+    page.go:SetScript("OnClick", function()
+        local flow = I.flow
+        if not flow then return end
+        if not flow.finished then
+            I.Finish()
             page.Refresh()
-        end })
-    box:SetWidth(width)
-    page.saveAs = box
-    page.status = wrapped(SIZE.body, C.warn, "CENTER")
-    page.status:SetText("")
-
-    -- Finish's ticks in a row under the button. Their space is reserved from the
-    -- start so nothing moves when they appear.
-    page.tickRow = CreateFrame("Frame", nil, page)
-    page.tickRow:SetSize(width, 22)
-    page.checks = {}
-    for i, text in ipairs(I.CHECKLIST) do
-        local c = CreateFrame("Frame", nil, page.tickRow)
-        c:SetHeight(22)
-        c.icon = W.Icon(c, "ui-check.png", 12, C.dim)
-        c.icon:SetPoint("LEFT", c, "LEFT", 0, 0)
-        c.text = W.Font(c, W.BODY, SIZE.small, C.text)
-        c.text:SetPoint("LEFT", c, "LEFT", 18, 0)
-        c.text:SetText(text)
-        c:Hide()
-        page.checks[i] = c
-    end
-    -- Centered as a row, however wide the language makes them.
-    local function placeTicks()
-        local widths, total, gap = {}, 0, 22
-        for i, c in ipairs(page.checks) do
-            local w = c.text:GetStringWidth()
-            if type(w) ~= "number" or w <= 0 then w = 90 end
-            widths[i] = 18 + math.ceil(w)
-            total = total + widths[i] + (i > 1 and gap or 0)
+            if flow.finished then reloadOver() end
+        elseif flow.reload then
+            -- The secure button takes the click; this runs only when it couldn't show.
+            I.ReloadPopup()
+        else
+            I.Done()
         end
-        local x = math.floor((width - total) / 2)
-        for i, c in ipairs(page.checks) do
-            c:SetWidth(widths[i])
-            c:ClearAllPoints()
-            c:SetPoint("LEFT", page.tickRow, "LEFT", x, 0)
-            x = x + widths[i] + gap
-        end
-    end
+    end)
 
-    local function bigButton(text, onClick)
-        local b = W.Button(page, text, Steps.FINISH_H)
-        b:SetWidth(Steps.FINISH_W)
-        b.SetActive(true)
-        b:SetScript("OnClick", onClick)
-        return b
-    end
-    page.finish = bigButton(L["Finish"], function() I.Finish() end)
-    page.done = bigButton(DONE or L["Done"], function() I.Done() end)
-    page.done:Hide()
-    page.fallback = bigButton(L["Reload"], function() I.ReloadPopup() end)
-    page.fallback:Hide()
-    -- Where the secure Reload button goes (InstallerUI.ShowReload).
-    page.slot = CreateFrame("Frame", nil, page)
-    page.slot:SetSize(Steps.FINISH_W, Steps.FINISH_H)
-
-    -- Good to know: a card of commands, each highlighted in the accent.
-    page.tipCard = W.Card(page, nil, { label = L["Good to know"], items = {} })
-    page.tipCard:SetWidth(width)
-    page.tips = {}
-    for i in ipairs(I.TIPS) do
-        local fs = W.Font(page.tipCard, W.BODY, SIZE.small, C.text)
-        fs:SetPoint("RIGHT", page.tipCard, "RIGHT", -W.PAD, 0)
-        page.tips[i] = fs
-    end
-    local function paintTips()
-        page.tipCard.Layout()
-        local top = page.tipCard.top or 34
-        local lit = DUI.Win.Parts.Hex({ DUI.Style.Accent() })
-        for i, tip in ipairs(I.TIPS) do
-            local fs = page.tips[i]
-            fs:SetPoint("TOPLEFT", page.tipCard, "TOPLEFT", W.PAD, -(top + 2 + (i - 1) * Steps.TIP_ROW))
-            fs:SetText(string.format(tip[2], lit .. tip[1] .. "|r"))
-        end
-        local h = top + #I.TIPS * Steps.TIP_ROW + 8
-        page.tipCard:SetHeight(h)
-        return h
-    end
-
+    -- The words, button and tags for where Finish stands: saved and a reload
+    -- to go, saved with nothing to reload, or couldn't save.
     function page.Refresh()
         local flow = I.flow
-        local finished = flow and flow.finished
-        local y = 0
-        local function put(f, h, gap)
-            f:ClearAllPoints()
-            f:SetPoint("TOPLEFT", page, "TOPLEFT", 0, -y)
-            y = y + h + (gap or 6)
-        end
-        local items = flow and I.Summary() or {}
-        page.card.Layout()
-        local top = page.card.top or 34
-        for i, s in ipairs(items) do
-            local l = line(i)
-            local named = s.label ~= nil and s.value ~= nil
-            l.name:SetShown(named)
-            l.value:ClearAllPoints()
-            l.value:SetPoint("RIGHT", l.change, "LEFT", -8, 0)
-            if named then
-                l.name:SetText(s.label)
-                l.value:SetText(capital(s.value))
-                W.TextColor(l.value, C.value)
-                l.value:SetPoint("LEFT", l, "LEFT", W.PAD + namesW, 0)
+        if not flow then return end
+        local r, g, b = Style.Accent()
+        page.plaque.Paint()
+        page.title.Paint()
+        page.plaque.Set(Chrome.Spaced(L["All set"]))
+        local name = UnitName("player") or ""
+        local who = string.format("|cff%02x%02x%02x%s|r", math.floor(r * 255 + 0.5), math.floor(g * 255 + 0.5),
+            math.floor(b * 255 + 0.5), name)
+        if flow.finished then
+            page.title.Set(string.format(L["Your UI is ready, %s"], who))
+            page.back:Hide()
+            if flow.reload then
+                page.go.SetLabel(L["Reload and play"])
+                page.line:SetText(L["One reload puts everything in place."])
             else
-                l.value:SetText(s.text)
-                W.TextColor(l.value, C.text)
-                l.value:SetPoint("LEFT", l, "LEFT", W.PAD, 0)
+                page.go.SetLabel(DONE or L["Done"])
+                page.line:SetText(L["Everything is already in place."])
             end
-            l.change:SetShown(s.page ~= nil and not finished)
-            l.change:SetScript("OnClick", function() I.Go(s.page) end)
-            l.line:SetShown(i > 1)
-            l:ClearAllPoints()
-            l:SetPoint("TOPLEFT", page.card, "TOPLEFT", 0, -(top + (i - 1) * Steps.FINISH_ROW))
-            l:Show()
-        end
-        for i = #items + 1, #page.lines do page.lines[i]:Hide() end
-        local cardH = top + #items * Steps.FINISH_ROW + 8
-        page.card:SetHeight(cardH)
-        put(page.card, cardH, 14)
-        local extras = flow and I.Extras() or {}
-        for i, x in ipairs(extras) do
-            local r = extraRow(i)
-            r.key = x.key
-            r.text:SetText(string.format(L["Set up %s the way %s has it"], x.extra.label, x.extra.pack.label))
-            r.switch.off = finished == true
-            r.switch.SetOn(I.ExtraOn(x.key))
-            r:Show()
-            put(r, 24, 4)
-        end
-        for i = #extras + 1, #page.extras do page.extras[i]:Hide() end
-        if #extras > 0 then y = y + 10 end
-        local name = flow and I.SaveAs()
-        page.saveLabel:SetShown(name ~= nil)
-        page.saveAs:SetShown(name ~= nil)
-        if name then
-            -- Not while typing, or the cursor would jump.
-            if not page.saveAs:HasFocus() then page.saveAs:SetText(name) end
-            page.saveAs:EnableMouse(not finished)
-            if finished then page.saveAs:ClearFocus() end
-            put(page.saveLabel, 16, 4)
-            put(page.saveAs, 28, 6)
-        end
-        local note = flow and I.SaveNote()
-        page.shared:SetText(note or "")
-        page.shared:SetShown(note ~= nil)
-        if note then put(page.shared, 32, 8) end
-        y = y + 6
-        local status = page.status:GetText()
-        page.status:SetShown(type(status) == "string" and status ~= "")
-        if page.status:IsShown() then put(page.status, 32, 8) end
-        for _, b in ipairs({ page.slot, page.finish, page.done, page.fallback }) do
-            b:ClearAllPoints()
-            b:SetPoint("TOP", page, "TOPLEFT", width / 2, -y)
-        end
-        y = y + Steps.FINISH_H + 10
-        placeTicks()
-        put(page.tickRow, 22, 18)
-        local tipH = paintTips()
-        put(page.tipCard, tipH, 0)
-        page:SetHeight(y)
-    end
-
-    function page.Status(text)
-        page.status:SetText(text or "")
-        page.Refresh()
-    end
-
-    -- After Finish runs, ticks appear one at a time (giving the game a moment to
-    -- save the layout), then Reload, or Done when no reload is needed.
-    function page.RunChecklist(reload)
-        page.finish:Hide()
-        for _, c in ipairs(page.checks) do c:Hide() end
-        page.run = (page.run or 0) + 1
-        local run = page.run
-        local i = 0
-        local function step()
-            if page.run ~= run then return end -- the page was reset for a new run
-            i = i + 1
-            local c = page.checks[i]
-            if c then
-                c:Show()
-                W.TintAccent(c.icon)
-                M.Fade(c, 0, 1, M.FAST)
-                C_Timer.After(I.CHECK_STEP, step)
-            else
-                page.ShowEnd(reload)
-            end
-        end
-        page.Refresh()
-        C_Timer.After(I.CHECK_STEP, step)
-    end
-
-    -- The end of the checklist, and again whenever the page shows after it.
-    function page.ShowEnd(reload)
-        page.ended = reload
-        page.finish:Hide()
-        page.Refresh()
-        if reload then
-            page.done:Hide()
-            if not DUI.InstallerUI.ShowReload(page.slot) then page.fallback:Show() end
+            W.TextColor(page.line, Style.INK.LABEL)
         else
-            page.done:Show()
+            UI.HideReload()
+            page.title.Set(L["Almost there"])
+            page.go.SetLabel(L["Try again"])
+            page.line:SetText(flow.status or "")
+            W.TextColor(page.line, Style.INK.WARN)
+            page.back:Show()
         end
+        page.go:SetWidth(F.goW)
+        if flow.screen then page.screen.Set(flow.screen, true) end
+        layTags(flow.tags or {})
     end
 
-    -- A new run of the guide (pages are reused since frames can't be freed). Go
-    -- back to before Finish and stop a checklist that's still ticking.
-    function page.Reset()
-        page.run = (page.run or 0) + 1
-        page.ended = nil
-        page.status:SetText("")
-        for _, c in ipairs(page.checks) do c:Hide() end
-        page.saveAs:ClearFocus()
-        page.done:Hide()
-        page.fallback:Hide()
-        page.finish:Show()
-        page.Refresh()
+    -- After the sunrise: the plaque, the title, your screen, the tags one by
+    -- one, the button, its line. The reload button goes over the button once
+    -- it has landed.
+    function page.Play()
+        local slow = M.SLOW
+        UI.HideReload()
+        W.GlowAround(page.holder, true, { frame = page.holder, style = "breathe",
+            lo = Style.GRADIENT_SHAPE[1], hi = Style.GRADIENT_SHAPE[2] })
+        Feel.Piece(page.plaque, F.at, slow, F.lift / 2)
+        Feel.Piece(page.title, F.at + F.step, slow, F.lift)
+        Feel.Piece(page.holder, F.screenAt, slow, F.lift)
+        for i, t in ipairs(page.tags) do
+            if t:IsShown() then Feel.Piece(t, F.tagsAt + (i - 1) * F.tagStep, slow, F.lift / 2) end
+        end
+        Feel.Piece(page.go, F.goAt, slow, F.lift)
+        Feel.Piece(page.line, F.lineAt, slow, F.lift / 2)
+        if page.back:IsShown() then Feel.Piece(page.back, F.goAt, slow, 0) end
+        local wait = M.On() and (F.goAt + slow) or 0
+        C_Timer.After(wait, reloadOver)
     end
+    page:HookScript("OnHide", function() W.GlowAround(page.holder, false) end)
+    -- A font picked on the way reaches the tags' words a moment after they're
+    -- laid out: lay them out again once it has.
+    DUI.On("StyleChanged", function()
+        if page:IsVisible() and I.flow then layTags(I.flow.tags or {}) end
+    end)
 
-    page.Refresh()
+    function page.Reset() page.fallback = nil end
     return page
 end
 
@@ -1022,109 +910,220 @@ builders.groups = function(parent, width, def)
     return page
 end
 
--- A bundle's yes or no as two cards (like the role page), with a line under
--- them when the addon its settings need isn't loaded.
-builders.bundle = function(parent, width, def)
-    local I = DUI.Installer
-    local b = def.bundle
-    local page = stack(parent, width)
-    local picker = Cards.Picker(page, {
-        keys = { "yes", "no" }, width = width, cols = 2, height = 84,
-        label = function(k) return T(b[k][1]) end,
-        sub = function(k) return T(b[k][2]) end,
-        get = function() return I.Bundle(def) end,
-        set = function(k) I.PickBundle(def, k) end,
-    })
-    page.Add(picker, picker.height, 14)
-    page.picker = picker
-    if b.needsAddon and not DUI.InstallerPages.AddonOn(b.needsAddon) then
-        page.hint = para(page, b.hint, SIZE.small, C.dim)
-    end
-    function page.Refresh() picker.Refresh() end
-    return page
+-- A question on the "this or that" page (InstallerDuel): its words, its
+-- choices with their pictures, and what Next, Back, a pick and Finish now do.
+-- q is an Installer.Questions() entry; step and total count the steps after
+-- the opening.
+
+-- The layout question's longer lines.
+Steps.ROLE_LINES = {
+    ["DPS/Tank"] = "Your frames by your character, your party down the side.",
+    Healer = "Party and raid tiles front and center, made for click-healing.",
+    ["Immersive Preset"] = "Everything fades until you need it. The world comes first.",
+}
+
+-- The small screen's state for a layout: the three in a fight, Immersive out of one.
+local function layoutState(name)
+    local shape = DUI.Installer.RoleShape(name)
+    return { role = shape, fight = shape ~= "Immersive Preset", calm = "shown" }
 end
 
--- What's included, and Your role
-
--- Every module as a tile with its switch, two per row, with any clash with
--- another addon above them. Changes here apply at the reload.
-builders.modules = function(parent, width)
-    local I, P = DUI.Installer, DUI.InstallerPages
-    local page = stack(parent, width)
-    page.tiles, page.clashes = {}, {}
-    for _, c in ipairs(P.Clashes()) do
-        local card = Cards.Clash(page, c, width,
-            function() return I.flow and I.flow.clashes[c.addon] or "ours" end,
-            function(v) I.PickClash(c, v) end)
-        page.Add(card, Cards.CLASH_H, 10)
-        page.clashes[c.addon] = card
-    end
-    -- With Questie on, pick which quest tracker to use (Quests' Choice.lua asks
-    -- the same outside the guide). Both addons stay on.
-    local quests = DUI:GetModule("Quests")
-    local choice = quests and quests.enabled and quests.ns and quests.ns.Choice
-    if choice and quests.ns.Bridge.Loaded() then
-        local card = Cards.Clash(page, { label = "Questie", what = "quest tracker" }, width,
-            function() return DUI:Get("Quests", "tracker") == false and "theirs" or "ours" end,
-            function(v) choice.Pick(v == "theirs" and "questie" or "ours") end)
-        page.Add(card, Cards.CLASH_H, 10)
-        page.clashes.Questie = card
-    end
-    local cols = 2
-    local tw = (width - Cards.GAP) / cols
-    local grid = CreateFrame("Frame", nil, page)
-    for i, mod in ipairs(P.MODULES) do
-        local tile
-        tile = Cards.Tile(grid, mod, tw,
-            function() return I.flow ~= nil and I.flow.modules[mod.addon] == true end,
-            function(v)
-                I.SetModule(mod, v)
-                tile.Refresh()
-            end,
-            P.AddonInstalled(mod.addon))
-        local col, row = (i - 1) % cols, math.floor((i - 1) / cols)
-        tile:SetPoint("TOPLEFT", grid, "TOPLEFT", col * (tw + Cards.GAP), -row * (Cards.TILE_H + Cards.GAP))
-        page.tiles[mod.addon] = tile
-    end
-    local rowsOf = math.ceil(#P.MODULES / cols)
-    local h = rowsOf * Cards.TILE_H + (rowsOf - 1) * Cards.GAP
-    grid:SetHeight(h)
-    page.Add(grid, h, 12)
-    para(page, L["Switching a part on or off applies when you reload, at the end."], SIZE.small, C.faint)
-    function page.Refresh()
-        for _, t in pairs(page.tiles) do t.Refresh() end
-        for _, c in pairs(page.clashes) do c.Refresh() end
-    end
-    return page
+-- A picture maker for the duel page: function(parent, width) -> frame.
+local function screenPicture(state)
+    return function(parent, width) return Cards.Picture.screen(parent, state, width) end
 end
 
--- The layouts as cards, each with a drawing of where frames sit, and with
--- dual spec a row per talent set. "Recommended for you" only when the game
--- reports a role, "In use" on the character's current profile.
-builders.role = function(parent, width)
+local function choicesFor(q)
+    local I, P, Pic = DUI.Installer, DUI.InstallerPages, Cards.Picture
+    local flow = I.flow
+    local out = {}
+    local role = flow and flow.roles[I.CurrentSlot()] or "DPS/Tank"
+    local base = layoutState(role)
+    local function add(key, name, line, picture, closed)
+        local c = { key = key, name = name, line = line, picture = picture, closed = closed }
+        if q.new and q.new[key] then c.tag = L["New"] end
+        if flow and flow.start and flow.start[q.id] == key and q.id ~= "role" and not q.clash and not q.extra then
+            c.tag = c.tag or L["Daylight's pick"]
+        end
+        -- Another addon doing a part's job: Daylight UI's own is the pick it suggests.
+        if q.clash and key == "ours" then c.tag = L["Daylight's pick"] end
+        out[#out + 1] = c
+        return c
+    end
+    if q.role then
+        for _, name in ipairs(I.RoleChoices()) do
+            local line = Steps.ROLE_LINES[name] and L[Steps.ROLE_LINES[name]] or I.RoleSub(name)
+            local c = add(name, name == "DPS/Tank" and L["Damage / Tank"] or name == "Immersive Preset" and L["Immersive"]
+                or I.RoleCardLabel(name), line, screenPicture(layoutState(name)),
+                function(parent) return Pic.screen(parent, layoutState(name), 56) end)
+            c.tag = I.RoleTag(name) ~= L["Recommended for you"] and I.RoleTag(name) or nil
+        end
+    elseif q.clash then
+        local c = q.clash
+        local ours
+        if c.module == "Nameplates" then
+            ours = function(parent, w) return Pic.plate(parent, {}, w) end
+        elseif c.module == "Bags" then
+            ours = function(parent, w) return Pic.bags(parent, "categories", w) end
+        elseif c.module == "ActionBars" then
+            ours = screenPicture({ role = base.role, bars = "two", fight = true })
+        else
+            ours = function(parent, w) return Pic.addon(parent, L["Daylight UI"], w) end
+        end
+        if q.questie then
+            -- Both stay on: only the tracker is one or the other.
+            add("ours", L["Daylight UI"], L["Daylight UI's tracker. Questie keeps its map and quest data."], ours)
+            add("theirs", c.label, L["Questie's own tracker. Both addons stay on."],
+                function(parent, w) return Pic.addon(parent, c.label, w) end)
+        else
+            add("ours", L["Daylight UI"], string.format(L["%s is switched off for this character when you finish."], c.label), ours)
+            add("theirs", c.label, string.format(L["Daylight UI leaves %s alone and skips their questions."], L[c.what]),
+                function(parent, w) return Pic.addon(parent, c.label, w) end)
+        end
+    elseif q.extra then
+        local name = q.extra.extra.label or q.extra.extra.addon
+        local function pic(parent, w) return Pic.addon(parent, name, w) end
+        add("yes", YES or L["Yes"], nil, pic)
+        add("no", L["No, leave it"], nil, pic)
+    elseif q.bundle then
+        add("yes", L[q.bundle.yes[1]], L[q.bundle.yes[2]], function(parent, w) return Pic.quest(parent, "yes", w) end)
+        add("no", L[q.bundle.no[1]], L[q.bundle.no[2]], function(parent, w) return Pic.quest(parent, "no", w) end)
+    elseif q.option then
+        local _, item = P.Find(q.option[1], q.option[2])
+        local values = item and item.values
+        if item and item.choices then values = item.choices() end
+        for _, k in ipairs(q.only) do
+            local label = q.labels and q.labels[k] or (type(values) == "table" and values[k]) or tostring(k)
+            local line = q.subs and q.subs[k]
+            local picture, closed
+            if q.draw == "accent" then
+                picture = function(parent, w) return Pic.accent(parent, k, w) end
+                closed = function(parent) return Pic.accentBar(parent, k) end
+            elseif q.draw == "font" then
+                picture = function(parent, w) return Pic.font(parent, k, w) end
+                closed = function(parent) return Pic.fontMini(parent, k) end
+            elseif q.draw == "plate" then
+                local opts = {}
+                opts[q.plate] = k
+                picture = function(parent, w) return Pic.plate(parent, opts, w) end
+            elseif q.draw == "bags" then
+                picture = function(parent, w) return Pic.bags(parent, k, w) end
+            end
+            local c = add(k, T(label), line and L[line] or nil, picture, closed)
+            if q.draw == "font" then c.nameFont = Cards.FontFile(k) end
+        end
+    elseif q.presets then
+        for _, p in ipairs(q.presets) do
+            local picture
+            if q.draw == "plate" then
+                picture = function(parent, w) return Pic.plate(parent, { size = p.id }, w) end
+            elseif q.screen then
+                local state = { role = base.role, fight = base.fight, calm = "shown" }
+                state[q.screen] = p.id
+                if q.screen == "calm" then state.fight = false else state.fight = true end
+                picture = screenPicture(state)
+            end
+            add(p.id, T(p.label), p.sub and T(p.sub) or nil, picture)
+        end
+    elseif q.look then
+        local spec = DUI.InstallerLooks.KINDS[q.look]
+        for _, k in ipairs(spec.keys) do
+            local label = q.labels and q.labels[k] or k
+            add(k, L[label], q.subs and q.subs[k] and L[q.subs[k]] or nil, nil)
+        end
+    end
+    return out
+end
+Steps.Choices = choicesFor
+
+-- A look drawn once across both columns (the looks' own preview box), its
+-- own names and lines hidden (the question page draws those). Each look is
+-- handed back to be placed on its column: the unit frames at the mock-up's
+-- size, the crowd of names on the sky the plate pictures use.
+Steps.SPAN = { portraitLook = { width = 278 }, tooltipStyle = { width = 210 }, plateClassIcon = { sky = 300 } }
+local function spanFor(q)
+    local Looks = DUI.InstallerLooks
+    return function(parent, width)
+        local spec = Looks.KINDS[q.look]
+        local how = Steps.SPAN[q.look] or {}
+        local box
+        DUI.SafeCall(function() box = spec.box(parent) end)
+        if not box then return nil end
+        if box.Refresh then box.Refresh(how.sky and 2 * (how.sky + 32) or width) end
+        local spots = {}
+        for _, k in ipairs(spec.keys) do
+            local art = box.frames and box.frames[k] or (box.cards and box.cards[k] and box.cards[k].wrap)
+            if art and how.width then
+                local w = art:GetWidth()
+                if type(w) == "number" and w > 0 then art:SetScale(how.width / w) end
+            end
+            if art and how.sky then
+                local sky = Cards.Picture.Sky(box, how.sky)
+                sky:SetFrameLevel(math.max(1, art:GetFrameLevel() - 1))
+                art:ClearAllPoints()
+                art:SetPoint("CENTER", sky, "CENTER", 0, 0)
+                art = sky
+            end
+            spots[k] = art
+            if box.names and box.names[k] then box.names[k]:Hide() end
+            if box.lines and box.lines[k] then box.lines[k]:Hide() end
+        end
+        return box, spots
+    end
+end
+
+function Steps.Question(q, step, total)
     local I = DUI.Installer
-    local page = stack(parent, width)
-    page.pickers = {}
-    local keys = I.RoleChoices()
-    local slots = I.Slots()
-    for _, slot in ipairs(slots) do
-        if #slots > 1 then heading(page, I.SlotLabel(slot)) end
-        local picker = Cards.Picker(page, {
-            keys = keys, width = width, cols = math.min(#keys, 3), height = #slots > 1 and 130 or 170,
-            label = I.RoleCardLabel,
-            sub = I.RoleSub,
-            get = function() return I.flow and I.flow.roles[slot] end,
-            set = function(k) I.PickRole(slot, k) end,
-            draw = function(card, k, w, h) Cards.Draw.role(card, I.RoleShape(k), w, h) end,
-            tag = I.RoleTag,
-        })
-        page.Add(picker, picker.height, 14)
-        page.pickers[slot] = picker
+    local flow = I.flow
+    local current = I.Answer(q)
+    local out = {
+        id = q.id .. ":" .. tostring(flow and I.RoleShape(flow.roles[I.CurrentSlot()]) or ""),
+        part = q.part and T(q.part) or "", ask = q.ask and T(q.ask) or "", what = q.what and T(q.what) or "",
+        first = step == 1, step = step, total = total,
+        nextText = step >= total and L["Finish"] or (NEXT or L["Next"]),
+        current = current, choices = choicesFor(q),
+        pictureWidth = q.width,
+        next = I.Next, back = I.Back,
+        finish = function() I.SettleAll(); I.ToFinish() end,
+    }
+    if q.questie then
+        out.ask = L["Which quest tracker do you want?"]
+        out.what = L["Questie is on too, and has a quest tracker of its own."]
+    elseif q.clash then
+        out.ask = string.format(L["Who draws your %s?"], L[q.clash.what])
+        out.what = string.format(L["%s is switched on too, and only one addon can draw %s."], q.clash.label, L[q.clash.what])
+    elseif q.extra then
+        local name = q.extra.extra.label or q.extra.extra.addon
+        out.ask = string.format(L["Set up %s to match?"], name)
+        out.what = string.format(L["This pack can set up %s to go with its profile."], name)
     end
-    local hint = I.HealHint()
-    if hint then page.hint = para(page, hint, SIZE.small, C.dim) end
-    function page.Refresh()
-        for _, p in pairs(page.pickers) do p.Refresh() end
+    if q.look then out.span = spanFor(q) end
+    if q.role then out.warn = I.SaveNoteWarning() end
+    out.pick = function(key)
+        I.Pick(q, key)
+        -- The layout and the other addons change what follows: show the count and note again.
+        if q.role or q.clash then
+            local page = I.pages and I.pages.duel
+            if page and I.flow and I.flow.page == "q:" .. q.id then
+                local steps = I.Steps()
+                local at = 1
+                for n, s in ipairs(steps) do if s.id == I.flow.page then at = n end end
+                page.Set(Steps.Question(q, at - 1, #steps - 2))
+            end
+        end
     end
-    return page
+    -- Out of a fight: hovering a choice plays a fight on its screen.
+    if q.id == "calm" then
+        out.hover = function(choice, on)
+            local page = I.pages and I.pages.duel
+            for _, c in ipairs(page and page.choices or {}) do
+                if c.spec == choice then
+                    for _, child in ipairs({ c.content:GetChildren() }) do
+                        if child.Set and child.pieces then child.Set({ fight = on }) end
+                    end
+                end
+            end
+        end
+    end
+    return out
 end
