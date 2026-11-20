@@ -1,6 +1,7 @@
 -- The rich card for a player: a banner in their class light (icon, first and
--- last name, spec and level tags), their guild, item level and target, their
--- health and power, and a friendly player's buffs out of combat.
+-- last name, spec and level tags), their guild, where a group member is, item
+-- level and target, their health and power, and a friendly player's buffs out
+-- of combat.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -16,6 +17,7 @@ Players.ICON_INSET = 2
 Players.AFTER_BANNER = 16 -- the banner's own room under it, then the rows
 Players.BEFORE_BARS = 12
 Players.BAR_GAP = 3
+Players.FACTION_COLORS = { Alliance = { 0.50, 0.72, 1.00 }, Horde = { 1.00, 0.52, 0.48 } }
 
 local function plain(v)
     if isSecret(v) then return nil end
@@ -116,6 +118,11 @@ local function rows(p, unit)
         Panel.Row(p, GUILD or L["Guild"], value, Style.INK.TEXT)
         added = added + 1
     end
+    local zone = Tip.ZoneOf(unit)
+    if zone then
+        Panel.Row(p, ZONE or L["Zone"], zone, Style.INK.TEXT)
+        added = added + 1
+    end
     local level = Players.ItemLevel(unit)
     if level then
         Panel.Row(p, L["Item level"], tostring(level), rgb(Style.Accent()))
@@ -138,16 +145,21 @@ function Players.Card(p, tip, unit, data, n, lines)
     local pair = Players.ClassPair(unit)
     local light = pair and { pair[2], pair[1] } or nil
     Panel.Begin(p, "unit", light)
-    local title = Players.Title(unit) or (lines[1] and lines[1].left) or ""
+    -- A name the game hides (a PvP match) is still drawn: the header only shows it.
+    local title = Players.Title(unit) or (lines[1] and lines[1].left) or DUI.UnitName(unit, "tooltip") or ""
     local cr, cg, cb
     if token then cr, cg, cb = Style.ClassColor(token) end
-    local tags = {}
+    local tags, Tag = {}, ns.RichItems.Tag
     local spec = Players.SpecOrClass(unit)
-    if spec then tags[#tags + 1] = { spec, cr and rgb(cr, cg, cb) or Style.INK.LABEL } end
-    local level, race = plain(UnitLevel(unit)), plain((UnitRace(unit)))
-    if type(level) == "number" then
-        local lv = level > 0 and tostring(level) or "??"
-        tags[#tags + 1] = { type(race) == "string" and string.format(L["%s · %s"], lv, race) or lv, Style.INK.LABEL }
+    if spec then tags[#tags + 1] = Tag(spec, cr and rgb(cr, cg, cb) or Style.INK.TEXT) end
+    -- The level in how hard they are for you, as on a creature's card.
+    local lv, lvInk = ns.RichWorld.Level(unit)
+    if lv then tags[#tags + 1] = Tag(lv, lvInk) end
+    -- The race in its faction's color: the other side reads at a glance.
+    local race = plain((UnitRace(unit)))
+    if type(race) == "string" then
+        local faction = plain((UnitFactionGroup(unit)))
+        tags[#tags + 1] = Tag(race, Players.FACTION_COLORS[faction] or Style.INK.TEXT)
     end
     local icon, coords
     if token then icon, coords = Players.Icon(token) end

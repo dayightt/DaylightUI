@@ -189,8 +189,9 @@ end)
 
 T.test("rich tooltip: a secret line leaves the frame around the game's own lines", function()
     local _, Panel = login("rich")
-    fill(Enum.TooltipDataType.Unit, { "Ridgeback Boar", "Level 23 Beast" }, function(t)
-        GameTooltipTextLeft1:SetText(stub.Secret("Ridgeback Boar"))
+    -- A thing in the world: a unit's card is built from the unit instead.
+    fill(4, { "Ox Bones", "Quest item" }, function(t)
+        GameTooltipTextLeft1:SetText(stub.Secret("Ox Bones"))
     end)
     update()
     local p = Panel.Get(GameTooltip)
@@ -202,7 +203,7 @@ T.test("rich tooltip: a secret line leaves the frame around the game's own lines
     T.eq(r, 0); T.eq(b, 0, "no padding: the game sizes it")
     T.truthy(p.light[1]:IsShown(), "the top light still")
     -- Out of the fight: plain again, the full card.
-    fill(Enum.TooltipDataType.Unit, { "Ridgeback Boar", "Level 23 Beast" })
+    fill(4, { "Ox Bones", "Quest item" })
     update()
     T.falsy(p.chrome)
     T.eq(GameTooltipTextLeft2:GetAlpha(), 0)
@@ -300,9 +301,12 @@ T.test("rich tooltip: a player's card, banner first", function()
     T.truthy(title:find("^Aelindra ") and title:find("Moonvale"), "first and last name: " .. title)
     T.truthy(title:find(DaylightUI.Win.Parts.Hex(DaylightUI.Style.INK.LABEL), 1, true), "the last name tan")
     T.truthy(head.icon and head.icon.tile:IsShown(), "the class icon on its class tile")
-    T.eq(#head.tags, 2)
+    T.eq(#head.tags, 3)
     T.eq(stub.Text(head.tags[1].text), "MAGE", "spec unknown: the class")
-    T.eq(stub.Text(head.tags[2].text), "60 · NIGHT ELF")
+    T.eq(stub.Text(head.tags[2].text), "60")
+    local _, lvInk = stub.tooltip.RichWorld.Level("mouseover")
+    T.rgb({ head.tags[2].text:GetTextColor() }, lvInk, "the level in how hard they are for you")
+    T.eq(stub.Text(head.tags[3].text), "NIGHT ELF")
     T.truthy(p.washColor, "the banner's class light")
     local rows = {}
     for i = 1, p.count do
@@ -336,6 +340,72 @@ T.test("rich tooltip: a player's card, banner first", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The client's roster and map calls for a group member's zone, put back after.
+local function withZones(party, raid, fn)
+    local realMap, realRoster = _G.C_Map, _G.GetRaidRosterInfo
+    _G.C_Map = {
+        GetBestMapForUnit = function(u) return party[u] and 1429 or nil end,
+        GetMapInfo = function(id) if id == 1429 then return { mapID = id, name = "Elwynn Forest" } end end,
+    }
+    _G.GetRaidRosterInfo = function(i)
+        if i == 1 and raid then return "Aelindra", 0, 1, 60, "Mage", "MAGE", raid, true, false end
+    end
+    local ok, err = pcall(fn)
+    _G.C_Map, _G.GetRaidRosterInfo = realMap, realRoster
+    if not ok then error(err, 0) end
+end
+
+local function rowsOf(p)
+    local out = {}
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "row" then out[stub.Text(it.label)] = stub.Text(it.value) end
+    end
+    return out
+end
+
+T.test("rich tooltip: a group member's card says where they are", function()
+    local _, Panel = login("rich")
+    -- A stranger: no zone, the client gives none either.
+    player()
+    withZones({}, nil, function()
+        hover("mouseover", { "Aelindra" })
+        T.isnil(rowsOf(Panel.Get(GameTooltip)).Zone, "not in your group")
+        -- In your party: their map's name.
+        player({ party = true })
+        withZones({ mouseover = true }, nil, function()
+            hover("mouseover", { "Aelindra" })
+            T.eq(rowsOf(Panel.Get(GameTooltip)).Zone, "Elwynn Forest")
+        end)
+    end)
+    -- In your raid: the roster's zone, even inside a dungeon where the map says nothing.
+    player({ raid = true })
+    withZones({}, "The Deadmines", function()
+        hover("mouseover", { "Aelindra" })
+        T.eq(rowsOf(Panel.Get(GameTooltip)).Zone, "The Deadmines")
+    end)
+    -- Offline: nowhere to say.
+    player({ party = true, offline = true })
+    withZones({ mouseover = true }, nil, function()
+        hover("mouseover", { "Aelindra" })
+        T.isnil(rowsOf(Panel.Get(GameTooltip)).Zone, "offline")
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("simple tooltip: a party member's zone as a line, once", function()
+    local Tip = login()
+    player({ party = true })
+    withZones({ mouseover = true }, nil, function()
+        hover("mouseover", { "Aelindra", "Level 60 Night Elf Mage" })
+        T.truthy(Tip.HasLine(GameTooltip, Tip.ZONE_LABEL, "Elwynn Forest"), "the zone line")
+        -- The game naming the zone itself: no second line.
+        hover("mouseover", { "Aelindra", "Level 60 Night Elf Mage", "Elwynn Forest" })
+        T.truthy(not Tip.HasLine(GameTooltip, Tip.ZONE_LABEL), "the game's own line is enough")
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: a friendly player's buffs, out of combat only", function()
     local _, Panel = login("rich")
     DaylightUI:Set("Tooltip", "buffs", true)
@@ -355,7 +425,7 @@ end)
 T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows the card", function()
     local Tip, Panel = login("rich")
     player()
-    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, health = 31, maxHealth = 100 }
+    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, health = 31, maxHealth = 100, level = 23 }
     stub.units.mouseovertarget = stub.units.player
     stub.EnterCombat()
     hover("mouseover", { "Ridgeback Boar", "Level 23 Beast" })
@@ -365,6 +435,10 @@ T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows t
     T.eq(GameTooltip:GetAlpha(), 0, "the tooltip itself out of sight")
     T.eq(Tip.Muted(GameTooltip), "pill")
     T.eq(stub.Text(pill.name), "Ridgeback Boar")
+    T.eq(stub.Text(pill.level), "23", "its level in front of the name")
+    local _, lvInk = stub.tooltip.RichWorld.Level("mouseover")
+    T.rgb({ pill.level:GetTextColor() }, lvInk, "in how hard it is for you")
+    T.truthy(pill.name.__points[1][4] > 12, "the name after the level")
     -- Seen in game: an orange name on a hostile mob read as neutral.
     T.near(({ pill.name:GetTextColor() })[1], (DaylightUI.Style.ReactionColor(2)), 1e-6, "its name in its reaction's color")
     -- Seen in game: a long name ran into the health.
@@ -740,7 +814,11 @@ T.test("rich tooltip: a weapon's damage and speed as rows, a plain item's card",
     T.eq(bare(row.label), "41 - 77 Damage", "number first")
     T.eq(bare(row.value), "2.60 Speed", "speed on the damage's line, at the right")
     T.eq(said[1], "(22.7 damage per second)", "the game's own brackets, under them")
-    T.eq(stub.Text(p.items[1].tags[2].text), "ONE-HAND · SWORD", "the slot line's own word")
+    T.eq(stub.Text(p.items[1].tags[2].text), "ONE-HAND", "the slot")
+    T.eq(stub.Text(p.items[1].tags[3].text), "SWORD", "the slot line's own word, a tag of its own")
+    local RI = stub.tooltip.RichItems
+    T.rgb({ p.items[1].tags[2].text:GetTextColor() }, RI.SLOT_WEAPON, "a weapon's slot")
+    T.rgb({ p.items[1].tags[3].text:GetTextColor() }, RI.WEAPON_COLOR, "a weapon's type")
     -- Linen Cloth: common, no level, no slot.
     fillItem(GameTooltip, "cloth", { "Linen Cloth", "Max Stack: 20" })
     update() -- refilled while shown: built before the next draw
@@ -1116,7 +1194,7 @@ T.test("rich tooltip: a spell's card, as the board lays it out", function()
     T.eq(stub.Text(head.tags[1].text), "FROST")
     T.rgb({ head.tags[1].text:GetTextColor() }, frost, "the school tag in its color")
     T.eq(stub.Text(head.tags[2].text), "RANK 4")
-    T.rgb({ head.tags[2].text:GetTextColor() }, INK.LABEL)
+    T.rgb({ head.tags[2].text:GetTextColor() }, { DaylightUI.Style.Pop() }, "the rank pops")
     local tiles = kinds(p, "tiles")[1].list
     T.eq(#tiles, 3)
     T.eq(stub.Text(tiles[1].value), "2.5 sec")
@@ -1449,6 +1527,68 @@ T.test("rich tooltip: in a fight a world object is the pill too, so it never swa
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game in a dungeon out of combat: under the map restriction the game's
+-- GetUnit hands back the unit's token secret (UnitTokenFromGUID is
+-- SecretWhenUnitIdentityRestricted) and every line is secret. The tooltip
+-- there must look as it does anywhere else: the whole card out of a fight,
+-- built from the unit, and the pill in one.
+local function hoverRestricted(name, second)
+    local tip = GameTooltip
+    GameTooltip_SetDefaultAnchor(tip, UIParent)
+    tip.__unit = stub.Secret("mouseover")
+    tip:AddLine(name)
+    tip:AddLine(second)
+    GameTooltipTextLeft1:SetText(stub.Secret(name))
+    GameTooltipTextLeft2:SetText(stub.Secret(second))
+    local data = { type = Enum.TooltipDataType.Unit }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[Enum.TooltipDataType.Unit] or {}) do fn(tip, data) end
+    tip:Show()
+    update()
+    return tip
+end
+
+T.test("rich tooltip: a mob in a restricted dungeon gets its whole card out of a fight", function()
+    local _, Panel = login("rich")
+    stub.units.mouseover = { name = "Krol'dok Brute", isPlayer = false, reaction = 2, level = 41,
+        classification = "elite", health = 87, maxHealth = 100 }
+    stub.SetRestriction("Map", true)
+    local tip = hoverRestricted("Krol'dok Brute", "Level 41 (Elite)")
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(not pill or not pill:IsShown(), "no pill out of a fight")
+    local p = Panel.Get(tip)
+    T.truthy(p and p:IsShown(), "the card")
+    T.falsy(p.chrome, "the whole card, not the frame only")
+    T.eq(p.kind, "mob")
+    T.eq(stub.Text(p.items[1].title), "Krol'dok Brute", "its name from the unit")
+    T.eq(GameTooltipTextLeft1:GetAlpha(), 0, "the game's hidden lines out of sight")
+    -- In a fight: the pill, as anywhere.
+    stub.EnterCombat()
+    hoverRestricted("Krol'dok Brute", "Level 41 (Elite)")
+    pill = _G.DaylightUITooltipPill
+    T.truthy(pill and pill:IsShown(), "the pill in a fight")
+    T.eq(stub.Text(pill.name), "Krol'dok Brute", "with the mob's name")
+    T.truthy(pill.bar:IsShown(), "and its health")
+    stub.LeaveCombat()
+    stub.SetRestriction("Map", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a player in a restricted dungeon gets their whole card out of a fight", function()
+    local _, Panel = login("rich")
+    stub.units.mouseover = { name = "Saki", class = "MAGE", isPlayer = true, level = 44, health = 50, maxHealth = 100 }
+    stub.SetRestriction("Map", true)
+    local tip = hoverRestricted("Saki", "Level 44 Human (Player)")
+    local pill = _G.DaylightUITooltipPill
+    T.truthy(not pill or not pill:IsShown(), "no pill out of a fight")
+    local p = Panel.Get(tip)
+    T.truthy(p and p:IsShown() and not p.chrome, "the whole card")
+    T.eq(p.kind, "unit")
+    T.truthy(stub.Text(p.items[1].title):find("Saki", 1, true), "their name")
+    stub.SetRestriction("Map", false)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The tooltip's own Show is hooked once Rich is in use: a refill of a tooltip
 -- already showing builds its card at the Show, not a frame later.
 T.test("rich tooltip: a refill's Show builds the card at once, before any update", function()
@@ -1621,7 +1761,7 @@ T.test("rich tooltip: a mob's card, as the board lays it out", function()
     T.rgb({ head.right:GetTextColor() }, DaylightUI.Style.INK.WARN, "yellow for you: WARN")
     T.eq(tagWords(head), "HOSTILE,BEAST,SKINNABLE")
     T.rgb({ head.tags[1].text:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "hostile in its color")
-    T.rgb({ head.tags[2].text:GetTextColor() }, DaylightUI.Style.INK.LABEL, "what it is, tan")
+    T.rgb({ head.tags[2].text:GetTextColor() }, stub.tooltip.RichWorld.KIND_COLORS[1], "a beast in its color")
     T.rgb({ head.tags[3].text:GetTextColor() }, DaylightUI.Style.INK.WARN, "skinnable in the game's skill-up color")
     local bars = itemsOf(p, "bar")
     T.eq(bars[1].h, 7, "health first, 7 px")
@@ -2249,5 +2389,50 @@ T.test("other addons: a plugin paints the card once it's laid out, a claimed lig
     local n = #calls
     update()
     T.eq(#calls, n, "not on every frame")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: every header tag in a color of what it says, its outline tinted to match", function()
+    local _, Panel = login("rich")
+    items()
+    local RI = stub.tooltip.RichItems
+    _G.ITEM_SOULBOUND, _G.ITEM_BIND_ON_EQUIP, _G.ITEM_UNIQUE = "Soulbound", "Binds when equipped", "Unique"
+    stub.items.plans = { id = 12682, quality = 2, kind = "Recipe", sub = "Blacksmithing", icon = 134939,
+        class = 9, subClass = 4 }
+    fillItem(GameTooltip, "plans", { { "Plans: Shining Mithril Gauntlets", nil, { 0.12, 1, 0 } }, "Soulbound",
+        "Unique (5)" })
+    local head = Panel.Get(GameTooltip).items[1]
+    local function tag(i) return stub.Text(head.tags[i].text), { head.tags[i].text:GetTextColor() } end
+    local word, color = tag(1)
+    T.eq(word, "RECIPE")
+    T.rgb(color, RI.CLASS_COLORS[9], "a recipe in the recipe color")
+    word, color = tag(2)
+    T.eq(word, "BLACKSMITHING", "its profession a tag of its own")
+    T.rgb(color, RI.RECIPE_COLORS[4], "in the profession's color")
+    word, color = tag(3)
+    T.eq(word, "SOULBOUND")
+    T.rgb(color, RI.BIND_YOURS)
+    word, color = tag(4)
+    T.eq(word, "UNIQUE (5)", "a Unique line with a count is a tag too")
+    T.rgb(color, DaylightUI.Style.INK.MONEY, "any Unique line one of a kind")
+    -- Armor: the slot in the worn-armor color, binds-on-equip free to trade.
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when equipped", { "Legs", "Plate" } })
+    head = Panel.Get(GameTooltip).items[1]
+    T.rgb({ head.tags[2].text:GetTextColor() }, RI.SLOT_ARMOR, "a worn slot")
+    T.rgb({ head.tags[4].text:GetTextColor() }, RI.BIND_TRADE, "binds when equipped: still free to trade")
+    -- Plain trade goods: one tag in its class color.
+    fillItem(GameTooltip, "cloth", { "Linen Cloth" })
+    head = Panel.Get(GameTooltip).items[1]
+    T.eq(stub.Text(head.tags[1].text), "TRADESKILL · CLOTH")
+    T.rgb({ head.tags[1].text:GetTextColor() }, RI.CLASS_COLORS[7])
+    -- A creature of a kind with no color of its own reads soft white, never tan.
+    boar({ creatureType = "Not specified", creatureTypeID = 10 })
+    head = Panel.Get(hoverBoar()).items[1]
+    T.rgb({ head.tags[2].text:GetTextColor() }, DaylightUI.Style.INK.TEXT)
+    -- A player's race in their faction's color.
+    player({ faction = "Horde" })
+    head = Panel.Get(hover("mouseover", { "Aelindra", "Level 60 Night Elf Mage" }) or GameTooltip).items[1]
+    T.eq(stub.Text(head.tags[3].text), "NIGHT ELF")
+    T.rgb({ head.tags[3].text:GetTextColor() }, stub.tooltip.RichPlayers.FACTION_COLORS.Horde)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
