@@ -18,6 +18,7 @@ local World = {}
 ns.RichWorld = World
 
 World.ICON = 36
+World.TITLE = 16 -- a creature's name (the title size is 18)
 World.ICON_GAP = 10
 World.PAD_TOP = 16
 World.TAG_GAP = 5       -- between the title and its tags
@@ -297,7 +298,7 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     local tags = World.Tags(unit, r)
     World.DropShown(r, tags)
     Panel.Header(p, { portrait = unit, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = pair,
-        title = r.title, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
+        title = r.title, titleSize = World.TITLE, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
     Panel.Gap(p, World.BEFORE_BAR)
     Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })

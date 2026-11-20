@@ -3979,9 +3979,15 @@ function W.Tag(parent, font)
         if s then Style.SetShellColors(s, edge or Style.BAND_LIT) end
         t.FitWidth()
     end
-    function t.FitWidth()
+    -- max: the most room it may take; a longer word is cut there with "...".
+    function t.FitWidth(max)
+        t.text:SetWidth(0)
         local w = t.text:GetStringWidth()
         if type(w) ~= "number" or DUI.IsSecret(w) then w = 60 end
+        if max and w > max - 2 * W.TAG_PAD then
+            w = math.max(1, max - 2 * W.TAG_PAD)
+            t.text:SetWidth(w)
+        end
         t:SetWidth(math.floor(w + 2 * W.TAG_PAD + 0.5))
         return t:GetWidth()
     end
@@ -4074,7 +4080,25 @@ function W.Tile(parent, font)
     t.caption:SetPoint("BOTTOMLEFT", t, "BOTTOMLEFT", W.TILE_PAD, 6)
     t.caption:SetPoint("BOTTOMRIGHT", t, "BOTTOMRIGHT", -W.TILE_PAD, 6)
     t.caption:SetWordWrap(false)
+    -- What the words need across: read from the shown texts it comes back cut to
+    -- the tile's width, so each has an unseen twin with no anchors to its sides.
+    t.valueRuler = Style.Text(t, SIZE.body, "LEFT", font)
+    t.valueRuler:SetPoint("TOPLEFT", t, "TOPLEFT", 0, 0)
+    t.valueRuler:SetWordWrap(false)
+    t.valueRuler:SetAlpha(0)
+    t.captionRuler = Style.Text(t, SIZE.tiny, "LEFT", font)
+    t.captionRuler:SetPoint("TOPLEFT", t, "TOPLEFT", 0, 0)
+    t.captionRuler:SetWordWrap(false)
+    t.captionRuler:SetAlpha(0)
+    function t.Need()
+        local a, b = t.valueRuler:GetStringWidth(), t.captionRuler:GetStringWidth()
+        if type(a) ~= "number" or DUI.IsSecret(a) then a = 0 end
+        if type(b) ~= "number" or DUI.IsSecret(b) then b = 0 end
+        return math.max(a, b) + 2 * W.TILE_PAD
+    end
     function t.Set(value, caption, color)
+        t.valueRuler:SetText(value or "")
+        t.captionRuler:SetText(Style.Upper(caption or ""))
         t.value:SetText(value or "")
         local c = color or Style.INK.VALUE
         t.value:SetTextColor(c[1], c[2], c[3])

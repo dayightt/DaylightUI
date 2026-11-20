@@ -13,8 +13,8 @@ local isSecret = DUI.IsSecret
 local Pill = {}
 ns.RichPill = Pill
 
-Pill.W, Pill.CUT, Pill.BAR_H = 200, 8, 4
-Pill.PAD_X, Pill.PAD_TOP, Pill.PAD_BOTTOM, Pill.BAR_GAP = 12, 7, 9, 5
+Pill.W, Pill.CUT, Pill.BAR_H = 224, 8, 4
+Pill.PAD_X, Pill.PAD_TOP, Pill.PAD_BOTTOM, Pill.BAR_GAP = 16, 11, 13, 7
 Pill.CURSOR_X, Pill.CURSOR_Y = 22, -20 -- its top-left from the cursor's tip, clear of the arrow
 
 local function plain(v)
