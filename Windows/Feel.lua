@@ -81,9 +81,18 @@ end
 
 -- Start or replace one kind of move on a frame. With motion off it jumps
 -- straight to the end.
+local function stop(frame, kind)
+    local kinds = jobs[frame]
+    if not kinds then return end
+    kinds[kind] = nil
+    if next(kinds) == nil then jobs[frame] = nil end
+end
+
+-- An empty job list left behind would keep the driver ticking forever, so a
+-- snapped move clears its slot through stop().
 local function start(frame, kind, from, to, dur, ease, apply, done, delay)
     if not (DUI.Motion and DUI.Motion.On()) or dur <= 0 then
-        if jobs[frame] then jobs[frame][kind] = nil end
+        stop(frame, kind)
         run(apply, to)
         run(done)
         return
@@ -93,13 +102,6 @@ local function start(frame, kind, from, to, dur, ease, apply, done, delay)
     if (delay or 0) <= 0 then run(apply, from) end
     driver = driver or CreateFrame("Frame")
     driver:SetScript("OnUpdate", tick)
-end
-
-local function stop(frame, kind)
-    local kinds = jobs[frame]
-    if not kinds then return end
-    kinds[kind] = nil
-    if next(kinds) == nil then jobs[frame] = nil end
 end
 
 function Feel.Moving(frame) return jobs[frame] ~= nil end
@@ -197,6 +199,16 @@ function Feel.Glide(frame, dx, dy, dur)
         now.dx, now.dy = x0 * p, y0 * p
         place(frame, now)
     end)
+end
+
+-- Stops a glide where it is and returns how far from rest it was (dx, dy).
+-- The frame stays drawn there; its code places it next, from its own rest.
+function Feel.Stop(frame)
+    local at = jobs[frame] and jobs[frame].glide and frame.__feelAt
+    stop(frame, "glide")
+    if not at then return 0, 0 end
+    if not jobs[frame] then frame.__feelAt = nil end
+    return at.dx, at.dy
 end
 
 -- ---------------------------------------------------------------------

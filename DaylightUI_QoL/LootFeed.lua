@@ -533,12 +533,18 @@ local function place(row, out, y)
     row:SetPoint(spot, holder, spot, row.flipped and out or -out, row.grewDown and -y or y)
 end
 
+-- Rows move by their anchor (Feel), never a Translation animation: a money
+-- line's coins are inline textures in its text, and those stay put until a
+-- Translation ends.
 local function slideIn(row)
-    Motion.SlideIn(row, flipped() and -Feed.SLIDE or Feed.SLIDE, 0, Motion.NORMAL)
+    row.fadeKey = row.fadeKey or {}
+    row:SetAlpha(0)
+    Motion.Tween(row.fadeKey, 0, 1, Motion.NORMAL, function(a) row:SetAlpha(a) end)
+    DUI.Win.Feel.Glide(row, flipped() and -Feed.SLIDE or Feed.SLIDE, 0, Motion.NORMAL)
 end
 
 -- Every row in its place, newest at the bottom; a row that moved glides
--- from where it was.
+-- from where it is drawn now.
 local function layout()
     local i = 0
     for _, row in ipairs(rows) do
@@ -548,8 +554,11 @@ local function layout()
             if row.y ~= y then
                 local was = row.y
                 row.y = y
+                local dx, dy = DUI.Win.Feel.Stop(row)
                 place(row, 0, y)
-                if was then Motion.Glide(row, 0, growDown() and (y - was) or (was - y), Motion.NORMAL) end
+                if was then
+                    DUI.Win.Feel.Glide(row, dx, dy + (growDown() and (y - was) or (was - y)), Motion.NORMAL)
+                end
             end
         end
     end
@@ -559,7 +568,8 @@ local function release(row)
     for i, r in ipairs(rows) do
         if r == row then table.remove(rows, i) break end
     end
-    Motion.Settle(row)
+    DUI.Win.Feel.Stop(row)
+    if row.fadeKey then Motion.Tween(row.fadeKey, 0, 0, 0) end
     if row.flashKey then Motion.Tween(row.flashKey, 0, 0, 0) end
     if row.rollKey then Motion.Tween(row.rollKey, 0, 0, 0) end
     Motion.Tween(row.burst, 0, 0, 0)
@@ -572,13 +582,19 @@ local function release(row)
 end
 
 -- Fades out drifting away from where it came in, then the rows above glide down.
+-- One still gliding or fading in leaves from where it is drawn.
 local function leave(row, quick)
     if row.leaving then return end
     row.leaving = true
     local y = row.y or 0
+    local dx, dy = DUI.Win.Feel.Stop(row)
+    if row.fadeKey then Motion.Tween(row.fadeKey, 0, 0, 0) end
+    local alpha = row:GetAlpha()
+    local out = flipped() and dx or -dx
+    local up = growDown() and -dy or dy
     Motion.Tween(row, 0, 1, quick and Motion.FAST or Motion.CLOSE, function(p)
-        row:SetAlpha(1 - p)
-        place(row, Feed.OUT * p, y)
+        row:SetAlpha(alpha * (1 - p))
+        place(row, Feed.OUT * p + out * (1 - p), y + up * (1 - p))
     end, function() release(row) end)
 end
 
