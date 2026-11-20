@@ -63,6 +63,7 @@ Items.ARMOR_COLORS = {
 -- weapon's type apart from an armor's, the slot by where it goes.
 Items.WEAPON_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Weapon or 2
 Items.RECIPE_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Recipe or 9
+Items.QUEST_CLASS = Enum and Enum.ItemClass and Enum.ItemClass.Questitem or 12
 Items.WEAPON_COLOR = { 1.00, 0.62, 0.50 }
 Items.CLASS_COLORS = {
     [0] = { 0.58, 0.90, 0.58 },  -- consumable, green
@@ -142,6 +143,13 @@ function Items.BadgeColor(t)
     local unique = ITEM_UNIQUE or "Unique"
     if t:sub(1, #unique) == unique then return Style.INK.MONEY end
     return Items.BIND_YOURS
+end
+
+function Items.HasBadge(info, word)
+    for _, badge in ipairs(info.badges or {}) do
+        if badge == word then return true end
+    end
+    return false
 end
 
 -- A colored tag's outline: its color, half toward the plain outline so the
@@ -527,7 +535,8 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
             tags[#tags + 1] = Items.Tag(word, info.cantUse and Style.INK.BAD
                 or info.armor or info.subColor or info.kindColor)
         end
-    elseif info.kind then
+    elseif info.kind and not (info.class == Items.QUEST_CLASS and Items.HasBadge(info, ITEM_BIND_QUEST or "Quest Item")) then
+        -- A quest item's "Quest Item" tag already says what it is.
         if info.sub and info.sub ~= info.kind and info.subColor then
             -- "Recipe" and "Blacksmithing" apart, the profession in its color.
             tags[#tags + 1] = Items.Tag(info.kind, info.kindColor)

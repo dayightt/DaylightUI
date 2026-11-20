@@ -711,6 +711,7 @@ local function items()
         sword = { id = 19003, quality = 3, kind = "Weapon", sub = "Swords", equip = "INVTYPE_WEAPON", icon = 135002,
             class = 2, level = 60 },
         cloth = { id = 2589, quality = 1, kind = "Tradeskill", sub = "Cloth", icon = 132889, class = 7 },
+        mahi = { id = 9001, quality = 1, kind = "Quest", sub = "Quest", icon = 133887, class = 12 },
     })
 end
 
@@ -878,6 +879,18 @@ T.test("rich tooltip: a weapon's damage and speed as rows, a plain item's card",
     T.eq(stub.Text(head.tags[1].text), "TRADESKILL · CLOTH")
     T.falsy(p.lightFade, "the accent's light, not a quality")
     T.eq(#kinds(p, "hints"), 0, "nothing to compare or try on")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a quest item says Quest Item once, not its type as well", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "mahi", { "Misty Reed Mahi Mahi", "Quest Item", "Unique" })
+    update()
+    local head = Panel.Get(GameTooltip).items[1]
+    local words = {}
+    for i, tag in ipairs(head.tags) do words[i] = stub.Text(tag.text) end
+    T.eq(table.concat(words, ", "), "QUEST ITEM, UNIQUE")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
