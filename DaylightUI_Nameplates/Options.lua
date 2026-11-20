@@ -232,7 +232,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "factionIcon", label = "Other faction's crest",
               desc = "An Alliance or Horde crest by the names of players of the other faction, on enemy and friendly plates alike." },
             { type = "toggle", key = "pvpIcon", label = "PvP flag crest",
-              desc = "The same Alliance or Horde crest by the name of anyone flagged for PvP, players and NPCs alike, so you can tell before you attack that it would flag you." },
+              desc = "The same Alliance or Horde crest by the name of anyone you could attack who's flagged for PvP, players and NPCs alike, so you can tell before you attack that it would flag you." },
         }, spotItems("Name", { spot = "namePos", x = "nameX", y = "nameY" })) },
         { label = "Health text", items = with({
             { type = "toggle", key = "percent", label = "Health text",

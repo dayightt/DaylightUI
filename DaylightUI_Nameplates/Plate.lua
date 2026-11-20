@@ -145,7 +145,8 @@ end
 -- soft friend target, used by the interact key and a controller),
 -- even when that kind of plate is switched off in its options. A friendly unit
 -- whose plates the player turned off then shows no Daylight UI plate, as if it had
--- none. Objects still get one, since this is the only way they ever get a plate.
+-- none. An object (a mailbox, a herb) only ever gets a plate this way, for its
+-- interact icon: its name shows only while friendly NPC plates are on.
 Plate.SOFT_UNITS = { "softinteract", "softfriend" }
 Plate.FRIENDLY_SHOW = { player = "nameplateShowFriendlyPlayers", npc = "nameplateShowFriendlyNpcs" }
 
@@ -157,7 +158,9 @@ end
 
 function Plate.SoftOnly(p)
     local unit = p.unit
-    if not unit or not p.friendly or p.object then return false end
+    if not unit then return false end
+    if p.object then return cvarOff(Plate.FRIENDLY_SHOW.npc) end
+    if not p.friendly then return false end
     local kind = plain(UnitIsPlayer, unit) == true and "player" or "npc"
     if not cvarOff(Plate.FRIENDLY_SHOW[kind]) then return false end
     for _, soft in ipairs(Plate.SOFT_UNITS) do
@@ -1758,7 +1761,9 @@ function Plate.UpdateNameColor(p)
     Plate.UpdateClassText(p)
     Plate.ShowGroupMark(p, (c.partyMark or "none") ~= "none" and Plate.InGroup(p))
     Plate.ShowClassIcon(p, Plate.ClassIconToken(p))
-    Plate.ShowFaction(p, (c.factionIcon == true and Plate.OtherFaction(u)) or (c.pvpIcon == true and Plate.PvPFaction(u)))
+    -- The PvP crest warns that attacking would flag you, so only on a plate you can attack.
+    Plate.ShowFaction(p, (c.factionIcon == true and Plate.OtherFaction(u))
+        or (c.pvpIcon == true and not p.friendly and Plate.PvPFaction(u)))
     Plate.Painted(p)
 end
 
