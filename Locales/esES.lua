@@ -1187,7 +1187,7 @@ L["Controller mode is on. Turn it off (Options > Controller), press Finish, then
 L["Conversation width"] = "Ancho de la conversación"
 L["Convert to raid"] = "Convertir en banda"
 L["Cooking"] = "Cocina"
-L["Cooldown"] = "Tiempo de reutilización"
+L["Cooldown"] = "Reutilización"
 L["Cooldown Manager"] = "Gestor de reutilización"
 L["Cooldown Manager icons"] = "Iconos del gestor de reutilización"
 L["Cooldown and buff"] = "Tiempo de reutilización y beneficio"
