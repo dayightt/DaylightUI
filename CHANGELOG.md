@@ -18,7 +18,7 @@ Portraits set right into their frames, rich tooltip cards, a brand new Auction H
 ## Changed
 - Character: The character window, its item icons and stat rows are bigger and easier to read
 - Unit frames: The focus cast bar hangs under its frame and slides out
-- Tooltip: Tooltips fade out softly, their text is a little bigger, and NPC quest lists mark dungeon and elite quests with a short D or E
+- Tooltip: Tooltips fade out softly, and NPC quest lists mark dungeon and elite quests with a short D or E
 - Chat: Hovering an item link in chat shows just that item. Hold Shift to compare it with your gear, or turn the compare back on in Chat options
 - Cooldown Manager: Unlock mode's bar has a Cooldown Manager button that opens the cooldown layout editor
 - NPC window: Quest pages show the quest's level next to its name

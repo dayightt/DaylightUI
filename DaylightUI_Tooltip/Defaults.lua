@@ -30,9 +30,9 @@ ns.DEFAULTS = {
     cursorX = 12, -- offset of the cursor tooltip's bottom-left corner from the cursor
     cursorY = 12,
     scale = 1,
-    textSize = 13,   -- every line
-    titleSize = 15,  -- a name, an item's name, a spell's name
-    smallSize = 12,  -- sub lines, the quote, small facts
+    textSize = 12,   -- every line
+    titleSize = 14,  -- a name, an item's name, a spell's name
+    smallSize = 11,  -- sub lines, the quote, small facts
     bgAlpha = 0.92,
     -- Their own border and background, on by default unlike the windows:
     -- tooltips stay a little more solid than the shared window opacity, as

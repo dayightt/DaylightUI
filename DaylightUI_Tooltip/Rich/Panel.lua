@@ -54,11 +54,13 @@ local function font() return ns.MEDIA and ns.MEDIA.font end
 -- wide) and drawn at Panel.CARD, so its rows sit near a tooltip's usual text
 -- size (12) and its title near a tooltip's heading: at 1 it read far bigger
 -- than every other tooltip. The tooltip text size setting (12 by default)
--- scales the whole card with it.
+-- scales the whole card with it, and the card reads Panel.LIFT steps above
+-- that size, as its rows sit looser than a plain tooltip's.
 Panel.CARD = 0.85
+Panel.LIFT = 1
 function Panel.Scale()
     local cfg = ns.Tooltip.Config()
-    return Panel.CARD * (cfg and tonumber(cfg.textSize) or 12) / 12
+    return Panel.CARD * ((cfg and tonumber(cfg.textSize) or 12) + Panel.LIFT) / 12
 end
 
 -- Which part of the tooltip a card size is, for that part's size and font
