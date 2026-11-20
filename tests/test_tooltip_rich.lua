@@ -88,8 +88,13 @@ local function world()
     }
 end
 
+-- Starts from a saved Simple look (a new profile starts in Rich), so a test
+-- that wants Rich switches to it the way a player would.
 local function login(style)
-    stub.Load({ tooltip = true, before = world })
+    stub.Load({ tooltip = true, before = function()
+        world()
+        _G.DaylightUIDB = { modules = { Tooltip = { style = "simple" } } }
+    end })
     if style then
         DaylightUI:Set("Tooltip", "style", style)
         stub.RunTimers()
@@ -116,7 +121,14 @@ local function update() GameTooltip:GetScript("OnUpdate")(GameTooltip, 0.02) end
 
 local function used(p, kind) return p.used[kind] end
 
-T.test("rich tooltip: off by default, the skinned look untouched", function()
+T.test("rich tooltip: a new profile starts in Rich, one made before keeps Simple", function()
+    stub.Load({ tooltip = true, before = world })
+    T.eq(DaylightUI:Get("Tooltip", "style"), "rich", "new profile")
+    login()
+    T.eq(DaylightUI:Get("Tooltip", "style"), "simple", "saved profile")
+end)
+
+T.test("rich tooltip: Simple leaves the skinned look untouched", function()
     local Tip, Panel = login()
     fill(Enum.TooltipDataType.Spell, { "Frostbolt", "Hurls a bolt of frost." })
     update()
@@ -1887,6 +1899,24 @@ T.test("rich tooltip: an item's binding and Unique tags wrap onto a second row",
     T.truthy(head.tags[5].row > 1, "the last ones on another row")
     local room = 290 - 2 * 16 - 44 - 12
     for _, tag in ipairs(head.tags) do T.truthy(tag.at + tag:GetWidth() <= room + 0.5, "never past the edge") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: "Scalping Tomahawk of H..." lost the words that say what the
+-- item is for. A name too long for the card takes a second line.
+T.test("rich tooltip: a long item name wraps instead of being cut", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Scalping Tomahawk of Healing and Everlasting Fortitude", nil, EPIC },
+        "Binds when equipped", "742 Armor" })
+    local head = Panel.Get(GameTooltip).items[1]
+    local title = head.title
+    T.truthy(title:CanWordWrap(), "wraps")
+    T.eq(title:GetMaxLines(), 2, "at most two lines")
+    T.truthy(head.tags[1]:GetHeight() > 0)
+    local _, _, _, _, top = head.tags[1]:GetPoint(1)
+    local _, _, _, _, ttop = title:GetPoint(1)
+    T.truthy(-top - -ttop >= 2 * title.size, "the tags sit under both lines")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

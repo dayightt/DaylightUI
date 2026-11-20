@@ -28,7 +28,6 @@ Panel.RULE_GAP = 10    -- above and below a rule
 Panel.CUT = 12         -- the card's bottom-right corner
 Panel.ICON_CUT = 8
 Panel.LIGHT_H = 2      -- the colored line along the top
-Panel.BORDER = 4       -- outline, warm band, inner line (screen pixels)
 Panel.MIN_W = 160
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
@@ -181,7 +180,7 @@ function Panel.For(tip)
     p:EnableMouse(false)
     p:Hide()
     p.tip = tip
-    p.shell = Style.Shell(p, { borderPx = Panel.BORDER, cornerPx = 0, noBevel = true, bgAlpha = ns.Tooltip.BackAlpha("rich") })
+    p.shell = Style.Shell(p, { borderPx = ns.Tooltip.BorderPx, cornerPx = 0, noBevel = true, bgAlpha = ns.Tooltip.BackAlpha("rich") })
     Style.CutShell(p, Panel.CUT)
     -- The top light: two pieces, so a quality light can fade out along its
     -- right part (one gradient has only two ends).
@@ -394,6 +393,7 @@ local function text(p, s, c, wrap)
     fs.size = z
     fs:SetWidth(0)
     fs:SetWordWrap(wrap and true or false)
+    fs:SetMaxLines(0)
     -- A wrapped sentence's lines ran into each other without it.
     fs:SetSpacing(wrap and Panel.LINE_SPACING or 0)
     fs:SetJustifyH("LEFT")
@@ -677,7 +677,21 @@ function place.header(p, item, y, inner)
         x = x + s + (spec.iconGap or 12)
         h = s
     end
-    local th = lineHeight(item.title.size, item.title.slot)
+    local one = lineHeight(item.title.size, item.title.slot)
+    local th = one
+    -- Never past the card's edge (or the level beside it). A long name wraps
+    -- onto a second line rather than losing its end ("of Healing" is the point).
+    local room = inner + padX(p) - x - (item.right and (12 + widthOf(item.right)) or 0)
+    if isSecret(item.spec.title) then
+        -- A secret name can't be measured: it gets the whole room, cut there.
+        item.title:SetWidth(room)
+    elseif widthOf(item.title) > room + 1 then
+        item.title:SetWidth(room)
+        item.title:SetWordWrap(true)
+        item.title:SetMaxLines(2)
+        item.title:SetSpacing(Panel.LINE_SPACING)
+        th = 2 * one + Panel.LINE_SPACING
+    end
     local col = th
     if item.sub then col = col + 2 + lineHeight(item.sub.size, item.sub.slot) end
     local tagGap = spec.tagGap or 5
@@ -699,13 +713,9 @@ function place.header(p, item, y, inner)
     -- The words sit in the middle of the icon's height when shorter.
     local top = y + math.max(0, (h - col) / 2)
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
-    -- Never past the card's edge (or the level beside it): cut short with "...".
-    local room = inner + padX(p) - x - (item.right and (12 + widthOf(item.right)) or 0)
-    -- A secret name can't be measured: it gets the whole room, cut there.
-    if isSecret(item.spec.title) or widthOf(item.title) > room + 1 then item.title:SetWidth(room) end
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
-        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + th - lineHeight(item.right.size, item.right.slot)))
+        item.right:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -(top + one - lineHeight(item.right.size, item.right.slot)))
     end
     local ty = top + th
     if item.sub then
