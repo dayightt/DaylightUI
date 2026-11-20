@@ -14,7 +14,7 @@ local Style = DUI.Style
 local Slots = {}
 ns.Slots = Slots
 
-Slots.ICON = 36
+Slots.ICON = 48
 Slots.AMMO = 22           -- ammo slot size, small as in the game's window
 Slots.AMMO_GAP = 10       -- ranged to ammo icon, clears both outlines with room to spare
 Slots.EDGE = 3            -- quality outline width
@@ -112,8 +112,9 @@ function Slots.Edge(icon, px)
     px = px or Slots.EDGE
     local parent = icon:GetObjectType() == "Texture" and icon:GetParent() or icon
     local f = CreateFrame("Frame", nil, parent)
-    f:SetPoint("TOPLEFT", icon, "TOPLEFT", -px, px)
-    f:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", px, -px)
+    local out = DUI.Pixel.Snap(f, px)   -- the outline sits a whole number of screen pixels out, so no side is thinner
+    f:SetPoint("TOPLEFT", icon, "TOPLEFT", -out, out)
+    f:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", out, -out)
     local o = setmetatable({ frame = f }, Edge)
     o.shell = Style.Shell(f, { borderPx = px, noBevel = true, noBackground = true })
     o:SetVertexColor(Slots.EMPTY_EDGE[1], Slots.EMPTY_EDGE[2], Slots.EMPTY_EDGE[3])
@@ -128,6 +129,8 @@ function Slots.Make(parent, key, side, size, into)
     h.key, h.side, h.size = key, side, size or Slots.ICON
     h.icon = CreateFrame("Frame", nil, h)
     h.icon:SetSize(h.size, h.size)
+    h.px = DUI.Pixel.Snap(h.icon, h.size)   -- a whole number of screen pixels, so the outline is the same on every side
+    h.icon:SetSize(h.px, h.px)
     h.glow = band(h.icon, -2, Slots.EDGE, Slots.EDGE + 3, Slots.GLOW)
     h.glow:Hide()
     h.ring = band(h.icon, -1, Slots.EDGE, Slots.EDGE + 1, Slots.RING)
@@ -258,7 +261,7 @@ end
 function Slots.Layout(h, width, names, lead)
     lead = lead or 0
     local gap = Slots.GAP + lead
-    h:SetSize(width, h.size)
+    h:SetSize(width, h.px or h.size)
     h.gap = gap
     h.icon:ClearAllPoints()
     if h.side == "right" then
@@ -267,7 +270,7 @@ function Slots.Layout(h, width, names, lead)
         h.icon:SetPoint("LEFT", h, "LEFT", 0, 0)
     end
     stack(h, h.three == true)
-    local textW = math.max(0, width - h.size - gap)
+    local textW = math.max(0, width - (h.px or h.size) - gap)
     h.name:SetWidth(textW)
     h.line:SetWidth(textW)
     h.enchant:SetWidth(textW)

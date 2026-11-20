@@ -14,16 +14,16 @@ ns.CharacterPage = CharacterPage
 
 CharacterPage.EDGE = 16
 CharacterPage.TOP = 12          -- under the header
-CharacterPage.ROW = 54          -- slot to slot
+CharacterPage.ROW = 58          -- slot to slot
 CharacterPage.COL = 200         -- a slot column with names (snug to the model: the names sit close in)
 CharacterPage.GAP = 8
 CharacterPage.WEAPON_W = 190    -- a weapon slot with names (the row sits centered)
 CharacterPage.ICON_GAP = 12     -- icons only: icon column to model
-CharacterPage.STATS_W = 250         -- wide enough for most stat names beside their values in the longer languages
+CharacterPage.STATS_W = 280         -- wide enough for most stat names beside their values in the longer languages
 CharacterPage.STATS_PAD = 10
 CharacterPage.FOOTER = 36
 CharacterPage.FOOT_LIFT = 8     -- the footer up off the window's bottom edge, like the other windows' footers
-CharacterPage.STAT_ROW = 20        -- a stat's least height; a name that wraps makes its row taller
+CharacterPage.STAT_ROW = 24        -- a stat's least height; a name that wraps makes its row taller
 CharacterPage.STAT_PAD = 3      -- above and under a name that wraps
 CharacterPage.STAT_GAP = 10     -- between a stat's name and its value
 CharacterPage.STAT_SECRET_W = 56  -- the room kept for a value that can't be measured
@@ -240,7 +240,7 @@ function CharacterPage.BuildStats(page, groups)
     pane.content = CreateFrame("Frame", nil, pane.scroll)
     pane.content:SetSize(CharacterPage.STATS_W - 2 * P, 1)
     pane.scroll:SetScrollChild(pane.content)
-    pane.bar = DUI.Widgets.Scroll(pane.scroll, { x = (P - DUI.Widgets.SCROLL.width) / 2, step = CharacterPage.WHEEL })
+    pane.bar = DUI.Widgets.Scroll(pane.scroll, { x = (P - DUI.Widgets.SCROLL.width) / 2, step = CharacterPage.WHEEL, whole = true })
     pane.groups = {}
     for _, g in ipairs(pane.list) do pane.groups[g] = { head = groupHead(pane.content, g), rows = {} } end
     return pane

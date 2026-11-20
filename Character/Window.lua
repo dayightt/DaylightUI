@@ -17,7 +17,7 @@ ns.Window = Window
 Window.NAME = "DaylightUICharacter"
 -- Header metrics, from Win.Header.
 Window.HEADER = DUI.Win.HEADER
-Window.W, Window.W_ICONS, Window.H = 960, 740, 540 + Window.HEADER
+Window.W, Window.W_ICONS, Window.H = 1000, 780, 580 + Window.HEADER
 Window.EDGE = DUI.Win.EDGE
 Window.TAB_MIN = 30
 Window.WHITE = "Interface\\Buttons\\WHITE8X8"
