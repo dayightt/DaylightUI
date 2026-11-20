@@ -1257,8 +1257,10 @@ function UF.PlaceTileName(f)
     local top = f.tallTile and -3 or 0
     local a, b = f.tallTile and "TOPLEFT" or "LEFT", f.tallTile and "TOPRIGHT" or "RIGHT"
     f.nameText:ClearAllPoints()
-    f.nameText:SetPoint(a, f.health, a, leftPad + t.x, top + t.y)
-    f.nameText:SetPoint(b, f.health, b, -rightPad + t.x, top + t.y)
+    -- nameLift raises the name to make room under it (a raid pet's owner line).
+    local y = top + t.y + (f.nameLift or 0)
+    f.nameText:SetPoint(a, f.health, a, leftPad + t.x, y)
+    f.nameText:SetPoint(b, f.health, b, -rightPad + t.x, y)
     f.nameText:SetJustifyH(t.justify)
 end
 

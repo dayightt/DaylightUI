@@ -67,6 +67,14 @@ function RP.OwnerOf(unit)
     if kind == "raid" or kind == "party" then return kind .. n end
 end
 
+-- Raises the pet's name by dy so it and the owner line sit centered together
+-- inside the tile. The tile's name placement keeps the lift (UF.PlaceTileName).
+local function liftName(b, dy)
+    if b.nameLift == dy or not b.tileName then return end
+    b.nameLift = dy
+    UF.PlaceTileName(b)
+end
+
 -- The owner line under a pet tile's name: <Owner>, from the owner's unit (a
 -- sample's from its sample), or <Unknown> when the owner can't be found. The
 -- name can be secret, so it only goes to SetFormattedText.
@@ -82,7 +90,9 @@ function RP.PaintOwner(b)
     end
     if type(name) == "nil" then name = DUI.L["Unknown"] end
     fs:SetFormattedText("<%s>", name)
-    fs:Show()
+    local named = b.nameText:IsShown()
+    fs:SetShown(named)
+    liftName(b, named and (RP.OWNER_SIZE + 1) / 2 or 0)
 end
 
 -- Gives a pet tile (real or sample) its owner line, under its name.

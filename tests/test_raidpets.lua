@@ -151,6 +151,20 @@ T.test("raid pets: the owner's name under the pet's, kept current", function()
     T.truthy(b.ownerText and b.ownerText:IsShown(), "shown")
     T.eq(b.ownerText.__text, "<Rexx>")
     T.eq(select(2, b.ownerText:GetPoint(1)), b.nameText, "under the pet's name")
+    -- The name rises half a line, so the pair sits inside the tile.
+    local y = select(5, b.nameText:GetPoint(1))
+    T.eq(y, b.tileName.y + (ns.RaidPets.OWNER_SIZE + 1) / 2, "name lifted")
+    -- A name change re-places the name and keeps the lift.
+    stub.units.raidpet3.name = "Wolfie"; stub.FireEvent("UNIT_NAME_UPDATE", "raidpet3"); stub.RunTimers()
+    T.eq(select(5, b.nameText:GetPoint(1)), y, "kept after a name change")
+    ns.RaidPets.PaintOwner(b)
+    T.eq(select(5, b.nameText:GetPoint(1)), y, "lift applied once")
+    -- Names off: no owner line, and the name's spot is left as laid out.
+    DUI:Set("UnitFrames", "raid.showName", false); stub.RunTimers()
+    T.falsy(b.ownerText:IsShown(), "hidden with the name")
+    T.eq(b.nameLift, 0)
+    DUI:Set("UnitFrames", "raid.showName", true); stub.RunTimers()
+    T.truthy(b.ownerText:IsShown(), "back with the name")
     -- The roster moves someone else onto raid3.
     stub.units.raid3 = { name = "Mio", isPlayer = true, class = "WARLOCK", raid = true }
     stub.FireEvent("GROUP_ROSTER_UPDATE"); stub.RunTimers()

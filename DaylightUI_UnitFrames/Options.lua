@@ -2453,7 +2453,7 @@ local function raidPage(size)
         { type = "toggle", key = "raid.enabled", label = "Show raid frames", desc = "Replaces the game's raid frames while you're in a raid." },
         { type = "toggle", key = "raid.showInParty", label = "Use raid frames in a party",
           desc = "Shows these raid frames in a party too, in place of the party frames.", disabled = off("raid.enabled") },
-        { type = "toggle", key = "raid.showPets", label = "Show pets", since = "1.9.4",
+        { type = "toggle", key = "raid.showPets", label = "Show pets", since = "1.9.5",
           desc = "Hunter and warlock pets get tiles of their own, after the last raid group. They look like the raid tiles and count for every raid size.",
           disabled = off("raid.enabled") },
         growRows(function(f) return ns.Raid.MapKey("raid." .. f, size) end, "Lines", off("raid.enabled"),
