@@ -951,11 +951,11 @@ function BP.Opened(d)
         for _, s in ipairs(d.steps) do if not s.mine then S.step = s; break end end
         S.step = S.step or d.steps[1]
     end
+    -- Start at one, as the game's own window does. A click on a price step
+    -- still takes everything through it in one go.
     if d.commodity and (S.amountOf ~= d or not S.amountSet) then
         S.amountOf, S.amountSet = d, false
-        local firstUp
-        for _, s in ipairs(d.steps or {}) do if buyable(s) > 0 then firstUp = s; break end end
-        S.amount = firstUp and buyable(firstUp) or 1
+        S.amount = 1
     end
     BP.Rebuild(true)
     local i = indexOf(d)

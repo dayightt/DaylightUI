@@ -331,10 +331,9 @@ T.test("ah buy page: a commodity opens its steps, then the game's two clicks buy
     T.truthy(why:find("for the last 10 days", 1, true) or why:find("each of the 10 days", 1, true), why)
     T.truthy(why:find("so 260 would cost about", 1, true), why)
     local buy = page.foot.buttons[1]
-    T.eq(textOf(buy.text), "Buy 60")
+    T.eq(textOf(buy.text), "Buy 1", "starts at one, as the game's window does")
     T.truthy(page.amount:IsShown(), "the amount box")
-    T.eq(page.amount:GetText(), "60")
-    T.truthy(textOf(page.stat):find("60 for 63", 1, true), textOf(page.stat))
+    T.eq(page.amount:GetText(), "1")
     -- a click on a step: up to and through it
     t:Row(3):Click()
     T.eq(textOf(buy.text), "Buy 260")
@@ -356,7 +355,7 @@ T.test("ah buy page: a commodity opens its steps, then the game's two clicks buy
     T.rgb({ page.stat:GetTextColor() }, DaylightUI.Style.INK.GOOD)
     T.eq(row.qty, 540, "the row searched again")
     T.eq(row.unit, 11800, "the 60 at 1g 05s are gone")
-    T.eq(textOf(buy.text), "Buy 200", "the next step's amount")
+    T.eq(textOf(buy.text), "Buy 1", "back to one after a purchase")
     -- picked again: shut
     t:Row(1):Click()
     tween(A, 1)
@@ -374,6 +373,7 @@ T.test("ah buy page: a moved quote is refused and shown again", function()
     AHW.Settle()
     tween(A, 1)
     local buy = page.foot.buttons[1]
+    BP.SetAmount(60)
     buy:Click()
     AHW.Settle()
     AHW.Advance(BP.CONFIRM_WAIT + 0.01)
