@@ -498,6 +498,18 @@ function EditMode.AutoSave(text)
     EditMode.Save(text)
 end
 
+-- For a part whose spot changed by itself while playing (the panel above the
+-- quest tracker grew). Nothing is written or asked then: the layout is written
+-- as the session ends, when the taint a write leaves no longer matters, and the
+-- next login or reload has it in place. Should the game not keep that write,
+-- the next login finds the part out of date and asks once.
+local atExit = false
+function EditMode.SaveAtExit() atExit = true end
+
+DUI.RegisterEvent("PLAYER_LOGOUT", function()
+    if atExit and not written and EditMode.IsActive() and not EditMode.UpToDate() then EditMode.Write() end
+end)
+
 -- Once the game has its layouts: a character not set up yet is asked to
 -- install (Installer.lua), which writes ours and makes it active. Where ours
 -- is in use, it's rewritten when a part asks. A character on another layout

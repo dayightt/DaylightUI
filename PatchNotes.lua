@@ -27,6 +27,8 @@ DUI.PatchNotes = {
         { "Cooldown Manager", "With the game's Tracked Buffs row set to show only in combat, a buff's Hide, glow and sound options went missing from its card and did nothing out of combat. They are back and work in and out of a fight" },
         { "Cooldown Manager", "Sap, Touch of Weakness and other buffs and debuffs learned at a higher rank now show their time. Before, Sap never showed and Touch of Weakness always looked missing" },
         { "Controller", "Clicking, selling or using an item in the bags no longer makes the game block the controller with a \"DaylightUI_Bags has been blocked\" message until a reload" },
+        { "Info panel", "Changing the minimap's size or the data texts no longer asks for a reload each time when the game's quest tracker sits under the info panel" },
+        { "Professions", "Enchanting a piece of gear no longer gets stuck on \"Making 2 of ...\". Gear takes one enchant per click, so the amount box and Enchant all only show for things that stack" },
         { "Auction House", "Searching for a name with a category picked, like One-Handed Axes, now searches only that category instead of the whole Auction House. Click the category again to search everywhere" },
         { "Auction House", "Buying herbs, ore and other stackable goods starts at 1, like the game's own window, instead of every one listed at the lowest price" },
         { "Tooltip", "Quest items no longer say Quest and Quest Item twice over in their tooltip" },

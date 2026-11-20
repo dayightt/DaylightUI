@@ -245,6 +245,70 @@ T.test("tracker: a spot moved by hand just under the panel stays put", function(
     EM.Exists, EM.UpToDate = exists, upToDate
 end)
 
+-- From a player report: with the Quests module off, changing the minimap's size
+-- or the data texts' font asked for a reload each time. The panel growing a
+-- little is nobody's request to move the tracker, so it follows without a
+-- write or a question while playing, and the layout is written on the way out.
+T.test("tracker: the panel growing moves the spot without a reload question; the layout is written at logout", function()
+    local layouts = {}
+    local DUI = stub.Load({ infopanel = true, before = function()
+        world()
+        Enum.EditModeLayoutType = { Preset = 0, Account = 1, Character = 2 }
+        local function tracker() return { system = 12, settings = {}, anchorInfo = { point = "TOPRIGHT", relativeTo = "UIParent", relativePoint = "TOPRIGHT", offsetX = -100, offsetY = -300 } } end
+        _G.EditModePresetLayoutManager = { GetCopyOfPresetLayouts = function()
+            return { { layoutIndex = 1, layoutType = 0, layoutName = "Modern", systems = { tracker() } } }
+        end }
+        layouts.list = { { layoutType = 1, layoutName = "DaylightUI - DPS/Tank", systems = { tracker() } } }
+        layouts.active = 2
+        _G.C_EditMode = {
+            GetLayouts = function() return { layouts = DaylightUI.DB.Copy(layouts.list), activeLayout = layouts.active } end,
+            SaveLayouts = function(info)
+                layouts.list = {}
+                for _, l in ipairs(info.layouts) do if l.layoutType ~= 0 then layouts.list[#layouts.list + 1] = l end end
+                layouts.saves = (layouts.saves or 0) + 1
+            end,
+            SetActiveLayout = function(i) layouts.active = i end,
+        }
+        _G.EditModeManagerFrame = CreateFrame("Frame", "EditModeManagerFrame", UIParent)
+        EditModeManagerFrame.accountSettings = {}
+        EditModeManagerFrame:Hide()
+        DaylightUIDB = { installerSeen = 1e9 }
+    end })
+    local P, Tr = stub.infopanel.Panel, stub.infopanel.Tracker
+    -- The layout already has the tracker under the panel, as after the reload
+    -- that put it there.
+    local a = layouts.list[1].systems[1].anchorInfo
+    a.offsetX = 1900 - Tr.EDGE - UIParent:GetWidth()
+    a.offsetY = 700 - P.GAP - UIParent:GetHeight()
+    local bottom = 700
+    function P.panel:GetRight() return 1900 end
+    function P.panel:GetBottom() return bottom end
+    Tr.Apply(DUI:Get("InfoPanel", "tracker"))
+    stub.RunTimers()
+    T.isnil(stub.Asked(), "in place: nothing to ask")
+    T.isnil(layouts.saves, "and nothing written")
+    T.truthy(DUI.DB.Positions()[Tr.MOVER], "its spot is its own from here")
+    local _, _, _, _, y0 = Tr.anchor:GetPoint(1)
+    -- A bigger data text font: the strip under the map grows a few pixels.
+    bottom = 696
+    Tr.Apply(DUI:Get("InfoPanel", "tracker"))
+    stub.RunTimers()
+    local _, _, _, _, y1 = Tr.anchor:GetPoint(1)
+    T.near(y1, y0 - 4, 0.1, "the spot follows the strip")
+    T.isnil(stub.Asked(), "no reload question for a change nobody asked the tracker for")
+    T.isnil(layouts.saves, "no layout write while playing")
+    bottom = 692
+    Tr.Apply(DUI:Get("InfoPanel", "tracker"))
+    stub.RunTimers()
+    T.isnil(stub.Asked(), "nor for the next one")
+    -- Leaving (a logout or a reload): the layout gets the spot, so it's in place next time.
+    stub.FireEvent("PLAYER_LOGOUT")
+    T.eq(layouts.saves, 1, "written once on the way out")
+    T.near(layouts.list[1].systems[1].anchorInfo.offsetY, 692 - P.GAP - UIParent:GetHeight(), 0.1)
+    T.isnil(stub.Asked(), "and still no question")
+    _G.C_EditMode, _G.EditModeManagerFrame, _G.EditModePresetLayoutManager = nil, nil, nil
+end)
+
 T.test("tracker: the game's tracker keeps its own look (only placed and faded)", function()
     login()
     T.eq(ObjectiveTrackerFrame.Header:GetAlpha(), 1, "All Objectives left alone")

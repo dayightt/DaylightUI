@@ -159,6 +159,7 @@ function Tracker.PlaceAnchor()
         return
     end
     local x, y = cx - Tracker.EDGE, cy
+    local first = anchor.x == nil
     local changed = anchor.x ~= x or anchor.y ~= y
     if changed then
         anchor.x, anchor.y = x, y
@@ -167,8 +168,9 @@ function Tracker.PlaceAnchor()
     end
     if Tracker.Replaced() then return end
     -- The layout gets this spot as plain screen offsets. It's rewritten when
-    -- unlock mode ends after a move or reset, and when the panel moves or
-    -- resizes. A reload applies it.
+    -- unlock mode ends after a move or reset, and a reload applies it. The panel
+    -- moving or resizing later is no request to move the tracker, so that
+    -- spot waits for the way out instead of asking for a reload each time.
     if not EditMode.Exists() then return end
     if Tracker.movedByHand then
         Tracker.movedByHand = false
@@ -179,8 +181,10 @@ function Tracker.PlaceAnchor()
         elseif not EditMode.UpToDate() then
             EditMode.Save(DUI.L["DaylightUI saved the quest tracker's position. Reload to put it in place?"])
         end
-    elseif changed then
+    elseif changed and first then
         EditMode.AutoSave(DUI.L["DaylightUI moved the quest tracker to fit the panel. Reload to put it in place?"])
+    elseif changed then
+        EditMode.SaveAtExit()
     end
     -- Once the tracker really sits under the panel, that spot is kept: later
     -- panel moves leave it alone and ask for no reload. Reset puts it back.
