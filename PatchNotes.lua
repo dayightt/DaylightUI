@@ -11,7 +11,8 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", new = {
+    { version = "Unreleased" },
+    { version = "2.1.2", date = "2026-11-20", summary = "Your profiles and Cooldown Manager layouts are back. Blizzard quietly changed how the game reports realms, to stop layer hopping, and that unhooked characters from their profiles. Nothing was lost.", new = {
         { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. The Profit button over the list puts the best earners first" },
         { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours. On an ultrawide or other screen shape than the one it was made on, its frames are brought in to the same places instead of spreading to your screen's edges" },
         { "Bars", "Health, power, cast and swing bars, combo points, nameplates, the experience bar, meters, tooltips, quest bars and Cooldown Manager bars can each wear a gradient of two to five colors you pick, like the custom gradient accent. Pick Custom gradient in a bar's color menu" },
@@ -21,7 +22,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Cooldown Manager", "The talent set button at the top of the layout editor opens a list of your layouts, so you can pick which one each talent set uses right there" },
     }, fixed = {
-        { "Characters", "Since the game stopped giving realm names, Daylight UI took every character for a new one: your profile looked reset and your Cooldown Manager layout was gone. You're back on your own profile and settings on your next login, with anything saved in the meantime folded in" },
+        { "Profiles", "Profiles and Cooldown Manager layouts looked reset after Blizzard quietly changed how realms are reported. Every character is back on its own profile at next login, with nothing lost" },
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
         { "Cooldown Manager", "With the game's Tracked Buffs row set to show only in combat, a buff's Hide, glow and sound options went missing from its card and did nothing out of combat. They are back and work in and out of a fight" },
@@ -29,8 +30,7 @@ DUI.PatchNotes = {
         { "Controller", "Clicking, selling or using an item in the bags no longer makes the game block the controller with a \"DaylightUI_Bags has been blocked\" message until a reload" },
         { "Info panel", "Changing the minimap's size or the data texts no longer asks for a reload each time when the game's quest tracker sits under the info panel" },
         { "Professions", "Enchanting a piece of gear no longer gets stuck on \"Making 2 of ...\". Gear takes one enchant per click, so the amount box and Enchant all only show for things that stack" },
-        { "Auction House", "Searching for a name with a category picked, like One-Handed Axes, now searches only that category instead of the whole Auction House. Click the category again to search everywhere" },
-        { "Auction House", "Buying herbs, ore and other stackable goods starts at 1, like the game's own window, instead of every one listed at the lowest price" },
+        { "Auction House", "Searching a name with a category picked stays in that category, and buying stackable goods starts at 1, like the game's own window" },
         { "Tooltip", "Quest items no longer say Quest and Quest Item twice over in their tooltip" },
     } },
     { version = "2.1.1", date = "2026-11-20", summary = "Game windows that follow the Daylight UI scale, and a big batch of fixes for bags, tooltips, the Cooldown Manager and more.", changed = {
