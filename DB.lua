@@ -178,32 +178,62 @@ local function lastName()
     return first, last
 end
 
--- The realm this character was saved under before, when the saved data holds it
--- under exactly one realm. Found ones are kept for the session.
+-- A realm name without spaces or dashes, the way GetNormalizedRealmName gives it.
+local function squash(realm)
+    return (string.gsub(string.lower(tostring(realm)), "[%s%-']", ""))
+end
+
+-- The realm this character was saved under before. With the same name saved on
+-- more than one realm, the game's normalized realm name picks one, then the
+-- character's class; still unsure gives nil. Found ones are kept for the session.
 local foundRealm = {}
 local function savedRealm(name)
     if foundRealm[name] then return foundRealm[name] end
     local sv = _G.DaylightUIDB
     local chars = type(sv) == "table" and type(sv.characters) == "table" and sv.characters or nil
     if not chars then return nil end
-    local realm
-    for key in pairs(chars) do
+    local found = {}
+    for key, c in pairs(chars) do
         local who, r = string.match(tostring(key), "^(.-)%-(.+)$")
-        if who == name and r then
-            if realm and realm ~= r then return nil end
-            realm = r
+        if who == name and r then found[#found + 1] = { realm = r, c = c } end
+    end
+    if #found > 1 then
+        local normal = type(GetNormalizedRealmName) == "function" and GetNormalizedRealmName()
+        if type(normal) == "string" and normal ~= "" then
+            local keep = {}
+            for _, f in ipairs(found) do
+                if squash(f.realm) == squash(normal) then keep[#keep + 1] = f end
+            end
+            if #keep > 0 then found = keep end
         end
     end
-    foundRealm[name] = realm
-    return realm
+    -- An entry saved with another class is someone else of the same name.
+    local myClass
+    if type(UnitClass) == "function" then myClass = select(2, UnitClass("player")) end
+    if type(myClass) == "string" and not DUI.IsSecret(myClass) then
+        local same, unknown = {}, {}
+        for _, f in ipairs(found) do
+            local c = type(f.c) == "table" and f.c or {}
+            local inv = type(c.inventory) == "table" and c.inventory or {}
+            local theirs = c.class or inv.class
+            if theirs == myClass then same[#same + 1] = f
+            elseif theirs == nil then unknown[#unknown + 1] = f end
+        end
+        found = #same > 0 and same or unknown
+    end
+    if #found ~= 1 then return nil end
+    foundRealm[name] = found[1].realm
+    return found[1].realm
 end
 
 -- The realm name. On some logins the game hands back an empty realm name for a
 -- whole session (seen in game); keyed on that, the character started over with
 -- nothing saved. Then the realm it was saved under before stands in.
 local function realmOf(first)
-    local realm = GetRealmName and GetRealmName()
-    if type(realm) == "string" and realm ~= "" then return realm end
+    if type(GetRealmName) ~= "function" then return "" end
+    local realm = GetRealmName()
+    if type(realm) ~= "string" then return "" end
+    if realm ~= "" then return realm end
     local f, last = lastName()
     return (f and savedRealm(f .. " " .. last)) or savedRealm(first) or ""
 end
@@ -239,6 +269,9 @@ end
 -- gold, mail name, mailbox ledger) rather than settings both can start from.
 DB.OWN_KEYS = { inventory = true, money = true, mailName = true, ledger = true, class = true }
 
+-- Which profile a character is on.
+DB.PICK_KEYS = { profile = true, specProfiles = true, padProfile = true }
+
 -- Folds keys this character was saved under before into its one entry.
 -- "First-Last" (UnitFullName's, mistaken for a realm before 0.1.14): all of
 -- it, then dropped. "First-Realm" (the old key), once: every setting it has
@@ -251,11 +284,13 @@ function DB.AdoptOldKeys()
     local c = DB.Character()
     local chars = DB.Root().characters
     -- An entry saved while the game gave no realm name ("First Last-"): this
-    -- entry's own values win, the rest comes along.
+    -- entry's own values win, the rest comes along. Its profile choice stays
+    -- behind: it was made while the character looked reset, and this entry
+    -- having none means it was on the standard profile.
     local bare = string.match(key, "^(.-%-)")
     if bare and bare ~= key and type(chars[bare]) == "table" then
         for k, v in pairs(chars[bare]) do
-            if c[k] == nil then c[k] = v end
+            if c[k] == nil and not DB.PICK_KEYS[k] then c[k] = v end
         end
         chars[bare] = nil
     end

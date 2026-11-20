@@ -770,6 +770,62 @@ T.test("characters: an entry saved without a realm is folded back into the real 
     _G.GetRealmName = nil
 end)
 
+T.test("characters: an empty realm name keeps the profile when the name is saved on two realms", function()
+    local function load(normal, class, seven, eight)
+        talents(1, 1)
+        return stub.Load({ module = true, before = function()
+            fakeEncoding()
+            _G.GetRealmName = function() return "" end
+            _G.GetNormalizedRealmName = normal and function() return normal end or nil
+            stub.units.player = { name = "Muscle", lastName = "Crowe", isPlayer = true, class = class }
+            DaylightUIDB = { version = 2, profileData = { Default = {}, Healer = {}, Tank = {} }, characters = {
+                ["Muscle Crowe-Realm 7 PvE"] = { profile = "Healer", inventory = { class = seven } },
+                ["Muscle Crowe-Realm 8 PvP"] = { profile = "Tank", class = eight },
+            } }
+        end })
+    end
+    local DUI = load("Realm8PvP", "PRIEST", "PRIEST", "PRIEST")
+    T.eq(DUI.DB.CharKey(), "Muscle Crowe-Realm 8 PvP", "the game's normalized realm picks first")
+    T.eq(DUI.DB.ActiveName(), "Tank")
+    DUI = load(nil, "PRIEST", "PRIEST", "WARRIOR")
+    T.eq(DUI.DB.CharKey(), "Muscle Crowe-Realm 7 PvE", "else the class picks")
+    T.eq(DUI.DB.ActiveName(), "Healer")
+    _G.GetRealmName, _G.GetNormalizedRealmName = nil, nil
+end)
+
+T.test("characters: an empty realm name never takes over another class's entry of the same name", function()
+    talents(1, 1)
+    local DUI = stub.Load({ module = true, before = function()
+        fakeEncoding()
+        _G.GetRealmName = function() return "" end
+        stub.units.player = { name = "Muscle", lastName = "Crowe", isPlayer = true, class = "MAGE" }
+        DaylightUIDB = { version = 2, profileData = { Default = {}, Tank = {} }, characters = {
+            ["Muscle Crowe-Realm 8 PvP"] = { profile = "Tank", class = "WARRIOR" },
+        } }
+    end })
+    T.eq(DUI.DB.CharKey(), "Muscle Crowe-", "a new character, not the warrior")
+    T.eq(DaylightUIDB.characters["Muscle Crowe-Realm 8 PvP"].profile, "Tank", "the warrior's entry untouched")
+    _G.GetRealmName = nil
+end)
+
+T.test("characters: the profile picked while the realm was missing doesn't replace the real one", function()
+    talents(1, 1)
+    local DUI = stub.Load({ module = true, before = function()
+        fakeEncoding()
+        _G.GetRealmName = function() return "Realm 7 PvE" end
+        stub.units.player = { name = "Muscle", lastName = "Crowe", isPlayer = true, class = "WARRIOR" }
+        DaylightUIDB = { version = 2, profileData = { ["DPS/Tank"] = { general = { scale = 0.8 } }, Fresh = {} }, characters = {
+            ["Muscle Crowe-Realm 7 PvE"] = { install = "installed" },
+            ["Muscle Crowe-"] = { profile = "Fresh", specProfiles = { "Fresh" }, install = "installed" },
+        } }
+    end })
+    local mine = DaylightUIDB.characters["Muscle Crowe-Realm 7 PvE"]
+    T.isnil(mine.profile, "still on the standard profile")
+    T.isnil(mine.specProfiles)
+    T.eq(DUI.DB.ActiveName(), DUI.DB.DEFAULT)
+    _G.GetRealmName = nil
+end)
+
 -- Two characters with the same first name (Boopy Dadoopy, Boopy Mcdoopy) used to
 -- share one "Boopy-Realm" entry: each saw the other's bags and bank.
 T.test("characters: two with the same first name each keep their own bags; settings carry to both", function()
