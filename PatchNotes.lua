@@ -14,7 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },
     }, changed = {
-        { "Chat", "The General chat tab no longer fills up with everyone's crafting in cities. Crafting still shows on the Loot tab" },
+        { "Chat", "Chat no longer fills up with everyone's crafting in cities. Switch Tradeskills on for a tab to see it" },
     } },
     { version = "2.0", date = "2026-11-19", summary = "Portraits set right into their frames, rich tooltip cards, a brand new Auction House, group loot rolls, and a big batch of fixes.", new = {
         { "Unit frames", "A slick new portrait look: portraits sit right inside their frame, with one border flowing around both. You're asked once which look you want, and each frame's Portrait tab switches it any time" },

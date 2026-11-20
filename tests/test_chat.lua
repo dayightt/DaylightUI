@@ -5998,7 +5998,7 @@ T.test("chat daylight: tradeskills, currency, battlegrounds and the game's other
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("chat daylight: crafting lines stay off the General tab but show under Loot", function()
+T.test("chat daylight: crafting lines stay off the General and Loot tabs", function()
     local Box = daylight()
     local Kinds = stub.chatModule.Kinds
     local Tabs = stub.chatModule.Tabs
@@ -6006,7 +6006,8 @@ T.test("chat daylight: crafting lines stay off the General tab but show under Lo
     T.truthy(general.all, "General is still an everything tab")
     T.falsy(Kinds.Shows(general, "tradeskill"), "no crafting lines on General")
     T.truthy(Kinds.Shows(general, "say") and Kinds.Shows(general, "loot"), "everything else stays")
-    T.truthy(Kinds.Shows(loot, "tradeskill"), "the Loot tab has them")
+    T.falsy(Kinds.Shows(loot, "tradeskill"), "nor on Loot")
+    T.truthy(Kinds.Shows(loot, "loot"), "Loot still has loot")
     -- Switching crafting back on keeps General an everything tab.
     Tabs.SetKind(1, "tradeskill", true)
     stub.RunTimers()

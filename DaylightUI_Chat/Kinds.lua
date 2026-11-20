@@ -383,14 +383,14 @@ function Kinds.Of(id, event, args, text)
 end
 
 -- Default tabs for a new chat box: everything, guild, trade and loot (named with
--- the game's own strings). General leaves out crafting: in a city it fills with
--- every "X creates Y" nearby. The Loot tab still has them.
+-- the game's own strings). No tab shows crafting: in a city it fills with every
+-- "X creates Y" nearby, and the game's own chat leaves it off too.
 function Kinds.DefaultTabs()
     local tabs = {
         { name = _G.GENERAL or L["General"], all = true, kinds = { tradeskill = false } },
         { name = _G.GUILD or L["Guild"], kinds = { guild = true, officer = true } },
         { name = _G.TRADE or L["Trade"], kinds = { trade = true, [Kinds.SERVICES] = true, [Kinds.TRADE_LOCAL] = true } },
-        { name = _G.LOOT or L["Loot"], kinds = { loot = true, money = true, currency = true, tradeskill = true,
+        { name = _G.LOOT or L["Loot"], kinds = { loot = true, money = true, currency = true,
             opening = true, progress = true,
             reputation = true, skill = true, achievement = true } },
     }
