@@ -256,9 +256,10 @@ local function where(bags, bank)
     return out
 end
 
--- How many of an item each character has, under its tooltip. Only when another
--- character has some: for things just in this character's bags and bank the
--- game's own tooltip says enough.
+-- How many of an item each character has, under its tooltip: whenever some
+-- are somewhere other than this character's bags (its bank, the account bank,
+-- another character). The game's tooltip never says what a bank holds, and
+-- the bags themselves are right there.
 function Saved.OnTip(tip, data)
     if tip ~= GameTooltip or type(data) ~= "table" then return end
     local viewer = ns.Setting("viewer")
@@ -266,13 +267,15 @@ function Saved.OnTip(tip, data)
     local id = data.id
     if type(id) ~= "number" or (issecretvalue and issecretvalue(id)) then return end
     local s = savedCounts()
-    local any = false
+    local bank = s.bank[id] and s.bank[id].n or 0
+    local account = s.account[id] and s.account[id].n or 0
+    local any = bank > 0 or account > 0
     for _, c in ipairs(s.others) do if c.counts[id] then any = true end end
     if not any then return end
     local Tips, Style = DUI.Tips, DUI.Style
     local own = DUI.DB.CharKey()
     local _, class = UnitClass("player")
-    local bags, bank = bagCount(id), s.bank[id] and s.bank[id].n or 0
+    local bags = bagCount(id)
     local total = bags + bank
     Tips.Gap()
     if total > 0 then
@@ -285,7 +288,6 @@ function Saved.OnTip(tip, data)
             total = total + (t.bags or 0) + (t.bank or 0)
         end
     end
-    local account = s.account[id] and s.account[id].n or 0
     if account > 0 then
         Tips.Person(L["Account"], tostring(account), Tips.TEXT)
         total = total + account

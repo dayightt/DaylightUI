@@ -311,13 +311,15 @@ ns.OPTIONS = { pages = {
               desc = "Opening your bag fills up part stacks of the same item (15 and 5 Linen Cloth become 20), so no slot is wasted. Not in combat, or while you trade or have the mailbox or auction house open." },
             { type = "toggle", label = "Clean up toward the end", disabled = off,
               desc = "The game's own setting: Clean Up packs your items into the last slots of your bags, so the empty slots sit at the top and what you loot next shows up in front of them. Best in the Grid view.",
+              -- The game names it the other way round: right to left is its
+              -- normal fill from the first slot, so toward the end is that flag off.
               get = function()
                   local get = C_Container and C_Container.GetSortBagsRightToLeft
-                  return type(get) == "function" and get() == true
+                  return type(get) == "function" and get() == false
               end,
               set = function(v)
                   local set = C_Container and C_Container.SetSortBagsRightToLeft
-                  if type(set) == "function" then set(v == true) end
+                  if type(set) == "function" then set(v ~= true) end
                   -- Not one of Daylight UI's settings, so tell the options window directly.
                   DUI.Fire("SettingChanged", "Bags", "sortRightToLeft", v)
               end },

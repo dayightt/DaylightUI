@@ -137,9 +137,11 @@ local function plan(list)
         end
     end
     table.sort(loose, before)
-    -- The game's "clean up toward the end" switch: fill from the last open slot back.
+    -- The game's clean up direction. Right to left is its normal fill, from the
+    -- backpack's first slot on. Turned off, its own sort packs toward the end of
+    -- the last bag, so fill from the last open slot back to match it.
     local rev = C_Container and C_Container.GetSortBagsRightToLeft
-    if type(rev) == "function" and rev() == true then
+    if type(rev) == "function" and rev() == false then
         for i = 1, math.floor(#targets / 2) do
             targets[i], targets[#targets + 1 - i] = targets[#targets + 1 - i], targets[i]
         end
