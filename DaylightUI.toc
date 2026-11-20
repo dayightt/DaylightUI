@@ -48,6 +48,7 @@ PrivateAuras.lua
 Taint.lua
 BugReport.lua
 PlateReport.lua
+WorldWatch.lua
 Gradients.lua
 BarFx.lua
 BarFxStyles.lua
