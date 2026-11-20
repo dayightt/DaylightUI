@@ -394,8 +394,8 @@ function Tracker.LoginReveal()
     for i, r in ipairs(rows) do
         C_Timer.After(at + (i - 1) * step, function()
             if frames[r.key] ~= r.f then return end   -- gone or recreated since, it already came in its own way
-            local y = A.State(r.f).y
-            if InCombatLockdown() then A.Jump(r.f, y) else A.Enter(r.f, y) end
+            -- The log may have filled in meanwhile: a glide to the row's new place keeps going.
+            A.SlideIn(r.f, InCombatLockdown())
         end)
     end
 end

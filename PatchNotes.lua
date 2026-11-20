@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Unit frames", "The red combat glow on square portraits is as soft as on round ones" },
         { "Unit frames", "No more error when a cast is interrupted again right after another interrupt" },
+        { "Quests", "Zone names in the quest tracker no longer pile on top of each other when quests come in right after logging in" },
         { "Tooltip", "A recipe's tooltip shows the recipe's own binding at the top and what the item it makes binds as down with that item and its materials" },
         { "Tooltip", "Long tags and titles on tooltips, like long guild ranks or pet owner names in German, wrap onto a second line instead of running off the edge" },
         { "Tooltip", "With a weapon in each hand, comparing a weapon says which hand each of yours is in, and your main hand sits next to the item" },
