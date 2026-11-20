@@ -720,7 +720,7 @@ function Rep.Apply(db)
     Rep.vertical = cfg.orientation == "vertical"
     XP.TurnBar(Rep.bar, Rep.vertical)
     Rep.text:SetRotation(Rep.vertical and XP.TURN or 0)
-    ns.Panel.Look(f, ns.Panel.BackAlpha(db), db.panelBorder, cfg.shell)
+    ns.Panel.Look(f, ns.Panel.LOOK, cfg.shell)
     local T = Pixel.Px(f, Style.BorderPx(f))
     ns.Panel.SizeBar(f, cfg.width, cfg.height, T, Rep.vertical)
     Style.LayoutShell(Style.GetShell(f))

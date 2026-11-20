@@ -365,16 +365,22 @@ end
 -- meter's own windows now use the panel's.
 DB.BACKS = { { "Chat", "panelAlpha" }, { "InfoPanel", "panelAlpha" }, { "Quests", "boxAlpha" },
              { "Buffs", "settings.backgroundAlpha" }, { "Buffs", "settings.debuff.backgroundAlpha" } }
--- Every background with a "Separate ... background opacity" switch. General's
--- Apply turns them all off (Options.ApplyWindowAlpha). Add new ones here.
-DB.ALL_BACKS = { { "InfoPanel", "databar.alpha" }, { "InfoPanel", "map.alpha" },
-                 { "InfoPanel", "meter.alpha" }, { "QoL", "lootFeedAlpha" },
-                 { "Chat", "sideAlpha" }, { "Tooltip", "bgAlpha" } }
-for _, b in ipairs(DB.BACKS) do DB.ALL_BACKS[#DB.ALL_BACKS + 1] = b end
-for _, scope in ipairs({ "Bags", "Character", "NPC", "Book", "Inspect", "Professions", "GroupFinder",
-                         "Mailbox", "Social", "Legacy", "Skins", "AuctionHouse" }) do
-    DB.ALL_BACKS[#DB.ALL_BACKS + 1] = { scope, "windowAlpha" }
-end
+-- The border, shadow and background settings a window or panel can have of
+-- its own (Style.LookOf), under General's names.
+DB.LOOK_KEYS = { "heavyBorder", "gradientBorder", "borderPx", "cornerPx", "borderAlpha",
+                 "shadowPx", "shadowAlpha", "windowAlpha", "windowTint", "windowTintColor" }
+
+-- Every section with a "Use Daylight UI global style" switch ({ scope, path of
+-- its look table }). General's Apply turns them all back on
+-- (Options.ApplyGlobalStyle). Add new ones here. Meter windows the player
+-- makes are handled by the meters themselves.
+DB.WINDOW_SCOPES = { "Bags", "Character", "NPC", "Book", "Inspect", "Professions", "GroupFinder",
+                     "Mailbox", "Social", "Legacy", "Skins", "AuctionHouse" }
+DB.LOOKS = { { "Chat", "frameStyle" }, { "InfoPanel", "frameStyle" }, { "InfoPanel", "map.frameStyle" },
+             { "InfoPanel", "databar.frameStyle" }, { "InfoPanel", "meter.frameStyle" }, { "InfoPanel", "threat.frameStyle" },
+             { "Quests", "frameStyle" }, { "Tooltip", "frameStyle" }, { "Buffs", "settings.frameStyle" },
+             { "Buffs", "settings.debuff.frameStyle" }, { "QoL", "lootFeedFrame" }, { "QoL", "flightFrame" } }
+for _, scope in ipairs(DB.WINDOW_SCOPES) do DB.LOOKS[#DB.LOOKS + 1] = { scope, "frameStyle" } end
 function DB.OwnBacks(p)
     if type(p.modules) ~= "table" then return end
     local g = type(p.general) == "table" and tonumber(p.general.windowAlpha) or 0.85
@@ -390,6 +396,139 @@ function DB.OwnBacks(p)
     if type(ip) == "table" then
         for _, k in ipairs({ "meter", "meter2", "threat" }) do
             if type(ip[k]) == "table" then ip[k].bgAlpha = nil end
+        end
+    end
+end
+
+-- Each section's old look settings (a "Separate ... background opacity"
+-- switch, a border switch, its own border thickness or style) move into its
+-- look table, with its global style off, so nothing a player set changes.
+-- The rest of the section's look starts from the profile's own General values,
+-- as it showed them before, except what the section has by design (its
+-- default differs from General's: the data bar's missing border). Saved
+-- values only; the old keys go. Runs on every profile as it's filled, and
+-- does nothing once the old keys are gone.
+local function num(v, d) if type(v) == "number" then return v end return d end
+local function designed(scope, path, k)
+    local d = moduleDefaults[scope] and DB.GetPath(moduleDefaults[scope], path)
+    return type(d) == "table" and d[k] ~= nil and type(d[k]) ~= "table" and d[k] ~= DB.GENERAL_DEFAULTS[k]
+end
+local function ownLook(p, m, scope, path, values)
+    local look = DB.GetPath(m, path)
+    if type(look) ~= "table" then look = {}; DB.SetPath(m, path, look) end
+    if look.global ~= false then
+        look.global = false
+        local g = type(p.general) == "table" and p.general or {}
+        for _, k in ipairs(DB.LOOK_KEYS) do
+            if look[k] == nil and g[k] ~= nil and not designed(scope, path, k) then look[k] = copy(g[k]) end
+        end
+    end
+    for k, v in pairs(values or {}) do look[k] = v end
+end
+local function clear(m, ...)
+    for i = 1, select("#", ...) do DB.SetPath(m, (select(i, ...)), nil) end
+end
+
+-- A box with an opacity switch (own, alpha) and maybe a border switch.
+local function boxLook(p, m, scope, path, own, alpha, border)
+    local vals, mine = {}, false
+    if DB.GetPath(m, own) == true then vals.windowAlpha, mine = num(DB.GetPath(m, alpha), 0.85), true end
+    if border and DB.GetPath(m, border) == false then vals.borderAlpha, mine = 0, true end
+    if mine then ownLook(p, m, scope, path, vals) end
+    clear(m, own, alpha)
+    if border then clear(m, border) end
+end
+
+local function chatLook(p, chat)
+    local vals, mine = {}, chat.sideAlphaOwn == true
+    if chat.panelAlphaOwn == true then vals.windowAlpha, mine = num(chat.panelAlpha, 0.85), true end
+    if chat.border == "flat" then
+        vals.heavyBorder, vals.borderPx, mine = false, num(chat.borderSize, 1), true
+    elseif chat.border == "none" then
+        vals.borderAlpha, mine = 0, true
+    elseif chat.border == "daylight" and chat.style == "classic" then
+        mine = true
+    end
+    if chat.borderColor ~= nil and chat.borderColor ~= "shell" then mine = true end
+    if mine then ownLook(p, chat, "Chat", "frameStyle", vals) end
+    clear(chat, "panelAlphaOwn", "panelAlpha", "border", "borderSize")
+end
+
+local function infoPanelLook(p, ip)
+    -- The minimap box once shared the panel's look (the info panel's map box
+    -- upgrade, done here when it hasn't run yet).
+    if not p.mapBox1 then
+        p.mapBox1 = true
+        local map = type(ip.map) == "table" and ip.map or {}
+        for from, to in pairs({ panelAlphaOwn = "alphaOwn", panelAlpha = "alpha", panelBorder = "border" }) do
+            if ip[from] ~= nil and map[to] == nil then map[to] = ip[from] end
+        end
+        if next(map) ~= nil then ip.map = map end
+    end
+    -- A meter's own window used to take the panel's opacity.
+    local panelOwn = ip.panelAlphaOwn == true and num(ip.panelAlpha, 0.85) or nil
+    local function meter(path)
+        local w = DB.GetPath(ip, path)
+        if type(w) ~= "table" then return end
+        if panelOwn and w.alphaOwn ~= true then w.alphaOwn, w.alpha = true, panelOwn end
+        boxLook(p, ip, "InfoPanel", path .. ".frameStyle", path .. ".alphaOwn", path .. ".alpha", path .. ".border")
+    end
+    meter("meter")
+    meter("threat")
+    if type(ip.meters) == "table" and type(ip.meters.windows) == "table" then
+        for id in pairs(ip.meters.windows) do meter("meters.windows." .. tostring(id)) end
+    end
+    boxLook(p, ip, "InfoPanel", "frameStyle", "panelAlphaOwn", "panelAlpha", "panelBorder")
+    if type(ip.map) == "table" then boxLook(p, ip, "InfoPanel", "map.frameStyle", "map.alphaOwn", "map.alpha", "map.border") end
+    local bar = type(ip.databar) == "table" and ip.databar
+    if bar then
+        local ba = num(bar.borderAlpha, nil)
+        boxLook(p, ip, "InfoPanel", "databar.frameStyle", "databar.alphaOwn", "databar.alpha")
+        if ba and ba ~= 0 then ownLook(p, ip, "InfoPanel", "databar.frameStyle", { borderAlpha = ba }) end
+        bar.borderAlpha = nil
+    end
+end
+
+-- Tooltips had their own look switched on from the start; it was only saved
+-- when switched off (then they followed General) or changed.
+local function tooltipLook(p, tip)
+    local g = type(p.general) == "table" and p.general or {}
+    if tip.bgAlphaOwn == false then
+        ownLook(p, tip, "Tooltip", "frameStyle", { windowAlpha = num(g.windowAlpha, 0.85) })
+    elseif tip.bgAlpha ~= nil or tip.borderPx ~= nil then
+        local px = num(tip.borderPx, 8)
+        ownLook(p, tip, "Tooltip", "frameStyle", { windowAlpha = num(tip.bgAlpha, 0.92),
+            borderPx = math.max(1, px), borderAlpha = px <= 0 and 0 or nil })
+    end
+    clear(tip, "bgAlphaOwn", "bgAlpha", "borderPx", "richAlpha")
+end
+
+function DB.SectionLooks(p)
+    local mods = p.modules
+    if type(mods) ~= "table" then return end
+    local function mod(name) return type(mods[name]) == "table" and mods[name] or nil end
+    for _, scope in ipairs(DB.WINDOW_SCOPES) do
+        local m = mod(scope)
+        if m then boxLook(p, m, scope, "frameStyle", "windowAlphaOwn", "windowAlpha") end
+    end
+    if mod("Chat") then chatLook(p, mods.Chat) end
+    if mod("InfoPanel") then infoPanelLook(p, mods.InfoPanel) end
+    local q = mod("Quests")
+    if q then boxLook(p, q, "Quests", "frameStyle", "boxAlphaOwn", "boxAlpha", "boxBorder") end
+    if mod("Tooltip") then tooltipLook(p, mods.Tooltip) end
+    local buffs = mod("Buffs")
+    if buffs and type(buffs.settings) == "table" then
+        boxLook(p, buffs, "Buffs", "settings.frameStyle", "settings.backgroundAlphaOwn", "settings.backgroundAlpha")
+        if type(buffs.settings.debuff) == "table" then
+            boxLook(p, buffs, "Buffs", "settings.debuff.frameStyle", "settings.debuff.backgroundAlphaOwn", "settings.debuff.backgroundAlpha")
+        end
+    end
+    local qol = mod("QoL")
+    if qol then
+        for _, part in ipairs({ "lootFeed", "flight" }) do
+            local color = qol[part .. "BorderColor"]
+            if color ~= nil and color ~= "normal" then ownLook(p, qol, "QoL", part .. "Frame") end
+            boxLook(p, qol, "QoL", part .. "Frame", part .. "AlphaOwn", part .. "Alpha", part .. "Border")
         end
     end
 end
@@ -574,6 +713,7 @@ local function fill(p)
     if type(p.modules) ~= "table" then p.modules = {} end
     DB.BuffScales(p)
     DB.WindowBackFix(p)
+    DB.SectionLooks(p)
     DB.MergeDefaults(p.general, DB.GENERAL_DEFAULTS)
     for name, defaults in pairs(moduleDefaults) do
         if type(p.modules[name]) ~= "table" then p.modules[name] = {} end

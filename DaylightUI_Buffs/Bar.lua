@@ -141,6 +141,9 @@ function BarMixin:IsDebuff() return self.scope == "debuff" end
 function BarMixin:Corner() return self:Setting("growLeft") and "TOPRIGHT" or "TOPLEFT" end
 function BarMixin:Size() return self:Setting("iconSize") end
 function BarMixin:BorderPx() return self:Setting("borderPx") end
+-- Where the bar's background keeps its look (Style.LookOf).
+local LOOKS = { buff = { "Buffs", "settings.frameStyle" }, debuff = { "Buffs", "settings.debuff.frameStyle" } }
+function BarMixin:Look() return LOOKS[self:IsDebuff() and "debuff" or "buff"] end
 function BarMixin:Height() return W.Height(self:Setting("iconSize")) end
 
 -- Position -------------------------------------------------------------
@@ -245,8 +248,7 @@ function BarMixin:ApplyBackground()
     bg:SetShown(self:Setting("showBackground") and true or false)
     local s = Style.GetShell(bg)
     if s then
-        s.opts.bgAlpha = DUI.Style.BackAlpha(self:Setting("backgroundAlphaOwn"), self:Setting("backgroundAlpha"))
-        s.opts.panel = true
+        s.opts.look, s.opts.panel = self:Look(), true
     end
     Style.LayoutShell(s)
 end
@@ -290,7 +292,7 @@ function BarMixin:Create()
     local background = createCompanion("Frame", c)
     background:SetFrameLevel(math.max(0, c:GetFrameLevel() - 1))
     background:EnableMouse(false)
-    Style.Shell(background, { borderPx = 2, noBevel = true })
+    Style.Shell(background, { look = self:Look(), noBevel = true })
     self.background = background
 
     if not self:IsDebuff() then

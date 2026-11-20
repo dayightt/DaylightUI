@@ -7,7 +7,7 @@ local DUI = DaylightUI
 local L = DUI.L
 
 local function off(get) return get("enabled") ~= true end
-local backRows = DaylightUI.Options.BackAlphaRows("windowAlpha", "Bags", off, "1.6.2")
+local lookRows = DaylightUI.Options.LookRows("frameStyle", off)
 -- Bank look rows only apply while the bank follows the bags (bank.ownLook off).
 local function sameAsBags(get) return get("bank.ownLook") ~= true end
 -- Bank and alts (Viewer.lua): which rows show while it's off, and its own look rows.
@@ -306,7 +306,6 @@ ns.OPTIONS = { pages = {
               desc = "The whole bag window, slots, text and buttons together." },
             { type = "toggle", key = "showHeader", label = "Show the bag's header", disabled = off,
               desc = "The bag's picture, name and free slots above the search box. When off, the search box sits at the top with a small bank button next to the close button, and you drag the window by any empty spot." },
-            backRows[1], backRows[2],
             { type = "toggle", key = "autoStack", label = "Stack items when the bag opens", disabled = off,
               desc = "Opening your bag fills up part stacks of the same item (15 and 5 Linen Cloth become 20), so no slot is wasted. Not in combat, or while you trade or have the mailbox or auction house open." },
             { type = "toggle", label = "Clean up toward the end", disabled = off,
@@ -333,6 +332,7 @@ ns.OPTIONS = { pages = {
               values = { all = "Every empty slot", grouped = "One tile with the count" }, order = { "all", "grouped" },
               desc = "Every empty slot shows on its own, or each section shows one tile with the free count on it. Drop an item on the tile to put it there." },
         } },
+        { label = "Borders and background", items = lookRows },
         { label = "Item icons", desc = "What each item's icon shows.", items = {
             { type = "toggle", key = "greyPoor", label = "Dim gray (junk) items", disabled = off,
               desc = "Gray-quality items are grayed out and faded, so junk stands out at a glance." },

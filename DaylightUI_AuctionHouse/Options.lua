@@ -3,15 +3,14 @@
 
 local _, ns = ...
 
-local backRows = DaylightUI.Options.BackAlphaRows("windowAlpha", "Auction house")
+local lookRows = DaylightUI.Options.LookRows("frameStyle", nil)
 
 ns.DEFAULTS = {
     -- Daylight UI's Auction House window instead of the game's; switched from either window.
     enabled = true,
     scale = 1,
     openOn = "buy",           -- buy, sell, auctions, or last (the tab left open last time)
-    windowAlphaOwn = false,   -- off: follows the general window opacity
-    windowAlpha = 0.85,
+    frameStyle = DaylightUI.Style.LookDefaults(), -- borders, shadows and background, or General's (Style.LookOf)
     askHigh = true,           -- a buy over askAbove of the usual price asks once more
     askAbove = 1.5,
     dealBelow = 0.7,          -- a price at or under this share of the usual one shows as a deal
@@ -54,8 +53,8 @@ ns.OPTIONS = { pages = {
               desc = "Which tab shows when you talk to an auctioneer. Pick Sell if you mostly come to post, or the tab you left open to carry on where you were." },
             { type = "slider", key = "scale", label = "Auction House scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is. Ctrl and the mouse wheel over the window changes it too." },
-            backRows[1], backRows[2],
         } },
+        { label = "Borders and background", items = lookRows },
     } },
     { id = "trade", label = "Buying and selling",
       desc = "How Buy warns you about prices and how Sell prices your items.",

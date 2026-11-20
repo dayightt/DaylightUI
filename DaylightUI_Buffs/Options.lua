@@ -347,7 +347,7 @@ local function barItems(debuff)
         { type = "toggle", key = p .. "showBackground", label = "Bar background",
           desc = "A framed panel behind the bar." },
     }
-    for _, item in ipairs(DaylightUI.Options.BackAlphaRows(p .. "backgroundAlpha", debuff and "Debuff bar" or "Buff bar",
+    for _, item in ipairs(DaylightUI.Options.LookRows(p .. "frameStyle",
             function(get) return get(p .. "showBackground") ~= true end)) do
         items[#items + 1] = item
     end

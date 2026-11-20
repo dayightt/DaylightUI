@@ -18,16 +18,12 @@ ns.DEFAULTS = {
     sideWidth = 340, -- size of the second chat panel, shown while a tab is on it
     sideHeight = 140,       -- under the target of target's default spot
     panelShown = true,      -- the panel's background (and border) behind the chat
-    panelAlphaOwn = false, -- off: same opacity as every window (General windowAlpha)
-    panelAlpha = 0.85, -- used when panelAlphaOwn is on
+    -- Every chat panel's border, shadow and background, or General's.
+    frameStyle = DaylightUI.Style.LookDefaults(),
     sideAlphaOwn = false,   -- off: the second panel is as solid as the main one
-    sideAlpha = 0.85, -- used when sideAlphaOwn is on
+    sideAlpha = 0.85, -- used when sideAlphaOwn is on, with the chat's own look
     sideHides = "chat", -- "chat" follows the main panel; otherwise one of the hides values
-    -- Border for every chat panel, including windows pulled out of the dock.
-    -- "auto" follows the chat style (Daylight frame for the box, a thin line for
-    -- Classic). "daylight" is the band inside a dark outline, "flat" a plain line.
-    border = "auto",
-    borderSize = 1, -- flat border thickness in px
+    -- The border color of every chat panel, with the chat's own look.
     borderColor = "shell",  -- "shell", "accent", "class" or "custom"
     borderCustom = { 0.72, 0.70, 0.66 },
     -- "never", "fights" (panel and tabs float away in combat), "fightsIdle" (also

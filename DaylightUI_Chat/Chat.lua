@@ -239,25 +239,28 @@ end
 
 local looked = setmetatable({}, { __mode = "k" }) -- chat panel shell -> true
 
--- "auto" follows the chat style: the full Daylight frame for the Daylight box, a
--- thin line for Classic.
-function Chat.BorderStyle()
-    local b = cfg and cfg.border or "auto"
-    if b == "auto" then return ns.Box.On() and "daylight" or "flat" end
-    return b
+-- Where every chat panel keeps its border, shadow and background (Style.LookOf).
+local LOOK = "Chat"
+Chat.LOOK = LOOK
+
+-- The border color picked with the chat's own look; the global style has none.
+local function borderColor()
+    return cfg and Style.LookOwn(LOOK) and cfg.borderColor or "shell"
 end
 
+-- On the global style the Classic chat keeps a thin line: the full Daylight
+-- frame belongs to the Daylight chat box.
 local function lookOf(back)
-    local b = Chat.BorderStyle()
-    if b == "daylight" then return { bgAlpha = back, panel = true } end
-    if b == "none" then return { flat = true, borderPx = 1, noBorder = true, bgAlpha = back, panel = true } end
-    return { flat = true, borderPx = cfg and cfg.borderSize or 1, bgAlpha = back, panel = true }
+    if not Style.LookOwn(LOOK) and not ns.Box.On() then
+        return { look = LOOK, flat = true, borderPx = 1, bgAlpha = back, panel = true }
+    end
+    return { look = LOOK, bgAlpha = back, panel = true }
 end
 
 -- A chat panel's resting border color, or nil for the shell's own (Default).
 function Chat.BorderRest(s)
     if not (s and looked[s] and cfg) then return nil end
-    local m = cfg.borderColor
+    local m = borderColor()
     if m == "accent" then
         return { Style.Accent() }
     elseif m == "class" then
@@ -277,7 +280,7 @@ Chat.BAND_K = 0.7
 function Chat.PaintBorder(s)
     if not s then return end
     local heavy = Style.IsHeavy(s)
-    if looked[s] and cfg and cfg.borderColor == "accent" then
+    if looked[s] and borderColor() == "accent" then
         Style.LightShell(s, heavy and Chat.BAND_K or nil)
         return
     end
@@ -286,11 +289,13 @@ function Chat.PaintBorder(s)
     Style.SetShellColors(s, c, (c and heavy) and { c[1] * k, c[2] * k, c[3] * k } or nil)
 end
 
--- Second panel background: its own opacity, or the corner panel's.
+-- Second panel background: its own opacity (with the chat's own look), or the
+-- corner panel's.
 function Chat.SideBack()
-    if not cfg then return Style.BackAlpha() end
-    if cfg.sideAlphaOwn == true and type(cfg.sideAlpha) == "number" then return cfg.sideAlpha end
-    return Style.BackAlpha(cfg.panelAlphaOwn, cfg.panelAlpha)
+    if cfg and Style.LookOwn(LOOK) and cfg.sideAlphaOwn == true and type(cfg.sideAlpha) == "number" then
+        return cfg.sideAlpha
+    end
+    return Style.BackAlpha(LOOK)
 end
 
 local function dressShell(p, back)
@@ -304,7 +309,7 @@ end
 -- a chat style switch, or a window pulled out of the dock).
 function Chat.DressPanels()
     if not (panel and cfg) then return end
-    local back = Style.BackAlpha(cfg.panelAlphaOwn, cfg.panelAlpha)
+    local back = Style.BackAlpha(LOOK)
     dressShell(panel, back)
     for cf, p in pairs(panels) do
         dressShell(p, back)
@@ -355,7 +360,7 @@ function Chat.Dress(cf)
         local p = panelFor(cf)
         panels[cf] = p
         if cfg then
-            dressShell(p, Style.BackAlpha(cfg.panelAlphaOwn, cfg.panelAlpha))
+            dressShell(p, Style.BackAlpha(LOOK))
             placeFloat(p, cf)
         end
     end
@@ -642,7 +647,7 @@ function Chat.Layout()
     -- Background on or off and its opacity (the border follows it).
     panel:SetShown(cfg.panelShown)
     local s = Style.GetShell(panel)
-    local back = Style.BackAlpha(cfg.panelAlphaOwn, cfg.panelAlpha)
+    local back = Style.BackAlpha(LOOK)
     if s then s.opts.bgAlpha = back end
     for _, p in pairs(panels) do
         p:SetAlpha((cfg.panelShown and 1 or 0) * Chat.float)

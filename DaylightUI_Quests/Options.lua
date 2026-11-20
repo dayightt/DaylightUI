@@ -51,8 +51,7 @@ local function questieTracker(get)
 end
 
 -- Quest box background opacity: the general window opacity or its own.
-local backRows = DaylightUI.Options.BackAlphaRows("boxAlpha", "Quest box", function(get) return get("box") ~= true end)
-backRows[2].desc = backRows[2].desc or "How see-through the box behind the quest list is. Lower lets more of the world show through."
+local lookRows = DaylightUI.Options.LookRows("frameStyle", function(get) return get("box") ~= true end)
 ns.OPTIONS = { pages = {
     { id = "tracker", label = "Tracker",
       desc = "Your watched quests, under the info panel. Move it in unlock mode.",
@@ -74,10 +73,8 @@ ns.OPTIONS = { pages = {
               desc = "Which side of the list the quest item buttons sit on." },
             { type = "toggle", key = "box", label = "Quest tracker background",
               desc = "The panel's framed box behind the list, as tall as what's shown." },
-            backRows[1], backRows[2],
-            { type = "toggle", key = "boxBorder", label = "Quest tracker border",
-              desc = "A border and shadow around the background.", disabled = off("box") },
         } },
+        { label = "Borders and background", items = lookRows },
         { label = "Text", items = {
             DaylightUI.Options.FontRow("media.font", "Quest tracker font", "Every text in the quest tracker"),
             size("header", "Section header text size", "The Quests and Achievements headings."),

@@ -362,15 +362,27 @@ function Panel.MapSize(db)
     return db.map.size
 end
 
--- How solid a box is, and whether it has a border (0 shows none); laid
--- out by its owner afterwards.
+-- Where each box keeps its border, shadow and background (Style.LookOf).
+Panel.LOOK = { "InfoPanel", "frameStyle" }
+Panel.MAP_LOOK = { "InfoPanel", "map.frameStyle" }
+local meterLooks = {}
+-- A meter window's (path: Windows.Path of its id).
+function Panel.MeterLook(path)
+    local l = meterLooks[path]
+    if not l then l = { "InfoPanel", path .. ".frameStyle" }; meterLooks[path] = l end
+    return l
+end
+
+-- Gives a box its section's look; laid out by its owner afterwards. A look
+-- with no border (opacity 0) drops the shadow and the bevel too.
 -- own: a bar's own border, corners and shadow (its shell setting with own on),
--- else the box follows the panel's border switch and General > Appearance.
-function Panel.Look(f, alpha, border, shell)
+-- else the box follows its look.
+function Panel.Look(f, look, shell)
     local s = Style.GetShell(f)
     if s then
         local own = type(shell) == "table" and shell.own == true and shell or nil
-        s.opts.bgAlpha, s.opts.panel = alpha, true
+        local border = Style.LookOf(look).borderAlpha ~= 0
+        s.opts.look, s.opts.bgAlpha, s.opts.panel = look, nil, true
         s.opts.noBorder = not own and border == false
         -- The shadow traces the frame's edge, so it reads as a ghost border.
         s.opts.shadowAlpha = not own and border == false and 0 or nil
@@ -387,35 +399,18 @@ function Panel.Look(f, alpha, border, shell)
     end
 end
 
--- How solid the boxes are (every window's, or the panel's own: also the
--- meters' and threat meter's windows), and whether they have a border.
-function Panel.BackAlpha(db)
-    return Style.BackAlpha(db.panelAlphaOwn, db.panelAlpha)
-end
-
--- Background and border settings for the minimap box (map.alphaOwn,
--- map.alpha, map.border). Without a map it's just the meter's box.
+-- The minimap box's look. Without a map it's just the meter's box: the panel's.
 function Panel.BoxLook(db)
-    local map = db.map
-    if not map.enabled then return Panel.BackAlpha(db), db.panelBorder end
-    return Style.BackAlpha(map.alphaOwn, map.alpha), map.border
-end
-
--- A meter's own window (m: its settings, Windows.List's cfg): its own background
--- (alphaOwn / alpha), else the panel's.
-function Panel.MeterBack(db, m)
-    if m.alphaOwn == true and type(m.alpha) == "number" then return m.alpha end
-    return Panel.BackAlpha(db)
+    return db.map.enabled and Panel.MAP_LOOK or Panel.LOOK
 end
 
 function Panel.ApplyAlpha(db)
-    local set, back = Panel.Look, Panel.BackAlpha(db)
-    set(Panel.xp, back, db.panelBorder, db.xp.shell)
-    local boxBack, boxBorder = Panel.BoxLook(db)
-    set(Panel.panel, boxBack, boxBorder)
-    set(Panel.arrow, boxBack, boxBorder)
-    -- The meter's own window keeps its own background and border.
-    set(Panel.meterFrame, Panel.MeterBack(db, db.meter), db.meter.border)
+    Panel.Look(Panel.xp, Panel.LOOK, db.xp.shell)
+    local box = Panel.BoxLook(db)
+    Panel.Look(Panel.panel, box)
+    Panel.Look(Panel.arrow, box)
+    -- The meter's own window keeps its own look.
+    Panel.Look(Panel.meterFrame, Panel.MeterLook("meter"))
 end
 
 -- Which side of the minimap the meter slides out of. "auto" picks the side

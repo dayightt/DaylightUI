@@ -4,7 +4,7 @@ local _, DUI = ...
 DUI.Social = DUI.Social or {}
 local ns = DUI.Social
 
-local backRows = DUI.Options.BackAlphaRows("windowAlpha", "Social window", nil, "1.6.2")
+local lookRows = DUI.Options.LookRows("frameStyle", nil)
 
 ns.OPTIONS = { pages = {
     { id = "window", label = "Social",
@@ -15,8 +15,8 @@ ns.OPTIONS = { pages = {
               desc = "Pressing O shows Daylight UI's window: who's online, people you played with, friend requests and your raid's groups. Turn it off to use the game's own window, in Daylight UI's look. Each window also has a button to switch to the other." },
             { type = "slider", key = "scale", label = "Social window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is." },
-            backRows[1], backRows[2],
         } },
+        { label = "Borders and background", items = lookRows },
         { label = "Friends", items = {
             { type = "toggle", key = "friendFactions", label = "Faction icons", since = "1.7.2",
               desc = "A small Alliance or Horde banner before each friend's character, and their faction in the tooltip." },

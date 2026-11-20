@@ -8,7 +8,6 @@ ns.DEFAULTS = {
     -- Daylight UI's mailbox instead of the game's; switched from either window.
     enabled = true,
     scale = 1,
-    windowAlphaOwn = false,   -- off: follows the general window opacity
-    windowAlpha = 0.85,
+    frameStyle = DaylightUI.Style.LookDefaults(), -- borders, shadows and background, or General's (Style.LookOf)
     ticks = false,            -- a tick on each letter, so Collect takes only the ticked ones
 }

@@ -4,7 +4,7 @@ local _, DUI = ...
 DUI.Npc = DUI.Npc or {}
 local ns = DUI.Npc
 
-local backRows = DUI.Options.BackAlphaRows("windowAlpha", "NPC window", nil, "1.6.2")
+local lookRows = DUI.Options.LookRows("frameStyle", nil)
 
 ns.OPTIONS = { pages = {
     { id = "window", label = "NPC window",
@@ -35,8 +35,8 @@ ns.OPTIONS = { pages = {
               desc = "With the immersive look, the camera comes in over your shoulder and looks at the NPC while you talk, then goes back to how you had it. Not while mounted or in a fight." },
             { type = "slider", key = "scale", label = "NPC window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is." },
-            backRows[1], backRows[2],
         } },
+        { label = "Borders and background", items = lookRows },
         { label = "Keys", items = {
             { type = "toggle", key = "keys", label = "Dialogue keys",
               desc = "Press 1 to 9 to pick a line or a reward, Space for the next step (accept, continue, complete), Escape to back out. Space never jumps while you talk. Other keys still go to the game, and in combat every key is the game's." },

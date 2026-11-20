@@ -176,7 +176,7 @@ end
 -- Sizes and shows one window from its settings.
 function MF.Layout(db, h, e)
     local P, cfg = ns.Panel, e.cfg
-    P.Look(h.body, P.MeterBack(db, cfg), cfg.border)
+    P.Look(h.body, P.MeterLook(e.path))
     local edge = Pixel.Px(h.body, Style.BorderPx(h.body)) + P.PAD
     if h.kind == "threat" then
         layoutThreat(db, h, e)   -- as tall as its rows

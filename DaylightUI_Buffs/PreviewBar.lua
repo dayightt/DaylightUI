@@ -69,15 +69,17 @@ local function ensureFrame()
     frame:Hide()
 end
 
+local BUFF_LOOK, DEBUFF_LOOK = { "Buffs", "settings.frameStyle" }, { "Buffs", "settings.debuff.frameStyle" }
+
 -- The bar's optional background, drawn behind the sample the same way as behind
 -- the live bar (same padding, room for times, opacity).
-local function sampleBackground(f, s, room)
+local function sampleBackground(f, s, room, look)
     local bg = f.background
     if not bg then
         bg = CreateFrame("Frame", nil, f)
         bg:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
         bg:EnableMouse(false)
-        DUI.Style.Shell(bg, { borderPx = 2, noBevel = true })
+        DUI.Style.Shell(bg, { look = look, noBevel = true })
         f.background = bg
     end
     local pad = BL.BACKGROUND_PAD or 6
@@ -87,8 +89,7 @@ local function sampleBackground(f, s, room)
     bg:SetShown(s.showBackground and true or false)
     local shell = DUI.Style.GetShell(bg)
     if shell then
-        shell.opts.bgAlpha = DUI.Style.BackAlpha(s.backgroundAlphaOwn, s.backgroundAlpha)
-        shell.opts.panel = true
+        shell.opts.look, shell.opts.panel = look, true
     end
     DUI.Style.LayoutShell(shell)
 end
@@ -134,7 +135,7 @@ local function render()
     frame:SetPoint(corner, holder, corner, 0, 0)
     frame:SetScale(DUI.Movers.Scale("buffs.buff"))
     frame:SetSize(math.max(flow.width, size), math.max(flow.height, height))
-    sampleBackground(frame, s, room)
+    sampleBackground(frame, s, room, BUFF_LOOK)
 
     active = {}
     for i, e in ipairs(flow.elements) do
@@ -225,7 +226,7 @@ local function renderDebuffs()
     dFrame:SetPoint(corner, holder, corner, 0, 0)
     dFrame:SetScale(DUI.Movers.Scale("buffs.debuff"))
     dFrame:SetSize(math.max(flow.width, size), math.max(flow.height, height))
-    sampleBackground(dFrame, s, room)
+    sampleBackground(dFrame, s, room, DEBUFF_LOOK)
     -- Soonest first, as the live bar sorts them.
     local order = {}
     for i = 1, #samples do order[i] = samples[i] end

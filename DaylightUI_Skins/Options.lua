@@ -2,7 +2,7 @@
 
 local _, ns = ...
 
-local backRows = DaylightUI.Options.BackAlphaRows("windowAlpha", "Game window", nil, "1.6.2")
+local lookRows = DaylightUI.Options.LookRows("frameStyle", nil)
 
 -- One switch per addon that has a skin (Packs/Addons), shown only while that
 -- addon is installed. The card is hidden when none are.
@@ -107,8 +107,8 @@ ns.OPTIONS = { pages = {
               desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the game's character, spellbook, profession and inspect windows, the world map's frame, the breath bar, the box that splits a stack." },
         } },
         { label = "Windows", items = {
-            backRows[1], backRows[2],
         } },
+        { label = "Borders and background", items = lookRows },
         { label = "Alerts and timers", items = {
             { type = "toggle", key = "breathSlant", label = "Breath bar angled end",
               desc = "Cuts the right end of the breath bar at an angle, on the fatigue and feign death bars too. When off, the end is straight.",

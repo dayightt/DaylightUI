@@ -21,22 +21,22 @@ Windows.KINDS = { meter = true, threat = true, summary = true }
 Windows.TEMPLATE = {
     meter = { enabled = true, name = "", mode = "damage", session = "current",
               inGroup = false, inCombat = false, inInstance = false,
-              width = 207, height = 196, border = true, rowHeight = 22, textSize = 11,
+              width = 207, height = 196, rowHeight = 22, textSize = 11,
               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, barGradient = DUI.Style.DefaultStops(), nameColor = { 1, 1, 1 }, nameColorBy = "custom",
-              classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
+              classText = false, trackAlpha = 1, frameStyle = DUI.Style.LookDefaults(),
               rank = false, icons = "class", showTotal = true, showRate = true, showShare = true, showMe = true,
               rowGap = 1, header = "always", headerTotal = false, angled = true },
     -- auto: group (in a fight when someone else can hold the mob) | tank
     -- (only as the tank); unit: target | focus | smart (your target, else
     -- your target's target). The rest as the threat meter's own.
     threat = { enabled = true, name = "", auto = "group", unit = "target", header = "always",
-               rows = 6, rowHeight = 16, textSize = 10, width = 170, border = true, alphaOwn = false, alpha = 0.85,
+               rows = 6, rowHeight = 16, textSize = 10, width = 170, frameStyle = DUI.Style.LookDefaults(),
                barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, barGradient = DUI.Style.DefaultStops(), nameColor = { 1, 1, 1 }, nameColorBy = "custom",
                trackAlpha = 0.35, angled = true, pullLine = true, pullColor = { DUI.Style.INK.BAD[1], DUI.Style.INK.BAD[2], DUI.Style.INK.BAD[3] } },
     -- columns: which numbers it shows; sort / sortDesc: by which.
     summary = { enabled = true, name = "", session = "current", inGroup = false, inCombat = false, inInstance = false,
                 columns = { damage = true, dps = true, healing = true, hps = true, interrupts = true, dispels = true, deaths = true },
-                sort = "damage", sortDesc = true, width = 420, height = 196, rowHeight = 20, textSize = 13, border = true, alphaOwn = false, alpha = 0.85 },
+                sort = "damage", sortDesc = true, width = 420, height = 196, rowHeight = 20, textSize = 13, frameStyle = DUI.Style.LookDefaults() },
 }
 
 -- What "New window" offers, in its order: a kind, and what it starts as.
@@ -274,12 +274,13 @@ function Windows.Move(id, delta)
     return false
 end
 
--- The General page's "Apply" resets every window background to the General
--- value. Options.ApplyWindowAlpha only knows fixed settings, so player-made
--- windows are handled here.
-DUI.On("WindowAlphaApplied", function()
+-- The General page's "Apply" puts every window back on the global style.
+-- Options.ApplyGlobalStyle only knows fixed settings, so player-made windows
+-- are handled here.
+DUI.On("GlobalStyleApplied", function()
     for _, e in ipairs(Windows.Own()) do
-        if e.cfg.alphaOwn == true then DUI:Set("InfoPanel", e.path .. ".alphaOwn", false) end
+        local look = e.cfg.frameStyle
+        if type(look) == "table" and look.global == false then DUI:Set("InfoPanel", e.path .. ".frameStyle.global", true) end
     end
 end)
 

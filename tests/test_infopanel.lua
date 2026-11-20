@@ -100,35 +100,36 @@ end)
 T.test("info panel: the minimap's box has its own background and border", function()
     local DUI = login()
     local P = stub.infopanel.Panel
-    local box, xp = DUI.Style.GetShell(P.panel).opts, DUI.Style.GetShell(P.xp).opts
-    T.eq(box.bgAlpha, xp.bgAlpha, "at first: the same as the others")
-    DUI:Set("InfoPanel", "map.alphaOwn", true)
-    DUI:Set("InfoPanel", "map.alpha", 0.3)
-    DUI:Set("InfoPanel", "map.border", false)
-    T.eq(box.bgAlpha, 0.3, "its own background")
+    local boxS, xpS = DUI.Style.GetShell(P.panel), DUI.Style.GetShell(P.xp)
+    local box, xp = boxS.opts, xpS.opts
+    T.near(boxS.bg.__color[4], xpS.bg.__color[4], nil, "at first: the same as the others")
+    DUI:Set("InfoPanel", "map.frameStyle.global", false)
+    DUI:Set("InfoPanel", "map.frameStyle.windowAlpha", 0.3)
+    DUI:Set("InfoPanel", "map.frameStyle.borderAlpha", 0)
+    T.near(boxS.bg.__color[4], 0.3, nil, "its own background")
     T.eq(box.noBorder, true, "its own border")
     T.eq(DUI.Style.GetShell(P.arrow).opts.noBorder, true, "its fold tab with it")
-    T.truthy(xp.bgAlpha ~= 0.3, "the experience bar keeps the panel's")
+    T.truthy(xpS.bg.__color[4] ~= 0.3, "the experience bar keeps the panel's")
     T.falsy(xp.noBorder)
-    DUI:Set("InfoPanel", "panelBorder", false)
-    DUI:Set("InfoPanel", "map.border", true)
-    T.falsy(box.noBorder, "the panel's border switch leaves the map's box alone")
+    DUI:Set("InfoPanel", "frameStyle.global", false)
+    DUI:Set("InfoPanel", "frameStyle.borderAlpha", 0)
+    DUI:Set("InfoPanel", "map.frameStyle.borderAlpha", 1)
+    T.falsy(box.noBorder, "the panel's border leaves the map's box alone")
     T.eq(xp.noBorder, true)
 end)
 
 T.test("info panel: a profile whose panel looked different keeps that look on the map's box, once", function()
-    login()
-    local up = stub.infopanel.UpgradeMapBox
+    local DUI = login()
     local p = { modules = { InfoPanel = { panelBorder = false, panelAlphaOwn = true, panelAlpha = 0.4 } } }
-    up(p)
-    local map = p.modules.InfoPanel.map
-    T.eq(map.border, false); T.eq(map.alphaOwn, true); T.eq(map.alpha, 0.4)
+    DUI.DB.SectionLooks(p)
+    local map = p.modules.InfoPanel.map.frameStyle
+    T.eq(map.global, false); T.eq(map.borderAlpha, 0); T.eq(map.windowAlpha, 0.4)
     T.eq(p.mapBox1, true)
-    map.border = true
-    up(p)
-    T.eq(map.border, true, "only once")
+    map.borderAlpha = 1
+    DUI.DB.SectionLooks(p)
+    T.eq(map.borderAlpha, 1, "only once")
     local plain = { modules = { InfoPanel = {} } }
-    up(plain)
+    DUI.DB.SectionLooks(plain)
     T.isnil(plain.modules.InfoPanel.map, "nothing changed: nothing saved")
 end)
 
@@ -2506,13 +2507,13 @@ T.test("info panel: a meter's own window can have its own background", function(
     local P = stub.infopanel.Panel
     DUI:Set("InfoPanel", "meter.detached", true)
     settle()
-    local own, xp = DUI.Style.GetShell(P.meterFrame).opts, DUI.Style.GetShell(P.xp).opts
-    T.eq(own.bgAlpha, xp.bgAlpha, "the panel's at first")
-    DUI:Set("InfoPanel", "meter.alphaOwn", true)
-    DUI:Set("InfoPanel", "meter.alpha", 0)
+    local own, xp = DUI.Style.GetShell(P.meterFrame), DUI.Style.GetShell(P.xp)
+    T.near(own.bg.__color[4], xp.bg.__color[4], nil, "the global style's at first, as the panel")
+    DUI:Set("InfoPanel", "meter.frameStyle.global", false)
+    DUI:Set("InfoPanel", "meter.frameStyle.windowAlpha", 0)
     settle()
-    T.eq(own.bgAlpha, 0, "see-through")
-    T.truthy(xp.bgAlpha > 0, "the experience bar keeps the panel's")
+    T.near(own.bg.__color[4], 0, nil, "see-through")
+    T.truthy(xp.bg.__color[4] > 0, "the experience bar keeps the panel's")
 end)
 
 T.test("options: the info panel is split into tabs and every setting has one home", function()
@@ -2540,19 +2541,19 @@ T.test("options: the info panel is split into tabs and every setting has one hom
         end
     end
     for _, key in ipairs({
-        "panelAlpha", "panelBorder",
+        "frameStyle.global", "frameStyle.windowAlpha", "frameStyle.borderAlpha",
         "xp.enabled", "xp.showText", "xp.showPercent", "xp.textSize", "xp.gradient", "xp.color", "xp.ticks", "xp.tipSide", "xp.height", "xp.detached", "xp.width",
-        "meter.enabled", "meter.detached", "meter.numbers", "meter.onJoin", "meter.onInstance", "panelAlphaOwn",
+        "meter.enabled", "meter.detached", "meter.numbers", "meter.onJoin", "meter.onInstance",
         "meters.sameFight", "meters.backToCurrent",
         -- Every window's own (the Meters page edits the one picked):
         "win.enabled", "win.mode", "win.session", "win.width", "win.height", "win.inGroup", "win.inCombat", "win.inInstance",
-        "win.border", "win.rowHeight", "win.rowGap", "win.textSize", "win.barColor", "win.gradient", "win.barCustom",
-        "win.nameColor", "win.nameColorBy", "win.classText", "win.trackAlpha", "win.alphaOwn", "win.alpha", "win.rank", "win.icons",
+        "win.frameStyle.global", "win.frameStyle.borderAlpha", "win.rowHeight", "win.rowGap", "win.textSize", "win.barColor", "win.gradient", "win.barCustom",
+        "win.nameColor", "win.nameColorBy", "win.classText", "win.trackAlpha", "win.frameStyle.windowAlpha", "win.rank", "win.icons",
         "win.showTotal", "win.showRate", "win.showShare", "win.showMe", "win.header", "win.headerTotal",
         "win.auto", "win.at", "win.unit", "win.rows", "win.belowRows", "win.pullLine", "win.pullColor",
         "win.columns.damage", "threat.fade.mode",
         "tracker.enabled", "tracker.fade.mode", "fade.mode", "tracker.fade.alpha", "fade.alpha",
-        "map.enabled", "map.size", "map.buttons", "map.meterSide", "map.alphaOwn", "map.alpha", "map.border",
+        "map.enabled", "map.size", "map.buttons", "map.meterSide", "map.frameStyle.global", "map.frameStyle.windowAlpha", "map.frameStyle.borderAlpha",
         "map.clock.enabled", "map.clock.twentyFour", "map.clock.useServer", "map.fps.enabled", "map.coords.enabled", "map.location.enabled",
         "data.enabled", "data.count", "data.labels", "data.textSize", "data.slot1", "data.slot5",
     }) do
@@ -3209,16 +3210,19 @@ T.test("threat meter: its top stays level with its host's, whichever of them has
     T.near(clipY(), M, 1e-6, "both framed: the outer edges line up")
     local tabFramed = tabY()
     -- The map's box with no border draws its background a border's width inside its frame.
-    DUI:Set("InfoPanel", "map.border", false)
+    DUI:Set("InfoPanel", "map.frameStyle.global", false)
+    DUI:Set("InfoPanel", "map.frameStyle.borderAlpha", 0)
     T.near(clipY(), M - hT, 1e-6, "no border on the panel: down to where its background starts")
     T.near(tabY(), tabFramed - hT, 1e-6, "the tab comes down with the window")
-    DUI:Set("InfoPanel", "threat.border", false)
+    DUI:Set("InfoPanel", "threat.frameStyle.global", false)
+    DUI:Set("InfoPanel", "threat.frameStyle.borderAlpha", 0)
     T.near(clipY(), M, 1e-6, "neither framed: both backgrounds start a border in")
-    DUI:Set("InfoPanel", "map.border", true)
+    DUI:Set("InfoPanel", "map.frameStyle.borderAlpha", 1)
     T.near(clipY(), M + hT, 1e-6, "only the panel framed: up to its outer edge")
-    DUI:Set("InfoPanel", "threat.border", true)
+    DUI:Set("InfoPanel", "threat.frameStyle.borderAlpha", 1)
     DUI:Set("InfoPanel", "meter.detached", true)
-    DUI:Set("InfoPanel", "meter.border", false)
+    DUI:Set("InfoPanel", "meter.frameStyle.global", false)
+    DUI:Set("InfoPanel", "meter.frameStyle.borderAlpha", 0)
     T.near(clipY(), M - hT, 1e-6, "beside a separate meter window with no border: the same")
     DUI:Set("InfoPanel", "meter.detached", false)
     DUI.SetTestMode(false)
@@ -3592,8 +3596,9 @@ T.test("info panel: the XP and reputation bars can have their own border, corner
     T.eq(xp.borderPx, 9)
     T.eq(xp.cornerPx, 2)
     T.eq(xp.shadowPx, 7)
-    DUI:Set("InfoPanel", "panelBorder", false)
-    T.falsy(xp.noBorder, "its own look ignores the panel's border switch")
+    DUI:Set("InfoPanel", "frameStyle.global", false)
+    DUI:Set("InfoPanel", "frameStyle.borderAlpha", 0)
+    T.falsy(xp.noBorder, "its own look ignores the panel's border")
     DUI:Set("InfoPanel", "xp.shell.borderPx", 0)
     T.eq(xp.noBevel, true, "no border, no bevel lines")
     DUI:Set("InfoPanel", "xp.shell.own", false)

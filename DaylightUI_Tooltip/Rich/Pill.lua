@@ -67,7 +67,7 @@ function Pill.Frame()
     f:SetClampedToScreen(true)
     f:EnableMouse(false)
     f:Hide()
-    f.shell = Style.Shell(f, { borderPx = ns.Tooltip.BorderPx, cornerPx = 0, noBevel = true,
+    f.shell = Style.Shell(f, { look = ns.Tooltip.LOOK, cornerPx = 0, noBevel = true,
         bgAlpha = ns.Tooltip.BackAlpha("rich") })
     Style.CutShell(f, Pill.CUT)
     f.light = f:CreateTexture(nil, "ARTWORK", nil, 2)

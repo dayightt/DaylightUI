@@ -193,24 +193,71 @@ T.test("turning the local font off stays off; it does nothing on other clients",
     _G.GetLocale = real
 end)
 
-T.test("panel backgrounds follow every window's opacity; one that looked different keeps its own, once", function()
+T.test("panel backgrounds that looked different from every window's keep their own look", function()
     local DUI = stub.Load({ before = function()
         DaylightUIDB = { version = 2, profileData = {
             Mine = { modules = { Chat = { panelAlpha = 0.5 }, InfoPanel = { meter = { bgAlpha = 0.3 } } } },
             Light = { general = { windowAlpha = 0.6 }, modules = {} } } }
     end })
     local pd = DaylightUIDB.profileData
-    T.eq(pd.Mine.modules.Chat.panelAlphaOwn, true, "chat at 0.5: keeps its own")
-    T.isnil(pd.Mine.modules.InfoPanel.panelAlphaOwn, "the info panel looked like the windows: follows them")
-    T.isnil(pd.Mine.modules.InfoPanel.meter.bgAlpha, "the meter's own is gone")
-    T.eq(pd.Light.modules.Quests.boxAlphaOwn, true, "windows at 0.6, the quest box at 0.85: keeps 0.85")
-    T.eq(pd.Light.modules.Buffs.settings.debuff.backgroundAlphaOwn, true)
     T.eq(pd.Mine.backs1, true)
-    pd.Mine.modules.Chat.panelAlphaOwn = nil
-    DUI.DB.Init()
-    T.isnil(pd.Mine.modules.Chat.panelAlphaOwn, "only once")
-    T.eq(DUI.Style.BackAlpha(false, 0.4), DUI:Get("general", "windowAlpha"), "off: every window's")
-    T.eq(DUI.Style.BackAlpha(true, 0.4), 0.4, "on: its own")
+    DUI.DB.Fill(pd.Mine)
+    DUI.DB.Fill(pd.Light)
+    local chat = pd.Mine.modules.Chat
+    T.eq(chat.frameStyle.global, false, "chat at 0.5: its own look")
+    T.near(chat.frameStyle.windowAlpha, 0.5)
+    T.isnil(chat.panelAlphaOwn, "the old switch is gone")
+    T.isnil(chat.panelAlpha)
+    T.truthy((pd.Mine.modules.InfoPanel.frameStyle or {}).global ~= false, "the info panel looked like the windows: global")
+    T.isnil(pd.Mine.modules.InfoPanel.meter.bgAlpha, "the meter's own is gone")
+    local box = pd.Light.modules.Quests.frameStyle
+    T.eq(box.global, false, "windows at 0.6, the quest box at 0.85: keeps 0.85")
+    T.near(box.windowAlpha, 0.85)
+    T.eq(pd.Light.modules.Buffs.settings.debuff.frameStyle.global, false)
+end)
+
+T.test("old border and opacity settings move into each section's own look", function()
+    local DUI = stub.Load()
+    local p = { general = { borderPx = 4, shadowAlpha = 0.2 }, modules = {
+        Bags = { windowAlphaOwn = true, windowAlpha = 0.4 },
+        Book = { windowAlpha = 0.3 },   -- set, but never switched on
+        Chat = { border = "flat", borderSize = 3 },
+        InfoPanel = { panelBorder = false, map = { alphaOwn = true, alpha = 0.5 }, databar = { borderAlpha = 0.6 },
+                      meters = { windows = { w3 = { kind = "meter", border = false } } } },
+        Quests = { boxBorder = false },
+        Tooltip = { borderPx = 0 },
+        QoL = { lootFeedBorderColor = "quality", flightAlphaOwn = true, flightAlpha = 0.7 },
+    } }
+    DUI.DB.SectionLooks(p)
+    local m = p.modules
+    T.eq(m.Bags.frameStyle.global, false)
+    T.near(m.Bags.frameStyle.windowAlpha, 0.4)
+    T.eq(m.Bags.frameStyle.borderPx, 4, "the rest starts from the profile's own General")
+    T.near(m.Bags.frameStyle.shadowAlpha, 0.2)
+    T.isnil(m.Bags.windowAlphaOwn)
+    T.isnil(m.Book.frameStyle, "a value that never showed changes nothing")
+    T.isnil(m.Book.windowAlpha)
+    T.eq(m.Chat.frameStyle.heavyBorder, false, "a flat chat border")
+    T.eq(m.Chat.frameStyle.borderPx, 3)
+    T.isnil(m.Chat.border)
+    T.eq(m.InfoPanel.frameStyle.borderAlpha, 0, "no border = border opacity 0")
+    T.isnil(m.InfoPanel.panelBorder)
+    T.near(m.InfoPanel.map.frameStyle.windowAlpha, 0.5)
+    T.eq(m.InfoPanel.map.frameStyle.borderAlpha, 0, "the map box took the panel's missing border, as before")
+    T.near(m.InfoPanel.databar.frameStyle.borderAlpha, 0.6)
+    T.isnil(m.InfoPanel.databar.frameStyle.heavyBorder, "the data bar's own design isn't copied from General")
+    T.eq(m.InfoPanel.meters.windows.w3.frameStyle.borderAlpha, 0)
+    T.eq(m.Quests.frameStyle.borderAlpha, 0)
+    T.eq(m.Tooltip.frameStyle.borderAlpha, 0, "a 0 px tooltip border")
+    T.eq(m.Tooltip.frameStyle.borderPx, 1)
+    T.near(m.Tooltip.frameStyle.windowAlpha, 0.92)
+    T.eq(m.QoL.lootFeedFrame.global, false, "a border color keeps the feed's own look")
+    T.near(m.QoL.flightFrame.windowAlpha, 0.7)
+    T.isnil(m.QoL.flightAlphaOwn)
+
+    local before = DUI.DB.Copy(p)
+    DUI.DB.SectionLooks(p)
+    T.deq(p, before, "a second run changes nothing")
 end)
 
 T.test("a bar texture saved as the window color goes back to the window bar background", function()

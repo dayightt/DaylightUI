@@ -4,8 +4,7 @@ local _, ns = ...
 
 ns.DEFAULTS = {
     packs = { npc = true, social = true, collections = true, system = true },
-    windowAlphaOwn = false, -- off: follows the general window opacity
-    windowAlpha = 0.85,
+    frameStyle = DaylightUI.Style.LookDefaults(), -- borders, shadows and background, or General's (Style.LookOf)
     ccAlert = true, -- the crowd control alert in Daylight UI style; off = the game's own (Packs/LossOfControl.lua)
     breathSlant = true, -- angled end on the breath bar; off = straight (Packs/Breath.lua)
     mapReveal = false, -- dim the world map's unexplored areas (MapReveal.lua)

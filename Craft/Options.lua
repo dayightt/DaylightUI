@@ -4,7 +4,7 @@ local _, DUI = ...
 DUI.Craft = DUI.Craft or {}
 local ns = DUI.Craft
 
-local backRows = DUI.Options.BackAlphaRows("windowAlpha", "Profession window", function() return DUI.craftMogul == true end, "1.6.2")
+local lookRows = DUI.Options.LookRows("frameStyle", function() return DUI.craftMogul == true end)
 
 ns.OPTIONS = { pages = {
     { id = "window", label = "Professions",
@@ -27,7 +27,7 @@ ns.OPTIONS = { pages = {
               disabled = function() return DaylightUI.craftMogul == true or not DaylightUI.AuctionPrices end },
             { type = "slider", key = "scale", label = "Profession window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is.", disabled = function() return DaylightUI.craftMogul == true end },
-            backRows[1], backRows[2],
         } },
+        { label = "Borders and background", items = lookRows },
     } },
 } }

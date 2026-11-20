@@ -296,22 +296,111 @@ Style.HEAVY_MIN_PX = 3 -- thinner borders stay plain
 Style.BACKGROUND = { 0.078, 0.078, 0.090 }  -- #141417
 Style.BACKGROUND_ALPHA = 0.85
 
--- A panel's background opacity (chat, info panel, quest box, buffs): its own
--- when its "Separate ... background opacity" switch is on, else the shared
--- window value (General windowAlpha). Read at paint time; General's repaint
--- reaches the panels through their modules' OnStyleChanged.
-function Style.BackAlpha(own, value)
-    if own == true and type(value) == "number" then return value end
-    local g = DUI.DB and DUI.DB.General and DUI.DB.General()
-    return g and type(g.windowAlpha) == "number" and g.windowAlpha or Style.BACKGROUND_ALPHA
+-- The border, shadow and background settings a window or panel can have of
+-- its own, under the same names General keeps them by. Each such section saves
+-- them in a table with `global` (true: it follows General).
+Style.LOOK_KEYS = DUI.DB.LOOK_KEYS
+
+-- A section's defaults: General's own, so switching one off changes nothing
+-- until the player moves a slider. over: values this section starts with.
+function Style.LookDefaults(over)
+    local gd = DUI.DB.GENERAL_DEFAULTS
+    local t = { global = true }
+    for _, k in ipairs(Style.LOOK_KEYS) do t[k] = DUI.DB.Copy(gd[k]) end
+    for k, v in pairs(over or {}) do t[k] = v end
+    return t
 end
 
--- A window's background opacity. scope is the module holding its windowAlpha
--- and windowAlphaOwn (Style.Shell's opts.window, Win.New's spec.back). true
--- (a small window with no setting of its own) uses the shared value.
+-- A section is named by its module's scope ("Bags": its `frameStyle` table) or
+-- { scope, path } for one kept elsewhere ({ "InfoPanel", "map.frameStyle" }).
+function Style.LookPath(look)
+    if type(look) == "table" then return look[1], look[2] end
+    if type(look) == "string" then return look, "frameStyle" end
+end
+
+local function generalLook() return DUI.DB and DUI.DB.General and DUI.DB.General() end
+
+-- The look settings to draw a section with: its own while its global style is
+-- off, else General's. nil gives General's. Read at paint time, never kept.
+-- A section can start from something else than General for a value that's part
+-- of its own design (the data bar has no border): its default differs from
+-- General's default. On the global style it keeps that one value and takes
+-- the rest from General. Worked out once per section from its defaults.
+local designed, globalViews = {}, {}
+
+-- Every section's look table seen so far ([scope][path] = true): the fixed
+-- list, and meter windows the player makes as they're drawn. A change under
+-- one re-lays out its shells.
+local looked = {}
+local function noteLook(scope, path)
+    local s = looked[scope]
+    if not s then s = {}; looked[scope] = s end
+    s[path] = true
+end
+for _, b in ipairs(DUI.DB.LOOKS) do noteLook(b[1], b[2]) end
+local function isLook(scope, path) return looked[scope] ~= nil and looked[scope][path] == true end
+
+local function designOf(scope, path)
+    local key = scope .. ":" .. path
+    local d = designed[key]
+    if d then return d end
+    d = {}
+    local mod = DUI:GetModule(scope)
+    local defaults = mod and mod.defaults and DUI.DB.GetPath(mod.defaults, path)
+    local gd = DUI.DB.GENERAL_DEFAULTS
+    if type(defaults) == "table" then
+        for _, k in ipairs(Style.LOOK_KEYS) do
+            local v = defaults[k]
+            if v ~= nil and type(v) ~= "table" and v ~= gd[k] then d[k] = v end
+        end
+    end
+    designed[key] = d
+    return d
+end
+
+function Style.LookOf(look)
+    local scope, path = Style.LookPath(look)
+    local g = generalLook()
+    if not scope then return g end
+    local t = DUI:Get(scope, path)
+    if type(t) ~= "table" then return g end
+    if not isLook(scope, path) then noteLook(scope, path) end
+    if t.global == false then return t end
+    local d = designOf(scope, path)
+    if next(d) == nil or type(g) ~= "table" then return g end
+    -- General's values with the section's own design on top, in a table kept
+    -- per section and refilled on each read (no garbage while painting).
+    local key = scope .. ":" .. path
+    local view = globalViews[key]
+    if not view then view = {}; globalViews[key] = view end
+    for _, k in ipairs(Style.LOOK_KEYS) do
+        local v = d[k]
+        if v == nil then v = g[k] end
+        view[k] = v
+    end
+    return view
+end
+
+-- True while a section draws with a look of its own (its global style is off).
+function Style.LookOwn(look)
+    local scope, path = Style.LookPath(look)
+    if not scope then return false end
+    local t = DUI:Get(scope, path)
+    return type(t) == "table" and t.global == false
+end
+
+-- A panel's or window's background opacity, from its section's look (nil:
+-- General's window opacity).
+function Style.BackAlpha(look)
+    local t = Style.LookOf(look)
+    return t and type(t.windowAlpha) == "number" and t.windowAlpha or Style.BACKGROUND_ALPHA
+end
+
+-- A window's background opacity. scope is the module whose look it wears
+-- (Style.Shell's opts.window, Win.New's spec.back). true (a small window with
+-- no setting of its own) uses the shared value.
 function Style.WindowBack(scope)
-    if type(scope) ~= "string" then return Style.BackAlpha() end
-    return Style.BackAlpha(DUI:Get(scope, "windowAlphaOwn"), DUI:Get(scope, "windowAlpha"))
+    return Style.BackAlpha(type(scope) == "string" and scope or nil)
 end
 
 -- How much of the class color a "class" window background takes. Kept low so
@@ -319,11 +408,11 @@ end
 Style.CLASS_BACK_MIX = 0.2
 local backColor = { 0, 0, 0 }
 
--- The color behind every window and panel that follows the shared opacity
--- (General windowTint: the look's own, a dark class tint or a picked color).
+-- The color behind a window or panel, from its section's look (nil: General's
+-- windowTint: the look's own, a dark class tint or a picked color).
 -- Read at paint time; one table is reused, so copy it before keeping it.
-function Style.BackColor()
-    local g = DUI.DB and DUI.DB.General and DUI.DB.General()
+function Style.BackColor(look)
+    local g = Style.LookOf(look)
     local base, mode = Style.BACKGROUND, g and g.windowTint
     if mode == "custom" then
         local c = g.windowTintColor
@@ -389,6 +478,17 @@ Style.POWER = { MANA = { 0.22, 0.42, 0.86 } }
 Style.POWER_FALLBACK = { 0.22, 0.42, 0.86 }
 
 local function general() return DUI.DB.General() end
+
+-- The look a shell is drawn with: its section's (opts.look, or the window
+-- scope in opts.window) while that section's global style is off, else General's.
+local function shellLook(s)
+    local o = s and s.opts
+    if not o then return general() end
+    local look = o.look or (type(o.window) == "string" and o.window) or nil
+    if not look then return general() end
+    return Style.LookOf(look) or general()
+end
+Style.ShellLook = shellLook
 local isSecret = DUI.IsSecret
 
 -- Colors
@@ -1012,7 +1112,7 @@ function Style.Shells() return pairs(shells) end
 -- function of the general one), else the general setting.
 local function shellBorderPx(s)
     -- Another addon can leave the setting empty; the math below needs a number.
-    local g = general().borderPx
+    local g = shellLook(s).borderPx
     if type(g) ~= "number" then g = DUI.DB.GENERAL_DEFAULTS.borderPx end
     local own = s and s.opts.borderPx
     if type(own) == "function" then return own(g) end
@@ -1085,7 +1185,7 @@ local function eachFromBoolean(list, flag, on, off)
 end
 
 function Style.ShellColorsFromBoolean(s, flag, border, band)
-    local c = boolColors(s, border, band, general().borderAlpha)
+    local c = boolColors(s, border, band, shellLook(s).borderAlpha)
     eachFromBoolean(s.border, flag, c.onB, c.offB)
     eachFromBoolean(s.slantFill, flag, c.onB, c.offB)
     eachFromBoolean(s.lineSlant, flag, c.onB, c.offB)
@@ -1096,7 +1196,7 @@ end
 -- opts.heavyMinPx: a shell's own minimum for a heavy border (a thin bar's band
 -- and lines need more room than a frame's).
 function Style.IsHeavy(s)
-    return general().heavyBorder ~= false and not s.opts.flat
+    return shellLook(s).heavyBorder ~= false and not s.opts.flat
         and shellBorderPx(s) >= (s.opts.heavyMinPx or Style.HEAVY_MIN_PX)
 end
 
@@ -1263,7 +1363,7 @@ local function shellSweeps(s, g)
 end
 
 function Style.PaintShellColors(s)
-    local g = general()
+    local g = shellLook(s)
     local opts = s.opts
     local ba, sweepBorder, sweepBand = shellSweeps(s, g)
     local bc, dc = opts.borderColor or Style.BORDER, opts.bandColor or Style.BAND
@@ -1307,7 +1407,7 @@ end
 -- highlight or sweep on the shell, else the shell's band color. Optional
 -- outlines and bands (lists) are more pieces of the frame's own border.
 function Style.PaintJoin(j, s)
-    local g = general()
+    local g = shellLook(s)
     local opts = s.opts
     local ba, sweepBorder, sweepBand = shellSweeps(s, g)
     local side = j.side or "left"
@@ -1350,7 +1450,7 @@ end
 -- normal color. The two color objects are kept until the color or alpha moves.
 function Style.JoinBandFromBoolean(j, s, flag, color)
     if not j.band.SetVertexColorFromBoolean then return end
-    local a = shellAlpha(s, general())
+    local a = shellAlpha(s, shellLook(s))
     local c = j.boolColors
     if not (c and c.a == a and c[1] == color[1] and c[2] == color[2] and c[3] == color[3]) then
         local nd = Style.BAND
@@ -1405,11 +1505,14 @@ local function litFrom(angled, under, side, e, inset, insetUnder)
     return leans(under, side) and insetUnder or inset
 end
 
--- A shell's background color. A window (opts.window) gets its opacity from
--- Style.WindowBack; windows and panels (opts.panel) take Style.BackColor.
+-- A shell's background color. Windows (opts.window) and panels with a look of
+-- their own (opts.look) take their section's opacity and color; other panels
+-- (opts.panel) take General's color.
 function Style.PaintBack(s)
-    local bgc = s.opts.bgColor or ((s.opts.window or s.opts.panel) and Style.BackColor()) or Style.BACKGROUND
-    local bgA = s.opts.bgAlpha or (s.opts.window and Style.WindowBack(s.opts.window)) or Style.BACKGROUND_ALPHA
+    local o = s.opts
+    local look = o.look or (type(o.window) == "string" and o.window) or nil
+    local bgc = o.bgColor or ((o.window or o.panel or o.look) and Style.BackColor(look)) or Style.BACKGROUND
+    local bgA = o.bgAlpha or ((o.window or o.look) and Style.BackAlpha(look)) or Style.BACKGROUND_ALPHA
     s.bg:SetColorTexture(bgc[1], bgc[2], bgc[3], bgA)
 end
 
@@ -1425,7 +1528,7 @@ function Style.LayoutShell(s)
     layoutCount = layoutCount + 1
     s.dirty = false
     if s.cutEdge then layoutCutEdge(s, Style.GetCut(s:GetParent())) end
-    local g = general()
+    local g = shellLook(s)
     local borderPx = shellBorderPx(s)
     local T = DUI.Pixel.Px(s, borderPx)
     -- The corner curve is its own size, so a thick border can stay nearly
@@ -3167,12 +3270,53 @@ end
 
 DUI.On("RepaintCore", Style.RepaintAll)
 
--- One window's own opacity changed: update just its background, so dragging a
--- slider never re-lays out every frame (General's repaint does that).
-DUI.On("SettingChanged", function(scope, path)
-    if scope == "general" or (path ~= "windowAlpha" and path ~= "windowAlphaOwn") then return end
+local function sameValue(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    for k, v in pairs(a) do if b[k] ~= v then return false end end
+    for k, v in pairs(b) do if a[k] ~= v then return false end end
+    return true
+end
+
+-- Switching a section's global style off starts it from what General shows now,
+-- so nothing jumps. Only values still at their default are copied: a value the
+-- player (or a profile) already gave the section stays.
+local function startFromGeneral(scope, lookPath)
+    local mod = DUI:GetModule(scope)
+    local defaults = mod and mod.defaults and DUI.DB.GetPath(mod.defaults, lookPath)
+    local own, g = DUI:Get(scope, lookPath), general()
+    if type(defaults) ~= "table" or type(own) ~= "table" or type(g) ~= "table" then return end
+    local design = designOf(scope, lookPath)
+    for _, k in ipairs(Style.LOOK_KEYS) do
+        if design[k] == nil and sameValue(own[k], defaults[k]) and not sameValue(own[k], g[k]) then
+            DUI:Set(scope, lookPath .. "." .. k, DUI.DB.Copy(g[k]))
+        end
+    end
+end
+
+local BACK_ONLY = { windowAlpha = true, windowTint = true, windowTintColor = true }
+
+-- A section's own look changed: lay out just its shells (only the background
+-- for an opacity or color), so dragging a slider never re-lays out every frame.
+-- The ones not shown wait until they are.
+DUI.On("SettingChanged", function(scope, path, value)
+    if scope == "general" or type(path) ~= "string" then return end
+    -- The change is to a section's look table (a reset) or one of its keys.
+    local lookPath, key = path, nil
+    local parent, last = path:match("^(.+)%.([^%.]+)$")
+    if parent and isLook(scope, parent) then lookPath, key = parent, last end
+    if not isLook(scope, lookPath) then return end
+    if key == "global" and value == false then startFromGeneral(scope, lookPath) end
     for s in pairs(shells) do
-        if s.opts.window == scope and s.bg then Style.PaintBack(s) end
+        local sScope, sPath = Style.LookPath(s.opts.look or (type(s.opts.window) == "string" and s.opts.window) or nil)
+        if sScope == scope and sPath == lookPath then
+            if BACK_ONLY[key] then
+                if s.bg then Style.PaintBack(s) end
+            elseif s.alwaysLayout or visible(s) then
+                Style.LayoutShell(s)
+            else
+                s.dirty = true
+            end
+        end
     end
 end)
 

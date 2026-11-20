@@ -295,18 +295,26 @@ local function slant(row)
     Style.Slant(row, side, cutOf(row), nil, (side == "both" or side == under) and under or nil)
 end
 
+-- Where the rows' border, shadow and background come from (Style.LookOf).
+local LOOK = { "QoL", "lootFeedFrame" }
+local function noBorder() return Style.LookOf(LOOK).borderAlpha == 0 end
+
+-- The border color picked with the feed's own look; the global style has none.
+local function borderMode()
+    return Style.LookOwn(LOOK) and db("lootFeedBorderColor") or "normal"
+end
+
 -- Shell options from the settings. Each row gets its own table because a
 -- recolor writes into it. No border and no background means no shadow either.
 local function shellOpts()
-    local noBack, noBorder = db("lootFeedBack") == false, db("lootFeedBorder") == false
-    return { noBackground = noBack, noBorder = noBorder, noBevel = noBack,
-        shadowAlpha = (noBack and noBorder) and 0 or nil,
-        bgAlpha = Style.BackAlpha(db("lootFeedAlphaOwn"), db("lootFeedAlpha")) }
+    local noBack = db("lootFeedBack") == false
+    return { look = LOOK, noBackground = noBack, noBevel = noBack,
+        shadowAlpha = (noBack and noBorder()) and 0 or nil }
 end
 
 -- Its border: the default one, the item's quality, the accent or the player's own.
 local function paintBorder(row)
-    local s, mode = row.shell, db("lootFeedBorderColor")
+    local s, mode = row.shell, borderMode()
     if not s then return end
     local c = db("lootFeedBorderCustom")
     if mode == "accent" then
@@ -322,7 +330,7 @@ end
 
 -- The resting border color, which the epic flash eases back to.
 local function borderGoal(row)
-    local mode, c = db("lootFeedBorderColor"), db("lootFeedBorderCustom")
+    local mode, c = borderMode(), db("lootFeedBorderCustom")
     if mode == "accent" then return { Style.Accent() } end
     if mode == "quality" and row.entry then return qualityColor(row.entry) end
     if mode == "custom" and type(c) == "table" then return { c[1], c[2], c[3] } end
@@ -509,7 +517,7 @@ local function epic(row)
         row.burst:SetSize(w, w * 0.6)
         row.burst:SetAlpha(Feed.BURST_ALPHA * (1 - p))
     end, function() row.burst:Hide() end)
-    if db("lootFeedBorder") == false or not row.shell then return end
+    if noBorder() or not row.shell then return end
     local k = Feed.FLASH_LIFT
     local hi = { c[1] + (1 - c[1]) * k, c[2] + (1 - c[2]) * k, c[3] + (1 - c[3]) * k }
     local to = borderGoal(row)

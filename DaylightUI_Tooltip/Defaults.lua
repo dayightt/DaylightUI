@@ -17,7 +17,6 @@ ns.DEFAULTS = {
     -- "simple": the game's tooltip in the Daylight UI look; "rich": Daylight UI's
     -- own cards drawn over it (Rich/).
     style = "simple",
-    richAlpha = 0.95, -- the rich card's background opacity
     pill = "combat", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
     pillKey = "shift", -- held, the full card in the pill's place: "shift", "ctrl", "alt", "none"
     portraits = true, -- a creature's face and a player's class icon at the top of their card
@@ -34,12 +33,9 @@ ns.DEFAULTS = {
     textSize = 12,   -- every line
     titleSize = 14,  -- a name, an item's name, a spell's name
     smallSize = 11,  -- sub lines, the quote, small facts
-    bgAlpha = 0.92,
-    -- Their own border and background, on by default unlike the windows:
-    -- tooltips stay a little more solid than the shared window opacity, as
-    -- they always were. Off, both follow General.
-    bgAlphaOwn = true,
-    borderPx = 8,
+    -- Their border, shadow and background. By design tooltips are a little
+    -- more solid than the windows, also on the global style.
+    frameStyle = DaylightUI.Style.LookDefaults({ windowAlpha = 0.92 }),
     classColors = true,     -- players' names in their class color
     classBorder = true, -- class-colored border too
     borderGradient = false, -- border uses the unit's class (or reaction) gradient

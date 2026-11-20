@@ -420,13 +420,16 @@ T.test("loot feed: background, border and its color follow the settings", functi
     local r = live(F)[1]
     T.isnil(r.shell.opts.borderColor, "our border by default")
     DaylightUI:Set("QoL", "lootFeedBorderColor", "quality")
+    T.isnil(r.shell.opts.borderColor, "a border color comes with the feed's own look")
+    DaylightUI:Set("QoL", "lootFeedFrame.global", false)
     T.near(r.shell.opts.borderColor[2], select(2, DaylightUI.Win.Parts.QualityColor(2)), 0.001, "the item's quality")
     DaylightUI:Set("QoL", "lootFeedBorderColor", "custom")
     DaylightUI:Set("QoL", "lootFeedBorderCustom", { 0.1, 0.9, 0.2 })
     T.eq(r.shell.opts.borderColor[2], 0.9, "the player's own")
     DaylightUI:Set("QoL", "lootFeedBack", false)
-    DaylightUI:Set("QoL", "lootFeedBorder", false)
-    T.truthy(r.shell.opts.noBackground) T.truthy(r.shell.opts.noBorder)
+    DaylightUI:Set("QoL", "lootFeedFrame.borderAlpha", 0)
+    T.truthy(r.shell.opts.noBackground)
+    T.eq(r.shell.border.LEFT.__vertex[4], 0, "no border")
     -- Nothing of the ribbon left: no bevel lines, no shadow (seen in game).
     T.falsy(r.shell.bevelBottom:IsShown(), "no bevel line without a background")
     T.eq(r.shell.opts.shadowAlpha, 0, "no shadow without border or background")

@@ -4,7 +4,7 @@ local _, DUI = ...
 DUI.Mail = DUI.Mail or {}
 local ns = DUI.Mail
 
-local backRows = DUI.Options.BackAlphaRows("windowAlpha", "Mailbox", function() return DUI.mailMogul == true end, "1.6.2")
+local lookRows = DUI.Options.LookRows("frameStyle", function() return DUI.mailMogul == true end)
 
 ns.OPTIONS = { pages = {
     { id = "window", label = "Mailbox",
@@ -18,8 +18,8 @@ ns.OPTIONS = { pages = {
               desc = "Opening a mailbox shows Daylight UI's window: your letters, sending, and a ledger of your gold. Turn it off to use the game's own window, in Daylight UI's look, for addons that build on it. Each window also has a button to switch to the other. The ledger keeps counting either way." },
             { type = "slider", key = "scale", label = "Mailbox scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is.", disabled = function() return DaylightUI.mailMogul == true end },
-            backRows[1], backRows[2],
         } },
+        { label = "Borders and background", items = lookRows },
         { label = "Letters", items = {
             { type = "toggle", key = "ticks", label = "Tick letters to collect", since = "1.7.2",
               disabled = function() return DaylightUI.mailMogul == true end,

@@ -41,27 +41,29 @@ Tip.ANCHOR_DEFAULT = { "BOTTOMRIGHT", nil, "BOTTOMRIGHT", -100, 100 }
 
 local cfg
 
--- Its own opacity while its "Separate tooltip background opacity" switch is
--- on, else the one every window shares.
-local function backAlpha()
-    return Style.BackAlpha(cfg and cfg.bgAlphaOwn, cfg and cfg.bgAlpha)
-end
+-- The tooltips' border, shadow and background (Style.LookOf): their own, or
+-- General's with the tooltips' own design on top (a little more solid). The
+-- simple look's box is always flat; the rich card takes the heavy border.
+local LOOK = "Tooltip"
+Tip.LOOK = LOOK
+local function backAlpha() return Style.BackAlpha(LOOK) end
 local skinned = setmetatable({}, { __mode = "k" }) -- tooltip -> its shell
 
 function Tip.Config() return cfg end
 
+-- The rich card is a touch more solid than the simple look on the global
+-- style; with the tooltips' own look both take its opacity.
+Tip.RICH_ALPHA = 0.95
+
 -- The background opacity of the skinned look, or of the rich card ("rich").
 function Tip.BackAlpha(which)
-    return Style.BackAlpha(cfg and cfg.bgAlphaOwn, cfg and (which == "rich" and cfg.richAlpha or cfg.bgAlpha))
+    if which == "rich" and not Style.LookOwn(LOOK) then return Tip.RICH_ALPHA end
+    return backAlpha()
 end
 
--- The border thickness every tooltip shell takes (a shell's borderPx function,
--- read at each layout): the tooltips' own with their own look on, else g,
--- General's.
-function Tip.BorderPx(g)
-    local own = cfg and cfg.bgAlphaOwn == true and tonumber(cfg.borderPx)
-    return own or g
-end
+-- The tooltips' border thickness, for the game's aura tooltips we can only
+-- hand a backdrop to.
+function Tip.BorderPx() return Style.LookOf(LOOK).borderPx end
 
 -- To get rid of a tooltip, set alpha 0, never Hide(). Hiding the game's
 -- tooltip from Daylight UI's code runs its hide handlers tainted, and the game's tooltip
@@ -141,7 +143,7 @@ function Tip.Skin(tip)
     -- frame (Tip.HideArt). No hook on its SetAlpha: the game's own calls to a
     -- hooked method failed with "attempt to call a nil value".
     Tip.HideArt(tip)
-    local s = Style.Shell(tip, { borderPx = Tip.BorderPx, flat = true, noBevel = true, bgAlpha = backAlpha() })
+    local s = Style.Shell(tip, { look = LOOK, flat = true, noBevel = true })
     skinned[tip] = s
     -- A clicked item's close button (ItemRefTooltip.CloseButton). Done here,
     -- not in Skins, since this module can run without it.
@@ -191,7 +193,7 @@ function Tip.SkinHeader(tip)
     for _, r in ipairs({ h:GetRegions() }) do
         if r.GetObjectType and r:GetObjectType() == "Texture" then r:SetAlpha(0) end
     end
-    local s = Style.Shell(h, { borderPx = Tip.BorderPx, flat = true, noBevel = true, bgAlpha = backAlpha() })
+    local s = Style.Shell(h, { look = LOOK, flat = true, noBevel = true })
     if not s then return end
     s:ClearAllPoints()
     -- The header's left edge is the tooltip's.
@@ -2027,15 +2029,16 @@ Tip.WHITE = "Interface\\Buttons\\WHITE8X8"
 function Tip.StyleAuraTooltip()
     local inbound = _G.AuraContainerInbound
     if type(inbound) ~= "table" or type(inbound.SetTooltipBackdrop) ~= "function" or not CreateColor then return end
-    local edge = DUI.Pixel.Px(UIParent, Tip.BorderPx(Style.BorderPx()))
-    local bg, border = Style.BACKGROUND, Style.BORDER
+    local look = Style.LookOf(LOOK)
+    local edge = DUI.Pixel.Px(UIParent, look.borderPx)
+    local bg, border = Style.BackColor(LOOK), Style.BORDER
     pcall(inbound.SetTooltipBackdrop, {
         backdropInfo = {
             bgFile = Tip.WHITE, edgeFile = Tip.WHITE, edgeSize = edge,
             insets = { left = 0, right = 0, top = 0, bottom = 0 },
         },
         centerColor = CreateColor(bg[1], bg[2], bg[3], backAlpha()),
-        borderColor = CreateColor(border[1], border[2], border[3], 1),
+        borderColor = CreateColor(border[1], border[2], border[3], look.borderAlpha),
     })
 end
 
@@ -2053,14 +2056,10 @@ function Tip.Refresh(mod)
         end
     end
     for tip, s in pairs(skinned) do
-        s.opts.bgAlpha = backAlpha()
         Style.LayoutShell(s)
         keepUnder(tip)
     end
-    for _, s in pairs(headers) do
-        s.opts.bgAlpha = backAlpha()
-        Style.LayoutShell(s)
-    end
+    for _, s in pairs(headers) do Style.LayoutShell(s) end
     -- The look switched, or the card's settings changed: built again (or
     -- put away) before the next draw.
     for tip in pairs(skinned) do

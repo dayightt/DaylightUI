@@ -378,8 +378,10 @@ function TM.Layout()
     local s = Style.GetShell(win)
     -- Under the meter it's part of the panel: no box of its own, a hairline
     -- over it instead.
-    local framed = cfg.border ~= false and not below
-    s.opts.bgAlpha = below and 0 or ns.Panel.MeterBack(ns.module and ns.module.db or {}, cfg)
+    local look = ns.Panel.MeterLook("threat")
+    local framed = Style.LookOf(look).borderAlpha ~= 0 and not below
+    s.opts.look = look
+    s.opts.bgAlpha = below and 0 or nil
     s.opts.panel = true
     s.opts.noBorder = not framed
     s.opts.shadowAlpha = not framed and 0 or nil

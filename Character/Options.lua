@@ -4,7 +4,7 @@ local _, DUI = ...
 DUI.Char = DUI.Char or {}   -- the character window's own namespace
 local ns = DUI.Char
 
-local backRows = DUI.Options.BackAlphaRows("windowAlpha", "Character window", nil, "1.6.2")
+local lookRows = DUI.Options.LookRows("frameStyle", nil)
 
 local MODES = { accent = "Accent color", class = "Class color", gradient = "Class gradient", custom = "One color" }
 local HEAD_MODES = { group = "Each its own", accent = "Accent color", class = "Class color", gradient = "Class gradient",
@@ -35,11 +35,11 @@ ns.OPTIONS = { pages = {
               desc = "Pressing C opens Daylight UI's character window. Turn it off to use the game's own, in Daylight UI's look. Each window also has a button to switch to the other." },
             { type = "slider", key = "scale", label = "Character window scale", min = 0.7, max = 1.3, step = 0.05, unit = "x",
               desc = "How big the window is. Other windows still open beside it when they fit." },
-            backRows[1], backRows[2],
             { type = "dropdown", key = "statsOpen", label = "Open stat groups", values = { auto = "By class and spec", all = "All" },
               order = { "auto", "all" },
               desc = "Which stat groups start open. By class and spec: Attributes and the one that matters for you. Groups you open or fold yourself are remembered for each character." },
         } },
+        { label = "Borders and background", items = lookRows },
         { label = "Look", items = {
             { type = "toggle", key = "lastNames.character", label = "First and last names",
               desc = "Your last name after your first, at the top of the window.",

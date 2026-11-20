@@ -38,15 +38,15 @@ ns.DEFAULTS = {
             shell = { own = false, borderPx = 4, cornerPx = 6, shadowPx = 4 } },
     meter = { enabled = true, width = 207, rowHeight = 22, mode = "damage", session = "current",
               inGroup = false, inCombat = false, inInstance = false, onJoin = "nothing", onInstance = "ask",
-              detached = false, height = 196, border = true,   -- border of the detached window
+              detached = false, height = 196,
               barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, barGradient = DaylightUI.Style.DefaultStops(), textSize = 11,
               -- nameColorBy: "custom" paints names in nameColor, "class" in
               -- each player's class color. classText colors names and numbers
               -- by class, overriding both.
               nameColor = { 1, 1, 1 }, nameColorBy = "custom",
               -- trackAlpha is the opacity of each bar's empty part (0 = fill only).
-              -- alphaOwn / alpha give the detached window its own background opacity.
-              classText = false, trackAlpha = 1, alphaOwn = false, alpha = 0.85,
+              -- look: the detached window's border, shadow and background.
+              classText = false, trackAlpha = 1, frameStyle = DaylightUI.Style.LookDefaults(),
               -- Row contents. icons is spec | class | none. showMe keeps your
               -- own row in view.
               rank = false, icons = "class", showTotal = true, showRate = true, showShare = true, showMe = true,
@@ -87,16 +87,16 @@ ns.DEFAULTS = {
     -- header: mob name and your percent on top ("always" | "off").
     threat = { enabled = true, auto = "group", at = "left", belowRows = 3, width = 170, rowHeight = 16, rows = 6, textSize = 10,
                barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, barGradient = DaylightUI.Style.DefaultStops(), nameColor = { 1, 1, 1 }, nameColorBy = "custom",
-               pullLine = true, pullColor = ink(INK.BAD), border = true, trackAlpha = 0.35, header = "always", angled = true,
+               pullLine = true, pullColor = ink(INK.BAD), frameStyle = DaylightUI.Style.LookDefaults(), trackAlpha = 0.35, header = "always", angled = true,
                fade = DaylightUI.Fade.Defaults() },
     -- meterSide: which side of the map the meters slide out on. "auto" picks
     -- the side facing the middle of the screen.
-    -- alphaOwn / alpha / border: the minimap box's own look, separate from
-    -- panelAlpha and panelBorder.
+    -- look: the minimap box's border, shadow and background, separate from
+    -- the panel's.
     -- drawerOrder: the addon drawer's buttons in the order the player dragged them.
     -- shape: "square" or "round" (a rotating map is always round).
     map = { enabled = true, size = 226, shape = "square", buttons = true, drawer = true, drawerOrder = {}, meterSide = "auto",
-             alphaOwn = false, alpha = 0.85, border = true,
+             frameStyle = DaylightUI.Style.LookDefaults(),
              clock = { enabled = true, twentyFour = true, seconds = false, useServer = false, textSize = 11, color = ink(INK.VALUE) },
              fps = { enabled = false, textSize = 11, color = ink(INK.VALUE) },      -- next to the clock
              coords = { enabled = true, textSize = 11, color = ink(INK.VALUE) },    -- top of the map
@@ -114,17 +114,16 @@ ns.DEFAULTS = {
     -- Data bar along the bottom of the screen. Up to four texts on each side
     -- of the center one; "none" leaves a slot empty.
     databar = { enabled = false, widthPct = 60, height = 24, textSize = 12, icons = true, labels = false, line = true,
-                alphaOwn = false, alpha = 0.85, borderAlpha = 0, angled = true,
+                -- No border by default: on a strip this thin the top accent line is enough.
+                frameStyle = DaylightUI.Style.LookDefaults({ borderAlpha = 0, heavyBorder = false }), angled = true,
                 left1 = "location", left2 = "coords", left3 = "xp", left4 = "durability",
                 center = "time",
                 right1 = "bags", right2 = "social", right3 = "gold", right4 = "system",
                 fade = DaylightUI.Fade.Defaults() },
     tracker = { enabled = true, fade = DaylightUI.Fade.Defaults() },
-    -- Background opacity of the panel and meter windows. Uses the general
-    -- window opacity unless panelAlphaOwn is set.
-    panelAlphaOwn = false,
-    panelAlpha = 0.85,
-    panelBorder = true,
+    -- The XP bar's box and, without a minimap, the meter's: border, shadow
+    -- and background.
+    frameStyle = DaylightUI.Style.LookDefaults(),
     fade = DaylightUI.Fade.Defaults(),   -- also covers a detached meter and the XP bar without its own fade
 }
 
@@ -144,18 +143,3 @@ function ns.UpgradeXPStops(p)
     xp.customGradient = stops
 end
 DaylightUI.DB.RegisterUpgrade(ns.UpgradeXPStops)
-
--- The minimap box used to share the panel's background and border. Copy a
--- profile's custom panel look onto the new map settings once.
-function ns.UpgradeMapBox(p)
-    if type(p) ~= "table" or p.mapBox1 or type(p.modules) ~= "table" then return end
-    p.mapBox1 = true
-    local ip = p.modules.InfoPanel
-    if type(ip) ~= "table" then return end
-    local map = type(ip.map) == "table" and ip.map or {}
-    for from, to in pairs({ panelAlphaOwn = "alphaOwn", panelAlpha = "alpha", panelBorder = "border" }) do
-        if ip[from] ~= nil and map[to] == nil then map[to] = ip[from] end
-    end
-    if next(map) ~= nil then ip.map = map end
-end
-DaylightUI.DB.RegisterUpgrade(ns.UpgradeMapBox)

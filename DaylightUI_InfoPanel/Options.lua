@@ -55,7 +55,7 @@ local function barSlot(key, label, desc)
     return { type = "dropdown", key = "databar." .. key, label = label, choices = barChoices,
              desc = desc, disabled = noBar }
 end
-local barBack = DaylightUI.Options.BackAlphaRows("databar.alpha", "Data bar", noBar)
+local barLook = DaylightUI.Options.LookRows("databar.frameStyle", noBar)
 local function barSlots()
     local items = { barSlot("center", "Data bar middle slot",
         "What the angled tab in the middle of the bar shows. Pick None to leave the tab out.") }
@@ -92,20 +92,13 @@ local function shellGroup(id, label, gate, attached)
         } }
 end
 
--- Panel background opacity, shared by the meter and threat meter windows.
-local backRows = DaylightUI.Options.BackAlphaRows("panelAlpha", "Info panel")
-backRows[2].desc = "How see-through the experience bar's box and the meters' own windows are (a meter window can have its own, on its page)."
-local mapBack = DaylightUI.Options.BackAlphaRows("map.alpha", "Minimap box", off("map.enabled"))
-mapBack[2].desc = "How see-through the box around the minimap (and the damage meter in it) is: 0 is fully see-through."
+local panelLook = DaylightUI.Options.LookRows("frameStyle")
+local mapLook = DaylightUI.Options.LookRows("map.frameStyle", off("map.enabled"))
 ns.OPTIONS = { pages = {
     { id = "panel", label = "General",
       desc = "The top-right panel: experience bar on top, damage meter and minimap below. Move it in unlock mode. The experience bar has its own page.",
       groups = {
-        { label = "Background", desc = "The experience bar's box, and the meters' and threat meter's own windows. The minimap's box has its own on the Minimap page. At 0 opacity the boxes disappear; the bars still show.", items = {
-            backRows[1], backRows[2],
-            { type = "toggle", key = "panelBorder", label = "Info panel border",
-              desc = "A border and shadow around the experience bar's box and the threat meter's window." },
-        } },
+        { label = "Borders and background", desc = "The experience bar's box. The minimap's box and each meter window have their own. At 0 opacity the box disappears; the bars still show.", items = panelLook },
         DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter windows, if used). So does the experience bar, unless you give it its own fade on the Experience bar page. The damage meters can have their own on the Meters page." } }, nil, "Info panel"),
       } },
     { id = "xp", label = "Experience bar",
@@ -269,15 +262,12 @@ ns.OPTIONS = { pages = {
               desc = "Addons' minimap buttons and the game's addon menu are gathered into one drawer. The button in the map's bottom-right corner opens it.",
               reload = true, disabled = off("map.enabled") },
         } },
-        { label = "Minimap box", desc = "The box around the minimap, with the damage meter and data texts in it. The experience bar and the meters' own windows keep the background set on Info Panel > General.", items = {
+        { label = "Minimap box", desc = "The box around the minimap, with the damage meter and data texts in it.", items = {
             { type = "dropdown", key = "map.meterSide", label = "Damage meter side",
               values = { auto = "Automatic", left = "Left", right = "Right" }, order = { "auto", "left", "right" },
               desc = "Which side of the minimap the damage meter slides out of, with the threat meter beside it. Automatic picks the side toward the middle of the screen, so it follows when you move the panel." },
-            mapBack[1], mapBack[2],
-            { type = "toggle", key = "map.border", label = "Minimap box border",
-              desc = "A border and shadow around the minimap's box.",
-              disabled = off("map.enabled") },
         } },
+        { label = "Borders and background", desc = "The box around the minimap, with the damage meter and data texts in it.", items = mapLook },
         { label = "Clock", desc = "A small time at the bottom of the map. Hover it for both local and server time.", items = {
             { type = "toggle", key = "map.clock.enabled", label = "Show the clock",
               desc = "The time at the bottom of the minimap.",
@@ -381,10 +371,8 @@ ns.OPTIONS = { pages = {
               desc = "The line along the top of the bar, in your accent color." },
             { type = "toggle", key = "databar.angled", label = "Data bar angled ends", disabled = noBar,
               desc = "Cuts both ends of the bar at an angle. When off, they're straight." },
-            barBack[1], barBack[2],
-            { type = "slider", key = "databar.borderAlpha", label = "Data bar border opacity", min = 0, max = 1, step = 0.05, unit = "%",
-              disabled = noBar, desc = "How solid the border around the bar is: 0 is no border." },
         } },
+        { label = "Borders and background", desc = "The data bar has no border on the global style: on a strip this thin the accent line is enough.", items = barLook },
         DaylightUI.Fade.Card("databar.fade.", nil, noBar, "Data bar"),
         { label = "Slots", desc = "What the bar shows. Pick None to leave a slot empty, and the others close up.", items = barSlots() },
       } },

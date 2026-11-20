@@ -458,10 +458,6 @@ function MO.Page()
 
     -- The panel's meter inside the panel has no window of its own.
     local function ownWindow(e) return e.id ~= "main" or e.cfg.detached == true end
-    local back = DUI.Options.BackAlphaRows("win.alpha", "Meter window")
-    back[1].desc = "Gives this window its own background opacity, set in the row below. When off, it's as see-through as the info panel's boxes (Info Panel > General)."
-    back[2].desc = "How solid this window's background is: 0 is fully see-through, leaving only the bars."
-    back[1].kinds, back[2].kinds, back[1].when, back[2].when = ALL, ALL, ownWindow, ownWindow
     local window = {
         picker(),
         { type = "toggle", key = "meter.detached", label = "Separate damage meter window", only = "main",
@@ -472,10 +468,11 @@ function MO.Page()
         win({ type = "slider", key = "win.height", label = "Window height", kinds = LISTS, min = 80, max = 500, step = 1, unit = "px",
               when = ownWindow,
               desc = "How tall the window is. Dragging its corner in unlock mode sets it too." }),
-        win({ type = "toggle", key = "win.border", label = "Window border", kinds = ALL, when = ownWindow,
-              desc = "A border and shadow around the window." }),
-        win(back[1]), win(back[2]),
     }
+    for _, row in ipairs(DUI.Options.LookRows("win.frameStyle")) do
+        row.kinds, row.when = ALL, ownWindow
+        window[#window + 1] = win(row)
+    end
     win(window[2])
 
     local shared = {

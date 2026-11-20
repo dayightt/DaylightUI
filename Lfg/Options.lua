@@ -4,7 +4,7 @@ local _, DUI = ...
 DUI.Lfg = DUI.Lfg or {}
 local ns = DUI.Lfg
 
-local backRows = DUI.Options.BackAlphaRows("windowAlpha", "Group finder", nil, "1.6.2")
+local lookRows = DUI.Options.LookRows("frameStyle", nil)
 
 ns.OPTIONS = { pages = {
     { id = "window", label = "Group Finder",
@@ -18,7 +18,7 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "activitySort", label = "Sort activities by", since = "1.6.4",
               values = { level = "Level", name = "Name" }, order = { "level", "name" },
               desc = "How dungeons, quests and zones are listed when you list yourself: lowest level first, or A to Z. The Sort button on that page changes it too." },
-            backRows[1], backRows[2],
         } },
+        { label = "Borders and background", items = lookRows },
     } },
 } }

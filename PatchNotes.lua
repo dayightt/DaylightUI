@@ -16,9 +16,11 @@ DUI.PatchNotes = {
         { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours" },
         { "Bars", "Health, power, cast and swing bars, combo points, nameplates, the experience bar, meters, tooltips, quest bars and Cooldown Manager bars can each wear a gradient of two to five colors you pick, like the custom gradient accent. Pick Custom gradient in a bar's color menu" },
         { "Loot", "Prefer the game's own roll popups? A new switch brings them back in Daylight UI style, with how many players picked Need, Greed and Pass on each button" },
+        { "Look", "Every window and panel has a Use Daylight UI global style switch. Turn it off to give that one its own border, corners, shadow and background" },
     }, fixed = {
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
+        { "Cooldown Manager", "With the game's Tracked Buffs row set to show only in combat, a buff's Hide, glow and sound options went missing from its card and did nothing out of combat. They are back and work in and out of a fight" },
         { "Auction House", "Searching for a name with a category picked, like One-Handed Axes, now searches only that category instead of the whole Auction House. Click the category again to search everywhere" },
     } },
     { version = "2.1.1", date = "2026-11-20", summary = "Game windows that follow the Daylight UI scale, and a big batch of fixes for bags, tooltips, the Cooldown Manager and more.", changed = {

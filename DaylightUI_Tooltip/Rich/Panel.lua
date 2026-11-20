@@ -182,7 +182,7 @@ function Panel.For(tip)
     p:EnableMouse(false)
     p:Hide()
     p.tip = tip
-    p.shell = Style.Shell(p, { borderPx = ns.Tooltip.BorderPx, cornerPx = 0, noBevel = true, bgAlpha = ns.Tooltip.BackAlpha("rich") })
+    p.shell = Style.Shell(p, { look = ns.Tooltip.LOOK, cornerPx = 0, noBevel = true, bgAlpha = ns.Tooltip.BackAlpha("rich") })
     Style.CutShell(p, Panel.CUT)
     -- The top light: two pieces, so a quality light can fade out along its
     -- right part (one gradient has only two ends).

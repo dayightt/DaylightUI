@@ -7,15 +7,18 @@ local matching = function(get) return get("matchInfo") == true end
 local classicStyle = function(get) return get("style") == "classic" or DaylightUI.Pad.On() end
 local linkTipsOff = function(get) return get("linkTooltips") ~= true end
 local sideOff = function() return not ns.Tabs.SideShown() end
--- Panel background opacity: shared with every window, or its own.
-local backRows = DaylightUI.Options.BackAlphaRows("panelAlpha", "Chat", function(get) return get("panelShown") ~= true end)
-backRows[2].desc = backRows[2].desc or "How see-through the chat panel's background is. Lower lets more of the world show behind the messages."
 local noBackground = function(get) return get("panelShown") ~= true end
--- Border rows use the same words and choices as the action bars.
-local BORDER_STYLE = { auto = "As the chat style", daylight = "Daylight", flat = "Flat", none = "None" }
-local BORDER_STYLE_ORDER = { "auto", "daylight", "flat", "none" }
+local globalLook = function(get) return get("frameStyle.global") ~= false end
+-- The border color rows use the same words and choices as the action bars.
 local COLOR_MODE = { shell = "Default", accent = "Accent color", class = "Class color", custom = "One color" }
 local COLOR_MODE_ORDER = { "shell", "accent", "class", "custom" }
+local lookRows = DaylightUI.Options.LookRows("frameStyle", noBackground, nil, {
+    { type = "dropdown", key = "borderColor", label = "Chat border color", values = COLOR_MODE, order = COLOR_MODE_ORDER,
+      desc = "The color of every chat panel's border. The border still lights up in your accent color while you drag a corner to size the chat." },
+    { type = "color", key = "borderCustom", label = "Custom chat border color",
+      desc = "The border color when Chat border color is set to One color.",
+      disabled = function(get) return get("borderColor") ~= "custom" end },
+})
 
 -- Words and phrases the spam filter hides: an input to add one, then a row per
 -- word with an X.
@@ -288,27 +291,8 @@ ns.OPTIONS = { pages = {
               desc = "You can also drag the chat's bottom-right corner to size it.", disabled = matching },
             { type = "toggle", key = "panelShown", label = "Chat background",
               desc = "The panel behind the chat, with its border. When off, only the chat text shows." },
-            backRows[1], backRows[2],
-            { type = "dropdown", key = "border", label = "Chat border style",
-              values = BORDER_STYLE, order = BORDER_STYLE_ORDER,
-              desc = "The edge round every chat panel: the main one, the second one and a chat window pulled out on its own. As the chat style gives the Daylight chat box the Daylight frame and the Classic style a thin line. Daylight is the warm band inside a dark outline, Flat a plain line.",
-              disabled = noBackground },
-            { type = "slider", key = "borderSize", label = "Chat border thickness", min = 1, max = 8, step = 1, unit = "px",
-              desc = "How thick the Flat border is. The Daylight frame follows the border size on General > Appearance.",
-              disabled = function(get)
-                  if get("panelShown") ~= true then return true end
-                  local b = get("border")
-                  if b == "auto" then return not classicStyle(get) end
-                  return b ~= "flat"
-              end },
-            { type = "dropdown", key = "borderColor", label = "Chat border color", values = COLOR_MODE, order = COLOR_MODE_ORDER,
-              desc = "The border's color. The border still lights up in your accent color while you drag a corner to size the chat.",
-              disabled = function(get) return get("panelShown") ~= true or get("border") == "none" end },
-            { type = "color", key = "borderCustom", label = "Custom chat border color",
-              desc = "The border color when Chat border color is set to One color.",
-              hidden = function(get) return get("borderColor") ~= "custom" end,
-              disabled = function(get) return get("panelShown") ~= true or get("border") == "none" end },
         } },
+        { label = "Borders and background", desc = "Every chat panel: the main one, the second one and a chat window pulled out on its own. On the global style the Classic chat keeps a thin line.", items = lookRows },
         { label = "Second panel", desc = "Move it in unlock mode (/dui unlock).", items = {
             { type = "toggle", label = "Second chat panel",
               get = function() return ns.Tabs.SideShown() end,
@@ -322,11 +306,12 @@ ns.OPTIONS = { pages = {
               desc = "You can also drag the panel's bottom-right corner to size it.",
               hidden = classicStyle, disabled = sideOff },
             { type = "toggle", key = "sideAlphaOwn", label = "Separate second panel background opacity",
-              desc = "Gives the second chat panel its own background opacity, set in the row below. When off, it's as see-through as the main chat panel.",
-              hidden = classicStyle, disabled = function(get) return sideOff() or noBackground(get) end },
+              desc = "Gives the second chat panel its own background opacity, set in the row below. When off, it's as see-through as the main chat panel. Shown while the chat's Use Daylight UI global style is off.",
+              hidden = function(get) return classicStyle(get) or globalLook(get) end,
+              disabled = function(get) return sideOff() or noBackground(get) end },
             { type = "slider", key = "sideAlpha", label = "Second panel background opacity", min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How solid the second chat panel's background is: 0 is fully see-through.",
-              hidden = function(get) return classicStyle(get) or get("sideAlphaOwn") ~= true end,
+              hidden = function(get) return classicStyle(get) or globalLook(get) or get("sideAlphaOwn") ~= true end,
               disabled = function(get) return sideOff() or noBackground(get) end },
             { type = "toggle", key = "sideTextSizeOwn", label = "Separate second panel text size",
               desc = "Gives the second chat panel its own text size, set in the row below. When off, it matches the main chat's text size.",

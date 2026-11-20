@@ -94,8 +94,9 @@ BL.DEFAULTS = {
         columns = 34,
         growLeft = true,
         showBackground = false,
-        backgroundAlphaOwn = false, -- off: follows the general window opacity
-        backgroundAlpha = 0.85,
+        -- The bar background's border, shadow and opacity, or General's. Its
+        -- border is thin by design.
+        frameStyle = DaylightUI.Style.LookDefaults({ borderPx = 2 }),
         consolidateOnlyGroup = false,
         consolidateOnlyRaid = false,
         hideBlizzardFrames = true,
@@ -131,8 +132,7 @@ BL.DEFAULTS = {
             growLeft = true,
             fade = DaylightUI.Fade.Defaults(),
             showBackground = false,
-            backgroundAlphaOwn = false,
-            backgroundAlpha = 0.85,
+            frameStyle = DaylightUI.Style.LookDefaults({ borderPx = 2 }),
             -- Boss debuffs addons can't read, shown under the first row (Private.lua).
             privateAuras = true,
         },

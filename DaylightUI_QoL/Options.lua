@@ -28,19 +28,28 @@ for _, item in ipairs(logFade.items) do
     end
 end
 local BORDER_COLOR = { normal = "Daylight UI", quality = "Quality color", accent = "Accent color", custom = "One color" }
-local backRows = DaylightUI.Options.BackAlphaRows("lootFeedAlpha", "Loot feed",
-    function(get) return get("lootFeed") ~= true or get("lootFeedBack") == false end)
-for _, row in ipairs(backRows) do   -- the slider, by its key (not its place in the list)
-    if row.key == "lootFeedAlpha" then row.desc = "How solid the ribbon behind each loot feed line is: 0 is fully see-through." end
-end
+local lootLook = DaylightUI.Options.LookRows("lootFeedFrame", function(get) return get("lootFeed") ~= true end, nil, {
+    { type = "dropdown", key = "lootFeedBorderColor", label = "Loot feed border color", values = BORDER_COLOR,
+      order = { "normal", "quality", "accent", "custom" },
+      desc = "The Daylight UI border, the item's quality color, your accent color (General > Appearance), or a color you pick." },
+    { type = "color", key = "lootFeedBorderCustom", label = "Custom loot feed border color",
+      desc = "The border color of every loot feed line when Loot feed border color is One color.",
+      disabled = function(get) return get("lootFeedBorderColor") ~= "custom" end },
+})
 
 -- The flight timer page's pieces.
 local FLIGHT_MOVER, WELCOME_MOVER = "qol.flight", "qol.welcome"
 local function flightOff(get) return get("flightTimer") ~= true end
 local function welcomeOff(get) return flightOff(get) or get("flightWelcome") == false end
-local flightBackRows = DaylightUI.Options.BackAlphaRows("flightAlpha", "Flight timer",
-    function(get) return flightOff(get) or get("flightBack") == false end)
 local FLIGHT_BORDER = { normal = "Daylight UI", accent = "Accent color", custom = "One color" }
+local flightLook = DaylightUI.Options.LookRows("flightFrame", flightOff, nil, {
+    { type = "dropdown", key = "flightBorderColor", label = "Flight timer border color", values = FLIGHT_BORDER,
+      order = { "normal", "accent", "custom" },
+      desc = "The Daylight UI border, your accent color (General > Appearance), or a color you pick." },
+    { type = "color", key = "flightBorderCustom", label = "Custom flight timer border color",
+      desc = "The flight timer's border color when Flight timer border color is One color.",
+      disabled = function(get) return get("flightBorderColor") ~= "custom" end },
+})
 
 ns.OPTIONS = { pages = {
     { id = "qol", label = "Quality of Life",
@@ -227,26 +236,16 @@ ns.OPTIONS = { pages = {
         { label = "Background and border", items = {
             { type = "toggle", key = "lootFeedBack", label = "Loot feed background", disabled = lootOff,
               desc = "The dark ribbon behind each line. When off, only the icon and text show." },
-            backRows[1], backRows[2],
-            { type = "toggle", key = "lootFeedBorder", label = "Loot feed border", disabled = lootOff,
-              desc = "A border and shadow around each line." },
             { type = "toggle", key = "lootFeedSlant", label = "Loot feed angled ends", disabled = lootOff,
               desc = "Cuts the ends of each line at an angle. When off, the ends are straight." },
             { type = "dropdown", key = "lootFeedSlantSide", label = "Loot feed angled side",
               values = { both = "Both ends", left = "Left end", right = "Right end" }, order = { "both", "left", "right" },
               desc = "Which ends of each line are cut at an angle. The other end stays straight.",
               disabled = function(get) return get("lootFeed") ~= true or get("lootFeedSlant") == false end },
-            { type = "dropdown", key = "lootFeedBorderColor", label = "Loot feed border color", values = BORDER_COLOR,
-              order = { "normal", "quality", "accent", "custom" },
-              desc = "The Daylight UI border, the item's quality color, your accent color (General > Appearance), or a color you pick.",
-              disabled = function(get) return get("lootFeed") ~= true or get("lootFeedBorder") == false end },
-            { type = "color", key = "lootFeedBorderCustom", label = "Custom loot feed border color",
-              desc = "The border color of every loot feed line when Loot feed border color is One color.",
-              disabled = function(get) return get("lootFeed") ~= true or get("lootFeedBorder") == false end,
-              hidden = function(get) return get("lootFeedBorderColor") ~= "custom" end },
             { type = "toggle", key = "lootFeedShine", label = "Light across new loot feed lines", disabled = lootOff,
               desc = "A soft light in the line's color runs across it as it comes in or adds up." },
         } },
+        { label = "Borders and background", items = lootLook },
       } },
     { id = "flight", label = "Flight timer",
       desc = "Where you're going and the time left while on a flight path, and a welcome when you land.",
@@ -301,20 +300,10 @@ ns.OPTIONS = { pages = {
         { label = "Background and border", items = {
             { type = "toggle", key = "flightBack", label = "Flight timer background", disabled = flightOff,
               desc = "The dark box behind the flight timer. When off, the text and line float on their own." },
-            flightBackRows[1], flightBackRows[2],
-            { type = "toggle", key = "flightBorder", label = "Flight timer border", disabled = flightOff,
-              desc = "A border and shadow around the flight timer's box." },
-            { type = "dropdown", key = "flightBorderColor", label = "Flight timer border color", values = FLIGHT_BORDER,
-              order = { "normal", "accent", "custom" },
-              desc = "The Daylight UI border, your accent color (General > Appearance), or a color you pick.",
-              disabled = function(get) return flightOff(get) or get("flightBorder") == false end },
-            { type = "color", key = "flightBorderCustom", label = "Custom flight timer border color",
-              desc = "The flight timer's border color when Flight timer border color is One color.",
-              disabled = function(get) return flightOff(get) or get("flightBorder") == false end,
-              hidden = function(get) return get("flightBorderColor") ~= "custom" end },
             { type = "toggle", key = "flightAccentLine", label = "Flight timer accent line", disabled = flightOff,
               desc = "A thin line in your accent color along the top of the box." },
         } },
+        { label = "Borders and background", items = flightLook },
       } },
     { id = "scenes", label = "Scenes",
       desc = "Calm scenes along the bottom of the screen while you fish or craft.",

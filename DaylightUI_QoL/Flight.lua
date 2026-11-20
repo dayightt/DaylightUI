@@ -195,9 +195,14 @@ local function paint()
     Style.PaintAccentText(f.label, Style.Upper(L["Flying to"]))
 end
 
--- Its border: the Daylight UI one, the accent or the player's own color.
+-- Where the box's border, shadow and background come from (Style.LookOf).
+local LOOK = { "QoL", "flightFrame" }
+
+-- Its border: the Daylight UI one, the accent or the player's own color (a
+-- color is picked with the timer's own look; the global style has none).
 local function paintBorder(s)
-    local mode, c = db("flightBorderColor"), db("flightBorderCustom")
+    local mode = Style.LookOwn(LOOK) and db("flightBorderColor") or "normal"
+    local c = db("flightBorderCustom")
     if mode == "accent" then
         Style.LightShell(s)
     elseif mode == "custom" and type(c) == "table" then
@@ -257,10 +262,9 @@ local function layout()
 
     holder:SetSize(w, y)
     f:SetSize(w, y)
-    local back, border = on("flightBack"), on("flightBorder")
-    f.box.shell = Style.Shell(f.box, { noBackground = not back, noBorder = not border, noBevel = not back,
-        shadowAlpha = (not back and not border) and 0 or nil,
-        bgAlpha = Style.BackAlpha(db("flightAlphaOwn"), db("flightAlpha")) })
+    local back, border = on("flightBack"), Style.LookOf(LOOK).borderAlpha ~= 0
+    f.box.shell = Style.Shell(f.box, { look = LOOK, noBackground = not back, noBevel = not back,
+        shadowAlpha = (not back and not border) and 0 or nil })
     paintBorder(f.box.shell)
     f.box.topLine:SetShown(on("flightAccentLine"))
 end

@@ -806,33 +806,66 @@ function Options.BackRow(key, label, what, dis)
     item.disabled = dis
     return item
 end
--- Background opacity rows for a panel: a switch (key .. "Own") to override
--- the General window opacity, and a slider shown while it's on
--- (Style.BackAlpha). what: "Chat", "Quest box"... since: optional NEW version.
-local PROPER_NAMES = { Legacy = true }
-function Options.BackAlphaRows(key, what, dis, since)
-    local own = key .. "Own"
-    -- Lowercase the first word for the switch's label, but leave "NPC" and
-    -- proper names like "Legacy" alone.
-    local lower = PROPER_NAMES[what:match("^%a+")] and what or (what:gsub("^%u%l", string.lower))
-    return {
-        { type = "toggle", key = own, since = since, label = "Separate " .. lower .. " background opacity", disabled = dis,
-          desc = "Gives it its own background opacity, set in the row below. When off, it's as see-through as every window (Window background opacity on General > Appearance)." },
-        { type = "slider", key = key, since = since, label = what .. " background opacity", min = 0, max = 1, step = 0.05, unit = "%",
-          desc = "How solid its background is: at 0 it's fully see-through.",
-          disabled = dis, hidden = function(get) return get(own) ~= true end },
+-- A window's or panel's look: "Use Daylight UI global style" (path .. ".global"),
+-- and under it, while it's off, the same rows General > Appearance has for
+-- borders, shadows and the background, in the same order and words, saved in
+-- the section's own look table (Style.LookOf). Switching it off starts the
+-- section from General's values (Style.lua). extra: more rows that belong to
+-- the section's own look (a border color), shown only while it's off too.
+local function lookOff(path) return function(get) return get(path .. ".global") ~= false end end
+function Options.LookRows(path, dis, since, extra)
+    local off = lookOff(path)
+    local function row(item)
+        item.since = item.since or since
+        local own = item.disabled
+        item.disabled = own and function(get) return (dis and dis(get) == true) or own(get) == true end or dis
+        item.hidden = off
+        return item
+    end
+    local rows = {
+        { type = "toggle", key = path .. ".global", label = "Use Daylight UI global style", since = "2.2", disabled = dis,
+          desc = "When on, this wears the borders, shadows and background set on General > Appearance, like every Daylight UI window. Turn it off to give it its own in the rows below." },
+        row({ type = "toggle", key = path .. ".heavyBorder", label = "Heavy border",
+              desc = "Adds a warm band inside the black outline, lit along the top. When off, the border is a plain dark line." }),
+        row({ type = "toggle", key = path .. ".gradientBorder", label = "Accent gradient border",
+              desc = "When the accent color is a gradient (Daylight's, your class's or your own), the border runs along it. Needs Gradients on (General > Gradients).",
+              disabled = function()
+                  local a = DUI:Get("general", "accent")
+                  return (a ~= "gradient" and a ~= "classGradient" and a ~= "customGradient") or DUI.Gradients.Flat()
+              end }),
+        row({ type = "slider", key = path .. ".borderPx", label = "Border thickness", min = 1, max = 16, step = 1, unit = "px",
+              desc = "In screen pixels, so it stays sharp at any UI scale. Heavy border needs 3 or more." }),
+        row({ type = "slider", key = path .. ".cornerPx", label = "Corner rounding", min = 0, max = 24, step = 1, unit = "px",
+              desc = "Rounds the corners, up to about three times the border thickness." }),
+        row({ type = "slider", key = path .. ".borderAlpha", label = "Border opacity", min = 0, max = 1, step = 0.05, unit = "%",
+              desc = "How solid the border is: at 0 it's fully see-through." }),
+        row({ type = "slider", key = path .. ".shadowPx", label = "Shadow size", min = 0, max = 12, step = 1, unit = "px",
+              desc = "How far the soft shadow around it reaches." }),
+        row({ type = "slider", key = path .. ".shadowAlpha", label = "Shadow opacity", min = 0, max = 1, step = 0.05, unit = "%",
+              desc = "How dark the shadow around it is." }),
+        row({ type = "slider", key = path .. ".windowAlpha", label = "Background opacity", min = 0, max = 1, step = 0.05, unit = "%",
+              desc = "How solid its background is: at 0 it's fully see-through." }),
+        row({ type = "dropdown", key = path .. ".windowTint", label = "Background color",
+              values = { daylight = "Daylight", class = "Class tint", custom = "One color" },
+              order = { "daylight", "class", "custom" },
+              desc = "The color behind it: Daylight's own dark tone, a dark tint of your class color, or a color you pick." }),
+        row({ type = "color", key = path .. ".windowTintColor", label = "Custom background color",
+              desc = "The background, when Background color is One color. Dark colors keep text easy to read.",
+              disabled = function(get) return get(path .. ".windowTint") ~= "custom" end }),
     }
+    for _, item in ipairs(extra or {}) do rows[#rows + 1] = row(item) end
+    return rows
 end
 
--- Turns every "Separate ... background opacity" switch off so all follow
--- General again. Disabled modules keep theirs, like Media.ApplyToAll.
-function Options.ApplyWindowAlpha()
-    for _, b in ipairs(DUI.DB.ALL_BACKS) do
-        if DUI:Get(b[1], b[2] .. "Own") == true then DUI:Set(b[1], b[2] .. "Own", false) end
+-- Turns every section's global style back on, so every window and panel
+-- matches General again. Disabled modules keep theirs, like Media.ApplyToAll.
+function Options.ApplyGlobalStyle()
+    for _, b in ipairs(DUI.DB.LOOKS) do
+        if DUI:Get(b[1], b[2] .. ".global") == false then DUI:Set(b[1], b[2] .. ".global", true) end
     end
-    -- Backgrounds created at runtime (meter windows) aren't on the fixed
-    -- list, so their owners listen for this and reset themselves.
-    DUI.Fire("WindowAlphaApplied")
+    -- Sections made at runtime (meter windows) aren't on the fixed list, so
+    -- their owners listen for this and reset themselves.
+    DUI.Fire("GlobalStyleApplied")
 end
 -- extra: optional fields for the row (e.g. the action bars' cdm = true).
 function Options.FontRow(key, label, what, dis, extra)
@@ -1340,7 +1373,7 @@ Options.RegisterPage({
         { label = "Windows", items = {
             { type = "slider", key = "windowAlpha", label = "Window background opacity", min = 0, max = 1, step = 0.05, unit = "%",
               desc = "How solid every window and panel is: bags, character, spellbook, NPC, group finder, the game's windows Daylight UI restyles, "
-                  .. "chat, the info panel, the quest box and the buff bars. At 0 they're fully see-through. One with a separate opacity on its own page keeps that." },
+                  .. "chat, the info panel, the quest box and the buff bars. At 0 they're fully see-through. One with Use Daylight UI global style off keeps its own." },
             { type = "dropdown", key = "windowTint", label = "Window background color", since = "1.8.4",
               values = { daylight = "Daylight", class = "Class tint", custom = "One color" },
               order = { "daylight", "class", "custom" },
@@ -1353,9 +1386,9 @@ Options.RegisterPage({
             { type = "color", key = "windowTintColor", label = "Custom window background color", since = "1.8.4",
               desc = "The window background, when Window background color is One color. Dark colors keep text easy to read.",
               disabled = function(get) return get("windowTint") ~= "custom" end },
-            { type = "button", since = "1.6.2", label = "Apply opacity to every window", text = "Apply", confirm = true,
-              desc = "Turns off every separate background opacity, so every window and panel matches Window background opacity.",
-              func = function() Options.ApplyWindowAlpha() end },
+            { type = "button", since = "2.2", label = "Apply global style everywhere", text = "Apply", confirm = true,
+              desc = "Turns Use Daylight UI global style back on for every window and panel, so they all match the borders, shadows and background here.",
+              func = function() Options.ApplyGlobalStyle() end },
         } },
         { label = "Motion", items = {
             { type = "toggle", key = "motion", label = "Motion effects",

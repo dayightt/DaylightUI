@@ -15,6 +15,7 @@ local Bar = {}
 ns.DataBar = Bar
 
 Bar.KEY = "infopanel.databar"
+Bar.LOOK = { "InfoPanel", "databar.frameStyle" }
 Bar.HOME = { "BOTTOM", nil, "BOTTOM", 0, 0 }
 Bar.SIDE = 4           -- texts on each side of the center slot
 Bar.TAB_W = 128        -- center tab width and angled cut
@@ -104,7 +105,7 @@ function Bar.Build(mod)
     f:Hide()
     Bar.frame = f
     local body = CreateFrame("Frame", nil, f)
-    Style.Shell(body, { flat = true })
+    Style.Shell(body, { look = Bar.LOOK })
     Style.Slant(body, "both", Bar.TAB_CUT)
     Bar.body = body
     Bar.line = body:CreateTexture(nil, "OVERLAY")
@@ -238,9 +239,7 @@ function Bar.Apply(db)
     local was = Bar.on
     Bar.on = c.enabled == true
     DUI.Movers.Suspend(Bar.KEY, not Bar.on)
-    -- No border by default; on a strip this thin the top accent line is enough.
-    P.Look(body, Style.BackAlpha(c.alphaOwn, c.alpha), c.borderAlpha > 0)
-    Style.GetShell(body).opts.borderAlpha = c.borderAlpha
+    P.Look(body, Bar.LOOK)
     if c.angled == true then Style.Slant(body, "both", Bar.TAB_CUT) else Style.Slant(body, nil, 0) end
     Bar.tab.fill:SetColorTexture(1, 1, 1, 1)
     Style.PaintAccent(Bar.tab.fill, Bar.TAB_ALPHA)
