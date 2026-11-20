@@ -3,12 +3,13 @@
 Chat stops filling up with everyone's crafting, plus a few quick fixes.
 
 ## Changed
-- Chat: Chat no longer fills up with everyone's crafting in cities. Switch Tradeskills on for a tab to see it
+- Chat: Chat no longer fills up with everyone's crafting in cities, tabs you renamed or changed included. Switch Tradeskills on for a tab to see it
 
 ## Fixed
 - Auction House: The Lvl column on Buy shows the level you need to use an item, not its item level
 - Loot: Winning a roll no longer shows a second "You received" box on top of the loot roll
 - Cooldown Manager: Buff bars no longer throw errors, and a shield someone else gives you fills its bar right
+- Chat: Chat lines you switched off in the game's chat settings no longer show up anyway
 
 # DaylightUI 2.0
 

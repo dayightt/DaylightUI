@@ -11,15 +11,14 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
-        { "Chat", "Everyone's crafting no longer fills chat tabs you had renamed or changed, and lines you switched off in the game's chat settings stay off" },
-    } },
+    { version = "Unreleased" },
     { version = "2.0.1", date = "2026-11-20", summary = "Chat stops filling up with everyone's crafting, plus a few quick fixes.", fixed = {
         { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },
         { "Loot", "Winning a roll no longer shows a second \"You received\" box on top of the loot roll" },
         { "Cooldown Manager", "Buff bars no longer throw errors, and a shield someone else gives you fills its bar right" },
+        { "Chat", "Chat lines you switched off in the game's chat settings no longer show up anyway" },
     }, changed = {
-        { "Chat", "Chat no longer fills up with everyone's crafting in cities. Switch Tradeskills on for a tab to see it" },
+        { "Chat", "Chat no longer fills up with everyone's crafting in cities, tabs you renamed or changed included. Switch Tradeskills on for a tab to see it" },
     } },
     { version = "2.0", date = "2026-11-19", summary = "Portraits set right into their frames, rich tooltip cards, a brand new Auction House, group loot rolls, and a big batch of fixes.", new = {
         { "Unit frames", "A slick new portrait look: portraits sit right inside their frame, with one border flowing around both. You're asked once which look you want, and each frame's Portrait tab switches it any time" },
