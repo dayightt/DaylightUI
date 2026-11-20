@@ -435,13 +435,15 @@ local function has(text, query)
     return shown ~= text and string.find(string.lower(shown), query, 1, true) ~= nil
 end
 
--- Matches an item's label, description, button text or card title.
--- Text items never match.
+-- Matches an item's label, description, button text, card title or its
+-- search words (the name players know a setting by when the row doesn't
+-- print it, like "paging" for the bars' page rows). Text items never match.
 function Options.Matches(group, item, query)
     if query == nil or query == "" then return true end
     if item.type == "text" or item.type == "custom" or item.noSearch then return false end
     query = string.lower(query)
     return has(item.label, query) or has(item.desc, query) or has(item.text, query) or has(group.label, query)
+        or has(item.search, query)
 end
 
 -- ---------------------------------------------------------------------

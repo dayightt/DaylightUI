@@ -462,7 +462,7 @@ pagingItems = function(def, k, hidden)
         or "Paging: this bar can show another page of buttons while you're in a stance or form, while you hold a key, or when your target is friendly or an enemy. Pick a spare page to fill it with spells of its own."
     local items = { { type = "text", label = intro, hidden = hidden } }
     if def.paged then
-        items[#items + 1] = { type = "toggle", key = k("autoPage"), label = "Change with forms and stances",
+        items[#items + 1] = { type = "toggle", key = k("autoPage"), label = "Change with forms and stances", search = "Paging",
             desc = "Your stances, forms, stealth and the page keys swap this bar's buttons, as in the game. When off, it always shows its own buttons. Vehicles still take it over.",
             disabled = hidden }
         items[#items + 1] = { type = "text", label = "Powershifting: the game takes a moment to confirm a new form, and shows your caster bar until it does. Put /click DaylightUICat (or DaylightUIBear, DaylightUIMoonkin) at the top of your shift macro and this bar swaps the moment you press it.",
@@ -473,7 +473,7 @@ pagingItems = function(def, k, hidden)
     end
     for _, state in ipairs(Paging.STATES) do
         if state.held or not def.paged then   -- bar 1's forms already page it
-            items[#items + 1] = { type = "dropdown", key = k("paging." .. state.id), label = state.name .. " page",
+            items[#items + 1] = { type = "dropdown", key = k("paging." .. state.id), label = state.name .. " page", search = "Paging",
                 desc = "Which page of buttons this bar shows " .. state.when .. ". Your keybinds cast what the bar shows. No change keeps the bar's own buttons."
                     .. ((state.id == "help" or state.id == "harm") and " A held key's page comes first, then this one, then your stance or form." or ""),
                 choices = pageChoices,

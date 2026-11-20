@@ -875,6 +875,15 @@ T.test("two letters or more: every matching setting, live, in a card per page an
     T.truthy(res.Row("raid.width"), "and the raid's")
 end)
 
+T.test("searching paging finds the bars' page rows, though their labels say only page", function()
+    local DUI = stub.Load({ module = true, actionbars = true })
+    local keys = {}
+    for _, hit in ipairs(DUI.Options.Search("paging")) do keys[#keys + 1] = hit.item.key or "" end
+    local joined = table.concat(keys, " ")
+    T.truthy(joined:find("bars.main.paging.shift", 1, true), "bar 1's Shift page: " .. joined)
+    T.truthy(joined:find("bars.main.autoPage", 1, true), "bar 1's forms switch")
+end)
+
 T.test("a setting shared by two pages (the Quick actions) gets a row in each card: no empty card", function()
     local DUI = stub.Load({ module = true })
     local P = DUI.OptionsPanel
