@@ -154,6 +154,86 @@ T.test("action bars: the totem bar goes back on its holder when the game stacks 
     T.eq(rel, holder, "back on its holder, where the unlock handle is")
 end)
 
+-- The totem bar as the game's Edit Mode sets it up (EditModeSystemMixin:OnSystemLoad,
+-- EditModeSystemTemplates.lua): SetPoint, ClearAllPoints and SetScale become Lua that
+-- also keeps Edit Mode's snap record (SetSnappedToFrame, ClearFrameSnap) and flags the
+-- manager's anchor pass (OnEditModeSystemAnchorChanged), the plain calls kept as
+-- SetPointBase and so on. Whatever that Lua writes keeps the taint of the code that
+-- ran it, so a record written from Daylight UI's code reads as Daylight UI's.
+local function editModeTotemBar()
+    local mc, em = MultiCastActionBarFrame, EditModeManagerFrame
+    local function note(t, key) stub.Mark(t, key, stub.AddonOnStack()) end
+    mc.SetPointBase, mc.ClearAllPointsBase, mc.SetScaleBase = mc.SetPoint, mc.ClearAllPoints, mc.SetScale
+    mc.snappedFrames = {}
+    -- A bar the player snapped the totem bar to in Edit Mode.
+    local bar = MultiBarBottomLeft
+    bar.snappedFrames = {}
+    function bar:AddSnappedFrame(f) self.snappedFrames[f] = true; note(self.snappedFrames, f) end
+    function bar:RemoveSnappedFrame(f) self.snappedFrames[f] = nil; note(self.snappedFrames, f) end
+    function mc:SetPoint(point, rel, relPoint, x, y)
+        self:SetPointBase(point, rel, relPoint, x, y)
+        if type(rel) == "table" and rel.AddSnappedFrame then
+            rel:AddSnappedFrame(self)
+            self.snappedToFrame = rel
+            note(self, "snappedToFrame")
+        end
+        em.editModeSystemAnchorDirty = true
+        note(em, "editModeSystemAnchorDirty")
+    end
+    function mc:ClearAllPoints()
+        self:ClearAllPointsBase()
+        if self.snappedToFrame then
+            self.snappedToFrame:RemoveSnappedFrame(self)
+            self.snappedToFrame = nil
+            note(self, "snappedToFrame")
+        end
+    end
+    function mc:SetScale(s)
+        local old = self:GetScale()
+        self:SetScaleBase(s)
+        if old == s then return end
+        for i = 1, self:GetNumPoints() do
+            local p, rel, rp, x, y = self:GetPoint(i)
+            self:SetPoint(p, rel, rp, (x or 0) * old / s, (y or 0) * old / s)
+        end
+    end
+    return mc, em, bar
+end
+
+-- Moved with the Edit Mode Lua above, the bar left Daylight UI's taint in Edit Mode's
+-- records, which the game's own Edit Mode code reads on its next pass over the bars.
+T.test("action bars: the totem bar is moved without running the game's Edit Mode code", function()
+    local mc, em, bar
+    stub.Load({ actionbars = true, before = function()
+        world()
+        stub.units.player = { name = "Tester", class = "SHAMAN" }
+        mc, em, bar = editModeTotemBar()
+        -- The game's layout put it snapped to the bar above it.
+        mc:ClearAllPoints()
+        mc:SetPoint("BOTTOMLEFT", bar, "TOPLEFT", 0, 4)
+    end })
+    local holder = stub.actionbars.Bars.holders.totem
+    stub.RunTimers()
+    -- Every way Daylight UI puts the bar back or resizes it.
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    stub.FireEvent("UPDATE_MULTI_CAST_ACTIONBAR")
+    EventRegistry:TriggerEvent("EditModeManager.UpdateBottomActionBarPositions")
+    DaylightUI:Set("ActionBars", "bars.totem.size", 80)
+    stub.RunTimers()
+    local function clean(t, key, what)
+        local ok, by = issecurevariable(t, key)
+        T.truthy(ok, what .. " carries no addon's taint (" .. tostring(by) .. ")")
+    end
+    clean(mc, "snappedToFrame", "the bar's snap record")
+    clean(bar.snappedFrames, mc, "the snapped-to bar's record")
+    clean(em, "editModeSystemAnchorDirty", "Edit Mode's anchor flag")
+    -- Still where Daylight UI keeps it.
+    local p, rel = mc:GetPoint(1)
+    T.eq(p, "CENTER"); T.eq(rel, holder, "on its holder")
+    T.eq(mc:GetParent(), holder)
+    T.near(mc:GetScale(), 0.8, nil, "at the bar's size")
+end)
+
 T.test("action bars: only a shaman is asked to rewrite the layout for the totem bar", function()
     login()
     Enum.EditModeSystem.TotemActionBar = 21

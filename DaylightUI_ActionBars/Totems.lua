@@ -53,6 +53,19 @@ function Totems.IsShaman()
     return class == "SHAMAN"
 end
 
+-- The classic totem bar is an Edit Mode system: the game swaps its SetPoint,
+-- ClearAllPoints and SetScale for Lua of its own that also keeps Edit Mode's
+-- record of what the bar is snapped to, and keeps the plain widget calls as
+-- SetPointBase and so on. Run from an addon, that Lua leaves the addon's taint in
+-- the record. The game's own Edit Mode code reads it later and runs tainted, the
+-- totem bar's update with it, until the summon and recall buttons compare a secret
+-- cooldown in a fight. So the bar is only moved and scaled with the plain calls.
+function Totems.Plain(frame, method)
+    local fn = frame[method .. "Base"]
+    if type(fn) ~= "function" then fn = frame[method] end
+    return fn
+end
+
 -- Puts a frame at its spot now, and again the frame after the game's own layout may
 -- have moved it (out of combat, since both frames are protected). No hook on its
 -- SetPoint: Edit Mode calls that from protected code, and with a hook on the frame
@@ -562,8 +575,8 @@ Totems.KIND = {
             -- A load in a fight can't put the bar in its holder, and something else may
             -- move it out later. Outside the holder the bar's fade never reaches it.
             if mc:GetParent() ~= holder then mc:SetParent(holder) end
-            mc:ClearAllPoints()
-            mc:SetPoint("CENTER", holder, "CENTER", 0, 0)
+            Totems.Plain(mc, "ClearAllPoints")(mc)
+            Totems.Plain(mc, "SetPoint")(mc, "CENTER", holder, "CENTER", 0, 0)
             Totems.Hold(mc, holder)
         end)
         return {}
@@ -577,7 +590,7 @@ Totems.KIND = {
             return
         end
         local s = cfg.size / 100
-        mc:SetScale(s)
+        Totems.Plain(mc, "SetScale")(mc, s)
         Totems.LayoutBar(mc, cfg)
         if not InCombatLockdown() then Totems.Hold(mc, holder) end
         local w, h = mc:GetWidth() * s, mc:GetHeight() * s
