@@ -609,7 +609,7 @@ function Rows.Update()
     -- pieces yet (the game keeps adding newly learned spells).
     local hide = Data.Switch("on") and Data.Switch("hideUnplaced")
     -- An older layout's unset spells keep what they showed, before anything reads it.
-    if on and not set.tracksKept and ns.CdmOwn then ns.CdmOwn.KeepOldTracks(set) end
+    if on and ns.CdmOwn and (not set.tracksKept or set.tracksLeft) then ns.CdmOwn.KeepOldTracks(set) end
 
     -- A block comes from the saved layout alone, and every write to it goes through
     -- Data.Changed. Passes run on every aura change in a fight, so the blocks are

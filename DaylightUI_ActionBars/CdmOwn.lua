@@ -422,59 +422,121 @@ function Own.Stacks(id)
     return (fact.charges or 0) > 1 or (fact.stacks or 0) > 1
 end
 
--- A layout saved before a spell's options stopped deciding who draws it. Two old
--- rules changed what an unset spell shows: Hide (Buff up) or a buff glow turned a
--- cooldown whose icon never shows its buff into Cooldown and buff, and a spell once
--- seen on a cooldown counted as having one. Each such piece gets what it showed
--- written down as its pick, once per layout, so nothing on screen changes.
+-- A layout saved before a spell's options stopped deciding who draws it. The old
+-- rules drew some unset spells differently: Hide (Buff up) or a buff glow turned a
+-- cooldown whose icon never shows its buff into Cooldown and buff; Hide, a buff
+-- sound or Glow to recast moved a game cooldown icon to Daylight UI's own; and a
+-- spell once seen on a cooldown counted as having one. Each such piece gets what
+-- it showed written down as its pick, so nothing on screen changes.
+--
+-- A layout is shared by every character of its class, and the first one to log in
+-- may not know every spell in it (a lower alt, other talents). A piece it can't
+-- read waits in set.tracksLeft for a character that knows the spell. Pieces placed
+-- later are never read the old way.
+local function picked(p) return Own.Picked(p) ~= nil or p.track ~= nil end
+local function sounds(v) return v ~= nil and v ~= "none" end
+
+-- Cooldowns the old rules had seen run, per spell, by any character of this class.
+local function seenCooldowns()
+    local DB = DUI.DB
+    local out = {}
+    if not DB then return out end
+    local mine = DB.Character()
+    local root = DB.Root()
+    local _, class = UnitClass("player")
+    local function add(c)
+        if type(c) ~= "table" or type(c.cdmCooldowns) ~= "table" then return end
+        for sid, yes in pairs(c.cdmCooldowns) do
+            if yes == true then out[sid] = true end
+        end
+    end
+    add(mine)
+    for _, c in pairs(type(root.characters) == "table" and root.characters or {}) do
+        local theirs = type(c) == "table" and (c.class or (type(c.inventory) == "table" and c.inventory.class))
+        if c ~= mine and type(class) == "string" and theirs == class then add(c) end
+    end
+    return out
+end
+
+-- What an unset piece showed under the old rules, when today's would draw it
+-- differently; else nil.
+local function oldTrack(id, p, k, known, seenCd, set)
+    local C, A = ns.CdmCustom, ns.CdmAuras
+    local sid = Own.SpellOf(id)
+    local learnedCd = sid ~= nil and seenCd[sid] == true and not Own.HasCooldown(sid)
+    if C and C.Is(id) then
+        -- A spell added by ID showed its cooldown once one was seen.
+        if learnedCd and C.IsAdded(id) and not C.ItemOf(id) and C.Track(id, set) == "aura" and C.CanTrack(id) then
+            return "cooldown"
+        end
+        return nil
+    end
+    -- Those layouts were read by the row's own spell alone: a buff under a linked
+    -- spell (Bloodrage's) didn't count as shown by the game's icon.
+    local follows = A ~= nil and A.Follows(id, true)
+    local linked = A ~= nil and not follows and A.Follows(id)
+    local quiet = Own.QuietAura(id, true) or (not follows and Own.AuraOf(sid) ~= nil)
+    if not (AURA[k.cat] or follows or quiet) then return nil end
+    local hadCd = learnedCd or Own.HasCooldown(sid)
+    local old
+    if hadCd and not AURA[k.cat] and quiet then
+        old = (Own.Stacks(id) or p.hideActive == true or p.missingGlow == true or p.upGlow == true)
+            and "both" or "cooldown"
+    else
+        old = (hadCd or not AURA[k.cat]) and "both" or "buff"
+    end
+    -- These options moved a game cooldown icon to Daylight UI's own.
+    local moved = p.hideActive == true or sounds(p.buffSound) or sounds(p.buffEndSound) or p.clipGlow == true
+    local now = Own.Track(id, p, known)
+    if linked and old == "cooldown" and now == "both" then
+        -- Left as it was, the game's icon then and now. As a bar, or moved to
+        -- Daylight UI's icon by an option, it showed the cooldown alone.
+        if p.shape == "bar" or moved then return old end
+        return nil
+    end
+    if old ~= now and not (old == "cooldown" and now == nil) then return old end
+    -- Rend as a bar: a cooldown under the debuff's bar when the spell had a
+    -- cooldown seen or an option moved it, which only Both keeps.
+    if p.shape == "bar" and follows and old == "both" and not AURA[k.cat]
+        and not Own.HasCooldown(sid) and (moved or learnedCd) then
+        return "both"
+    end
+end
+
 function Own.KeepOldTracks(set)
-    if type(set) ~= "table" or set.tracksKept or type(set.pieces) ~= "table" then return end
+    if type(set) ~= "table" or type(set.pieces) ~= "table" then return end
+    local left = set.tracksLeft
+    if set.tracksKept and not (type(left) == "table" and next(left) ~= nil) then return end
     -- The spell list is whole only out of a fight, once the game has it.
     if InCombatLockdown() or (DUI.Restricted and DUI.Restricted()) then return end
     local known = Own.Known()
     if next(known) == nil then return end
+    local first = not set.tracksKept
     set.tracksKept = true
-    local c = DUI.DB and DUI.DB.Character()
-    local seenCd = type(c) == "table" and type(c.cdmCooldowns) == "table" and c.cdmCooldowns or {}
-    local C, A = ns.CdmCustom, ns.CdmAuras
+    local seenCd = seenCooldowns()
+    local C = ns.CdmCustom
     local changed = false
-    for id, p in pairs(set.pieces) do
-        local sid = Own.SpellOf(id)
-        local learnedCd = sid ~= nil and seenCd[sid] == true and not Own.HasCooldown(sid)
-        if type(p) ~= "table" or Own.Picked(p) ~= nil or p.track ~= nil then
-            -- The player picked; nothing to keep.
-        elseif C and C.Is(id) then
-            -- A spell added by ID showed its cooldown once one was seen.
-            if learnedCd and C.IsAdded(id) and not C.ItemOf(id) and C.Track(id, set) == "aura" and C.CanTrack(id) then
-                p.track, changed = "cooldown", true
-            end
-        elseif known[id] then
-            local k = known[id]
-            -- Those layouts were read by the row's own spell alone: a buff under a
-            -- linked spell (Bloodrage's) didn't count as shown by the game's icon.
-            local follows = A ~= nil and A.Follows(id, true)
-            local linked = A ~= nil and not follows and A.Follows(id)
-            local quiet = Own.QuietAura(id, true) or (not follows and Own.AuraOf(sid) ~= nil)
-            if AURA[k.cat] or follows or quiet then
-                local hadCd = learnedCd or Own.HasCooldown(sid)
-                local old
-                if hadCd and not AURA[k.cat] and quiet then
-                    old = (Own.Stacks(id) or p.hideActive == true or p.missingGlow == true or p.upGlow == true)
-                        and "both" or "cooldown"
-                else
-                    old = (hadCd or not AURA[k.cat]) and "both" or "buff"
-                end
-                local now = Own.Track(id, p, known)
-                if linked and old == "cooldown" and now == "both" then
-                    -- As an icon it was the game's icon and still is. As a bar it
-                    -- was a cooldown bar, which only the pick keeps.
-                    if p.shape == "bar" then p.track, changed = old, true end
-                -- Unset and "cooldown" are the same picture for a spell with no buff known.
-                elseif old ~= now and not (old == "cooldown" and now == nil) then
-                    p.track, changed = old, true
-                end
+    local function look(id, p)
+        if type(p) ~= "table" or picked(p) then return true end
+        local custom = C ~= nil and C.Is(id)
+        if not custom and not known[id] then return false end
+        local t = oldTrack(id, p, known[id], known, seenCd, set)
+        if t then p.track, changed = t, true end
+        return true
+    end
+    if first then
+        for id, p in pairs(set.pieces) do
+            if not look(id, p) then
+                if type(set.tracksLeft) ~= "table" then set.tracksLeft = {} end
+                set.tracksLeft[id] = true
             end
         end
+    else
+        for id in pairs(left) do
+            local p = set.pieces[id]
+            if p == nil or look(id, p) then left[id] = nil end
+        end
+        if next(left) == nil then set.tracksLeft = nil end
     end
     if changed and ns.CdmData then ns.CdmData.Changed() end
 end

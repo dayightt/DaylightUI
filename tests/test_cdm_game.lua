@@ -377,3 +377,106 @@ T.test("cdm game: an older layout keeps what Bloodrage showed (" .. shape .. ")"
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 end
+
+-- An update from 1.9.6 must leave a layout looking as it did. These cases come
+-- from running 1.9.6's Cooldown Manager and today's side by side on the game's
+-- own items: an unset piece with a Hide, a sound or Glow to recast on it, or a
+-- cooldown 1.9.6 remembered for a spell that has none, drew something today's
+-- rules don't, unless the old reading is written down as the player's pick.
+local MS, CHARGE = 12294, 100
+
+-- A layout from before: its pieces placed, nothing looked at yet.
+local function oldLayout(D, pieces)
+    local set = D.Current()
+    for i, p in ipairs(pieces) do
+        D.AddPiece(set, p.id, p.shape or "icon", (i - 1) * 60, 0)
+        for k, v in pairs(p.opts or {}) do set.pieces[p.id][k] = v end
+    end
+    set.tracksKept = nil
+    return set
+end
+
+-- Rend's debuff as a bar. 1.9.6 drew an option on it (Hide, a buff sound, Glow to
+-- recast) or a remembered cooldown with Daylight UI's bar showing the debuff and,
+-- while it's down, a cooldown bar under it (a full one: Rend has no cooldown).
+for _, case in ipairs({ { "hideActive", true }, { "buffSound", "dui:done" }, { "buffEndSound", "dui:done" },
+                         { "clipGlow", true }, { "remembered cooldown" } }) do
+T.test("cdm game: an older Rend bar with " .. case[1] .. " keeps the cooldown bar under its debuff", function()
+    local DUI, AB, D, R = world()
+    local icon, bar = CW.ID(REND, ESSENTIAL), CW.ID(REND, BUFFS)
+    local opts = case[2] ~= nil and { [case[1]] = case[2] } or nil
+    if not opts then DUI.DB.Character().cdmCooldowns = { [REND] = true } end
+    local set = oldLayout(D, { { id = icon, shape = "bar", opts = opts }, { id = CW.ID(CLAP, ESSENTIAL), shape = "icon", opts = opts } })
+    pass(AB)
+    T.eq(set.pieces[icon].track, "both", "the old reading is kept as its pick")
+    T.eq(R.DrawnBy(icon), "aura and cooldown bar", "the debuff's bar over a cooldown bar, as before")
+    T.isnil(set.pieces[CW.ID(CLAP, ESSENTIAL)].track, "an icon looked the same either way: left alone")
+    T.truthy(bar ~= nil)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- Bloodrage and Last Stand as icons. With a buff sound or Glow to recast on it,
+-- 1.9.6 moved the spell to Daylight UI's own icon showing its cooldown alone.
+-- Today the game's icon would draw it, which shows the buff's time first.
+for _, case in ipairs({ { "buffSound", "dui:done" }, { "buffEndSound", "dui:done" }, { "clipGlow", true } }) do
+T.test("cdm game: an older Bloodrage icon with " .. case[1] .. " keeps showing its cooldown alone", function()
+    local DUI, AB, D, R = world({ known = { SHOUT, REND, BLOCK, RAGE, CLAP, WALL, 12975 } })
+    local rage, stand = CW.ID(RAGE, UTILITY), CW.ID(12975, UTILITY)
+    local set = oldLayout(D, { { id = rage, opts = { [case[1]] = case[2] } }, { id = stand, opts = { [case[1]] = case[2] } },
+                               { id = CW.ID(REND, ESSENTIAL), opts = { [case[1]] = case[2] } } })
+    pass(AB)
+    for _, id in ipairs({ rage, stand }) do
+        T.eq(set.pieces[id].track, "cooldown", "kept as a Cooldown pick")
+        T.eq(R.DrawnBy(id), "own icon", "drawn by Daylight UI's cooldown icon, as before")
+    end
+    T.isnil(set.pieces[CW.ID(REND, ESSENTIAL)].track, "Rend's icon shows the same either way: left alone")
+    T.eq(R.DrawnBy(CW.ID(REND, ESSENTIAL)), "game")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- A layout belongs to every character of the class that uses it, and the first
+-- one to log in may not know every spell in it (a lower alt, other talents). A
+-- piece it doesn't know is looked at once a character that knows it plays.
+T.test("cdm game: an old piece the first character doesn't know is kept once one that knows it logs in", function()
+    local DUI, AB, D, R = world({ known = { SHOUT, REND, CLAP, WALL } })
+    local rage = CW.ID(RAGE, UTILITY)
+    local set = oldLayout(D, { { id = rage, shape = "bar" }, { id = CW.ID(REND, ESSENTIAL), shape = "bar" } })
+    pass(AB)
+    T.truthy(set.tracksKept, "looked at")
+    T.isnil(set.pieces[rage].track, "Bloodrage isn't known here: nothing to read yet")
+    local saved = set
+    -- Another warrior, who knows Bloodrage, opens the same layout.
+    DUI, AB, D, R = world()
+    set = D.Current()
+    for k in pairs(set) do set[k] = nil end
+    for k, v in pairs(saved) do set[k] = v end
+    D.Changed()
+    pass(AB)
+    T.eq(set.pieces[rage].track, "cooldown", "the cooldown bar it was, kept now")
+    T.eq(R.DrawnBy(rage), "cooldown bar")
+    -- A piece placed after the update is never read the old way.
+    local stand = CW.ID(12975, UTILITY)
+    D.AddPiece(set, stand, "bar", 120, 0)
+    pass(AB)
+    T.isnil(set.pieces[stand].track, "Last Stand, placed now: today's reading")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A cooldown 1.9.6 remembered for a spell was kept per character, and the layout
+-- is shared by the class: another warrior's memory counts as well, whoever logs
+-- in first.
+T.test("cdm game: an older layout reads the cooldowns every character of the class remembered", function()
+    local DUI, AB, D, R = world()
+    local chars = DUI.DB.Root().characters
+    chars["Other - Realm"] = { class = "WARRIOR", cdmCooldowns = { [REND] = true } }
+    chars["Mage - Realm"] = { class = "MAGE", cdmCooldowns = { [CLAP] = true } }
+    local rend, clap = CW.ID(REND, ESSENTIAL), CW.ID(CLAP, ESSENTIAL)
+    local set = oldLayout(D, { { id = rend, shape = "bar" } })
+    pass(AB)
+    T.eq(set.pieces[rend].track, "both", "another warrior's remembered cooldown: kept")
+    T.eq(R.DrawnBy(rend), "aura and cooldown bar")
+    T.truthy(clap ~= nil)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

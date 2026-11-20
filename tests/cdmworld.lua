@@ -108,6 +108,20 @@ function CW.SetWith(spellID)
     return best
 end
 
+-- The game's GetSpellBaseCooldown, in milliseconds. In game it reports a cooldown
+-- kept on a spell category too (Charge, the shocks), which is what the spell
+-- facts' cd holds: both come from the game's data. 0 for a spell with none.
+local facts
+function CW.BaseCooldown(spellID)
+    if not facts then
+        local ns = {}
+        assert(loadfile("DaylightUI_ActionBars/CdmSpells.lua"))("DaylightUI_ActionBars", ns)
+        facts = ns.CdmSpells.FACTS
+    end
+    local f = facts[spellID]
+    return f and f.cd and f.cd * 1000 or 0
+end
+
 local HIDE_AURA, HIDE_BY_DEFAULT, HIGHEST_RANK = 1, 2, 4
 local function has(flags, bit) return math.floor(flags / bit) % 2 == 1 end
 
@@ -217,6 +231,7 @@ function CW.Install(opts)
         end,
         IsCooldownViewerAvailable = function() return true, "" end,
     })
+    global("GetSpellBaseCooldown", function(spellID) return CW.BaseCooldown(spellID), 0 end)
     global("C_CVar", {
         GetCVar = function(name) return CW.cvars[name] end,
         GetCVarBool = function(name) return CW.cvars[name] == "1" end,
