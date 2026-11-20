@@ -6367,39 +6367,3 @@ T.test("chat: Classic windows get the price of each one too", function()
     _G.ERR_AUCTION_COMMODITY_WON_S = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
-
--- A group's loot filled the Loot tab with everyone's drops, picks and rolls:
--- other people's lines are their own kind, so a tab can keep only yours.
-T.test("chat daylight: other people's loot and rolls are a kind of their own", function()
-    stub.Load({ chat = true, skins = true })
-    local Kinds = stub.chatModule.Kinds
-    _G.LOOT_ITEM = "%s receives loot: %s."    -- the game's GlobalStrings
-    _G.LOOT_ITEM_SELF = "You receive loot: %s."
-    local link = "|cff1eff00|Hitem:1|h[Shovel]|h|r"
-    local function kind(text, guid) return select(2, Kinds.Of(nil, "CHAT_MSG_LOOT", { text, [12] = guid }, text)) end
-    T.eq(kind("You receive loot: " .. link .. "."), "loot", "your own loot")
-    T.eq(kind("Bob receives loot: " .. link .. "."), "lootothers", "someone else's")
-    T.eq(kind("Bob receives loot: " .. link .. ".", UnitGUID("player")), "loot", "the GUID wins when there is one")
-    T.eq(kind("You receive loot: " .. link .. ".", "Player-1-OTHER"), "lootothers")
-    -- Roll lines, read by the loot rolls' own reader.
-    local Rolls = DaylightUI.RollChat
-    T.truthy(Rolls, "the roll reader is loaded")
-    do
-        _G.LOOT_ROLL_GREED = "|HlootHistory:%d|h[Loot]|h: %s has selected Greed for: %s"
-        _G.LOOT_ROLL_GREED_SELF = "|HlootHistory:%d|h[Loot]|h: You have selected Greed for: %s"
-        _G.LOOT_ROLL_ROLLED_GREED = "|HlootHistory:%d|h[Loot]|h: Greed Roll - %d for %s by %s"
-        Rolls.Build()
-        T.eq(kind(LOOT_ROLL_GREED:format(3, "Bob", link)), "lootothers", "someone else's pick")
-        T.eq(kind(LOOT_ROLL_GREED_SELF:format(3, link)), "loot", "your pick")
-        T.eq(kind(LOOT_ROLL_ROLLED_GREED:format(3, 54, link, UnitName("player"))), "loot", "your roll")
-        T.eq(kind(LOOT_ROLL_ROLLED_GREED:format(3, 54, link, "Bob")), "lootothers", "their roll")
-    end
-    -- A saved Loot tab gets the new kind once, so it shows what it did; off stays off.
-    local tab = { name = "Loot", kinds = { loot = true }, v = 7 }
-    Kinds.Upgrade(tab)
-    T.truthy(Kinds.Shows(tab, "lootothers"))
-    tab.kinds.lootothers = false
-    Kinds.Upgrade(tab)
-    T.falsy(Kinds.Shows(tab, "lootothers"), "switched off stays off")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)

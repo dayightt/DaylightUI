@@ -37,7 +37,7 @@ Filter.COLUMNS = {
                                    "raid", "warning", "icons", "pvp", "guild", "officer" } },
     { title = L["Channels"], kinds = { "general", "trade", ns.Kinds.SERVICES, ns.Kinds.TRADE_LOCAL,
                                        "lfg", "defense", "channel" } },
-    { title = L["Other"], kinds = { "loot", "lootothers", "currency", "money", "tradeskill", "opening", "progress",
+    { title = L["Other"], kinds = { "loot", "currency", "money", "tradeskill", "opening", "progress",
                                     "reputation", "skill", "achievement", "pet", "misc", "npc", "boss", "system" } },
 }
 
@@ -45,7 +45,7 @@ Filter.COLUMNS = {
 Filter.COLOR_OF = {
     say = "SAY", yell = "YELL", emote = "EMOTE", whisper = "WHISPER", bnet = "BN_WHISPER",
     party = "PARTY", instance = "INSTANCE_CHAT", raid = "RAID", warning = "RAID_WARNING", guild = "GUILD",
-    officer = "OFFICER", channel = "CHANNEL", loot = "LOOT", lootothers = "LOOT", money = "MONEY",
+    officer = "OFFICER", channel = "CHANNEL", loot = "LOOT", money = "MONEY",
     progress = "COMBAT_XP_GAIN", reputation = "COMBAT_FACTION_CHANGE", skill = "SKILL",
     achievement = "ACHIEVEMENT", npc = "MONSTER_SAY", boss = "RAID_BOSS_EMOTE", system = "SYSTEM",
     currency = "CURRENCY", tradeskill = "TRADESKILLS", opening = "OPENING", pet = "PET_INFO",

@@ -2588,18 +2588,3 @@ T.test("rich tooltip: every header tag in a color of what it says, its outline t
     T.rgb({ head.tags[3].text:GetTextColor() }, stub.tooltip.RichPlayers.FACTION_COLORS.Horde)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
-
-T.test("rich tooltip: Portraits off leaves the face and class icon off the cards", function()
-    local _, Panel = login("rich")
-    DaylightUI:Set("Tooltip", "portraits", false)
-    stub.RunTimers()
-    boar()
-    local head = Panel.Get(hoverBoar()).items[1]
-    T.isnil(head.icon, "no face on a creature's card")
-    T.eq(stub.Text(head.title), "Ridgeback Boar", "the name still leads")
-    player()
-    hover("mouseover", { "Aelindra", "Level 60 Night Elf Mage" })
-    head = Panel.Get(GameTooltip).items[1]
-    T.isnil(head.icon, "no class icon on a player's card")
-    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)

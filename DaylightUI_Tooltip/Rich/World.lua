@@ -296,9 +296,7 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     p.padTop = World.PAD_TOP
     local tags = World.Tags(unit, r)
     World.DropShown(r, tags)
-    local cfg = ns.Tooltip.Config()
-    local face = not (cfg and cfg.portraits == false) and unit or nil
-    Panel.Header(p, { portrait = face, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = face and pair or nil,
+    Panel.Header(p, { portrait = unit, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = pair,
         title = r.title, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
     Panel.Gap(p, World.BEFORE_BAR)

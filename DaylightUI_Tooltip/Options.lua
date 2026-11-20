@@ -32,9 +32,6 @@ ns.OPTIONS = { pages = {
               order = { "shift", "ctrl", "alt", "none" },
               desc = "Hold this key over a player or creature to see their whole card in place of the fight pill. None keeps the pill whatever you hold.",
               hidden = function(get) return get("style") ~= "rich" or get("pill") == "never" end },
-            { type = "toggle", key = "portraits", label = "Portraits", since = "2.0.2",
-              desc = "A creature's face and a player's class icon at the top of their card. Off, the card starts with the name.",
-              hidden = function(get) return get("style") ~= "rich" end },
         } },
         { label = "Other addons", items = {
             { type = "dropdown", key = "addonLines", label = "Other addons' lines", since = "2.0",

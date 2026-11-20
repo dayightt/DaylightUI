@@ -162,10 +162,9 @@ function Players.Card(p, tip, unit, data, n, lines)
         tags[#tags + 1] = Tag(race, Players.FACTION_COLORS[faction] or Style.INK.TEXT)
     end
     local icon, coords
-    local cfg = ns.Tooltip.Config()
-    if token and not (cfg and cfg.portraits == false) then icon, coords = Players.Icon(token) end
+    if token then icon, coords = Players.Icon(token) end
     Panel.Header(p, { icon = icon, iconCoords = coords, iconSize = Players.ICON, iconInset = Players.ICON_INSET,
-        iconTile = icon and pair or nil, title = title, tags = tags, wash = cr and rgb(cr, cg, cb) or nil })
+        iconTile = pair, title = title, tags = tags, wash = cr and rgb(cr, cg, cb) or nil })
     -- The same room under the banner with or without rows: without it the
     -- health sat right on the banner, inside its wash.
     Panel.Gap(p, Players.AFTER_BANNER)

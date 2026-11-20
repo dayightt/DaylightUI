@@ -28,7 +28,7 @@ Tabs.KIND_WORDS = {
     guild = L["Guild"], officer = L["Officer"], general = L["General channel"],
     trade = _G.TRADE or L["Trade"], [ns.Kinds.SERVICES] = L["Trade (Services)"], [ns.Kinds.TRADE_LOCAL] = L["Trade (Local)"],
     lfg = L["Looking for group"], defense = L["Local defense"],
-    channel = L["Other channels"], loot = L["Loot"], lootothers = L["Others' loot and rolls"], money = L["Money"],
+    channel = L["Other channels"], loot = L["Loot"], money = L["Money"],
     progress = L["Experience and honor"], reputation = L["Reputation"], skill = L["Skill-ups"],
     achievement = L["Achievements"], npc = L["NPCs"], boss = L["Boss emotes"], system = L["System messages"],
     currency = L["Currency"], tradeskill = L["Tradeskills"], opening = L["Opening"], pet = L["Pet info"],
