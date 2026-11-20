@@ -31,8 +31,8 @@ Panel.LIGHT_H = 2      -- the colored line along the top
 Panel.MIN_W = 160
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
-Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, spell = 270, cooldown = 200, other = 280 }
-Panel.FIXED = { unit = true, mob = true, node = true, item = true, compare = true, spell = true, cooldown = true }
+Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, spell = 270, other = 280 }
+Panel.FIXED = { unit = true, mob = true, node = true, item = true, compare = true, spell = true }
 Panel.TAG_GAP, Panel.TILE_GAP = 6, 4
 Panel.TAG_ROW_GAP = 4  -- between two rows of a header's tags
 Panel.RULE_ALPHA = 0.25
@@ -694,23 +694,45 @@ function place.header(p, item, y, inner)
         item.title:SetSpacing(Panel.LINE_SPACING)
         th = 2 * one + Panel.LINE_SPACING
     end
+    -- Everything under the title has the room right of the icon, the whole way.
+    local wide = inner + padX(p) - x
     local col = th
-    if item.sub then col = col + 2 + lineHeight(item.sub.size, item.sub.slot) end
+    local subH = 0
+    if item.sub then
+        -- A long sub line ("Companion of ..." in German) wraps onto a second
+        -- line rather than running to the card's edge.
+        local sh = lineHeight(item.sub.size, item.sub.slot)
+        subH = sh
+        if isSecret(item.spec.sub) then
+            item.sub:SetWidth(wide)
+        elseif widthOf(item.sub) > wide + 1 then
+            item.sub:SetWidth(wide)
+            item.sub:SetWordWrap(true)
+            item.sub:SetMaxLines(2)
+            item.sub:SetSpacing(Panel.LINE_SPACING)
+            subH = 2 * sh + Panel.LINE_SPACING
+        end
+        col = col + 2 + subH
+    end
     local tagGap = spec.tagGap or 5
-    local tagRows = 0
+    local rows = {}
     if item.tags and #item.tags > 0 then
-        -- As many rows as the tags need beside the icon.
-        local room, tx = inner + padX(p) - x, 0
-        tagRows = 1
+        -- As many rows as the tags need beside the icon; a tag longer than a
+        -- whole row wraps its own words (W.Tag's FitTo) and its row grows.
+        local tx = 0
+        rows[1] = W().TAG_H
         for _, tag in ipairs(item.tags) do
+            local tagH = tag.FitTo and tag.FitTo(wide) or W().TAG_H
             local w = tag:GetWidth()
-            if tx > 0 and tx + w > room then
-                tagRows, tx = tagRows + 1, 0
+            if tx > 0 and tx + w > wide then
+                rows[#rows + 1], tx = W().TAG_H, 0
             end
-            tag.row, tag.at = tagRows, tx
+            tag.row, tag.at = #rows, tx
+            rows[#rows] = math.max(rows[#rows], tagH)
             tx = tx + w + Panel.TAG_GAP
         end
-        col = col + tagGap + tagRows * W().TAG_H + (tagRows - 1) * Panel.TAG_ROW_GAP
+        col = col + tagGap
+        for i, rh in ipairs(rows) do col = col + rh + (i > 1 and Panel.TAG_ROW_GAP or 0) end
     end
     -- The words sit in the middle of the icon's height when shorter.
     local top = y + math.max(0, (h - col) / 2)
@@ -722,13 +744,19 @@ function place.header(p, item, y, inner)
     local ty = top + th
     if item.sub then
         item.sub:SetPoint("TOPLEFT", p, "TOPLEFT", x, -(ty + 2))
-        ty = ty + 2 + lineHeight(item.sub.size, item.sub.slot)
+        ty = ty + 2 + subH
     end
-    if tagRows > 0 then
-        for _, tag in ipairs(item.tags) do
-            tag:SetPoint("TOPLEFT", p, "TOPLEFT", x + tag.at, -(ty + tagGap + (tag.row - 1) * (W().TAG_H + Panel.TAG_ROW_GAP)))
+    if #rows > 0 then
+        local rowY = {}
+        local at = ty + tagGap
+        for i, rh in ipairs(rows) do
+            rowY[i] = at
+            at = at + rh + Panel.TAG_ROW_GAP
         end
-        ty = ty + tagGap + tagRows * W().TAG_H + (tagRows - 1) * Panel.TAG_ROW_GAP
+        for _, tag in ipairs(item.tags) do
+            tag:SetPoint("TOPLEFT", p, "TOPLEFT", x + tag.at, -rowY[tag.row])
+        end
+        ty = at - Panel.TAG_ROW_GAP
     end
     item.h = math.max(h, ty - y)
     return item.h

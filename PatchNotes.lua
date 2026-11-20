@@ -11,7 +11,12 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Tooltip", "A recipe's tooltip shows the recipe's own binding at the top and what the item it makes binds as down with that item and its materials" },
+        { "Tooltip", "Long tags and titles on tooltips, like long guild ranks or pet owner names in German, wrap onto a second line instead of running off the edge" },
+        { "Tooltip", "With a weapon in each hand, comparing a weapon says which hand each of yours is in, and your main hand sits next to the item" },
+        { "Tooltip", "Hovering a spell on your action bars while it's on cooldown still shows what it does, with the time left added" },
+    } },
     { version = "2.0.1", date = "2026-11-20", summary = "Chat stops filling up with everyone's crafting, plus a few quick fixes.", fixed = {
         { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },
         { "Loot", "Winning a roll no longer shows a second \"You received\" box on top of the loot roll" },

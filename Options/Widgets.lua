@@ -3953,6 +3953,7 @@ end
 -- or nil for the Appearance font.
 
 W.TAG_H, W.TAG_PAD, W.TAG_SLANT = 18, 9, 4
+W.TAG_LINE_GAP = 2 -- between the two lines of a tag too long for one
 W.TAG_FILL = { 1, 1, 1 }
 
 -- A tag: a short fact in small capitals inside a slanted outline, its text in
@@ -3980,10 +3981,30 @@ function W.Tag(parent, font)
         t.FitWidth()
     end
     function t.FitWidth()
+        t.text:SetWidth(0)
+        t.text:SetWordWrap(false)
+        t:SetHeight(W.TAG_H)
         local w = t.text:GetStringWidth()
         if type(w) ~= "number" or DUI.IsSecret(w) then w = 60 end
         t:SetWidth(math.floor(w + 2 * W.TAG_PAD + 0.5))
         return t:GetWidth()
+    end
+    -- Words longer than the room they have (a long title in German) wrap onto
+    -- a second line inside the tag, which grows taller, instead of running past
+    -- the card's edge. Returns its height.
+    function t.FitTo(most)
+        if t:GetWidth() <= most then return t:GetHeight() end
+        local inner = math.max(1, most - 2 * W.TAG_PAD)
+        t.text:SetWidth(inner)
+        t.text:SetWordWrap(true)
+        t.text:SetMaxLines(2)
+        t.text:SetSpacing(W.TAG_LINE_GAP)
+        t:SetWidth(most)
+        local h = t.text:GetStringHeight()
+        local one = SIZE.small + 3
+        if type(h) ~= "number" or DUI.IsSecret(h) or h <= 0 then h = 2 * one + W.TAG_LINE_GAP end
+        t:SetHeight(math.floor(W.TAG_H - one + h + 0.5))
+        return t:GetHeight()
     end
     return t
 end

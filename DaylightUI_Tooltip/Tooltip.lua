@@ -1710,6 +1710,90 @@ function Tip.PaintQuestRows(tip)
     if refit and tip:IsShown() then tip:Show() end
 end
 
+-- ---------------------------------------------------------------------
+-- Main hand and off hand on the compare tooltips
+-- ---------------------------------------------------------------------
+
+-- With a weapon in each hand both compare tooltips just say "Equipped". Which
+-- hand each item is in, read from the compare tooltip's data (an equipped
+-- item's guid against the two weapon slots): 16 main hand, 17 off hand.
+Tip.MAIN_HAND, Tip.OFF_HAND = 16, 17
+Tip.hands = setmetatable({}, { __mode = "k" })
+
+function Tip.HandOf(data)
+    local guid = type(data) == "table" and plain(data.guid) or nil
+    if type(guid) ~= "string" or not (C_Item and C_Item.GetItemGUID and type(ItemLocation) == "table"
+        and ItemLocation.CreateFromEquipmentSlot) then return nil end
+    for _, slot in ipairs({ Tip.MAIN_HAND, Tip.OFF_HAND }) do
+        local loc = ItemLocation:CreateFromEquipmentSlot(slot)
+        if plain(C_Item.DoesItemExist(loc)) == true and plain(C_Item.GetItemGUID(loc)) == guid then return slot end
+    end
+    return nil
+end
+
+-- From the item post-call: a compare tooltip's hand, for its card and its place.
+function Tip.NoteHand(tip, data)
+    if type(tip.CompareHeader) ~= "table" then return end
+    Tip.hands[tip] = Tip.HandOf(data)
+end
+
+-- The hand's name, the game's own words for its slots.
+function Tip.HandWord(slot)
+    if slot == Tip.MAIN_HAND then return INVTYPE_WEAPONMAINHAND or L["Main Hand"] end
+    if slot == Tip.OFF_HAND then return INVTYPE_WEAPONOFFHAND or L["Off Hand"] end
+    return nil
+end
+
+-- A compare tooltip's points, as { point, relativeTo, relativePoint, x, y }
+-- each, or nil when any of them can't be read.
+local function pointsOf(f)
+    local n = plain(f:GetNumPoints())
+    if type(n) ~= "number" or n < 1 then return nil end
+    local out = {}
+    for i = 1, n do
+        local a, rel, b, x, y = f:GetPoint(i)
+        a, rel, b, x, y = plain(a), plain(rel), plain(b), plain(x), plain(y)
+        if type(a) ~= "string" or type(rel) ~= "table" then return nil end
+        out[i] = { a, rel, b or a, x or 0, y or 0 }
+    end
+    return out
+end
+
+-- The game hangs one compare tooltip on the item's tooltip and the other on
+-- that one, and which goes next to the item depends on the side they open
+-- to: opening to the right, the off hand sat next to the item where the eye
+-- reads it as the main hand. The main hand always goes next to the item: the
+-- two trade places, each taking the other's points. The game places them
+-- again on each refill, before this runs (from the tooltip's update).
+function Tip.HandOrder(tip)
+    local shops = tip.shoppingTooltips
+    if type(shops) ~= "table" then return end
+    local a, b = shops[1], shops[2]
+    if not (type(a) == "table" and type(b) == "table" and a:IsShown() and b:IsShown()) then return end
+    local pa, pb = pointsOf(a), pointsOf(b)
+    if not (pa and pb) then return end
+    local function hangsOn(points, f)
+        for _, pt in ipairs(points) do if pt[2] == f then return true end end
+        return false
+    end
+    -- The near one hangs on the tooltip only; the far one on the near one.
+    local near, far, pn, pf
+    if hangsOn(pb, a) and not hangsOn(pa, b) then
+        near, far, pn, pf = a, b, pa, pb
+    elseif hangsOn(pa, b) and not hangsOn(pb, a) then
+        near, far, pn, pf = b, a, pb, pa
+    else
+        return
+    end
+    if not (Tip.hands[near] == Tip.OFF_HAND and Tip.hands[far] == Tip.MAIN_HAND) then return end
+    near:ClearAllPoints()
+    far:ClearAllPoints()
+    for _, pt in ipairs(pn) do far:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5]) end
+    for _, pt in ipairs(pf) do
+        near:SetPoint(pt[1], pt[2] == near and far or pt[2], pt[3], pt[4], pt[5])
+    end
+end
+
 function Tip.OnUpdate(tip)
     Tip.PaintQuestRows(tip)
     Tip.Settle(tip)
@@ -1723,6 +1807,7 @@ function Tip.OnUpdate(tip)
     -- update may have run this frame: their cards catch up before the draw.
     local shops = tip.shoppingTooltips
     if type(shops) == "table" then
+        DUI.SafeCall(Tip.HandOrder, tip)
         for _, shop in ipairs(shops) do
             if type(shop) == "table" and shop:IsShown() then
                 DUI.SafeCall(ns.Rich.Step, shop)
@@ -1815,6 +1900,7 @@ function Tip.Build(mod)
             end
             if types and types.Item then
                 TDP.AddTooltipPostCall(types.Item, function(tip, data)
+                    DUI.SafeCall(Tip.NoteHand, tip, data)
                     DUI.SafeCall(Tip.OnItem, tip, data)
                     Tip.Settle(tip)
                     DUI.SafeCall(Tip.OnItemLines, tip, data)

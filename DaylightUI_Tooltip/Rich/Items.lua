@@ -183,6 +183,7 @@ function Items.Info(link)
         if type(sub) == "string" and sub ~= "" then info.sub = sub end
         -- A cloak counts as cloth but every class wears one: no color there.
         class, subClass = plain(class), plain(subClass)
+        info.class = class
         if class == Items.ARMOR_CLASS and equip ~= "INVTYPE_CLOAK" then
             info.armor = Items.ARMOR_COLORS[subClass]
         end
@@ -300,6 +301,35 @@ local function wordsAndNumber(t)
     if words and words ~= "" then return words, num end
 end
 
+-- A recipe's tooltip holds the whole item it makes after its own lines: its
+-- name, binding, slot, numbers, requirements and materials. Where that part
+-- starts (a line of the item name type, or the recipe's name minus its
+-- "Pattern: ") and ends (the next blank line), or nil.
+local LT = Enum and Enum.TooltipDataLineType
+Items.ITEM_NAME = LT and LT.ItemName or 22
+Items.EQUIP_SLOT = LT and LT.EquipSlot or 21
+function Items.Made(lines, own, title)
+    local whole = type(title) == "string" and Items.Words(title) or nil
+    for i = 2, own do
+        local line = lines[i]
+        local t = line.left and Items.Words(line.left) or nil
+        if t and t ~= "" and not line.right and (line.type == Items.ITEM_NAME
+            or (whole and #t + 2 < #whole and whole:sub(-(#t + 2)) == ": " .. t)) then
+            local to = own
+            for j = i + 1, own do
+                local l = lines[j]
+                local w = l.left and Items.Words(l.left) or ""
+                if w == "" and not l.right then
+                    to = j - 1
+                    break
+                end
+            end
+            return { from = i, to = to }
+        end
+    end
+    return nil
+end
+
 -- Sorts the item's own lines (2 to own) into the card's groups. Each group
 -- is a list of functions that add their pieces; the footer's two sides are
 -- returned as they are.
@@ -307,10 +337,17 @@ local function sort(n, lines, own, info, groups)
     local P, Tip, Tips = Items.Patterns(), ns.Tooltip, DUI.Tips
     local foot = {}
     local inSet = false
+    local made = Items.Made(lines, own, lines[1] and lines[1].left)
+    groups.madeAt = made
+    local madeGroups = { list = groups.made, effects = groups.made, set = groups.made, facts = groups.made,
+        quote = groups.made, taken = groups.taken }
     local sellWord = type(SELL_PRICE) == "string" and SELL_PRICE or "Sell Price"
     local sellType = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SellPrice or 11
     for i = 2, n do
         local line = lines[i]
+        -- The crafted item's lines go to its own part, in the game's order.
+        local inMade = made ~= nil and i >= made.from and i <= made.to
+        local g = inMade and madeGroups or groups
         local left, right = line.left, line.right
         local t = left and Items.Words(left) or nil
         local c = lineColor(line)
@@ -323,7 +360,7 @@ local function sort(n, lines, own, info, groups)
             -- Another addon may have rewritten it with the coins on the right
             -- ("Vendor price"), so they're taken from there when it has them.
             local at = left:find(sellWord, 1, true)
-            if not mine then groups.taken[i] = true end
+            if not mine then g.taken[i] = true end
             if right then
                 foot.money = right
             elseif at then
@@ -331,45 +368,61 @@ local function sort(n, lines, own, info, groups)
             end
         elseif not mine then
             -- Another addon's: drawn by Rich/Foreign.lua.
+        elseif inMade and i == made.from then
+            -- The crafted item's name heads its part, in its quality color.
+            local c2 = c and DUI.Tips.GameColor(c[1], c[2], c[3])
+            local nameColor = (c and c2 ~= "white" and c2 ~= "yellow") and { c[1], c[2], c[3] } or Style.INK.TITLE
+            g.list[#g.list + 1] = function(p) ns.RichPanel.Line(p, t, nameColor) end
+        elseif inMade and isBadge(line, t) then
+            -- What the crafted item binds as: with it, never among the recipe's own tags.
+            local badge = Items.BadgeColor(t)
+            g.facts[#g.facts + 1] = function(p) ns.RichPanel.Text(p, Style.Upper(t), badge, Style.SIZE.small) end
         elseif isBadge(line, t) then
             info.badges[#info.badges + 1] = t
+        elseif inMade and (t:find(P.level) or line.type == Items.EQUIP_SLOT
+            or (right and not t:find(P.damage) and not Items.Stat(t))) then
+            -- Its slot and item level: words of the crafted item, not the recipe's tags.
+            local words = right and (t .. "  " .. Items.Words(right)) or t
+            g.facts[#g.facts + 1] = function(p) ns.RichPanel.Text(p, words, Style.INK.LABEL, Style.SIZE.small) end
         elseif info.slot and t == info.slot then
             -- Shown in the slot tag.
             info.slotWord = right and Items.Words(right) or nil
         elseif t:find(P.level) then
             -- Shown in the item level tag.
+        elseif t:find(P.durability) and inMade then
+            g.facts[#g.facts + 1] = function(p) ns.RichPanel.Text(p, t, Style.INK.LABEL, Style.SIZE.small) end
         elseif t:find(P.durability) then
             foot.durability = t
         elseif t:find(P.armor) then
             local armor = { t:match(P.armor), ARMOR or L["Armor"] }
-            groups.armor = armor
-            groups.list[#groups.list + 1] = function(p) pairLine(p, armor, armor.block) end
+            g.armor = armor
+            g.list[#g.list + 1] = function(p) pairLine(p, armor, armor.block) end
         elseif t:find(P.block) then
             local block = { t:match(P.block), BLOCK or L["Block"] }
-            if groups.armor and not groups.armor.block then
+            if g.armor and not g.armor.block then
                 -- Drawn on the armor's line.
-                groups.armor.block = block
+                g.armor.block = block
             else
-                groups.list[#groups.list + 1] = function(p) numLine(p, block[1], block[2]) end
+                g.list[#g.list + 1] = function(p) numLine(p, block[1], block[2]) end
             end
         elseif t:find(P.damage) then
             local lo, hi = t:match(P.damage)
             local damage = { string.format(L["%s - %s"], lo, hi), DAMAGE or L["Damage"] }
             local words, num = wordsAndNumber(right and Items.Words(right) or "")
             local speed = words and { num, words } or nil
-            groups.list[#groups.list + 1] = function(p) pairLine(p, damage, speed) end
+            g.list[#g.list + 1] = function(p) pairLine(p, damage, speed) end
         elseif t:find(P.dps) then
             -- Kept in the game's own brackets: they set it apart from the
             -- damage and speed lines above it.
             local v = t:match(P.dps)
-            groups.list[#groups.list + 1] = function(p)
+            g.list[#g.list + 1] = function(p)
                 ns.RichPanel.Line(p, string.format(DPS_TEMPLATE or "(%s damage per second)",
                     popHex() .. v .. "|r"), Style.INK.TEXT)
             end
         elseif t:find(P.setName) then
             local name, have, total = t:match(P.setName)
             inSet = true
-            groups.set[#groups.set + 1] = function(p)
+            g.set[#g.set + 1] = function(p)
                 local r, g, b = Style.Accent()
                 ns.RichPanel.Line(p, Style.Upper(name) .. " " .. hex({ r, g, b }) .. have .. "/" .. total .. "|r",
                     Style.INK.LABEL, Style.SIZE.small)
@@ -378,14 +431,14 @@ local function sort(n, lines, own, info, groups)
             local count, text = t:match(P.setOff)
             inSet = false
             local words = Tip.ShortText(text) or text
-            groups.set[#groups.set + 1] = function(p)
+            g.set[#g.set + 1] = function(p)
                 ns.RichPanel.Text(p, string.format(L["(%s) %s"], count, words), Style.INK.OFF, Style.SIZE.small)
             end
         elseif t:find(P.setOn) then
             local text = t:match(P.setOn)
             inSet = false
             local words = Tip.ShortText(text) or text
-            groups.set[#groups.set + 1] = function(p) ns.RichPanel.Text(p, words, Style.INK.GOOD, Style.SIZE.small) end
+            g.set[#g.set + 1] = function(p) ns.RichPanel.Text(p, words, Style.INK.GOOD, Style.SIZE.small) end
         elseif inSet then
             -- One of the set's pieces: the count says how many you have.
         elseif isGreen(c) or trigger(t) then
@@ -396,28 +449,28 @@ local function sort(n, lines, own, info, groups)
                     local num, name, color = Items.Stat(part)
                     if num then
                         color = color or Style.INK.GOOD
-                        groups.list[#groups.list + 1] = function(p) numLine(p, num, name, color, true) end
+                        g.list[#g.list + 1] = function(p) numLine(p, num, name, color, true) end
                     end
                 end
             elseif word then
-                groups.effects[#groups.effects + 1] = function(p)
+                g.effects[#g.effects + 1] = function(p)
                     ns.RichPanel.Text(p, hex(Style.INK.GOOD) .. word .. "|r " .. Tips.Numbers(rest), Style.INK.TEXT)
                 end
             else
-                groups.effects[#groups.effects + 1] = function(p) ns.RichPanel.Text(p, Tips.Numbers(t), Style.INK.GOOD) end
+                g.effects[#g.effects + 1] = function(p) ns.RichPanel.Text(p, Tips.Numbers(t), Style.INK.GOOD) end
             end
         elseif Items.Stat(t) and not right and not isRed(c) then
             local num, name, color = Items.Stat(t)
             color = color or (num:sub(1, 1) == "-" and Style.INK.DAMAGE) or Style.INK.VALUE
-            groups.list[#groups.list + 1] = function(p) numLine(p, num, name, color) end
+            g.list[#g.list + 1] = function(p) numLine(p, num, name, color) end
         elseif ns.Rich.IsFlavor(line) then
-            groups.quote[#groups.quote + 1] = function(p) ns.Rich.Flavor(p, line) end
+            g.quote[#g.quote + 1] = function(p) ns.Rich.Flavor(p, line) end
         else
             -- Requirements, classes, anything else the game says: small, tan,
             -- a requirement you don't meet in red.
             local color = isRed(c) and Style.INK.BAD or Style.INK.LABEL
             local words = right and (t .. "  " .. Items.Words(right)) or t
-            groups.facts[#groups.facts + 1] = function(p) ns.RichPanel.Text(p, words, color, Style.SIZE.small) end
+            g.facts[#g.facts + 1] = function(p) ns.RichPanel.Text(p, words, color, Style.SIZE.small) end
         end
     end
     return foot
@@ -435,9 +488,19 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     p.washDown = true
     local first = lines[1]
     local own = ns.Rich.Own(data, n)
-    local groups = { list = {}, effects = {}, set = {}, facts = {}, quote = {}, taken = {} }
+    local groups = { list = {}, effects = {}, set = {}, facts = {}, quote = {}, made = {}, taken = {} }
     info.badges = {}
     local foot = sort(n, lines, own, info, groups)
+    -- A recipe: the card's tags are the recipe's own. The link may name the
+    -- item it makes, so the recipe is read by the data's id then.
+    if groups.madeAt and info.class ~= Items.RECIPE_CLASS then
+        local id = type(data) == "table" and plain(data.id) or nil
+        local recipe = type(id) == "number" and Items.Info("item:" .. id) or nil
+        if recipe and recipe.class == Items.RECIPE_CLASS then
+            recipe.badges = info.badges
+            info = recipe
+        end
+    end
     if compare then
         Panel.Tags(p, { Items.Tag(compare.label, { Style.Accent() }) })
         Panel.Gap(p, Items.AFTER_TAG)
@@ -512,7 +575,13 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         end
     end
     part(groups.list)
-    part(groups.effects, groups.set, groups.facts, groups.quote, mixed)
+    if #groups.made > 0 then
+        -- The item a recipe makes, all of it together under its name.
+        part(groups.effects, groups.set, groups.facts, groups.quote)
+        part(groups.made, mixed)
+    else
+        part(groups.effects, groups.set, groups.facts, groups.quote, mixed)
+    end
     part(other)
     -- A compare's chips: what changes if you swap, last.
     if compare and #compare.chips > 0 then
@@ -588,6 +657,9 @@ function Items.Build(p, tip, data, n, lines, light, fade)
     if type(h) ~= "table" then return Items.Card(p, tip, data, n, lines, light, fade) end
     local label = type(h.Label) == "table" and plain(h.Label:GetText())
     if type(label) ~= "string" or label == "" then label = EQUIPPED or L["Equipped"] end
+    -- With a weapon in each hand, which hand this one is in.
+    local hand = ns.Tooltip.HandWord(ns.Tooltip.hands[tip])
+    if hand then label = string.format(L["%s · %s"], label, hand) end
     local own = ns.Rich.Own(data, n)
     local chips, skip = Items.Changes(lines, own + 1, n)
     return Items.Card(p, tip, data, n, lines, light, fade, { label = label, chips = chips, skip = skip })

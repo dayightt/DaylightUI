@@ -688,7 +688,7 @@ end
 -- The game filling a tooltip with an item: its lines (each { left, right,
 -- color } or text), its data's own lines (types: line types by index), the
 -- post-calls, then Show.
-local function fillItem(tip, link, list, after, types)
+local function fillItem(tip, link, list, after, types, guid)
     tip:SetOwner(UIParent, "ANCHOR_NONE")
     tip.__link = link
     local own = {}
@@ -701,7 +701,7 @@ local function fillItem(tip, link, list, after, types)
         end
         own[i] = { type = types and types[i] or nil }
     end
-    local data = { type = Enum.TooltipDataType.Item, hyperlink = link, lines = own }
+    local data = { type = Enum.TooltipDataType.Item, hyperlink = link, lines = own, guid = guid }
     for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
     for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
     if after then after(tip) end
@@ -920,6 +920,67 @@ local function compare(tip, changes, addon)
         end
     end)
 end
+
+-- Seen by a player who dual wields: both compare tooltips said only
+-- "Equipped", and opening to the right the game put the off hand next to the
+-- item, where it read as the main hand.
+T.test("rich tooltip: with a weapon in each hand each compare says which hand, the main hand next to the item", function()
+    local Tip, Panel = login("rich")
+    items()
+    _G.INVTYPE_WEAPONMAINHAND, _G.INVTYPE_WEAPONOFFHAND = "Main Hand", "Off Hand"
+    local oldLoc, oldGuid, oldExists = _G.ItemLocation, C_Item.GetItemGUID, C_Item.DoesItemExist
+    _G.ItemLocation = { CreateFromEquipmentSlot = function(_, slot) return { slot = slot } end }
+    local worn = { [16] = "Item-sabre", [17] = "Item-claw" }
+    C_Item.GetItemGUID = function(loc) return worn[loc.slot] end
+    C_Item.DoesItemExist = function(loc) return worn[loc.slot] ~= nil end
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local function shop(tip, guid, name)
+        tip:SetOwner(GameTooltip, "ANCHOR_NONE")
+        tip.CompareHeader:Show()
+        tip.CompareHeader.Label:SetText("Equipped")
+        fillItem(tip, "sword", { { name or "Outlaw Sabre", nil, { 0, 0.439, 0.867 } }, "One-Hand" }, nil, nil, guid)
+    end
+    -- The game's primary is the main hand; opening to the right it hangs the
+    -- secondary on the item and the primary beyond it.
+    local a, b = ShoppingTooltip1, ShoppingTooltip2
+    shop(a, "Item-sabre")
+    shop(b, "Item-claw")
+    T.eq(stub.Text(Panel.Get(a).items[1].list[1].text), "EQUIPPED · MAIN HAND")
+    T.eq(stub.Text(Panel.Get(b).items[1].list[1].text), "EQUIPPED · OFF HAND")
+    a:ClearAllPoints()
+    b:ClearAllPoints()
+    b:SetPoint("TOP", GameTooltip, "TOP", 0, 0)
+    b:SetPoint("LEFT", GameTooltip, "RIGHT", 0, 0)
+    a:SetPoint("TOP", GameTooltip, "TOP", 0, 0)
+    a:SetPoint("TOPLEFT", b, "TOPRIGHT", 0, 0)
+    update()
+    local function on(f, other)
+        for i = 1, f:GetNumPoints() do
+            local _, rel = f:GetPoint(i)
+            if rel == other then return true end
+        end
+        return false
+    end
+    T.truthy(on(a, GameTooltip) and not on(a, b), "the main hand hangs on the item now")
+    T.truthy(on(b, a), "the off hand beyond it")
+    update()
+    T.truthy(on(b, a) and not on(a, b), "and it stays put")
+    -- The main hand already next to the item (opening to the left): left alone.
+    a:ClearAllPoints()
+    b:ClearAllPoints()
+    a:SetPoint("TOP", GameTooltip, "TOP", 0, 0)
+    a:SetPoint("RIGHT", GameTooltip, "LEFT", 0, 0)
+    b:SetPoint("TOP", GameTooltip, "TOP", 0, 0)
+    b:SetPoint("TOPRIGHT", a, "TOPLEFT", 0, 0)
+    update()
+    T.truthy(on(a, GameTooltip) and on(b, a), "the game's own order kept")
+    -- A two-hander or one weapon: just Equipped.
+    worn = {}
+    shop(a, "Item-other", "Polished Zweihander")
+    T.eq(stub.Text(Panel.Get(a).items[1].list[1].text), "EQUIPPED")
+    _G.ItemLocation, C_Item.GetItemGUID, C_Item.DoesItemExist = oldLoc, oldGuid, oldExists
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 -- Seen in game: the board's small compare card next to the full item card
 -- read as two different things. The compare is the same card, under its
@@ -1270,22 +1331,25 @@ local function actionButton(slot)
     return b
 end
 
-T.test("rich tooltip: a spell cooling down on an action button shows when it's ready, the client draining the bar", function()
+-- Seen by a player: on cooldown the card showed only "Ready in" and lost
+-- everything the spell does.
+T.test("rich tooltip: a spell cooling down on an action button keeps its card and adds when it's ready", function()
     local _, Panel = login("rich")
     spells()
     stub.ActionSlots({ [5] = { spellID = 116, cooldown = true, cdStart = GetTime() - 5.8, cdDuration = 10 } })
     fillSpell(116, FROSTBOLT, nil, actionButton(5))
     local p = Panel.Get(GameTooltip)
     local INK = DaylightUI.Style.INK
-    T.eq(p.kind, "cooldown")
-    T.eq(p.wantW, 200, "the board's 200")
-    local lo, hi = DaylightUI.Gradients.PairFrom(INK.WARN)
-    T.rgb(p.lightPair[1], hi, "a warn top light")
-    T.eq(stub.Text(p.items[1].fs), "Frostbolt")
+    T.eq(p.kind, "spell", "the spell's own card")
+    T.eq(stub.Text(p.items[1].title), "Frostbolt")
+    T.eq(#kinds(p, "tiles")[1].list, 3, "cast, cost and range still there")
+    local desc = stub.Text(kinds(p, "text")[1].fs)
+    T.truthy(desc:find("Launches a bolt of frost", 1, true), "the description still there: " .. desc)
     local ready = kinds(p, "row")[1]
     T.eq(stub.Text(ready.label), "Ready in")
     T.eq(stub.Text(ready.value), "4.2 sec")
     T.rgb({ ready.value:GetTextColor() }, INK.WARN)
+    T.truthy(ready.y < kinds(p, "text")[1].y, "when it's ready under the strip, above the description")
     local bar = kinds(p, "bar")[1]
     T.eq(bar.h, 4)
     local timer = bar.bar.__timer
@@ -1298,11 +1362,12 @@ T.test("rich tooltip: a spell cooling down on an action button shows when it's r
     T.eq(stub.Text(kinds(p, "row")[1].value), "3.2 sec", "counts down from the tooltip's own update")
     stub.Advance(4)
     update()
-    T.eq(p.kind, "spell", "ready: the card again")
+    T.eq(p.kind, "spell")
+    T.eq(#kinds(p, "row"), 0, "ready: no countdown left")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rich tooltip: a recharging spell shows its charges; the global cooldown alone shows the card", function()
+T.test("rich tooltip: a recharging spell shows its charges; the global cooldown alone adds nothing", function()
     local _, Panel = login("rich")
     spells()
     stub.ActionSlots({
@@ -1312,7 +1377,7 @@ T.test("rich tooltip: a recharging spell shows its charges; the global cooldown 
     fillSpell(116, FROSTBOLT, nil, actionButton(5))
     local p = Panel.Get(GameTooltip)
     local INK = DaylightUI.Style.INK
-    T.eq(p.kind, "cooldown")
+    T.eq(p.kind, "spell")
     local rows = kinds(p, "row")
     T.eq(stub.Text(rows[1].value), "6.0 sec", "the next charge")
     T.eq(stub.Text(rows[2].label), "Charges")
@@ -1320,7 +1385,7 @@ T.test("rich tooltip: a recharging spell shows its charges; the global cooldown 
     T.eq(kinds(p, "bar")[1].bar.__timer[1].kind, "charges", "the charge's own duration")
     fillSpell(116, FROSTBOLT, nil, actionButton(6))
     update()
-    T.eq(p.kind, "spell", "the global cooldown: no cooldown card")
+    T.eq(#kinds(p, "row"), 0, "the global cooldown: no countdown")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1702,6 +1767,51 @@ local function hoverBoar(addon)
     update()
     return tip
 end
+
+-- Seen on a German client: a long tag ran out of the card, cut at its
+-- edge, and a long sub line ("Begleiter von ...") ran into the edge.
+T.test("rich tooltip: a tag or sub line too long for the card wraps instead of running past its edge", function()
+    local _, Panel = login("rich")
+    local long = "Himmelsgeborene des Hohen Ordens der Ewigen Morgenroete"
+    boar({ creatureType = long, creatureTypeID = 1 })
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip.__unit = "mouseover"
+    tip:AddLine("Ridgeback Boar")
+    tip:AddLine("Begleiter von Racketz Reloaded aus dem Hause der Langen Namen")
+    tip:AddLine("Level 23 Beast")
+    local data = { type = Enum.TooltipDataType.Unit, lines = { {}, {}, {} } }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    tip:Show()
+    update()
+    local p = Panel.Get(tip)
+    local head = p.items[1]
+    local pad = Panel.PAD_X
+    local edge = p.wantW - (p.padX or pad)
+    local sub = head.sub
+    T.truthy(sub, "the sub line")
+    local x = sub.__points[1][4]
+    T.truthy(sub:GetWidth() > 0 and x + sub:GetWidth() <= edge + 0.5, "the sub line kept inside the card")
+    T.truthy(sub:CanWordWrap(), "and wrapped")
+    local tag
+    for _, t in ipairs(head.tags) do
+        if stub.Text(t.text) == DaylightUI.Style.Upper(long) then tag = t end
+    end
+    T.truthy(tag, "the long tag")
+    local tx = tag.__points[1][4]
+    T.truthy(tx + tag:GetWidth() <= edge + 0.5, "the tag kept inside the card: " .. (tx + tag:GetWidth()) .. " > " .. edge)
+    T.truthy(tag.text:CanWordWrap() and tag:GetHeight() > DaylightUI.Widgets.TAG_H, "its words on two lines, the tag taller")
+    T.truthy(head.h >= tag:GetHeight(), "the header makes room for it")
+    -- Reused for a short one: back to one line.
+    boar()
+    hoverBoar()
+    for _, t in ipairs(Panel.Get(tip).items[1].tags) do
+        T.eq(t:GetHeight(), DaylightUI.Widgets.TAG_H, "a short tag one line again")
+        T.falsy(t.text:CanWordWrap())
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 local function tagWords(head)
     local out = {}
@@ -2393,6 +2503,47 @@ T.test("other addons: a plugin paints the card once it's laid out, a claimed lig
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen by a player: a recipe's tags showed "Binds when picked up" twice, the
+-- recipe's and the boots' it makes, with no telling which was which.
+T.test("rich tooltip: a recipe keeps its own binding in its tags, the crafted item's goes with that item", function()
+    local _, Panel = login("rich")
+    items()
+    _G.ITEM_BIND_ON_PICKUP, _G.INVTYPE_FEET = "Binds when picked up", "Feet"
+    stub.items.pattern = { id = 4352, quality = 2, kind = "Recipe", sub = "Tailoring", icon = 134942, class = 9, subClass = 2 }
+    fillItem(GameTooltip, "pattern", {
+        { "Pattern: Shadow Boots", nil, { 0.12, 1, 0 } },
+        "Binds when picked up",
+        { "Use: Teaches you how to craft Shadow Boots.", nil, GREEN },
+        "",
+        { "Shadow Boots", nil, { 0.12, 1, 0 } },
+        "Binds when picked up",
+        { "Feet", "Cloth" },
+        "23 Armor",
+        "+4 Stamina",
+        "Requires Level 12",
+        "Bolt of Woolen Cloth (8), Fine Thread (2)",
+        "Requires Tailoring (60)",
+    })
+    local p = Panel.Get(GameTooltip)
+    local head = p.items[1]
+    T.eq(tagWords(head), "RECIPE,TAILORING,BINDS WHEN PICKED UP", "the recipe's own tags, its binding once")
+    local after = {}
+    for i = 2, p.count do
+        local it = p.items[i]
+        local fs = it.fs or it.label
+        if fs then after[#after + 1] = stub.Text(fs) end
+    end
+    local list = table.concat(after, "|")
+    local at = function(word) return list:find(word, 1, true) end
+    T.truthy(at("Teaches you"), "the recipe's own words: " .. list)
+    T.truthy(at("Shadow Boots|BINDS WHEN PICKED UP"), "the boots' name, then what they bind as: " .. list)
+    T.truthy(at("Teaches you") < at("Shadow Boots|"), "the boots after the recipe's words")
+    T.truthy(at("Shadow Boots|") < at("Armor") and at("Armor") < at("Bolt of Woolen Cloth"),
+        "their numbers and materials together under them: " .. list)
+    T.truthy(at("Feet  Cloth"), "their slot a word of theirs, not a recipe tag")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: every header tag in a color of what it says, its outline tinted to match", function()
     local _, Panel = login("rich")
     items()
@@ -2435,5 +2586,20 @@ T.test("rich tooltip: every header tag in a color of what it says, its outline t
     head = Panel.Get(hover("mouseover", { "Aelindra", "Level 60 Night Elf Mage" }) or GameTooltip).items[1]
     T.eq(stub.Text(head.tags[3].text), "NIGHT ELF")
     T.rgb({ head.tags[3].text:GetTextColor() }, stub.tooltip.RichPlayers.FACTION_COLORS.Horde)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: Portraits off leaves the face and class icon off the cards", function()
+    local _, Panel = login("rich")
+    DaylightUI:Set("Tooltip", "portraits", false)
+    stub.RunTimers()
+    boar()
+    local head = Panel.Get(hoverBoar()).items[1]
+    T.isnil(head.icon, "no face on a creature's card")
+    T.eq(stub.Text(head.title), "Ridgeback Boar", "the name still leads")
+    player()
+    hover("mouseover", { "Aelindra", "Level 60 Night Elf Mage" })
+    head = Panel.Get(GameTooltip).items[1]
+    T.isnil(head.icon, "no class icon on a player's card")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
