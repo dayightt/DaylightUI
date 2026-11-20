@@ -1772,6 +1772,32 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     T.truthy(Minimap:IsShown())
 end)
 
+T.test("info panel: the minimap comes back when something else dims the whole screen and lets go", function()
+    login()
+    local F = DaylightUI.Fade
+    local function settle()
+        F.Step()
+        for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
+    end
+    local P = stub.infopanel.Panel
+    settle()
+    T.eq(Minimap:GetAlpha(), 1, "solid at rest")
+    -- Another addon (or the game) fades the whole screen out, and the panel
+    -- repaints meanwhile: the map rightly goes with the screen.
+    UIParent:SetAlpha(0)
+    DaylightUI:Set("InfoPanel", "fade.opacity", 0.9)
+    stub.Advance(3)
+    settle()
+    T.near(P.holder:GetAlpha(), 0.9, 0.01, "the panel repainted while the screen was dim")
+    T.eq(Minimap:GetAlpha(), 0, "the screen faded out: the map with it")
+    -- The screen comes back. Nothing about the panel changes, yet the map
+    -- must follow the screen back, not stay invisible until a reload.
+    UIParent:SetAlpha(1)
+    settle()
+    T.eq(Minimap:GetAlpha(), 1, "screen back: the map is back")
+    DaylightUI:Set("InfoPanel", "fade.opacity", 1)
+end)
+
 T.test("info panel: old fade settings move to the fade engine", function()
     local p = { general = { oocAlpha = 0.2 },
                 modules = { InfoPanel = { fadeOOC = true, tracker = { fadeOOC = true, oocAlpha = 0.5 } } } }

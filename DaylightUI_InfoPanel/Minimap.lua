@@ -909,6 +909,10 @@ function Map.Follow()
     end
 end
 DUI.Fade.mapFollow = function() DUI.SafeCall(Map.Follow) end
+-- The map's alpha comes from the whole screen's too, and the screen can be
+-- dimmed by something that never touches the panel. Without this, the map
+-- stayed invisible after the screen came back, until the next reload.
+DUI.On("UIAlpha", DUI.Fade.mapFollow)
 
 -- In dungeons the game uses Blizzard_HybridMinimap, which draws map art on its
 -- own BACKGROUND-strata frame under the map. That ended up under the panel's
