@@ -964,6 +964,10 @@ function Widget:SetSpacing(v)
     self.__spacing = v
 end
 function Widget:GetSpacing() return self.__spacing or 0 end
+function Widget:SetWordWrap(on) self.__wordWrap = on and true or false end
+function Widget:CanWordWrap() return self.__wordWrap ~= false end
+function Widget:SetMaxLines(n) self.__maxLines = n end
+function Widget:GetMaxLines() return self.__maxLines or 0 end
 function Widget:SetFormattedText(fmt, ...)
     local args = { ... }
     for i = 1, select("#", ...) do args[i] = stub.Plain(args[i]) end
@@ -3804,7 +3808,7 @@ stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "
                           "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
                           "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "CdmSwitch.lua", "CdmGuide.lua", "Diag.lua", "Options.lua", "Module.lua" }
 stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "AuraLists.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
-                      "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "AuraListsPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }
+                      "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "AuraListsPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Socket.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }
 
 -- Each file is read and compiled once per run (false = not on disk). Every Load
 -- runs the compiled chunk again, which gives fresh locals as a reload does.
@@ -3922,7 +3926,7 @@ function stub.Load(opts)
     end
     if opts.auctionhouse then
         local AH = {}
-        loadFiles("DaylightUI_AuctionHouse/", { "Base.lua", "Items.lua", "Market.lua", "Ruleset.lua", "Store.lua", "Rows.lua", "AH.lua", "Bags.lua", "Replicate.lua", "Search.lua", "Browse.lua", "Buy.lua", "Post.lua", "Scan.lua", "Module.lua" }, "DaylightUI_AuctionHouse", AH)
+        loadFiles("DaylightUI_AuctionHouse/", { "Base.lua", "Items.lua", "Market.lua", "Ruleset.lua", "Store.lua", "Rows.lua", "AH.lua", "Bags.lua", "Replicate.lua", "Search.lua", "Browse.lua", "Buy.lua", "Post.lua", "Scan.lua", "Tooltip.lua", "Options.lua", "ScanBand.lua", "BuyPage.lua", "SellPage.lua", "AuctionsPage.lua", "Window.lua", "Module.lua" }, "DaylightUI_AuctionHouse", AH)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_AuctionHouse")
         stub.auctionhouse = AH
     end
