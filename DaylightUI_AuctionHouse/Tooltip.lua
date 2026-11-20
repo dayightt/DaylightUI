@@ -1,0 +1,112 @@
+-- The price lines on item tooltips: what the cheapest one cost when it was last
+-- seen at the Auction House, its usual price, and how old that is. Holding
+-- Shift over a stack prices the whole stack. Nothing for an item never seen.
+--
+-- The lines are added here rather than by the Tooltip module, so they show
+-- with that module off too. The game fills an item tooltip again every 0.2 s
+-- (cleared, then every post-call), so each fill adds them again with no memory
+-- of the last one, and nothing here shows, hides or hooks a tooltip.
+
+local _, ns = ...
+local DUI = DaylightUI
+local L = ns.L
+
+local Tooltip = {}
+ns.Tooltip = Tooltip
+
+-- A value from the game, or nil when it reads secret.
+local function plain(v)
+    if v ~= nil and issecretvalue and issecretvalue(v) then return nil end
+    return v
+end
+
+-- The item as a link or an item ID: the data's link, else the tooltip's own
+-- item, else the data's ID.
+local function itemOf(tip, data)
+    local link = type(data) == "table" and plain(data.hyperlink) or nil
+    if type(link) == "string" then return link end
+    if type(tip.GetItem) == "function" then
+        local _, got = tip:GetItem()
+        got = plain(got)
+        if type(got) == "string" then return got end
+    end
+    local id = type(data) == "table" and plain(data.id) or nil
+    if type(id) == "number" then return id end
+    return nil
+end
+
+-- True when a left text of the tooltip already reads `text`: the post-calls
+-- can run twice over one fill, and the lines go in once.
+local function hasLine(tip, name, text)
+    local n = plain(tip:NumLines())
+    if type(n) ~= "number" then return false end
+    for i = 1, n do
+        local fs = _G[name .. "TextLeft" .. i]
+        local got = fs and fs.GetText and plain(fs:GetText())
+        if got == text then return true end
+    end
+    return false
+end
+
+-- The lines for `link`, as { left, right, leftInk, rightInk } rows, or nil
+-- when there's no price. held: Shift is down; stack: how many the tooltip
+-- stands for. Kept apart from the tooltip so the options page can show it.
+function Tooltip.Lines(link, held, stack)
+    local rkey = ns.Ruleset.Key()
+    if not rkey then return nil end
+    local key, _, unplaced = ns.Items.Key(link)
+    -- A random-suffix item whose suffix hasn't been seen at the AH: the plain
+    -- item's price is another roll's, so nothing.
+    if not key or unplaced then return nil end
+    local min = ns.Store.Min(rkey, key)
+    if not min then return nil end
+    local now = ns.Game.Now()
+    local usual = ns.Store.Market(rkey, key, now)
+    local seenAt = ns.Store.SeenAt(rkey, key)
+    local count = (held and type(stack) == "number" and stack > 1) and stack or 1
+    local INK = DUI.Style.INK
+    local rows = {}
+    rows[1] = { L["Auction"], DUI.Widgets.Money(min * count), INK.TEXT, INK.VALUE }
+    if usual then
+        local label = count > 1 and string.format(L["Usual, stack of %d"], count) or L["Usual"]
+        rows[2] = { label, DUI.Widgets.Money(usual * count), INK.LABEL, INK.VALUE }
+    end
+    local seen = string.format(L["Seen %s ago"], ns.Ago(type(seenAt) == "number" and now - seenAt or nil))
+    if count == 1 and type(stack) == "number" and stack > 1 then
+        seen = seen .. "  ·  " .. L["Shift: the whole stack"]
+    end
+    rows[#rows + 1] = { seen, nil, INK.LABEL }
+    return rows
+end
+
+local function addLines(tip, data)
+    if ns.mogul then return end
+    local name = tip.GetName and tip:GetName()
+    if type(name) ~= "string" then return end
+    local link = itemOf(tip, data)
+    if link == nil then return end
+    local rows = Tooltip.Lines(link, IsShiftKeyDown and IsShiftKeyDown(), ns.Items.StackCount(tip))
+    if not rows or hasLine(tip, name, rows[1][1]) then return end
+    for _, r in ipairs(rows) do
+        local a, b = r[3], r[4]
+        if r[2] then
+            tip:AddDoubleLine(r[1], r[2], a[1], a[2], a[3], b[1], b[2], b[3])
+        else
+            tip:AddLine(r[1], a[1], a[2], a[3])
+        end
+    end
+end
+
+-- The post-call: the two item tooltips, never a compare or a forbidden one.
+function Tooltip.OnItem(tip, data)
+    if tip ~= GameTooltip and tip ~= ItemRefTooltip then return end
+    if tip.IsForbidden and tip:IsForbidden() then return end
+    ns.SafeCall(addLines, tip, data)
+end
+
+-- Registered at load: the Tooltip module loads after this addon, so its own
+-- post-calls (the rich card reading other addons' lines) run after these.
+if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall
+    and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, Tooltip.OnItem)
+end

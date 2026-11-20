@@ -1,0 +1,6 @@
+<Bindings>
+    <!-- Sell's Post or My auctions' Cancel, in the key press (Window.Key). Named in Window.lua. -->
+    <Binding name="DAYLIGHTUI_AH_ACT" category="BINDING_HEADER_DAYLIGHTUI">
+        if DaylightUI and DaylightUI.AuctionHouseKey then DaylightUI.AuctionHouseKey() end
+    </Binding>
+</Bindings>

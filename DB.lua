@@ -372,7 +372,7 @@ DB.ALL_BACKS = { { "InfoPanel", "databar.alpha" }, { "InfoPanel", "map.alpha" },
                  { "Chat", "sideAlpha" }, { "Tooltip", "bgAlpha" } }
 for _, b in ipairs(DB.BACKS) do DB.ALL_BACKS[#DB.ALL_BACKS + 1] = b end
 for _, scope in ipairs({ "Bags", "Character", "NPC", "Book", "Inspect", "Professions", "GroupFinder",
-                         "Mailbox", "Social", "Legacy", "Skins" }) do
+                         "Mailbox", "Social", "Legacy", "Skins", "AuctionHouse" }) do
     DB.ALL_BACKS[#DB.ALL_BACKS + 1] = { scope, "windowAlpha" }
 end
 function DB.OwnBacks(p)

@@ -651,7 +651,14 @@ end })
 Engine.Window({ key = "socketing", pack = "system", addon = "Blizzard_ItemSocketingUI", frame = "ItemSocketingFrame" })
 Engine.Window({ key = "itemupgrade", pack = "system", addon = "Blizzard_ItemUpgradeUI", frame = "ItemUpgradeFrame" })
 Engine.Window({ key = "scrapper", pack = "system", addon = "Blizzard_ScrappingMachineUI", frame = "ScrappingMachineFrame" })
-Engine.Window({ key = "auction", pack = "system", addon = "Blizzard_AuctionHouseUI", frame = "AuctionHouseFrame", watch = true })
+-- Never walked while Daylight UI's Auction House window covers it, or while
+-- DaylightMogul owns the Auction House.
+Engine.Window({ key = "auction", pack = "system", addon = "Blizzard_AuctionHouseUI", frame = "AuctionHouseFrame", watch = true,
+    skip = function()
+        if DaylightUI.ahMogul == true then return true end
+        local covers = DaylightUI.ahCovers
+        return type(covers) == "function" and covers() == true
+    end })
 
 -- The layering notice (the game is about to move you to another copy of the
 -- zone, and you can delay it): the window look and font, the gold glow removed. Its

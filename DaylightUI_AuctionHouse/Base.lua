@@ -67,3 +67,26 @@ function DB.Suffixes()
     if type(r.suffixes) ~= "table" then r.suffixes = {} end
     return r.suffixes
 end
+
+-- DaylightMogul is the full trading suite and owns the Auction House when it's
+-- loaded: then this addon shows no window, no tooltip line and no options page,
+-- so two addons never fight over the game's frame. Read at login, once every
+-- addon has loaded.
+function ns.MogulOwns()
+    if C_AddOns and C_AddOns.IsAddOnLoaded then
+        local loaded = C_AddOns.IsAddOnLoaded("DaylightMogul")
+        if loaded then return true end
+    end
+    return type(_G.DaylightMogul) == "table"
+end
+
+-- How long ago, in a few words: "12 min", "2 h", "3 days".
+function ns.Ago(seconds)
+    local L = ns.L
+    if type(seconds) ~= "number" or seconds < 60 then return L["1 min"] end
+    if seconds < 3600 then return string.format(L["%d min"], math.floor(seconds / 60)) end
+    if seconds < 86400 then return string.format(L["%d h"], math.floor(seconds / 3600)) end
+    local days = math.floor(seconds / 86400)
+    if days == 1 then return L["1 day"] end
+    return string.format(L["%d days"], days)
+end

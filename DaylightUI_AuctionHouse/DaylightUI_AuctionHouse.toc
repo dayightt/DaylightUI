@@ -21,4 +21,8 @@ Browse.lua
 Buy.lua
 Post.lua
 Scan.lua
+Tooltip.lua
+Options.lua
+ScanBand.lua
+Window.lua
 Module.lua
