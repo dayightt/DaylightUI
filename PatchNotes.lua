@@ -11,7 +11,26 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", changed = {
+        { "Skins", "The game's windows, like the trade window, now shrink or grow with the Daylight UI scale" },
+        { "Nameplates", "The class icon by a friendly player's name grows and shrinks with the name" },
+    }, fixed = {
+        { "Nameplates", "With friendly nameplates off, mailboxes and herbs no longer show a name, and the PvP crest no longer shows on players of your own faction" },
+        { "Action bars", "Druids: your main bar keeps your Cat Form buttons while you prowl again. Want a separate Prowl bar? Turn it on in Action Bar 1's options" },
+        { "Loot", "The loot log set to show only when something changes no longer pops up in every fight. It comes back when you loot something" },
+        { "Bags", "Items in the bags' Shelf view no longer vanish, or hide from the search, after you sell a stack and buy it back or loot more of it" },
+        { "Action bars", "Shamans no longer get a flood of errors from the totem bar's summon and recall buttons in fights" },
+        { "Bags", "Clean Up with items kept in their slot no longer packs everything else at the bottom, and the \"Clean up toward the end\" switch works the right way round" },
+        { "Bags", "Item tooltips show how many you have in your bank, even with only one character" },
+        { "Tooltip", "The small tooltip in fights shows the enemy's name again, and creature tooltips in dungeons show your quest progress" },
+        { "Cooldown Manager", "The paladin Aura piece counts whichever aura you have up, and Touch of Weakness shows as missing once it's used up" },
+        { "Cooldown Manager", "Buffs no longer slide in again when your spells change" },
+        { "Buffs", "Your buffs and debuffs no longer bounce in again after the game refreshes them" },
+        { "Auction House", "After switching to the game's own Auction House window, everything in it can be clicked again" },
+        { "Auction House", "Item tooltips no longer show the auction price twice. The usual price line is off now, and can be turned back on in the options" },
+    }, new = {
+        { "Unit frames", "Health text can sit at either end of the health bar or right in the middle, like the power text" },
+    } },
     { version = "2.1", date = "2026-11-20", summary = "Better tooltips, an Auction House scan that no longer gets stuck, battleground flags out from under the minimap, and lots of small fixes.", fixed = {
         { "Tooltip", "Spells on cooldown still show what they do, and recipes show both the recipe's binding and the item's" },
         { "Tooltip", "Long tags and titles wrap instead of running off the edge, and weapon compares say which hand each of yours is in" },
