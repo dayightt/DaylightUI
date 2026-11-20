@@ -84,6 +84,7 @@ Donators.LIST = {
     "mattgif",
     "Pradeesh",
     "Doyal_Christopher",
+    "Caucherman",
     "Hugo Romao PT",
     "sam",
     "Daniel",
