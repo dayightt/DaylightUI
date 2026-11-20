@@ -870,6 +870,7 @@ T.test("rich tooltip: a weapon's damage and speed as rows, a plain item's card",
     end
     T.truthy(dps < rowAt, "above the damage and speed")
     T.truthy(p.items[dps].fs.size > row.label.size, "bigger than the rows")
+    T.eq(Panel.Parts(p).dps, p.items[dps].fs, "a plugin painting the card gets it as dps")
     DaylightUI:Set("Tooltip", "dpsSize", 20)
     GameTooltip:Hide()
     fillItem(GameTooltip, "sword", { { "Thunderforge Blade", nil, { 0, 0.44, 0.87 } }, { "One-Hand", "Sword" },

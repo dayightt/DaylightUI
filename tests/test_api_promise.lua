@@ -24,6 +24,8 @@ local PROMISED = {
     "GlowStyles", "GlowAround",
     -- 1.12
     "TooltipStyle",
+    -- 1.13
+    "GetRollCard",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",

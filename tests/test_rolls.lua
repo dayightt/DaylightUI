@@ -305,6 +305,19 @@ T.test("rolls data: every change is told", function()
     T.truthy(text:find("start", 1, true)); T.truthy(text:find("pick", 1, true))
     T.truthy(text:find("roll", 1, true)); T.truthy(text:find("won", 1, true))
 end)
+
+T.test("rolls data: the Loot History seating the group is told, so the card shows everyone", function()
+    local S, RW = rollsLogin()
+    local seen = {}
+    DaylightUI.On("RollChanged", function(_, what) seen[#seen + 1] = what end)
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    T.truthy(table.concat(seen, " "):find("seat", 1, true), "told")
+    local card = S.RollStack.Cards()[1]
+    local ticks = 0
+    for _, t in ipairs(card.tickBars) do if t:IsShown() then ticks = ticks + 1 end end
+    T.eq(ticks, 7, "a tick for each of the seven")
+    T.eq(S.RollData.drops[id].lootListKey ~= nil, true)
+end)
 T.test("widgets: a button with an icon keeps the icon's colors and centers the pair", function()
     rollsLogin()
     local W = DaylightUI.Widgets
@@ -1017,5 +1030,75 @@ T.test("rolls stack: with the roll window off the won toast stays", function()
     local won = lootToast(RING, 77)
     AlertFrame_ShowNewAlert(won)
     T.truthy(won:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- DaylightUI.API 1.13: another addon finds the roll cards, hears them come
+-- and go, and paints them.
+T.test("rolls api: a card is told to plugins, found by its roll and painted", function()
+    local S, RW = rollsLogin()
+    local API = DaylightUI.API
+    local me = API.For("Lootbook")
+    local log, calls = {}, {}
+    for _, ev in ipairs({ "FrameMade", "FrameUnitChanged", "FrameRemoved" }) do
+        me.On(ev, function(kind, _, unit) if kind == "rollcard" then log[#log + 1] = ev .. ":" .. tostring(unit) end end)
+    end
+    T.truthy(me.Paint("rollcard", function(_, parts, info)
+        calls[#calls + 1] = { parts = parts, info = info }
+        parts.line:SetVertexColor(0, 1, 0, 1)
+        parts.name:SetTextColor(0, 1, 0)
+    end, { owns = { "line", "name" } }))
+    T.eq(API.GetFrame("rolls"), S.RollStack.frame, "the cards' holder by name")
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardFor(S, id)
+    T.eq(API.GetRollCard(id), card, "found by the game's roll id")
+    T.eq(log[1], "FrameMade:" .. id)
+    local last = calls[#calls]
+    T.truthy(last, "painted")
+    T.eq(last.parts.card, card)
+    T.eq(last.parts.name, card.name)
+    T.eq(last.parts.buttons.need, card.buttons.need)
+    T.eq(last.info.rollID, id)
+    T.eq(last.info.link, RING)
+    T.eq(#last.info.players, 7, "the whole group")
+    T.eq(rgbOf(card.name)[2], 1, "a claimed name keeps the plugin's color")
+    -- Picks and rolls repaint it, with the list's rows once it opens.
+    card.buttons.need:Click()
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91); RW.Win(id, "Bram Holloway")
+    last = calls[#calls]
+    T.eq(last.info.done, true)
+    T.eq(last.info.winner, "Bram Holloway")
+    T.truthy(#last.parts.rows > 0, "the list's rows")
+    T.eq(last.parts.rows[1].player, "Bram Holloway", "best first")
+    -- Gone once it leaves.
+    tick(S, S.RollStack.Settings().linger + 0.5)
+    T.isnil(API.GetRollCard(id), "not found after it left")
+    T.eq(log[#log], "FrameRemoved:" .. id)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls api: a painter that stops gives the card its own colors back", function()
+    local S, RW = rollsLogin()
+    local me = DaylightUI.API.For("Lootbook")
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, quality = 4, players = SEVEN })
+    local card = cardFor(S, id)
+    local own = rgbOf(card.name)
+    local h = me.Paint("rollcard", function(_, parts) parts.name:SetTextColor(0, 1, 0) end, { owns = { "name" } })
+    T.eq(rgbOf(card.name)[2], 1, "painted on a card already up")
+    DaylightUI.API.Off(h)
+    T.eq(rgbOf(card.name)[1], own[1]); T.eq(rgbOf(card.name)[2], own[2])
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls api: the options page's sample cards are previews, never found", function()
+    local S = rollsLogin()
+    local made = {}
+    DaylightUI.API.On("FrameMade", function(kind, f, _, isPreview) if kind == "rollcard" then made[f] = isPreview end end)
+    local sample = S.RollSample.New(UIParent)
+    sample.Refresh(300, 400)
+    local n = 0
+    for _, isPreview in pairs(made) do n = n + 1; T.eq(isPreview, true) end
+    T.eq(n, 2)
+    T.isnil(DaylightUI.API.GetRollCard(-1))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 12
+print(API.major, API.minor)   -- 1, 13
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -195,6 +195,7 @@ plain gray.
 | `API.GetShopTile(tab, index)` | The vendor window's tile for an item: `tab` = `"buy"` or `"buyback"`, `index` = the game's index there. `nil` when it isn't on show. |
 | `API.GetCraftRow(recipeID)` | The profession window's line for a recipe, while it's on show. |
 | `API.GetQuestRow(questID)` | The quest tracker's row for a quest, while it's on show. |
+| `API.GetRollCard(rollID)` (1.13) | The card showing a loot roll, by the game's roll id (the one `START_LOOT_ROLL` gives), while it's on show. |
 | `for frame, unit in API.Frames(kind) do ... end` | Every frame of one kind. |
 
 Kinds: `"unit"` (player, target, targettarget, pet, focus), `"party"`, `"raid"`, `"partypet"`,
@@ -216,6 +217,15 @@ Since 1.4:
 
 - `"platecast"`: a nameplate's cast bar. It comes and goes with its plate, and its `unit` is the
   plate's (`"nameplate3"`). Same pieces and `info` as `"castbar"`, so one function can paint both.
+
+Since 1.13:
+
+- `"rollcard"`: a loot roll's card, one per roll on show (Need, Greed, the time left and the group's
+  picks and rolls). Its `unit` is the game's roll id. Cards are reused: `FrameUnitChanged` when one
+  shows the next roll, `FrameRemoved` when its roll leaves. Each change to the roll (a pick, a roll,
+  the winner) paints it again and sends `FrameStyled`. The two sample cards on the Loot rolls options
+  page come as previews. There are no cards while the player uses the game's own roll popups (the
+  Loot rolls switch, or the controller UI).
 
 Since 1.5:
 
@@ -362,7 +372,12 @@ chat. When you stop, the piece passes to the next plugin that asked for it, or b
 | `"bagslot"` | `icon`, `count`, `border` (a list of textures) | each fill of the slot | `{ bag, slot, itemID, link, quality, count }` |
 | `"shoptile"` | `icon`, `name` | each fill of the shelf | `{ tab, index, id, link }` |
 | `"craftrow"` | `icon`, `name` | each fill of the list | `{ recipeID }` |
-| `"tooltip"` (1.12) | `panel`, `light`, `banner`, `icon`, `title`, `bar` | each layout of the Rich card ([Tooltips](#tooltips-17-112)) | `{ kind, style, unit, link, spellID }` |
+| `"tooltip"` (1.12) | `panel`, `light`, `banner`, `icon`, `title`, `bar`; 1.13: `dps` (a weapon's big damage per second line) | each layout of the Rich card ([Tooltips](#tooltips-17-112)) | `{ kind, style, unit, link, spellID }` |
+| `"rollcard"` (1.13) | `card`, `line` (the quality line along its top), `icon`, `name`, `sub`, `summary` (the line saying where the roll stands), `bar` and `time` (the time left), `buttons` (by pick: `need`, `greed`, `transmog`, `disenchant`, `pass`), `rows` (the open list's players, best first: each `{ frame, name, roll, bar, pick, tag, player }`) | a new roll on the card, each pick, roll and winner, the time running low | `{ rollID, link, itemID, quality, done, mine (your pick), winner (a name), timeLow, sample, players = { { name, class, pick, roll, self, winner }, ... } }` |
+
+Loot roll cards: claims honored are `line` and `name` (the item's quality color) and `bar` (the
+time left: Daylight UI's accent, and its warning color near the end; `info.timeLow` says which). The
+buttons press the game's own roll, so leave their clicks alone.
 
 Action buttons: claims honored are `icon` (Daylight UI stops tinting, fading and graying it),
 `border` (the border and band stop changing color: read `info.border` to light it yourself),
@@ -765,7 +780,7 @@ the event `TooltipStyleChanged(style)` says when the player switches.
 **Painting the Rich card** (1.12): `me.Paint("tooltip", fn, { owns = { ... } })`, as in
 [Paint](#paint-your-look-on-daylight-uis-frames). Parts: `panel` (the card), `light` (the colored line
 along its top: a list of two textures), `banner` (the header's wash: a list of two), `icon`, `title`,
-`bar` (its first bar). `info = { kind, style, unit | link | spellID }`, `kind` being `"unit"`,
+`bar` (its first bar), and since 1.13 `dps` (a weapon's damage per second, the big line under the header). `info = { kind, style, unit | link | spellID }`, `kind` being `"unit"`,
 `"item"`, `"spell"` or `"other"`. It runs each time the card is laid out for something new or its
 lines change, never on the refills that change nothing. Claims honored: `light`, `bar` and `title`.
 
@@ -997,7 +1012,7 @@ with the error said once. Call `AddGlowStyle` again with the same key to change 
 
 | Call | What it does |
 |---|---|
-| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"` (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
+| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"`, and since 1.13 `"rolls"` (the loot roll cards' holder) (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
 | `API.GetMoverFrame(key)` | The frame placed under a mover key: `"unitframes.player"`, `"actionbars.main"`, `"infopanel"`, yours `"plugin.<name>.<key>"`. |
 | `API.IsUnlocked()` | Unlock mode is on. |
 | `me.IsPreviewing(key)` | Your part should show its sample now: unlock mode, or test mode with its test part ticked. |

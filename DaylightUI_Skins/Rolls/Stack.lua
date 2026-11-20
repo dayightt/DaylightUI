@@ -247,6 +247,11 @@ local function leave(rollID)
     cards[rollID] = nil
     card.leaving = true
     card.drop = nil
+    local R = DUI.APIReport
+    if R then
+        R.Gone("rollcard", card, false)
+        R.SetInfo(card, nil)
+    end
     card:EnableMouse(false)
     Motion.AlphaTo(card, 0, Motion.NORMAL, true)
     spare[#spare + 1] = card

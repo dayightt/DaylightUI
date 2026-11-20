@@ -63,6 +63,13 @@ ns.RollCard = RollCard
 -- RollOnLoot, kept as a field so tests can watch it.
 RollCard.roll = function(rollID, id) RollOnLoot(rollID, id) end
 
+-- A piece of the card another addon paints itself (DaylightUI.API, Paint kind
+-- "rollcard"): Daylight UI leaves its color alone.
+local function owned(part)
+    local R = DUI.APIReport
+    return R ~= nil and R.Owned ~= nil and R.Owned("rollcard", part)
+end
+
 -- The game's own word for each pick.
 local function word(kind)
     if kind == "need" then return _G.NEED or L["Need"] end
@@ -273,6 +280,7 @@ local function rowFor(card, key)
     row = table.remove(card.freeRows)
     if row then
         card.rowOf[key] = row
+        row.key = key
         return row
     end
     local W, P = DUI.Widgets, RollCard.PAD
@@ -307,6 +315,7 @@ local function rowFor(card, key)
     row.tag:SetPoint("RIGHT", row.bar, "LEFT", -6, 0)
     Style.InkText(row.tag, "LABEL")
     card.rowOf[key] = row
+    row.key = key
     return row
 end
 
@@ -545,6 +554,21 @@ function RollCard.Height(card, look)
     return h
 end
 
+local function qualityColor(drop)
+    return ns.LootRoll.QualityColor(drop.quality) or { Style.INK.VALUE[1], Style.INK.VALUE[2], Style.INK.VALUE[3] }
+end
+
+-- The item's quality on the icon's edge, the name and the top line.
+local function paintHead(card, drop)
+    local color = qualityColor(drop)
+    ns.Kit.Paint(ns.Kit.ShellOf(card.icon), color)
+    if not owned("name") then card.name:SetTextColor(color[1], color[2], color[3]) end
+    if not owned("line") then
+        local lo, hi = DUI.Gradients.PairFrom(color)
+        DUI.Gradients.PaintPair(card.line, lo, hi)
+    end
+end
+
 function RollCard.Fill(card, drop, look)
     local s = look.settings
     local first = card.drop ~= drop
@@ -552,15 +576,12 @@ function RollCard.Fill(card, drop, look)
     if s.width then card:SetWidth(s.width) end
 
     -- Item, quality and sub line.
-    local color = ns.LootRoll.QualityColor(drop.quality) or { Style.INK.VALUE[1], Style.INK.VALUE[2], Style.INK.VALUE[3] }
+    local color = qualityColor(drop)
     if first then
         card.icon.icon:SetTexture(drop.icon)
-        ns.Kit.Paint(ns.Kit.ShellOf(card.icon), color)
         card.name:SetText(drop.name)
-        card.name:SetTextColor(color[1], color[2], color[3])
         card.sub:SetText(ns.LootRoll.Sub(ns.LootRoll.Words(drop.link), drop.bop))
-        local lo, hi = DUI.Gradients.PairFrom(color)
-        DUI.Gradients.PaintPair(card.line, lo, hi)
+        paintHead(card, drop)
         -- A new roll on this card: its rows go back to be reused for the new players.
         for key, row in pairs(card.rowOf) do
             row.frame:Hide()
@@ -625,6 +646,85 @@ function RollCard.Fill(card, drop, look)
         shine(me and me.self and 2 or 1)
     end
     card:SetHeight(RollCard.LiveHeight(card))
+    RollCard.Told(card, drop)
+end
+
+-- ---------------------------------------------------------------------
+-- Other addons (DaylightUI.API kind "rollcard", unit = the roll's id)
+-- ---------------------------------------------------------------------
+
+-- The card's pieces by name, for a plugin's Paint. rows are the players shown
+-- in the open list, best first.
+function RollCard.Parts(card)
+    local parts = card.parts or { buttons = {}, rows = {} }
+    card.parts = parts
+    parts.card, parts.line, parts.icon, parts.name, parts.sub = card, card.line, card.icon.icon, card.name, card.sub
+    parts.summary, parts.bar, parts.time = card.sum, card.bar, card.time
+    for kind, b in pairs(card.buttons) do parts.buttons[kind] = b end
+    local rows = parts.rows
+    for i, row in ipairs(card.rows) do
+        local r = rows[i] or {}
+        rows[i] = r
+        r.frame, r.name, r.roll, r.bar, r.pick, r.tag = row.frame, row.name, row.num, row.bar, row.pick, row.tag
+        local p = card.drop and card.drop.players[row.key]
+        r.player = p and (p.name or p.first) or nil
+    end
+    for i = #card.rows + 1, #rows do rows[i] = nil end
+    return parts
+end
+
+-- What the card shows, as plain copies: a plugin can keep or change them
+-- without touching the roll itself.
+function RollCard.Info(card)
+    local d = card.drop
+    if not d then return nil end
+    local info = card.paintInfo or {}
+    card.paintInfo = info
+    wipe(info)
+    info.rollID, info.link, info.itemID, info.quality = d.rollID, d.link, d.itemID, d.quality
+    info.done, info.mine, info.sample = d.done == true, d.mine, d.sample == true
+    info.timeLow = (not d.done and card.timer.low) and true or false
+    local w = d.winner and d.players[d.winner]
+    info.winner = w and (w.name or w.first) or nil
+    info.players = {}
+    for _, p in ipairs(ns.RollData.Sorted(d, "best")) do
+        info.players[#info.players + 1] = { name = p.name or p.first, class = p.class, pick = p.pick,
+            roll = p.roll, self = p.self == true, winner = d.winner == p.key }
+    end
+    return info
+end
+
+-- Tells the API the card was filled: made the first time, a new roll after,
+-- then each plugin painting cards paints it.
+function RollCard.Told(card, drop)
+    local R = DUI.APIReport
+    if not R then return end
+    local painting = R.Painting("rollcard")
+    local info = painting and RollCard.Info(card) or nil
+    R.SetInfo(card, info)
+    local preview = (card.sample or drop.sample) and true or false
+    if not card.told then
+        card.told = true
+        R.Made("rollcard", card, drop.rollID, preview)
+    else
+        R.Unit("rollcard", card, drop.rollID, preview)
+        if painting then R.Painted("rollcard", card, info) end
+    end
+    if R.Wants("FrameStyled") then R.Styled("rollcard", card, preview) end
+end
+
+-- A plugin's claim began or ended: Daylight UI's colors go back on.
+function RollCard.Repaint(card)
+    if not card.drop then return end
+    paintHead(card, card.drop)
+    card.timer.painted = nil
+    RollCard.Tick(card, GetTime())
+end
+
+if DUI.APIReport and DUI.APIReport.Parts then
+    DUI.APIReport.Parts("rollcard", RollCard.Parts)
+    DUI.APIReport.Info("rollcard", RollCard.Info)
+    DUI.APIReport.Repainter("rollcard", RollCard.Repaint)
 end
 
 -- The time bar and seconds, run by the stack's one driver while picking.
@@ -642,9 +742,13 @@ function RollCard.Tick(card, now)
     local r = card.timer
     local low = drop.duration > 0 and left / drop.duration <= ns.LootRoll.WARN_AT
     if low ~= r.low or r.painted == nil then
+        local was = r.painted
         r.low, r.painted = low, true
-        ns.LootRoll.PaintTimer(r)
+        if not owned("bar") then ns.LootRoll.PaintTimer(r) end
         Style.InkText(card.time, low and "WARN" or "pop")
         ns.LootRoll.Breathe(r, true)
+        -- Time running low is news to a plugin painting the timer itself.
+        local R = DUI.APIReport
+        if was and card.told and R and R.Painting("rollcard") then R.Painted("rollcard", card, RollCard.Info(card)) end
     end
 end

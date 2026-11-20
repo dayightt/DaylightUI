@@ -296,6 +296,9 @@ function RollData.History(encounterID, key, now)
         or oldest(function(x) return x.historyID == key and not x.lootListKey end)
         or pairCopy(encounterID, key, link)
     if not drop then return end
+    -- The first record seats the whole group and makes the total known: the
+    -- card's ticks and count change even though nobody has picked yet.
+    local paired, seated = drop.lootListKey == nil, #drop.order
     drop.encounterID, drop.lootListKey = encounterID, key
     local id, what = drop.rollID, nil
     local rolls = type(info.rollInfos) == "table" and info.rollInfos or {}
@@ -317,6 +320,7 @@ function RollData.History(encounterID, key, now)
         finish(drop, now)
         what = "done"
     end
+    if not what and (paired or #drop.order ~= seated) then what = "seat" end
     if what then fire(id, what) end
 end
 

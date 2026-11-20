@@ -11,6 +11,7 @@
 -- a nameplate's cast bar (unit = its plate's). 1.5: "actionbar", the action
 -- bars' holders (unit = the bar's key: "main", "bar2"... "stance", "pet").
 -- 1.6: "meterrow", a damage meter window's row (unit = "<window>:<place>").
+-- 1.13: "rollcard", a loot roll's card (unit = the game's roll id).
 -- Frame events, args (kind, frame, unit, isPreview): FrameMade,
 -- FrameUnitChanged, FrameRemoved, FrameStyled. A frame that changes unit (a
 -- pooled plate) first gets FrameRemoved for the old one. Preview frames (test
@@ -790,6 +791,8 @@ local NAMED = {
     threat = "DaylightUIThreatMeter", databar = "DaylightUIDataBar", chat = "DaylightUIChatPanel",
     questtracker = "DaylightUIQuestTracker", bags = "DaylightUIBag", bank = "DaylightUIBank",
     afk = "DaylightUIAfkScreen", npc = "DaylightUINpc",
+    -- 1.13: the loot roll cards' holder.
+    rolls = "DaylightUIRollStack",
 }
 API.FRAME_NAMES = {}
 for k in pairs(NAMED) do API.FRAME_NAMES[#API.FRAME_NAMES + 1] = k end
@@ -861,6 +864,13 @@ function API.GetQuestRow(questID)
     if type(questID) ~= "number" then return nil end
     local u = byUnit.questrow
     return u and u[questID] or nil
+end
+
+-- The card showing a loot roll (1.13), by the game's roll id, while it shows.
+function API.GetRollCard(rollID)
+    if type(rollID) ~= "number" then return nil end
+    local u = byUnit.rollcard
+    return u and u[rollID] or nil
 end
 
 -- The profession window's line for a recipe, while visible.

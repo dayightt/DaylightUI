@@ -155,7 +155,7 @@ function Panel.Parts(p)
     local parts = p.parts or {}
     p.parts = parts
     parts.panel, parts.light, parts.banner = p, p.light, p.wash
-    parts.icon, parts.title, parts.bar = nil, nil, nil
+    parts.icon, parts.title, parts.bar, parts.dps = nil, nil, nil, nil
     for i = 1, p.count do
         local item = p.items[i]
         if item.kind == "header" and not parts.title then
@@ -163,6 +163,8 @@ function Panel.Parts(p)
             parts.icon = item.icon and item.icon.art or nil
         elseif item.kind == "bar" and not parts.bar then
             parts.bar = item.bar
+        elseif item.big and not parts.dps then
+            parts.dps = item.fs
         end
     end
     return parts
@@ -530,7 +532,7 @@ end
 -- a line of its own, bigger than the rows, sized by its own setting (dps).
 Panel.DPS = 16
 function Panel.Big(p, words)
-    local item = add(p, { kind = "line", secret = isSecret(words) })
+    local item = add(p, { kind = "line", big = true, secret = isSecret(words) })
     item.fs = text(p, Panel.DPS, Style.INK.TEXT, false, "dps")
     item.fs:SetText(words or "")
 end
