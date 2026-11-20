@@ -167,6 +167,13 @@ Style.FONTS = {
     fira = { label = "Fira Sans", file = FONTS .. "FiraSans-Medium.ttf", cyrillic = true },
     poppins = { label = "Poppins", file = FONTS .. "Poppins-SemiBold.ttf", cyrillic = "rubik" },
     lato = { label = "Lato", file = FONTS .. "Lato-Regular.ttf", cyrillic = "fira" },
+    inter = { label = "Inter", file = FONTS .. "Inter-Medium.ttf", cyrillic = true },
+    plex = { label = "IBM Plex Sans", file = FONTS .. "IBMPlexSans-Medium.ttf", cyrillic = true },
+    atkinson = { label = "Atkinson Hyperlegible", file = FONTS .. "AtkinsonHyperlegible-Regular.ttf", cyrillic = "fira" },
+    barlowmed = { label = "Barlow", file = FONTS .. "Barlow-Medium.ttf", cyrillic = "fira" },
+    sourcesans = { label = "Source Sans 3", file = FONTS .. "SourceSans3-Medium.ttf", cyrillic = true },
+    roboto = { label = "Roboto", file = FONTS .. "Roboto-Medium.ttf", cyrillic = true },
+    figtree = { label = "Figtree", file = FONTS .. "Figtree-Medium.ttf", cyrillic = "fira" },
     russo = { label = "Russo One", file = FONTS .. "RussoOne-Regular.ttf", cyrillic = true },
     game = { label = "Game font", game = true, cyrillic = true },
     arialn = { label = "Arial Narrow", file = "Fonts\\ARIALN.TTF", cyrillic = true },
@@ -233,7 +240,7 @@ local DISPLAY = {
 }
 -- The setup guide's font cards: UI fonts only.
 Style.FONT_PICKS = { "expressway", "ptsans", "archivo", "barlow", "fira", "poppins", "lato", "russo", "game", "arialn" }
-Style.FONT_ORDER = { "expressway", "ptsans", "archivo", "barlow", "fira", "poppins", "lato", "russo" }
+Style.FONT_ORDER = { "expressway", "ptsans", "archivo", "barlow", "fira", "poppins", "lato", "inter", "plex", "atkinson", "barlowmed", "sourcesans", "roboto", "figtree", "russo" }
 for _, d in ipairs(DISPLAY) do
     Style.FONTS[d[1]] = { label = d[2], file = FONTS .. d[3] .. ".ttf", display = d[4], cyrillic = d.cyrillic }
     Style.FONT_ORDER[#Style.FONT_ORDER + 1] = d[1]

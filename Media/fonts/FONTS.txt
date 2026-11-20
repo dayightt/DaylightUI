@@ -1,7 +1,8 @@
 Fonts bundled with DaylightUI
 
-Each font is used unmodified. All but Expressway Free are licensed under
-the SIL Open Font License, Version 1.1 (see OFL.txt in this folder).
+Each font is used unmodified. All but Expressway Free and Roboto are licensed
+under the SIL Open Font License, Version 1.1 (see OFL.txt in this folder).
+Roboto is under the Apache License 2.0 (see APACHE.txt).
 Expressway Free is freeware from Typodermic (see ExpresswayFree.txt).
 
 ArchivoNarrow-Bold.ttf: Archivo Narrow Bold
@@ -33,4 +34,32 @@ Poppins-SemiBold.ttf: Poppins SemiBold Regular
 
 RussoOne-Regular.ttf: Russo One Regular
   Copyright (c) 2011-2012, Jovanny Lemonad (jovanny.ru), with Reserved Font Name "Russo"
+  License: SIL Open Font License 1.1
+
+AtkinsonHyperlegible-Regular.ttf: Atkinson Hyperlegible Regular
+  Copyright 2020 Braille Institute of America, Inc.
+  License: SIL Open Font License 1.1
+
+Barlow-Medium.ttf: Barlow Medium
+  Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+  License: SIL Open Font License 1.1
+
+IBMPlexSans-Medium.ttf: IBM Plex Sans Medium
+  Copyright 2018 IBM Corp. All rights reserved.
+  License: SIL Open Font License 1.1
+
+Inter-Medium.ttf: Inter Medium
+  Copyright 2016 The Inter Project Authors
+  License: SIL Open Font License 1.1
+
+Figtree-Medium.ttf: Figtree Medium
+  Copyright 2022 The Figtree Project Authors (https://github.com/erikdkennedy/figtree)
+  License: SIL Open Font License 1.1
+
+Roboto-Medium.ttf: Roboto Medium
+  Copyright 2011 Google Inc. All Rights Reserved.
+  License: Apache License 2.0 (see APACHE.txt in this folder)
+
+SourceSans3-Medium.ttf: Source Sans 3 Medium
+  (c) 2023 Adobe (http://www.adobe.com/), with Reserved Font Name "Source"
   License: SIL Open Font License 1.1
