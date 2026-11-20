@@ -44,6 +44,9 @@ end
 -- opts.onDrag(x, y): a proxy whose frame isn't moved by the handle, told the
 -- handle's spot each frame it moves (dragged, snapped, reset), so something
 -- shown there can come along.
+-- opts.detach(key): while suspended (attached to another frame) its handle
+-- still shows where the frame is, and grabbing it calls this first. It must
+-- free the frame (Movers.Suspend(key, false)) so the drag moves it from there.
 -- opts.bottom: starts at the screen's bottom edge with its default function
 -- taking its height from Movers.Above, and glides when that room changes.
 -- default: { point, rel, relPoint, x, y } for a frame never moved, or a
@@ -58,7 +61,8 @@ function Movers.Register(frame, key, label, default, opts)
                      active = opts and opts.active, scale = opts and opts.scale,
                      corner = opts and opts.corner, onCorner = opts and opts.onCorner,
                      bottom = opts and opts.bottom,
-                     size = opts and opts.size, onDrag = opts and opts.onDrag }
+                     size = opts and opts.size, onDrag = opts and opts.onDrag,
+                     detach = opts and opts.detach }
     order[#order + 1] = key
     if proxy then
         if type(opts.scale) == "function" then Movers.Apply(key) end
@@ -118,16 +122,20 @@ function Movers.SetBottomRoom(px)
 end
 
 -- A suspended mover keeps its saved position but stops placing its frame and
--- shows no handle. Used while a frame is attached to another one.
+-- shows no handle, unless it can be pulled free (opts.detach). Used while a
+-- frame is attached to another one.
 function Movers.Suspend(key, suspended)
     local e = entries[key]
     if not e then return end
     e.suspended = suspended and true or false
-    if e.suspended and handles[key] then handles[key]:Hide() end
-    if not e.suspended then
-        Movers.Apply(key)
-        Movers.Recheck(key)
-    end
+    if e.suspended and handles[key] and not e.detach then handles[key]:Hide() end
+    if not e.suspended then Movers.Apply(key) end
+    if not e.suspended or e.detach then Movers.Recheck(key) end
+end
+
+-- Moving an attached piece by hand frees it first, so it moves from where it is.
+local function loosen(e)
+    if e.suspended and e.detach then e.detach(e.key) end
 end
 
 -- A saved position is { x, y }, two finite numbers. Anything else (a damaged
@@ -496,6 +504,7 @@ end
 function Movers.Nudge(key, dx, dy)
     local e = entries[key]
     if not e or Movers.Locked(key) then return end
+    loosen(e)
     local f = moverFrame(e)
     local cx, cy = f:GetCenter()
     if not cx then return end
@@ -511,6 +520,7 @@ end
 function Movers.SetExact(key, x, y)
     local e = entries[key]
     if not e or Movers.Locked(key) then return end
+    loosen(e)
     local f = moverFrame(e)
     mark(e)
     local r = ratio(f)
@@ -849,6 +859,7 @@ local function makeHandle(e)
     h:SetScript("OnDragStart", function()
         h.dragging = true
         if Movers.Locked(e.key) then return end
+        loosen(e)
         h.moving = true
         h.glide = nil
         mark(e)
@@ -1662,7 +1673,7 @@ function Movers.AreaShown(id) return hiddenAreas()[id] ~= true end
 -- A frame in use whose handle would show while unlocked, whatever the box says.
 function Movers.InUse(key)
     local e = entries[key]
-    return e ~= nil and not e.suspended and not (e.active and not e.active())
+    return e ~= nil and not (e.suspended and not e.detach) and not (e.active and not e.active())
 end
 
 -- The areas with at least one handle in use, in AREAS order.

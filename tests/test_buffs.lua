@@ -454,6 +454,29 @@ T.test("buffs: attached, a moved bar still follows the panel; detached, it keeps
     T.eq(h[2], DaylightUIBuffsAnchor, "attached again")
 end)
 
+T.test("buffs: an attached bar shows its unlock handle, and dragging it detaches the bar where it is", function()
+    login({ infopanel = true, before = function()
+        DaylightUIDB = { positions = { ["buffs.buff"] = { 100, 200 } } }
+    end })
+    local Movers = DaylightUI.Movers
+    T.truthy(Movers.Get("buffs.buff").suspended, "attached by default")
+    Movers.Unlock()
+    local h = Movers.Handle("buffs.buff")
+    T.truthy(h and h:IsShown(), "the attached bar still has a handle to grab")
+    T.truthy(Movers.Handle("buffs.debuff") and Movers.Handle("buffs.debuff"):IsShown(), "so do the debuffs")
+    DaylightUIBuffsHolder.__center = { UIParent:GetWidth() / 2 + 300, UIParent:GetHeight() / 2 + 250 }
+    h:GetScript("OnMouseDown")(h)
+    h:GetScript("OnDragStart")(h)
+    T.eq(DaylightUI:Get("Buffs", "settings.attach"), false, "grabbing it turns attach off")
+    T.falsy(Movers.Get("buffs.buff").suspended, "the mover places it now")
+    local p = { DaylightUIBuffsHolder:GetPoint(1) }
+    T.eq(p[1], "CENTER")
+    T.truthy(math.abs(p[4] - 300) < 1 and math.abs(p[5] - 250) < 1, "it starts from where it was, not an old saved spot")
+    h:GetScript("OnDragStop")(h)
+    T.truthy(Movers.Get("buffs.debuff").suspended, "the debuffs stay attached")
+    Movers.Lock()
+end)
+
 T.test("buffs: detached for the first time, a bar stays where it was beside the panel", function()
     login({ infopanel = true })
     DaylightUIBuffsHolder.__center = { UIParent:GetWidth() / 2 + 300, UIParent:GetHeight() / 2 + 250 }

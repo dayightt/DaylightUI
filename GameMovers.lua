@@ -33,6 +33,10 @@ GM.FRAMES = {
     -- Every toast stacks up from it, including the "You won" loot ones.
     { name = "AlertFrame", label = "Alerts & Loot Won", minW = 280, minH = 80, toasts = true },
     { name = "UIWidgetTopCenterContainerFrame", label = "Top Center Status", minW = 200, minH = 40 },
+    -- Capture bars (a battleground's flags, world PvP towers). The game hangs
+    -- them under its minimap's spot, which the info panel covers, so the panel
+    -- gives them a home of their own (GM.SetHome) even before anyone moves them.
+    { name = "UIWidgetBelowMinimapContainerFrame", label = "Capture Bars", minW = 200, minH = 40, homed = true },
     { name = "UIErrorsFrame", label = "Error Messages", minW = 300, minH = 40 },
     { name = "TicketStatusFrame", label = "Ticket Status", minW = 200, minH = 40 },
     -- Battle.net friend toasts (logins, broadcasts, invites) stack from a corner
@@ -42,6 +46,38 @@ GM.FRAMES = {
 }
 
 function GM.Key(name) return "game." .. name end
+
+-- name -> fn() giving the anchor an unmoved frame takes instead of the
+-- game's spot ({ point, relativeTo, relativePoint, x, y }), or nil to leave
+-- it to the game.
+GM.homes = {}
+
+local function homeOf(name)
+    local fn = GM.homes[name]
+    if not fn then return nil end
+    local at
+    DUI.SafeCall(function() at = fn() end)
+    if type(at) == "table" and type(at[2]) == "table" and at[2].GetCenter then return at end
+end
+
+-- Where the handle of a frame at its home stands, as CENTER offsets in
+-- UIParent units: the same anchor applied to a handle-sized box.
+local function homeSpot(spec)
+    local at = homeOf(spec.name)
+    local f = _G[spec.name]
+    if not (at and type(f) == "table") then return nil end
+    local rel = at[2]
+    local rcx, rcy = rel:GetCenter()
+    if not rcx then return nil end
+    local ui = UIParent:GetEffectiveScale()
+    local rr = rel:GetEffectiveScale() / ui
+    local r = f:GetEffectiveScale() / ui
+    local s = DUI.Movers.Scale(GM.Key(spec.name))
+    local px, py = DUI.Movers.PointOf(at[3], rcx * rr, rcy * rr, rel:GetWidth() * rr, rel:GetHeight() * rr)
+    local sign = DUI.Movers.ANCHOR_SIGN[at[1]] or DUI.Movers.ANCHOR_SIGN.CENTER
+    return px + (at[4] or 0) * r - sign[1] * spec.minW * s / 2 - UIParent:GetWidth() / 2,
+           py + (at[5] or 0) * r - sign[2] * spec.minH * s / 2 - UIParent:GetHeight() / 2
+end
 
 -- Where a frame's handle was moved to, as CENTER offsets in UIParent units, or
 -- nil while it stands where the game puts it.
@@ -134,12 +170,13 @@ local function place(spec)
     if type(f) ~= "table" then return end
     local sx, sy = GM.Spot(name)
     local saved = sx and { sx, sy } or nil
-    if not (saved or origin[name]) then return end
+    local home = not saved and spec.homed and homeOf(name) or nil
+    if not (saved or home or origin[name]) then return end
     if f.IsProtected and f:IsProtected() and InCombatLockdown() then
         DUI.AfterCombat(function() place(spec) end, "gamemovers:" .. name)
         return
     end
-    if not saved then
+    if not (saved or home) then
         restore(f, origin[name])
         origin[name] = nil
         return
@@ -152,6 +189,19 @@ local function place(spec)
     -- Pull it out of the game's managed column (the game takes it back when it
     -- shows) so the column's layout skips it.
     if f.isManagedFrame and f:GetParent() ~= UIParent then f:SetParent(UIParent) end
+    if home then
+        if f:GetNumPoints() == 1 then
+            local p, rel, rp, px, py = f:GetPoint(1)
+            if not (DUI.IsSecret(p) or DUI.IsSecret(rel) or DUI.IsSecret(rp))
+                and p == home[1] and rel == home[2] and rp == home[3]
+                and near(px, home[4] or 0) and near(py, home[5] or 0) then
+                return
+            end
+        end
+        f:ClearAllPoints()
+        f:SetPoint(home[1], home[2], home[3], home[4] or 0, home[5] or 0)
+        return
+    end
     local r = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
     local w, h
     if spec.fit then
@@ -223,6 +273,16 @@ local function placeAll()
 end
 
 local soon = DUI.Soon(placeAll)
+
+-- Something of Daylight UI's covers where the game puts a frame: fn() names
+-- the anchor it takes until the player moves it (nil hands it back to the
+-- game). Call GM.PlaceSoon when that anchor changes.
+function GM.SetHome(name, fn)
+    GM.homes[name] = fn
+    soon()
+end
+
+function GM.PlaceSoon() soon() end
 
 -- The game's Edit Mode pieces (loot window, crowd control alert). Addon code
 -- never moves them because that would taint them. The handle records the
@@ -397,7 +457,8 @@ function GM.Setup()
                 minW = spec.minW, minH = spec.minH,
                 scale = function(s) sized(spec, s) end,
                 home = spec.fit and function() return fitHome(spec) end
-                    or spec.slot and function() return GM.RollSlot() end or nil,
+                    or spec.slot and function() return GM.RollSlot() end
+                    or spec.homed and function() return homeSpot(spec) end or nil,
                 size = spec.slot and function() return select(3, GM.RollSlot()) end or nil,
                 onDrag = spec.slot and rollDrag or nil,
                 onMoved = function()

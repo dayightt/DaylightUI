@@ -1612,6 +1612,46 @@ T.test("info panel: the armor figure leaves the game's right-side column and is 
     T.eq(rel2, rel, "back at its spot"); T.eq(rp2, rp); T.eq(x2, x); T.eq(y2, y)
 end)
 
+T.test("info panel: the game's capture bars leave the spot under its minimap for one beside the panel", function()
+    local DUI = login(function()
+        -- The game's container under its minimap (RightManagedFrameTemplate).
+        local f = CreateFrame("Frame", "UIWidgetBelowMinimapContainerFrame", RightManagedFrameContainer)
+        f.isManagedFrame, f.layoutParent = true, RightManagedFrameContainer
+        f:SetPoint("TOPRIGHT", RightManagedFrameContainer, "TOPRIGHT", 0, 0)
+    end)
+    stub.RunTimers()
+    local f = _G.UIWidgetBelowMinimapContainerFrame
+    local Map = stub.infopanel.Minimap
+    T.eq(f:GetParent(), UIParent, "out of the game's column, which sits under the panel")
+    local p, rel, rp = f:GetPoint(1)
+    T.eq(p, "TOPRIGHT"); T.eq(rel, Map.captureSpot); T.eq(rp, "TOPRIGHT")
+    local sp, srel, srp = Map.captureSpot:GetPoint(1)
+    T.eq(sp, "TOPRIGHT"); T.eq(srel, stub.infopanel.Panel.panel); T.eq(srp, "BOTTOMLEFT")
+    T.isnil(rawget(f, "SetPoint"), "no hook on its SetPoint")
+    -- A capture bar showing: the game takes the container back into its column.
+    f:Hide()
+    f:SetParent(RightManagedFrameContainer)
+    f:ClearAllPoints(); f:SetPoint("TOPRIGHT", RightManagedFrameContainer, "TOPRIGHT", 0, 0)
+    f:Show()
+    stub.RunTimers()
+    T.eq(f:GetParent(), UIParent, "out again the frame after")
+    T.eq(select(2, f:GetPoint(1)), Map.captureSpot)
+    -- The armor figure showing there too: the bars stand left of it.
+    local df = _G.DurabilityFrame
+    df:Hide(); df:SetWidth(60); df:Show()
+    stub.RunTimers()
+    local _, _, _, x = f:GetPoint(1)
+    T.truthy(x < -60, "left of the armor figure")
+    -- A handle of its own, and once moved it stays where the player put it.
+    T.truthy(DUI.Movers.Get("game.UIWidgetBelowMinimapContainerFrame"), "an unlock handle")
+    DUI.DB.Positions()["game.UIWidgetBelowMinimapContainerFrame"] = { -200, 150 }
+    DUI.Movers.Get("game.UIWidgetBelowMinimapContainerFrame").onMoved("game.UIWidgetBelowMinimapContainerFrame")
+    local mp, mrel, _, mx, my = f:GetPoint(1)
+    T.eq(mp, "CENTER"); T.eq(mrel, UIParent); T.eq(mx, -200); T.eq(my, 150)
+    DUI.Movers.Reset("game.UIWidgetBelowMinimapContainerFrame")
+    T.eq(select(2, f:GetPoint(1)), Map.captureSpot, "a reset puts it back beside the panel")
+end)
+
 T.test("info panel: the armor figure moved in Edit Mode stays where the player put it", function()
     login()
     stub.RunTimers()
