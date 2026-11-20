@@ -451,8 +451,12 @@ function Widget:SetWidth(w) guard(self, "SetWidth"); self.__w = w end
 function Widget:SetHeight(h) guard(self, "SetHeight"); self.__h = h end
 -- A tooltip whose lines show a secret has secret anchoring, so its size reads
 -- back secret too (GetWidth/GetHeight are "SecretWhenAnchoringSecret").
+-- A frame holding secrets gives everything anchored to it secret anchoring
+-- too: its sizes, points and text widths read back secret. The fake game
+-- doesn't follow anchors, so a test marks a widget with stub.HeldSecret.
+function stub.HeldSecret(w, on) w.__heldSecret = on ~= false or nil end
 function Widget:GetWidth()
-    if rawget(self, "__tipSecret") then return stub.Secret(self.__w or 0) end
+    if rawget(self, "__tipSecret") or rawget(self, "__heldSecret") then return stub.Secret(self.__w or 0) end
     return self.__w or 0
 end
 function Widget:GetHeight()
@@ -562,7 +566,7 @@ function Widget:GetNumPoints() return #self.__points end
 function Widget:GetPoint(i)
     local p = self.__points[i or 1]
     if not p then return end
-    if self.__secretAnchoring then
+    if self.__secretAnchoring or rawget(self, "__heldSecret") then
         return p[1], p[2], p[3], stub.Secret(p[4] or 0), stub.Secret(p[5] or 0)
     end
     return unpack(p, 1, 5)
@@ -1120,7 +1124,7 @@ function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__typ
 -- A text showing a secret has secret anchoring, and its width comes back
 -- secret ("SecretWhenAnchoringSecret"), as the client's.
 function Widget:GetStringWidth()
-    if isSecret(self.__text) or self.__secretAspect then return stub.Secret(56) end
+    if isSecret(self.__text) or self.__secretAspect or rawget(self, "__heldSecret") then return stub.Secret(56) end
     if type(self.__text) ~= "string" then return 0 end
     if stub.measure then return (stub.measure(self)) end
     -- Color codes take no room; an inline icon (|T...|t, |A...|a) is one

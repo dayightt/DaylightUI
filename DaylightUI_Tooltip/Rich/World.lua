@@ -158,6 +158,60 @@ local function rule(p)
     if last and last.kind ~= "rule" then ns.RichPanel.Rule(p) end
 end
 
+-- In a restricted dungeon the tooltip's own lines are secret and the card is
+-- built from the unit, but the quests it counts for are still in the data the
+-- game filled it from (a nameplate reads the same lines there). Its quest
+-- lines in order: plain ones as { left, type, id } for Rich.Lines, a secret
+-- one as { secret = text, type }. A line whose type can't be read is left out.
+local QUEST_KIND
+function World.DataQuests(data)
+    local out = {}
+    local list = type(data) == "table" and data.lines or nil
+    if isSecret(list) or type(list) ~= "table" then return out end
+    local Rich = ns.Rich
+    QUEST_KIND = QUEST_KIND or { [Rich.QUEST_TITLE] = true, [Rich.QUEST_OBJECTIVE] = true, [Rich.QUEST_PLAYER] = true }
+    for _, line in ipairs(list) do
+        local kind = not isSecret(line) and type(line) == "table" and line.type or nil
+        if not isSecret(kind) and QUEST_KIND[kind] then
+            local text, id = line.leftText, line.id
+            if isSecret(text) then
+                out[#out + 1] = { secret = text, type = kind }
+            elseif type(text) == "string" and text ~= "" then
+                if isSecret(id) or type(id) ~= "number" then id = nil end
+                out[#out + 1] = { left = text, type = kind, id = id }
+            end
+        end
+    end
+    return out
+end
+
+-- Draws them: plain lines as the card's quest heading and rows, a secret one
+-- as one line cut at the card's edge (it can't be read or measured).
+function World.DrawDataQuests(p, quests)
+    if #quests == 0 then return end
+    local Rich, Panel, INK, SIZE = ns.Rich, ns.RichPanel, Style.INK, Style.SIZE
+    rule(p)
+    local plainRun = {}
+    local function flush()
+        if #plainRun > 0 then Rich.Lines(p, #plainRun, plainRun, 1) end
+        plainRun = {}
+    end
+    for _, q in ipairs(quests) do
+        if q.secret ~= nil then
+            flush()
+            if q.type == Rich.QUEST_TITLE then
+                local r, g, b = Style.Accent()
+                Panel.Line(p, q.secret, { r, g, b }, SIZE.small)
+            else
+                Panel.Line(p, q.secret, q.type == Rich.QUEST_PLAYER and INK.LABEL or INK.TEXT, SIZE.small)
+            end
+        else
+            plainRun[#plainRun + 1] = q
+        end
+    end
+    flush()
+end
+
 -- One of the game's own lines the card has no place for, small: red stays a
 -- warning, anything else is a tan fact.
 local function fact(p, line)
@@ -303,8 +357,12 @@ function World.Mob(p, tip, unit, data, n, lines, light)
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
     Panel.Gap(p, World.BEFORE_BAR)
     Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
-    local notQuest, anyQuest = World.Sort(p, lines, own, r.taken)
-    if anyQuest then Rich.Lines(p, n, lines, 2, notQuest) end
+    if n == 0 then
+        World.DrawDataQuests(p, World.DataQuests(data))
+    else
+        local notQuest, anyQuest = World.Sort(p, lines, own, r.taken)
+        if anyQuest then Rich.Lines(p, n, lines, 2, notQuest) end
+    end
     local cfg = ns.Tooltip.Config()
     local target = cfg.showTarget and ns.RichPlayers.Target(unit) or nil
     local Foreign = ns.RichForeign

@@ -516,7 +516,8 @@ end
 -- One line that never wraps, cut with "..." at the card's edge, and an
 -- optional smaller tail right after it (a stat's "from Equip").
 function Panel.Line(p, words, color, s, tail, tailColor, tailSize)
-    local item = add(p, { kind = "line" })
+    -- Secret words can't be measured: they get the whole room, cut there.
+    local item = add(p, { kind = "line", secret = isSecret(words) })
     item.fs = text(p, s or Style.SIZE.body, color or Style.INK.TEXT)
     item.fs:SetText(words or "")
     if tail then
@@ -801,7 +802,7 @@ function place.line(p, item, y, inner)
     local fs, tail = item.fs, item.tail
     fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
     local room = inner - (tail and (4 + widthOf(tail)) or 0)
-    if widthOf(fs) > room + 1 then fs:SetWidth(math.max(1, room)) end
+    if item.secret or widthOf(fs) > room + 1 then fs:SetWidth(math.max(1, room)) end
     local h = lineHeight(fs.size, fs.slot)
     if tail then
         -- On the line's baseline.

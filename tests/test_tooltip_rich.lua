@@ -457,16 +457,9 @@ T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows t
     T.eq(stub.Text(pill.level), "23", "its level in front of the name")
     local _, lvInk = stub.tooltip.RichWorld.Level("mouseover")
     T.rgb({ pill.level:GetTextColor() }, lvInk, "in how hard it is for you")
-    T.truthy(pill.name.__points[1][4] > 12, "the name after the level")
+    T.eq(pill.name.__points[1][2], pill.level, "the name after the level")
     -- Seen in game: an orange name on a hostile mob read as neutral.
     T.near(({ pill.name:GetTextColor() })[1], (DaylightUI.Style.ReactionColor(2)), 1e-6, "its name in its reaction's color")
-    -- Seen in game: a long name ran into the health.
-    stub.units.mouseover.name = "Southsea Dock Worker of the Long Name Coast"
-    hover("mouseover", { "Southsea Dock Worker of the Long Name Coast" })
-    T.truthy(pill.name:GetWidth() > 0 and pill.name:GetWidth() <= 200 - 2 * 12 - 4 * 7 - 8, "cut short before the health")
-    stub.units.mouseover.name = "Ridgeback Boar"
-    hover("mouseover", { "Ridgeback Boar" })
-    T.eq(pill.name:GetWidth(), 0, "a short one keeps its own width")
     T.isnil(pill:GetScript("OnUpdate"), "nothing of its own every frame")
     local p = Panel.Get(GameTooltip)
     T.truthy(not p or not p:IsShown(), "no card under it")
@@ -491,6 +484,42 @@ T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows t
     T.truthy(pill:IsShown())
     GameTooltip:Hide()
     T.falsy(pill:IsShown(), "gone with the tooltip")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: in a fight the pill showed the level and the health, no name.
+-- Once the pill shows a secret health the client gives everything anchored to
+-- it secret anchoring, so nothing on it can be measured from the second
+-- enemy on: the name has to sit between the level and the health by its
+-- points alone.
+T.test("rich tooltip: the pill's name sits between the level and the health without measuring", function()
+    login("rich")
+    player()
+    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, health = 31, maxHealth = 100, level = 23 }
+    stub.EnterCombat()
+    hover("mouseover", { "Ridgeback Boar", "Level 23 Beast" })
+    local pill = _G.DaylightUITooltipPill
+    for _, fs in ipairs({ pill.level, pill.name, pill.room, pill.pct }) do stub.HeldSecret(fs) end
+    stub.units.mouseover = { name = "Southsea Dock Worker of the Long Name Coast", isPlayer = false, reaction = 2,
+        health = 50, maxHealth = 100, level = 35 }
+    hover("mouseover", { "Southsea Dock Worker of the Long Name Coast", "Level 35 Humanoid" })
+    T.eq(stub.Text(pill.name), "Southsea Dock Worker of the Long Name Coast")
+    T.eq(stub.Text(pill.level), "35")
+    local left, right
+    for _, pt in ipairs(pill.name.__points) do
+        if pt[1] == "TOPLEFT" then left = pt elseif pt[1] == "TOPRIGHT" then right = pt end
+    end
+    T.truthy(left and left[2] == pill.level and left[3] == "TOPRIGHT", "the name starts after the level")
+    T.truthy(right and right[2] == pill.room and right[3] == "TOPLEFT" and right[4] < 0, "and ends before the health")
+    T.falsy(pill.name:CanWordWrap(), "one line, cut with ... by the client")
+    -- No level known: the name starts at the pill's edge.
+    stub.units.mouseover.level = nil
+    hover("mouseover", { "Southsea Dock Worker of the Long Name Coast" })
+    for _, pt in ipairs(pill.name.__points) do
+        if pt[1] == "TOPLEFT" then left = pt end
+    end
+    T.eq(left[2], pill, "no level: from the pill's own edge")
+    stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1900,6 +1929,46 @@ T.test("rich tooltip: another addon's rows for a quest the game's lines show are
     T.eq(tusks, 1, "the other quest's row")
     local texts = itemsOf(p, "text")
     T.truthy(stub.Text(texts[#texts].fs):find("^Raider score"), "another addon's line at the bottom")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: in a dungeon the nameplate said 3/8 and the tooltip card had
+-- no quest at all. The tooltip's lines are secret there and the card is built
+-- from the unit, but the game's data still names the quests (a nameplate
+-- reads the same lines).
+T.test("rich tooltip: a mob in a restricted dungeon keeps the quests it counts for", function()
+    local _, Panel = login("rich")
+    stub.units.mouseover = { name = "Pathstrider", isPlayer = false, reaction = 2, level = 58, health = 90, maxHealth = 100 }
+    stub.SetRestriction("Map", true)
+    local tip = GameTooltip
+    GameTooltip_SetDefaultAnchor(tip, UIParent)
+    tip.__unit = stub.Secret("mouseover")
+    for i, t in ipairs({ "Pathstrider", "Level 58 Humanoid", "The Highborne", " - Pathstrider slain: 3/8", "Hidden Goal" }) do
+        tip:AddLine(t)
+        _G["GameTooltipTextLeft" .. i]:SetText(stub.Secret(t))
+    end
+    local data = { type = Enum.TooltipDataType.Unit, lines = {
+        { leftText = stub.Secret("Pathstrider"), type = 2 },
+        { leftText = stub.Secret("Level 58 Humanoid"), type = 0 },
+        { leftText = "The Highborne", type = 17, id = 501 },
+        { leftText = " - Pathstrider slain: 3/8", type = 8 },
+        { leftText = stub.Secret("Hidden Goal"), type = 17 },
+    } }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[Enum.TooltipDataType.Unit] or {}) do fn(tip, data) end
+    tip:Show()
+    update()
+    local p = Panel.Get(tip)
+    T.truthy(p and p:IsShown() and not p.chrome, "the whole card")
+    local sections = itemsOf(p, "section")
+    T.eq(#sections, 1)
+    T.eq(stub.Text(sections[1].fs), "THE HIGHBORNE", "the quest's heading")
+    T.eq(stub.Text(rowsOf(p)["Pathstrider slain"].value), "3 / 8", "and its count")
+    local lines = itemsOf(p, "line")
+    T.eq(#lines, 1, "a secret quest line as one line")
+    T.eq(stub.Text(lines[1].fs), "Hidden Goal")
+    T.truthy(lines[1].fs:GetWidth() > 0, "cut at the card's edge")
+    stub.SetRestriction("Map", false)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

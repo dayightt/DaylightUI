@@ -2,8 +2,9 @@
 -- tooltip is one small line where the tooltip would be: the name (a player's in their
 -- class color, a creature's with "· on you" when it's on you), their health,
 -- and a thin bar. The game's tooltip stays up but out of sight (muted), so
--- Shift brings the full card back at once. Fixed in size: nothing in it is
--- measured, so secret names and health are fine.
+-- Shift brings the full card back at once. Fixed in size, and nothing in it
+-- is measured: once it shows a secret health, every text on it measures
+-- secret too, so its pieces hold each other by their points.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -106,9 +107,9 @@ function Pill.Layout()
     f.pct:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pill.PAD_X, -Pill.PAD_TOP)
     f.level:ClearAllPoints()
     f.level:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -Pill.PAD_TOP)
-    Pill.PlaceName(f, f.lw or 0)
     f.room:ClearAllPoints()
     f.room:SetPoint("TOPRIGHT", f.pct, "TOPRIGHT", 0, 0)
+    Pill.PlaceName(f, f.hasLevel)
     f.bar:ClearAllPoints()
     f.bar:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -(Pill.PAD_TOP + lineHeight() + Pill.BAR_GAP))
     f.bar:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pill.PAD_X, -(Pill.PAD_TOP + lineHeight() + Pill.BAR_GAP))
@@ -130,36 +131,41 @@ local function paintLight(tex, pair)
     Style.Gradient(tex, "HORIZONTAL", pair[2][1], pair[2][2], pair[2][3], 1, pair[1][1], pair[1][2], pair[1][3], 1)
 end
 
--- The name sits after the level (lw wide, 0 for none).
+-- The name starts right after the level (or at the edge with no level) and
+-- ends before the room the health can take ("100%"), one line, so the client
+-- cuts a long one with "...". Held by its points, never by a measured width:
+-- after the first secret health every width here reads secret, so a name
+-- placed by measuring sat on top of the level.
 Pill.LEVEL_GAP = 5
-function Pill.PlaceName(f, lw)
-    f.lw = lw
+Pill.NAME_GAP = 8
+function Pill.PlaceName(f, hasLevel)
+    f.hasLevel = hasLevel and true or false
     f.name:ClearAllPoints()
-    f.name:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X + (lw > 0 and lw + Pill.LEVEL_GAP or 0), -Pill.PAD_TOP)
+    if hasLevel then
+        f.name:SetPoint("TOPLEFT", f.level, "TOPRIGHT", Pill.LEVEL_GAP, 0)
+    else
+        f.name:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -Pill.PAD_TOP)
+    end
+    f.name:SetPoint("TOPRIGHT", f.room, "TOPLEFT", -Pill.NAME_GAP, 0)
 end
 
 -- The level in front of the name, in how hard the unit is for you (the
--- creature card's colors). Its width, 0 when the level isn't known.
+-- creature card's colors).
 local function fillLevel(f, unit)
     local text, ink = ns.RichWorld.Level(unit)
     f.level:SetText(text or "")
     if ink then f.level:SetTextColor(ink[1], ink[2], ink[3]) end
-    local w = text and f.level:GetStringWidth() or 0
-    if isSecret(w) or type(w) ~= "number" then w = 0 end
-    Pill.PlaceName(f, w)
-    return w > 0 and w + Pill.LEVEL_GAP or 0
+    Pill.PlaceName(f, text ~= nil)
 end
 
 -- Its words and bar for a unit: its level, then a player's name in their
 -- class color, a creature's in its reaction's color (hostile red, neutral
--- yellow, friendly green), the bar in that pair. The name is cut short with "..." before it can
--- reach the health.
-Pill.NAME_GAP = 8
+-- yellow, friendly green), the bar in that pair.
 function Pill.Fill(unit, tip)
     local f = Pill.Frame()
     local Tip = ns.Tooltip
     local player = plain(UnitIsPlayer(unit)) == true
-    local lw = fillLevel(f, unit)
+    fillLevel(f, unit)
     local name = DUI.UnitName(unit, "tooltip")
     if type(name) == "nil" then
         -- No name from the unit: the game's own first line names it.
@@ -167,15 +173,6 @@ function Pill.Fill(unit, tip)
         name = type(first) == "table" and first.GetText and first:GetText() or ""
     end
     f.name:SetText(name)
-    local room = f.room:GetStringWidth()
-    if isSecret(room) or type(room) ~= "number" then room = 30 end
-    local most = Pill.W - 2 * Pill.PAD_X - room - Pill.NAME_GAP - lw
-    if isSecret(name) then
-        f.name:SetWidth(most)
-    else
-        local w = f.name:GetStringWidth()
-        f.name:SetWidth((type(w) == "number" and not isSecret(w) and w > most) and most or 0)
-    end
     local r, g, b = Tip.UnitColor(unit)
     if r then
         f.name:SetTextColor(r, g, b)
@@ -198,10 +195,10 @@ end
 function Pill.FillWorld(tip)
     local f = Pill.Frame()
     local first = ns.Tooltip.Line(tip, 1)
-    local most = Pill.W - 2 * Pill.PAD_X
     f.level:SetText("")
-    Pill.PlaceName(f, 0)
-    f.name:SetWidth(most)
+    Pill.PlaceName(f, false)
+    -- No health beside it: the whole width.
+    f.name:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pill.PAD_X, -Pill.PAD_TOP)
     if type(first) == "table" and first.GetText then
         f.name:SetText(first:GetText())
         f.name:SetTextColor(first:GetTextColor())
