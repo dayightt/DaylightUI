@@ -15,7 +15,7 @@ end
 -- Daylight UI's loot roll window (Rolls/). Every row but the switch rests while
 -- the window is off.
 local function rollsPage()
-    local NEW = "1.9.7"
+    local NEW = "2.0"
     local function off(get) return get("rolls.enabled") == false end
     local function row(t)
         t.since = NEW
