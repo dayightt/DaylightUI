@@ -147,26 +147,42 @@ local function heldUntilFightEnds(f)
     return true
 end
 
-local function rememberTetherAnchor(f, relative, relativePoint, x, y)
-    f.tetherRel, f.tetherPoint, f.tetherX, f.tetherY = relative, relativePoint, x, y
-end
-
-local function hangAtSavedSpot(f, layout, left, top)
+-- Leads can be protected, so a tether is placed from its lead's position, never anchored to it.
+local function moveTether(f, x, y)
+    if f.tetherX == x and f.tetherY == y then return end
     f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", layout, "CENTER", left, top)
-    rememberTetherAnchor(f, layout, "CENTER", left, top)
+    f:SetPoint("TOPLEFT", f:GetParent(), "CENTER", x, y)
+    f.tetherX, f.tetherY = x, y
 end
 
--- The client refuses anchors to some frames; a refused anchor isn't remembered, so the next pass retries.
-local function hangOffLead(f, leadFrame, relativePoint, x, y)
-    f:ClearAllPoints()
-    if not pcall(f.SetPoint, f, "TOPLEFT", leadFrame, relativePoint, x, y) then return false end
-    rememberTetherAnchor(f, leadFrame, relativePoint, x, y)
-    return true
+-- Nil when it follows nothing or its lead can't be measured now.
+local function leadSpot(f)
+    if not f.lead then return nil end
+    local pointX, pointY = Tether.PointAt(f.lead, f.leadAt)
+    if not pointX then return nil end
+    return pointX + f.fromLeadX, pointY + f.fromLeadY
 end
 
--- Spans an attached group's shown pieces, so the client moves them with the lead in combat
--- and clamps the whole group on screen.
+-- Tethers following a lead, moved each frame the lead moves.
+local following = {}
+local function followLeads()
+    for f in pairs(following) do
+        if usable(f) then
+            local x, y = leadSpot(f)
+            if x then moveTether(f, x, y) end
+        end
+    end
+end
+Rows.follower = CreateFrame("Frame")
+Rows.follower:Hide()
+Rows.follower:SetScript("OnUpdate", followLeads)
+
+local function setFollowing(f, on)
+    following[f] = on or nil
+    Rows.follower:SetShown(next(following) ~= nil)
+end
+
+-- Spans an attached group's shown pieces, so they move together and clamp on screen as one.
 local function tetherFrame(g, root)
     local tethers = frames[g].tethers
     local f = tethers[root]
@@ -410,34 +426,31 @@ local function sizeTether(f, width, height)
     f.tetherW, f.tetherH = width, height
 end
 
--- Falls back to the saved spot when there's no lead or the client refuses it.
-local function anchorTether(f, layout, chain)
+-- At the saved spot when there's no lead or it can't be measured.
+local function placeTether(f, chain)
     if heldUntilFightEnds(f) then return end
     f.extentLeft, f.extentTop = chain.left, chain.top
     sizeTether(f, math.max(1, chain.right - chain.left), math.max(1, chain.top - chain.bottom))
     f:Show()
-    local leadFrame = Tether.Lead(chain.key)
-    local relative, relativePoint, x, y = layout, "CENTER", chain.left, chain.top
-    if leadFrame then
-        relative, relativePoint = leadFrame, chain.at
-        x, y = chain.offsetX + (chain.left - chain.rootX), chain.offsetY + (chain.top - chain.rootY)
-    end
-    if f.tetherRel == relative and f.tetherPoint == relativePoint and f.tetherX == x and f.tetherY == y then return end
-    if not (leadFrame and hangOffLead(f, leadFrame, relativePoint, x, y)) then
-        hangAtSavedSpot(f, layout, chain.left, chain.top)
-    end
+    f.lead, f.leadAt = Tether.Lead(chain.key), chain.at
+    f.fromLeadX = chain.offsetX + (chain.left - chain.rootX)
+    f.fromLeadY = chain.offsetY + (chain.top - chain.rootY)
+    setFollowing(f, f.lead ~= nil)
+    local x, y = leadSpot(f)
+    moveTether(f, x or chain.left, y or chain.top)
 end
 
 local function hideTether(f)
     if not f:IsShown() or heldUntilFightEnds(f) then return end
+    setFollowing(f, false)
     f:Hide()
 end
 
-local function anchorTethers(g, layout)
+local function placeTethers(g)
     for root, chain in pairs(attachedChains) do
         if chain.key and chain.left then
             local f = tetherFrame(g, root)
-            anchorTether(f, layout, chain)
+            placeTether(f, chain)
             if f:IsShown() then chain.tether = f end
         end
     end
@@ -1059,7 +1072,7 @@ function Rows.Update()
         readAttachedChains(set)
         for id in pairs(items) do coverBox(set, id, boxes[id]) end
         for id in pairs(closed) do coverBox(set, id, boxes[id]) end
-        anchorTethers(g, layout)
+        placeTethers(g)
         -- A closed-up Daylight UI buff stays shown where it gave up its spot, with
         -- nothing visible while down, so its button comes up there the moment the
         -- buff does. The game's item saying "up" reopens the spot.

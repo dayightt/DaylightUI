@@ -166,18 +166,29 @@ local function followInstead(world, key)
     world.Tether.Stale()
 end
 
--- As the game can, refuses any anchor but the layout frame while refusals.refusing is set.
-local function refuseLeadAnchoring(tether)
-    local layout, setPoint = layoutFrame(1), tether.SetPoint
-    local refusals = { count = 0, refusing = true }
-    tether.SetPoint = function(self, point, relative, ...)
-        if refusals.refusing and relative ~= layout then
-            refusals.count = refusals.count + 1
-            error("Frame:SetPoint(): Cannot anchor to this frame")
+-- One frame of the lead follower, with no layout pass.
+local function followFrame(AB) stub.RunOnUpdate(AB.CdmRows.follower, 0.016) end
+
+-- Off its layout frame where the lead's point plus the offset is.
+local function expectFollows(tether, leadFrame, at, x, y, context)
+    local pointX, pointY = stub.actionbars.CdmTether.PointAt(leadFrame, at)
+    expectAnchor(tether, { "TOPLEFT", tether:GetParent(), "CENTER", pointX + x, pointY + y }, context)
+end
+
+local function anchorReaches(frame, target)
+    for index = 1, frame:GetNumPoints() do
+        local _, relative = frame:GetPoint(index)
+        if relative == target or (relative and relative.GetNumPoints and anchorReaches(relative, target)) then
+            return true
         end
-        return setPoint(self, point, relative, ...)
     end
-    return refusals
+    return false
+end
+
+local function expectNothingAnchoredTo(target, frames, context)
+    for _, frame in ipairs(frames) do
+        T.falsy(anchorReaches(frame, target), context .. ": " .. tostring(frame:GetName()) .. " isn't anchored to it")
+    end
 end
 
 -- As a plugin switched off mid-session leaves it. Giving it back fires no event.
@@ -241,9 +252,12 @@ local function shownLeadRings(Ed)
     return {}
 end
 
+-- Round a frame when it sits GROUP_PAD outside that frame's top-left.
 local function ringRound(Ed, leadFrame)
+    local left, top = stub.actionbars.CdmTether.PointAt(leadFrame, "TOPLEFT")
     for _, ring in ipairs(shownLeadRings(Ed)) do
-        if select(2, ring:GetPoint(1)) == leadFrame then return ring end
+        local _, _, _, x, y = ring:GetPoint(1)
+        if left and x == left - Ed.GROUP_PAD and y == top + Ed.GROUP_PAD then return ring end
     end
     return nil
 end
@@ -463,22 +477,20 @@ end
 -- Where camera zoom and mounting carry the Personal Display.
 local LEAD_SPOTS = { { 860, 380 }, { 900, 620 }, { 1500, 1000 } }
 
-test("cdm tether: an attached group follows its moving lead, in or out of a fight, and through Unlock Frames moving or resetting it, never anchored again and writing nothing", function()
+test("cdm tether: an attached group follows its moving lead the next frame, in or out of a fight, and through Unlock Frames moving or resetting it, never anchored to it and writing nothing", function()
     local world = tetherWorld({ attached = "test.lead" })
     local AB, set, leadFrame, Movers = world.AB, world.set, world.lead, world.DUI.Movers
     local savedBefore = DaylightUI.DB.Copy(set)
     local tether = tetherFrame(1, 11)
     T.truthy(tether:IsClampedToScreen())
-    local anchored = { "TOPLEFT", leadFrame, "TOP", ATTACHED_X, ATTACHED_Y }
-    expectAnchor(tether, anchored, "attached")
-    local cleared, pointed = countCalls(tether, "ClearAllPoints"), countCalls(tether, "SetPoint")
+    expectFollows(tether, leadFrame, "TOP", ATTACHED_X, ATTACHED_Y, "attached")
+    T.truthy(AB.CdmRows.follower:IsShown(), "the follower runs")
     for index, spot in ipairs(LEAD_SPOTS) do
         local context = "spot " .. index
         moveLead(leadFrame, spot[1], spot[2], 200, 40)
         if index % 2 == 0 then stub.EnterCombat() else stub.LeaveCombat() end
-        stub.FireEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
-        settledPass(AB)
-        expectAnchor(tether, anchored, context)
+        followFrame(AB)
+        expectFollows(tether, leadFrame, "TOP", ATTACHED_X, ATTACHED_Y, context)
         T.deq({ offsetFromLeadTop(pieceFrame(1, 11), leadFrame) }, { ATTACHED_X, ATTACHED_Y }, context)
     end
     stub.LeaveCombat(); stub.RunTimers()
@@ -488,12 +500,14 @@ test("cdm tether: an attached group follows its moving lead, in or out of a figh
     }
     for _, step in ipairs(unlockFramesSteps) do
         step[2]()
-        stub.RunTimers(); runGlidesFor(1)
-        expectAnchor(tether, anchored, step[1])
+        stub.RunTimers(); runGlidesFor(1); followFrame(AB)
+        expectFollows(tether, leadFrame, "TOP", ATTACHED_X, ATTACHED_Y, step[1])
     end
+    local cleared, pointed = countCalls(tether, "ClearAllPoints"), countCalls(tether, "SetPoint")
     flickerEachIcon(world)
-    T.eq(cleared.calls, 0, "never cleared")
-    T.eq(pointed.calls, 0, "never re-anchored")
+    followFrame(AB); followFrame(AB)
+    T.eq(cleared.calls + pointed.calls, 0, "a still lead moves nothing")
+    expectNothingAnchoredTo(leadFrame, { tether, pieceFrame(1, 11), pieceFrame(1, 12), pieceFrame(1, 13) }, "the lead")
     T.deq(set, savedBefore, "play writes nothing")
     hangOff(lead("plugin.Test.onTether"), tether)
     world.Tether.Stale()
@@ -506,7 +520,7 @@ test("cdm tether: a lead not there, gone or looping sits its group at its saved 
         ["gone mid-session"] = function(world)
             local leadFrame = lead("plugin.Late.frame", 860, 500, 200, 40)
             world.Tether.Stale(); settledPass(world.AB)
-            expectAnchor(tetherFrame(1, 11), { "TOPLEFT", leadFrame, "TOP", ATTACHED_X, ATTACHED_Y }, "following first")
+            expectFollows(tetherFrame(1, 11), leadFrame, "TOP", ATTACHED_X, ATTACHED_Y, "following first")
             loseMover(world.DUI, "plugin.Late.frame")
         end,
         ["hung off another group"] = function(world)
@@ -538,18 +552,24 @@ test("cdm tether: a lead not there, gone or looping sits its group at its saved 
     end
 end)
 
-test("cdm tether: a refused lead leaves its group at its saved spot, attachment kept, and the group goes onto it once it's accepted", function()
-    local world = tetherWorld({ lead = false, attached = "plugin.Late.frame" })
-    local tether = tetherFrame(1, 11)
-    local refusals = refuseLeadAnchoring(tether)
-    local refusingLead = lead("plugin.Late.frame", 860, 500, 200, 40)
-    world.Tether.Stale()
-    settledPass(world.AB)
-    expectAnchor(tether, { "TOPLEFT", layoutFrame(1), "CENTER", 50, -20 }, "refused: at its saved spot")
-    T.eq(world.set.chains[11].tether, "plugin.Late.frame", "refused: the attachment is kept")
-    refusals.refusing = false
-    settledPass(world.AB)
-    expectAnchor(tether, { "TOPLEFT", refusingLead, "TOP", ATTACHED_X, ATTACHED_Y }, "accepted")
+test("cdm tether: the lead follower stops once nothing follows a lead, and a frame of it makes no garbage", function()
+    local world = tetherWorld({ attached = "test.lead" })
+    local AB, follower = world.AB, world.AB.CdmRows.follower
+    T.truthy(follower:IsShown(), "running while a group follows")
+    -- The fake IsProtected makes garbage walking the frame tree; the game's makes none.
+    tetherFrame(1, 11).IsProtected = function() return false end
+    local frames = 200
+    local grown = garbageMadeBy(function() followFrame(AB) end, frames)
+    T.truthy(grown < 1, string.format("%d frames: %.2f KB", frames, grown))
+    followInstead(world, "plugin.Gone.frame")
+    settledPass(AB)
+    T.falsy(follower:IsShown(), "stopped with the lead gone")
+    followInstead(world, "test.lead")
+    settledPass(AB)
+    T.truthy(follower:IsShown(), "running again")
+    world.D.RemoveChain(world.set, 11)
+    settledPass(AB)
+    T.falsy(follower:IsShown(), "stopped with nothing attached")
 end)
 
 test("cdm tether: the tether frame spans the pieces that show, holding them as they'd sit unattached, sized again only when they change", function()
@@ -653,13 +673,13 @@ test("cdm tether: placing a frame, even one not there yet, or an outside setting
 end)
 
 test("cdm tether: a group follows a switched-off Personal Display, and keeps its saved point when it's switched on", function()
-    local world = tetherWorld({ unitFrames = true, attached = "unitframes.personal" })
+    local world = tetherWorld({ unitFrames = true, personal = "off", attached = "unitframes.personal" })
     local tether = tetherFrame(1, 11)
-    local anchored = { "TOPLEFT", world.Personal.frame, "TOP", ATTACHED_X, ATTACHED_Y }
-    expectAnchor(tether, anchored, "hung off the switched-off display, not its saved spot")
+    local display = world.Personal.frame
+    expectFollows(tether, display, "TOP", ATTACHED_X, ATTACHED_Y, "following the switched-off display, not its saved spot")
     world.DUI:Set("UnitFrames", "personal.enabled", true)
     settledPass(world.AB)
-    expectAnchor(tether, anchored, "the saved point is kept")
+    expectFollows(tether, display, "TOP", ATTACHED_X, ATTACHED_Y, "the saved point is kept")
 end)
 
 test("cdm tether: a group at its saved spot goes onto its lead at once when it turns up", function()
@@ -668,7 +688,7 @@ test("cdm tether: a group at its saved spot goes onto its lead at once when it t
     expectAnchor(tether, { "TOPLEFT", layoutFrame(1), "CENTER", 50, -20 }, "waiting at its saved spot")
     local lateLead = lead("plugin.Late.frame", 860, 500, 200, 40)
     stub.RunTimers()
-    expectAnchor(tether, { "TOPLEFT", lateLead, "TOP", ATTACHED_X, ATTACHED_Y }, "on its lead")
+    expectFollows(tether, lateLead, "TOP", ATTACHED_X, ATTACHED_Y, "on its lead")
 end)
 
 test("cdm tether: a group follows the Personal Display once it's built after the group's first pass, or after the fight it was reloaded in", function()
@@ -688,7 +708,9 @@ test("cdm tether: a group follows the Personal Display once it's built after the
             stub.LeaveCombat()
         end
         stub.RunTimers(); runGlidesFor(1)
-        expectAnchor(tether, { "TOPLEFT", UF.Personal.frame, "TOP", ATTACHED_X, ATTACHED_Y }, context)
+        moveLead(UF.Personal.frame, 860, 300, 200, 40)
+        followFrame(world.AB)
+        expectFollows(tether, UF.Personal.frame, "TOP", ATTACHED_X, ATTACHED_Y, context)
     end
 end)
 
@@ -703,11 +725,11 @@ test("cdm tether: a tether frame protected in a fight keeps its anchor and is la
     local cleared, pointed = countCalls(tether, "ClearAllPoints"), countCalls(tether, "SetPoint")
     local resized, hidden = countCalls(tether, "SetSize"), countCalls(tether, "Hide")
     for _ = 1, 3 do settledPass(AB) end
-    expectAnchor(tether, { "TOPLEFT", world.lead, "TOP", ATTACHED_X, ATTACHED_Y }, "held in the fight")
+    expectFollows(tether, world.lead, "TOP", ATTACHED_X, ATTACHED_Y, "held in the fight")
     T.eq(cleared.calls + pointed.calls + resized.calls + hidden.calls, 0, "nothing done to the held frame")
     stub.LeaveCombat()
     stub.RunTimers(); runGlidesFor(1)
-    expectAnchor(tether, { "TOPLEFT", otherLead, "TOP", ATTACHED_X, ATTACHED_Y }, "after the fight")
+    expectFollows(tether, otherLead, "TOP", ATTACHED_X, ATTACHED_Y, "after the fight")
     T.eq(blockedActions(), 0, "no blocked action")
 end)
 
@@ -738,13 +760,17 @@ test("cdm tether: a group attached to the protected player frame plays through a
     local world = tetherWorld({ unitFrames = true, attached = "unitframes.player" })
     local playerFrame = world.DUI.Movers.Get("unitframes.player").frame
     T.truthy(playerFrame:IsProtected(), "the player frame is a secure frame")
-    expectAnchor(tetherFrame(1, 11), { "TOPLEFT", playerFrame, "TOP", ATTACHED_X, ATTACHED_Y }, "attached")
+    moveLead(playerFrame, 400, 300, 200, 60)
+    settledPass(world.AB)
+    expectFollows(tetherFrame(1, 11), playerFrame, "TOP", ATTACHED_X, ATTACHED_Y, "attached")
     stub.secure = true
     stub.EnterCombat(); stub.RunTimers()
     flickerEachIcon(world)
-    for _, frame in ipairs({ tetherFrame(1, 11), pieceFrame(1, 11), pieceFrame(1, 12), pieceFrame(1, 13) }) do
+    local ours = { tetherFrame(1, 11), pieceFrame(1, 11), pieceFrame(1, 12), pieceFrame(1, 13) }
+    for _, frame in ipairs(ours) do
         T.falsy(frame:IsProtected(), tostring(frame:GetName()) .. " isn't protected")
     end
+    expectNothingAnchoredTo(playerFrame, ours, "the player frame")
     stub.LeaveCombat(); stub.RunTimers(); runGlidesFor(1)
 end)
 
@@ -756,7 +782,7 @@ test("cdm tether: a hidden lead still carries its group, shown by the group's ow
     T.truthy(pieceFrame(1, 11):IsShown(), "the group shows")
     T.eq(pieceFrame(1, 11):GetAlpha(), 1, "at its own alpha")
     T.eq(layoutFrame(1):GetAlpha(), 1, "the layout at its own alpha")
-    expectAnchor(tetherFrame(1, 11), { "TOPLEFT", world.lead, "TOP", ATTACHED_X, ATTACHED_Y }, "carried by the hidden lead")
+    expectFollows(tetherFrame(1, 11), world.lead, "TOP", ATTACHED_X, ATTACHED_Y, "carried by the hidden lead")
 end)
 
 local UNCHANGED_PASSES = 200
@@ -1071,11 +1097,11 @@ test("cdm tether: another talent set picked or a spec change while editing puts 
             T.deq(savedSpot(set, 11), { SPOT_X, SPOT_Y }, name .. ": set 1's spot unchanged")
             stub.RunTimers(); runGlidesFor(1)
             T.falsy(tetherFrame(1, 11):IsVisible(), name .. ": set 1's tether frame out of sight")
-            expectAnchor(tetherFrame(2, 11), { "TOPLEFT", world.lead, "TOP", ATTACHED_X, ATTACHED_Y },
+            expectFollows(tetherFrame(2, 11), world.lead, "TOP", ATTACHED_X, ATTACHED_Y,
                 name .. ": set 2 follows its own attachment")
             changeSpecTo(world.DUI, 1); stub.RunTimers(); runGlidesFor(1)
             T.truthy(tetherFrame(1, 11):IsVisible(), name .. ": set 1's tether frame back")
-            expectAnchor(tetherFrame(1, 11), { "TOPLEFT", world.lead, "TOP", SPOT_X, SPOT_Y }, name .. ": set 1 again")
+            expectFollows(tetherFrame(1, 11), world.lead, "TOP", SPOT_X, SPOT_Y, name .. ": set 1 again")
         else
             T.eq(Ed.Set(), secondSet, name .. ": the editor shows the second set")
             T.deq(savedSpot(secondSet, 11), { 30 + ATTACHED_X, -20 + ATTACHED_Y },
@@ -1288,9 +1314,17 @@ test("cdm editor: picking an attached group rings and reveals its frame alone, p
     Ed.PreviewOf(11).lit(true)
     T.truthy(Ed.Flowing(), "an outline lit without still turns as before")
     T.eq(#shownLeadRings(Ed), 1, "exactly one ring")
-    local pad = Ed.GROUP_PAD
-    expectAnchor(first, { "TOPLEFT", world.lead, "TOPLEFT", -pad, pad }, "its top-left")
-    expectAnchor(first, { "BOTTOMRIGHT", world.lead, "BOTTOMRIGHT", pad, -pad }, "its bottom-right", 2)
+    local pad, overlay = Ed.GROUP_PAD, first:GetParent()
+    local left, top = Tether.PointAt(world.lead, "TOPLEFT")
+    local right, bottom = Tether.PointAt(world.lead, "BOTTOMRIGHT")
+    expectAnchor(first, { "TOPLEFT", overlay, "CENTER", left - pad, top + pad }, "its top-left")
+    expectAnchor(first, { "BOTTOMRIGHT", overlay, "CENTER", right + pad, bottom - pad }, "its bottom-right", 2)
+    moveLead(world.lead, 700, 300, 200, 40)
+    stepEditor(Ed)
+    T.truthy(ringRound(Ed, world.lead), "the ring follows its frame the next frame")
+    expectNothingAnchoredTo(world.lead, { first }, "the ring")
+    moveLead(world.lead, 860, 500, 200, 40)
+    stepEditor(Ed)
     T.truthy(first:GetFrameLevel() < Ed.PreviewOf(11):GetFrameLevel(), "under the previews")
     T.falsy(first:IsMouseEnabled(), "the mouse goes through it")
     expectAccentText(DUI, first.tag, Tether.Name("test.lead"), "a ready frame's tag")
@@ -1410,9 +1444,11 @@ test("cdm editor: alone, picking a group that follows the party shows the party'
     moveLead(partyFrame, 20, 500, 200, 300)
     T.truthy(Ed.Open(), "the editor opens")
     selectAndSettle(Ed, 11)
+    stepEditor(Ed)
     local revealedSamples = stub.ShownCount(Party.preview)
     T.truthy(Party.group:Previewing() and revealedSamples > 0, "the party previews its samples")
     T.truthy(ringRound(Ed, partyFrame), "the party ringed")
+    expectNothingAnchoredTo(partyFrame, { Ed.LeadRing(), tetherFrame(1, 11), pieceFrame(1, 11) }, "the party header")
     DUI.RunCommand("test")
     stub.RunTimers()
     T.truthy(DUI.testMode, "/dui test: test mode on")
