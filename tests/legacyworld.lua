@@ -115,8 +115,27 @@ local function load()
     f:Hide()
     f:SetSize(920, 575)
     f.currentPage = 1
+    -- The challenges page builds its category list in its OnShow, which the client
+    -- runs only when the page really becomes visible (not under a hidden parent).
+    local page = CreateFrame("Frame", nil, f)
+    page:Hide()
+    page:SetScript("OnShow", function(self)
+        self.categories = {}
+        for _, c in ipairs(S().categories) do self.categories[c.id] = true end
+    end)
+    f.ChallengesPage = page
     function f:SelectPage(id)
         self.currentPage = id
+        page:SetShown(id == 2)
+    end
+    -- OpenToCategory scrolls to the category it found; with no list built that is
+    -- nil, and ScrollBoxTreeView indexes it.
+    function f:SelectChallenge(id)
+        local cat = GetAchievementCategory(id)
+        if not (page.categories and page.categories[cat]) then
+            error("ScrollBoxTreeView.lua:27: attempt to index a nil value")
+        end
+        record("SelectChallenge", id)
     end
     stub.loadedAddOns.Blizzard_LegacySystem = true
     stub.FireEvent("ADDON_LOADED", "Blizzard_LegacySystem")
@@ -556,6 +575,7 @@ local function install()
         local f = load()
         ShowUIPanel(f)
         selectPage(2)
+        f:SelectChallenge(id)
     end
 end
 

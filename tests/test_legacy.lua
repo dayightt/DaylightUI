@@ -70,7 +70,7 @@ T.test("legacy: the Legacy button opens ours in the game's place, on Progress, w
     local ns = load()
     local f = open(ns)
     T.truthy(DaylightUI.Win.IsOpen(f), "ours open")
-    T.eq(LegacySystemFrame:GetParent(), DaylightUI.Win.Followers.hidden, "parked as it loaded")
+    T.eq(LegacySystemFrame:GetParent(), DaylightUI.Win.Followers.veil, "parked as it loaded")
     T.eq(f.tab, "progress")
     T.eq(#f.tabs, 3)
     T.eq(f.title:GetText(), "Legacy")
@@ -346,6 +346,21 @@ T.test("legacy challenges: a tracked challenge's click opens ours on it", functi
     clean()
 end)
 
+-- A challenge alert's click with the window closed: the game opens its parked window
+-- and selects the challenge in its own category list, which it builds only when its
+-- page really shows. Under a hidden parent it never did, and the game errored.
+T.test("legacy challenges: an alert's click with the window closed opens ours on it, no game error", function()
+    local ns = load()
+    LW.Load()
+    frame(20)
+    LW.Show(1201)
+    frame(20)
+    T.eq(#LW.Calls("SelectChallenge"), 1, "the game's own page found the challenge")
+    T.eq(ns.Window.frame.tab, "challenges")
+    T.eq(ns.Challenges.opened, 1201)
+    clean()
+end)
+
 -- ---------------------------------------------------------------------
 -- Legacy trees
 -- ---------------------------------------------------------------------
@@ -590,7 +605,7 @@ T.test("legacy: the game's window's link switches back to Daylight UI's, no relo
     T.truthy(f and DaylightUI.Win.IsOpen(f), "ours opens in its place")
     T.eq(f.tab, "challenges", "on the page the game's was on")
     T.falsy(LegacySystemFrame:IsShown(), "the game's closes")
-    T.eq(LegacySystemFrame:GetParent(), DaylightUI.Win.Followers.hidden, "and is parked again")
+    T.eq(LegacySystemFrame:GetParent(), DaylightUI.Win.Followers.veil, "and is parked again")
     T.truthy(ns.Window.Covers())
     f.close:Click()
     frame(20)
@@ -598,7 +613,7 @@ T.test("legacy: the game's window's link switches back to Daylight UI's, no relo
     LW.Toggle()
     frame(20)
     T.truthy(DaylightUI.Win.IsOpen(f), "the Legacy button opens ours again")
-    T.eq(LegacySystemFrame:GetParent(), DaylightUI.Win.Followers.hidden)
+    T.eq(LegacySystemFrame:GetParent(), DaylightUI.Win.Followers.veil)
     clean()
 end)
 

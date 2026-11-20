@@ -190,9 +190,8 @@ end
 
 -- The pick changed (out of combat). To the game's: an open game window shows as itself
 -- and this one closes; a closed one is let go so it opens as itself. Back to this one:
--- an open game window closes and this one opens on the same page. The game's is parked
--- under a hidden frame, which would close it anyway, so it isn't kept open underneath;
--- it's parked once closed and the next Legacy button opens this one as usual.
+-- an open game window closes and this one opens on the same page; the game's is parked
+-- once closed and the next Legacy button opens this one as usual.
 local function pick(ours)
     DUI.legacyOwnWindow = ours
     if ours then
@@ -358,8 +357,10 @@ function Legacy.Build(mod)
     hookAsk()
     DUI.RegisterEvent("ADDON_LOADED", function() hookAsk() end)
     -- No width: the game's Legacy window has a wider panel width of its own,
-    -- and that is what the game reads.
-    Legacy.follow = Win.Follow({ key = "legacy", frames = { legacy = Legacy.Game }, changed = Legacy.Changed,
+    -- and that is what the game reads. Veiled, not hidden: its challenges page builds
+    -- its category list only when it really shows, and a challenge alert's click
+    -- selects in that list, erroring on an empty one.
+    Legacy.follow = Win.Follow({ key = "legacy", frames = { legacy = Legacy.Game }, veil = { legacy = true }, changed = Legacy.Changed,
         leave = function() return not Legacy.Ours() end })
     Legacy.Apply()
     return f
