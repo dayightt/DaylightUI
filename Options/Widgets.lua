@@ -2362,7 +2362,11 @@ end
 function W.FormatValue(item, v)
     if item.unit == "%" then return string.format("%d%%", math.floor(v * 100 + 0.5)) end
     if item.unit == "px" then return string.format("%d px", math.floor(v + 0.5)) end
-    if item.unit == "x" then return string.format("%.2fx", v) end
+    if item.unit == "x" then
+        -- Two decimals, more only when the value has them (a pixel-perfect 0.7111).
+        local t = string.format("%.4f", v):gsub("(%.%d%d%d-)0+$", "%1")
+        return t .. "x"
+    end
     if (item.step or 1) < 1 then return string.format("%.2f", v) end
     return tostring(math.floor(v + 0.5))
 end
@@ -2376,9 +2380,15 @@ function W.ParseValue(item, text)
     return n
 end
 
+-- item.snapTo: a value (or a function giving one) that pulls in what lands
+-- within half a step of it, for a number off the step's grid that matters (the
+-- UI scale where one UI unit is exactly one screen pixel).
 function W.SnapValue(item, v)
     local step = item.step or 1
     v = math.floor((v - item.min) / step + 0.5) * step + item.min
+    local to = item.snapTo
+    if type(to) == "function" then to = to() end
+    if type(to) == "number" and math.abs(v - to) <= step / 2 then v = to end
     v = math.max(item.min, math.min(item.max, v))
     return tonumber(string.format("%.4f", v))
 end
@@ -2645,7 +2655,7 @@ end
 
 -- An options row's slider: W.Slider bound to the page's setting.
 function W.slider(row, page, item)
-    local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit,
+    local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit, snapTo = item.snapTo,
         get = function() return Options.Get(page, item) end,
         set = function(v) Options.Set(page, item, v) end,
         preview = function(v) return Options.Preview(page, item, v) end,

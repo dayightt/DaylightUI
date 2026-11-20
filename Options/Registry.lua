@@ -1313,13 +1313,15 @@ Options.RegisterPage({
         } },
         { label = "Size", items = {
             { type = "slider", label = "UI scale", min = DUI.Pixel.SCALE_MIN, max = DUI.Pixel.SCALE_MAX, step = 0.01,
-              unit = "%", since = "1.7.4", onRelease = true,
+              unit = "x", snapTo = function() return DUI.Pixel.perfect end, since = "1.7.4", onRelease = true,
               get = function() return DUI.Pixel.UIScale() or UIParent:GetScale() end,
               set = function(v) DUI.Pixel.SetUIScale(v) end,
               default = function() return DUI.Pixel.GameScale() or UIParent:GetScale() end,
               desc = "The size of the whole interface, the game's windows too. Daylight UI keeps it the same when the game "
                   .. "changes its own (a new resolution, another monitor), so your frames stay where you put them. "
-                  .. "It takes the place of the game's UI scale setting, for every character on this account." },
+                  .. "It takes the place of the game's UI scale setting, for every character on this account. "
+                  .. "Type a number (0.71) or drag; near the pixel-perfect scale for your screen (0.7111 at 1080p, where one "
+                  .. "unit is one screen pixel) it lands on it exactly, which keeps text and lines sharpest." },
             { type = "slider", key = "scale", label = "Daylight UI scale", min = 0.5, max = 2, step = 0.05, unit = "x",
               desc = "Makes every Daylight UI frame and window bigger or smaller. To size one frame alone, unlock the frames and scroll over it." },
             { type = "slider", key = "fontScale", label = "Text scale", min = 0.7, max = 1.6, step = 0.05, unit = "x",
