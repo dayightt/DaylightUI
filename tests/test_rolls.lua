@@ -932,3 +932,51 @@ T.test("rolls stack: the last roll fades out before the stack hides", function()
     T.near(card:GetAlpha(), 0, 0.01, "faded out")
     T.falsy(St.frame:IsShown(), "then the stack hides")
 end)
+
+-- The game's "You won" toast (LOOT_ITEM_ROLL_WON): AlertFrame_ShowNewAlert and a
+-- loot toast the way AlertFrames.lua and LootWonAlertFrame_SetUp leave it.
+local function gameToasts()
+    _G.LootAlertSystem, _G.MoneyWonAlertSystem = {}, {}
+    _G.AlertFrame_ShowNewAlert = function(f) f:Show(); f.animIn:Play() end
+end
+local function lootToast(link, roll)
+    local t = CreateFrame("Button", nil, UIParent)
+    t:Hide()
+    t.queue = LootAlertSystem
+    t.animIn, t.waitAndAnimOut = t:CreateAnimationGroup(), t:CreateAnimationGroup()
+    t.RollTypeIcon, t.RollValue = t:CreateTexture(), t:CreateFontString()
+    t.RollTypeIcon:SetShown(roll ~= nil); t.RollValue:SetShown(roll ~= nil)
+    t.hyperlink = link
+    return t
+end
+
+T.test("rolls stack: the game's won toast stays away while the card shows the win", function()
+    local S, RW = rollsLogin({ before = gameToasts })
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    cardFor(S, id).buttons.greed:Click()
+    RW.Roll(id, "Mira Calloway", 77)
+    RW.Win(id, "Mira Calloway")
+    tick(S, 0.5)
+    local won = lootToast(RING, 77)
+    AlertFrame_ShowNewAlert(won)
+    T.falsy(won:IsShown(), "the card already says you won: no second box over it")
+    -- A toast for an item no card shows, or plain loot, is the game's as always.
+    local other = lootToast(ROBE, 50)
+    AlertFrame_ShowNewAlert(other)
+    T.truthy(other:IsShown(), "a roll no card holds keeps its toast")
+    local plain = lootToast(RING, nil)
+    AlertFrame_ShowNewAlert(plain)
+    T.truthy(plain:IsShown(), "looted, not rolled: the toast stays")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls stack: with the roll window off the won toast stays", function()
+    local _, RW = rollsLogin({ enabled = false, before = gameToasts })
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RollOnLoot(id, 2)
+    RW.Win(id, "Mira Calloway")
+    local won = lootToast(RING, 77)
+    AlertFrame_ShowNewAlert(won)
+    T.truthy(won:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

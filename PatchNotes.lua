@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Auction House", "The Lvl column on Buy shows the level you need to use an item, not its item level" },
+        { "Loot", "Winning a roll no longer shows a second \"You received\" box on top of the loot roll" },
     }, changed = {
         { "Chat", "Chat no longer fills up with everyone's crafting in cities. Switch Tradeskills on for a tab to see it" },
     } },
