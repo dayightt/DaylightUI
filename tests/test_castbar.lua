@@ -729,6 +729,21 @@ T.test("cast bars: 'Kicked by' names who interrupted beside the target's bar; a 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game: a frame above the tag faded by a secret (range) makes its
+-- GetAlpha secret, and a second kick while the tag still showed tweened from it.
+T.test("cast bars: a second kick under a secret-faded parent eases the tag without reading its alpha", function()
+    local DUI, ns, h = kickWorld()
+    local t = h.kickTag
+    stub.FireEvent("UNIT_SPELLCAST_INTERRUPTED", "target", "Cast-1", 133, ME, nil)
+    T.truthy(t:IsShown())
+    t:GetParent():SetAlphaFromBoolean(stub.Secret(true), 1, 0.5)
+    stub.FireEvent("UNIT_SPELLCAST_INTERRUPTED", "target", "Cast-1", 133, ME, nil)
+    settleMotion()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(t:IsShown(), "the tag still shows")
+    T.eq(stub.Plain(t.__alpha), 1, "eased in all the way")
+end)
+
 T.test("cast bars: with motion off there's no blade, the bar's red hold says it", function()
     local DUI, _, h = kickWorld()
     DUI:Set("general", "motion", false)

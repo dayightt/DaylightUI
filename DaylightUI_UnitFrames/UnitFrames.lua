@@ -242,7 +242,10 @@ UF.PULSE_TIME = 0.6    -- aggro pulse: half a breath in seconds, bouncing
 UF.PULSE_ALPHA = 0.75  -- its peak alpha
 UF.HALO_ALPHA = 0.9    -- the halo past the ring, at its peak
 UF.HALO_SIZE = 3.1     -- the halo's width, in ring radii
-UF.SQUARE_HALO = 5.0   -- a square's halo image, in half-sides (its shape fills half of it)
+UF.SQUARE_HALO = 3.6   -- a square's halo image, in half-sides (its shape fills half of it)
+-- A square's halo has more edge and corners than a ring's, so it peaks lower
+-- to glow as softly past the band as the round one does.
+UF.SQUARE_HALO_DIM = 0.6
 UF.THREAT_BAND_DIM = 0.45   -- the tab's band, as a fraction of the color
 UF.THREAT_TAG_W = 36        -- the threat tag's width (fits "100%" and its angled end)
 
@@ -1955,6 +1958,8 @@ function UF.CreatePortrait(f)
     h:SetSmoothing("IN_OUT")
     haloAnim:SetLooping("BOUNCE")
     p.haloAnim = haloAnim
+    p.haloFade = h
+    p.haloPeak = UF.HALO_ALPHA
     p.pulseHold:Hide()
     makeFill(p)
     p:Hide()
@@ -2115,6 +2120,7 @@ function UF.LayoutPortrait(f, cfg)
         end
         p.shadow:SetSize(4.2 * half, 4.2 * half)
         p.halo:SetSize(UF.SQUARE_HALO * half, UF.SQUARE_HALO * half)
+        p.haloPeak = UF.HALO_ALPHA * UF.SQUARE_HALO_DIM
         -- A model can't be masked: it fills the opening's straight part, its
         -- edges under the band. Angled trims the tucked-in corner's side.
         local trim = shapeArt == "square" and 0 or UF.SQUARE_LEAN * box
@@ -2129,6 +2135,7 @@ function UF.LayoutPortrait(f, cfg)
         p.halo:SetTexture(DUI.MEDIA .. "crest-glow.png")
         p.shadow:SetSize(2.6 * R, 2.6 * R)
         p.halo:SetSize(UF.HALO_SIZE * R, UF.HALO_SIZE * R)
+        p.haloPeak = UF.HALO_ALPHA
         p.disc:SetSize(2 * inner + 2, 2 * inner + 2)
         if socket then
             local back = 2 * math.max(0, R - ns.Socket.Inset(f))
@@ -3110,6 +3117,7 @@ function UF.Pulse(p, on)
     else
         local red = UF.THREAT_COLORS.aggro
         p.halo:SetVertexColor(red[1], red[2], red[3], 1)
+        p.haloFade:SetToAlpha(p.haloPeak or UF.HALO_ALPHA)
         p.halo:Show()
     end
     local red = UF.THREAT_COLORS.aggro
