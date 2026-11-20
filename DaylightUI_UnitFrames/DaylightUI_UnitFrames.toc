@@ -32,6 +32,7 @@ GroupParts.lua
 GroupPrivate.lua
 Group.lua
 Raid.lua
+RaidPets.lua
 PartyPets.lua
 PartyTargets.lua
 PartyCasts.lua

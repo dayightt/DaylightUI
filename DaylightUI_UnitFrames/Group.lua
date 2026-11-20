@@ -80,8 +80,15 @@ local INIT = [[
 --   layoutButton(b)   extra parts laid out with each real button (the party's pets)
 --   isOn(cfg)         -> is it switched on (default cfg.enabled; the raid: its 10-player switch)
 --   groupHeaders      n: also make a header per raid group 1..n, for "Group, then role"
+--   template          the header's template (default SecureGroupHeaderTemplate)
+--   home              the group whose mover scale, test part and fade it shares (default key)
+--   apiKind           the API frame kind its buttons report as (default key)
+--   sortAttrs         { [sortBy] = attrs, default = attrs }: its own header's sorting
+--                     in place of SORT_ATTRS (the pet header has no ASSIGNEDROLE)
+--   previewMax        how many samples to build (default maxCount)
+--   wantsPreview()    -> false: no samples built in test mode (default true)
 function Group.New(opts)
-    local g = setmetatable({ opts = opts, key = opts.key, buttons = {}, bare = {}, headers = {} }, Group)
+    local g = setmetatable({ opts = opts, key = opts.key, home = opts.home or opts.key, buttons = {}, bare = {}, headers = {} }, Group)
     Group.all[#Group.all + 1] = g
     return g
 end
@@ -104,6 +111,8 @@ end
 function Group.Buttons()
     return nextButton, nil, SPAN
 end
+
+function Group:Kind() return self.opts.apiKind or self.key end
 
 -- Tiles per line: a group's five by default (the header then keeps each group
 -- together). Any other number lists members in order. "Group, then role"
@@ -209,7 +218,7 @@ function Group:Take(b)
         UF.UpdateAll(btn, true)
         GP.UpdateTargetMark(btn)
         -- Notify once it's redrawn, so a listener reads the new member's tile.
-        DUI.APIReport.Unit(g.key, btn, type(value) == "string" and value or nil, false)
+        DUI.APIReport.Unit(g:Kind(), btn, type(value) == "string" and value or nil, false)
     end)
     -- Right-clicks open the unit menu like the other frames. Protected.
     if InCombatLockdown() then
@@ -272,7 +281,7 @@ function Group:Dress(b)
         end
     end
     UF.UpdateAll(b, true)
-    DUI.APIReport.Made(self.key, b, type(b.unitToken) == "string" and b.unitToken or nil, false)
+    DUI.APIReport.Made(self:Kind(), b, type(b.unitToken) == "string" and b.unitToken or nil, false)
 end
 
 -- One button's settings: fades, the frame and its parts. Its size is the
@@ -312,7 +321,7 @@ end
 -- Sets up one secure header: its buttons' template, the fixed attributes, the
 -- size snippet, Clique, and setup for each button it creates.
 function Group:MakeHeader(name, parent)
-    local h = CreateFrame("Frame", name, parent, "SecureGroupHeaderTemplate")
+    local h = CreateFrame("Frame", name, parent, self.opts.template or "SecureGroupHeaderTemplate")
     h:SetAttribute("template", UF.BUTTON_TEMPLATE)   -- also pingable (UnitFrames.lua)
     for k, v in pairs(self.opts.attrs) do h:SetAttribute(k, v) end
     h:SetAttribute("initialConfigFunction", INIT)
@@ -377,7 +386,8 @@ function Group:ApplyDirection(cfg)
     end
     -- Tiles per line: by group (five), or members listed in order.
     local per = Group.PerLine(cfg)
-    local sort = Group.SORT_ATTRS[cfg.sortBy]
+    local own = self.opts.sortAttrs
+    local sort = own and (own[cfg.sortBy] or own.default) or Group.SORT_ATTRS[cfg.sortBy]
     if sort then
         h:SetAttribute("groupBy", sort.groupBy)
         h:SetAttribute("groupingOrder", sort.groupingOrder)
@@ -433,7 +443,7 @@ end
 function Group:Resize(cfg)
     local holder = self.holder
     local rows, count
-    if self:Previewing() and self:EnsurePreview() then
+    if self:Previewing() and (not self.opts.wantsPreview or self.opts.wantsPreview()) and self:EnsurePreview() then
         rows = self:PreviewRows(cfg)
         count = self.opts.previewCount(cfg)
     else
@@ -449,7 +459,7 @@ function Group:Layout(cfg, text, range)
     if self.sweep then cfg, text = self.sweep.cfg, self.sweep.text end
     local h, holder = self.header, self.holder
     local g = DUI.DB.General()
-    holder:SetScale(DUI.Movers.Scale("unitframes." .. tostring(self.key)))
+    holder:SetScale(DUI.Movers.Scale("unitframes." .. tostring(self.home)))
     local w = 2 * Pixel.Snap(holder, cfg.width / 2)
     local ht = 2 * Pixel.Snap(holder, cfg.height / 2)
     h:SetAttribute("unitWidth", w)
@@ -467,7 +477,7 @@ function Group:Layout(cfg, text, range)
         b:SetSize(w, ht)
         self:LayoutButton(b, cfg, text, range)
         UF.UpdateAll(b, true)
-        DUI.APIReport.Styled(self.key, b, false)
+        DUI.APIReport.Styled(self:Kind(), b, false)
     end
     local on = self:IsOn(cfg)
     self:LayoutPreview(cfg, text, w, ht)
@@ -551,7 +561,7 @@ end
 -- Test mode is on and this group's samples are wanted. The test box can untick
 -- them, but a sweep shows its group either way.
 function Group:Previewing()
-    return DUI.testMode and (self.sweep ~= nil or DUI.TestPartShown(self.key))
+    return DUI.testMode and (self.sweep ~= nil or DUI.TestPartShown(self.home))
 end
 
 -- Samples: plain buttons filled with sample members. Test mode uses the
@@ -608,7 +618,7 @@ end
 function Group:EnsurePreview()
     if self.preview or not self.previewWanted then return self.preview end
     self.preview = {}
-    for i = 1, self.opts.maxCount do
+    for i = 1, self.opts.previewMax or self.opts.maxCount do
         local b = self:NewSampleButton(self.holder, i, self.opts.dress)
         b:Hide()
         self.preview[i] = b
@@ -669,8 +679,8 @@ function Group:FillSamples(list, count, cfg)
             b.test = b.fullSample and self.opts.fullSample and self.opts.fullSample(cfg) or self.opts.sampleFor(i, cfg)
             b:Show()
             -- Registered with the API as a preview while shown (never a lookup).
-            if b.apiSeen then DUI.APIReport.Unit(self.key, b, b.unitToken, true)
-            else b.apiSeen = true; DUI.APIReport.Made(self.key, b, b.unitToken, true) end
+            if b.apiSeen then DUI.APIReport.Unit(self:Kind(), b, b.unitToken, true)
+            else b.apiSeen = true; DUI.APIReport.Made(self:Kind(), b, b.unitToken, true) end
             UF.ShowSample(b)
             local kind = b.test.dispel
             local d = b.sampleDispel
@@ -701,7 +711,7 @@ function Group:FillSamples(list, count, cfg)
         else
             b.test = nil
             b:Hide()
-            if b.apiSeen then DUI.APIReport.Gone(self.key, b, true) end   -- stays known, showing it again is only a unit change
+            if b.apiSeen then DUI.APIReport.Gone(self:Kind(), b, true) end   -- stays known, showing it again is only a unit change
             b.targetMark:Hide()
             if self.opts.hideSample then self.opts.hideSample(b) end
             ns.GroupPrivate.HideSample(b)

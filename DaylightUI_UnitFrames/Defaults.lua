@@ -166,7 +166,7 @@ ns.DEFAULTS = {
                  percentColor = "white", percentCustom = { 1, 1, 1 }, showPowerText = false, powerFormat = "value", powerPercentSign = false,
                  hideFullPower = false, powerTextPos = "inner", predictHeals = true, predictAbsorbs = true },
     partyPetText = { name = 10, percent = 10, power = 0 },
-    raid = { enabled = true, texts = textSlots(), showInParty = false, width = 72, height = 28, spacing = 2, groupSpacing = 4, showName = true,
+    raid = { enabled = true, texts = textSlots(), showInParty = false, showPets = false, width = 72, height = 28, spacing = 2, groupSpacing = 4, showName = true,
              nameColor = "global", nameCustom = { 1, 1, 1 }, nameLimitLen = 0,
              direction = "columns", sortBy = "group", groups = 8, growUp = false, growLeft = false,
              perLine = 5, fillVertical = false, hideSelf = false, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0, nameTag = true,
@@ -443,7 +443,7 @@ end
 -- time follow is turned off. Every size shares raid's switches, fade, textures
 -- and fonts (RAID_SHARED), set on the Raid 10 page.
 ns.RAID_SIZES = { 20, 40 }
-ns.RAID_SHARED = { enabled = true, showInParty = true, fade = true, media = true, strata = true }
+ns.RAID_SHARED = { enabled = true, showInParty = true, showPets = true, fade = true, media = true, strata = true }
 local function deep(v)
     if type(v) ~= "table" then return v end
     local t = {}

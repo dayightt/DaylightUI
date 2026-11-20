@@ -1257,8 +1257,10 @@ function UF.PlaceTileName(f)
     local top = f.tallTile and -3 or 0
     local a, b = f.tallTile and "TOPLEFT" or "LEFT", f.tallTile and "TOPRIGHT" or "RIGHT"
     f.nameText:ClearAllPoints()
-    f.nameText:SetPoint(a, f.health, a, leftPad + t.x, top + t.y)
-    f.nameText:SetPoint(b, f.health, b, -rightPad + t.x, top + t.y)
+    -- nameLift raises the name to make room under it (a raid pet's owner line).
+    local y = top + t.y + (f.nameLift or 0)
+    f.nameText:SetPoint(a, f.health, a, leftPad + t.x, y)
+    f.nameText:SetPoint(b, f.health, b, -rightPad + t.x, y)
     f.nameText:SetJustifyH(t.justify)
 end
 
@@ -4482,12 +4484,17 @@ end
 -- roster update, so they ask each time, as does an answer read while the game
 -- hides the group (a secret UnitInParty/UnitInRaid under restrictions reads false).
 UF.rosterGen = 0
-local function rosterToken(u)   -- u: a plain unit token
-    return u == "player" or u:find("^party%d+$") or u:find("^raid%d+$")
+-- A group member's pet (raid tiles' pets, RaidPets.lua). Its token only exists
+-- while its owner is in your group.
+local function petToken(u)   -- u: a plain unit token
+    return u:find("^raidpet%d+$") or u:find("^partypet%d+$")
+end
+local function rosterToken(u)
+    return u == "player" or u:find("^party%d+$") or u:find("^raid%d+$") or petToken(u)
 end
 local function inGroupCached(f, u)
     if f.groupFor == u and f.groupGen == UF.rosterGen then return f.inGroup end
-    local yes = UF.InGroup(u)
+    local yes = petToken(u) and true or UF.InGroup(u)
     if rosterToken(u) and (yes or not DUI.Restricted()) then
         f.groupFor, f.groupGen, f.inGroup = u, UF.rosterGen, yes
     else
@@ -4839,7 +4846,7 @@ function UF.Wire(f)
             -- Kept, since health can fire many times a second.
             local key = self.wakeKey
             if not key then
-                key = "UnitFrames." .. tostring(self.group and self.group.key or self.spec.unit)
+                key = "UnitFrames." .. tostring(self.group and (self.group.home or self.group.key) or self.spec.unit)
                 self.wakeKey = key
             end
             DUI.Fade.Wake(key)
