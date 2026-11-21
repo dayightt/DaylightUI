@@ -1182,9 +1182,11 @@ function Plate.LayoutExecute(p, show)
     end
     local bar = p.health
     local x = Pixel.Snap(bar, bar:GetWidth() * pct)
-    -- Its right edge leans with the fill's moving edge.
+    -- Its right edge leans like the fill's moving edge: top corner at the %,
+    -- bottom pulled back. Leaned the other way it read a slant's width past it.
     local side, cut = Style.GetFillAngle(bar)
     local lean = side == "right" and cut or side == "left" and -cut or 0
+    lean = math.min(lean, x)
     local file = c.executeTexture == "bar" and Style.BarFile("fill") or Plate.LINE
     local fade = c.executeTexture == "fade"
     for _, t in ipairs({ e.band, e.lit }) do
@@ -1193,7 +1195,7 @@ function Plate.LayoutExecute(p, show)
         t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
         t:SetWidth(math.max(x, 1))
         t:SetTexture(file)
-        if t.SetVertexOffset then DUI.SafeCall(t.SetVertexOffset, t, 3, lean, 0) end
+        if t.SetVertexOffset then DUI.SafeCall(t.SetVertexOffset, t, 4, -lean, 0) end
     end
     local l = e.line
     local px = tonumber(c.executeLineSize) or 2
@@ -1202,8 +1204,8 @@ function Plate.LayoutExecute(p, show)
     l:SetPoint("BOTTOM", bar, "BOTTOMLEFT", x, 0)
     l:SetWidth(Pixel.Px(bar, math.max(px, 1)))
     if l.SetVertexOffset then
-        DUI.SafeCall(l.SetVertexOffset, l, 1, lean, 0)
-        DUI.SafeCall(l.SetVertexOffset, l, 3, lean, 0)
+        DUI.SafeCall(l.SetVertexOffset, l, 2, -lean, 0)
+        DUI.SafeCall(l.SetVertexOffset, l, 4, -lean, 0)
     end
     l:SetShown(px > 0)
     local strength = tonumber(c.executeStrength) or 0.45

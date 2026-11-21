@@ -3779,7 +3779,7 @@ end
 
 T.test("nameplates: the execute range lights up once an enemy is in it (health secret)", function()
     withExecuteCurves(function(alpha)
-        login()
+        local ns = login()
         local p = added("nameplate1")
         T.eq(DaylightUI:Get("Nameplates", "execute"), "off", "off by default")
         T.falsy(p.exec:IsShown(), "off: nothing")
@@ -3789,7 +3789,21 @@ T.test("nameplates: the execute range lights up once an enemy is in it (health s
         DaylightUI:Set("Nameplates", "execute", "on")
         stub.RunTimers()
         T.truthy(p.exec:IsShown(), "Always: shown")
-        T.near(p.exec.band:GetWidth(), p.health:GetWidth() * 0.2, 1, "the band reaches 20% of the bar")
+        -- The fake game doesn't size an anchored bar, so give it a width to measure.
+        p.health:SetWidth(150)
+        ns.Plate.LayoutExecute(p, true)
+        T.near(p.exec.band:GetWidth(), 30, 1, "the band reaches 20% of the bar")
+        -- The health fill's angled end has its top corner at the value and its
+        -- bottom pulled back, so the band's end must lean the same way, or it
+        -- reads a slant's width past the %.
+        local side, cut = DaylightUI.Style.GetFillAngle(p.health)
+        T.eq(side, "right", "the fill's free end is angled")
+        local vo = p.exec.band.__vertexOffsets or {}
+        T.falsy(vo[3] and vo[3][1] ~= 0, "the band's top corner stays at the %")
+        T.eq(vo[4] and vo[4][1], -cut, "its bottom corner is pulled back like the fill's")
+        local lo = p.exec.line.__vertexOffsets or {}
+        T.eq(lo[2] and lo[2][1], -cut, "the line leans with it")
+        T.falsy(lo[1] and lo[1][1] ~= 0, "the line's top stays at the %")
         T.eq(alpha(p.exec.lit), 0, "at 60%: not lit")
         stub.units.nameplate1.health = stub.Secret(15)
         stub.FireEvent("UNIT_HEALTH", "nameplate1")
