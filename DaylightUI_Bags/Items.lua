@@ -1270,7 +1270,9 @@ function Items.Fill(btn, tooltipOwner)
     if type(btn.newitemglowAnim) == "table" and btn.newitemglowAnim.Stop then btn.newitemglowAnim:Stop() end
     if type(btn.flash) == "table" and btn.flash.Hide then btn.flash:Hide() end
     if type(btn.NewItemTexture) == "table" and btn.NewItemTexture.Hide then btn.NewItemTexture:Hide() end
-    call(btn, "UpdateJunkItem", quality, noValue)
+    -- An item marked as junk by hand gets the game's junk coin like a gray one.
+    local marked = info and ns.Categories.IsMarkedJunk(info.itemID)
+    call(btn, "UpdateJunkItem", marked and 0 or quality, noValue)
     call(btn, "UpdateItemContextMatching")
     Items.Cooldown(btn, bag, slot, shown ~= nil)
     -- The slot under the pointer changed: its tooltip follows, or goes with the item.
@@ -1330,6 +1332,8 @@ function Items.Fill(btn, tooltipOwner)
     end
     -- In the list view the row beside the slot reads the same item.
     if btn.dluiRow then ns.Layout.PaintRow(btn) end
+    -- A new item shown twice (Recent and its own group): the copy follows.
+    if btn.dluiTwin and btn.dluiTwin:IsShown() then Items.Fill(btn.dluiTwin, tooltipOwner) end
     return shown ~= nil
 end
 
@@ -1339,6 +1343,7 @@ function Items.Match(btn)
     local holder = btn:GetParent()
     local bag, slot = holder and holder:GetID(), btn:GetID()
     call(btn, "SetMatchesSearch", Items.Fits(bag, slot, Items.InfoAt(bag, slot), windowOf(btn)))
+    if btn.dluiTwin and btn.dluiTwin:IsShown() then Items.Match(btn.dluiTwin) end
 end
 
 -- Whether a slot stands out: it matches the window's search and, in the grid view,
@@ -1365,6 +1370,7 @@ function Items.FillLocked(btn)
     if Items.Outdated(btn, info) then return Items.Fill(btn) end
     run(SetItemButtonDesaturated, btn, info and info.isLocked)
     Items.Paint(btn, info ~= nil and (info.iconFileID or btn.dluiShown) ~= nil, info and info.quality, info and info.itemID, holder:GetID())
+    if btn.dluiTwin and btn.dluiTwin:IsShown() then Items.FillLocked(btn.dluiTwin) end
 end
 
 -- The cooldown sweep, and the dimmed icon of an item that can't be used yet, drawn
@@ -1396,6 +1402,7 @@ function Items.FillCooldown(btn, onlyFull)
     -- The cooldown paints the icon white or dim on every call, which took the
     -- red off items that can't be used.
     if btn.dluiUnusable then Items.Tint(btn, true) end
+    if btn.dluiTwin and btn.dluiTwin:IsShown() then Items.FillCooldown(btn.dluiTwin, onlyFull) end
 end
 
 -- Lit (a bag hovered in the strip): accent border, empty or not, so the whole bag

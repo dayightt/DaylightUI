@@ -3991,6 +3991,50 @@ T.test("bags: recent items first, for a while", function()
     stub.now, _G.GetTime = now, getTime
 end)
 
+T.test("bags: with the option on, a new item shows in Recent and in its own group", function()
+    local ns = catLogin()
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return bag == 0 and slot == 5 end }
+    local item = ns.Bags.buttons[0][5]
+    ns.Relayout()
+    local function copies()
+        local where = {}
+        for _, g in ipairs(ns.Layout.Groups(ns.module.db, ns.window)) do
+            for _, e in ipairs(g.entries) do
+                if e.button == item or e.twinOf == item then where[#where + 1] = g.key end
+            end
+        end
+        return table.concat(where, ",")
+    end
+    T.eq(copies(), "recent", "off by default: only in Recent")
+    DaylightUI:Set("Bags", "recentInGroup", true)
+    ns.Relayout()
+    T.eq(copies(), "recent,armor", "on: in Recent and in Armor")
+    local twin = ns.Bags.Twin(0, 5)
+    T.truthy(twin:IsShown(), "the copy is placed")
+    T.eq(twin:GetParent():GetID(), 0, "the copy is the same bag")
+    T.eq(twin:GetID(), 5, "and the same slot")
+    _G.C_NewItems.IsNewItem = function() return false end
+    ns.Categories.ClearRecent()
+    ns.Relayout()
+    T.eq(copies(), "armor", "no longer new: once, in its group")
+    T.falsy(twin:IsShown(), "the copy goes")
+    DaylightUI:Set("Bags", "recentInGroup", false)
+    _G.C_NewItems = nil
+end)
+
+T.test("bags: an item marked as junk wears the junk coin like a gray one", function()
+    local ns = catLogin()
+    local Cat, B = ns.Categories, ns.Bags
+    local bread = B.buttons[0][8]
+    T.falsy(ns.Keep.AnyMarkedJunk(ns.window), "nothing marked yet")
+    Cat.ToggleJunk(8, "Bread")
+    ns.Relayout()
+    ns.Items.Fill(bread)
+    T.eq(bread.calls.UpdateJunkItem[1], 0, "the game's coin is asked for as on a gray item")
+    T.truthy(ns.Keep.AnyMarkedJunk(ns.window))
+    Cat.ToggleJunk(8, "Bread")
+end)
+
 T.test("bags: right-clicking the Recent heading clears it", function()
     local ns = catLogin()
     local cleared = 0
@@ -5985,6 +6029,27 @@ T.test("bags: Clean Up leaves a kept slot alone and sorts the rest around it; wi
     f.sort:GetScript("OnClick")(f.sort)
     for _ = 1, 5 do stub.RunTimers() end
     T.eq(picks, 0, "nothing to do")
+end)
+
+T.test("bags: Clean Up puts items marked as junk at the end, with the gray junk", function()
+    local ns = login({ view = "grid" })
+    keepWorld()
+    local f = open(ns)
+    ns.FillAll()
+    world.items[0][7] = { iconFileID = 50, stackCount = 1, quality = 0, itemID = 50, itemName = "Bone",
+                          hyperlink = "|Hitem:50|h" }
+    T.falsy(ns.Keep.AnyMarkedJunk(f), "nothing marked: the game's sort")
+    ns.Categories.ToggleJunk(10, "Apple")
+    T.truthy(ns.Keep.AnyMarkedJunk(f))
+    f.sort:GetScript("OnClick")(f.sort)
+    T.eq(world.sorted or 0, 0, "not the game's sort: it knows only gray junk")
+    for _ = 1, 10 do stub.RunTimers() end
+    T.eq(world.items[0][1].itemName, "Banana")
+    T.eq(world.items[0][2].itemName, "Cherry")
+    T.eq(world.items[0][3].itemName, "Date")
+    T.eq(world.items[0][4].itemName, "Apple", "the marked item after the rest")
+    T.eq(world.items[0][5].itemName, "Bone", "beside the gray junk")
+    ns.Categories.ToggleJunk(10, "Apple")
 end)
 
 T.test("bags: with the game's clean up toward the end on, kept-slot Clean Up fills from the last slot back", function()

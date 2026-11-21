@@ -38,6 +38,29 @@ local function bagOf(btn)
     return holder and holder:GetID()
 end
 
+-- The section ("bags", "keyring"...) a container sits in.
+function Layout.SectionOf(window, bag)
+    for _, c in ipairs(window.set.List()) do
+        if c.id == bag then return c.section end
+    end
+    return "bags"
+end
+
+-- Twin buttons (Bags.NewSet's set.Twin) are hidden at the start of each layout;
+-- the Shelf and List show the ones still wanted.
+local function hideTwins(window)
+    if not window.set.Twins then return end
+    for _, b in ipairs(window.set.Twins()) do
+        b:Hide()
+        b.dluiCount = nil
+        if b.dluiTwinOf then b.dluiTwinOf.dluiTwin = nil end
+        b.dluiTwinOf = nil
+        if b.dluiRow then b.dluiRow:Hide() end
+        b:SetHitRectInsets(0, 0, 0, 0)
+        b.dluiEntry = nil
+    end
+end
+
 -- Records what each slot held when laid out (window.laid[button]), plus the
 -- grouped free tiles (window.tiles: { button, slots, key }) so Layout.Hold can
 -- recount them.
@@ -449,6 +472,21 @@ function Layout.Groups(cfg, window)
             end
         end
     end
+    -- With recentInGroup on, each new item also shows in the group it falls in
+    -- once it's no longer new, on a second button for the same slot.
+    if lists.recent and window == ns.window and ns.Setting("recentInGroup") == true and window.set.Twin then
+        for _, e in ipairs(lists.recent) do
+            local b = e.button
+            local bag = bagOf(b)
+            local key = Cat.Assign(e.facts, Layout.SectionOf(window, bag), true)
+            local twin = key ~= "recent" and window.set.Twin(bag, b:GetID())
+            if twin then
+                lists[key] = lists[key] or {}
+                table.insert(lists[key], { button = twin, facts = e.facts, total = e.total, order = e.order,
+                                           extra = {}, twinOf = b })
+            end
+        end
+    end
     local out = {}
     for _, key in ipairs(Cat.Order()) do
         local g = Cat.Get(key)
@@ -748,6 +786,7 @@ function Layout.Categories(window, cfg)
             b:Show()
             ns.Items.Place(b)
             ns.Items.SetFree(b, e.free)
+            if e.twinOf then Layout.ShowTwin(b, e) end
             if e.extra and #e.extra > 0 then
                 b.dluiCount = e.total
                 local all = { b }
@@ -1121,6 +1160,7 @@ function Layout.List(window, cfg)
                 b:Show()
                 ns.Items.Place(b)
                 ns.Items.SetFree(b, e.free)
+                if e.twinOf then Layout.ShowTwin(b, e) end
                 if e.extra and #e.extra > 0 then
                     b.dluiCount = e.total
                     local all = { b }
@@ -1207,6 +1247,12 @@ function Layout.Spots(window)
             end
         end
     end
+    for _, b in ipairs(window.set.Twins and window.set.Twins() or {}) do
+        if b:IsShown() and b:GetNumPoints() == 1 then
+            local _, _, _, x, y = b:GetPoint(1)
+            slots[b] = { x, y }
+        end
+    end
     for _, t in ipairs(window.tiles or {}) do
         if t.key and slots[t.button] then items[t.key] = slots[t.button] end
     end
@@ -1286,6 +1332,11 @@ function Layout.Ease(window, was)
         elseif was.slots[b] then
             fadeOut(b)
         end
+    end
+    -- A twin glides from its last spot, fades in when new and out when it goes.
+    for _, b in ipairs(window.set.Twins and window.set.Twins() or {}) do
+        if b:IsShown() then from(b, was.slots[b])
+        elseif was.slots[b] then fadeOut(b) end
     end
     for _, h in ipairs(window.headings or {}) do
         if h:IsShown() then
@@ -1433,6 +1484,7 @@ function Layout.Apply(window, cfg)
     local was = Layout.Eases(window) and Layout.Spots(window) or nil
     -- Then glides still running settle, so the layout below starts from its own spots.
     settleMoves(window)
+    hideTwins(window)
     local w, h
     if cfg.view == "list" then
         w, h = Layout.List(window, cfg)
@@ -1501,6 +1553,14 @@ function Layout.Grid(window, cfg)
     end
     for i = lines + 1, #(window.lines or {}) do window.lines[i]:Hide() end
     return width, y
+end
+
+-- A twin shows its slot's item with the same total as the Recent stack it copies.
+function Layout.ShowTwin(b, e)
+    b.dluiTwinOf = e.twinOf
+    e.twinOf.dluiTwin = b
+    b.dluiCount = (e.total ~= e.facts.count) and e.total or nil
+    ns.Items.Fill(b)
 end
 
 -- Holding still while open

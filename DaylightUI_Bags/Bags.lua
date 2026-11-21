@@ -151,6 +151,44 @@ function Bags.NewSet(list, make)
         return out
     end
 
+    -- A second button for a slot, so a new item can show in Recent and in its own
+    -- group at once. It sits in a holder of its own with the same container ID, so
+    -- the game treats a click on it like one on the slot itself. Made out of combat
+    -- only (nil then until the next layout); never for display-only sets.
+    set.twins, set.twinHolders = {}, {}
+    function set.Twin(bag, slot)
+        local list = set.twins[bag]
+        local btn = list and list[slot]
+        if btn or make then return btn end
+        if InCombatLockdown and InCombatLockdown() then return nil end
+        local main = set.holders[bag]
+        if not main then return nil end
+        local h = set.twinHolders[bag]
+        if not h then
+            h = CreateFrame("Frame", nil, main:GetParent())
+            h:SetID(bag)
+            h:SetAllPoints(main)
+            h.dluiWindow = main.dluiWindow
+            set.twinHolders[bag] = h
+        end
+        btn = CreateFrame("ItemButton", nil, h, ns.Items.TEMPLATE)
+        btn:SetID(slot)
+        ns.Items.Dress(btn)
+        btn:Hide()
+        set.twins[bag] = list or {}
+        set.twins[bag][slot] = btn
+        return btn
+    end
+
+    -- Every twin button made so far.
+    function set.Twins()
+        local out = {}
+        for _, list in pairs(set.twins) do
+            for _, btn in pairs(list) do out[#out + 1] = btn end
+        end
+        return out
+    end
+
     -- A container's button for a slot, if shown.
     function set.Button(bag, slot)
         local list = set.buttons[bag]

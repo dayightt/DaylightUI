@@ -460,6 +460,9 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "recentMinutes", label = "Keep new items in Recent", min = 1, max = 60, step = 1,
               disabled = function(get) return off(get) or not ns.Categories.RecentShown() end,
               desc = "How many minutes a new item stays in Recent before it goes to its own group. Right-click Recent to clear it sooner." },
+            { type = "toggle", key = "recentInGroup", label = "Also show new items in their group",
+              disabled = function(get) return off(get) or not ns.Categories.RecentShown() end,
+              desc = "A new item shows both in Recent and in the group it belongs to, so you can find it either way." },
         } },
         { label = "Groups", desc = "Listed in bag order. An item that fits several groups goes to the most specific one (a gray weapon goes to Junk). Your own groups are checked first.", items = {
             groupList,

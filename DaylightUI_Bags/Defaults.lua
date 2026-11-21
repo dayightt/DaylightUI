@@ -32,6 +32,7 @@ ns.DEFAULTS = {
     listSort = "shelf",     -- the list's column to sort by inside each group ("shelf" = the Shelf's order)
     listDesc = false,
     recentMinutes = 15,     -- minutes a new item stays in Recent
+    recentInGroup = false,  -- a new item also shows in its own group while in Recent
     autoStack = true,       -- merge partial stacks when the bag opens (Stack.lua)
     combineStacks = true,   -- show stacks of one item as one (split again while trading, mailing, at the AH)
     stackShards = true,     -- show Soul Shards as one pile with a count (Layout.PILES)

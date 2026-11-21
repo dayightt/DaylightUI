@@ -3,7 +3,9 @@
 -- kept, Clean Up runs this sort instead. It reads the bags, works out where
 -- everything belongs and swaps items into place in rounds a short beat apart.
 -- A kept item that wandered off goes back to its slot, and a kept slot whose
--- item is gone stays free for it. With no kept slots, Clean Up is the game's.
+-- item is gone stays free for it. Items marked as junk by hand need it too: the
+-- game's sort only knows gray junk, and this one puts both at the end. With no
+-- kept slots and no marked junk, Clean Up is the game's.
 -- Saved per character since bags differ. Moves stay inside the plain bags or
 -- inside one special bag (only its own item type fits), and bags the player
 -- told the game to skip during cleanup are skipped here too.
@@ -32,6 +34,18 @@ local function key(bag, slot) return bag .. ":" .. slot end
 function Keep.At(bag, slot) return kept()[key(bag, slot)] end
 
 function Keep.Any() return next(kept()) ~= nil end
+
+-- Whether any bag item is marked as junk by hand (Clean Up then runs this sort).
+function Keep.AnyMarkedJunk(window)
+    if not window then return false end
+    for _, s in ipairs(window.set.Slots()) do
+        if s.section ~= "keyring" then
+            local info = ns.Items.InfoAt(s.bag, s.button:GetID())
+            if info and ns.Categories.IsMarkedJunk(info.itemID) then return true end
+        end
+    end
+    return false
+end
 
 -- Only offered on the bag window's own slots in the bag-by-bag view. A slot
 -- means nothing in the categories view (kept slots still hold there).
@@ -67,12 +81,15 @@ local function facts(info)
         local ok, _, _, _, _, _, c, s = pcall(get, info.hyperlink or info.itemID)
         if ok then class, sub = c, s end
     end
-    return { mark = mark(info), class = class or 99, sub = sub or 0, quality = info.quality or 0,
+    local junk = info.quality == 0 or ns.Categories.IsMarkedJunk(info.itemID)
+    return { mark = mark(info), junk = junk, class = class or 99, sub = sub or 0, quality = info.quality or 0,
              name = info.itemName or info.hyperlink or "", count = info.stackCount or 1 }
 end
 
--- Same item types together, best quality first, then by name; bigger stacks first.
+-- Junk last, as the game's sort does. Then same item types together, best
+-- quality first, then by name; bigger stacks first.
 local function before(a, b)
+    if a.junk ~= b.junk then return b.junk end
     if a.class ~= b.class then return a.class < b.class end
     if a.sub ~= b.sub then return a.sub < b.sub end
     if a.quality ~= b.quality then return a.quality > b.quality end
