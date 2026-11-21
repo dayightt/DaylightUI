@@ -3844,6 +3844,62 @@ T.test("bags: Baganator's categories come over as your own groups", function()
     _G.C_EncodingUtil = nil
 end)
 
+-- Newer Baganator exports pack the table: "BGR!1!", CBOR, compressed, Base64.
+local function baganatorCodec()
+    local store = {}
+    _G.C_EncodingUtil = {
+        SerializeCBOR = function(v) store[#store + 1] = v; return "cbor" .. #store end,
+        DeserializeCBOR = function(s) local v = store[tonumber(string.match(s, "^cbor(%d+)$") or "")]
+            if not v then error("bad cbor") end; return v end,
+        CompressString = function(s) return s end, DecompressString = function(s) return s end,
+        EncodeBase64 = function(s) return s end, DecodeBase64 = function(s) return s end,
+    }
+    return function(t) return "BGR!1!" .. _G.C_EncodingUtil.SerializeCBOR(t) end
+end
+
+T.test("bags: Baganator's packed BGR!1! export comes over too", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local pack = baganatorCodec()
+    -- As its third export version writes it: priority with the modifications.
+    local text = pack({ version = 3, addon = "Baganator", kind = "categories",
+        categories = { { name = "Low", search = "#potion", source = "a" }, { name = "High", search = "#food", source = "b" } },
+        modifications = { { source = "a", priority = 0 }, { source = "b", priority = 3, items = { 6948 } },
+                          { source = "default_junk", items = { 4306 }, hideIn = {} } },
+        hidden = {}, order = {} })
+    -- The paste box wraps long text with line breaks.
+    local list, said = Cat.ReadShared(string.sub(text, 1, 4) .. "\n" .. string.sub(text, 5))
+    T.truthy(list, said)
+    T.eq(list[1].name, "High", "the higher priority first")
+    T.eq(list[2].name, "Low")
+    T.eq(list[1].items[1], 6948)
+    local n, moved = Cat.ImportShared(list)
+    T.eq(n, 2)
+    T.eq(moved.junk, 1)
+    T.isnil(Cat.ReadShared("BGR!1!cbor999"), "damaged")
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: a whole Baganator profile export brings its categories", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local pack = baganatorCodec()
+    local text = pack({ version = 3, addon = "Baganator", kind = "profile",
+        custom_categories = { ["1"] = { name = "Ore", search = "ore" } },
+        category_modifications = { ["1"] = { addedItems = { ["i:2770"] = true, ["p:12"] = true } },
+                                   default_junk = { addedItems = { ["i:4306"] = true } } },
+        category_hidden = { default_toy = true }, category_display_order = { "1", "default_junk" } })
+    local list, said = Cat.ReadShared(text)
+    T.truthy(list, said)
+    T.eq(list[1].name, "Ore")
+    T.eq(list[1].search, "ore")
+    T.eq(list[1].items[1], 2770)
+    local notes = table.concat(list.notes, "; ")
+    T.truthy(notes:find("battle pets", 1, true), notes)
+    T.truthy(notes:find("hidden categories", 1, true), notes)
+    _G.C_EncodingUtil = nil
+end)
+
 T.test("bags: Syndicator searches turned into the bag search", function()
     local S = catLogin().Search
     local function as(text) return (S.FromSyndicator(text)) end

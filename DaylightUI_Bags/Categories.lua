@@ -447,25 +447,83 @@ local function itemIDs(list, into)
     end
 end
 
+-- Newer Baganator versions export the same tables packed: "BGR!1!", then CBOR,
+-- compressed, Base64 (its CustomiseDialog/Categories/ImportExport.lua).
+Cat.BAGANATOR_PREFIX = "BGR!1!"
+
+-- A whole Baganator profile keeps its categories as maps by source. This puts
+-- them in the shape of a categories export.
+local function profileCategories(p)
+    local v = { categories = {}, modifications = {}, hidden = {},
+                order = type(p.category_display_order) == "table" and p.category_display_order or nil }
+    for source, c in pairs(type(p.custom_categories) == "table" and p.custom_categories or {}) do
+        if type(c) == "table" then
+            v.categories[#v.categories + 1] = { name = c.name, search = c.search, source = source }
+        end
+    end
+    -- pairs gives no set order: sort by source so the groups come in the same order each time.
+    table.sort(v.categories, function(a, b) return tostring(a.source) < tostring(b.source) end)
+    for source, m in pairs(type(p.category_modifications) == "table" and p.category_modifications or {}) do
+        if type(m) == "table" then
+            local items, pets = {}, {}
+            for details in pairs(type(m.addedItems) == "table" and m.addedItems or {}) do
+                local kind, id = string.match(tostring(details), "^(.):(%d+)$")
+                if kind == "i" then items[#items + 1] = tonumber(id)
+                elseif kind == "p" then pets[#pets + 1] = tonumber(id) end
+            end
+            table.sort(items)
+            v.modifications[#v.modifications + 1] = { source = source, items = items, pets = pets,
+                                                      group = m.group, priority = m.priority }
+        end
+    end
+    for source, hidden in pairs(type(p.category_hidden) == "table" and p.category_hidden or {}) do
+        if hidden then v.hidden[#v.hidden + 1] = source end
+    end
+    return v
+end
+
 -- A list for Cat.ImportShared (plus .notes: what was left out, in plain words),
--- or nil and the reason.
+-- or nil and the reason. Takes Baganator's JSON export or its packed one.
 function Cat.ReadBaganator(text)
     local E = C_EncodingUtil
-    if type(E) ~= "table" or type(E.DeserializeJSON) ~= "function" then
-        return nil, L["this game client can't read bag groups"]
+    local v
+    local packed = string.gsub(text, "%s", "")
+    if string.sub(packed, 1, #Cat.BAGANATOR_PREFIX) == Cat.BAGANATOR_PREFIX then
+        local why
+        v, why = DUI.Profiles.Unpack(packed, Cat.BAGANATOR_PREFIX)
+        if not v then
+            if why == "client" then return nil, L["this game client can't read bag groups"] end
+            return nil, L["the string is damaged (was all of it copied?)"]
+        end
+        if v.kind == "profile" then v = profileCategories(v) end
+    else
+        if type(E) ~= "table" or type(E.DeserializeJSON) ~= "function" then
+            return nil, L["this game client can't read bag groups"]
+        end
+        -- JSON escapes its own line breaks, so any here are the paste box's wrapping.
+        local ok
+        ok, v = pcall(E.DeserializeJSON, (string.gsub(text, "[\r\n]", "")))
+        if not ok then v = nil end
     end
-    -- JSON escapes its own line breaks, so any here are the paste box's wrapping.
-    text = string.gsub(text, "[\r\n]", "")
-    local ok, v = pcall(E.DeserializeJSON, text)
-    if not ok or type(v) ~= "table" or (type(v.categories) ~= "table" and type(v.modifications) ~= "table") then
+    if type(v) ~= "table" or (type(v.categories) ~= "table" and type(v.modifications) ~= "table") then
         return nil, L["that isn't a Daylight UI or Baganator bag groups string"]
+    end
+    -- Since its third export version Baganator keeps a category's priority with
+    -- its other changes rather than on the category.
+    local modPriority = {}
+    for _, m in ipairs(type(v.modifications) == "table" and v.modifications or {}) do
+        if type(m) == "table" and isText(m.source) and type(m.priority) == "number" then
+            modPriority[m.source] = m.priority
+        end
     end
     local notes, out, bySource, skipped, gone = {}, {}, {}, {}, {}
     local customs = {}
     for i, c in ipairs(type(v.categories) == "table" and v.categories or {}) do
         if #customs >= Cat.SHARE_MAX then break end
         if type(c) == "table" and isText(c.name) then
-            customs[#customs + 1] = { c = c, i = i, priority = type(c.priority) == "number" and c.priority or 0 }
+            local priority = type(c.priority) == "number" and c.priority
+                or modPriority[isText(c.source) and c.source or c.name] or 0
+            customs[#customs + 1] = { c = c, i = i, priority = priority }
         end
     end
     -- Baganator tries the highest priority first; here the first group in the
@@ -549,7 +607,10 @@ end
 -- Parses and validates shared text: a list of { name, search, items, color? }, or nil
 -- plus the reason. A Baganator export is read too (Cat.ReadBaganator).
 function Cat.ReadShared(text)
-    if type(text) == "string" and string.match(text, "^%s*{") then return Cat.ReadBaganator(text) end
+    if type(text) == "string" and (string.match(text, "^%s*{")
+        or string.sub(string.gsub(text, "%s", ""), 1, #Cat.BAGANATOR_PREFIX) == Cat.BAGANATOR_PREFIX) then
+        return Cat.ReadBaganator(text)
+    end
     local v, why = DUI.Profiles.Unpack(text, Cat.SHARE_PREFIX)
     if not v then
         local said = { empty = L["nothing pasted"], prefix = L["that isn't a Daylight UI bag groups string"],
