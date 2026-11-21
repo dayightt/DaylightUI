@@ -1,8 +1,8 @@
 -- The Auction House window: Buy, Sell and My auctions in Daylight UI's look,
 -- shown in place of the game's AuctionHouseFrame.
 --
--- The game's frame is parked under the window kit's veil (Win.Follow, veil):
--- it stays shown, at alpha 0, clipped a pixel off screen, so every way the
+-- The game's frame is held aside by the window kit (Win.Follow, aside):
+-- it stays shown, see-through and tiny, never clipped, so every way the
 -- game opens and closes the AH still runs only the game's own code. It must
 -- stay shown: its OnHide calls C_AuctionHouse.CloseAuctionHouse(), so the
 -- kit's hidden parent would close the AH as it was parked. The frame comes
@@ -369,7 +369,7 @@ function Main.Close() shut(false) end
 -- of AUCTION_HOUSE_SHOW and the frame's show is its own).
 -- Shift-clicking an item while the AH is open puts its name in the game's
 -- search box (the game's ChatFrameUtil.InsertLink, which only asks whether
--- AuctionHouseFrame is visible, and under the veil it is). This window sits in
+-- AuctionHouseFrame is visible, and held aside it is). This window sits in
 -- its place, so it takes the name from there and searches it on Buy.
 local watchedBox
 function Main.WatchLinks()
@@ -427,7 +427,7 @@ function Main.GiveAway()
     if Win.Followers.Release(def, Main.KIND) and open then shut(true) end
 end
 
--- Picked this one: an open game AH goes under the veil again and ours opens.
+-- Picked this one: an open game AH is held aside again and ours opens.
 function Main.TakeBack()
     local def = Main.follow
     if not def or not ns.swap or not ns.swap.Ours() then return end
@@ -528,7 +528,7 @@ function Main.Build(mod)
     Win.Drag(f, { save = Main.SaveSpot, reset = Main.ResetSpot })
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("AuctionHouse", "scale", v) end)
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Main.ResetSpot
-    Main.follow = Win.Follow({ key = "auctionhouse", frames = { [Main.KIND] = Main.Game }, veil = { [Main.KIND] = true },
+    Main.follow = Win.Follow({ key = "auctionhouse", frames = { [Main.KIND] = Main.Game }, aside = { [Main.KIND] = true },
         changed = Main.Changed, onPark = Main.Parked,
         leave = function() return not (ns.swap and ns.swap.Ours()) end,
         width = function() return Main.W * Win.Scale(ns.Setting("scale")) end })

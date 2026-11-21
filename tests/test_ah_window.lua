@@ -2,7 +2,7 @@ local AHW = require("ahworld")
 local stub = require("stub")
 
 -- The Auction House window: the game's AuctionHouseFrame parked under the
--- window kit's veil with this window in its place, the game's own one click
+-- window kit's aside holder with this window in its place, the game's own one click
 -- away (Win.Swap), the game's own in a fight, the header's sub line, the
 -- first-visit card and the scan band.
 
@@ -72,11 +72,11 @@ local function settle(A)
 end
 
 local function game() return rawget(_G, "AuctionHouseFrame") end
-local function veil() return DaylightUI.Win.Followers.veil end
+local function aside() return DaylightUI.Win.Followers.aside end
 local function click(b) b:GetScript("OnClick")(b, "LeftButton") end
 local function plain(fs) return (stub.Text(fs):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
 
-T.test("ah window: opens in place of the game's, on Buy, the game's frame under the veil", function()
+T.test("ah window: opens in place of the game's, on Buy, the game's frame held aside", function()
     local A = load()
     AHW.Open()
     frame(A)
@@ -86,7 +86,9 @@ T.test("ah window: opens in place of the game's, on Buy, the game's frame under 
     T.eq(stub.Text(A.Window.frame.title), "Auction House")
     local g = game()
     T.truthy(g:IsShown(), "the game's frame stays shown: its OnHide would close the AH")
-    T.eq(g:GetParent(), veil(), "parked under the veil as it loaded")
+    T.eq(g:GetParent(), aside(), "held aside as it loaded")
+    T.isnil(stub.ClipAncestor(g), "never under a clipping frame")
+    T.eq(g:IsVisible(), true)
     T.truthy(AHW.IsOpen())
     -- the next visit: ours again, on Buy
     A.Window.ShowTab("sell")
@@ -105,7 +107,7 @@ T.test("ah window: closing it closes the AH, Esc too", function()
     frame(A)
     A.Window.Close()
     settle(A)
-    T.falsy(AHW.IsOpen(), "an AH under the veil would be open and out of sight")
+    T.falsy(AHW.IsOpen(), "an AH held aside would be open and out of sight")
     T.falsy(game():IsShown())
     AHW.Open()
     frame(A)
@@ -142,7 +144,7 @@ T.test("ah window: the swap icon hands the AH to the game's window, its link bri
     settle(A)
     T.eq(DaylightUI:Get("AuctionHouse", "enabled"), true)
     T.truthy(A.Window.IsOpen(), "ours is back, the AH still open")
-    T.eq(game():GetParent(), veil())
+    T.eq(game():GetParent(), aside())
     T.truthy(AHW.IsOpen())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -158,7 +160,7 @@ T.test("ah window: the game's own AH in a fight, ours again after it", function(
     frame(A)
     stub.LeaveCombat()
     frame(A)
-    T.eq(game():GetParent(), veil(), "parked after the fight")
+    T.eq(game():GetParent(), aside(), "parked after the fight")
     stub.EnterCombat()
     frame(A)
     T.eq(game():GetParent(), UIParent, "a hidden frame goes back as a fight starts")
@@ -289,7 +291,7 @@ T.test("ah window: a Shift-clicked item is searched on Buy", function()
     local searched = {}
     local submit = A.BuyPage.Submit
     A.BuyPage.Submit = function(text) searched[#searched + 1] = text end
-    T.truthy(insertLink("Linen Cloth"), "the game's frame counts as visible under the veil")
+    T.truthy(insertLink("Linen Cloth"), "the game's frame counts as visible while held aside")
     A.BuyPage.Submit = submit
     T.deq(searched, { "Linen Cloth" })
     T.eq(A.Window.frame.tab, "buy", "Buy comes up to show it")
@@ -331,7 +333,7 @@ T.test("ah window: the link brings ours back after a login with the game's picke
     settle(A)
     T.eq(DaylightUI:Get("AuctionHouse", "enabled"), true)
     T.truthy(A.Window.IsOpen(), "ours opens, the AH still open")
-    T.eq(game():GetParent(), veil())
+    T.eq(game():GetParent(), aside())
     T.truthy(AHW.IsOpen())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
