@@ -13,17 +13,20 @@ ns.Bridge = Bridge
 Bridge.CUT = ns.SellPage and ns.SellPage.CUT or 0.05
 
 -- What one sells for at the Auction House, then when it was last seen; nil
--- when never seen. A price seen today is what the market is now, so it wins;
--- an older one is only a guess, so the usual price over the last days is
--- used instead.
+-- when never seen. A price seen in the last few hours (a scan before going to
+-- craft) is what the market is now, so it wins; an older one is only a guess,
+-- so the usual price over the last days is used instead. Hours rather than
+-- the calendar day: the day turns over in the middle of an evening's play.
+Bridge.FRESH = 12 * 3600
+
 function Bridge.Item(itemID)
     local rkey = ns.Ruleset.Key()
     local key = rkey and ns.Items.Key(itemID)
     if not key then return nil end
     local now = ns.Game.Now()
     local seen = ns.Store.SeenAt(rkey, key)
-    local today = seen and ns.Market.Day(seen) == ns.Market.Day(now)
-    local price = (today and ns.Store.Min(rkey, key))
+    local fresh = seen and now - seen < Bridge.FRESH
+    local price = (fresh and ns.Store.Min(rkey, key))
         or ns.Store.Market(rkey, key, now) or ns.Store.Min(rkey, key)
     if not price then return nil end
     return price, ns.Store.SeenAt(rkey, key)

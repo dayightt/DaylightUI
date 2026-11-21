@@ -99,6 +99,18 @@ T.test("craft profit: a price seen today wins over the usual one", function()
     T.eq(p.value, 300)
 end)
 
+T.test("craft profit: a scan just before midnight still counts after it", function()
+    local ns, A = load()
+    local midnight = math.floor(NOW / 86400) * 86400 + 86400
+    stub.SetTime(midnight + 1800)
+    A.Store.Record("US-PvE", tostring(SILK), 50, 20, midnight - 1800)
+    for d = 1, 6 do A.Store.Record("US-PvE", tostring(BOLT), 600, 20, midnight - d * 86400) end
+    A.Store.Record("US-PvE", tostring(BOLT), 300, 20, midnight - 1800)
+    open(ns)
+    local p = ns.Profit.Of(recipe(ns, 102))
+    T.eq(p.value, 300)
+end)
+
 T.test("craft profit: an old sighting falls back to the usual price", function()
     local ns, A = load()
     price(A, SILK, 50)
