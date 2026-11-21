@@ -479,6 +479,15 @@ end
 function Rich.Own(data, n)
     local list = type(data) == "table" and data.lines or nil
     local own = type(list) == "table" and #list or 0
+    -- The game writes the tooltip line each data line landed on into its
+    -- lineIndex. A data line can add nothing (a recipe's empty spacer), so the
+    -- last landed line is the true end, not the count of data lines.
+    local last
+    for _, line in ipairs(type(list) == "table" and list or {}) do
+        local at = type(line) == "table" and line.lineIndex or nil
+        if not isSecret(at) and type(at) == "number" and (not last or at > last) then last = at end
+    end
+    if last then own = last end
     if own == 0 then own = n end
     return math.max(1, math.min(own, n))
 end

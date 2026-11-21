@@ -2197,3 +2197,16 @@ T.test("tooltip: world things and compare tooltips run their plugins; the look i
     T.deq(heard, { "rich", "simple" })
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("tooltip: the card's own lines end at the last one the game drew, not at its data's count", function()
+    login(itemWorld)
+    local Own = stub.tooltip.Rich.Own
+    -- A recipe's spell, as the game hands it: an empty spacer second that adds
+    -- no line, so four drawn lines from five data lines, then another addon's.
+    local recipe = { lines = { { type = 13, lineIndex = 1 }, { type = 0, leftText = "", rightText = "", lineIndex = 1 },
+        { lineIndex = 2 }, { lineIndex = 3 }, { type = 34, lineIndex = 4 } } }
+    T.eq(Own(recipe, 5), 4, "the fifth line is the other addon's")
+    T.eq(Own({ lines = { {}, {}, {} } }, 5), 3, "no line indexes: the data's count, as before")
+    T.eq(Own({ lines = {} }, 5), 5, "no lines of its own: all are the card's")
+    T.eq(Own({ lines = { { lineIndex = stub.Secret(1) }, {} } }, 4), 2, "a secret index is skipped")
+end)
