@@ -9,8 +9,6 @@
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
     values = {
-        ["Buffs.settings.hideList"] = "The Aura Lists page says Hidden is picked everywhere, but the buff bar used none, so hidden buffs still showed there.",
-        ["Buffs.settings.debuff.hideList"] = "Same as the buff bar: the debuff bar now takes the Hidden list like every other debuff row.",
         ["Tooltip.pill"] = "The fight pill confused players who never picked it, so it is off until chosen.",
     },
     frames = {},
