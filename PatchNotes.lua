@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Nameplates", "The execute range band on enemy health bars ends right at the health you picked, instead of looking a few percent higher" },
+    } },
     { version = "2.1.3", date = "2026-11-20", summary = "A much fuller Auction House: bids, smarter selling and a quicker feel. Plus Cooldown Manager layouts you can share, and a land-early button on the flight timer.", new = {
         { "Auction House", "Sell remembers how many you last posted, can undercut by a percent and warns before you post far too cheap. Pin or hide items, search My auctions, and set a max price on Buy" },
         { "Auction House", "Waylaid Crate tooltips show what each bundle costs and the cheapest way to fill the crate" },
