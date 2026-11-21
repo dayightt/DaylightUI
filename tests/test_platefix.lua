@@ -54,8 +54,8 @@ T.test("platefix: yes after a step opens a report naming that step", function()
     local text = shownText()
     T.truthy(text, "the copy box is up")
     T.truthy(text:find("step 2 brought them back", 1, true), text)
-    T.truthy(text:find("  1. the plate size", 1, true), "what step 1 did")
-    T.truthy(text:find("  2. ", 1, true), "what step 2 did")
+    T.truthy(text:find("=> same, the plate size and click area", 1, true), "what step 1 did: " .. text)
+    T.truthy(text:find("  2: ", 1, true), "what step 2 did")
     T.truthy(text:find("Before step 1:", 1, true), "the plates as they were")
     T.truthy(text:find("Game plates 1, ours 1", 1, true), text)
     T.truthy(text:find("ShowEnemies=1", 1, true), "the game's plate settings")
@@ -90,7 +90,7 @@ T.test("platefix: after every step with no yes, the report says none did", funct
     T.truthy(said:find("every step", 1, true), said)
     local text = shownText()
     T.truthy(text and text:find("no step brought them back", 1, true), tostring(text))
-    T.truthy(text:find("  7. ", 1, true), "every step listed")
+    T.truthy(text:find("  7: ", 1, true), "every step listed")
 end)
 
 T.test("platefix: yes with no step run asks for a run first, and opens nothing", function()
@@ -127,6 +127,49 @@ T.test("platefix: the report fits one Discord report, log and all", function()
     T.truthy(text:find("[Further report lines omitted]", 1, true), "the reader knows when detail was dropped")
     T.truthy(text:find("Daylight UI now:", 1, true), "a busy log never pushes out the held-open count")
     T.truthy(text:find("World UI:", 1, true), "a busy log never pushes out the world switch line")
+end)
+
+-- Lines as long as a real 2.1.3 report from a player, whose setup lines took
+-- the whole box and left the log of what happened before with no line at all.
+T.test("platefix: a report as long as a real one still keeps the moments before step 1", function()
+    login()
+    local R = DaylightUI.PlateReport
+    local snap = { "1", "1", "1", game = 3, ours = 3 }
+    local run = { did = {}, trace = {}, log = {}, before = {
+        "Daylight UI 2.1.3. Game plates 1, ours 1, spare 39, hidden by platefps=false",
+        "Settings: scale=1 offsetY=14 dimOthers=false minions=true friendly bars=false",
+        "Game: MinAlpha=0.600000 MaxAlpha=1.000000 OccludedAlphaMult=0.400000 GlobalScale=nil MinScale=1 MaxScale=1 "
+            .. "SelectedScale=1 MaxDistance=60 Stacking enemy=true friendly=false",
+        "Plate settings: clean",
+        "nameplate1: friendly, player=false, minion=false, target=false, behindCamera=false",
+        "  game plate shown=true visible=true alpha=0.60 effective=0.60 strata=WORLD scale=0.64 rectValid=true box=can't measure",
+        "  above it WorldFrame shown=true visible=true alpha=1.00 effective=1.00 strata=WORLD scale=1.00 rectValid=true "
+            .. "box=0,0 1835x768",
+        "  game frame onPlate=false held=true clicks=ours box=ours",
+        "  ours shown=true visible=true alpha=1.00 effective=0.60 strata=MEDIUM scale=0.64 rectValid=true box=can't measure",
+        "  on this plate=true friendly=true nameOnly=true minion=false bar=false name=true group=nil",
+        "Nothing looks wrong.",
+    } }
+    for n = 1, 8 do
+        run.trace[n] = { before = snap, after = snap }
+        run.did[n] = "the game's plates rebuilt, Daylight UI's back on over the game's own, which stay visible "
+            .. "(wait two seconds, and say which of the two you see)"
+    end
+    for i = 30, 1, -1 do run.log[#run.log + 1] = string.format("  -0:%02d plates +2 -1, moment %d", i, i) end
+    local world = { "Other addons: " .. string.rep("SomeAddOn, ", 60) .. "LastAddOn" }
+    for i = 1, 10 do
+        world[#world + 1] = (i == 9 and "Daylight UI now: " or "Setup line: ") .. string.rep("word=1 ", 18)
+    end
+    local text = R.BuildFixReport("Daylight UI 2.1.3 platefix: no step brought them back", run, world)
+    T.truthy(#text <= R.REPORT_MAX, #text)
+    T.truthy(text:find("moment 1\n", 1, true), "the moment closest to step 1 survives: " .. text)
+    local kept = 0
+    for _ in text:gmatch("plates %+2 %-1, moment") do kept = kept + 1 end
+    T.truthy(kept >= 8, "the last minute or so of the log survives, kept " .. kept)
+    T.truthy(text:find("  8: ", 1, true), "every step's counts survive")
+    T.truthy(text:find("Nothing looks wrong.", 1, true), "the plate's verdict survives")
+    T.truthy(text:find("Daylight UI now:", 1, true), "the setup lines survive")
+    T.truthy(text:find("Other addons: SomeAddOn", 1, true), "the start of the addon list survives")
     T.truthy(text:find("Other addons:", 1, true), "a busy log never pushes out the addon list")
 end)
 
@@ -765,8 +808,8 @@ T.test("platefix: the report traces each step's switches and plates near the top
     local text = shownText()
     T.truthy(text, "the copy box is up")
     local trace = text:find("Each step, before => after", 1, true)
-    T.truthy(trace and trace < text:find("  1. the plate size", 1, true), text)
-    T.truthy(text:find("  3: E1 FP1 FN0 G1 O0 => E1 FP1 FN0 G1 O1", 1, true), text)
+    T.truthy(trace and trace < text:find(", the plate size", 1, true), text)
+    T.truthy(text:find("  3: E1 FP1 FN0 G1 O0 => E1 FP1 FN0 G1 O1, the game", 1, true), text)
     T.truthy(text:find("  At yes: E0 FP1 FN0 G1 O1", 1, true), text)
 end)
 

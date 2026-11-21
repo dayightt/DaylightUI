@@ -667,6 +667,7 @@ end)
 R.CHECK_DETAIL = 6
 R.REPORT_MAX = 3800
 R.ADDONS_ROOM = 400
+R.LOG_FLOOR = 600 -- about ten log lines, the minute or so before step 1
 R.FIX_GAP = 0.5
 R.FIX_SETTLE = 1
 R.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
@@ -920,12 +921,24 @@ function R.FixYes(run, ours)
     if run then run.atYes = R.Snapshot(ours) end
 end
 
+-- One line per step: the counts before and after it, then what it did. The
+-- "wait" hints are for the player in chat and are left out of the report.
 function R.TraceLines(run)
-    if not run or not run.trace then return {} end
-    local out = { "Each step, before => after (E FP FN show switches, G game plates, O with Daylight UI's):" }
-    for n = 1, #run.trace do
-        local row = run.trace[n]
-        out[#out + 1] = string.format("  %d: %s => %s", n, snapText(row.before), snapText(row.after))
+    if not run then return {} end
+    local trace, did = run.trace or {}, run.did or {}
+    local out = {}
+    if #trace > 0 then
+        out[1] = "Each step, before => after (E FP FN show switches, G game plates, O with Daylight UI's), what it did:"
+    end
+    for n = 1, math.max(#trace, #did) do
+        local said = did[n] and tostring(did[n]):gsub(" %(wait[^)]*%)$", "") or "?"
+        local row = trace[n]
+        if row then
+            local was, now = snapText(row.before), snapText(row.after)
+            out[#out + 1] = string.format("  %d: %s => %s, %s", n, was, now == was and "same" or now, said)
+        else
+            out[#out + 1] = string.format("  %d. %s", n, said)
+        end
     end
     if run.atYes then out[#out + 1] = "  At yes: " .. snapText(run.atYes) end
     return out
@@ -986,28 +999,51 @@ R.FIX = {
 -- Keep the plate as it was when the player saw the problem, then the outcome of
 -- every step. A busy event log or a long addon list can fill the copy box.
 function R.BuildFixReport(title, run, world)
-    local out = { title }
-    for _, line in ipairs(R.TraceLines(run)) do out[#out + 1] = line end
-    out[#out + 1] = "Before step 1:"
-    for _, line in ipairs(run.before) do out[#out + 1] = line end
-    for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
     -- The setup and Daylight UI state lines go before the log, and the addon
     -- list goes last: a busy log or a long list used to push the state lines
     -- past the end, and they were cut from nearly every report.
     local addons
     for _, line in ipairs(world) do
-        if line:find("^Other addons:") then addons = line else out[#out + 1] = line end
+        if line:find("^Other addons:") then addons = line end
     end
-    out[#out + 1] = "What happened before step 1 (most recent first, minutes:seconds before it):"
-    local head = R.Printable(table.concat(out, "\n"))
+    local function headText(short)
+        local out = { title }
+        for _, line in ipairs(R.TraceLines(run)) do out[#out + 1] = line end
+        out[#out + 1] = "Before step 1:"
+        local left = 0
+        for _, line in ipairs(run.before) do
+            if short and line:find("^  ") then left = left + 1 else out[#out + 1] = line end
+        end
+        if left > 0 then out[#out + 1] = string.format("  (%d lines of plate detail left out for room)", left) end
+        for _, line in ipairs(world) do
+            if line ~= addons then out[#out + 1] = line end
+        end
+        out[#out + 1] = "What happened before step 1 (most recent first, minutes:seconds before it):"
+        return R.Printable(table.concat(out, "\n"))
+    end
+    local log = run.log or {}
     local omitted = "\n[Further report lines omitted]"
+    local logWants = 0
+    for _, line in ipairs(log) do logWants = logWants + #line + 1 end
+    local floor = math.min(logWants, R.LOG_FLOOR)
+    -- The last moments before step 1 are what a report can't do without.
+    -- Short of room, a plate's detail lines go first (they read the same on a
+    -- healthy plate as on a missing one), unless one of them looks wrong.
+    local head = headText(false)
+    local wrong = false
+    for _, line in ipairs(run.before) do
+        if line:find("^LOOKS WRONG") then wrong = true end
+    end
+    if not wrong and #head + floor + #omitted > R.REPORT_MAX then head = headText(true) end
     if #head > R.REPORT_MAX then
         local prefix = head:sub(1, R.REPORT_MAX - #omitted + 1)
         return prefix:match("^(.*)\n") .. omitted
     end
-    -- The log keeps room for a short addon list, then takes what it needs.
+    -- The log keeps room for a short addon list, then takes what it needs,
+    -- but never less than its floor while the box has room for it.
     local room = R.REPORT_MAX - #omitted - (addons and R.ADDONS_ROOM or 0)
-    local log, lines, size, cut = run.log or {}, {}, #head, false
+    room = math.min(math.max(room, #head + floor), R.REPORT_MAX - #omitted)
+    local lines, size, cut = {}, #head, false
     for i = #log, 1, -1 do
         local line = "\n" .. R.Printable(log[i])
         if size + #line > room then cut = true break end
@@ -1019,7 +1055,7 @@ function R.BuildFixReport(title, run, world)
         local line = "\n\n" .. R.Printable(addons)
         local left = R.REPORT_MAX - #text - #omitted
         if #line > left then
-            line, cut = line:sub(1, left):match("^(.*),") or "", true
+            line, cut = left > 0 and line:sub(1, left):match("^(.*),") or "", true
         end
         text = text .. line
     end
