@@ -1,4 +1,5 @@
--- Daylight's own Cooldown Manager layout in the fake game, shared by the CDM tests.
+-- Daylight UI's own Cooldown Manager layout in the fake game, shared by the CDM tests: the
+-- hand-made stand-in, next to cdmworld.lua, which runs the game's real code.
 local stub = require("stub")
 local H = require("helpers")
 
