@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         { "Little touches", "The raid marker icons show in the right-click marker menu again, instead of dark empty boxes" },
         { "Unit frames", "The slanted level tag on set-in portraits stays put with a cast bar under the frame, instead of turning into a round badge" },
         { "Tooltips", "Prices from TradeSkillMaster, Disenchantry and other addons show as coins again on Rich tooltips, instead of stray letters and numbers" },
+        { "Info panel", "The data texts no longer jiggle side to side as the framerate or your coordinates change" },
         { "Skins", "Opening the Auction House or the macro window no longer shows a Lua error now and then" },
         { "Tooltips", "TradeSkillMaster's disenchant lines keep their colors and indent on Rich tooltips, and long lines from other addons wrap instead of running off the edge" },
     } },

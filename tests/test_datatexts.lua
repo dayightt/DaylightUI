@@ -425,6 +425,34 @@ T.test("data texts: slots are picked in the options; the clock-like ones tick on
     end
 end)
 
+T.test("data texts: a ticking number that changes width doesn't push the texts after it", function()
+    local DUI = login()
+    DUI:Set("InfoPanel", "data.count", 5)
+    stub.RunTimers()
+    local D = DT()
+    -- As in a real font, a 1 is narrower than the other digits.
+    for _, s in ipairs(D.slots) do
+        s.text.GetStringWidth = function(self)
+            local t = plain(self:GetText() or "")
+            local ones = select(2, t:gsub("1", ""))
+            return #t * 5 - ones * 3
+        end
+    end
+    _G.GetFramerate = function() return 58 end
+    D.Update(true)
+    stub.RunTimers()
+    D.Layout()
+    T.truthy(shown()[4]:find("58 fps", 1, true), shown()[4])
+    local after = D.slots[5]
+    local x = after.x
+    _G.GetFramerate = function() return 61 end
+    D.Update(true)
+    stub.RunTimers()
+    T.truthy(shown()[4]:find("61 fps", 1, true), shown()[4])
+    T.eq(after.x, x, "the next text stays put")
+    _G.GetFramerate = function() return 119.6 end
+end)
+
 T.test("data texts: the gold tooltip lists every character's gold and the total", function()
     local DUI = login()
     local chars = DUI.DB.Root().characters

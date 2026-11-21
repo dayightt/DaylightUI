@@ -1593,6 +1593,43 @@ function DT.New(S, opts)
     -- Spreads the texts across the strip, splitting the spare room evenly,
     -- with a divider between each pair. With glide, slots that move slide
     -- over instead of jumping.
+    -- A text measured with each digit as wide as the widest one: most fonts
+    -- draw a 1 narrower, so a framerate going 58 to 61 changed its width and
+    -- slid every text after it a pixel back and forth. Now a slot only moves
+    -- when the number gains or loses a digit. Icons keep their own numbers.
+    local widest = {}
+    local function wideDigit(fs)
+        local font, size = fs:GetFont()
+        local key = tostring(font) .. ":" .. tostring(size)
+        if widest[key] then return widest[key] end
+        local best, bw = "0", -1
+        for d = 0, 9 do
+            fs:SetText(tostring(d))
+            local w = fs:GetStringWidth() or 0
+            if type(w) == "number" and w > bw then best, bw = tostring(d), w end
+        end
+        widest[key] = best
+        return best
+    end
+    local function steadyWidth(fs, text)
+        text = text or ""
+        local digit = wideDigit(fs)
+        local icons = {}
+        local wide = text:gsub("|[TA].-|[ta]", function(icon)
+            icons[#icons + 1] = icon
+            return ""
+        end):gsub("(|c%x%x%x%x%x%x%x%x)", function(code)
+            icons[#icons + 1] = code
+            return ""
+        end):gsub("%d", digit)
+        local n = 0
+        wide = wide:gsub("", function() n = n + 1; return icons[n] end)
+        fs:SetText(wide)
+        local w = fs:GetStringWidth() or 0
+        fs:SetText(text)
+        return w
+    end
+
     function S.Layout(glide)
         if not (area and S.keys) then return end
         local n = #S.keys
@@ -1606,8 +1643,7 @@ function DT.New(S, opts)
         -- Measure both versions, then drop labels one at a time (biggest
         -- saving first) until everything fits.
         local function measure(s, short)
-            s.text:SetText(short and s.short or s.long)
-            return s.text:GetStringWidth() or 0
+            return steadyWidth(s.text, short and s.short or s.long)
         end
         local words = cfg.labels == true
         local sum = 0
@@ -1675,13 +1711,9 @@ function DT.New(S, opts)
     local function sameWidth(s)
         if not (s.wLong and s.wShort) then return false end
         local fs = s.text
-        fs:SetText(s.short)
-        local ws = fs:GetStringWidth() or 0
+        local ws = steadyWidth(fs, s.short)
         local wl = ws
-        if cfg.labels == true then
-            fs:SetText(s.long)
-            wl = fs:GetStringWidth() or 0
-        end
+        if cfg.labels == true then wl = steadyWidth(fs, s.long) end
         fs:SetText(s.isShort and s.short or s.long)
         return math.abs(ws - s.wShort) < 0.5 and math.abs(wl - s.wLong) < 0.5
     end
