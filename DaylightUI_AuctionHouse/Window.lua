@@ -31,7 +31,7 @@ local Main = {}
 ns.Window = Main
 
 Main.NAME = "DaylightUIAuctionHouse"
-Main.W, Main.H = 960, 620
+Main.W, Main.H = 960, 642
 Main.ICON = "Interface\\Icons\\INV_Misc_Coin_02"
 Main.KIND = "ah"
 Main.TABS = {
@@ -39,7 +39,8 @@ Main.TABS = {
     { id = "sell", text = L["Sell"] },
     { id = "auctions", text = L["My auctions"] },
 }
-Main.MONEY_GAP = 2          -- your gold, on the header's sub line, its right end under the X
+Main.MONEY_STRIP = 22       -- a strip along the bottom edge holding your gold
+Main.MONEY_RIGHT = 22       -- clear of the resize grip in the corner
 Main.AGE_TICK = 60          -- seconds between repaints of the sub line's age while open
 Main.SEP = "  \194\183  "   -- "  ·  " between the sub line's parts
 Main.LINK_BUSY = 0.35       -- the Full scan link while a scan runs
@@ -120,7 +121,7 @@ function Main.Header()
 end
 
 
--- Your gold at the right end of the sub line, as the game's window shows it.
+-- Your gold in the bottom right corner, as the game's window shows it.
 -- A change counts to the new amount.
 local moneyKey = {}
 function Main.PaintMoney(instant)
@@ -518,9 +519,10 @@ function Main.Build(mod)
     link:Hide()
     Main.scanLink = link
     f.money = Style.Text(f, Style.SIZE.small, "RIGHT")
-    -- on the sub line's row, right-aligned with the X: part of the header, not floating under it
-    f.money:SetPoint("RIGHT", f.close, "RIGHT", -Main.MONEY_GAP, 0)
-    f.money:SetPoint("TOP", f.sub, "TOP", 0, 0)
+    -- Your gold sits in its own strip in the bottom right corner, out of the way of the tabs
+    -- and of each page's footer buttons.
+    f.host:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, Main.MONEY_STRIP)
+    f.money:SetPoint("RIGHT", f, "BOTTOMRIGHT", -Main.MONEY_RIGHT, Main.MONEY_STRIP / 2)
     f.money:SetWordWrap(false)
     Main.PaintMoney(true)
     if ns.ScanBand then ns.ScanBand.Build(f) end
