@@ -200,6 +200,11 @@ function Plate.NameOnly(p, c)
     return p.object or (p.friendly and not c.friendly.enabled) or false
 end
 
+-- Whether the plate shows its name. A name-only plate keeps it, or it would be empty.
+function Plate.NameShown(p, c)
+    return c.showName ~= false or Plate.NameOnly(p, c)
+end
+
 local function cfg() return ns.cfg end
 
 -- A plate's settings. Friendly plates read their own (cfg.friendly) where set;
@@ -802,7 +807,7 @@ function Plate.Layout(p)
     hp:SetPoint("CENTER", p, "CENTER", 0, 0)
     hp:SetSize(w, h)
     hp:SetShown(not nameOnly and not minion)
-    p.name:SetShown(not minion)
+    p.name:SetShown(not minion and Plate.NameShown(p, c))
     ns.Minion.Layout(p, c, kind, h)
     -- The border is clamped to this bar's height, so a thin friendly bar keeps some
     -- visible fill instead of being all border.
@@ -1379,6 +1384,7 @@ function Plate.UpdateClassText(p)
     -- A name or guild line a plugin holds keeps its own color, no copies over it.
     local nameMine, subMine = not Plate.Owned("name"), not Plate.Owned("guild")
     local copies = hidden and nameMine and c.nameColor == "classGradient" and not p.groupName
+        and Plate.NameShown(p, c)
     local classy = Plate.GuildInClass(c)
     local subOn = copies and subMine and classy and p.guild ~= nil and p.sub:IsShown()
     p.name:SetAlpha(copies and 0 or 1)
@@ -1423,8 +1429,18 @@ end
 -- anyone else, getting close to pulling (above the tank, or most of the way to
 -- the pull threshold).
 function Plate.ThreatState(u)
-    if not cfg().threat then return nil end
+    local c = cfg()
+    if not c.threat then return nil end
+    if c.threatSolo and not DUI.Threat.Shared() then return Plate.SoloThreatState(u) end
     return Plate.ThreatStateOf(u)
+end
+
+-- Solo (threatSolo): a mob attacking you is "aggro", every other one keeps its
+-- normal color, so solo plates read like they do in a group.
+function Plate.SoloThreatState(u)
+    local level = DUI.Threat.Level("player", u)
+    if level == "aggro" then return "aggro" end
+    return nil
 end
 
 -- Same, whether or not Threat colors are on (for the threat % color).
@@ -1526,6 +1542,8 @@ end
 -- everyday state, every mob in a pull, stays calm.
 function Plate.ThreatBreath(state)
     local P = Plate.THREAT_PULSE
+    -- Solo every fight is on you: a pulse there would never stop.
+    if not DUI.Threat.Shared() then return nil end
     if state == "warn" then return P.warn end
     if state == (DUI.Threat.IsTank() and "lost" or "aggro") then return P.aggro end
     return nil

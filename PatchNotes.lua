@@ -15,6 +15,8 @@ DUI.PatchNotes = {
         { "Tooltip", "A creature's health bar can sit at the bottom of its tooltip, and quest progress bars can be turned off" },
         { "Flight timer", "Point at a stop on the flight timer's route to see its name" },
         { "Tooltips", "Durability on item tooltips turns from green to amber to red as your gear wears down" },
+        { "Nameplates", "Names on nameplates can be hidden, for enemy and friendly plates separately" },
+        { "Nameplates", "Threat colors can work solo too: mobs attacking you turn red, the rest stay as they are" },
     }, changed = {
         { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under it, so prices stop creeping down" },
         { "Loot", "The loot rolls switch works like every other switch again: on shows Daylight UI's roll window, off the game's own popups" },

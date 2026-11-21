@@ -98,6 +98,8 @@ ns.OPTIONS = { pages = {
               desc = "How solid the empty part of every plate's health and power bar is. Lower lets the world show through it, like the game's own plates." },
             { type = "slider", key = "castHeight", label = "Cast bar height", min = 4, max = 24, step = 1, unit = "px",
               desc = "How tall the cast bar under an enemy plate is." },
+            { type = "toggle", key = "showName", label = "Names",
+              desc = "Shows the name on enemy plates. Turn it off for bars only." },
             { type = "slider", key = "nameSize", label = "Name size", min = 8, max = 22, step = 1,
               desc = "Text size of the names on enemy plates." },
             DaylightUI.Options.FontRow("media.nameFont", "Name font", "Names on the nameplates, and the guild line under them"),
@@ -437,8 +439,11 @@ ns.OPTIONS = { pages = {
       groups = {
         { label = "Threat", items = {
             { type = "toggle", key = "threat", label = "Threat colors",
-              desc = "In a group, colors a mob by who it's attacking; solo plates never change. "
+              desc = "In a group, colors a mob by who it's attacking; solo plates stay as they are unless you turn on the solo switch below. "
                   .. "Red while it's attacking you, yellow while it's attacking someone else, orange when it's about to switch." },
+            { type = "toggle", key = "threatSolo", label = "Threat colors when solo",
+              desc = "Solo, a mob attacking you turns red and the rest keep their normal color, like in a group.",
+              disabled = off("threat") },
             { type = "toggle", key = "threatBar", label = "Threat: on the health bar",
               desc = "Colors the health bar. You can turn on any mix of these three.",
               disabled = off("threat") },
@@ -641,6 +646,8 @@ ns.OPTIONS = { pages = {
             { spot = "friendly.levelPos", x = "friendly.levelX", y = "friendly.levelY" }, false,
             function(get) return not get("friendly.enabled") or not get("friendly.level") end)) },
         { label = "Names", items = with({
+            { type = "toggle", key = "friendly.showName", label = "Friendly names",
+              desc = "Shows the name on friendly plates with a health bar. Plates that are just a name keep it." },
             { type = "slider", key = "friendly.nameSize", label = "Friendly name size", min = 8, max = 24, step = 1,
               desc = "Text size of the names on friendly plates." },
             { type = "dropdown", key = "friendly.nameColor", label = "Friendly name color",

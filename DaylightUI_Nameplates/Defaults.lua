@@ -41,6 +41,7 @@ ns.DEFAULTS = {
     width = 170,
     height = 16,
     castHeight = 14,
+    showName = true, -- names on enemy plates
     nameSize = 13,
     shortNames = false, -- long names shortened to initials but the last word ("S. C. Commander"), friendly plates too
     percent = true, -- health percent on the bar
@@ -56,6 +57,7 @@ ns.DEFAULTS = {
     guildColor = "class", guildCustom = { INK.GOOD[1], INK.GOOD[2], INK.GOOD[3] }, guildSize = 0,
     roleColor = "tan", roleCustom = { INK.MONEY[1], INK.MONEY[2], INK.MONEY[3] }, roleSize = 0,
     threat = false, -- threat colors in a group or with a pet; off until a player (a tank) turns them on
+    threatSolo = false, -- solo too: mobs attacking you in the aggro color, the rest normal
     threatBar = true, -- ...on the health bar fill (the original look)
     threatBorder = false, -- ...on the bar border
     threatGlow = false, -- ...as a glow around the bar
@@ -147,6 +149,7 @@ ns.DEFAULTS = {
         percent = false, healthFormat = "percent", percentSign = true, healthSize = 0,
         level = false,
         power = false, -- power bar under friendly health bars (who: shared powerShow)
+        showName = true, -- names on friendly plates (name-only plates keep theirs)
         nameSize = 13, nameColor = "class", guild = true, role = true,
         -- Name color "custom": a color per kind of friendly name.
         namePlayer = { 0.45, 0.7, 1.0 },    -- a friendly player

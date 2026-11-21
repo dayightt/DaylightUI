@@ -802,6 +802,43 @@ T.test("nameplates: threat for damage and healers: yellow on someone else, orang
     stub.inGroup = false
 end)
 
+T.test("nameplates: threat colors when solo: a mob on you turns red, the rest stay normal, no pulse", function()
+    login(function() stub.role = "DAMAGER" end)
+    local p = added("nameplate1")
+    local S = DaylightUI.Style
+    local normal = fillRed(p)
+    stub.inGroup = false
+    threatOn("nameplate1", 3, 100)
+    T.near(fillRed(p), normal, 1e-6, "switch off: solo stays normal")
+    DaylightUI:Set("Nameplates", "threatSolo", true)
+    stub.RunTimers()
+    threatOn("nameplate1", 3, 100)
+    T.near(fillRed(p), S.Soften(0.92, 0.2, 0.18), 1e-6, "attacking you: red")
+    T.isnil(stub.nameplates.Plate.ThreatBreath("aggro"), "solo never breathes")
+    threatOn("nameplate1", 0, 40)
+    T.near(fillRed(p), normal, 1e-6, "not on you: normal, never yellow")
+    stub.units.nameplate1.threatList = nil
+    stub.FireEvent("UNIT_THREAT_LIST_UPDATE", "nameplate1")
+    T.near(fillRed(p), normal, 1e-6, "not fighting: normal")
+    stub.role = nil
+end)
+
+T.test("nameplates: names can be hidden on enemy and friendly plates separately", function()
+    login()
+    local set = function(k, v) DaylightUI:Set("Nameplates", k, v); stub.RunTimers() end
+    set("friendly.enabled", true)
+    local e, f = added("nameplate1"), added("nameplate2")
+    T.truthy(e.name:IsShown(), "enemy name shown by default")
+    T.truthy(f.name:IsShown(), "friendly name shown by default")
+    set("showName", false)
+    T.falsy(e.name:IsShown(), "enemy name hidden")
+    T.truthy(f.name:IsShown(), "friendly name untouched")
+    set("friendly.showName", false)
+    T.falsy(f.name:IsShown(), "friendly name hidden")
+    set("friendly.enabled", false)
+    T.truthy(f.name:IsShown(), "a name-only plate keeps its name")
+end)
+
 T.test("nameplates: alone with a pet, threat colors the bar as in a group", function()
     login(function() stub.role = "DAMAGER" end)
     local p = added("nameplate1")
