@@ -1,9 +1,10 @@
--- Druid resource bars (druidBars, off by default). Small bars under the player
--- frame for the druid powers not shown on the main bar: rage and energy in
--- caster form, mana and energy in bear, mana and rage in cat. Each appears once
--- you know the matching form. Gradient bars in each power's colors, using the
--- player frame's power texture, with an optional number. They have their own
--- unlock handle (unitframes.druidBars) and fade with the player frame.
+-- Druid resource bars (druidBars, off by default). A bar over the player frame
+-- for your mana while Bear or Cat Form puts rage or energy on the main bar.
+-- Rage and energy never get a bar outside their form: shifting starts them
+-- over, so the number the game keeps for them meanwhile (energy fills up in
+-- caster form) is one you never get to use. A gradient bar in mana's colors,
+-- using the player frame's power texture, with an optional number. It has its
+-- own unlock handle (unitframes.druidBars) and fades with the player frame.
 -- Power values go straight to secret-safe setters and are never compared.
 
 local _, ns = ...
@@ -18,26 +19,14 @@ DruidBars.KEY = "unitframes.druidBars"
 -- and hung cast bar sit underneath, and the frame's default spot is too close
 -- to the bottom of the screen for more.
 DruidBars.HOME = { "BOTTOMRIGHT", "DaylightUIFrame_player", "TOPRIGHT", -8, 6 }
--- Powers in stacking order: Enum.PowerType id, token, and the forms that need
--- it (nil means always, i.e. your mana).
+-- The powers a bar can show: Enum.PowerType id and token.
 DruidBars.POWERS = {
     { id = 0, token = "MANA" },
-    { id = 1, token = "RAGE", forms = { 5487, 9634 } },   -- Bear Form, Dire Bear Form
-    { id = 3, token = "ENERGY", forms = { 768 } },        -- Cat Form
 }
 
 local holder, rows, cfg, current
 
 local isSecret = DUI.IsSecret
-
-local function known(power)
-    if not power.forms then return true end
-    if not (C_SpellBook and C_SpellBook.IsSpellKnown) then return false end
-    for _, id in ipairs(power.forms) do
-        if C_SpellBook.IsSpellKnown(id) then return true end
-    end
-    return false
-end
 
 local function isDruid()
     local _, class = UnitClass("player")
@@ -67,7 +56,7 @@ function DruidBars.Create(f)
     return holder
 end
 
--- The powers to show now: every known one except the one the main bar shows.
+-- The powers to show now: mana, while the main bar shows another power.
 function DruidBars.Wanted()
     local out = {}
     if not (cfg and cfg.enabled == true and isDruid()) then return out end
@@ -75,7 +64,7 @@ function DruidBars.Wanted()
     if isSecret(token) then token = current end
     current = token
     for i, p in ipairs(DruidBars.POWERS) do
-        if p.token ~= token and known(p) then out[#out + 1] = i end
+        if p.token ~= token then out[#out + 1] = i end
     end
     return out
 end
@@ -149,7 +138,6 @@ function DruidBars.Layout(c)
         holder:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
         holder:RegisterUnitEvent("UNIT_MAXPOWER", "player")
         holder:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
-        holder:RegisterEvent("SPELLS_CHANGED")
     else
         holder:UnregisterAllEvents()
     end
