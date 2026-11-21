@@ -155,3 +155,51 @@ T.test("ah tooltip: the options switch the price lines off one by one", function
     T.deq(lefts(fill(link(HERB), true)), {})
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- A Waylaid Crate lists the bundles that fill it in its use text; each one
+-- priced from what its herb last cost, even with no price for the crate.
+local CRATE = "Use: Fill the crate with any bundle from the following list:\n- 20 Peacebloom\n- 20 Silverleaf\n- 10 Briarthorn"
+
+local function fillCrate(M, useText)
+    local tip = GameTooltip
+    tip:ClearLines()
+    tip.__link = "|cffffffff|Hitem:240001::::::::60::::::::|h[Waylaid Crate]|h|r"
+    tip:AddLine("Waylaid Crate: Apprentice Herbs")
+    tip:AddLine(useText)
+    local data = { type = 0, hyperlink = tip.__link }
+    for _, fn in ipairs(post[0] or {}) do fn(tip, data) end
+    return tip.__rows
+end
+
+local function withNames(names, fn)
+    local get = C_Item.GetItemInfoInstant
+    C_Item.GetItemInfoInstant = function(x)
+        if names[x] then return names[x] end
+        return get(x)
+    end
+    fn()
+    C_Item.GetItemInfoInstant = get
+end
+
+T.test("ah tooltip: a crate prices each bundle that fills it", function()
+    local M = load()
+    M.Store.Record("US-PvE", "2447", 10, 60, NOW)   -- Peacebloom
+    M.Store.Record("US-PvE", "765", 8, 60, NOW)     -- Silverleaf
+    withNames({ Peacebloom = 2447, Silverleaf = 765, Briarthorn = 2450 }, function()
+        local rows = fillCrate(M, CRATE)
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+        T.deq(lefts(rows), { CRATE, "Cheapest to fill", "20 Peacebloom", "20 Silverleaf", "10 Briarthorn" })
+        local W = DaylightUI.Widgets
+        T.eq(rows[3].right, W.Money(160), "the cheapest bundle's total")
+        T.eq(rows[4].right, W.Money(200))
+        T.eq(rows[5].right, W.Money(160))
+        T.eq(rows[6].right, "no price yet")
+        M.Tooltip.OnItem(GameTooltip, { hyperlink = GameTooltip.__link })
+        T.eq(#GameTooltip.__rows, 6, "the lines go in once")
+    end)
+end)
+
+T.test("ah tooltip: dash lines naming no known item add nothing", function()
+    local M = load()
+    T.deq(lefts(fillCrate(M, "Use: something\n- 3 made up things")), { "Use: something\n- 3 made up things" })
+end)

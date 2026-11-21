@@ -88,14 +88,90 @@ function Tooltip.Lines(link, held, stack)
     return rows
 end
 
-local function addLines(tip, data)
-    if ns.mogul or not on("tooltip") then return end
-    local name = tip.GetName and tip:GetName()
-    if type(name) ~= "string" then return end
-    local link = itemOf(tip, data)
-    if link == nil then return end
-    local rows = Tooltip.Lines(link, IsShiftKeyDown and IsShiftKeyDown(), ns.Items.StackCount(tip))
-    if not rows or hasLine(tip, name, rows[1][1]) then return end
+-- The tooltip's own text lines, from the fill's data when it has them, else
+-- from the drawn left texts. Secret ones are skipped.
+local function textLines(tip, name, data)
+    local out = {}
+    local lines = type(data) == "table" and plain(data.lines) or nil
+    if type(lines) == "table" then
+        for _, line in ipairs(lines) do
+            local text = type(line) == "table" and plain(line.leftText) or nil
+            if type(text) == "string" then out[#out + 1] = text end
+        end
+        if out[1] then return out end
+    end
+    local n = plain(tip:NumLines())
+    if type(n) ~= "number" then return out end
+    for i = 1, n do
+        local fs = _G[name .. "TextLeft" .. i]
+        local text = fs and fs.GetText and plain(fs:GetText())
+        if type(text) == "string" then out[#out + 1] = text end
+    end
+    return out
+end
+
+-- Bundle lines such as "- 20 Peacebloom" (a Waylaid Crate's use text lists
+-- the bundles that fill it, one per line). Color codes are dropped and an
+-- "x" after the count is allowed, as some languages write "20 x Name".
+function Tooltip.Bundles(lines)
+    local found = {}
+    for _, text in ipairs(lines) do
+        text = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        for piece in (text .. "\n"):gmatch("([^\n]*)\n") do
+            local count, item = piece:match("^%s*%-%s*(%d+)%s*[xX\195\151]?%s+(.-)%s*$")
+            if count and item ~= "" then
+                found[#found + 1] = { count = tonumber(count), name = item }
+            end
+        end
+    end
+    return found
+end
+
+-- The itemID for a bundle's name: the game's cache first, then the names the
+-- Buy page has already gathered.
+local function idOfName(itemName)
+    local id = ns.Items.IDByName(itemName)
+    if id then return id end
+    local index = ns.BuyPage and ns.BuyPage.nameIndex
+    local lower = itemName:lower()
+    for _, e in ipairs(index and index.entries or {}) do
+        if e[1] == lower then return e[3] end
+    end
+    return nil
+end
+
+-- What each bundle costs at its last seen price, the cheapest total on the
+-- heading row. Nil unless at least one bundle names an item the game knows,
+-- so a "- 3 ..." line in some other item's text adds nothing.
+function Tooltip.FillLines(lines)
+    local rkey = ns.Ruleset.Key()
+    if not rkey then return nil end
+    local bundles = Tooltip.Bundles(lines)
+    if not bundles[1] then return nil end
+    local INK = DUI.Style.INK
+    local rows, cheapest, known = {}, nil, false
+    for _, b in ipairs(bundles) do
+        local id = idOfName(b.name)
+        if id then known = true end
+        local key = id and ns.Items.Key(id)
+        local min = key and ns.Store.Min(rkey, key)
+        local label = b.count .. " " .. b.name
+        if min then
+            local total = min * b.count
+            if not cheapest or total < cheapest then cheapest = total end
+            rows[#rows + 1] = { label, DUI.Widgets.Money(total), INK.TEXT, INK.VALUE }
+        else
+            rows[#rows + 1] = { label, L["no price yet"], INK.TEXT, INK.OFF }
+        end
+    end
+    if not known then return nil end
+    table.insert(rows, 1, { L["Cheapest to fill"],
+        cheapest and DUI.Widgets.Money(cheapest) or L["no price yet"],
+        INK.LABEL, cheapest and INK.VALUE or INK.OFF })
+    return rows
+end
+
+local function addRows(tip, rows)
     for _, r in ipairs(rows) do
         local a, b = r[3], r[4]
         if r[2] then
@@ -104,6 +180,18 @@ local function addLines(tip, data)
             tip:AddLine(r[1], a[1], a[2], a[3])
         end
     end
+end
+
+local function addLines(tip, data)
+    if ns.mogul or not on("tooltip") then return end
+    local name = tip.GetName and tip:GetName()
+    if type(name) ~= "string" then return end
+    local link = itemOf(tip, data)
+    if link == nil then return end
+    local fill = Tooltip.FillLines(textLines(tip, name, data))
+    local rows = Tooltip.Lines(link, IsShiftKeyDown and IsShiftKeyDown(), ns.Items.StackCount(tip))
+    if rows and not hasLine(tip, name, rows[1][1]) then addRows(tip, rows) end
+    if fill and not hasLine(tip, name, fill[1][1]) then addRows(tip, fill) end
 end
 
 -- The post-call: the two item tooltips, never a compare or a forbidden one.

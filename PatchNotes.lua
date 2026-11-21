@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         { "Cooldown Manager", "Share your whole Cooldown Manager layout with friends: Export in the layout editor gives it as text, with every spell's options and its look, and Import takes it in" },
         { "Flight timer", "A small button on the flight timer lands you at the next stop, and the timer then shows that stop and counts down to it" },
         { "Auction House", "Sell asks once more before posting far under what most others ask, or for less than a vendor would pay you" },
+        { "Auction House", "Waylaid Crate tooltips show what each bundle costs at the Auction House, and the cheapest way to fill the crate" },
     }, changed = {
         { "Chat", "\"You gain 45 experience\" lines from kills no longer fill the General tab while you grind. They still show in the Loot tab" },
         { "Auction House", "Faster and smoother: lists and prices show as soon as the first page comes in, a new search takes over from the old one, and Post, Buy and Cancel go dim for a moment while the Auction House is busy instead of turning your click down. My auctions updates itself when something sells, and the Auction House key buys on Buy too" },
