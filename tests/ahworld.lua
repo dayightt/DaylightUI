@@ -658,6 +658,14 @@ end
 
 local function shownRows(r) return math.min(r.shown, #r.rows) end
 
+-- Whether the item stacks: an auction's `stack` (GetItemInfo's itemStackCount) over 1.
+local function stacks(id)
+    for _, a in ipairs(S().auctions) do
+        if a.itemID == id and (a.stack or 1) > 1 then return true end
+    end
+    return false
+end
+
 local function search(name, key)
     local id = key.itemID
     local q = copyKey(key)
@@ -673,6 +681,9 @@ local function search(name, key)
         if sell then answered.itemLevel, answered.itemSuffix = 0, 0 end
         fire("AUCTION_HOUSE_NEW_RESULTS_RECEIVED", answered)
         if sell and (q.itemLevel ~= 0 or q.itemSuffix ~= 0) then return end
+        -- A sell search for something that stacks (ammo, thrown weapons) never brings
+        -- results either (seen in play): the game's sell frame sends one only for gear.
+        if sell and stacks(id) then return end
         local glitch = S().emptyOnce and S().emptyOnce[id]
         if glitch then S().emptyOnce[id] = nil end
         local exact = name == "SendSearchQuery"
@@ -920,7 +931,8 @@ local function install()
         for _, a in ipairs(S().auctions) do
             if a.itemID == id then
                 if a.quality then quality = a.quality end
-                if a.suffix or a.classID == 2 or a.classID == 4 then equipment = true end
+                -- ammo (classID 6) goes in the ammo slot, so the game may call it equipment (a guess)
+                if a.suffix or a.classID == 2 or a.classID == 4 or a.classID == 6 then equipment = true end
                 if a.words and key.itemSuffix == a.suffix and not S().plainKeyNames then name = name .. " " .. a.words end
             end
         end

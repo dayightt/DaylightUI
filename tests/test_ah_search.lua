@@ -122,6 +122,27 @@ T.test("item_search_prices_each_suffix", function()
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
 
+-- Ammo stacks to 200 and the game may call it equipment (it goes in the ammo slot),
+-- but a sell search for something that stacks never brings results: it was a dead
+-- search every time, so arrows could neither be bought nor priced.
+T.test("ammo_search_asks_like_any_stack", function()
+    local ARROW = 2515
+    local M = load({ auctions = {
+        { itemID = ARROW, count = 200, buyout = 600, classID = 6, stack = 200 },
+        { itemID = ARROW, count = 200, buyout = 400, classID = 6, stack = 200 },
+    } })
+    AHW.Open()
+    local got = search(M, ARROW)
+    AHW.Settle()
+    T.isnil(got.reason)
+    T.eq(got.calls, 1, "answered")
+    T.deq(byKey(got.rows)["2515"], { key = "2515", base = "2515", unit = 2, qty = 400 })
+    T.eq(AHW.Calls("SendSellSearchQuery"), 0, "never a sell search for a stack")
+    T.eq(AHW.Calls("SendSearchQuery"), 1)
+    quiet(M)
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
+
 -- Seen in play: MakeItemKey(2901) gave a Mining Pick's key at itemLevel 4,
 -- the sell search went out with it, and only AUCTION_HOUSE_NEW_RESULTS_RECEIVED
 -- came back: every gear check sat out its 10 s timeout, and the picked item

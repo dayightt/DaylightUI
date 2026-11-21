@@ -51,7 +51,7 @@
 -- key whose info it doesn't have yet, so GetItemKeyInfo is waited for first
 -- (ITEM_KEY_ITEM_INFO_RECEIVED; item data asked with
 -- C_Item.RequestLoadItemDataByID). Its isCommodity picks the results, its
--- isEquipment the query: gear goes through SendSellSearchQuery, the one the docs
+-- isEquipment the query: gear that doesn't stack goes through SendSellSearchQuery, the one the docs
 -- give a cleared key to (every level and suffix comes back; the game's sell
 -- frame does it: ConvertItemSellItemKey); SendSearchQuery with a cleared key
 -- finds no suffixed gear (seen in play). The rest: SendSearchQuery(itemKey,
@@ -104,6 +104,15 @@ local last = {}                      -- itemID -> { rows, auctions, at }: the la
 function Search.Slot(itemID)
     if not (C_Item and C_Item.GetItemInventoryTypeByID) then return nil end
     return C_Item.GetItemInventoryTypeByID(itemID)
+end
+
+-- Whether the item stacks (ammo, thrown weapons). The game can call ammo
+-- equipment because it goes in the ammo slot, but a sell search for anything
+-- that stacks never brings results, so those are searched like any other stack.
+function Search.Stacks(itemID)
+    if not (C_Item and C_Item.GetItemInfo) then return false end
+    local most = select(8, C_Item.GetItemInfo(itemID))
+    return type(most) == "number" and most > 1
 end
 
 -- Searches in progress.
@@ -423,7 +432,7 @@ local function tryStart(j)
     stopWaiting(j)
     j.commodity = info.isCommodity == true
     j.auctions.commodity = j.commodity
-    j.equipment = info.isEquipment == true
+    j.equipment = info.isEquipment == true and not j.commodity and not Search.Stacks(j.itemID)
     -- the sell search wants level and suffix cleared (the docs; the game's
     -- ConvertItemSellItemKey). MakeItemKey fills in the item's level, and sent
     -- so the client never fires a results event (in play: a 10 s timeout each)

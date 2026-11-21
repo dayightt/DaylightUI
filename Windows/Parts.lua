@@ -359,6 +359,7 @@ local function makeSection(parent)
     local b = CreateFrame("Frame", nil, parent)
     b.text = Style.Text(b, Parts.HEAD, "LEFT")
     b.text:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
+    b.text:SetWordWrap(false)
     b.line = tex(b, "ARTWORK", { 1, 1, 1, 0.06 })
     b.line:SetHeight(1)
     b.line:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 0)
@@ -397,6 +398,12 @@ function Stack:Section(label, opts)
         else b.action:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 0) end
     end
     b.action:SetShown(opts.action ~= nil)
+    -- A long label stops short of the link and the value instead of running under them.
+    b.text:ClearAllPoints()
+    b.text:SetPoint("BOTTOMLEFT", b, "BOTTOMLEFT", 0, 4)
+    if opts.action then b.text:SetPoint("BOTTOMRIGHT", b.action, "BOTTOMLEFT", -8, 4)
+    elseif opts.value then b.text:SetPoint("BOTTOMRIGHT", b.value, "BOTTOMLEFT", -8, 0)
+    else b.text:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", 0, 4) end
     b.stackKey = "section:" .. (label or "")
     return put(self, b, 22, 12)
 end

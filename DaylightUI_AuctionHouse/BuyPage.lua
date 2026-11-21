@@ -1805,7 +1805,7 @@ function BP.PaintStat()
         local text = ""
         local n = #S.rows
         local count = string.format(n == 1 and L["%s item"] or L["%s items"], pop(ns.Thousands(n)))
-        if S.running then
+        if S.running or (d and d.opening and not d.steps) then
             text = L["Searching..."]
         elseif d and d.commodity and d.steps and BP.Most(d) > 0 and not S.quote then
             local k = S.amount or 1
