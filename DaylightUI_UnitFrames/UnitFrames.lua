@@ -1372,6 +1372,35 @@ function UF.ApplyShell(f, cfg)
             end
         end
     end
+    local ts = f.tab and Style.GetShell(f.tab)
+    if ts then
+        ts.opts.bgColor = UF.TabColor(cfg)
+        Style.PaintBack(ts)
+    end
+end
+
+-- The name tab's background (<frame>.tab.color): dark (the shell's own, nil
+-- here), your class, the accent, or a color picked. Class and accent are
+-- darkened so the white name on it stays easy to read; a picked color is
+-- taken as it is. Read at every layout, so an accent change repaints it.
+UF.TAB_TINT = 0.55
+function UF.TabColor(cfg)
+    local t = type(cfg) == "table" and type(cfg.tab) == "table" and cfg.tab or nil
+    local mode = t and t.color
+    local r, g, b
+    if mode == "class" then
+        local _, token = UnitClass("player")
+        if DUI.IsSecret(token) then token = nil end
+        r, g, b = Style.ClassColor(token)
+    elseif mode == "accent" then
+        r, g, b = Style.Accent()
+    elseif mode == "custom" and type(t.colorCustom) == "table" and type(t.colorCustom[1]) == "number" then
+        return t.colorCustom
+    else
+        return nil
+    end
+    local k = UF.TAB_TINT
+    return { r * k, g * k, b * k }
 end
 
 -- The name tab's own settings when it has its own look, else nil.

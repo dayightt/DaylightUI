@@ -1407,6 +1407,8 @@ local TAB_SLANTS = { frame = "Same as the frame", on = "Angled", off = "Straight
 local TAB_AT = { outer = "Outer end", middle = "Middle", inner = "Inner end" }
 local TAB_WIDTHS = { fit = "Fit the name", full = "Full width", fixed = "Fixed width" }
 local TAB_ALIGNS = { left = "Left", center = "Center", right = "Right" }
+local TAB_COLORS = { dark = "Dark", class = "Your class", accent = "Accent", custom = "Custom" }
+
 local function tabCard(id, onRow)
     local k = function(s) return id .. ".tab." .. s end
     local f = function(s) return id .. "." .. s end
@@ -1448,6 +1450,13 @@ local function tabCard(id, onRow)
             { type = "dropdown", key = k("align"), label = "Name alignment in the tab", values = TAB_ALIGNS,
               desc = "Where the name sits inside its tab: left, center or right.",
               order = { "left", "center", "right" }, disabled = noTab, hidden = onRow },
+            { type = "dropdown", key = k("color"), since = "2.3", label = "Name tab color", values = TAB_COLORS,
+              order = { "dark", "class", "accent", "custom" },
+              desc = "The color behind the name: dark like the frame, your class color, the accent, or a color you pick, to match a themed UI.",
+              disabled = noTab, hidden = onRow },
+            { type = "color", key = k("colorCustom"), since = "2.3", label = "Custom name tab color",
+              desc = "The color behind the name when Name tab color is Custom.",
+              disabled = function(get) return noTab(get) or get(k("color")) ~= "custom" end, hidden = onRow },
         } }
 end
 

@@ -359,10 +359,12 @@ end
 -- slant "frame" follows the frame's angled end. at = outer (past the portrait)
 -- | middle | inner (clear of the angled end), nudged by x/y (up).
 -- width = fit (the name) | full | fixed (widthPx). align positions the name.
+-- color = dark | class | accent | custom (colorCustom): the tab's background (UF.TabColor).
 ns.TAB_FRAMES = { "player", "target", "focus", "party", "pet" }
 for _, k in ipairs(ns.TAB_FRAMES) do
     ns.DEFAULTS[k].tab = { own = false, borderPx = 4, cornerPx = 6, shadowPx = 4, slant = "frame",
-                           at = "outer", x = 0, y = 0, width = "fit", widthPx = 90, align = "center" }
+                           at = "outer", x = 0, y = 0, width = "fit", widthPx = 90, align = "center",
+                           color = "dark", colorCustom = { 0.35, 0.3, 0.4 } }
 end
 
 -- The frame styles (UF.StyleOf). A style is a set of pieces the frame code
