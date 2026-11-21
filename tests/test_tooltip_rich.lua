@@ -2534,6 +2534,98 @@ local function foreignLogin()
 end
 
 -- The pieces after the card's last rule: the other addons' area.
+-- A profession's recipe as the game writes it on a spell's tooltip.
+local RECOVERY = {
+    { "Enchanting: Enchant Weapon - Recovery" },
+    "Reagents:",
+    "Soul Dust (6), Large Glimmering Shard (4), Pyrite (4)",
+    { "Permanently enchant a Melee Weapon to trigger Recovery when you are Parried or Dodged.", nil, YELLOW },
+    "Tools: Runed Silver Rod",
+}
+
+local function recipeWorld()
+    spells()
+    stub.SetItems({
+        [20001] = { id = 20001, quality = 1, icon = 1001 },
+        [20002] = { id = 20002, quality = 2, icon = 1002 },
+        [20003] = { id = 20003, quality = 1, icon = 1003 },
+        ["Runed Silver Rod"] = { id = 20010, quality = 1, icon = 1010 },
+    })
+    stub.bagCounts = {}
+    C_Item.GetItemCount = function(id) return stub.bagCounts[id] or 0 end
+    _G.C_TradeSkillUI = { GetRecipeSchematic = function(id)
+        if id ~= 13890 then return { reagentSlotSchematics = {} } end
+        local function slot(item, n) return { reagents = { { itemID = item } }, quantityRequired = n, required = true } end
+        return { reagentSlotSchematics = { slot(20001, 6), slot(20002, 4), slot(20003, 4) } }
+    end }
+end
+
+T.test("rich tooltip: a recipe's card lists its reagents with icons and counts, the profession as a tag", function()
+    local _, Panel = login("rich")
+    recipeWorld()
+    fillSpell(13890, RECOVERY)
+    update()
+    local p = Panel.Get(GameTooltip)
+    local head = kinds(p, "header")[1]
+    T.eq(stub.Text(head.title), "Enchant Weapon - Recovery", "the profession leaves the title")
+    T.eq(stub.Text(head.tags[1].text), "ENCHANTING")
+    -- The description first, then the reagents under their heading.
+    local order = {}
+    for i = 1, p.count do order[#order + 1] = p.items[i].kind end
+    local text, section = kinds(p, "text")[1], kinds(p, "section")[1]
+    T.truthy(text and section, "a description and a heading")
+    T.truthy(stub.Text(text.fs):find("^Permanently"), "the description")
+    T.eq(stub.Text(section.fs), "REAGENTS")
+    local rows = kinds(p, "row")
+    T.eq(#rows, 4, "three reagents and a tool")
+    T.eq(stub.Text(rows[1].label), "|T1001:0:0:0:0:64:64:5:59:5:59|t Soul Dust", "its icon from the recipe")
+    T.eq(stub.Text(rows[1].value), "6")
+    T.eq(stub.Text(rows[2].label), "|T1002:0:0:0:0:64:64:5:59:5:59|t Large Glimmering Shard")
+    T.eq(stub.Text(rows[4].label), "|T1010:0:0:0:0:64:64:5:59:5:59|t Runed Silver Rod", "the tool")
+    T.eq(stub.Text(rows[4].value), "Tool")
+    -- None of the recipe's lines are read again as sentences or facts.
+    T.eq(#kinds(p, "text"), 1, "only the description is a sentence")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.C_TradeSkillUI = nil
+end)
+
+T.test("rich tooltip: a recipe's reagents on the same line, and a short one in the bags", function()
+    local _, Panel = login("rich")
+    recipeWorld()
+    stub.bagCounts[20001] = 2
+    stub.bagCounts[20002] = 9
+    fillSpell(13890, {
+        { "Enchanting: Enchant Weapon - Recovery" },
+        "Reagents: |nSoul Dust (6), Large Glimmering Shard (4), |cffff2020Pyrite|r (4)",
+        { "Permanently enchant a Melee Weapon.", nil, YELLOW },
+    })
+    update()
+    local p = Panel.Get(GameTooltip)
+    local rows = kinds(p, "row")
+    T.eq(#rows, 3)
+    local hex = DaylightUI.Win.Parts.Hex
+    local INK = DaylightUI.Style.INK
+    T.eq(stub.Text(rows[1].value), hex(INK.BAD) .. "2|r" .. hex(INK.LABEL) .. " / |r6", "two of six in the bags")
+    T.eq(stub.Text(rows[2].value), "4", "enough of it")
+    T.eq(stub.Text(rows[3].label), "|T1003:0:0:0:0:64:64:5:59:5:59|t Pyrite", "the game's red code left out")
+    local r, g = rows[3].value:GetTextColor()
+    T.eq(r, INK.BAD[1], "none in the bags: red")
+    T.eq(g, INK.BAD[2])
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.C_TradeSkillUI = nil
+end)
+
+T.test("rich tooltip: a spell that only looks like a recipe keeps its title", function()
+    local _, Panel = login("rich")
+    recipeWorld()
+    fillSpell(116, { { "Frostbolt" }, { "Hurls a bolt of frost: it slows.", nil, YELLOW } })
+    update()
+    local p = Panel.Get(GameTooltip)
+    T.eq(#kinds(p, "section"), 0)
+    T.eq(stub.Text(kinds(p, "header")[1].title), "Frostbolt")
+    _G.C_TradeSkillUI = nil
+end)
+
 local function afterRule(p)
     local out, seen = {}, false
     for i = 1, p.count do

@@ -24,6 +24,7 @@ Spells.AFTER_HEADER = 12  -- the header, then the strip
 Spells.AFTER_STRIP = 12   -- the strip, then the description
 Spells.BAR_GAP = 6
 Spells.CHARGES_GAP = 12
+Spells.SECTION_GAP = 4    -- a recipe's reagents heading, then its rows
 Spells.TICK = 0.1         -- how often "Ready in" counts down
 
 -- The schools a description can name (the game's own words for them).
@@ -106,6 +107,95 @@ end
 
 local DESC_TYPE = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SpellDescription or 34
 
+-- ---------------------------------------------------------------------
+-- A profession's recipe: "Reagents:" and "Tools:" lines
+-- ---------------------------------------------------------------------
+
+-- The word before the colon in one of the game's strings ("Reagents: |n"
+-- gives "Reagents"), in the player's language, or the English fallback.
+local function wordOf(global, fallback)
+    local g = _G[global]
+    if type(g) == "string" then
+        local w = g:match("^%s*(.-)%s*:") or g:match("^%s*(.-)%s*\239\188\154")
+        if w and w ~= "" then return w end
+    end
+    return fallback
+end
+
+function Spells.RecipeWords()
+    return wordOf("SPELL_REAGENTS", L["Reagents"]), wordOf("SPELL_TOTEMS", L["Tools"])
+end
+
+-- What follows "Word:" at the start of a line (the colon may be a full-width
+-- one), or nil when the line doesn't start with it. Line breaks and spaces
+-- right after the colon are dropped, so "Reagents:|nSoul Dust (6)" and a
+-- "Reagents:" line alone (its list on the next line) both read.
+function Spells.After(t, w)
+    if type(t) ~= "string" or t:sub(1, #w) ~= w then return nil end
+    local rest = t:sub(#w + 1):gsub("^%s+", "")
+    local cut = rest:match("^:(.*)") or rest:match("^\239\188\154(.*)")
+    if not cut then return nil end
+    cut = cut:gsub("^[%s]+", ""):gsub("^|n", ""):gsub("^[%s]+", "")
+    return cut
+end
+
+-- "Soul Dust (6), |cffff2020Pyrite|r (4)" as { { name, need, short } }: short
+-- when the game painted that part red (not enough in the bags).
+function Spells.ReagentList(raw)
+    local out = {}
+    for part in (raw .. ","):gmatch("(.-),") do
+        local words = bare(part)
+        if words ~= "" then
+            local name, need = words:match("^(.-)%s*%((%d+)%)$")
+            local c = part:match("|c%x%x(%x%x%x%x%x%x)")
+            local red = c ~= nil and DUI.Tips.GameColor(tonumber(c:sub(1, 2), 16) / 255,
+                tonumber(c:sub(3, 4), 16) / 255, tonumber(c:sub(5, 6), 16) / 255) == "red"
+            out[#out + 1] = { name = name or words, need = tonumber(need) or 1, short = red }
+        end
+    end
+    return out
+end
+
+-- Takes the reagent and tool lines out of a spell's own lines into r.reagents
+-- and r.tools, and marks which lines they were (r.taken). A "Reagents:" line
+-- on its own has its list on the next line.
+function Spells.ReadRecipe(r, lines, own)
+    local reagentWord, toolWord = Spells.RecipeWords()
+    r.taken = {}
+    local i = 2
+    while i <= own do
+        local line = lines[i]
+        local raw = line and line.left
+        local t = type(raw) == "string" and raw:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") or nil
+        local list = t and Spells.After(t, reagentWord)
+        if list then
+            r.taken[i] = true
+            local at, len = raw:find(":", 1, true), 1
+            if not at then at, len = raw:find("\239\188\154", 1, true), 3 end
+            local rawList = at and raw:sub(at + len) or raw
+            if list == "" and lines[i + 1] and i + 1 <= own and type(lines[i + 1].left) == "string" then
+                i = i + 1
+                r.taken[i] = true
+                rawList = lines[i].left
+            end
+            rawList = rawList:gsub("^%s*|n", "")
+            r.reagents = Spells.ReagentList(rawList)
+        else
+            local tools = t and Spells.After(t, toolWord)
+            if tools then
+                r.taken[i] = true
+                local c = line.hasLC and line.lc or nil
+                local red = c and DUI.Tips.GameColor(c[1], c[2], c[3]) == "red"
+                r.tools = r.tools or {}
+                for name in (tools .. ","):gmatch("%s*(.-)%s*,") do
+                    if name ~= "" then r.tools[#r.tools + 1] = { name = name, short = red } end
+                end
+            end
+        end
+        i = i + 1
+    end
+end
+
 -- Sorts the spell's own lines (2 to own) into what the card shows. Lines past
 -- own are other addons' (and the Spell ID line).
 function Spells.Read(n, lines, own)
@@ -113,10 +203,12 @@ function Spells.Read(n, lines, own)
     local first = lines[1]
     local r = { title = first and first.left or "", desc = {}, facts = {} }
     if first and first.right then r.rank = bare(first.right) end
+    Spells.ReadRecipe(r, lines, own)
     for i = 2, n do
         local line = lines[i]
-        if i > own then
+        if i > own or r.taken[i] then
             -- Another addon's (or the Spell ID line): Rich/Foreign.lua's.
+            -- A recipe's reagents and tools have their own part.
         else
             for _, side in ipairs({ "left", "right" }) do
                 local t = line[side] and bare(line[side])
@@ -297,6 +389,103 @@ function Spells.CooldownRows(p, cd)
     end
 end
 
+-- "Enchanting: Enchant Weapon - Recovery" as the profession's name, its color
+-- and the recipe's own name, when the part before the colon is one of the
+-- game's recipe kinds (its own words, every language). Else nil.
+function Spells.Profession(title)
+    if type(title) ~= "string" then return nil end
+    local prof, rest = title:match("^(.-):%s*(.+)$")
+    if not prof or prof == "" then return nil end
+    local Items = ns.RichItems
+    local get = C_Item and C_Item.GetItemSubClassInfo
+    if type(get) ~= "function" then return nil end
+    for sub in pairs(Items.RECIPE_COLORS) do
+        local name = plain(get(Items.RECIPE_CLASS, sub))
+        if name == prof then return prof, Items.RECIPE_COLORS[sub], rest end
+    end
+end
+
+-- An item's icon (else the question mark), its color by quality and its id,
+-- by id or, for a name, only when the client already knows it.
+local UNKNOWN_ICON = 134400
+local function itemLook(item)
+    local I, Tip = C_Item, ns.Tooltip
+    if not (I and item) then return UNKNOWN_ICON, Style.INK.VALUE end
+    local id, icon
+    if type(I.GetItemInfoInstant) == "function" then
+        local a, _, _, _, e = I.GetItemInfoInstant(item)
+        id, icon = plain(a), plain(e)
+    end
+    local q = type(I.GetItemQualityByID) == "function" and plain(I.GetItemQualityByID(item)) or nil
+    local r, g, b = Tip.QualityColor(q)
+    return icon or UNKNOWN_ICON, r and { r, g, b } or Style.INK.VALUE, id
+end
+
+-- The reagents with their items: the recipe's own list from the client
+-- (C_TradeSkillUI) when it names as many as the line, so each has its icon
+-- even when the item isn't loaded yet; else the line's names.
+function Spells.Reagents(id, list)
+    local TS = C_TradeSkillUI
+    local s = id and TS and type(TS.GetRecipeSchematic) == "function" and TS.GetRecipeSchematic(id, false) or nil
+    local slots = type(s) == "table" and type(s.reagentSlotSchematics) == "table" and s.reagentSlotSchematics or nil
+    local ids = {}
+    for _, slot in ipairs(slots or {}) do
+        local first = type(slot.reagents) == "table" and slot.reagents[1]
+        local itemID = type(first) == "table" and plain(first.itemID)
+        if type(itemID) == "number" and slot.required ~= false and slot.hiddenInCraftingForm ~= true then
+            ids[#ids + 1] = itemID
+        end
+    end
+    local out = {}
+    for i, m in ipairs(list) do
+        local key = #ids == #list and ids[i] or m.name
+        local icon, color, itemID = itemLook(key)
+        out[i] = { name = m.name, need = m.need, short = m.short, icon = icon, color = color,
+            itemID = type(key) == "number" and key or itemID }
+    end
+    return out
+end
+
+local function iconText(icon)
+    return "|T" .. icon .. ":0:0:0:0:64:64:5:59:5:59|t "
+end
+
+-- How many the recipe needs, popped; with fewer in the bags (but some), what
+-- you have first in red: "2 / 6". Red too when the game said so.
+function Spells.Need(m)
+    local INK = Style.INK
+    local have
+    if m.itemID and C_Item and type(C_Item.GetItemCount) == "function" then
+        have = plain(C_Item.GetItemCount(m.itemID))
+    end
+    if m.short and not (type(have) == "number" and have > 0) then return tostring(m.need), INK.BAD end
+    if type(have) == "number" and have > 0 and have < m.need then
+        return hex(INK.BAD) .. have .. "|r" .. hex(INK.LABEL) .. " / |r" .. m.need, { Style.Pop() }
+    end
+    return tostring(m.need), { Style.Pop() }
+end
+
+-- The recipe's part: its reagents under their heading, one row each (icon,
+-- name in its quality color, the count), then the tools it needs.
+function Spells.RecipeRows(p, r, id)
+    local Panel, INK, SIZE = ns.RichPanel, Style.INK, Style.SIZE
+    local word = Spells.RecipeWords()
+    Panel.Gap(p, Spells.AFTER_STRIP)
+    if r.reagents then
+        Panel.Section(p, word)
+        Panel.Gap(p, Spells.SECTION_GAP)
+    end
+    for _, m in ipairs(Spells.Reagents(id, r.reagents or {})) do
+        local need, c = Spells.Need(m)
+        Panel.Row(p, iconText(m.icon) .. m.name, need, c, m.color)
+    end
+    for _, t in ipairs(r.tools or {}) do
+        local icon, color = itemLook(t.name)
+        Panel.Row(p, iconText(icon) .. t.name, L["Tool"], t.short and INK.BAD or INK.LABEL,
+            t.short and INK.BAD or color, nil, SIZE.small)
+    end
+end
+
 -- The spell card (board "The strip").
 function Spells.Card(p, tip, r, lines, school, id, light, cd)
     local Panel, INK, SIZE, Tips = ns.RichPanel, Style.INK, Style.SIZE, DUI.Tips
@@ -304,10 +493,19 @@ function Spells.Card(p, tip, r, lines, school, id, light, cd)
     p.padTop = Spells.PAD_TOP
     local tags = {}
     local Tag = ns.RichItems.Tag
+    local recipe = r.reagents or r.tools
+    local title = r.title
+    -- A recipe's profession is a tag, the title its own name.
+    local prof, profColor, rest
+    if recipe then prof, profColor, rest = Spells.Profession(r.title) end
+    if prof then
+        tags[#tags + 1] = Tag(prof, profColor)
+        title = rest
+    end
     if school then tags[#tags + 1] = Tag(school.word, school.color or INK.TEXT) end
     if r.rank and r.rank ~= "" then tags[#tags + 1] = Tag(r.rank, { Style.Pop() }) end
     Panel.Header(p, { icon = iconOf(tip, id), iconSize = Spells.ICON, iconGap = Spells.ICON_GAP,
-        title = r.title, tags = #tags > 0 and tags or nil, tagGap = Spells.TAG_GAP })
+        title = title, tags = #tags > 0 and tags or nil, tagGap = Spells.TAG_GAP })
     local tiles = {}
     if r.cast then tiles[#tiles + 1] = { r.cast, L["Cast"] } end
     if r.cost then tiles[#tiles + 1] = { r.cost, L["Cost"], { Style.PowerColor(r.power) } } end
@@ -329,7 +527,11 @@ function Spells.Card(p, tip, r, lines, school, id, light, cd)
         if i == 1 then Panel.Gap(p, Spells.AFTER_STRIP) end
         Panel.Text(p, Tips.Numbers(t, numbers), INK.TEXT)
     end
-    for _, f in ipairs(r.facts) do Panel.Text(p, f[1], f[2], SIZE.small) end
+    if recipe then Spells.RecipeRows(p, r, id) end
+    for i, f in ipairs(r.facts) do
+        if i == 1 and recipe then Panel.Gap(p, Spells.AFTER_STRIP) end
+        Panel.Text(p, f[1], f[2], SIZE.small)
+    end
     ns.RichForeign.Place(p, "mixed")
     ns.RichForeign.Place(p, "own")
     Panel.Finish(p)
