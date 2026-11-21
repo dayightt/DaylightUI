@@ -1,49 +1,13 @@
 local stub = require("stub")
-
--- The made-up spell ids in these tests (100 + a cooldown id, small numbers) are real
--- spells in the game's spell facts (CdmSpells.FACTS), which would give them real
--- cooldowns and buffs. So a test's world loads without the facts, unless it asks
--- for them with realFacts().
-local theFacts
-local function loadWorld(opts)
-    stub.neverSecretAuras = {}
-    local DUI = stub.Load(opts)
-    local S = stub.actionbars and stub.actionbars.CdmSpells
-    if S then
-        theFacts = S.FACTS
-        S.FACTS = {}
-    end
-    return DUI
-end
-local function realFacts()
-    stub.actionbars.CdmSpells.FACTS = theFacts
-    stub.actionbars.CdmCustom.Forget()
-end
-
--- Makes every aura one the game never hides (C_Secrets calls it NeverSecret), so a
--- lookup by spell id answers in a fight too, as the client's does for such an aura.
--- For a buff the game has no item of its own for: its holder reads it by itself.
--- Call it before the first layout pass, which is when a holder is made. It ends
--- with its world (loadWorld).
-local function plainAuras()
-    stub.neverSecretAuras = setmetatable({}, { __index = function() return true end })
-end
-
-local function data()
-    loadWorld({ actionbars = true })
-    return stub.actionbars.CdmData
-end
-
-local function empty() return { v = 2, pieces = {}, chains = {} } end
-
--- A set with one row of icons 11, 12, 13 at 0, 0 (36 px, gap 4).
-local function filled(D)
-    local set = empty()
-    D.AddChain(set, { 11, 12, 13 }, "icon", 0, 0)
-    return set
-end
-
-local function box(b) return { b.x, b.y, b.w, b.h } end
+local LW = require("cdmlayoutworld")
+local H = require("helpers")
+local loadWorld, realFacts, plainAuras = LW.loadWorld, LW.realFacts, LW.plainAuras
+local data, empty, filled, box = LW.data, LW.empty, LW.filled, LW.box
+local profileWorld, oldLayout, oldSet, oldBlock = LW.profileWorld, LW.oldLayout, LW.oldSet, LW.oldBlock
+local inBlock, parked, boopy, nightzFile = LW.inBlock, LW.parked, LW.boopy, LW.nightzFile
+local nightz, fakeViewer, fakeRegistry, rowsWorld = LW.nightz, LW.fakeViewer, LW.fakeRegistry, LW.rowsWorld
+local layoutFrame, pieceFrame, changeSpecTo, eased = LW.layoutFrame, LW.pieceFrame, LW.changeSpecTo, LW.eased
+local garbageMadeBy, visibleMenuRowOf = H.garbageMadeBy, H.visibleMenuRowOf
 
 T.test("cdm data: a row of icons lays out left to right from its top-left", function()
     local D = data()
@@ -63,13 +27,7 @@ T.test("cdm data: finding a chain's first piece makes no garbage", function()
     local set = empty()
     D.AddChain(set, { 11, 12, 13, 14, 15, 16 }, "icon", 0, 0)
     T.eq(D.Root(set, 16), 11)
-    jit.off()   -- the game has no JIT, and its own bookkeeping isn't the addon's to count
-    collectgarbage("collect"); collectgarbage("stop")
-    local before = collectgarbage("count")
-    for _ = 1, 1000 do D.Root(set, 16) end
-    local grown = collectgarbage("count") - before
-    collectgarbage("restart")
-    jit.on()
+    local grown = garbageMadeBy(function() D.Root(set, 16) end, 1000)
     T.truthy(grown < 1, "grew " .. grown .. " KB")
 end)
 
@@ -469,14 +427,6 @@ T.test("cdm data: the tree index is kept until the layout changes", function()
     T.truthy(D.Index(set) ~= a, "rebuilt after a change")
 end)
 
--- A logged-in Warrior (profiles are per class).
-local function profileWorld(class)
-    local DUI = loadWorld({ actionbars = true })
-    stub.units.player = stub.units.player or { isPlayer = true, name = "Tester" }
-    stub.units.player.class = class or "WARRIOR"
-    return DUI, stub.actionbars.CdmData
-end
-
 T.test("cdm profiles: a copy is deep, of the same class, with a free name", function()
     local DUI, D = profileWorld()
     local id = D.NewProfile("Raid")
@@ -576,15 +526,6 @@ T.test("cdm data: a set outside 1..SETS is empty and not saved", function()
     T.falsy(D.Assign(3, D.NewProfile("x")))
 end)
 
--- An old per-character layout (before profiles), moved as at login.
-local function oldLayout(DUI, D, g, set)
-    local cdm = D.Store()
-    cdm.sets = cdm.sets or {}
-    cdm.sets[g] = set
-    D.MoveToProfiles(true)
-    return D.Get(g)
-end
-
 T.test("cdm profiles: each character's old layouts become profiles of its class, picked as before", function()
     local DUI, D = profileWorld()
     local root = DUI.DB.Root()
@@ -601,23 +542,6 @@ T.test("cdm profiles: each character's old layouts become profiles of its class,
     T.eq(D.Profile(alt.use[2]).name, "Alt")
     T.truthy(root.characters["Unknown-Realm"].cdm.sets, "class unknown: waits for its own login")
 end)
-
--- An old-format set (format 1): blocks, and buttons with block + order.
-local function oldSet(blocks, buttons) return { blocks = blocks, buttons = buttons } end
-local function oldBlock(kind, over)
-    local b = kind == "bar"
-        and { kind = "bar", dir = "column", x = 0, y = 0, grow = "end", wrap = "right", size = 18, width = 220,
-              spacing = 2, collapse = true, combat = false, always = false, color = "class", icon = true, text = 11, time = true }
-        or { kind = "icon", dir = "row", x = 0, y = 0, grow = "center", wrap = "down", size = 36, spacing = 4,
-              perLine = 8, collapse = true, combat = false, always = false }
-    for k, v in pairs(over or {}) do b[k] = v end
-    return b
-end
-local function inBlock(i, ids)
-    local t = {}
-    for n, id in ipairs(ids) do t[id] = { block = i, order = n } end
-    return t
-end
 
 T.test("cdm data: the old profile layouts move to saved copies, once", function()
     local DUI = loadWorld({ actionbars = true })
@@ -646,14 +570,6 @@ T.test("cdm data: the old profile layouts move to saved copies, once", function(
     D.MoveOld()
     T.eq(#root.cdmSaved[DUI.DB.DEFAULT][1].blocks, 2, "runs once")
 end)
-
--- A layout from 1.6.0 or older, parked in cdmSaved under profile name.
-local function parked(DUI, name, g)
-    local root = DUI.DB.Root()
-    root.cdmSaved = root.cdmSaved or {}
-    root.cdmSaved[name] = root.cdmSaved[name] or {}
-    root.cdmSaved[name][g or 1] = oldSet({ oldBlock("icon") }, inBlock(1, { 11, 12 }))
-end
 
 T.test("cdm profiles: a parked old layout comes back, picked, for a character with none", function()
     local DUI, D = profileWorld()
@@ -692,17 +608,6 @@ T.test("cdm profiles: a character with a layout picked keeps it; the parked one 
     T.eq(#D.Profiles(), 2)
 end)
 
--- From a player's report: two characters with the same first name shared one
--- entry in 1.6.3, and after 1.6.4 the second one's CDM was empty.
-local function boopy(last, class, db)
-    local DUI = loadWorld({ actionbars = true, before = function()
-        _G.GetRealmName = function() return "R" end
-        stub.units.player = { name = "Boopy", lastName = last, isPlayer = true, class = class }
-        DaylightUIDB = db or DaylightUIDB
-    end })
-    return DUI, stub.actionbars.CdmData
-end
-
 T.test("cdm profiles: two characters that shared an entry each see the shared layout, in their own class", function()
     local set = { v = 2, pieces = { [11] = { shape = "icon", x = 0, y = 0 } }, chains = {} }
     local DUI, D = boopy("Dadoopy", "WARRIOR", { version = 2, profileData = { ["DPS/Tank"] = {} }, cdmMoved = 2, cdmNextProfile = 1,
@@ -727,32 +632,6 @@ T.test("cdm profiles: two characters that shared an entry each see the shared la
     T.truthy(DaylightUIDB.characters["Boopy Mcdoopy-R"], "each keyed by first and last name")
     _G.GetRealmName = nil
 end)
-
--- A player's saved file, cut down: one entry "Nightz-Realm" shared by a paladin
--- (Nightz Pali) and a hunter. The hunter logged in first on 1.6.4, so the
--- paladin's layout became p1, a HUNTER profile "Nightz". The paladin, seeing
--- nothing, opened the editor and got p2, empty, picked.
-local function nightzFile()
-    return { version = 2, profileData = { Nightz = {} }, cdmMoved = 2, cdmNextProfile = 2, cdmSaved = {},
-        cdmProfiles = {
-            p1 = { class = "HUNTER", name = "Nightz", set = { v = 2, chains = {}, pieces = {
-                ["s1311649"] = { shape = "icon", x = 1, y = -176 },
-                [200265] = { shape = "icon", parent = "s1311649", side = "left", align = "center" } } } },
-            p2 = { class = "PALADIN", name = "Paladin", set = { v = 2, chains = {}, pieces = {} } },
-        },
-        characters = { ["Nightz-R"] = { class = "PALADIN", mailName = "Nightz Pali", profile = "Nightz",
-            install = "installed", cdm = { use = { "p2" } } } } }
-end
-local function nightz(last, class, db)
-    local DUI = loadWorld({ actionbars = true, before = function()
-        _G.GetRealmName = function() return "R" end
-        stub.units.player = { name = "Nightz", lastName = last, isPlayer = true, class = class }
-        DaylightUIDB = db
-    end })
-    local D = stub.actionbars.CdmData
-    D.Get(1)   -- the first layout pass, as in game
-    return DUI, D
-end
 
 T.test("cdm profiles: the player whose paladin layout was filed as their hunter's gets it back on both", function()
     local DUI, D = nightz("Pali", "PALADIN", nightzFile())
@@ -884,143 +763,6 @@ end)
 
 -- The real layout
 
--- A viewer of the game's shape: items with a cooldownID (nil = unused pool item).
-local function fakeViewer(name, ids)
-    local v = CreateFrame("Frame", name, UIParent)
-    local items = {}
-    for i, id in ipairs(ids) do
-        local item = CreateFrame("Frame", nil, v)
-        item:SetSize(40, 40)
-        item.cooldownID = id
-        item.layoutIndex = i
-        item.Icon = item:CreateTexture()
-        item.Cooldown = CreateFrame("Cooldown", nil, item)
-        if name == "BuffBarCooldownViewer" then
-            item.Icon = CreateFrame("Frame", nil, item)
-            item.Icon.Icon = item.Icon:CreateTexture()
-            item.Bar = CreateFrame("StatusBar", nil, item)
-            item.Bar.Name = item.Bar:CreateFontString()
-            item.Bar.Duration = item.Bar:CreateFontString()
-        end
-        -- The game's own rule (Blizzard_CooldownViewer CooldownViewer.lua). A buff
-        -- item is active only while its aura is up, and a row that hides inactive
-        -- icons (the default for buffs) shows it only then. A cooldown icon is
-        -- always active and says it shows its aura with wasSetFromAura.
-        local aura = name == "BuffIconCooldownViewer" or name == "BuffBarCooldownViewer"
-        item.allowHideWhenInactive = aura or nil
-        item.hideWhenInactive = aura
-        item.isActive = true
-        item.wasSetFromAura = false
-        function item:GetCooldownID() return self.cooldownID end
-        function item:IsActive() return self.isActive end
-        function item:ShouldBeShown()
-            if self:GetCooldownID() then
-                if not self.allowHideWhenInactive then return true end
-                if not self.hideWhenInactive then return true end
-                if self:IsActive() then return true end
-            end
-            return false
-        end
-        function item:UpdateShownState() self:SetShown(self:ShouldBeShown()) end
-        function item:OnActiveStateChanged() self:UpdateShownState() end
-        function item:SetIsActive(active)
-            if active ~= self.isActive then
-                self.isActive = active
-                self:OnActiveStateChanged()
-            end
-        end
-        function item:SetHideWhenInactive(hide)
-            self.hideWhenInactive = hide
-            self:UpdateShownState()
-        end
-        function item:TriggerAuraAppliedAlert() end
-        function item:TriggerAuraRemovedAlert() end
-        function item:TriggerAvailableAlert() end
-        -- A cooldown icon's aura landing or ending, as the game's viewer does it on
-        -- UNIT_AURA: the removed alert first, the item's own refresh, the applied
-        -- alert last.
-        function item:SetAura(on)
-            if not on then self:TriggerAuraRemovedAlert() end
-            self.wasSetFromAura = on and true or false
-            self.auraInstanceID = on and 7 or nil
-            if on then self:TriggerAuraAppliedAlert() end
-        end
-        items[i] = item
-    end
-    v.itemFramePool = { EnumerateActive = function()
-        local i = 0
-        return function() i = i + 1; return items[i] end
-    end }
-    -- The game's RefreshLayout (CooldownViewer.lua): every item is released
-    -- (hidden, anchors cleared), acquired again and shown, then put back in the
-    -- viewer's own grid. Only the game's code runs it: on its settings changing
-    -- (EventRegistry "CooldownViewerSettings.OnDataChanged"), a full aura update,
-    -- Edit Mode, or the viewer showing.
-    function v:RefreshLayout()
-        self.__laid = (self.__laid or 0) + 1
-        for _, item in ipairs(items) do item:Hide(); item:ClearAllPoints() end
-        for i, item in ipairs(items) do
-            if item.cooldownID then
-                item:Show()
-                -- (a test's own bare frame has no state of its own)
-                if item.UpdateShownState then item:UpdateShownState() end
-                item:SetPoint("TOPLEFT", self, "TOPLEFT", (i - 1) * 40, 0)
-            end
-        end
-    end
-    -- A bar's content (Edit Mode "Icon and name" 1, "Name only" 3). The game
-    -- hides or shows the icon frame and adds a LEFT point to the bar.
-    if name == "BuffBarCooldownViewer" then
-        for _, item in ipairs(items) do
-            function item:SetBarContent(c)
-                if c == 3 then self.Icon:Hide() else self.Icon:Show() end
-                self.Bar:SetPoint("LEFT", self.Icon, c == 3 and "LEFT" or "RIGHT", c == 3 and 0 or 2, 0)
-            end
-        end
-    end
-    if _G.EventRegistry then
-        _G.EventRegistry:RegisterCallback("CooldownViewerSettings.OnDataChanged", v.RefreshLayout, v)
-    end
-    v:RegisterUnitEvent("UNIT_AURA", "player", "target")
-    v:SetScript("OnEvent", function(self, event, _, info)
-        if event == "UNIT_AURA" and (not info or info.isFullUpdate) then self:RefreshLayout() end
-    end)
-    return v, items
-end
-
--- The game's event hub (CallbackRegistry). Callbacks are kept per event and
--- called as fn(owner, ...).
-local function fakeRegistry()
-    local cbs = {}
-    _G.EventRegistry = {
-        RegisterCallback = function(_, e, fn, owner)
-            cbs[e] = cbs[e] or {}
-            cbs[e][#cbs[e] + 1] = { fn, owner }
-        end,
-        UnregisterCallback = function() end,
-        TriggerEvent = function(_, e, ...)
-            for _, c in ipairs(cbs[e] or {}) do c[1](c[2], ...) end
-        end,
-    }
-end
-
--- Essential: ids 11, 12, 13; BuffBar: 21, 22.
--- buffIcons: ids for a Tracked Buffs icon viewer too (5th in the items).
-local function rowsWorld(buffIcons)
-    local ess, bars, icons
-    local DUI = loadWorld({ actionbars = true, before = function()
-        fakeRegistry()
-        _, ess = fakeViewer("EssentialCooldownViewer", { 11, 12, 13 })
-        _, bars = fakeViewer("BuffBarCooldownViewer", { 21, 22 })
-        if buffIcons then _, icons = fakeViewer("BuffIconCooldownViewer", buffIcons) end
-    end })
-    stub.RunTimers()
-    return DUI, stub.actionbars, ess, bars, icons
-end
-
-local function layoutFrame(g) return _G["DaylightUICdmLayout" .. g] end
-local function pieceFrame(g, id) return _G["DaylightUICdmPiece" .. g .. "_" .. id] end
-
 T.test("cdm rows: one layout frame per talent set at the screen's center, no movers", function()
     local DUI, AB = rowsWorld()
     T.isnil(DUI.Movers.Get("cdm.s1"), "placed by the editor, not unlock mode")
@@ -1132,14 +874,12 @@ end)
 T.test("cdm rows: switching talent set shows the other set's layout", function()
     local DUI, AB, ess = rowsWorld()
     local D, R = AB.CdmData, AB.CdmRows
-    local g = 1
-    DUI.DB.SpecGroup = function() return g end
+    DUI.DB.SpecGroup = function() return 1 end
     D.AddPiece(D.Get(1), 11, "icon", 0, 0)
     D.AddPiece(D.Get(2), 12, "icon", 0, 0)
     R.Refresh(); stub.RunTimers()
     T.truthy(layoutFrame(1):IsShown()); T.falsy(layoutFrame(2):IsShown())
-    g = 2
-    stub.FireEvent("ACTIVE_TALENT_GROUP_CHANGED"); stub.RunTimers()
+    changeSpecTo(DUI, 2); stub.RunTimers()
     T.falsy(layoutFrame(1):IsShown(), "set 1 hidden")
     T.truthy(layoutFrame(2):IsShown())
     T.truthy(R.Owns(ess[2])); T.falsy(R.Owns(ess[1]))
@@ -2241,12 +1981,6 @@ T.test("cdm effects: glow when usable (Revenge after a block), off cooldown only
     T.truthy(Fx.GlowShown(ess[1]), "a secret answer keeps the last one")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
-
--- The addon's own icons and bars ease their alpha (CdmEffects setAlpha), so let it land.
-local function eased(DUI)
-    local d = DUI.Motion.Driver()
-    if d then stub.RunOnUpdate(d, 1) end
-end
 
 -- Reactive spells like Riposte or Overpower should pop up when usable.
 T.test("cdm effects: When not usable Hide hides it until castable (short of power counts), shown when the game won't say", function()
@@ -6034,13 +5768,10 @@ T.test("cdm card: the sound list plays a row the mouse rests on, and the pick, t
     local played, stopped = {}, {}
     _G.PlaySoundFile = function(file) played[#played + 1] = file; return true, #played end
     _G.StopSound = function(h) stopped[#stopped + 1] = h end
-    local function rowOf(key)
-        for i = 1, W.MENU_MAX_ROWS do
-            local r = W.MenuRow(i)
-            if r and r.key == key then return r end
-        end
+    local function hover(key)
+        local menuRow = visibleMenuRowOf(W, key)
+        menuRow:GetScript("OnEnter")(menuRow)
     end
-    local function hover(key) rowOf(key):GetScript("OnEnter")(rowOf(key)) end
     local FILES = DUI.Sound.FILES
     row.control:Click()
     hover("none"); stub.RunTimers()
@@ -6055,7 +5786,7 @@ T.test("cdm card: the sound list plays a row the mouse rests on, and the pick, t
     T.deq(played, { FILES.apply, FILES.done })
     T.deq(stopped, { 1 }, "the last one is cut off")
     T.isnil(set.pieces[11].readySound, "hovering saves nothing")
-    rowOf("dui:quest"):Click()
+    visibleMenuRowOf(W, "dui:quest"):Click()
     stub.RunTimers()
     T.eq(set.pieces[11].readySound, "dui:quest", "a real click saves it")
     T.eq(played[#played], FILES.quest, "and plays it")
