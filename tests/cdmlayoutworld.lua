@@ -4,7 +4,10 @@ local H = require("helpers")
 
 local M = {}
 
--- The made-up spell ids are real spells in CdmSpells.FACTS, so worlds load without the facts.
+-- The made-up spell ids in these tests (100 + a cooldown id, small numbers) are real
+-- spells in the game's spell facts (CdmSpells.FACTS), which would give them real
+-- cooldowns and buffs. So a test's world loads without the facts, unless it asks
+-- for them with realFacts().
 local theFacts
 function M.loadWorld(opts)
     stub.neverSecretAuras = {}
@@ -22,7 +25,11 @@ function M.realFacts()
     stub.actionbars.CdmCustom.Forget()
 end
 
--- Every aura NeverSecret, so a spell id lookup answers in a fight. Call before the first layout pass.
+-- Makes every aura one the game never hides (C_Secrets calls it NeverSecret), so a
+-- lookup by spell id answers in a fight too, as the client's does for such an aura.
+-- For a buff the game has no item of its own for: its holder reads it by itself.
+-- Call it before the first layout pass, which is when a holder is made. It ends
+-- with its world (loadWorld).
 function M.plainAuras()
     stub.neverSecretAuras = setmetatable({}, { __index = function() return true end })
 end
@@ -34,7 +41,7 @@ end
 
 function M.empty() return { v = 2, pieces = {}, chains = {} } end
 
--- Default icons: 36 px, gap 4.
+-- A set with one row of icons 11, 12, 13 at 0, 0 (36 px, gap 4).
 function M.filled(D)
     local set = M.empty()
     D.AddChain(set, { 11, 12, 13 }, "icon", 0, 0)
@@ -43,7 +50,7 @@ end
 
 function M.box(b) return { b.x, b.y, b.w, b.h } end
 
--- Profiles are per class.
+-- A logged-in Warrior (profiles are per class).
 function M.profileWorld(class)
     local DUI = M.loadWorld({ actionbars = true })
     stub.units.player = stub.units.player or { isPlayer = true, name = "Tester" }
@@ -51,7 +58,7 @@ function M.profileWorld(class)
     return DUI, stub.actionbars.CdmData
 end
 
--- A pre-profiles per-character layout, moved as at login.
+-- An old per-character layout (before profiles), moved as at login.
 function M.oldLayout(DUI, D, g, set)
     local cdm = D.Store()
     cdm.sets = cdm.sets or {}
@@ -60,7 +67,7 @@ function M.oldLayout(DUI, D, g, set)
     return D.Get(g)
 end
 
--- A format 1 set.
+-- An old-format set (format 1): blocks, and buttons with block + order.
 function M.oldSet(blocks, buttons) return { blocks = blocks, buttons = buttons } end
 
 function M.oldBlock(kind, over)
@@ -79,7 +86,7 @@ function M.inBlock(i, ids)
     return t
 end
 
--- A layout as 1.6.0 and older parked it.
+-- A layout from 1.6.0 or older, parked in cdmSaved under profile name.
 function M.parked(DUI, name, g)
     local root = DUI.DB.Root()
     root.cdmSaved = root.cdmSaved or {}
@@ -87,7 +94,8 @@ function M.parked(DUI, name, g)
     root.cdmSaved[name][g or 1] = M.oldSet({ M.oldBlock("icon") }, M.inBlock(1, { 11, 12 }))
 end
 
--- A player's report: same-named characters shared one entry in 1.6.3, and 1.6.4 emptied one's CDM.
+-- From a player's report: two characters with the same first name shared one
+-- entry in 1.6.3, and after 1.6.4 the second one's CDM was empty.
 function M.boopy(last, class, db)
     local DUI = M.loadWorld({ actionbars = true, before = function()
         _G.GetRealmName = function() return "R" end
@@ -97,8 +105,10 @@ function M.boopy(last, class, db)
     return DUI, stub.actionbars.CdmData
 end
 
--- A player's file: a paladin and a hunter shared one entry, so 1.6.4 made the paladin's layout the
--- hunter's p1, and the paladin's editor picked a new, empty p2.
+-- A player's saved file, cut down: one entry "Nightz-Realm" shared by a paladin
+-- (Nightz Pali) and a hunter. The hunter logged in first on 1.6.4, so the
+-- paladin's layout became p1, a HUNTER profile "Nightz". The paladin, seeing
+-- nothing, opened the editor and got p2, empty, picked.
 function M.nightzFile()
     return { version = 2, profileData = { Nightz = {} }, cdmMoved = 2, cdmNextProfile = 2, cdmSaved = {},
         cdmProfiles = {
@@ -118,11 +128,11 @@ function M.nightz(last, class, db)
         DaylightUIDB = db
     end })
     local D = stub.actionbars.CdmData
-    D.Get(1)   -- first layout pass, as in game
+    D.Get(1)   -- the first layout pass, as in game
     return DUI, D
 end
 
--- An item with no cooldownID is an unused pool item.
+-- A viewer of the game's shape: items with a cooldownID (nil = unused pool item).
 function M.fakeViewer(name, ids)
     local v = CreateFrame("Frame", name, UIParent)
     local items = {}
@@ -140,7 +150,10 @@ function M.fakeViewer(name, ids)
             item.Bar.Name = item.Bar:CreateFontString()
             item.Bar.Duration = item.Bar:CreateFontString()
         end
-        -- The game's rule: a buff item is active only while its aura is up; a cooldown icon always is.
+        -- The game's own rule (Blizzard_CooldownViewer CooldownViewer.lua). A buff
+        -- item is active only while its aura is up, and a row that hides inactive
+        -- icons (the default for buffs) shows it only then. A cooldown icon is
+        -- always active and says it shows its aura with wasSetFromAura.
         local aura = name == "BuffIconCooldownViewer" or name == "BuffBarCooldownViewer"
         item.allowHideWhenInactive = aura or nil
         item.hideWhenInactive = aura
@@ -171,7 +184,9 @@ function M.fakeViewer(name, ids)
         function item:TriggerAuraAppliedAlert() end
         function item:TriggerAuraRemovedAlert() end
         function item:TriggerAvailableAlert() end
-        -- As the game on UNIT_AURA: removed alert, the item's refresh, applied alert.
+        -- A cooldown icon's aura landing or ending, as the game's viewer does it on
+        -- UNIT_AURA: the removed alert first, the item's own refresh, the applied
+        -- alert last.
         function item:SetAura(on)
             if not on then self:TriggerAuraRemovedAlert() end
             self.wasSetFromAura = on and true or false
@@ -184,19 +199,25 @@ function M.fakeViewer(name, ids)
         local i = 0
         return function() i = i + 1; return items[i] end
     end }
-    -- As the game's: every item released and unanchored, then the used ones shown in its own grid.
+    -- The game's RefreshLayout (CooldownViewer.lua): every item is released
+    -- (hidden, anchors cleared), acquired again and shown, then put back in the
+    -- viewer's own grid. Only the game's code runs it: on its settings changing
+    -- (EventRegistry "CooldownViewerSettings.OnDataChanged"), a full aura update,
+    -- Edit Mode, or the viewer showing.
     function v:RefreshLayout()
         self.__laid = (self.__laid or 0) + 1
         for _, item in ipairs(items) do item:Hide(); item:ClearAllPoints() end
         for i, item in ipairs(items) do
             if item.cooldownID then
                 item:Show()
+                -- (a test's own bare frame has no state of its own)
                 if item.UpdateShownState then item:UpdateShownState() end
                 item:SetPoint("TOPLEFT", self, "TOPLEFT", (i - 1) * 40, 0)
             end
         end
     end
-    -- Edit Mode bar content: 1 "Icon and name", 3 "Name only".
+    -- A bar's content (Edit Mode "Icon and name" 1, "Name only" 3). The game
+    -- hides or shows the icon frame and adds a LEFT point to the bar.
     if name == "BuffBarCooldownViewer" then
         for _, item in ipairs(items) do
             function item:SetBarContent(c)
@@ -215,6 +236,8 @@ function M.fakeViewer(name, ids)
     return v, items
 end
 
+-- The game's event hub (CallbackRegistry). Callbacks are kept per event and
+-- called as fn(owner, ...).
 function M.fakeRegistry()
     local cbs = {}
     _G.EventRegistry = {
@@ -229,6 +252,8 @@ function M.fakeRegistry()
     }
 end
 
+-- Essential: ids 11, 12, 13; BuffBar: 21, 22.
+-- buffIcons: ids for a Tracked Buffs icon viewer too (5th in the items).
 function M.rowsWorld(buffIcons)
     local ess, bars, icons
     local DUI = M.loadWorld({ actionbars = true, before = function()
@@ -241,6 +266,7 @@ function M.rowsWorld(buffIcons)
     return DUI, stub.actionbars, ess, bars, icons
 end
 
+-- The addon's own icons and bars ease their alpha (CdmEffects setAlpha), so let it land.
 function M.runGlidesFor(seconds)
     local driver = DaylightUI.Motion.Driver()
     if driver then stub.RunOnUpdate(driver, seconds) end
