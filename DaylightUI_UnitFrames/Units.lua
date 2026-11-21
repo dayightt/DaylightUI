@@ -321,7 +321,9 @@ local REACH = { playerCastbar = FRAMES, targetCastbar = FRAMES, focusCastbar = F
                 targetAuras = FRAMES, playerAuras = FRAMES, focusAuras = FRAMES, petAuras = FRAMES, combo = FRAMES, personal = ONE,
                 arena = FRAMES, arenaText = FRAMES,
                 party = NO_RAID, partyText = NO_RAID, partyCastbar = NO_RAID, partyPet = NO_RAID, partyPetText = NO_RAID,
-                partyTarget = NO_RAID, partyTargetText = NO_RAID }
+                partyTarget = NO_RAID, partyTargetText = NO_RAID,
+                -- The leader drawer and pull timer redo themselves at the end of every refresh.
+                leader = ONE, pull = ONE }
 local UNIT_OF = {}
 for _, spec in ipairs(ns.SPECS) do
     UNIT_OF[spec.unit], UNIT_OF[spec.unit .. "Text"] = spec.unit, spec.unit

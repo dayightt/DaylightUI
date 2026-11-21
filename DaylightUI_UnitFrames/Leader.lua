@@ -43,6 +43,11 @@ Leader.MARK = 22             -- a marker square
 Leader.MARK_GAP = 4
 Leader.CLEAR_GAP = 8         -- the clear square sits a little further off
 Leader.BORDER = 2
+-- Slim: no section titles and rows closer together, about half the height.
+-- The chevron in the card's top right switches it (`leader.slim`).
+Leader.SLIM_GAP = 6
+Leader.SLIM_BUTTON = 20      -- the chevron's hit box (W.IconButton)
+Leader.SLIM_INSET = 3        -- its 14 px icon lines up with the card's padding
 Leader.PULLS = { 5, 10, 15 } -- the pull timer's seconds
 -- The rows ripple in like the map drawer's icons: the first this long after
 -- the card, each next one this much later, rising this far.
@@ -69,10 +74,13 @@ function Leader.RoleIcons()
     return out
 end
 
-local tab, card, clip, inner, driver
+local tab, card, clip, inner, driver, slimButton, morpher
 local sections = {}          -- the card's rows, top first
 local shown = {}             -- the rows currently on the card (layoutCard)
 local anim = { t = 0 }
+-- How slim the card is drawn right now: 0 full, 1 slim, in between while it
+-- changes shape.
+local slimP = 0
 
 local isSecret = DUI.IsSecret
 
@@ -185,8 +193,8 @@ end
 local function setRise(sec, e)
     sec:SetAlpha(e)
     local rise = Leader.RISE * (1 - e)
-    if sec.rise == rise then return end
-    sec.rise = rise
+    if sec.rise == rise and sec.placedY == sec.y then return end
+    sec.rise, sec.placedY = rise, sec.y
     sec:ClearAllPoints()
     sec:SetPoint("TOPLEFT", inner, "TOPLEFT", Leader.PAD, -sec.y - rise)
 end
@@ -301,9 +309,11 @@ function Leader.IsOpen() return Leader.open == true end
 
 -- What's on it
 
+-- A section's title sits just above its buttons, so the slim card can fade it
+-- out and close the gap without moving the buttons inside their section.
 local function title(sec, text)
     sec.title = Style.Text(sec, Style.SIZE.small, "LEFT")
-    sec.title:SetPoint("TOPLEFT", sec, "TOPLEFT", 0, 0)
+    sec.title:SetPoint("BOTTOMLEFT", sec, "TOPLEFT", 0, Leader.TITLE_GAP)
     sec.title:SetText(DUI.Style.Upper(text))
     Style.InkText(sec.title, "pop")
     return Style.SIZE.small + Leader.TITLE_GAP
@@ -312,7 +322,8 @@ end
 local function newSection(text)
     local sec = CreateFrame("Frame", nil, inner)
     sec:SetWidth(Leader.WIDTH - 2 * Leader.PAD)
-    sec.top = text and title(sec, text) or 0
+    sec.top = 0
+    sec.head = text and title(sec, text) or 0
     sections[#sections + 1] = sec
     return sec
 end
@@ -369,35 +380,59 @@ function Leader.iconStrip(b, icons)
     return strip:GetWidth()
 end
 
+-- Where each button goes in `room` width: { x, y, w } per button, and the
+-- section's height.
+local function rowSpots(list, room)
+    local widths = {}
+    for i, it in ipairs(list) do widths[i] = math.min(room, it.width) end
+    local lines = Leader.Wrap(widths, room, Leader.GAP)
+    local spots = {}
+    for row, line in ipairs(lines) do
+        local used = (#line - 1) * Leader.GAP
+        for _, i in ipairs(line) do used = used + widths[i] end
+        local extra = (room - used) / #line
+        local x, y = 0, (row - 1) * (Leader.BUTTON_H + Leader.GAP)
+        for _, i in ipairs(line) do
+            spots[i] = { x, y, widths[i] + extra }
+            x = x + widths[i] + extra + Leader.GAP
+        end
+    end
+    return spots, #lines * Leader.BUTTON_H + (#lines - 1) * Leader.GAP
+end
+
+-- Lays a row out at p between its full spots and its slim ones (the slim
+-- card's first row leaves room for the chevron).
+local function placeRow(sec, p)
+    local full, slim = sec.spots, sec.slimSpots or sec.spots
+    for i, it in ipairs(sec.list) do
+        local a, b = full[i], slim[i]
+        local btn = it.button
+        btn:SetWidth(a[3] + (b[3] - a[3]) * p)
+        btn:ClearAllPoints()
+        btn:SetPoint("TOPLEFT", sec, "TOPLEFT", a[1] + (b[1] - a[1]) * p, -(a[2] + (b[2] - a[2]) * p))
+    end
+    local h = sec.fullH + ((sec.slimH or sec.fullH) - sec.fullH) * p
+    sec:SetHeight(h)
+end
+
 local function buttonRow(sec, list)
     local room = sec:GetWidth()
-    local widths = {}
-    for i, it in ipairs(list) do
+    for _, it in ipairs(list) do
         local b = W.Button(sec, it.icons and "" or it.text, Leader.BUTTON_H)
         it.button = b
         local tw = b.text:GetStringWidth()
         if type(tw) ~= "number" then tw = 0 end
         if it.icons then tw = Leader.iconStrip(b, it.icons) end
         -- Never wider than the card, so a very long text is cut, not spilled.
-        widths[i] = math.min(room, math.ceil(tw) + Leader.BUTTON_PAD)
+        it.width = math.ceil(tw) + Leader.BUTTON_PAD
         b.text:SetWordWrap(false)
         b.text:ClearAllPoints()
         b.text:SetPoint("LEFT", b, "LEFT", 4, 0)
         b.text:SetPoint("RIGHT", b, "RIGHT", -4, 0)
     end
-    local lines = Leader.Wrap(widths, room, Leader.GAP)
-    for row, line in ipairs(lines) do
-        local used = (#line - 1) * Leader.GAP
-        for _, i in ipairs(line) do used = used + widths[i] end
-        local extra = (room - used) / #line
-        local x, y = 0, sec.top + (row - 1) * (Leader.BUTTON_H + Leader.GAP)
-        for _, i in ipairs(line) do
-            local b = list[i].button
-            b:SetWidth(widths[i] + extra)
-            b:SetPoint("TOPLEFT", sec, "TOPLEFT", x, -y)
-            x = x + widths[i] + extra + Leader.GAP
-        end
-    end
+    sec.list = list
+    sec.spots, sec.fullH = rowSpots(list, room)
+    placeRow(sec, 0)
     for _, it in ipairs(list) do
         local b = it.button
         b:SetScript("OnClick", it.click)
@@ -413,7 +448,6 @@ local function buttonRow(sec, list)
             b:HookScript("OnLeave", function() GameTooltip:Hide() end)
         end
     end
-    sec:SetHeight(sec.top + #lines * Leader.BUTTON_H + (#lines - 1) * Leader.GAP)
 end
 
 local function markTip(self)
@@ -548,6 +582,21 @@ local function build()
           tip = L["Asks everyone to pick tank, healer or damage."] },
     }
     buttonRow(ready, Leader.readyButtons)
+    -- Slim, the chevron sits at the end of this row, so the row leaves it room.
+    ready.slimSpots, ready.slimH = rowSpots(Leader.readyButtons,
+        ready:GetWidth() - (Leader.SLIM_BUTTON - Leader.SLIM_INSET) - Leader.GAP)
+    Leader.readySection = ready
+    slimButton = W.IconButton(inner, "ui-chevron.png", function()
+        return Leader.Slim() and L["Full leader tools"] or L["Slim leader tools"]
+    end, function()
+        if InCombatLockdown() then return end
+        DUI:Set("UnitFrames", "leader.slim", not Leader.Slim())
+    end, Leader.SLIM_BUTTON, function()
+        if InCombatLockdown() then return L["Changes after the fight."] end
+        return Leader.Slim() and L["Brings back the titles."] or L["Drops the titles for a smaller card."]
+    end)
+    slimButton:SetFrameLevel(inner:GetFrameLevel() + 5)
+    Leader.slimButton = slimButton
 
     local pull = newSection(L["Pull timer"])
     Leader.pullButtons = {}
@@ -605,19 +654,80 @@ local function build()
     })
 end
 
--- Lays the rows down the card and sizes it. Out of combat only.
+function Leader.Slim()
+    local db = Leader.db
+    return db ~= nil and db.leader ~= nil and db.leader.slim == true
+end
+
+-- Lays the rows down the card at slimP and sizes it. Out of combat only.
 local function layoutCard()
+    local p = slimP
+    local gap = Leader.SECTION_GAP + (Leader.SLIM_GAP - Leader.SECTION_GAP) * p
     local y = Leader.PAD
     wipe(shown)
     for _, sec in ipairs(sections) do
+        y = y + sec.head * (1 - p)
+        if sec.list then placeRow(sec, p) end
+        if sec.title then sec.title:SetAlpha(1 - p) end
         sec.y = y
-        sec.rise = nil
-        y = y + sec:GetHeight() + Leader.SECTION_GAP
+        y = y + sec:GetHeight() + gap
         shown[#shown + 1] = sec
     end
-    local h = y - Leader.SECTION_GAP + Leader.PAD
+    local h = y - gap + Leader.PAD
     inner:SetHeight(h)
     card:SetHeight(h)
+    -- The chevron: beside the first title when full, at the end of the first
+    -- row when slim. It points up to fold the card, down to open it out.
+    local fullTop = Leader.PAD + Style.SIZE.small / 2 - Leader.SLIM_BUTTON / 2
+    local slimTop = Leader.PAD + Leader.BUTTON_H / 2 - Leader.SLIM_BUTTON / 2
+    slimButton:ClearAllPoints()
+    slimButton:SetPoint("TOPRIGHT", inner, "TOPRIGHT", -Leader.PAD + Leader.SLIM_INSET,
+        -(fullTop + (slimTop - fullTop) * p))
+    slimButton.icon:SetRotation(math.pi * (1 - p))
+    if Leader.open and not (driver and driver:GetScript("OnUpdate")) then
+        for _, sec in ipairs(shown) do setRise(sec, 1) end
+    end
+end
+
+-- Eases the card between its full and slim shapes. Only out of combat: the
+-- card holds secure buttons, so a fight starting finishes it at once.
+local function morph(to)
+    if not morpher then
+        morpher = CreateFrame("Frame", nil, card)
+        Leader.morpher = morpher
+    end
+    local from, t = slimP, 0
+    local dur = Motion.NORMAL * math.abs(to - from)
+    if not Motion.On() or dur <= 0 then
+        morpher:SetScript("OnUpdate", nil)
+        slimP = to
+        return layoutCard()
+    end
+    morpher:SetScript("OnUpdate", function(self, dt)
+        t = t + dt
+        if InCombatLockdown() then return self:SetScript("OnUpdate", nil) end
+        local done = t >= dur
+        slimP = done and to or from + (to - from) * ease(t / dur)
+        if done then self:SetScript("OnUpdate", nil) end
+        layoutCard()
+        if done then Style.LayoutShell(Style.GetShell(card)) end
+    end)
+end
+
+-- The shape the setting asks for: eased while the card is open, else at once.
+local function shape()
+    local to = Leader.Slim() and 1 or 0
+    if to ~= slimP and card:IsShown() and Leader.open then return morph(to) end
+    if morpher then morpher:SetScript("OnUpdate", nil) end
+    slimP = to
+end
+
+local function finishMorph()
+    if not (morpher and morpher:GetScript("OnUpdate")) then return end
+    morpher:SetScript("OnUpdate", nil)
+    slimP = Leader.Slim() and 1 or 0
+    layoutCard()
+    Style.LayoutShell(Style.GetShell(card))
 end
 
 -- The game's countdown, remembered so the pull timer recognizes one you started. In
@@ -762,6 +872,8 @@ function Leader.Refresh()
     local noPoll = plainFlag(HasLFGRestrictions) or plainSome(UnitInBattleground, "player")
     -- Practice has no group to ask.
     Leader.readyButtons[2].button.SetOff(blocked or noPoll or Leader.Practicing())
+    -- The card can't change shape in a fight, so its chevron dims like the calls.
+    slimButton:SetAlpha(InCombatLockdown() and 0.45 or 1)
     paintTab()
 end
 
@@ -801,6 +913,7 @@ function Leader.Place()
         inner:SetPoint("TOPRIGHT", clip, "TOPRIGHT", 0, 0)
     end
     Style.LayoutShell(Style.GetShell(tab))
+    shape()
     layoutCard()
     Style.LayoutShell(Style.GetShell(card))
     if not tab:IsShown() or tab:GetAlpha() < 1 then
@@ -848,6 +961,7 @@ end
 -- this event), then the game's calls dim.
 DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
     if driver and driver:GetScript("OnUpdate") then finish() end
+    if card then finishMorph() end
     if tab then tab:SetAttribute("fight", true) end
     Leader.Refresh()
 end)

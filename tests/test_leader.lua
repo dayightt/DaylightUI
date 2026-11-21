@@ -112,6 +112,41 @@ T.test("leader drawer: a click sweeps the card open, a second closes it", functi
     T.falsy(L.card:IsShown(), "closed")
 end)
 
+T.test("leader drawer: the chevron eases it slim and back, never in a fight", function()
+    local DUI, ns = login("leader")
+    local L = ns.Leader
+    L.Open()
+    sweep(L)
+    local full = L.card:GetHeight()
+    local ready = L.readySection
+    T.eq(ready.title:GetAlpha(), 1, "full: titles show")
+    L.slimButton:Click()
+    stub.RunTimers()
+    T.truthy(DUI:Get("UnitFrames", "leader.slim"), "the click saves it")
+    local function settle()
+        for _ = 1, 40 do
+            if L.morpher then stub.RunOnUpdate(L.morpher, 0.02) end
+        end
+    end
+    settle()
+    local slim = L.card:GetHeight()
+    T.truthy(slim < full * 0.7, "much shorter: " .. slim .. " vs " .. full)
+    T.eq(ready.title:GetAlpha(), 0, "no titles")
+    local x = select(4, L.readyButtons[2].button:GetPoint(1))
+    T.truthy(L.readyButtons[2].button:GetWidth() + x <= ready:GetWidth() - L.SLIM_BUTTON + L.SLIM_INSET,
+        "the ready row leaves the chevron room")
+    stub.EnterCombat()
+    L.slimButton:Click()
+    stub.RunTimers()
+    T.truthy(DUI:Get("UnitFrames", "leader.slim"), "a fight leaves it alone")
+    stub.LeaveCombat()
+    L.slimButton:Click()
+    stub.RunTimers()
+    settle()
+    T.near(L.card:GetHeight(), full, 0.5, "full again")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
+
 T.test("leader drawer: the buttons call the game's ready check, role check and countdown", function()
     local _, ns = login("leader")
     local L = ns.Leader

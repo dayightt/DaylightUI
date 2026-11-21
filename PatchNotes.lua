@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Cooldown Manager", "Poisons, sharpening stones, oils and shaman weapon imbues can go in your Cooldown Manager, with their time left and charges, and a glow when they wear off" },
+        { "Leader tools", "A slim, smaller leader tools card without the titles. Switch it with the arrow in its top right corner" },
     }, fixed = {
         { "Little touches", "The raid marker icons show in the right-click marker menu again, instead of dark empty boxes" },
     } },
