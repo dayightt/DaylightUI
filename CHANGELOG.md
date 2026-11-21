@@ -1,3 +1,31 @@
+# DaylightUI 2.2.1
+
+Poisons, oils and weapon imbues in the Cooldown Manager, a UI that fades away on flight paths, and a big batch of fixes.
+
+## New
+- Cooldown Manager: Poisons, sharpening stones, oils and shaman weapon imbues can go in your Cooldown Manager, glowing when they wear off
+- Fade: The whole UI can fade away while you fly on a flight path. General > Fade
+- Leader tools: A slim, smaller leader tools card, switched with the arrow in its corner
+- Quests: Short quest tags: dungeon, elite and raid tags as one letter, leaving long titles more room
+- NPC window: Dungeon, elite, raid and PvP quests wear their tag in an NPC's quest list too
+- Auction House: Works with a controller: scroll lists, change prices, and buy or post from the pad
+- Unit frames: The name tab above your frames can be dark, your class color, your accent or any color
+- Info panel: The data texts under the minimap can have their own fade and opacity
+
+## Fixed
+- Loot rolls: Loot roll cards no longer get stuck with a huge timer after a reload, and long names fit in every language
+- Tooltips: Rich tooltips show other addons' prices as coins again, wrap their long lines and hide their stray boxes
+- Nameplates: Missing health opacity stays where you set it, and an NPC that turns hostile gets its nameplate
+- Nameplates: Nameplates go back to the right size after a fight, and /dui platefix can no longer leave them off
+- Raid frames: Raid frames show where test mode put them, and line up cleanly when a raid grows to 40
+- Unit frames: Druids see their mana in bear and cat form, instead of a full rage or energy bar
+- Quests: A quest's tag no longer sits squashed against its title in a narrow tracker
+- Auction House: Waylaid Crate tooltips price materials you don't carry too, after one full scan
+- Professions: The SkillUp link opens the game's profession window on screen again, not out of sight
+- Skins: Opening the Auction House or the macro window no longer shows a Lua error now and then
+- Info panel: The data texts no longer jiggle side to side as your framerate or coordinates change
+- Little touches: Raid marker icons show in the marker menu again, portrait level tags stay slanted over a cast bar, and the setup guide's tag shows in full
+
 # DaylightUI 2.2
 
 A smarter bag search, profiles you can share in parts, and tidier Rich tooltips. Plus hidden names and solo threat colors on nameplates.
