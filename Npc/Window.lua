@@ -42,11 +42,12 @@ Npc.FRAMES = {
 -- Which game window each page belongs to, and which page shows it.
 Npc.KIND = { gossip = "gossip", greeting = "quest", detail = "quest", progress = "quest", reward = "quest", merchant = "merchant", trainer = "trainer" }
 Npc.PAGE = { merchant = "shop", trainer = "train" }
--- Game windows parked under the kit's veil instead of the hidden frame, because they're
--- checked with IsVisible on open. The trainer closes itself otherwise. Other addons
--- hook the vendor's OnShow and read IsVisible, and its own OnShow/OnHide handle bags
--- and the filter (Shop.lua).
-Npc.VEIL = { trainer = true, merchant = true }
+-- Game windows that must stay shown while parked. The trainer has to be visible
+-- or the game closes it, so it waits on the kit's aside holder. Other addons hook
+-- the vendor's OnShow and read IsVisible, and its own OnShow/OnHide handle bags
+-- and the filter (Shop.lua), so it waits under the veil.
+Npc.VEIL = { merchant = true }
+Npc.ASIDE = { trainer = true }
 Npc.TRAINER_REFRESH = { TRAINER_UPDATE = true, TRAINER_SERVICE_INFO_NAME_UPDATE = true, PLAYER_MONEY = true }
 Npc.EVENTS = { QUEST_GREETING = "greeting", QUEST_DETAIL = "detail", QUEST_PROGRESS = "progress", QUEST_COMPLETE = "reward" }
 
@@ -552,7 +553,7 @@ local function place(f, kind)
     if f.placedOn == g then return end
     f.placedOn = g
     f:ClearAllPoints()
-    if type(g) == "table" then f:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0) else f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
+    if not (type(g) == "table" and Win.Followers.PlaceOn(f, g)) then f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
 end
 
 -- Show a page. Opens the window if closed (header first, then page), otherwise the
@@ -1020,7 +1021,7 @@ function Npc.TakeBack()
     if not Npc.follow then return end
     for kind, get in pairs(Npc.frames) do
         local g = get()
-        if Npc.VEIL[kind] and type(g) == "table" and g:IsShown() and not Win.Followers.Parked(Npc.follow, kind)
+        if (Npc.VEIL[kind] or Npc.ASIDE[kind]) and type(g) == "table" and g:IsShown() and not Win.Followers.Parked(Npc.follow, kind)
             and not (kind == "trainer" and beastTraining()) then
             if Win.Followers.Reclaim(Npc.follow, kind) then Npc.Want(S.last[kind] or kind, "swap") end
         end
@@ -1140,7 +1141,7 @@ function Npc.Build(mod)
     for _, e in ipairs(Npc.LISTEN) do pcall(ev.RegisterEvent, ev, e) end
     ev:SetScript("OnEvent", Npc.OnEvent)
     Npc.events = ev
-    Npc.follow = Win.Follow({ key = "npc", frames = Npc.frames, veil = Npc.VEIL, changed = Npc.Changed, onPark = Npc.Parked,
+    Npc.follow = Win.Follow({ key = "npc", frames = Npc.frames, veil = Npc.VEIL, aside = Npc.ASIDE, changed = Npc.Changed, onPark = Npc.Parked,
         leave = function() return not DUI.npcOwnWindow end,
         width =function() return (Npc.PageSize(f.current or "talk")) * Win.Scale(ns.Setting("scale")) end })
     Npc.Apply()

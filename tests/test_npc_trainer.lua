@@ -60,15 +60,18 @@ T.test("trainer: talking to a trainer opens our page and the trainer stays open 
     T.eq(N.frame.money:IsShown(), true, "your money in the header")
 end)
 
-T.test("trainer: the game's window is out of sight under the veil, every time, and leaves no ghost", function()
+T.test("trainer: the game's window is held aside, never clipped, every time, and leaves no ghost", function()
     local N = load()
     NW.Trainer()
     frame()
-    local veil = DaylightUI.Win.Followers.veil
-    T.eq(ClassTrainerFrame:GetParent(), veil, "parked the moment it loaded, before its first show")
-    T.eq(veil:IsShown(), true)
-    T.eq(veil:GetAlpha(), 0)
+    local aside = DaylightUI.Win.Followers.aside
+    T.eq(ClassTrainerFrame:GetParent(), aside, "parked the moment it loaded, before its first show")
+    T.isnil(stub.ClipAncestor(ClassTrainerFrame), "never under a clipping frame")
     T.eq(ClassTrainerFrame:IsVisible(), true, "the game still counts it visible")
+    T.eq(#NW.Calls("CloseTrainer"), 0, "so its bootstrap never closes the trainer")
+    settle()
+    local p, rel, _, x, y = N.frame:GetPoint(1)
+    T.eq(p, "TOPLEFT"); T.eq(rel, UIParent); T.eq(x, 16 / N.frame:GetScale()); T.eq(y, -116 / N.frame:GetScale())
     N.Goodbye()
     frame(); settle()
     T.eq(N.frame:IsShown(), false)
@@ -336,7 +339,7 @@ T.test("trainer: Beast Training (no NPC) stays the game's window", function()
     T.eq(#NW.Calls("CloseTrainer"), 0)
     HideUIPanel(ClassTrainerFrame)
     frame(2)
-    T.eq(ClassTrainerFrame:GetParent(), DaylightUI.Win.Followers.veil, "veiled again once closed")
+    T.eq(ClassTrainerFrame:GetParent(), DaylightUI.Win.Followers.aside, "held aside again once closed")
 end)
 
 -- The game's trainer window has no skin of its own while Daylight UI's trainer

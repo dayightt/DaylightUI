@@ -4,7 +4,7 @@
 -- since Classic spells are expensive and a stray click must never spend gold. Train
 -- all learns what the player can afford, one line after another. No key ever learns.
 --
--- ClassTrainerFrame is parked under the kit's veil rather than the hidden parent: the
+-- ClassTrainerFrame is parked under the kit's aside holder rather than the hidden parent: the
 -- game closes a trainer whose window isn't visible when it opens
 -- (Blizzard_TrainerUI_Bootstrap.lua). Its OnShow/OnHide/OnEvent still run (OnHide
 -- calls CloseTrainer). Learning only goes through BuyTrainerService.

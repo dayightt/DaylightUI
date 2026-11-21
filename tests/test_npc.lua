@@ -1595,8 +1595,9 @@ T.test("npc: the corner grip sizes each page on its own, stays on the game's spo
     T.eq(f:GetWidth(), 600)
     T.eq(f:GetHeight(), 600)
     T.deq(ns.module.db.sizes, { shop = { 600, 600 } }, "the shop's size only")
-    local _, rel = f:GetPoint(1)
-    T.eq(rel, MerchantFrame, "hung on the game's spot again")
+    local _, rel, _, x, y = f:GetPoint(1)
+    T.eq(rel, UIParent, "on the game's spot again")
+    T.eq(x, 16 / f:GetScale()); T.eq(y, -116 / f:GetScale())
     -- Right-click: the made size back.
     grip:GetScript("OnMouseUp")(grip, "RightButton")
     settle()

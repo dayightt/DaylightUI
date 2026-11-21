@@ -4551,13 +4551,13 @@ T.test("skins: the trainer window drags only while Beast Training lends it back"
     local Move, f = stub.skins.WindowMove, ClassTrainerFrame
     T.truthy(Move.bars.ClassTrainerFrame)
     DaylightUI.DB.Active().modules.Skins.windowSpots.ClassTrainerFrame = { 300, 700 }
-    local veil = DaylightUI.Win.Followers.veil
-    f:SetParent(veil)
+    local aside = DaylightUI.Win.Followers.aside
+    f:SetParent(aside)
     f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", veil, "TOPLEFT", 0, 0)
+    f:SetPoint("TOPLEFT", aside, "TOPLEFT", 0, 0)
     f:Show()
     UpdateUIPanelPositions(f)
-    T.eq(select(2, f:GetPoint(1)), veil, "parked: left where the veil keeps it")
+    T.eq(select(2, f:GetPoint(1)), aside, "parked: left where it was put")
     local bar = Move.bars.ClassTrainerFrame
     bar:GetScript("OnDragStart")(bar, "LeftButton")
     T.falsy(f.__moving, "and can't be dragged out")
