@@ -155,7 +155,7 @@ builders.welcome = function(parent)
     -- The plaque sits on the banner's lower edge, so it goes above the banner.
     page.plaque = Chrome.Plaque(page)
     page.plaque:SetPoint("TOP", page, "TOP", 0, -S.plaque)
-    page.plaque:SetFrameLevel(UI.Frame():GetFrameLevel() + 30)
+    Chrome.OverBanner(page.plaque)
     page.plaque.Set(Chrome.Spaced(L["First light"]))
     page.title = Chrome.Title(page)
     page.title:SetPoint("TOP", page, "TOP", 0, -S.title)
@@ -422,7 +422,7 @@ builders.finish = function(parent)
 
     page.plaque = Chrome.Plaque(page)
     page.plaque:SetPoint("TOP", page, "TOP", 0, -F.plaque)
-    page.plaque:SetFrameLevel(UI.Frame():GetFrameLevel() + 30)
+    Chrome.OverBanner(page.plaque)
     page.title = Chrome.Title(page)
     page.title:SetPoint("TOP", page, "TOP", 0, -F.title)
 

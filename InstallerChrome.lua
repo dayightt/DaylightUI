@@ -78,6 +78,25 @@ function Chrome.Plaque(parent, height, slant, pad)
     return p
 end
 
+-- A plaque that sits on the setup guide's banner edge goes above everything in
+-- the banner. Read when it shows, not once when it's made: the banner's art is
+-- made later, page by page, and its levels can end up over a number fixed early.
+function Chrome.OverBanner(p)
+    local function lift()
+        local f = DUI.InstallerUI.Frame()
+        local b = f and f.banner
+        local top = f and f:GetFrameLevel() or 0
+        if b then
+            for _, part in ipairs({ b, b.sky, b.over, b.sunrise, b.sunrise and b.sunrise.front }) do
+                if type(part) == "table" and part.GetFrameLevel then top = math.max(top, part:GetFrameLevel()) end
+            end
+        end
+        p:SetFrameLevel(top + 10)
+    end
+    p:HookScript("OnShow", lift)
+    lift()
+end
+
 -- A showpiece title between two lines. Anchor t by its TOP: it is as tall as
 -- the words, and the lines hang off the words' ends.
 function Chrome.Title(parent, ruleWidth, gap)
