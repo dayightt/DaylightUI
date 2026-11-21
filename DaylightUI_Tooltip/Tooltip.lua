@@ -65,7 +65,7 @@ end
 -- General's thickness (made for the heavy band on windows) turns them into a
 -- fat colored frame. On the global style they keep the thickness tooltips
 -- always had; with their own look on, the player's number is used as set.
-Tip.FLAT_PX = 8
+Tip.FLAT_PX = 3
 function Tip.FlatPx(g)
     if Style.LookOwn(LOOK) then return g end
     return Tip.FLAT_PX
