@@ -449,7 +449,7 @@ T.test("rich tooltip: in a fight a unit is the pill by the cursor; Shift shows t
     hover("mouseover", { "Ridgeback Boar", "Level 23 Beast" })
     local pill = _G.DaylightUITooltipPill
     T.truthy(pill and pill:IsShown(), "the pill shows")
-    T.eq(pill:GetWidth(), 200)
+    T.eq(pill:GetWidth(), 224)
     T.eq(GameTooltip:GetAlpha(), 0, "the tooltip itself out of sight")
     T.eq(Tip.Muted(GameTooltip), "pill")
     T.eq(stub.Text(pill.name), "Ridgeback Boar")
@@ -1878,7 +1878,7 @@ T.test("rich tooltip: a tag or sub line too long for the card wraps instead of r
     boar()
     hoverBoar()
     for _, t in ipairs(Panel.Get(tip).items[1].tags) do
-        T.eq(t:GetHeight(), DaylightUI.Widgets.TAG_H, "a short tag one line again")
+        T.near(t:GetHeight(), DaylightUI.Widgets.TAG_H, 0.5, "a short tag one line again")
         T.falsy(t.text:CanWordWrap())
     end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -1899,7 +1899,7 @@ T.test("rich tooltip: a mob's card, as the board lays it out", function()
     local head = p.items[1]
     T.eq(head.kind, "header")
     T.eq(stub.Text(head.title), "Ridgeback Boar")
-    T.eq(head.title.size, DaylightUI.Style.SIZE.title)
+    T.eq(head.title.size, DaylightUI.Style.SIZE.head)
     T.eq(head.icon.art.__portraitUnit, "mouseover", "its face as the icon")
     T.truthy(head.icon.art.__portraitSquare, "square: the card cuts the corner")
     T.eq(stub.Text(head.right), "23", "the level on the right")
@@ -2141,10 +2141,150 @@ T.test("rich tooltip: an item's binding and Unique tags wrap onto a second row",
     T.eq(#head.tags, 5)
     T.eq(stub.Text(head.tags[4].text), "BINDS WHEN PICKED UP")
     T.eq(stub.Text(head.tags[5].text), "UNIQUE")
-    T.eq(head.tags[1].row, 1)
-    T.truthy(head.tags[5].row > 1, "the last ones on another row")
+    -- Under the icon, across the card's inside; the last ones on a lower row.
+    local _, _, _, x1, y1 = head.tags[1]:GetPoint(1)
+    local _, _, _, _, y5 = head.tags[5]:GetPoint(1)
+    T.truthy(y5 < y1, "the last ones on another row")
+    local inside = 290 - 2 * 16
+    for _, tag in ipairs(head.tags) do
+        local _, _, _, x = tag:GetPoint(1)
+        T.truthy(x - x1 + tag:GetWidth() <= inside + 0.5, "never past the edge")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Spanish "CONSUMIBLE · COMIDA Y BEBIDA" is one tag wider than the row beside the
+-- icon: it is cut there, not run past the card.
+T.test("rich tooltip: a single tag wider than its row is cut at the row's edge", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local head = Panel.Get(GameTooltip).items[1]
+    local tag = head.tags[1]
+    tag.Set("A long kind of item and then more", nil)
     local room = 290 - 2 * 16 - 44 - 12
-    for _, tag in ipairs(head.tags) do T.truthy(tag.at + tag:GetWidth() <= room + 0.5, "never past the edge") end
+    tag.FitWidth(room)
+    T.truthy(tag:GetWidth() <= room + 0.5, "cut to the room")
+    tag.FitWidth()
+    T.truthy(tag:GetWidth() > room, "its own width again when the room is not limited")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The dev's rule: tags sit beside the icon while each fits on one row there;
+-- one that would wrap sends them all under the icon, across the card's width.
+T.test("rich tooltip: tags beside the icon while they fit, under it when one would wrap", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local p = Panel.Get(GameTooltip)
+    local function spots()
+        local head = p.items[1]
+        local byTag = {}
+        for _, sp in ipairs(p.tagSpots) do byTag[sp[1]] = sp end
+        return head, byTag
+    end
+    Panel.Finish(p)
+    local head, byTag = spots()
+    local first = byTag[head.tags[1]]
+    T.truthy(first[2] > 16 + 40, "short tags: right of the icon")
+    local beside = first[3]
+    local tag = head.tags[1]
+    tag.Set("A long kind of item and then more", nil)
+    Panel.Finish(p)
+    head, byTag = spots()
+    local sp
+    for _, c in ipairs(p.tagSpots) do if c[1] == tag then sp = c end end
+    T.truthy(sp, "placed")
+    local icon = head.icon:GetHeight()
+    T.truthy(sp[2] < first[2], "a long one: back at the card's left edge, under the icon")
+    T.truthy(sp[3] >= icon, "below the icon's bottom")
+    T.truthy(sp[3] > beside - 0.01, "never above where it sat")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: "Desgarracortez..." (a creature's name is one long word, which
+-- can't wrap): the title's letters shrink until the word fits.
+T.test("rich tooltip: a title with one long word shrinks to fit instead of being cut", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local p = Panel.Get(GameTooltip)
+    Panel.Begin(p, "mob")
+    Panel.Header(p, { title = "Desgarracortezasdelmundoantiguo", right = "26" })
+    local title = p.items[1].title
+    local before = title.size
+    Panel.Finish(p)
+    T.truthy(title.size < before, "smaller letters")
+    T.truthy(title.size >= before * Panel.SHRINK_MIN - 0.01, "not past the least")
+    p.items[1].title:SetText("Short")
+    Panel.Begin(p, "mob")
+    Panel.Header(p, { title = "Short", right = "26" })
+    local short = p.items[1].title
+    local full = short.size
+    Panel.Finish(p)
+    T.eq(short.size, full, "a short name keeps its size")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A name on two lines is taller than the icon: the icon sits in the middle of
+-- the words, not at their top.
+T.test("rich tooltip: the icon is centered against a header's taller words", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local p = Panel.Get(GameTooltip)
+    Panel.Begin(p, "mob")
+    Panel.Header(p, { icon = 134400, iconSize = 20, title = "Desgarracortezas Sombramatorral of the Long Name Indeed Yes", right = "26" })
+    Panel.Finish(p)
+    local head = p.items[1]
+    local _, _, _, _, iy = head.icon:GetPoint(1)
+    local _, _, _, _, ty = head.title:GetPoint(1)
+    T.truthy(iy < ty, "the icon lower than the words' top")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: "35 Ma..." (a spell's tiles, equal widths): each tile takes what
+-- its words need, the card widens a little for them, and none is cut.
+T.test("rich tooltip: a spell's tiles take what their words need", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local p = Panel.Get(GameTooltip)
+    Panel.Begin(p, "spell")
+    Panel.Tiles(p, { { "1,5 sec", "Cast time" }, { "35 Mana", "Cost" }, { "30 sec", "Cooldown time" } })
+    Panel.Finish(p)
+    local list = p.items[1].list
+    local sum = 2 * Panel.TILE_GAP
+    for _, t in ipairs(list) do
+        T.truthy(t:GetWidth() >= t.Need() - 0.5, "wide enough for its words")
+        sum = sum + t:GetWidth()
+    end
+    T.truthy(list[3]:GetWidth() > list[1]:GetWidth(), "the long one wider")
+    T.truthy(sum <= p.wantW - 2 * 16 + 0.5, "inside the card")
+    T.truthy(p.wantW <= math.ceil(270 * Panel.GROW), "the card widens only so far")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: a quest's heading on an item's card ("[24M] INVESTIGACIONES ACERCA
+-- DE LA CORRUPCION") ran past the card's edge: it wraps onto a second line.
+T.test("rich tooltip: a quest heading longer than the card wraps instead of running past it", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local p = Panel.Get(GameTooltip)
+    Panel.Begin(p, "item")
+    Panel.Section(p, "[20] Short")
+    local _, shortH = Panel.Finish(p)
+    Panel.Begin(p, "item")
+    Panel.Section(p, "[24M] Research about the corruption of the old world and more")
+    local _, longH = Panel.Finish(p)
+    T.truthy(longH > shortH + 8, "a second line, not one running past the card")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
