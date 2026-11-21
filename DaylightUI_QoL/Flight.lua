@@ -18,6 +18,7 @@ local Flight = {
     NAME = 22,          -- the destination's size: display text, like the level-up's
     LINE = 3,           -- the route line's thickness
     DOT = 7,            -- a stop on the line
+    STOP_HIT = 16,      -- the room around a stop's dot that names it on hover
     SPARK = 26,         -- the light at the front of the fill
     HEIGHT = 74,        -- from the top of "Flying to" to under the time
     PAD_X = 18,         -- room inside the box at the sides
@@ -44,7 +45,8 @@ local Flight = {
     GRADIENT = "TIMER_FLIGHT",
     TEST_PART = "flight",
     -- The test-mode sample.
-    SAMPLE = { name = L["Stormwind"], from = L["Ironforge"], total = 102, elapsed = 41, stops = { 0.55 } },
+    SAMPLE = { name = L["Stormwind"], from = L["Ironforge"], total = 102, elapsed = 41, stops = { 0.55 },
+               names = { L["Thelsamar"] } },
 }
 ns.Flight = Flight
 ns.features[#ns.features + 1] = Flight
@@ -370,21 +372,62 @@ local function tone(fs, role)
     Style.InkText(fs, role)
 end
 
--- A dot for each stop between, lit once you're past it.
-local function placeStops(stops, p)
+-- Pointing at a stop's dot names it above the dot, and the dot swells a little.
+-- The hover area is a bit bigger than the dot, which is only a few pixels.
+local function stopHover(d)
+    local hit = CreateFrame("Frame", nil, holder.f.over)
+    hit:SetSize(Flight.STOP_HIT, Flight.STOP_HIT)
+    hit:SetPoint("CENTER", d, "CENTER", 0, 0)
+    hit:EnableMouse(true)
+    -- Only the hover: a click still reaches the world, to turn the camera.
+    if hit.SetMouseClickEnabled then hit:SetMouseClickEnabled(false) end
+    d.size = Flight.DOT - 1
+    local function grow(big)
+        Motion.Tween(d, d.size, big and Flight.DOT + 2 or Flight.DOT - 1, Motion.FAST, function(v)
+            d.size = v
+            d:SetSize(v, v)
+        end)
+    end
+    hit:SetScript("OnEnter", function(self)
+        if type(d.stopName) ~= "string" or d.stopName == "" then return end
+        grow(true)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        DUI.Tips.Clear()
+        DUI.Tips.Title(d.stopName)
+        DUI.Tips.Flush()
+        GameTooltip:Show()
+    end)
+    hit:SetScript("OnLeave", function(self)
+        grow(false)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
+    d.hit = hit
+end
+
+-- A dot for each stop between, lit once you're past it, named on hover.
+local function placeStops(stops, p, names)
     local f = holder.f
     stops = stops or {}
     for i = 1, math.max(#stops, #f.stops) do
         local at = stops[i]
         local d = f.stops[i]
         if at then
-            if not d then d = dot(f.over, Flight.DOT - 1); f.stops[i] = d end
+            if not d then
+                d = dot(f.over, Flight.DOT - 1)
+                f.stops[i] = d
+                stopHover(d)
+            end
             d:ClearAllPoints()
             -- The fixed width, not GetWidth: the line may not be laid out yet on its first show.
             d:SetPoint("CENTER", f.bar, "LEFT", at * width(), 0)
             d:Show()
+            local name = names and names[i]
+            d.stopName = type(name) == "string" and Flight.ShortName(name) or nil
+            d.hit:SetShown(d.stopName ~= nil)
         elseif d then
             d:Hide()
+            d.hit:Hide()
         end
     end
     local lr, lg, lb = Style.SplashAt(0.85)
@@ -423,7 +466,7 @@ end
 
 -- What the banner shows: where to, from where, how far along, the time.
 -- landAt: asked to land early, at that stop's place along the line.
-local function show(name, from, elapsed, total, stops, landAt, canLeave)
+local function show(name, from, elapsed, total, stops, landAt, canLeave, names)
     local f = holder.f
     setText(f.name, Flight.ShortName(name))
     setText(f.from, Flight.ShortName(from))
@@ -445,7 +488,7 @@ local function show(name, from, elapsed, total, stops, landAt, canLeave)
     end
     f.bar:SetMinMaxValues(0, 1)
     setFront(p)
-    placeStops((holder.lineOn and on("flightStops")) and stops or nil, p)
+    placeStops((holder.lineOn and on("flightStops")) and stops or nil, p, names)
     -- A direct flight has no stop to land at; without the map's stops it may.
     showLeave(canLeave == true and (stops == nil or nextStop(p, stops) ~= nil))
 end
@@ -484,10 +527,10 @@ function Flight.Update()
     build()
     if flight then
         show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops,
-            flight.landAt, not flight.early)
+            flight.landAt, not flight.early, flight.names)
     elseif sampleWanted() then
         local s = Flight.SAMPLE
-        show(s.name, s.from, s.elapsed, s.total, s.stops, nil, true)
+        show(s.name, s.from, s.elapsed, s.total, s.stops, nil, true, s.names)
     else
         glide(false)
         Flight.WelcomeSample(false)
@@ -705,7 +748,7 @@ function Flight.Tick()
         if not onTaxi() then land() return end
         if holder and holder:IsShown() then
             show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops,
-                flight.landAt, not flight.early)
+                flight.landAt, not flight.early, flight.names)
         end
     elseif pending then
         if onTaxi() then takeOff(pending)

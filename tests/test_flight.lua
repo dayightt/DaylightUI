@@ -138,6 +138,28 @@ T.test("flight: a first flight counts down from the game's path length", functio
     T.eq(box.time:GetText(), "1:10", "and beats the path's guess next time")
 end)
 
+T.test("flight: pointing at a stop's dot names it", function()
+    local F = login()
+    stub.qol.FlightPaths = { ["2>6"] = 60, ["7>6"] = 40 }
+    fly(F, 3)
+    settle()
+    local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    _G.GameTooltip = tip
+    function tip:SetOwner(o) self.__owner = o end
+    function tip:IsOwned(o) return self.__owner == o end
+    local hit = bar().f.stops[1].hit
+    T.truthy(hit and hit:IsShown(), "the dot takes the mouse")
+    local Tips, title = DaylightUI.Tips
+    local was = Tips.Title
+    Tips.Title = function(text, ...) title = text return was(text, ...) end
+    hit:GetScript("OnEnter")(hit)
+    Tips.Title = was
+    T.truthy(GameTooltip:IsShown() and GameTooltip:IsOwned(hit), "a tooltip at once, over the dot")
+    T.eq(title, "Ironforge", "with the stop's name")
+    hit:GetScript("OnLeave")(hit)
+    T.falsy(GameTooltip:IsShown(), "gone with the mouse")
+end)
+
 T.test("flight: the land-early button heads for the next stop", function()
     local F = login()
     stub.qol.FlightPaths = { ["2>6"] = 60, ["7>6"] = 40 }
