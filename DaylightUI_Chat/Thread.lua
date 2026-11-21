@@ -371,12 +371,16 @@ function Thread.New(parent, opts)
     -- Input box at the bottom, with Send, styled like the chat's own footer.
     t.send = W().Button(parent, L["Send"], DUI.Widgets.INPUT_H)
     t.send:SetWidth(64)
+    -- Once a line is sent the box lets go of the keyboard, as the game's own chat
+    -- box does, so the next key press is a spell again (a healer mid-fight).
     t.send:SetScript("OnClick", function()
         if send(t, t.input:GetText()) then t.input:SetText("") end
+        t.input:ClearFocus()
     end)
     t.input = W().Input(parent, { hint = L["Reply..."], maxLetters = 255 })
     t.input:SetScript("OnEnterPressed", function(box)
         if send(t, box:GetText()) then box:SetText("") end
+        box:ClearFocus()
     end)
     t.input:SetScript("OnEscapePressed", function(box) box:ClearFocus() end)
     local bottom = t.input

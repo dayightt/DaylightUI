@@ -21,6 +21,7 @@ DUI.PatchNotes = {
         { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under it, so prices stop creeping down" },
         { "Loot", "The loot rolls switch works like every other switch again: on shows Daylight UI's roll window, off the game's own popups" },
     }, fixed = {
+        { "Chat", "After you send a whisper from its conversation window, your keys go back to your spells. Press Enter to type to them again" },
         { "Little touches", "Small icon buttons show their name much sooner when you point at them" },
         { "Quests", "Wanted Posters and other things in the world that give quests list them in their tooltip again, with Questie on" },
         { "Nameplates", "The execute range band on enemy health bars ends right at the health you picked, instead of looking a few percent higher" },

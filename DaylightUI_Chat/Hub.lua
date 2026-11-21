@@ -160,6 +160,7 @@ local function build()
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Hub.spot.Reset   -- /dui reset
     Win.Keys(f, function(key)
         if key == "ESCAPE" then Hub.Close(); return true end
+        if key == "ENTER" and thread.c then thread.input:SetFocus(); return true end
     end)
 end
 

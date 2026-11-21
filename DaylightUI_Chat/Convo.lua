@@ -103,9 +103,11 @@ local function build()
     card.top:SetPoint("TOPRIGHT", card, "TOPRIGHT", -6, -2)
     thread = ns.Thread.New(card, { onClose = function() Convo.Close() end, links = { "clear", "all" },
         size = function() return Convo.Size() end })
-    -- Escape tucks it away; other keys pass through.
+    -- Escape tucks it away. Enter goes back to the reply box, so a second line typed
+    -- straight after the first reaches them and never the main chat. Other keys pass.
     DUI.Win.Keys(card, function(key)
         if key == "ESCAPE" then Convo.Close(); return true end
+        if key == "ENTER" then thread.input:SetFocus(); return true end
     end)
     Convo.BuildMove()
 end
