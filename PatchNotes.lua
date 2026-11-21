@@ -23,6 +23,7 @@ DUI.PatchNotes = {
         { "Info panel", "The data texts under the minimap can have their own fade and opacity, apart from the minimap" },
     }, fixed = {
         { "Quests", "A quest's dungeon or elite tag no longer sits squashed against the end of its title in a narrow tracker" },
+        { "Loot rolls", "Loot roll cards you had already rolled on no longer get stuck on screen with a huge timer after a reload or relog" },
         { "Loot rolls", "Long item names, roll buttons and the result line on loot roll cards fit in every language instead of being cut off" },
         { "Little touches", "The raid marker icons show in the right-click marker menu again, instead of dark empty boxes" },
         { "Unit frames", "The slanted level tag on set-in portraits stays put with a cast bar under the frame, instead of turning into a round badge" },

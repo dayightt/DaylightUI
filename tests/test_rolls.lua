@@ -945,6 +945,30 @@ T.test("rolls stack: a roll you already picked comes back after a reload", funct
     T.eq(#S.RollStack.Cards(), 1)
 end)
 
+T.test("rolls data: a picked roll rebuilt after a reload keeps the time it had left", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN, time = 180000 })
+    cardFor(S, id).buttons.greed:Click()
+    stub.Advance(60)
+    for k in pairs(S.RollData.drops) do S.RollData.drops[k] = nil end
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, true)
+    local back
+    for _, d in pairs(S.RollData.drops) do back = d end
+    T.truthy(back, "back from the Loot History")
+    local left = back.start + back.duration - GetTime()
+    T.truthy(left > 115 and left < 125, "about two minutes left, not " .. tostring(left))
+end)
+
+T.test("rolls data: a picked roll whose time ran out stays gone after a reload", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN, time = 180000 })
+    cardFor(S, id).buttons.greed:Click()
+    stub.Advance(400)
+    for k in pairs(S.RollData.drops) do S.RollData.drops[k] = nil end
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, true)
+    T.isnil(next(S.RollData.drops), "no card for a roll that is over")
+end)
+
 T.test("rolls stack: if a card can't be drawn the game's popup comes back", function()
     local S, RW = rollsLogin()
     local fill = S.RollCard.Fill

@@ -398,6 +398,8 @@ end
 -- watch: no buttons.
 function RollData.RebuildPicked(now)
     if not (C_LootHistory and C_LootHistory.GetAllEncounterInfos and C_LootHistory.GetSortedDropsForEncounter) then return end
+    -- The history times its drops in milliseconds on its own clock, not GetTime's.
+    local clock = C_LootHistory.GetLootHistoryTime and plain(C_LootHistory.GetLootHistoryTime(), "number")
     local infos = C_LootHistory.GetAllEncounterInfos()
     for _, enc in ipairs(type(infos) == "table" and infos or {}) do
         local encounterID = plain(enc.encounterID, "number")
@@ -405,10 +407,13 @@ function RollData.RebuildPicked(now)
         for _, info in ipairs(type(list) == "table" and list or {}) do
             local key = plain(info.lootListKey, "number")
             local state = plain(info.playerRollState, "number")
+            local started, length = plain(info.startTime, "number"), plain(info.duration, "number")
+            local left = clock and started and length and (length - (clock - started)) / 1000
             local held = key and oldest(function(x) return x.encounterID == encounterID and x.lootListKey == key end)
             local id = key and -(encounterID * 100000 + key)
             if key and not held and not RollData.drops[id] and type(info.winner) == "nil"
-                and plain(info.allPassed, "boolean") ~= true and state and state ~= 4 then
+                and plain(info.allPassed, "boolean") ~= true and state and state ~= 4
+                and left and left > 0 then
                 local link = plain(info.itemHyperlink, "string")
                 local item = itemID(link)
                 local icon, quality
@@ -416,13 +421,11 @@ function RollData.RebuildPicked(now)
                 if item and type(instant) == "function" then icon = select(5, instant(item)) end
                 local qualityOf = C_Item and C_Item.GetItemQualityByID
                 if item and type(qualityOf) == "function" then quality = qualityOf(item) end
-                local started = plain(info.startTime, "number")
                 local drop = {
                     rollID = id, link = link, itemID = item, name = itemName(link) or "?", icon = icon or 134400,
                     quality = type(quality) == "number" and quality or nil, count = 1, watch = true,
                     can = {}, reasons = {}, players = {}, order = {},
-                    start = (started and math.abs(now - started) < 3600) and started or now,
-                    duration = plain(info.duration, "number") or 60,
+                    start = now - (length / 1000 - left), duration = length / 1000,
                     mine = RollData.STATE[state], encounterID = encounterID, lootListKey = key,
                 }
                 RollData.drops[id] = drop

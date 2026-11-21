@@ -66,6 +66,12 @@ end
 
 local function now() return GetTime() end
 
+-- The Loot History keeps its own clock in milliseconds (GetLootHistoryTime),
+-- not GetTime's. Its startTime and duration are on that clock: the game's own
+-- frame takes GetLootHistoryTime() - startTime and compares it with duration.
+local HISTORY_BASE = 7300000
+local function historyNow() return now() * 1000 + HISTORY_BASE end
+
 -- The drop's Loot History record, the way GetSortedInfoForDrop answers it.
 local function historyInfo(d)
     local infos, winner, leader = {}, nil, nil
@@ -80,7 +86,7 @@ local function historyInfo(d)
     for _, p in ipairs(d.players) do if p.self then mine = p.state end end
     return { lootListKey = d.historyID, itemHyperlink = d.link, playerRollState = mine,
              currentLeader = leader, isTied = false, winner = winner, allPassed = d.allPassed == true,
-             rollInfos = infos, startTime = d.start, duration = d.time / 1000 }
+             rollInfos = infos, startTime = d.start * 1000 + HISTORY_BASE, duration = d.time }
 end
 
 local function historyChanged(d)
@@ -170,6 +176,7 @@ function RW.Install()
         take(rollID, id)
     end
     _G.C_LootHistory = {
+        GetLootHistoryTime = historyNow,
         GetAllEncounterInfos = function()
             if not RW.history or #RW.order == 0 then return {} end
             return { { encounterName = "Trash", encounterID = ENCOUNTER, startTime = 0, duration = 0 } }
