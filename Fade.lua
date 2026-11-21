@@ -712,6 +712,29 @@ end
 
 function Fade.Hushed() return next(hushes) ~= nil end
 
+-- General's "Fade everything on a flight path": the whole UI hushes while you
+-- ride a flight master's taxi and comes back as you land. The flight timer
+-- isn't a fade area, so it stays.
+function Fade.CheckFlight()
+    local g = DUI.DB and DUI.DB.General and DUI.DB.General()
+    local flying = type(UnitOnTaxi) == "function" and UnitOnTaxi("player") == true
+    if g ~= nil and g.fadeOnFlight == true and flying then
+        Fade.Hush("flight", { "" })
+    else
+        Fade.Unhush("flight")
+    end
+end
+
+-- The taxi flag can trail the control events by a moment, so look again.
+local function checkFlightSoon()
+    Fade.CheckFlight()
+    C_Timer.After(0.5, Fade.CheckFlight)
+    C_Timer.After(2, Fade.CheckFlight)
+end
+DUI.RegisterEvent("PLAYER_CONTROL_LOST", checkFlightSoon)
+DUI.RegisterEvent("PLAYER_CONTROL_GAINED", checkFlightSoon)
+DUI.RegisterEvent("PLAYER_ENTERING_WORLD", checkFlightSoon)
+
 -- The "Show everything" key: every area shows at its opacity until pressed
 -- again, then whatever is set to fade goes back to it right away instead of
 -- waiting out its delay. Only alpha changes, so it works in a fight too.
@@ -1215,6 +1238,7 @@ DUI.On("SettingChanged", function(scope, path)
     if type(path) ~= "string" then return end
     -- "Fades only in the open world": no preview, it applies at once.
     if scope == "general" and path == "fadeOpenWorldOnly" then Fade.Step(); return end
+    if scope == "general" and path == "fadeOnFlight" then Fade.CheckFlight(); return end
     local any = false
     for _, key in ipairs(order) do
         local e = entries[key]

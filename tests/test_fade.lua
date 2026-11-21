@@ -916,6 +916,44 @@ T.test("fade: 'Fade only in the open world' shows everything in dungeons, raids,
     T.near(a:GetAlpha(), 0.2, 1e-6, "switched off inside: fades as set")
 end)
 
+T.test("fade: 'Fade everything on a flight path' hushes the whole UI while on a taxi", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local flying = false
+    local was = _G.UnitOnTaxi
+    _G.UnitOnTaxi = function(unit) return unit == "player" and flying end
+    T.eq(DUI.DB.General().fadeOnFlight, false, "off out of the box")
+    local a = frame()
+    area(DUI, "tflight", { mode = "never", opacity = 1 }, { a })
+    settle(F); settle(F)
+    flying = true
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    stub.Advance(5)
+    settle(F); settle(F)
+    T.eq(a:GetAlpha(), 1, "switch off: a flight changes nothing")
+    DUI:Set("general", "fadeOnFlight", true)
+    stub.Advance(5)
+    settle(F); settle(F)
+    T.eq(a:GetAlpha(), 0, "switch on mid-flight: faded away")
+    flying = false
+    stub.FireEvent("PLAYER_CONTROL_GAINED")
+    stub.Advance(3)
+    settle(F); settle(F)
+    T.eq(a:GetAlpha(), 1, "back on landing")
+    -- The taxi flag can come a moment after control is lost.
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    flying = true
+    stub.RunTimers()
+    stub.Advance(5)
+    settle(F); settle(F)
+    T.eq(a:GetAlpha(), 0, "a late taxi flag still fades it")
+    DUI:Set("general", "fadeOnFlight", false)
+    stub.Advance(3)
+    settle(F); settle(F)
+    T.eq(a:GetAlpha(), 1, "turned off mid-flight: back")
+    _G.UnitOnTaxi = was
+end)
+
 T.test("fade: the Show everything key shows every area, a second press fades them back at once", function()
     local DUI = stub.Load()
     local F = DUI.Fade

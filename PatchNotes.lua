@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Leader tools", "A slim, smaller leader tools card without the titles. Switch it with the arrow in its top right corner" },
         { "Quests", "Short quest tags: the tracker's dungeon, elite and raid tags can show just their first letter, leaving long titles more room" },
         { "Auction House", "Plays well with a controller: the D-pad scrolls through long lists, amounts and prices change with left and right, and X buys, posts or cancels" },
+        { "Fade", "The whole UI can fade away while you fly on a flight path and come back as you land. Switch it on in General > Fade" },
     }, fixed = {
         { "Quests", "A quest's dungeon or elite tag no longer sits squashed against the end of its title in a narrow tracker" },
         { "Loot rolls", "Long item names, roll buttons and the result line on loot roll cards fit in every language instead of being cut off" },
@@ -1348,7 +1349,6 @@ DUI.PatchNotes = {
     },
     { version = "1.1.0", date = "2026-10-19", summary = "Name tabs you can style on the unit frames, plus fixes for chat, the group finder and the world map.",
         new = {
-            { "Unit frames", "The name tab gets its own border, corners, shadow, angle, position and width on the player, target, focus and party frames" },
         },
         changed = {
             { "Quests", "Quest givers on the map use far less memory" },
