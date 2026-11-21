@@ -93,6 +93,29 @@ T.test("npc: a quest page shows the quest's level after its name", function()
     T.truthy(title:find("|c%x+6|r$"), "the level, in its color: " .. title)
 end)
 
+T.test("npc: a dungeon quest wears the tracker's tag in the list and under its title", function()
+    local N = load()
+    NW.tags[60] = 81
+    NW.Gossip(GOSSIP)
+    frame()
+    local row = N.rows[1]
+    T.truthy(row.tag and row.tag:IsShown(), "a tag on the quest's row")
+    T.eq(row.tag.text:GetText(), "DUNGEON")
+    T.truthy(not (N.rows[2].tag and N.rows[2].tag:IsShown()), "none on a gossip option")
+    NW.Quest("DETAIL", NW.Candles({ level = 6 }))
+    frame()
+    local piece = N.frame.pages.talk.pieces[2]
+    T.truthy(piece.tag, "a tag under the title")
+    T.eq(piece.tag.text:GetText(), "DUNGEON")
+end)
+
+T.test("npc: a plain quest has no tag", function()
+    local N = load()
+    NW.Gossip(GOSSIP)
+    frame()
+    T.truthy(not (N.rows[1].tag and N.rows[1].tag:IsShown()))
+end)
+
 T.test("npc: a quest page the game has no level for takes the one the NPC's list gave", function()
     local N = load()
     NW.Gossip(GOSSIP)

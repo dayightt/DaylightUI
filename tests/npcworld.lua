@@ -390,6 +390,10 @@ local function installQuest()
         local q = Q()
         return q.questID == id and q.level or 0
     end
+    -- Quest tags by id (NW.tags[id] = tagID, 81 a dungeon), as the game's log reads them.
+    NW.tags = {}
+    _G.C_QuestLog.GetQuestTagInfo = function(id) local t = NW.tags[id]; return t and { tagID = t } or nil end
+    _G.C_QuestLog.IsEliteQuest = function() return false end
     _G.HaveQuestData = function(id) local l = logged(id); return l ~= nil and not l.loading end
     _G.GetNumQuestLogChoices = function(id)
         local l = logged(id)

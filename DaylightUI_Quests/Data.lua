@@ -112,25 +112,10 @@ function Data.TimeLeft(questID, timers)
     end
 end
 
--- A quest's type as the game's own log tags it (Forever's
--- QuestUtilsOverrides.GetQuestTagText: "(Elite)", "(Dungeon)", "(Raid)", "(PvP)"):
--- elite | dungeon | raid | pvp, or nil. An elite quest without the tag still counts
--- (the log's "[22+]" comes from IsEliteQuest).
-local QC = Constants and Constants.QuestConsts or {}
-Data.TAGS = {
-    [QC.QUEST_INFO_ELITE_ID or 1] = "elite",
-    [QC.QUEST_INFO_DUNGEON_ID or 81] = "dungeon",
-    [QC.QUEST_INFO_RAID_ID or 62] = "raid",
-    [QC.QUEST_INFO_PVP_ID or 41] = "pvp",
-}
-function Data.Tag(questID)
-    local QL = C_QuestLog
-    local info = call(api(QL, "GetQuestTagInfo"), questID)
-    local id = type(info) == "table" and info.tagID or nil
-    local kind = type(id) == "number" and Data.TAGS[id] or nil
-    if not kind and call(api(QL, "IsEliteQuest"), questID) == true then kind = "elite" end
-    return kind
-end
+-- A quest's type as the game's own log tags it: elite | dungeon | raid | pvp, or
+-- nil. The core reads it, since the NPC window tags quests the same way.
+Data.TAGS = DaylightUI.Npc.Data.TAGS
+function Data.Tag(questID) return DaylightUI.Npc.Data.Tag(questID) end
 
 -- How many party members are on this quest, the game's own count
 -- (QuestUtils_GetNumPartyMembersOnQuest, the log's "[2]"). In a raid, only the

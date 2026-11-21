@@ -326,7 +326,7 @@ local function questRows(s, quests, n, air)
         local text = withLevel(q.title, q.level, ns.Data.QuestColor(q.questID, q.level, q.trivial))
         if air > 0 then s:Gap(air) end
         Npc.rows[n] = s:Row({ text = text, color = color, icon = icon, atlas = atlas, iconColor = iconColor, key = keyFor(n),
-            onClick = function() pickQuest(q) end })
+            tag = ns.Data.TagFor(q.questID), onClick = function() pickQuest(q) end })
     end
     return n
 end
@@ -364,6 +364,8 @@ function Npc.Fill(page)
         end
     else
         s:Text(withLevel(d.title, d.level, d.color), { size = Npc.TITLE_SIZE, color = d.color })
+        local tag = ns.Data.TagFor(d.questID)
+        if tag then s:Tag(tag.text, tag.color, 4) end
         said = s:Text(d.text, say)
         if S.mode == "detail" and d.objective ~= "" then
             s:Section(L["Objectives"])

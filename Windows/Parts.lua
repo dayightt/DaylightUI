@@ -354,6 +354,21 @@ function Stack:Text(text, opts)
     return put(self, b, math.ceil(h), opts.gap)
 end
 
+-- A slanted tag on its own line (a dungeon quest's, under its title).
+local function makeTag(parent)
+    local b = CreateFrame("Frame", nil, parent)
+    b.tag = DUI.Widgets.Tag(b)
+    b.tag:SetPoint("LEFT", b, "LEFT", 0, 0)
+    return b
+end
+
+function Stack:Tag(text, color, gap)
+    local b = take(self, "tag", makeTag)
+    b.tag.Set(text, color)
+    b.stackKey = "tag:" .. (text or "")
+    return put(self, b, DUI.Widgets.TAG_H, gap)
+end
+
 -- A small spaced header with a faint line under it.
 local function makeSection(parent)
     local b = CreateFrame("Frame", nil, parent)
@@ -516,7 +531,19 @@ function Stack:Row(spec)
     b.icon:ClearAllPoints()
     b.icon:SetPoint("LEFT", b, "LEFT", (spec.key ~= nil and 6 + Parts.KEY + 8 or 6) + (spec.depth or 0) * Parts.INDENT, 0)
     paintChevron(b, spec.chevron)
-    b.text:SetPoint("RIGHT", b, "RIGHT", b.chevron:IsShown() and -(Parts.CHEVRON + 14) or -8, 0)
+    local right = b.chevron:IsShown() and -(Parts.CHEVRON + 14) or -8
+    -- spec.tag = { text, color }: a slanted tag at the row's end (a dungeon quest).
+    if spec.tag then
+        if not b.tag then b.tag = DUI.Widgets.Tag(b) end
+        b.tag.Set(spec.tag.text, spec.tag.color)
+        b.tag:ClearAllPoints()
+        b.tag:SetPoint("RIGHT", b, "RIGHT", right, 0)
+        b.tag:Show()
+        right = right - b.tag:GetWidth() - 8
+    elseif b.tag then
+        b.tag:Hide()
+    end
+    b.text:SetPoint("RIGHT", b, "RIGHT", right, 0)
     b:SetAlpha(1)
     b.dim = spec.dim
     b.Lit(false)

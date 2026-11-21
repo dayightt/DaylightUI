@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         { "Quests", "Short quest tags: the tracker's dungeon, elite and raid tags can show just their first letter, leaving long titles more room" },
         { "Auction House", "Plays well with a controller: the D-pad scrolls through long lists, amounts and prices change with left and right, and X buys, posts or cancels" },
         { "Fade", "The whole UI can fade away while you fly on a flight path and come back as you land. Switch it on in General > Fade" },
+        { "NPC window", "Dungeon, elite, raid and PvP quests wear the same tag as in the quest tracker, in an NPC's quest list and under the quest's title" },
     }, fixed = {
         { "Quests", "A quest's dungeon or elite tag no longer sits squashed against the end of its title in a narrow tracker" },
         { "Loot rolls", "Long item names, roll buttons and the result line on loot roll cards fit in every language instead of being cut off" },

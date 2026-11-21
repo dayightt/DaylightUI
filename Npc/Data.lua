@@ -29,6 +29,44 @@ function Data.QuestLevel(questID)
     return Data.levels[questID]
 end
 
+-- A quest's type as the game's own log tags it (Forever's
+-- QuestUtilsOverrides.GetQuestTagText: "(Elite)", "(Dungeon)", "(Raid)", "(PvP)"):
+-- elite | dungeon | raid | pvp, or nil. An elite quest without the tag still
+-- counts (the log's "[22+]" comes from IsEliteQuest). The quest tracker reads
+-- the same.
+local QC = Constants and Constants.QuestConsts or {}
+Data.TAGS = {
+    [QC.QUEST_INFO_ELITE_ID or 1] = "elite",
+    [QC.QUEST_INFO_DUNGEON_ID or 81] = "dungeon",
+    [QC.QUEST_INFO_RAID_ID or 62] = "raid",
+    [QC.QUEST_INFO_PVP_ID or 41] = "pvp",
+}
+Data.TAG_WORDS = {
+    elite = function() return ELITE or DUI.L["Elite"] end,
+    dungeon = function() return CALENDAR_TYPE_DUNGEON or DUI.L["Dungeon"] end,
+    raid = function() return RAID or DUI.L["Raid"] end,
+    pvp = function() return CALENDAR_TYPE_PVP or DUI.L["PvP"] end,
+}
+
+function Data.Tag(questID)
+    if type(questID) ~= "number" or questID <= 0 or not C_QuestLog then return nil end
+    local info = call(C_QuestLog.GetQuestTagInfo, questID)
+    local id = type(info) == "table" and info.tagID or nil
+    local kind = type(id) == "number" and Data.TAGS[id] or nil
+    if not kind and call(C_QuestLog.IsEliteQuest, questID) == true then kind = "elite" end
+    return kind
+end
+
+-- The tag for the NPC window: { text, color } in the tracker's colors, or nil
+-- for a plain quest or with the tracker's quest tags switched off.
+function Data.TagFor(questID)
+    local kind = Data.Tag(questID)
+    if not kind or DUI:Get("Quests", "questTags") == false then return nil end
+    local c = DUI:Get("Quests", "colors." .. kind)
+    if type(c) ~= "table" or type(c[1]) ~= "number" then c = { DUI.Style.Accent() } end
+    return { text = Data.TAG_WORDS[kind](), color = c }
+end
+
 local function remember(q)
     if type(q.questID) == "number" and type(q.level) == "number" and q.level > 0 then Data.levels[q.questID] = q.level end
     return q

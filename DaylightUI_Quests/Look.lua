@@ -123,12 +123,7 @@ Look.TAG_PAD = 5      -- from the word to the box edge, halfway up its cut
 Look.TAG_SLANT = 0.3  -- each slanted end's cut, as a fraction of TAG_H
 Look.TAG_GAP = 5      -- between the end of the title and the tag
 Look.TAG_FILL = 0.16  -- alpha of the box behind the word, in the tag's color
-Look.TAG_WORDS = {
-    elite = function() return ELITE or DUI.L["Elite"] end,
-    dungeon = function() return CALENDAR_TYPE_DUNGEON or DUI.L["Dungeon"] end,
-    raid = function() return RAID or DUI.L["Raid"] end,
-    pvp = function() return CALENDAR_TYPE_PVP or DUI.L["PvP"] end,
-}
+Look.TAG_WORDS = DUI.Npc.Data.TAG_WORDS
 
 function Look.TagCut(tag)
     return DUI.Pixel.Snap(tag, Look.TAG_H * Look.TAG_SLANT)
