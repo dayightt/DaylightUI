@@ -239,6 +239,22 @@ function CB.Create(unit, attachTo, into, opts)
             self.slide:Jump(1)
         end
     end)
+    -- Inside a frame the bar covers the power bar, so the power text would run
+    -- into the spell name: it fades out while the bar shows. Only the show and
+    -- hide matter here, so a secret cast never gets read.
+    if into then
+        h:HookScript("OnShow", function(self)
+            local t = attachTo.powerText
+            if type(t) ~= "table" then return end
+            self.coveredText = t
+            DUI.Motion.Fade(t, 1, 0, DUI.Motion.FAST)
+        end)
+        h:HookScript("OnHide", function(self)
+            local t = self.coveredText
+            self.coveredText = nil
+            if t then DUI.Motion.Fade(t, 0, 1, DUI.Motion.FAST) end
+        end)
+    end
     h:Hide()
     -- An enemy's bar: the kick (an interrupt) and who did it, on the frame the
     -- bar sits in (the screen for a free bar), so they outlast the bar's hold.
