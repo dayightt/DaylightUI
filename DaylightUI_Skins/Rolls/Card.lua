@@ -13,6 +13,12 @@ local RollCard = {
     PAD = 10,
     ICON = 36,
     HEAD = 52,     -- item, name and sub line
+    BUTTON_PAD = 6, -- inside a roll button, each side of its icon and word
+    WORD_MIN = 0.75, -- the words in the buttons shrink this far before they leave the icons alone
+    NAME_PAD = 6,   -- above and below the name and sub line when the name takes two rows
+    NAME_MIN = 0.8, -- a long item name shrinks this far before it wraps onto a second row
+    SUM_MIN = 0.85, -- the least the summary line shrinks to before it takes a second row
+    NUM_W = 52,    -- the room for a roll's number on a list row
     TIMER = 10,    -- the time bar, while picking
     SUM = 22,      -- the line saying where the roll stands
     HEAD_SMALL = 42, -- a compact card's head
@@ -124,7 +130,7 @@ local function easeBox(card, box, to, dur)
 end
 
 function RollCard.LiveHeight(card)
-    local h = (card.headH or RollCard.HEAD) + RollCard.FOOT
+    local h = (card.headH or RollCard.HEAD) + (card.nameExtra or 0) + RollCard.FOOT
     for _, box in ipairs(card.boxes) do h = h + (box:GetHeight() or 0) end
     return h
 end
@@ -140,8 +146,11 @@ local function box(card, after)
     return f
 end
 
+-- A button that already says its word needs no tooltip repeating it: it shows
+-- only for a button with the icon alone, or one that has a reason to give.
 local function tooltip(b)
     if not GameTooltip then return end
+    if (b.text:GetText() or "") ~= "" and not b.reason then return end
     GameTooltip:SetOwner(b, "ANCHOR_TOP")
     DUI.Tips.Clear()
     DUI.Tips.Title(word(b.kind))
@@ -303,7 +312,7 @@ local function rowFor(card, key)
     row.pick:SetPoint("LEFT", f, "LEFT", P, 0)
     row.num = Style.Text(f, Style.SIZE.body, "RIGHT")
     row.num:SetPoint("RIGHT", f, "RIGHT", -P, 0)
-    row.num:SetWidth(52)
+    row.num:SetWidth(RollCard.NUM_W)
     row.bar = W.Bar(f, W.BAR_H)
     row.bar:SetWidth(RollCard.ROLL_BAR)
     row.bar:SetPoint("RIGHT", row.num, "LEFT", -6, 0)
@@ -348,6 +357,14 @@ local function paintRow(card, row, p, drop, settings, first)
         row.num:SetText(pick and "" or RollCard.TEXT.choosing)
         Style.InkText(row.num, "LABEL")
     end
+    -- The number's room is a roll's (up to 100); "choosing" in a longer language
+    -- ("eligiendo") takes what it needs rather than ending in "...".
+    local numW = RollCard.NUM_W
+    if not p.roll and not pick then
+        local w = row.num:GetUnboundedStringWidth()
+        if type(w) == "number" and not DUI.IsSecret(w) then numW = math.max(numW, math.ceil(w) + 2) end
+    end
+    row.num:SetWidth(numW)
 
     local showBar = settings.rollBars ~= false and p.roll ~= nil
     row.bar:SetShown(showBar)
@@ -489,6 +506,46 @@ end
 -- The roll buttons: Need, Greed (Transmog in its place when the game offers
 -- it), Disenchant when it can be, Pass. One the game won't let you press is
 -- dimmed and says why.
+-- The words in each button fit the button, the same on every button: icon and word
+-- when they fit, else the word alone (a long "Desencantar" or "Bedarf" loses the icon
+-- before it loses letters), else both or the word alone shrunk (to WORD_MIN), and the
+-- icon alone (the tooltip says what each is) rather than run past the edge.
+local function fitWords(shown, each, iconPx, wordsOn)
+    local gap = DUI.Widgets and DUI.Widgets.BUTTON_ICON_GAP or 6
+    local roomAll = each - 2 * RollCard.BUTTON_PAD   -- the button's inside
+    local widest = 0
+    for _, b in ipairs(shown) do
+        b.baseWord = b.baseWord or b.text.size or Style.SIZE.body
+        Style.SetTextSize(b.text, b.baseWord)
+        if wordsOn then
+            b.SetWords(word(b.kind))
+            local w = b.text:GetUnboundedStringWidth()
+            if type(w) == "number" and not DUI.IsSecret(w) then widest = math.max(widest, w) end
+        end
+    end
+    -- The same for every button, in this order: icon and word at full size, the
+    -- word alone at full size, then icon and word, or the word alone, shrunk
+    -- (to WORD_MIN), and the icon alone when no word fits.
+    local mode, scale = "icon", 1
+    if wordsOn and widest > 0 then
+        local withIcon = math.max(0, roomAll - iconPx - gap) / widest
+        local alone = math.max(0, roomAll) / widest
+        if withIcon >= 1 then mode = "both"
+        elseif alone >= 1 then mode = "word"
+        elseif withIcon >= RollCard.WORD_MIN then mode, scale = "both", withIcon
+        elseif alone >= RollCard.WORD_MIN then mode, scale = "word", alone end
+    end
+    for _, b in ipairs(shown) do
+        if mode == "icon" then b.SetWords("") else Style.SetTextSize(b.text, b.baseWord * scale) end
+        b.LayIcon(iconPx)
+        b.icon:SetShown(mode ~= "word")
+        if mode == "word" then
+            b.text:ClearAllPoints()
+            b.text:SetPoint("CENTER", b, "CENTER", 0, 0)
+        end
+    end
+end
+
 local function layButtons(card, drop, settings)
     local size = settings.buttonSize or 30
     local shown = {}
@@ -507,13 +564,11 @@ local function layButtons(card, drop, settings)
             b.reason = (not can and type(reasonID) == "number" and reasonID > 0) and _G["LOOT_ROLL_INELIGIBLE_REASON" .. reasonID] or nil
             if (not can) ~= (b.off == true) then b.SetOff(not can) end
             b:SetHeight(size)
-            b.SetWords(settings.buttonWords ~= false and word(kind) or "")
             if settings.icons == "game" and kind ~= "disenchant" then
                 b.SetIcon("lootroll-toast-icon-" .. kind .. "-up", true)
             else
                 b.SetIcon("roll-" .. kind .. ".png")
             end
-            b.LayIcon(size - 8)
             b.SetActive(drop.mine == kind or drop.pending == kind)
         end
     end
@@ -525,6 +580,42 @@ local function layButtons(card, drop, settings)
         b:SetWidth(each)
         b:SetPoint("TOPLEFT", card.buttonBox, "TOPLEFT", P + (i - 1) * (each + G), -4)
     end
+    fitWords(shown, each, size - 8, settings.buttonWords ~= false)
+end
+
+-- The line saying where the roll stands, whole: a long one ("Naharian ganó con Codicia 85.
+-- Sacaste 40.") shrinks (to SUM_MIN of its size), and one still too long takes a second
+-- row, its box growing by what that needs (card.sumExtra).
+local function fitSum(card, ticks)
+    local fs = card.sum
+    local text = fs:GetText()
+    if type(text) ~= "string" or DUI.IsSecret(text) then return end
+    local P = RollCard.PAD
+    local room = (card:GetWidth() or 0) - P - 8 - (ticks and (card.ticks:GetWidth() + P) or P)
+    if room <= 0 then return end
+    local key = table.concat({ text, tostring(ticks), math.floor(room + 0.5) }, "|")
+    if card.sumKey == key then return end
+    card.sumKey = key
+    local size = Style.SIZE.small
+    fs:SetWordWrap(false)
+    fs:SetMaxLines(0)
+    Style.SetTextSize(fs, size)
+    local wide = fs:GetUnboundedStringWidth()
+    local extra = 0
+    if type(wide) == "number" and not DUI.IsSecret(wide) and wide > room then
+        size = size * math.max(RollCard.SUM_MIN, room / wide)
+        Style.SetTextSize(fs, size)
+        wide = fs:GetUnboundedStringWidth()
+        if type(wide) == "number" and wide > room then
+            fs:SetWordWrap(true)
+            fs:SetMaxLines(2)
+            local h = fs:GetStringHeight()
+            if type(h) ~= "number" or h <= 0 then h = 2 * (size + 3) end
+            extra = math.max(0, math.ceil(h + 8 - RollCard.SUM))
+        end
+    end
+    card.sumExtra = extra
+    easeBox(card, card.sumBox, RollCard.SUM + extra, 0)
 end
 
 -- Still waiting on your pick: the card stays small, its list only a row of
@@ -548,6 +639,7 @@ function RollCard.Height(card, look)
     local small = (look.mode == "compact" or yourTurn(drop)) and not open
     local h = (small and RollCard.HEAD_SMALL or RollCard.HEAD) + RollCard.SUM + RollCard.FOOT
     if not drop then return h end
+    h = h + (card.nameExtra or 0) + (card.sumExtra or 0)
     if not drop.done then h = h + RollCard.TIMER end
     if not drop.done and not drop.mine then h = h + (s.buttonSize or 30) + 10 end
     if open then h = h + #listed(drop, s) * RollCard.ROW end
@@ -569,6 +661,58 @@ local function paintHead(card, drop)
     end
 end
 
+-- The item's name in the room beside the icon, whole: a long one shrinks (to NAME_MIN of its
+-- size), and one still too long takes a second row. The head grows by what the second row
+-- needs (card.nameExtra) and the name and sub line sit centered in it together.
+local function fitName(card, small)
+    local fs, name = card.name, card.drop and card.drop.name
+    if type(name) ~= "string" or DUI.IsSecret(name) then return end
+    local icon = small and RollCard.ICON_SMALL or RollCard.ICON
+    local P = RollCard.PAD
+    local dupW = card.dup:GetText() ~= "" and (card.dup:GetStringWidth() or 0) or 0
+    local room = (card:GetWidth() or 0) - 3 * P - icon - 6 - dupW
+    local base = small and RollCard.HEAD_SMALL or RollCard.HEAD
+    local key = table.concat({ name, tostring(small), math.floor(room + 0.5), math.floor(dupW + 0.5) }, "|")
+    if card.nameKey == key or room <= 0 then return end
+    card.nameKey = key
+    local size = Style.SIZE.head
+    fs:SetWordWrap(false)
+    fs:SetMaxLines(0)
+    Style.SetTextSize(fs, size)
+    local wide = fs:GetUnboundedStringWidth()
+    local wrapped = false
+    if type(wide) == "number" and not DUI.IsSecret(wide) and wide > room then
+        size = size * math.max(RollCard.NAME_MIN, room / wide)
+        Style.SetTextSize(fs, size)
+        wide = fs:GetUnboundedStringWidth()
+        wrapped = type(wide) == "number" and wide > room
+    end
+    fs:ClearAllPoints()
+    local extra = 0
+    if wrapped then
+        fs:SetWordWrap(true)
+        fs:SetMaxLines(2)
+        fs:SetWidth(room)
+        local nameH, subH = fs:GetStringHeight(), card.sub:GetStringHeight()
+        if type(nameH) ~= "number" or nameH <= 0 then nameH = 2 * (size + 3) end
+        if type(subH) ~= "number" or subH <= 0 then subH = Style.SIZE.small + 3 end
+        local block = nameH + 3 + subH
+        extra = math.max(0, math.ceil(block + 2 * RollCard.NAME_PAD - base))
+        local top = (base + extra - block) / 2
+        fs:SetPoint("TOPLEFT", card.head, "TOPLEFT", 2 * P + icon, -top)
+    else
+        fs:SetWidth(0)
+        fs:SetPoint("TOPLEFT", card.icon, "TOPRIGHT", P, 0)
+        fs:SetPoint("RIGHT", card.dup, "LEFT", -6, 0)
+    end
+    card.head:SetHeight(base + extra)
+    if (card.nameExtra or 0) ~= extra then
+        card.nameExtra = extra
+        card:SetHeight(RollCard.LiveHeight(card))
+        if card.onHeight then card.onHeight(card) end
+    end
+end
+
 function RollCard.Fill(card, drop, look)
     local s = look.settings
     local first = card.drop ~= drop
@@ -580,6 +724,7 @@ function RollCard.Fill(card, drop, look)
     if first then
         card.icon.icon:SetTexture(drop.icon)
         card.name:SetText(drop.name)
+        card.nameKey = nil
         card.sub:SetText(ns.LootRoll.Sub(ns.LootRoll.Words(drop.link), drop.bop))
         paintHead(card, drop)
         -- A new roll on this card: its rows go back to be reused for the new players.
@@ -610,7 +755,7 @@ function RollCard.Fill(card, drop, look)
     end
     layButtons(card, drop, s)
     easeBox(card, card.buttonBox, (drop.done or drop.mine) and 0 or (s.buttonSize or 30) + 10, dur or Motion.NORMAL)
-    easeBox(card, card.sumBox, RollCard.SUM, 0)
+    easeBox(card, card.sumBox, RollCard.SUM + (card.sumExtra or 0), 0)
     card.sum:SetText(summary(drop))
 
     -- The list or the ticks.
@@ -627,6 +772,8 @@ function RollCard.Fill(card, drop, look)
         local size = small and RollCard.ICON_SMALL or RollCard.ICON
         card.icon:SetSize(size, size)
     end
+    fitName(card, small)
+    fitSum(card, ticks)
     local count = 0
     if open then count = layRows(card, drop, s, first)
     else
