@@ -2377,6 +2377,9 @@ function W.ParseValue(item, text)
     local n = tonumber((string.gsub(text or "", "[^%d%.%-]", "")))
     if not n then return nil end
     if item.unit == "%" then n = n / 100 end
+    -- "71" on a scale that tops out at 1.15x is a percent, as it was when this
+    -- slider showed whole percents.
+    if item.free and item.unit == "x" and item.max and n > item.max then n = n / 100 end
     return n
 end
 
@@ -2543,7 +2546,9 @@ end
 
 -- A slider on any frame: thin accent track, knob that grows on hover, and a
 -- value box you can type into ("35%" on a percent slider is 0.35).
--- spec: min, max, step?, unit? ("%", "px", "x"), width?, get(), set(v),
+-- spec: min, max, step?, unit? ("%", "px", "x"), snapTo? (a value, or a
+-- function giving one, that a drag within half a step of it lands on), free?
+-- (a typed number is kept as typed, not rounded to the step), width?, get(), set(v),
 -- preview(v)? (return true if a drag step was previewed; set is then called
 -- once on release), disabled()?. f.Refresh() shows get()'s value, sliding
 -- there FAST if it changed from elsewhere.

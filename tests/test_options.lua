@@ -361,6 +361,12 @@ T.test("sliders snap, show units and take typed values", function()
     T.near(W.TypedValue(item, 0.71), 0.71, 1e-9, "typed 0.71 stays 0.71")
     T.near(W.TypedValue(item, 0.7123456), 0.7123, 1e-9, "four decimals")
     T.near(W.TypedValue(item, 5), 1.15, 1e-9, "clamped")
+    -- "71" is 71%, as when the slider showed whole percents; only on a free "x" slider.
+    T.near(W.ParseValue(item, "71"), 0.71, 1e-9, "71 reads as a percent")
+    T.near(W.ParseValue(item, "71%"), 0.71, 1e-9, "71% too")
+    T.near(W.ParseValue(item, "0.71x"), 0.71, 1e-9, "0.71x as is")
+    T.near(W.ParseValue(item, "1.1"), 1.1, 1e-9, "inside the range as is")
+    T.near(W.ParseValue({ min = 0.5, max = 2, unit = "x" }, "3"), 3, 1e-9, "other x sliders: unchanged")
     item.free = nil
     T.near(W.TypedValue(item, 0.713), 768 / 1080, 1e-4, "not free: the grid, and its snap")
     T.near(W.SnapValue({ min = 0.4, max = 1.15, step = 0.01 }, 0.71), 0.71, 1e-9, "no snapTo: the grid")
