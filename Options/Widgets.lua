@@ -2413,7 +2413,7 @@ function W.ParseValue(item, text)
     if item.unit == "%" then n = n / 100 end
     -- "71" on a scale that tops out at 1.15x is a percent, as it was when this
     -- slider showed whole percents.
-    if item.free and item.unit == "x" and item.max and n > item.max then n = n / 100 end
+    if item.free and item.unit == "x" and item.max and n > item.max and n >= 10 then n = n / 100 end
     return n
 end
 

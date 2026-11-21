@@ -811,7 +811,7 @@ function place.header(p, item, y, inner)
     local tagGap = spec.tagGap or 5
     local rows = {}
     -- Tags sit beside the icon, under the words, while each fits on one row
-    -- there. A tag that would wrap (a long "Consumable · Food & Drink" in
+    -- there. A tag that would wrap (a long "Consumable - Food & Drink" in
     -- Spanish) moves them all under the icon instead, across the card's whole
     -- width, so no tag is two lines tall next to a short icon.
     local under = false

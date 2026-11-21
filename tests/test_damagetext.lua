@@ -45,7 +45,7 @@ T.test("damage numbers: every bundled font is there and is TrueType", function()
             n = n + 1
         end
     end
-    T.truthy(n >= 56, "our 8 and the 48 display fonts")
+    T.truthy(n >= 58, "the 10 body fonts and the 48 display fonts")
     for _, key in ipairs(DUI.Style.FONT_PICKS) do T.truthy(DUI.Style.FONTS[key], key) end
 end)
 
