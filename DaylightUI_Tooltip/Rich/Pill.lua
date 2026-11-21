@@ -108,7 +108,9 @@ function Pill.Layout()
     f.level:ClearAllPoints()
     f.level:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -Pill.PAD_TOP)
     f.room:ClearAllPoints()
-    f.room:SetPoint("TOPRIGHT", f.pct, "TOPRIGHT", 0, 0)
+    -- Held by the pill, not the health: the health's points read secret once
+    -- it shows a secret value, and the name hangs off this.
+    f.room:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Pill.PAD_X, -Pill.PAD_TOP)
     Pill.PlaceName(f, f.hasLevel)
     f.bar:ClearAllPoints()
     f.bar:SetPoint("TOPLEFT", f, "TOPLEFT", Pill.PAD_X, -(Pill.PAD_TOP + lineHeight() + Pill.BAR_GAP))
