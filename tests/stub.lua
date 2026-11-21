@@ -289,6 +289,19 @@ function stub.Children(parent, keep)
     table.sort(out, byAge)
     return out
 end
+
+function stub.ShownCount(list)
+    local shown = 0
+    for _, widget in ipairs(list or {}) do
+        if widget:IsShown() then shown = shown + 1 end
+    end
+    return shown
+end
+
+-- The keys the reveal handlers answer, plus a test lead's.
+function stub.RevealKeys(ns)
+    return { "test.lead", ns.Personal.KEY, "unitframes.party", "unitframes.raid", ns.Raid.SpotKey(20), ns.Raid.SpotKey(40) }
+end
 -- A Line is a region too (SimpleLine: frame:GetRegions returns the lines made on it).
 local REGIONS = { Texture = true, FontString = true, MaskTexture = true, Line = true }
 local function isRegion(w) return REGIONS[w.__type] == true end
@@ -3828,7 +3841,7 @@ stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Detail.lua", "Friends.lua", "
 stub.LEGACY_FILES = { "Defaults.lua", "Data.lua", "Progress.lua", "Challenges.lua", "Trees.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",
-                          "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
+                          "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmTether.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
                           "CdmAuras.lua", "CdmBars.lua", "CdmEditor.lua", "CdmCard.lua", "CdmImport.lua", "CdmSwitch.lua", "CdmGuide.lua", "Diag.lua", "Options.lua", "Module.lua" }
 stub.MODULE_FILES = { "Defaults.lua", "UnitFrames.lua", "Colors.lua", "CastBar.lua", "Swing.lua", "HealSpells.lua", "AuraLists.lua", "Auras.lua", "AuraGroups.lua", "Indicators.lua", "Texts.lua", "Looks.lua", "Combo.lua", "Happiness.lua", "Blizzard.lua",
                       "GroupParts.lua", "GroupPrivate.lua", "Group.lua", "Raid.lua", "PartyPets.lua", "PartyTargets.lua", "PartyCasts.lua", "Party.lua", "Arena.lua", "Leader.lua", "Pull.lua", "ClickCast.lua", "ClickBinder.lua", "ClickCastPage.lua", "AuraListsPage.lua", "PowerBar.lua", "DruidBars.lua", "Personal.lua", "Arrive.lua", "Moments.lua", "Socket.lua", "Upgrade.lua", "Units.lua", "TestMode.lua", "Sample.lua", "PageSample.lua", "Sweep.lua", "Options.lua", "Module.lua" }

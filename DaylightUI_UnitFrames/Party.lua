@@ -166,10 +166,20 @@ local function preview(on)
     Party.group:ShowPreview(on and Party.group:IsOn(d.party))
     DUI.AfterCombat(function() Party.group:Layout(d.party, d.partyText, d.range) end, "party:preview")
 end
-DUI.On("TestModeChanged", preview)
+local function previewForTestMode(testModeOn)
+    preview(testModeOn or Party.group.revealed == true)
+end
+DUI.On("TestModeChanged", previewForTestMode)
+
+-- The layout editor reveals the party while a group it edits follows it.
+DUI.On("RevealFrame", function(key, on)
+    if key ~= "unitframes.party" then return end
+    Party.group.revealed = on or nil
+    preview(on or DUI.testMode)
+end)
 
 DUI.RegisterTestPart("party", "Party", 60, function()
     local d = db()
     return d ~= nil and Party.group:IsOn(d.party) == true
 end)
-DUI.On("TestPartChanged", function(key) if key == "party" then preview(DUI.testMode) end end)
+DUI.On("TestPartChanged", function(key) if key == "party" then previewForTestMode(DUI.testMode) end end)

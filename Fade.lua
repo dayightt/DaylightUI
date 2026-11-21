@@ -229,7 +229,7 @@ function Fade.Goal(e, now)
         if Fade.Held() then return mode == "never" and opacity or alpha end
         e.peeking = nil
     end
-    if forced(e) then e.lastNear = now; return opacity end
+    if forced(e) or (e.shownFor and next(e.shownFor)) then e.lastNear = now; return opacity end
     -- Hushed (sitting by a campfire): hidden out of combat, back on mouseover.
     -- The second return asks for the slow ease out.
     if hushed(e) and not (Fade.fighting or InCombatLockdown()) then
@@ -683,6 +683,26 @@ function Fade.Hold(key, on)
     -- Repaint with its frames re-read, since the area's list may have changed
     -- meanwhile (the chat's style switched).
     if not on then readFrames(e); paint(e) end
+end
+
+-- Keeps an area shown while any reason (why) asks: it eases to its opacity, and back once none do.
+function Fade.Show(key, why, on)
+    local e = entries[key]
+    if not e then return end
+    on = on and true or nil
+    e.shownFor = e.shownFor or {}
+    if e.shownFor[why] == on then return end
+    e.shownFor[why] = on
+    if e.held or loginPhase then return end
+    listOf(e)
+    local goal = Fade.Goal(e, GetTime())
+    if motionOn() then
+        aim(e, goal)
+        driver:Show()
+    else
+        e.now, e.from, e.to = goal, goal, goal
+        paint(e)
+    end
 end
 
 -- A feature quiets some areas for a while (the campfire hides bars and unit

@@ -121,7 +121,7 @@ function Raid.Editing()
     return Raid.editing or 40
 end
 
--- The size shown now: the page's pick in test mode, otherwise the raid's.
+-- The size shown now: the page's pick while previewing, otherwise the raid's.
 function Raid.ShownSize()
     if Raid.group:Previewing() then return Raid.Editing() end
     return Raid.SizeFor(Raid.Members())
@@ -368,7 +368,17 @@ local function preview(on)
     if d then DUI.AfterCombat(function() Raid.LayoutNow(d) end, "raid:preview") end
     Raid.ShowPreview(on and d ~= nil and d.raid.enabled)
 end
-DUI.On("TestModeChanged", preview)
+local function previewForTestMode(testModeOn)
+    preview(testModeOn or Raid.group.revealed == true)
+end
+DUI.On("TestModeChanged", previewForTestMode)
+
+-- The layout editor reveals the raid while a group it edits follows it.
+DUI.On("RevealFrame", function(key, on)
+    if key ~= "unitframes.raid" and key ~= Raid.SpotKey(20) and key ~= Raid.SpotKey(40) then return end
+    Raid.group.revealed = on or nil
+    preview(on or DUI.testMode)
+end)
 
 -- The raid grew or shrank past 10 or 20. Switch to its size's setup after combat.
 DUI.RegisterEvent("GROUP_ROSTER_UPDATE", function()
@@ -386,4 +396,4 @@ DUI.RegisterTestPart("raid", "Raid", 70, function()
     local d = db()
     return d ~= nil and d.raid.enabled == true
 end)
-DUI.On("TestPartChanged", function(key) if key == "raid" then preview(DUI.testMode) end end)
+DUI.On("TestPartChanged", function(key) if key == "raid" then previewForTestMode(DUI.testMode) end end)
