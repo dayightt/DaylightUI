@@ -1198,7 +1198,7 @@ end
 -- desc is an optional line under the name (text or a function); a tip function
 -- may also return it as a second value.
 W.ICON_BUTTON, W.ICON_BUTTON_ICON = 20, 14
-W.ICON_TIP_WAIT = 1   -- seconds the mouse rests on an icon before its name shows
+W.ICON_TIP_WAIT = 0.3   -- seconds the mouse rests on an icon before its name shows
 function W.IconButton(parent, icon, tip, onClick, size, desc)
     local b = CreateFrame("Button", nil, parent)
     b:SetSize(size or W.ICON_BUTTON, size or W.ICON_BUTTON)
