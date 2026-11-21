@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Leader tools", "A slim, smaller leader tools card without the titles. Switch it with the arrow in its top right corner" },
     }, fixed = {
         { "Little touches", "The raid marker icons show in the right-click marker menu again, instead of dark empty boxes" },
+        { "Unit frames", "The slanted level tag on set-in portraits stays put with a cast bar under the frame, instead of turning into a round badge" },
     } },
     { version = "2.2", date = "2026-11-21", summary = "A smarter bag search, profiles you can share in parts, and tidier Rich tooltips. Plus hidden names and solo threat colors on nameplates.", new = {
         { "Profiles", "Shared profiles can leave parts out, and imports list only the parts that really changed" },

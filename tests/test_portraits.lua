@@ -1760,7 +1760,7 @@ T.test("socket: the smallest portrait still meets the bar's edges, the tag on it
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("socket: the level tag leaves the edge a cast bar or swing timer hangs from", function()
+T.test("socket: the level tag stays on the join under a cast bar until moved by choice", function()
     local DUI, ns = login(function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", level = 60, health = 5, maxHealth = 10 }
     end)
@@ -1769,30 +1769,22 @@ T.test("socket: the level tag leaves the edge a cast bar or swing timer hangs fr
     local function spot()
         stub.RunTimers()
         UF.UpdateAll(f, true)
-        local _, rel, _, x, y = f.status.icons.level:GetPoint(1)
-        return rel, x, y
+        local _, rel = f.status.icons.level:GetPoint(1)
+        return rel
     end
-    local rel, x, y = spot()
-    T.eq(rel, f.portrait, "the hung cast bar: at the ring's foot")
-    T.near(x, 0, 1e-6); T.truthy(y < 0)
-    T.truthy(f.status.icons.level.__texture ~= UF.LEVEL_TAG_FILE, "round, not the tag")
-    DUI:Set("UnitFrames", "playerCastbar.at", "above")
-    T.eq(spot(), f.portrait, "the swing timers still hang there")
-    DUI:Set("UnitFrames", "swing.enabled", false)
-    T.eq(spot(), f, "nothing under: back on the join")
+    DUI:Set("UnitFrames", "playerCastbar.at", "below")
+    T.eq(spot(), f, "a cast bar under the frame: still the tag on the join")
+    T.eq(f.status.icons.level.__texture, UF.LEVEL_TAG_FILE, "the slanted tag, not the round badge")
     DUI:Set("UnitFrames", "player.levelPos", "foot")
     T.eq(spot(), f.portrait, "picked under the portrait")
-    -- The target's bar inside the frame leaves the tag; one that slides under moves it.
+    T.truthy(f.status.icons.level.__texture ~= UF.LEVEL_TAG_FILE, "round there")
     local t = ns.frames.target
     stub.units.target = { name = "Wolf", isPlayer = false, reaction = 2, level = 27 }
-    UF.UpdateAll(t, true)
-    local _, trel = t.status.icons.level:GetPoint(1)
-    T.eq(trel, t, "inside the frame: on the join")
     DUI:Set("UnitFrames", "targetCastbar.at", "slide")
     stub.RunTimers()
     UF.UpdateAll(t, true)
-    _, trel = t.status.icons.level:GetPoint(1)
-    T.eq(trel, t.portrait, "sliding under: at the foot")
+    local _, trel = t.status.icons.level:GetPoint(1)
+    T.eq(trel, t, "the target's sliding cast bar leaves the tag too")
 end)
 
 T.test("socket: aggro reddens the whole ring, outer band too, and leaves the bar's border", function()
