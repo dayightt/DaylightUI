@@ -1686,7 +1686,7 @@ return {
     },
     ["damageFont"] = "Interface\\AddOns\\DaylightUI\\Media\\fonts\\ExpresswayFree.ttf",
     ["lastVersion"] = "test",
-    ["notesSeen"] = "2.1.2",
+    ["notesSeen"] = "2.1.3",
     ["oneStandard"] = true,
     ["profileData"] = {
       ["DPS/Tank"] = {
@@ -2103,7 +2103,6 @@ return {
           ["Social"] = {
           },
           ["Tooltip"] = {
-            ["style"] = "rich",
             ["tipUpgrade"] = 1,
           },
           ["UnitFrames"] = {
@@ -2251,6 +2250,7 @@ return {
         ["positions"] = {
         },
         ["tagLetters1"] = true,
+        ["tipStyle1"] = true,
         ["xpStops1"] = true,
       },
     },
@@ -4247,6 +4247,7 @@ return {
     ["Tooltip.classColors"] = true,
     ["Tooltip.cursorX"] = 12,
     ["Tooltip.cursorY"] = 12,
+    ["Tooltip.dpsSize"] = 14,
     ["Tooltip.fadeOut"] = false,
     ["Tooltip.frameStyle.borderAlpha"] = 1,
     ["Tooltip.frameStyle.borderPx"] = 8,
@@ -8772,5 +8773,5 @@ return {
     ["general.windowTintColor.2"] = 0.078,
     ["general.windowTintColor.3"] = 0.09,
   },
-  ["version"] = "2.1.2",
+  ["version"] = "2.1.3",
 }
