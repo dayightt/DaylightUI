@@ -152,9 +152,11 @@ function Players.Card(p, tip, unit, data, n, lines)
     local tags, Tag = {}, ns.RichItems.Tag
     local spec = Players.SpecOrClass(unit)
     if spec then tags[#tags + 1] = Tag(spec, cr and rgb(cr, cg, cb) or Style.INK.TEXT) end
-    -- The level sits big at the right of the name, in how hard they are for
-    -- you, the same spot as on a creature's card.
+    -- The level sits big at the right of the name, the same spot as on a
+    -- creature's card, in their class color. "??" (far above you) keeps its
+    -- warning red.
     local lv, lvInk = ns.RichWorld.Level(unit)
+    if lv and lv ~= "??" then lvInk = rgb(Style.ClassTextColor(token)) end
     -- The race in its faction's color: the other side reads at a glance.
     local race = plain((UnitRace(unit)))
     if type(race) == "string" then
