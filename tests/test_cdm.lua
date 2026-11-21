@@ -6,7 +6,7 @@ local data, empty, filled, box = LW.data, LW.empty, LW.filled, LW.box
 local profileWorld, oldLayout, oldSet, oldBlock = LW.profileWorld, LW.oldLayout, LW.oldSet, LW.oldBlock
 local inBlock, parked, boopy, nightzFile = LW.inBlock, LW.parked, LW.boopy, LW.nightzFile
 local nightz, fakeViewer, fakeRegistry, rowsWorld = LW.nightz, LW.fakeViewer, LW.fakeRegistry, LW.rowsWorld
-local layoutFrame, pieceFrame, changeSpecTo = LW.layoutFrame, LW.pieceFrame, LW.changeSpecTo
+local layoutFrame, pieceFrame, changeSpecTo, eased = LW.layoutFrame, LW.pieceFrame, LW.changeSpecTo, LW.eased
 local garbageMadeBy, SHIFTED, visibleMenuRowOf = H.garbageMadeBy, H.SHIFTED, H.visibleMenuRowOf
 
 T.test("cdm data: a row of icons lays out left to right from its top-left", function()
@@ -2035,10 +2035,10 @@ T.test("cdm effects: When short of power Hide hides a ready spell until there's 
     T.eq(ess[1]:GetAlpha(), 1, "not usable for another reason: When not usable's Show")
     set.pieces[11].onShort = "fade"; set.pieces[11].cdAlpha = 0.25
     can[111], noPower[111] = false, true
-    stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers(); LW.runGlidesFor(1)
+    stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers(); eased(DUI)
     T.eq(ess[1]:GetAlpha(), 0.25, "Fade: to Fade to")
     C_Spell.IsSpellUsable = function() return stub.Secret(false), stub.Secret(true) end
-    stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers(); LW.runGlidesFor(1)
+    stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers(); eased(DUI)
     T.eq(ess[1]:GetAlpha(), 1, "a secret answer: shown")
     T.truthy(AB.CdmData.SetSpellValue(set, 11, "onShort", "hide"), "a value the setter takes")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -2098,13 +2098,13 @@ T.test("cdm effects: the warrior stance you're in is lit, and the light moves wi
     _G.GetShapeshiftFormInfo = function(i) return 132349 + i, stance == i, true, spells[i] end
     ess[1].cooldownInfo.overrideSpellID = 71    -- Defensive Stance
     pass(AB)
-    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers(); LW.runGlidesFor(1)
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers(); eased(DUI)
     T.eq(AB.CdmEffects.FormNow(), "Battle")
     T.falsy(AB.CdmEffects.StanceShown(ess[1]), "in Battle Stance: Defensive isn't lit")
     stance = 2
     stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
     T.truthy(AB.CdmEffects.StanceShown(ess[1]), "in Defensive Stance: lit at once")
-    LW.runGlidesFor(1)
+    eased(DUI)
     stance = 3
     stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
     T.falsy(AB.CdmEffects.StanceShown(ess[1]), "Berserker: Defensive goes dark")
@@ -2983,7 +2983,7 @@ T.test("cdm block options: only in combat is alpha, out of combat, for every kin
     stub.FireEvent("PLAYER_REGEN_ENABLED"); stub.RunTimers()
     T.eq(h:GetAlpha(), 0); T.eq(ess[1]:GetAlpha(), 0)
     chainOf(set, 1).combat = false
-    D.Changed(); AB.CdmRows.Refresh(); stub.RunTimers(); LW.runGlidesFor(1)
+    D.Changed(); AB.CdmRows.Refresh(); stub.RunTimers(); eased(DUI)
     T.eq(AB.CdmOwn.Frame(14):GetAlpha(), 1, "our own icon back when turned off")
     T.eq(h:GetAlpha(), 1, "off: shown out of combat")
     T.eq(ess[1]:GetAlpha(), 1)
@@ -3007,7 +3007,7 @@ T.test("cdm block options: only with a target, hide while mounted, where: alpha,
     stub.units.target = { name = "Boar", reaction = 2 }
     stub.FireEvent("PLAYER_TARGET_CHANGED")
     T.eq(ess[1]:GetAlpha(), 1, "a target: back at once")
-    LW.runGlidesFor(1)
+    eased(DUI)
     T.eq(AB.CdmOwn.Frame(14):GetAlpha(), 1)
     D.SetChainValue(set, 11, "target", false)
     D.SetChainValue(set, 11, "mounted", true)
@@ -4679,14 +4679,14 @@ T.test("cdm effects: our own icons and cooldown bars follow On cooldown, While r
     local mouse = own:IsMouseEnabled()
     w.cds[114] = { duration = 8, isOnGCD = false, isActive = true }
     w.cds[111] = { duration = 8, isOnGCD = false, isActive = true }
-    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers(); LW.runGlidesFor(1)
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers(); eased(DUI)
     T.eq(own:GetAlpha(), 1, "own icon on cooldown: shown")
     T.eq(bar:GetAlpha(), 1, "own bar on cooldown: shown")
     T.eq(own:IsMouseEnabled(), mouse, "the mouse is left as it was on our own frames")
     R.Refresh(); stub.RunTimers()
     T.eq(own:GetAlpha(), 1, "a layout pass keeps it")
     w.cds[114] = { duration = 0 }
-    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers(); LW.runGlidesFor(1)
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers(); eased(DUI)
     T.eq(own:GetAlpha(), 0, "ready again: hidden")
     D.RemovePiece(set, 14); R.Refresh(); stub.RunTimers()
     T.falsy(own:IsShown(), "let go")

@@ -268,9 +268,9 @@ function M.rowsWorld(buffIcons)
 end
 
 -- The addon's own icons and bars ease their alpha (CdmEffects setAlpha), so let it land.
-function M.runGlidesFor(seconds)
-    local driver = DaylightUI.Motion.Driver()
-    if driver then stub.RunOnUpdate(driver, seconds) end
+function M.eased(DUI)
+    local d = DUI.Motion.Driver()
+    if d then stub.RunOnUpdate(d, 1) end
 end
 
 function M.layoutFrame(g) return _G["DaylightUICdmLayout" .. g] end
