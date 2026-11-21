@@ -16,18 +16,23 @@ DUI.PatchNotes = {
         { "Flight timer", "Point at a stop on the flight timer's route to see its name" },
         { "Tooltips", "Durability on item tooltips turns from green to amber to red as your gear wears down" },
         { "Nameplates", "Names on nameplates can be hidden, for enemy and friendly plates separately" },
+        { "Unit frames", "The power number on target, focus and party frames fades out while their cast bar covers it, so it no longer runs into the spell name" },
         { "Nameplates", "Threat colors can work solo too: mobs attacking you turn red, the rest stay as they are" },
         { "Character", "A spell school your gear boosts, like Shadow or Fire, gets its own spell power row in the character window" },
         { "Info panel", "The data texts and data bar can show their numbers in white, your class color or a color you pick, instead of the accent" },
+        { "Bags", "New items can show in Recent and in their own group at the same time" },
+        { "Bags", "Items you mark as junk get the gold coin too, and Clean Up puts them at the end with your gray junk" },
     }, changed = {
         { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under it, so prices stop creeping down" },
         { "Loot", "The loot rolls switch works like every other switch again: on shows Daylight UI's roll window, off the game's own popups" },
     }, fixed = {
         { "Chat", "After you send a whisper from its conversation window, your keys go back to your spells. Press Enter to type to them again" },
+        { "Tooltips", "Tooltips have their thin border back instead of a thick colored frame when the window border is set thicker" },
         { "Little touches", "Small icon buttons show their name much sooner when you point at them" },
         { "Quests", "Wanted Posters and other things in the world that give quests list them in their tooltip again, with Questie on" },
         { "Nameplates", "The execute range band on enemy health bars ends right at the health you picked, instead of looking a few percent higher" },
         { "Cooldown Manager", "Weakened Soul shows how long it has left, not just its icon" },
+        { "Bags", "Bag group strings from newer Baganator versions (the ones starting BGR!) now import, and a whole Baganator profile brings its categories too" },
     } },
     { version = "2.1.3", date = "2026-11-20", summary = "A much fuller Auction House: bids, smarter selling and a quicker feel. Plus Cooldown Manager layouts you can share, and a land-early button on the flight timer.", new = {
         { "Auction House", "Sell remembers how many you last posted, can undercut by a percent and warns before you post far too cheap. Pin or hide items, search My auctions, and set a max price on Buy" },

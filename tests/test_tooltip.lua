@@ -204,7 +204,7 @@ T.test("tooltip: any other tooltip is skinned the first time it's filled", funct
     T.truthy(Tip.Shell(other))
 end)
 
-T.test("tooltip: General's border thickness on the global style, or its own", function()
+T.test("tooltip: the flat box keeps its own thickness on the global style, or the one set", function()
     local Tip = login()
     local Style = DaylightUI.Style
     T.eq(Style.BorderPx(GameTooltip), 8, "as thick as every other frame out of the box")
@@ -215,7 +215,7 @@ T.test("tooltip: General's border thickness on the global style, or its own", fu
     DaylightUI:Set("general", "borderPx", 10)
     DaylightUI:Set("Tooltip", "frameStyle.global", true)
     stub.RunTimers()
-    T.eq(Style.BorderPx(GameTooltip), 10, "General's, on the global style")
+    T.eq(Style.BorderPx(GameTooltip), 8, "a thick General border would fill the flat box with color")
     T.eq(Tip.BackAlpha(), 0.92, "and a background a little more solid than the windows'")
 end)
 

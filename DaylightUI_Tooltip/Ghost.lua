@@ -43,7 +43,7 @@ function Ghost.Note(tip)
 end
 
 local function boxOpts()
-    return { look = ns.Tooltip.LOOK, flat = true, noBevel = true }
+    return { look = ns.Tooltip.LOOK, flat = true, noBevel = true, borderPx = ns.Tooltip.FlatPx }
 end
 
 local function make(tip)

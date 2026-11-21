@@ -61,9 +61,19 @@ function Tip.BackAlpha(which)
     return backAlpha()
 end
 
+-- The flat tooltip boxes are filled with the border color edge to edge, so
+-- General's thickness (made for the heavy band on windows) turns them into a
+-- fat colored frame. On the global style they keep the thickness tooltips
+-- always had; with their own look on, the player's number is used as set.
+Tip.FLAT_PX = 8
+function Tip.FlatPx(g)
+    if Style.LookOwn(LOOK) then return g end
+    return Tip.FLAT_PX
+end
+
 -- The tooltips' border thickness, for the game's aura tooltips we can only
 -- hand a backdrop to.
-function Tip.BorderPx() return Style.LookOf(LOOK).borderPx end
+function Tip.BorderPx() return Tip.FlatPx(Style.LookOf(LOOK).borderPx) end
 
 -- To get rid of a tooltip, set alpha 0, never Hide(). Hiding the game's
 -- tooltip from Daylight UI's code runs its hide handlers tainted, and the game's tooltip
@@ -143,7 +153,7 @@ function Tip.Skin(tip)
     -- frame (Tip.HideArt). No hook on its SetAlpha: the game's own calls to a
     -- hooked method failed with "attempt to call a nil value".
     Tip.HideArt(tip)
-    local s = Style.Shell(tip, { look = LOOK, flat = true, noBevel = true })
+    local s = Style.Shell(tip, { look = LOOK, flat = true, noBevel = true, borderPx = Tip.FlatPx })
     skinned[tip] = s
     -- A clicked item's close button (ItemRefTooltip.CloseButton). Done here,
     -- not in Skins, since this module can run without it.
@@ -175,7 +185,19 @@ function Tip.Skin(tip)
     elseif ns.Rich.TIPS[tip.GetName and tip:GetName() or ""] then
         -- A compare tooltip: its card is rebuilt when lines come after the
         -- fill (the game's stat changes, other addons') and kept fitted.
-        tip:HookScript("OnUpdate", function(self) DUI.SafeCall(ns.Rich.Step, self) end)
+        tip:HookScript("OnUpdate", function(self)
+            DUI.SafeCall(ns.Rich.Step, self)
+            -- A clicked item's popup re-shows and re-places its compares from
+            -- its own update every 0.2 s: fit them and put the hands in order
+            -- before the draw, or they jump for a frame.
+            local shops = self.shoppingTooltips
+            if type(shops) == "table" then
+                DUI.SafeCall(Tip.HandOrder, self)
+                for _, shop in ipairs(shops) do
+                    if type(shop) == "table" and shop:IsShown() then DUI.SafeCall(ns.Rich.Step, shop) end
+                end
+            end
+        end)
     end
     keepUnder(tip)
     Tip.SkinHeader(tip)
@@ -193,7 +215,7 @@ function Tip.SkinHeader(tip)
     for _, r in ipairs({ h:GetRegions() }) do
         if r.GetObjectType and r:GetObjectType() == "Texture" then r:SetAlpha(0) end
     end
-    local s = Style.Shell(h, { look = LOOK, flat = true, noBevel = true })
+    local s = Style.Shell(h, { look = LOOK, flat = true, noBevel = true, borderPx = Tip.FlatPx })
     if not s then return end
     s:ClearAllPoints()
     -- The header's left edge is the tooltip's.

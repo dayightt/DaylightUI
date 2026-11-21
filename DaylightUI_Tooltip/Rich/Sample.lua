@@ -52,7 +52,7 @@ end
 local function buildSimple(parent)
     local Tip = ns.Tooltip
     local f = CreateFrame("Frame", nil, parent)
-    f.shell = Style.Shell(f, { look = Tip.LOOK, flat = true, noBevel = true })
+    f.shell = Style.Shell(f, { look = Tip.LOOK, flat = true, noBevel = true, borderPx = Tip.FlatPx })
     f.lines = {}
     local item = Sample.ITEM
     local function add(size, text, color, right)
