@@ -3618,6 +3618,35 @@ T.test("window scale: the game's windows follow the Daylight UI scale, a Ctrl + 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The loot window is in the game's UIPanelWindows too, but its unlock handle sizes
+-- it. Skins start before that handle is made at login, so the window scale must
+-- not take it over and set it back to 1 each time it opens.
+T.test("window scale: the loot window keeps its handle's size every time it opens", function()
+    stub.Load({ skins = true, before = function()
+        Enum.EditModeSystem = { LootFrame = 10 }
+        DaylightUIDB = { installerSeen = 1e9, general = { scale = 0.9 } }
+        _G.UIPanelWindows = _G.UIPanelWindows or {}
+        _G.UIPanelWindows.LootFrame = { area = "left", pushable = 0 }
+        local f = CreateFrame("Frame", "LootFrame", UIParent)
+        f:SetSize(260, 300)
+        f:SetPoint("LEFT", UIParent, "LEFT", 16, 116)
+        f:Hide()
+    end })
+    stub.RunTimers()
+    local Movers = DaylightUI.Movers
+    T.truthy(Movers.Get("game.LootFrame"), "the loot window has its handle")
+    Movers.SetPieceScale("game.LootFrame", 0.5)
+    T.near(LootFrame:GetScale(), 0.45, 1e-6, "the handle's size on the Daylight UI scale")
+    LootFrame:Show()
+    T.near(LootFrame:GetScale(), 0.45, 1e-6, "kept as it opens")
+    LootFrame:Hide()
+    Movers.SetPieceScale("game.LootFrame", 0.8)
+    LootFrame:Show()
+    T.near(LootFrame:GetScale(), 0.72, 1e-6, "a new size shows the next time it opens")
+    _G.UIPanelWindows.LootFrame = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The dressing room as DressUpFrames.xml makes it, as far as the skin touches
 -- it, plus the small one beside the auction house.
 local function artButton(parent, size)

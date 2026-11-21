@@ -37,18 +37,33 @@ function Scale.Of(name)
     return math.max(Scale.MIN, math.min(Scale.MAX, v))
 end
 
+-- Whether an unlock handle sizes this window (the loot window). Asked by name,
+-- because the skins start before those handles are made at login.
+local function handled(name)
+    if DUI.Movers.Get("game." .. name) then return true end
+    local GM = DUI.GameMovers
+    for _, list in ipairs({ GM and GM.EDIT_FRAMES or {}, GM and GM.FRAMES or {} }) do
+        for _, spec in ipairs(list) do
+            if spec.name == name then return true end
+        end
+    end
+    return false
+end
+
 -- The Daylight UI scale for a window, unless its unlock handle already gives
--- it that (the loot window).
+-- it that.
 local function masterFor(name)
-    if DUI.Movers.Get("game." .. name) then return 1 end
+    if handled(name) then return 1 end
     return DUI.Movers.Scale()
 end
 
 -- The saved scale times the Daylight UI scale. A window never scaled, at a
--- Daylight UI scale of 1, is left alone.
+-- Daylight UI scale of 1, is left alone, and so is one its unlock handle
+-- sizes until it gets a Ctrl + wheel size of its own.
 function Scale.Apply(name)
     local f, own = hooked[name], Scale.Of(name)
     if not f or InCombatLockdown() then return end
+    if not own and handled(name) then return end
     local master = masterFor(name)
     if not (own or applied[name]) and math.abs(master - 1) < 0.001 then return end
     applied[name] = true
