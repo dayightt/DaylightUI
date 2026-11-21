@@ -42,12 +42,11 @@ Npc.FRAMES = {
 -- Which game window each page belongs to, and which page shows it.
 Npc.KIND = { gossip = "gossip", greeting = "quest", detail = "quest", progress = "quest", reward = "quest", merchant = "merchant", trainer = "trainer" }
 Npc.PAGE = { merchant = "shop", trainer = "train" }
--- Game windows that must stay shown while parked. The trainer has to be visible
--- or the game closes it, so it waits on the kit's aside holder. Other addons hook
+-- Game windows that must stay shown while parked, so they wait on the kit's aside
+-- holder. The trainer has to be visible or the game closes it. Other addons hook
 -- the vendor's OnShow and read IsVisible, and its own OnShow/OnHide handle bags
--- and the filter (Shop.lua), so it waits under the veil.
-Npc.VEIL = { merchant = true }
-Npc.ASIDE = { trainer = true }
+-- and the filter (Shop.lua).
+Npc.ASIDE = { trainer = true, merchant = true }
 Npc.TRAINER_REFRESH = { TRAINER_UPDATE = true, TRAINER_SERVICE_INFO_NAME_UPDATE = true, PLAYER_MONEY = true }
 Npc.EVENTS = { QUEST_GREETING = "greeting", QUEST_DETAIL = "detail", QUEST_PROGRESS = "progress", QUEST_COMPLETE = "reward" }
 
@@ -850,7 +849,7 @@ function Npc.Changed(kind, shown, away)
         if S.mode and Npc.KIND[S.mode] == kind then Npc.Close() end
         return
     end
-    -- The veiled vendor and trainer still run their own OnHide, which already told the server.
+    -- The vendor and trainer held aside still run their own OnHide, which already told the server.
     if kind == "merchant" then S.closed.merchant = true end
     if kind == "trainer" then S.closed.trainer = true; ns.Train.Closed() end
     if not S.closed[kind] then
@@ -1014,14 +1013,14 @@ function Npc.GiveAway()
     for kind in pairs(Npc.frames) do Win.Followers.Release(Npc.follow, kind) end
 end
 
--- Switched back: an open vendor or trainer goes under the veil again and this window
+-- Switched back: an open vendor or trainer is held aside again and this window
 -- opens on it. An open gossip or quest window can't be parked without hiding it,
 -- which would end the talk, so it stays the game's until it closes.
 function Npc.TakeBack()
     if not Npc.follow then return end
     for kind, get in pairs(Npc.frames) do
         local g = get()
-        if (Npc.VEIL[kind] or Npc.ASIDE[kind]) and type(g) == "table" and g:IsShown() and not Win.Followers.Parked(Npc.follow, kind)
+        if Npc.ASIDE[kind] and type(g) == "table" and g:IsShown() and not Win.Followers.Parked(Npc.follow, kind)
             and not (kind == "trainer" and beastTraining()) then
             if Win.Followers.Reclaim(Npc.follow, kind) then Npc.Want(S.last[kind] or kind, "swap") end
         end
@@ -1141,7 +1140,7 @@ function Npc.Build(mod)
     for _, e in ipairs(Npc.LISTEN) do pcall(ev.RegisterEvent, ev, e) end
     ev:SetScript("OnEvent", Npc.OnEvent)
     Npc.events = ev
-    Npc.follow = Win.Follow({ key = "npc", frames = Npc.frames, veil = Npc.VEIL, aside = Npc.ASIDE, changed = Npc.Changed, onPark = Npc.Parked,
+    Npc.follow = Win.Follow({ key = "npc", frames = Npc.frames, aside = Npc.ASIDE, changed = Npc.Changed, onPark = Npc.Parked,
         leave = function() return not DUI.npcOwnWindow end,
         width =function() return (Npc.PageSize(f.current or "talk")) * Win.Scale(ns.Setting("scale")) end })
     Npc.Apply()

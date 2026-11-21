@@ -913,7 +913,8 @@ T.test("npc: switched off, the game's vendor's link switches back to Daylight UI
     T.eq(DaylightUI:Get("NPC", "enabled"), true, "the pick is saved")
     T.truthy(N.frame and DaylightUI.Win.IsOpen(N.frame), "ours takes over the open vendor")
     T.eq(N.state.mode, "merchant")
-    T.eq(MerchantFrame:GetParent(), DaylightUI.Win.Followers.veil, "the game's vendor goes under the veil")
+    T.eq(MerchantFrame:GetParent(), DaylightUI.Win.Followers.aside, "the game's vendor is held aside")
+    T.isnil(stub.ClipAncestor(MerchantFrame), "never under a clipping frame")
     T.eq(#NW.Calls("CloseMerchant"), 0, "still the same vendor")
     T.falsy(link:IsShown(), "the link is gone with the game's look")
     T.truthy(N.Covers("merchant"))
@@ -958,7 +959,7 @@ T.test("npc: the options switch trades the windows live, a shown vendor included
     DaylightUI:Set("NPC", "enabled", true)
     frame(); settle()
     T.truthy(DaylightUI.Win.IsOpen(N.frame), "and back")
-    T.eq(MerchantFrame:GetParent(), DaylightUI.Win.Followers.veil)
+    T.eq(MerchantFrame:GetParent(), DaylightUI.Win.Followers.aside)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1451,7 +1452,7 @@ T.test("npc shop: the game's vendor really opens, so an addon hooking its OnShow
     load()
     local heard = 0
     MerchantFrame:HookScript("OnShow", function() heard = heard + 1 end)
-    T.eq(MerchantFrame:GetParent(), DaylightUI.Win.Followers.veil)
+    T.eq(MerchantFrame:GetParent(), DaylightUI.Win.Followers.aside)
     NW.Merchant()
     frame()
     T.eq(heard, 1)

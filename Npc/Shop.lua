@@ -2,7 +2,7 @@
 -- tabs, a strip with the last item sold, and Sell junk, Repair and Goodbye at the
 -- bottom. The player's money sits in the header and rolls to its new value.
 --
--- MerchantFrame is parked under the kit's veil (Npc.VEIL) so it is really shown and its
+-- MerchantFrame is held aside by the kit (Npc.ASIDE) so it is really shown and its
 -- OnShow (opens bags, resets the filter), OnHide (CloseMerchant, closes bags) and other
 -- addons' hooks still run (Mainline/MerchantFrame.lua). Buying only ever goes through
 -- the game's functions: BuyMerchantItem, PickupMerchantItem, BuybackItem,
@@ -515,7 +515,7 @@ end
 
 -- The page
 
--- The game's shop cursor, rebuilt because the veiled frame never gets the mouse (see
+-- The game's shop cursor, rebuilt because the frame held aside never gets the mouse (see
 -- MerchantFrame_OnUpdate, MerchantItemButton_OnEnter): coin bag, red when unaffordable,
 -- the buyback one on that tab, the magnifier with the dressing-room key held.
 -- Set again on tooltip refresh so the key and money state stay current.
@@ -781,7 +781,7 @@ function Shop.Show(lift)
 end
 
 -- Each shop visit starts fresh. Bags and the game's filter are handled by its own
--- OnShow/OnHide, which still run on the veiled frame.
+-- OnShow/OnHide, which still run on the frame held aside.
 function Shop.Opened()
     S.tab, S.filter, S.confirm = "shop", "", nil
     Shop.junk = nil
