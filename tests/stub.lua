@@ -2365,6 +2365,9 @@ local function actionButton(b, onLoad)
     setmetatable(b, ButtonMT)
     b.__protected = true
     for _, k in ipairs(BUTTON_TEXTURES) do b[k] = b:CreateTexture() end
+    -- The template's red attack flash keeps its atlas size from the top-left corner,
+    -- so on a button that isn't square it hangs past the edge.
+    b.Flash:SetPoint("TOPLEFT")
     b.Flash:Hide()
     b.Name, b.HotKey, b.Count = b:CreateFontString(), b:CreateFontString(), b:CreateFontString()
     for _, k in ipairs(BUTTON_FRAMES) do b[k] = CreateFrame("Frame", nil, b) end

@@ -977,6 +977,13 @@ local function paintWashes(btn, L, icon)
         checked:SetColorTexture(c[1], c[2], c[3], L.checkedAlpha)
         if icon then checked:SetAllPoints(icon) end
     end
+    -- The template pins the auto attack flash by its top-left corner at its art's own
+    -- size, so on a button shorter or taller than wide it hung past the edge.
+    local flash = btn.Flash
+    if icon and type(flash) == "table" and flash.SetAllPoints then
+        flash:ClearAllPoints()
+        flash:SetAllPoints(icon)
+    end
     return hl, pushed, checked
 end
 

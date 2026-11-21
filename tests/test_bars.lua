@@ -498,6 +498,15 @@ T.test("bars: a button height under 100 makes wide buttons, the icon cropped to 
     noBlocked()
 end)
 
+T.test("bars: the auto attack flash fits a button that isn't square", function()
+    login({ ab = { bars = { bar5 = { rows = 2, icons = 12, height = 80, visible = "always" } } } })
+    local b = btn("bar5", 2)
+    T.eq(b.Flash:GetNumPoints(), 1)
+    local point, to = b.Flash:GetPoint(1)
+    T.eq(point, "ALL", "laid over the icon, not left at its art's own size")
+    T.eq(to, b.icon)
+end)
+
 T.test("bars: a setting applies at once, no reload; fewer buttons hide the rest", function()
     login()
     if DaylightUIInstaller then DaylightUIInstaller:Hide() end   -- made the first time it shows
