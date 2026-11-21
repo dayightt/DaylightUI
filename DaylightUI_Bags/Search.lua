@@ -55,11 +55,83 @@ Search.KEYWORDS = {
     soulbound = function(f) return f.bound == true end,
     set = function(f) return f.inSet == true end,
     locked = function(f) return f.locked == true end,
+    -- Clams, lockboxes, bags of loot: anything the game opens with a right-click.
+    open = function(f) return f.openable == true end,
 }
 local K = Search.KEYWORDS
 K.drink, K.armour, K.bag, K.trade, K.bound, K.sets = K.food, K.armor, K.container, K.tradegoods, K.soulbound, K.set
 for name, q in pairs(Search.QUALITY) do
     K[name] = function(f) return f.quality == q end
+end
+do
+    local open = string.lower(L["open"])
+    if open ~= "open" and not K[open] then K[open] = K.open end
+end
+
+-- The game's own names for item types and equip slots work as keywords too,
+-- in the player's language, the way Baganator's search has them: every item
+-- class, these subclasses of trade goods, armor, weapons, recipes and
+-- consumables, and each equip slot. A name loses its & and brackets, so
+-- "Metal & Stone" is "metal stone". Daylight UI's own keywords win a clash.
+Search.SUBCLASSES = {
+    [7] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 18 },
+    [4] = { 1, 2, 3, 4, 6, 7, 8, 9, 10, 11 },
+    [2] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20 },
+    [9] = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 },
+    [0] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 },
+}
+Search.CLASS_COUNT = 20
+Search.SLOTS = { "INVTYPE_HEAD", "INVTYPE_NECK", "INVTYPE_SHOULDER", "INVTYPE_BODY", "INVTYPE_CHEST", "INVTYPE_ROBE",
+    "INVTYPE_WAIST", "INVTYPE_LEGS", "INVTYPE_FEET", "INVTYPE_WRIST", "INVTYPE_HAND", "INVTYPE_FINGER",
+    "INVTYPE_TRINKET", "INVTYPE_WEAPON", "INVTYPE_RANGED", "INVTYPE_CLOAK", "INVTYPE_2HWEAPON", "INVTYPE_BAG",
+    "INVTYPE_TABARD", "INVTYPE_WEAPONMAINHAND", "INVTYPE_WEAPONOFFHAND", "INVTYPE_HOLDABLE", "INVTYPE_SHIELD",
+    "INVTYPE_AMMO", "INVTYPE_THROWN", "INVTYPE_RANGEDRIGHT", "INVTYPE_QUIVER", "INVTYPE_RELIC",
+    "INVTYPE_PROFESSION_TOOL", "INVTYPE_PROFESSION_GEAR" }
+
+-- A game name as a keyword: lower case, no & | ! ~ or brackets, single spaces.
+function Search.CleanWord(name)
+    local s = string.lower(name)
+    s = string.gsub(s, "[()&|~!;]", " ")
+    s = string.gsub(s, "%s+", " ")
+    return (string.gsub(s, "^ ?(.-) ?$", "%1"))
+end
+
+local gameWords
+local function addGameWord(name, test)
+    if type(name) ~= "string" or name == "" then return end
+    local word = Search.CleanWord(name)
+    if word == "" or K[word] then return end
+    local old = gameWords[word]
+    gameWords[word] = old and function(f) return old(f) or test(f) end or test
+end
+
+-- The test for one of the game's type or slot names, or nil. Read from the
+-- client the first time a search asks.
+function Search.GameWord(word)
+    if not gameWords then
+        gameWords = {}
+        local I = C_Item
+        if type(I) == "table" and type(I.GetItemClassInfo) == "function" then
+            for classID = 0, Search.CLASS_COUNT - 1 do
+                addGameWord(I.GetItemClassInfo(classID), function(f) return f.classID == classID end)
+            end
+        end
+        if type(I) == "table" and type(I.GetItemSubClassInfo) == "function" then
+            for classID, subs in pairs(Search.SUBCLASSES) do
+                for _, sub in ipairs(subs) do
+                    addGameWord(I.GetItemSubClassInfo(classID, sub), function(f)
+                        -- Cloth armor leaves out cloaks, which are all cloth.
+                        if classID == C.armor and sub == 1 and f.equipLoc == "INVTYPE_CLOAK" then return false end
+                        return f.classID == classID and f.subClassID == sub
+                    end)
+                end
+            end
+        end
+        for _, slot in ipairs(Search.SLOTS) do
+            addGameWord(_G[slot], function(f) return f.equipLoc == slot end)
+        end
+    end
+    return gameWords[word]
 end
 
 -- The search box's tooltip (Search.Tip, below the word list it reads from).
@@ -124,7 +196,8 @@ function Search.Tip(tip)
     Tips.Title(SEARCH or L["Search"])
     Tips.Sub(L["Type a name or a keyword. You can combine several."])
     row(TYPE or L["Type"], list(W.gear, W.weapon, W.armor, W.consumable, W.food, W.drink, W.potion, W.reagent,
-        W.tradegoods, W.recipe, W.key, W.container, W.quest, W.junk))
+        W.tradegoods, W.recipe, W.key, W.container, W.quest, W.junk, L["open"]))
+    row(L["Kind or slot"], L["the game's own name for it, like herb, cloth, trinket or shield"])
     row(L["Binding"], string.format(L["boe (binds on equip), bou (binds on use), %s"], W.soulbound))
     row(L["Equipment set"], string.format(L["%s, or the set's name"], W.set))
     row(LOCKED or L["Locked"], W.locked)
@@ -162,7 +235,7 @@ local function term(text)
     end
     local keywordOnly = string.sub(text, 1, 1) == "#"
     if keywordOnly then text = string.sub(text, 2) end
-    local keyword = K[text]
+    local keyword = K[text] or Search.GameWord(text)
     if keywordOnly then return keyword or NEVER end
     return function(f)
         if keyword and keyword(f) then return true end
@@ -234,8 +307,8 @@ Search.SYNDICATOR = {
     boe = "boe", bou = "bou", soulbound = "soulbound", bound = "soulbound", set = "set", ["equipment set"] = "set",
     poor = "poor", common = "common", uncommon = "uncommon", rare = "rare", epic = "epic", legendary = "legendary",
     boa = false, warbound = false, artifact = false, heirloom = false, toy = false, pet = false, ["battle pet"] = false,
-    mount = false, socket = false, cosmetic = false, reputation = false, manuscript = false, use = false, open = false,
-    ["tradeable loot"] = false, gem = false, ["item enhancement"] = false, miscellaneous = false, profession = false,
+    mount = false, socket = false, cosmetic = false, reputation = false, manuscript = false, use = false, open = "open",
+    ["tradeable loot"] = false,
     classic = false, vanilla = false, bc = false, tbc = false, ["burning crusade"] = false, wrath = false, wotlk = false,
     cata = false, cataclysm = false, mop = false, pandaria = false, wod = false, draenor = false, legion = false,
     bfa = false, shadowlands = false, dragonflight = false, ["war within"] = false, ["the war within"] = false,
@@ -260,10 +333,60 @@ local function fromSyndicatorTerm(text)
     local word = keywordOnly and trim(string.sub(text, 2)) or text
     local mapped = Search.SYNDICATOR[word]
     if mapped then return no .. (keywordOnly and "#" or "") .. mapped end
-    -- Only keywords from the table above: a word that is a keyword here but not
+    if mapped == false then return nil end
+    -- The game's own type and slot names are keywords in both searches.
+    local clean = Search.CleanWord(word)
+    if not K[clean] and Search.GameWord(clean) then return no .. (keywordOnly and "#" or "") .. clean end
+    -- Only keywords from the tables above: a word that is a keyword here but not
     -- one of Baganator's (locked) would mean something else.
-    if mapped == false or keywordOnly or K[word] then return nil end
+    if keywordOnly or K[word] then return nil end
     return no .. word
+end
+
+-- Splits text on sep where it isn't inside brackets.
+local function splitOutside(text, sep)
+    local out, depth, start = {}, 0, 1
+    for i = 1, #text do
+        local ch = string.sub(text, i, i)
+        if ch == "(" then depth = depth + 1
+        elseif ch == ")" then depth = depth - 1
+        elseif ch == sep and depth == 0 then
+            out[#out + 1] = trim(string.sub(text, start, i - 1))
+            start = i + 1
+        end
+    end
+    out[#out + 1] = trim(string.sub(text, start))
+    return out
+end
+
+-- Most a bracketed search may grow into once its brackets are multiplied out.
+Search.SYNDICATOR_SPREAD = 16
+
+-- An & part with brackets in it ("!gear & (#leather | #cloth)") as plain & parts
+-- joined by |, by multiplying the brackets out. nil when they nest or it grows
+-- past Search.SYNDICATOR_SPREAD.
+local function spread(part)
+    local parts = { {} }
+    for _, piece in ipairs(splitOutside(part, "&")) do
+        local inner = string.match(piece, "^%((.*)%)$")
+        if inner and string.find(inner, "[()]") then return nil end
+        if not inner and string.find(piece, "[()]") then return nil end
+        local options = inner and splitOutside(inner, "|") or { piece }
+        local grown = {}
+        for _, done in ipairs(parts) do
+            for _, option in ipairs(options) do
+                local row = {}
+                for i = 1, #done do row[i] = done[i] end
+                for _, term in ipairs(split(option, "&")) do row[#row + 1] = term end
+                grown[#grown + 1] = row
+            end
+        end
+        if #grown > Search.SYNDICATOR_SPREAD then return nil end
+        parts = grown
+    end
+    local out = {}
+    for i, pieces in ipairs(parts) do out[i] = table.concat(pieces, "&") end
+    return out
 end
 
 -- The whole search, plus the parts left out. nil search = nothing left of it.
@@ -273,15 +396,29 @@ function Search.FromSyndicator(text)
     local whole = string.lower(trim(text))
     local dropped = {}
     if whole == "" then return nil, dropped end
-    -- Brackets around the whole search change nothing; anywhere else they would.
+    -- Brackets around the whole search change nothing.
     local inner = string.match(whole, "^%((.*)%)$")
     if inner and not string.find(inner, "[()]") then whole = trim(inner) end
-    if string.find(whole, "[();]") then
+    if string.find(whole, ";") then
         dropped[1] = whole
         return nil, dropped
     end
-    local any = {}
-    for _, part in ipairs(split(whole, "|")) do
+    -- Brackets elsewhere are multiplied out into plain parts.
+    local parts = {}
+    for _, part in ipairs(splitOutside(whole, "|")) do
+        if not string.find(part, "[()]") then
+            parts[#parts + 1] = part
+        else
+            local spreadOut = spread(part)
+            if spreadOut then
+                for _, p in ipairs(spreadOut) do parts[#parts + 1] = p end
+            else
+                dropped[#dropped + 1] = part
+            end
+        end
+    end
+    local any, seen = {}, {}
+    for _, part in ipairs(parts) do
         local all, pieces, whole = {}, {}, true
         for _, piece in ipairs(split(part, "&")) do
             if piece ~= "" then
@@ -290,8 +427,13 @@ function Search.FromSyndicator(text)
                 if ours then all[#all + 1] = ours else whole = false end
             end
         end
+        local ours = table.concat(all, " & ")
         if not whole then dropped[#dropped + 1] = table.concat(pieces, " & ")
-        elseif #all > 0 then any[#any + 1] = table.concat(all, " & ") end
+        elseif #all > 0 and not seen[ours] then
+            -- Two of Baganator's words can come to the same one here.
+            seen[ours] = true
+            any[#any + 1] = ours
+        end
     end
     if #any == 0 then return nil, dropped end
     return table.concat(any, " | "), dropped
@@ -301,12 +443,13 @@ end
 -- table for groups, so item info is read once for both. quest is the slot's
 -- quest info if the caller already has it.
 function Search.Facts(bag, slot, info, quest)
-    local f = { quality = info.quality, name = info.itemName, bound = info.isBound == true, link = info.hyperlink }
+    local f = { quality = info.quality, name = info.itemName, bound = info.isBound == true, link = info.hyperlink,
+                openable = info.hasLoot == true }
     f.locked = ns.Categories ~= nil and ns.Categories.IsLocked(info.itemID)
     local id = info.itemID or info.hyperlink
     if id and C_Item and C_Item.GetItemInfoInstant then
-        local ok, _, _, _, _, _, classID, subClassID = pcall(C_Item.GetItemInfoInstant, id)
-        if ok then f.classID, f.subClassID = classID, subClassID end
+        local ok, _, _, _, equipLoc, _, classID, subClassID = pcall(C_Item.GetItemInfoInstant, id)
+        if ok then f.classID, f.subClassID, f.equipLoc = classID, subClassID, equipLoc end
     end
     if not f.name and info.hyperlink then f.name = string.match(info.hyperlink, "%[(.-)%]") end
     if C_Item and C_Item.GetItemInfo and (info.hyperlink or info.itemID) then

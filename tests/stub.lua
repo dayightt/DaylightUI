@@ -3176,6 +3176,53 @@ _G.C_Item = {
         return out
     end,
 }
+-- The client's English names for item classes and the subclasses the bag
+-- search reads (ItemClass / ItemSubClass), and its equip slot names (as the
+-- INVTYPE_* globals; a test sets them with stub.SlotNames(), since other
+-- modules' samples draw them).
+stub.ITEM_CLASSES = { [0] = "Consumable", "Container", "Weapon", "Gem", "Armor", "Reagent", "Projectile", "Trade Goods",
+    "Item Enhancement", "Recipe", "Money", "Quiver", "Quest", "Key", "Permanent", "Miscellaneous", "Glyph",
+    "Battle Pets", "WoW Token", "Profession" }
+stub.ITEM_SUBCLASSES = {
+    [0] = { [0] = "Consumable", "Potion", "Elixir", "Flask", "Scroll", "Food & Drink", "Item Enhancement", "Bandage", "Other" },
+    [2] = { [0] = "One-Handed Axes", "Two-Handed Axes", "Bows", "Guns", "One-Handed Maces", "Two-Handed Maces",
+            "Polearms", "One-Handed Swords", "Two-Handed Swords", "Warglaives", "Staves", nil, nil, "Fist Weapons",
+            "Miscellaneous", "Daggers", "Thrown", nil, "Crossbows", "Wands", "Fishing Poles" },
+    [4] = { [0] = "Miscellaneous", "Cloth", "Leather", "Mail", "Plate", "Cosmetic", "Shields", "Librams", "Idols",
+            "Totems", "Sigils", "Relic" },
+    [7] = { "Parts", "Explosives", "Devices", "Jewelcrafting", "Cloth", "Leather", "Metal & Stone", "Cooking",
+            "Herb", "Elemental", "Other", "Enchanting", "Materials", [16] = "Inscription", [18] = "Optional Reagents" },
+    [9] = { [0] = "Book", "Leatherworking", "Tailoring", "Engineering", "Blacksmithing", "Cooking", "Alchemy",
+            "First Aid", "Enchanting", "Fishing", "Jewelcrafting", "Inscription" },
+}
+C_Item.GetItemClassInfo = function(classID)
+    if issecretvalue and issecretvalue(classID) then error("GetItemClassInfo: secret argument") end
+    return stub.ITEM_CLASSES[classID]
+end
+C_Item.GetItemSubClassInfo = function(classID, subClassID)
+    if issecretvalue and (issecretvalue(classID) or issecretvalue(subClassID)) then
+        error("GetItemSubClassInfo: secret argument")
+    end
+    local subs = stub.ITEM_SUBCLASSES[classID]
+    local name = subs and subs[subClassID]
+    if name then return name, false end
+end
+stub.SLOT_NAMES = { INVTYPE_HEAD = "Head", INVTYPE_NECK = "Neck", INVTYPE_SHOULDER = "Shoulder",
+    INVTYPE_BODY = "Shirt", INVTYPE_CHEST = "Chest", INVTYPE_ROBE = "Chest", INVTYPE_WAIST = "Waist",
+    INVTYPE_LEGS = "Legs", INVTYPE_FEET = "Feet", INVTYPE_WRIST = "Wrist", INVTYPE_HAND = "Hands",
+    INVTYPE_FINGER = "Finger", INVTYPE_TRINKET = "Trinket", INVTYPE_WEAPON = "One-Hand", INVTYPE_RANGED = "Ranged",
+    INVTYPE_CLOAK = "Back", INVTYPE_2HWEAPON = "Two-Hand", INVTYPE_BAG = "Bag", INVTYPE_TABARD = "Tabard",
+    INVTYPE_WEAPONMAINHAND = "Main Hand", INVTYPE_WEAPONOFFHAND = "Off Hand", INVTYPE_HOLDABLE = "Held In Off-hand",
+    INVTYPE_SHIELD = "Off Hand", INVTYPE_AMMO = "Ammo", INVTYPE_THROWN = "Thrown", INVTYPE_RANGEDRIGHT = "Ranged",
+    INVTYPE_QUIVER = "Quiver", INVTYPE_RELIC = "Relic", INVTYPE_PROFESSION_TOOL = "Profession Tool",
+    INVTYPE_PROFESSION_GEAR = "Profession Equipment" }
+function stub.SlotNames()
+    for slot, name in pairs(stub.SLOT_NAMES) do _G[slot] = name end
+    stub.onReset = stub.onReset or {}
+    stub.onReset[#stub.onReset + 1] = function()
+        for slot in pairs(stub.SLOT_NAMES) do _G[slot] = nil end
+    end
+end
 -- Items a test knows: stub.SetItems{ [link] = { id, quality, kind, sub, equip,
 -- icon, class, level, dressable } }. C_Item answers from it the way the
 -- client's does (MayReturnNothing: nothing for an unknown item), quality
