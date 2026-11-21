@@ -796,32 +796,44 @@ function place.header(p, item, y, inner)
     end
     local tagGap = spec.tagGap or 5
     local rows = {}
+    -- Tags sit beside the icon, under the words, while each fits on one row
+    -- there. A tag that would wrap (a long "Consumable · Food & Drink" in
+    -- Spanish) moves them all under the icon instead, across the card's whole
+    -- width, so no tag is two lines tall next to a short icon.
+    local under = false
+    local tagRoom = wide
     if item.tags and #item.tags > 0 then
-        -- As many rows as the tags need beside the icon; a tag longer than a
-        -- whole row wraps its own words (W.Tag's FitTo) and its row grows.
+        for _, tag in ipairs(item.tags) do
+            if tag:GetWidth() > wide then under = true end
+        end
+        if under then tagRoom = inner end
+        -- As many rows as the tags need; a tag longer than a whole row wraps
+        -- its own words (W.Tag's FitTo) and its row grows.
         local tx = 0
         rows[1] = W().TAG_H
         for _, tag in ipairs(item.tags) do
-            local tagH = tag.FitTo and tag.FitTo(wide) or W().TAG_H
+            local tagH = tag.FitTo and tag.FitTo(tagRoom) or W().TAG_H
             local w = tag:GetWidth()
-            if tx > 0 and tx + w > wide then
+            if tx > 0 and tx + w > tagRoom then
                 rows[#rows + 1], tx = W().TAG_H, 0
             end
             tag.row, tag.at = #rows, tx
             rows[#rows] = math.max(rows[#rows], tagH)
             tx = tx + w + Panel.TAG_GAP
         end
-        col = col + tagGap
-        for i, rh in ipairs(rows) do col = col + rh + (i > 1 and Panel.TAG_ROW_GAP or 0) end
     end
+    local rowsH = 0
+    for i, rh in ipairs(rows) do rowsH = rowsH + rh + (i > 1 and Panel.TAG_ROW_GAP or 0) end
+    local beside = #rows > 0 and not under
+    if beside then col = col + tagGap + rowsH end
     -- Shorter than the icon, the words sit in the middle of its height; taller
     -- (a wrapped name), the icon sits in the middle of theirs.
     local block = math.max(h, col)
     local top = y + (block - col) / 2
     if item.icon then
-        -- With tags under the words the icon keeps the top; without, it sits in
-        -- the middle of a taller (wrapped) name.
-        local drop = rows[1] and 0 or (block - h) / 2
+        -- With tags beside it the icon keeps the top; without, it sits in the
+        -- middle of a taller (wrapped) name.
+        local drop = beside and 0 or (block - h) / 2
         item.icon:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + drop))
     end
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
@@ -836,13 +848,18 @@ function place.header(p, item, y, inner)
     end
     if #rows > 0 then
         local rowY = {}
+        local tagX = x
         local at = ty + tagGap
+        if under then
+            tagX = padX(p)
+            at = y + block + tagGap
+        end
         for i, rh in ipairs(rows) do
             rowY[i] = at
             at = at + rh + Panel.TAG_ROW_GAP
         end
         for _, tag in ipairs(item.tags) do
-            snapTag(p, tag, x + tag.at, rowY[tag.row])
+            snapTag(p, tag, tagX + tag.at, rowY[tag.row])
         end
         ty = at - Panel.TAG_ROW_GAP
     end

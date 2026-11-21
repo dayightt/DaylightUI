@@ -2104,6 +2104,39 @@ T.test("rich tooltip: a single tag wider than its row is cut at the row's edge",
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The dev's rule: tags sit beside the icon while each fits on one row there;
+-- one that would wrap sends them all under the icon, across the card's width.
+T.test("rich tooltip: tags beside the icon while they fit, under it when one would wrap", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", { { "Dawnforged Greaves", nil, EPIC }, "Binds when picked up",
+        { "Legs", "Plate" }, "742 Armor" })
+    local p = Panel.Get(GameTooltip)
+    local function spots()
+        local head = p.items[1]
+        local byTag = {}
+        for _, sp in ipairs(p.tagSpots) do byTag[sp[1]] = sp end
+        return head, byTag
+    end
+    Panel.Finish(p)
+    local head, byTag = spots()
+    local first = byTag[head.tags[1]]
+    T.truthy(first[2] > 16 + 40, "short tags: right of the icon")
+    local beside = first[3]
+    local tag = head.tags[1]
+    tag.Set("A long kind of item and then more", nil)
+    Panel.Finish(p)
+    head, byTag = spots()
+    local sp
+    for _, c in ipairs(p.tagSpots) do if c[1] == tag then sp = c end end
+    T.truthy(sp, "placed")
+    local icon = head.icon:GetHeight()
+    T.truthy(sp[2] < first[2], "a long one: back at the card's left edge, under the icon")
+    T.truthy(sp[3] >= icon, "below the icon's bottom")
+    T.truthy(sp[3] > beside - 0.01, "never above where it sat")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: "Desgarracortez..." (a creature's name is one long word, which
 -- can't wrap): the title's letters shrink until the word fits.
 T.test("rich tooltip: a title with one long word shrinks to fit instead of being cut", function()
