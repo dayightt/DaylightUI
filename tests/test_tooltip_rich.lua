@@ -320,12 +320,12 @@ T.test("rich tooltip: a player's card, banner first", function()
     T.truthy(title:find("^Aelindra ") and title:find("Moonvale"), "first and last name: " .. title)
     T.truthy(title:find(DaylightUI.Win.Parts.Hex(DaylightUI.Style.INK.LABEL), 1, true), "the last name tan")
     T.truthy(head.icon and head.icon.tile:IsShown(), "the class icon on its class tile")
-    T.eq(#head.tags, 3)
+    T.eq(#head.tags, 2)
     T.eq(stub.Text(head.tags[1].text), "MAGE", "spec unknown: the class")
-    T.eq(stub.Text(head.tags[2].text), "60")
+    T.eq(stub.Text(head.right), "60", "the level on the right, as on a creature's card")
     local _, lvInk = stub.tooltip.RichWorld.Level("mouseover")
-    T.rgb({ head.tags[2].text:GetTextColor() }, lvInk, "the level in how hard they are for you")
-    T.eq(stub.Text(head.tags[3].text), "NIGHT ELF")
+    T.rgb({ head.right:GetTextColor() }, lvInk, "the level in how hard they are for you")
+    T.eq(stub.Text(head.tags[2].text), "NIGHT ELF")
     T.truthy(p.washColor, "the banner's class light")
     local rows = {}
     for i = 1, p.count do
@@ -2734,8 +2734,8 @@ T.test("rich tooltip: every header tag in a color of what it says, its outline t
     -- A player's race in their faction's color.
     player({ faction = "Horde" })
     head = Panel.Get(hover("mouseover", { "Aelindra", "Level 60 Night Elf Mage" }) or GameTooltip).items[1]
-    T.eq(stub.Text(head.tags[3].text), "NIGHT ELF")
-    T.rgb({ head.tags[3].text:GetTextColor() }, stub.tooltip.RichPlayers.FACTION_COLORS.Horde)
+    T.eq(stub.Text(head.tags[2].text), "NIGHT ELF")
+    T.rgb({ head.tags[2].text:GetTextColor() }, stub.tooltip.RichPlayers.FACTION_COLORS.Horde)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

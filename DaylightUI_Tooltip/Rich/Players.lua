@@ -1,7 +1,7 @@
 -- The rich card for a player: a banner in their class light (icon, first and
--- last name, spec and level tags), their guild, where a group member is, item
--- level and target, their health and power, and a friendly player's buffs out
--- of combat.
+-- last name, level at the right, spec and race tags), their guild, where a
+-- group member is, item level and target, their health and power, and a
+-- friendly player's buffs out of combat.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -152,9 +152,9 @@ function Players.Card(p, tip, unit, data, n, lines)
     local tags, Tag = {}, ns.RichItems.Tag
     local spec = Players.SpecOrClass(unit)
     if spec then tags[#tags + 1] = Tag(spec, cr and rgb(cr, cg, cb) or Style.INK.TEXT) end
-    -- The level in how hard they are for you, as on a creature's card.
+    -- The level sits big at the right of the name, in how hard they are for
+    -- you, the same spot as on a creature's card.
     local lv, lvInk = ns.RichWorld.Level(unit)
-    if lv then tags[#tags + 1] = Tag(lv, lvInk) end
     -- The race in its faction's color: the other side reads at a glance.
     local race = plain((UnitRace(unit)))
     if type(race) == "string" then
@@ -165,7 +165,8 @@ function Players.Card(p, tip, unit, data, n, lines)
     local cfg = ns.Tooltip.Config()
     if token and not (cfg and cfg.portraits == false) then icon, coords = Players.Icon(token) end
     Panel.Header(p, { icon = icon, iconCoords = coords, iconSize = Players.ICON, iconInset = Players.ICON_INSET,
-        iconTile = icon and pair or nil, title = title, tags = tags, wash = cr and rgb(cr, cg, cb) or nil })
+        iconTile = icon and pair or nil, title = title, tags = tags, wash = cr and rgb(cr, cg, cb) or nil,
+        right = lv, rightColor = lvInk, rightSize = Style.SIZE.title })
     -- The same room under the banner with or without rows: without it the
     -- health sat right on the banner, inside its wash.
     Panel.Gap(p, Players.AFTER_BANNER)
