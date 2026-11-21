@@ -20,14 +20,4 @@ function M.visibleMenuRowOf(W, key)
     end
 end
 
-M.SHIFTED = true
-
-function M.withShiftHeld(shifted, work)
-    local isShiftKeyDown = _G.IsShiftKeyDown
-    if shifted then _G.IsShiftKeyDown = function() return true end end
-    local ok, err = pcall(work)
-    _G.IsShiftKeyDown = isShiftKeyDown
-    if not ok then error(err, 0) end
-end
-
 return M

@@ -1,7 +1,6 @@
 -- Daylight UI's own Cooldown Manager layout in the fake game, shared by the CDM tests: the
 -- hand-made stand-in, next to cdmworld.lua, which runs the game's real code.
 local stub = require("stub")
-local H = require("helpers")
 
 local M = {}
 
@@ -280,11 +279,6 @@ function M.pieceFrame(g, id) return _G["DaylightUICdmPiece" .. g .. "_" .. id] e
 function M.changeSpecTo(DUI, g)
     DUI.DB.SpecGroup = function() return g end
     stub.FireEvent("ACTIVE_TALENT_GROUP_CHANGED")
-end
-
-function M.pressEditorKey(key, shifted)
-    local overlay = _G.DaylightUICdmEditor
-    H.withShiftHeld(shifted, function() overlay:GetScript("OnKeyDown")(overlay, key) end)
 end
 
 return M

@@ -7,7 +7,7 @@ local profileWorld, oldLayout, oldSet, oldBlock = LW.profileWorld, LW.oldLayout,
 local inBlock, parked, boopy, nightzFile = LW.inBlock, LW.parked, LW.boopy, LW.nightzFile
 local nightz, fakeViewer, fakeRegistry, rowsWorld = LW.nightz, LW.fakeViewer, LW.fakeRegistry, LW.rowsWorld
 local layoutFrame, pieceFrame, changeSpecTo, eased = LW.layoutFrame, LW.pieceFrame, LW.changeSpecTo, LW.eased
-local garbageMadeBy, SHIFTED, visibleMenuRowOf = H.garbageMadeBy, H.SHIFTED, H.visibleMenuRowOf
+local garbageMadeBy, visibleMenuRowOf = H.garbageMadeBy, H.visibleMenuRowOf
 
 T.test("cdm data: a row of icons lays out left to right from its top-left", function()
     local D = data()
@@ -6213,7 +6213,9 @@ T.test("cdm editor: arrow keys nudge the picked chain (Shift: a grid step); the 
     T.eq(set.pieces[11].y, 1)
     key(o, "LEFT"); key(o, "DOWN")
     T.eq(set.pieces[11].x, 0); T.eq(set.pieces[11].y, 0)
-    LW.pressEditorKey("RIGHT", SHIFTED)
+    _G.IsShiftKeyDown = function() return true end
+    key(o, "RIGHT")
+    _G.IsShiftKeyDown = nil
     T.eq(set.pieces[11].x, 16, "Shift: one grid step")
     T.eq(set.pieces[12].parent, 11, "still hooked")
     -- the card's Chain tab: nudges and X/Y
