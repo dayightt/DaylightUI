@@ -392,6 +392,164 @@ T.test("rolls card: buttons follow what the game lets you roll", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game (Spanish): "Rodela de degollador de ag..." (an item name is the game's own words
+-- and can be long). It shrinks, then takes a second row, rather than end in dots.
+T.test("rolls card: a long item name shrinks, then wraps, instead of ending in dots", function()
+    local S, RW = rollsLogin()
+    stub.measure = function(fs, unbounded)
+        local w = #(fs.__text or "") * (fs.__font and fs.__font[2] or 12) * 0.5
+        local set = fs:GetWidth() or 0
+        if unbounded or set <= 0 or fs.__wrap == false then return w, 14 end
+        local lines = math.max(1, math.ceil(w / set))
+        return math.min(w, set), lines * 14
+    end
+    local short = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local sc = cardOf(S, short)
+    local size = DaylightUI.Style.SIZE.head
+    T.eq(sc.name.__font[2], size, "a short name keeps its size")
+    T.falsy(sc.name.__wrap, "and one row")
+    local mid = RW.Drop({ name = "Rodela de degollador de aguas", link = RING, players = SEVEN })
+    local mc = cardOf(S, mid)
+    T.truthy(mc.name.__font[2] < size and mc.name.__font[2] >= size * S.RollCard.NAME_MIN - 0.01, "a long name shrinks, to a floor")
+    local long = RW.Drop({ name = "Rodela de degollador de aguasoscuras del abismo infinito", link = RING, players = SEVEN })
+    local lc = cardOf(S, long)
+    T.truthy(lc.name.__wrap ~= false and lc.name.__maxLines == 2, "one still too long takes a second row")
+    T.near(lc.name.__font[2], size * S.RollCard.NAME_MIN, 0.01, "at the floor")
+    T.truthy((lc.nameExtra or 0) > 0 and lc:GetHeight() > sc:GetHeight(), "and the card grows for it")
+    T.eq(sc.nameExtra or 0, 0, "a one row name adds nothing")
+    stub.measure = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game (Spanish and German): the words in the roll buttons ran past the button.
+T.test("rolls card: the words in the buttons fit them, with the icon, without it, or leave the icon alone", function()
+    local S, RW = rollsLogin()
+    local factor = 0.55
+    stub.measure = function(fs, unbounded)
+        return #(fs.__text or "") * (fs.__font and fs.__font[2] or 12) * factor, 14
+    end
+    local function words(card, shown)
+        local out = {}
+        for _, kind in ipairs(shown) do out[#out + 1] = card.buttons[kind] end
+        return out
+    end
+    local function width(b) return #b.text:GetText() * b.text.__font[2] * factor end
+    local function inside(card, n)
+        return (card:GetWidth() - 2 * S.RollCard.PAD - S.RollCard.GAP * (n - 1)) / n - 2 * S.RollCard.BUTTON_PAD
+    end
+    -- Words that fit with their icons: both stay, at the size they come at.
+    factor = 0.3
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardOf(S, id)
+    local need = card.buttons.need
+    T.truthy(need.baseWord, "the size the words come at")
+    T.truthy(need.icon:IsShown() and need.text:GetText() ~= "", "icon and word together")
+    T.eq(need.text.__font[2], need.baseWord, "at full size")
+    -- Too wide beside the icon, not alone: the word stays, the icon goes.
+    factor = 1
+    local c2 = cardOf(S, (RW.Drop({ name = "Ring of Accuria", link = RING, players = SEVEN })))
+    for _, b in ipairs(words(c2, { "need", "greed", "pass" })) do
+        if b.text:GetText() ~= "" then
+            T.truthy(width(b) <= inside(c2, 3) + 0.5, "the word fits its button")
+            T.falsy(b.icon:IsShown() and width(b) > inside(c2, 3) - 28 - 6 + 0.5, "never over the icon")
+        end
+    end
+    T.eq(c2.buttons.need.icon:IsShown(), false, "no icon: the word has the button")
+    T.truthy(c2.buttons.need.text:GetText() ~= "", "the word stays")
+    T.eq(c2.buttons.need.text.__font[2], c2.buttons.pass.text.__font[2], "the same size on every button")
+    T.eq(c2.buttons.need.icon:IsShown(), c2.buttons.pass.icon:IsShown(), "the same on every button")
+    -- Wider than any button: the icons stand alone.
+    factor = 2
+    local c3 = cardOf(S, (RW.Drop({ name = "Band of Accuria", link = RING, canDisenchant = true, players = SEVEN })))
+    T.eq(c3.buttons.need.text:GetText(), "", "icons alone when no word fits")
+    T.truthy(c3.buttons.need.icon:IsShown(), "and the icon is shown")
+    stub.measure = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls card: a long summary line shrinks, then takes a second row", function()
+    local S, RW = rollsLogin()
+    local factor = 0.3
+    stub.measure = function(fs, unbounded)
+        local t = (fs.__text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local w = #t * (fs.__font and fs.__font[2] or 12) * factor
+        if not unbounded and fs.__wrap ~= false and (fs.__maxLines or 0) > 0 then return math.min(w, 250), math.ceil(w / 250) * 14 end
+        return w, 14
+    end
+    local function won()
+        local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+        RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91)
+        RW.Pick(id, "Mira Calloway", "greed"); RW.Roll(id, "Mira Calloway", 40)
+        RW.Win(id, "Bram Holloway")
+        return cardOf(S, id)
+    end
+    local short = won()
+    T.eq(short.sumExtra or 0, 0, "fits: one row")
+    -- A little too wide: the letters shrink, the row stays.
+    factor = 0.65
+    local mid = won()
+    T.eq(mid.sumExtra or 0, 0, "shrunk, one row")
+    T.truthy(mid.sum.__font[2] < DaylightUI.Style.SIZE.small, "smaller letters")
+    -- Far too wide: a second row, the box taller by what it needs.
+    factor = 1.5
+    local long = won()
+    T.truthy((long.sumExtra or 0) > 0, "two rows")
+    T.near(long.sumBox:GetHeight(), S.RollCard.SUM + long.sumExtra, 1, "its box grew")
+    T.truthy(long.sum.__font[2] >= DaylightUI.Style.SIZE.small * S.RollCard.SUM_MIN - 0.01, "not past the least")
+    stub.measure = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls card: a button's tooltip shows only when it adds something", function()
+    local S, RW = rollsLogin()
+    stub.measure = function(fs) return #(fs.__text or "") * 4, 14 end
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = cardOf(S, id)
+    local b = card.buttons.need
+    local shown = false
+    local realTip, realTips = _G.GameTooltip, DaylightUI.Tips
+    _G.GameTooltip = { SetOwner = function() end, Show = function() shown = true end,
+        Hide = function() shown = false end, IsShown = function() return shown end }
+    DaylightUI.Tips = { Clear = function() end, Title = function() end, Text = function() end, Flush = function() end }
+    local function hover()
+        shown = false
+        b:GetScript("OnEnter")(b)
+        return shown
+    end
+    T.truthy(b.text:GetText() ~= "", "the word is on the button")
+    T.falsy(hover(), "no tooltip repeating the word")
+    b.reason = "Your class cannot roll Need."
+    T.truthy(hover(), "a reason is worth one")
+    b.reason = nil
+    b.SetWords("")
+    T.truthy(hover(), "an icon alone says what it is")
+    _G.GameTooltip, DaylightUI.Tips = realTip, realTips
+    stub.measure = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rolls card: \"choosing\" in a longer language gets the room it needs on a list row", function()
+    local S, RW = rollsLogin()
+    stub.measure = function(fs) return #(fs.__text or "") * 7, 14 end
+    local realWord = S.RollCard.TEXT.choosing
+    S.RollCard.TEXT.choosing = "eligiendo"
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91)
+    RW.Win(id, "Bram Holloway")
+    local card = cardOf(S, id, { open = true })
+    local waiting, rolled
+    for _, row in ipairs(card.rows) do
+        if row.num:GetText() == "eligiendo" then waiting = row end
+        if row.num:GetText() == "91" then rolled = row end
+    end
+    T.truthy(waiting, "a player still choosing")
+    T.truthy(waiting.num:GetWidth() >= 9 * 7, "the word fits its room")
+    T.eq(rolled.num:GetWidth(), S.RollCard.NUM_W, "a roll keeps the usual room")
+    S.RollCard.TEXT.choosing = realWord
+    stub.measure = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rolls card: Transmog takes Greed's place when the game offers it", function()
     local S, RW = rollsLogin()
     local id = RW.Drop({ name = "Band of Accuria", link = RING, canTransmog = true, players = SEVEN })
