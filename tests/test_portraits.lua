@@ -1712,12 +1712,20 @@ T.test("socket: a 3D model stays inside the inner ring", function()
     T.truthy(p.rim:GetWidth() / 2 >= inner * (opening - 0.01) - 1e-6, "the bezel reaches the thin ring's opening")
 end)
 
+-- Nothing hanging under the player frame, so the socket's level tag has its edge.
+local function nothingUnder(DUI)
+    DUI:Set("UnitFrames", "playerCastbar.at", "above")
+    DUI:Set("UnitFrames", "swing.enabled", false)
+    stub.RunTimers()
+end
+
 T.test("socket: the level badge sits where the ring meets the bar's bottom edge", function()
     local DUI, ns = login(function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", level = 60, health = 5, maxHealth = 10 }
     end)
     local UF = ns.UF
     local f = ns.frames.player
+    nothingUnder(DUI)
     UF.UpdateAll(f, true)
     local pt, rel, rp, x, y = f.status.icons.level:GetPoint(1)
     T.eq(pt, "CENTER"); T.eq(rel, f); T.eq(rp, "BOTTOMLEFT")
@@ -1742,6 +1750,7 @@ T.test("socket: the smallest portrait still meets the bar's edges, the tag on it
     local DUI, ns = login()
     local UF = ns.UF
     local f = ns.frames.player
+    nothingUnder(DUI)
     DUI:Set("UnitFrames", "player.portraitScale", 0.6)
     stub.RunTimers()
     UF.UpdateAll(f, true)
@@ -1749,6 +1758,41 @@ T.test("socket: the smallest portrait still meets the bar's edges, the tag on it
     local _, rel = f.status.icons.level:GetPoint(1)
     T.eq(rel, f)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("socket: the level tag leaves the edge a cast bar or swing timer hangs from", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", level = 60, health = 5, maxHealth = 10 }
+    end)
+    local UF = ns.UF
+    local f = ns.frames.player
+    local function spot()
+        stub.RunTimers()
+        UF.UpdateAll(f, true)
+        local _, rel, _, x, y = f.status.icons.level:GetPoint(1)
+        return rel, x, y
+    end
+    local rel, x, y = spot()
+    T.eq(rel, f.portrait, "the hung cast bar: at the ring's foot")
+    T.near(x, 0, 1e-6); T.truthy(y < 0)
+    T.truthy(f.status.icons.level.__texture ~= UF.LEVEL_TAG_FILE, "round, not the tag")
+    DUI:Set("UnitFrames", "playerCastbar.at", "above")
+    T.eq(spot(), f.portrait, "the swing timers still hang there")
+    DUI:Set("UnitFrames", "swing.enabled", false)
+    T.eq(spot(), f, "nothing under: back on the join")
+    DUI:Set("UnitFrames", "player.levelPos", "foot")
+    T.eq(spot(), f.portrait, "picked under the portrait")
+    -- The target's bar inside the frame leaves the tag; one that slides under moves it.
+    local t = ns.frames.target
+    stub.units.target = { name = "Wolf", isPlayer = false, reaction = 2, level = 27 }
+    UF.UpdateAll(t, true)
+    local _, trel = t.status.icons.level:GetPoint(1)
+    T.eq(trel, t, "inside the frame: on the join")
+    DUI:Set("UnitFrames", "targetCastbar.at", "slide")
+    stub.RunTimers()
+    UF.UpdateAll(t, true)
+    _, trel = t.status.icons.level:GetPoint(1)
+    T.eq(trel, t.portrait, "sliding under: at the foot")
 end)
 
 T.test("socket: aggro reddens the whole ring, outer band too, and leaves the bar's border", function()

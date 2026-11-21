@@ -131,11 +131,14 @@ local HOME_SPOTS, HOME_ORDER = { [UF.ICON_HOME] = "With the name or portrait" },
 for _, s in ipairs(ns.Spots.ORDER) do
     HOME_SPOTS[s], HOME_ORDER[#HOME_ORDER + 1] = SPOT_VALUES[s], s
 end
--- The level badge: its own spot at the portrait's foot, or any spot.
-local LEVEL_SPOTS, LEVEL_ORDER = { ring = "On the portrait" }, { "ring" }
+-- The level badge: on the portrait (with the socket look, a tag where the
+-- ring meets the frame), at the ring's foot, or any spot.
+local LEVEL_SPOTS, LEVEL_ORDER = { ring = "On the portrait", foot = "Under the portrait" }, { "ring", "foot" }
 for _, s in ipairs(ns.Spots.ORDER) do
     LEVEL_SPOTS[s], LEVEL_ORDER[#LEVEL_ORDER + 1] = ns.Spots.LABELS[s], s
 end
+-- The two spots on the portrait itself, which take no nudges.
+local function portraitSpot(v) return v == "ring" or v == "foot" end
 
 -- Per-class icons: one line per class with every icon it can use in a row, and
 -- a ring marking its pick. The first icon means "same as the Icon style".
@@ -2098,11 +2101,11 @@ local function framePage(id, label, desc, opts)
             disabled = homeDis }
         local levelOff = function(get) return homeDis(get) or get(k("showLevel")) == false end
         extras[#extras + 1] = { type = "dropdown", key = k("levelPos"), label = "Level position", values = LEVEL_SPOTS,
-            order = LEVEL_ORDER, desc = "Where the level badge sits: on the portrait, or any spot on or around the frame. You can also drag it in Design mode.", disabled = levelOff }
+            order = LEVEL_ORDER, desc = "Where the level badge sits: on the portrait, under it at the ring's foot, or any spot on or around the frame. You can also drag it in Design mode.", disabled = levelOff }
         extras[#extras + 1] = { type = "slider", key = k("levelX"), label = "Level left / right", min = -50, max = 50, step = 1,
-            desc = "Nudges the level badge sideways. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
+            desc = "Nudges the level badge sideways. Not while it sits on or under the portrait.", unit = "px", disabled = function(get) return levelOff(get) or portraitSpot(get(k("levelPos"))) end }
         extras[#extras + 1] = { type = "slider", key = k("levelY"), label = "Level up / down", min = -50, max = 50, step = 1,
-            desc = "Nudges the level badge up or down. Not while it sits on the portrait.", unit = "px", disabled = function(get) return levelOff(get) or get(k("levelPos")) == "ring" end }
+            desc = "Nudges the level badge up or down. Not while it sits on or under the portrait.", unit = "px", disabled = function(get) return levelOff(get) or portraitSpot(get(k("levelPos"))) end }
         iconRow({ type = "toggle", key = k("showLeader"), label = "Leader crown",
             desc = "A crown on top of the portrait ring (or over the name tab) for the party or raid leader.", disabled = shown })
         iconRow({ type = "slider", key = k("leaderSize"), label = "Leader crown size", min = 0.5, max = 2, step = 0.05, unit = "%",

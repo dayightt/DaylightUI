@@ -1692,8 +1692,10 @@ function UF.Layout(f, cfg, text, keepSize)
     f.crestOnTab = not (f.portrait and f.portrait:IsShown())
     f.showLevel, f.showLeader, f.showResting = cfg.showLevel ~= false, cfg.showLeader ~= false, cfg.showResting ~= false
     f.showPvP = cfg.showPvP ~= false
-    -- "ring" means the portrait's foot (or the frame's corner), else a Spots spot.
+    -- "ring" means on the portrait (the socket's tag on the join), "foot" the
+    -- ring's foot (both the frame's corner without one), else a Spots spot.
     f.levelSpot = ns.Spots.Valid(cfg.levelPos) and cfg.levelPos or nil
+    f.levelFoot = cfg.levelPos == "foot" or (not f.levelSpot and UF.BarUnder(f))
     f.levelNudge = { x = tonumber(cfg.levelX) or 0, y = tonumber(cfg.levelY) or 0 }
     f.iconScale = { leader = (cfg.leaderSize or 1), rest = (cfg.restSize or 1), pvp = (cfg.pvpSize or 1) }
     if f.tab then
@@ -3441,6 +3443,29 @@ function UF.CreateStatus(f)
     f.status = st
 end
 
+-- Whether a cast bar or swing timer hangs from this frame's bottom edge. The
+-- socket's level tag sits on that edge, so it moves to the ring's foot then,
+-- or it would lie over the cast's name.
+function UF.BarUnder(f)
+    local unit = f.spec and f.spec.unit
+    local db = ns.module and ns.module.db
+    if type(db) ~= "table" or (unit ~= "player" and unit ~= "target" and unit ~= "focus") then return false end
+    local cast = db[unit .. "Castbar"]
+    local at = type(cast) == "table" and ns.CastBar.At(unit, cast)
+    -- The player's bar can hang from a power bar standing on its own instead.
+    local fromPower = unit == "player" and type(cast) == "table" and cast.from == "power"
+        and type(db.player) == "table" and db.player.powerAt == "free"
+    if type(cast) == "table" and cast.enabled ~= false and not fromPower
+        and (at == "below" or at == "slide") then
+        return true
+    end
+    -- The swing timers hang under the player frame unless they fan out under
+    -- the middle cast bar, stand under the personal display or are detached.
+    local swing = db.swing
+    return unit == "player" and type(swing) == "table" and swing.enabled ~= false and swing.attach ~= false
+        and at ~= "middle" and at ~= "personal" and not fromPower and not ns.Personal.Docks("swing")
+end
+
 -- With a portrait: crown on top, Zzz on the outer shoulder, PvP at the outer
 -- hip (clear of an attached cast bar and swing timers), level at the foot.
 -- Without: crown and Zzz above the name tab, the PvP flag beside the tab, level
@@ -3477,7 +3502,7 @@ function UF.LayoutStatus(f, cfg)
         icons.leader:SetPoint("CENTER", p, "CENTER", ln.x, R * 0.98 + ln.y)
         icons.rest:SetPoint("CENTER", p, "CENTER", out * R * 0.82, R * 0.82)
         icons.pvp:SetPoint("CENTER", p, "CENTER", out * R * 0.82, -R * 0.82)
-        if f.socketOn and f.socketJoinX then
+        if f.socketOn and f.socketJoinX and not f.levelFoot then
             -- Set into the frame: a slanted tag on the join, where the ring
             -- meets the bar's bottom edge, leaning like the frame's end.
             local outer = outerRight and "RIGHT" or "LEFT"
