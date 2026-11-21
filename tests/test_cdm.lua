@@ -7365,11 +7365,11 @@ T.test("cdm custom: a hunter's or warlock's Pet piece, known with the spell that
     stub.knownSpells = {}
     C.Forget()
     T.isnil(C.Entry("pet"), "no pet yet: nothing to draw")
-    local AW, LW = customWorld("WARLOCK")
+    local AW, CW = customWorld("WARLOCK")
     AW.CdmSpells.WARLOCK = {}
     stub.knownSpells = { [688] = true }
-    LW.Forget()
-    T.eq(LW.SpellOf("pet"), 688, "Summon Imp")
+    CW.Forget()
+    T.eq(CW.SpellOf("pet"), 688, "Summon Imp")
     local _, W = customWorld("WARRIOR")
     T.isnil(W.Family("pet"), "only hunters and warlocks")
     stub.knownSpells = {}
