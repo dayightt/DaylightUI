@@ -16,7 +16,7 @@ Layout.TITLE_X = 18          -- where a quest title starts (after its icon)
 Layout.OBJ_X = 24            -- where objectives start
 Layout.COUNT_W = 34          -- room on the right for "11/15"
 -- room after a tagged quest's title for its tag (Look.NewTag), by kind
-Layout.TAG_W = { elite = 50, dungeon = 66, raid = 48, pvp = 42 }
+Layout.TAG_W = { elite = 22, dungeon = 22, raid = 22, pvp = 42 }
 Layout.PARTY_W = 24          -- room on the title's right for the party mark (Look.NewParty)
 Layout.VOICE_W = 18          -- room on the title's right for Spoken's Play button (Voice.lua)
 Layout.LINE_GAP = 1
@@ -68,8 +68,15 @@ end
 -- line for it, a Play button at the right end (before the party mark), room
 -- reserved. The title gets whatever width is left after the icon, tag, Play
 -- button and party mark.
+-- A tag's room on the title's line: its width and the gap before it.
+function Layout.TagRoom(tag)
+    local look = ns.Look
+    local w = look and look.TagWidth and look.TagWidth(tag) or Layout.TAG_W[tag] or 0
+    return w + (look and look.TAG_GAP or 5)
+end
+
 function Layout.TitleRoom(width, tag, party, voice)
-    return width - Layout.TITLE_X - (tag and Layout.TAG_W[tag] or 0) - (party and Layout.PARTY_W or 0)
+    return width - Layout.TITLE_X - (tag and Layout.TagRoom(tag) or 0) - (party and Layout.PARTY_W or 0)
         - (voice and Layout.VOICE_W or 0)
 end
 
