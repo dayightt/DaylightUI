@@ -1263,7 +1263,7 @@ Options.RegisterPage({
                   return DUI.Media.Fetch("font", key) or (DUI.Style.FontEntry(key) and DUI.Style.FontEntry(key).file)
               end,
               desc = "Used by all Daylight UI text, except where a frame's own page picks another font. Game font is the client's own, "
-                  .. "including a font you've replaced it with. Fonts other addons share (SharedMedia) are listed after ours." },
+                  .. "including a font you've replaced it with. Fonts other addons share (SharedMedia) are listed with them, A to Z." },
             resetPicks({ "font" }, "Use this font everywhere",
                 "The font above shows everywhere at once, except where a frame's own page or the window font below picks another. "
                     .. "This puts every one of those back on the font above."),
