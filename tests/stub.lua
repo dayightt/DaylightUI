@@ -475,7 +475,7 @@ function Widget:GetWidth()
     return self.__w or 0
 end
 function Widget:GetHeight()
-    if rawget(self, "__tipSecret") then return stub.Secret(self.__h or 0) end
+    if rawget(self, "__tipSecret") or rawget(self, "__heldSecret") then return stub.Secret(self.__h or 0) end
     return self.__h or 0
 end
 -- Tooltip sizing like the client's (FrameAPITooltipDocumentation, the game's
@@ -524,7 +524,12 @@ function Widget:GetResizeBounds()
     local r = self.__bounds or {}
     return r[1] or 0, r[2] or 0, r[3] or 0, r[4] or 0
 end
-function Widget:GetSize() return self.__w or 0, self.__h or 0 end
+function Widget:GetSize()
+    if rawget(self, "__tipSecret") or rawget(self, "__heldSecret") then
+        return stub.Secret(self.__w or 0), stub.Secret(self.__h or 0)
+    end
+    return self.__w or 0, self.__h or 0
+end
 function Widget:ClearAllPoints() guard(self, "ClearAllPoints"); self.__points = {} end
 -- The client refuses to anchor a frame to an aura container that has aura
 -- groups, unless the frame opts out of untrusted layout scripts (or is such

@@ -1262,9 +1262,10 @@ local function menuSelectKind(tex)
 end
 -- The game's raid-target sheet is one cell of a grid (4 x 4 or 4 x 2). The
 -- cell's tex coords are the marker number, 1 star through 8 skull.
--- Interface/TargetingFrame/UI-RaidTargetingIcons. GetTexture() is this id in
--- game, not the path, so the path check alone never sees it.
-local RAID_SHEET = { [137010] = true }
+-- Interface/TargetingFrame/UI-RaidTargetingIcons. GetTexture() is an id in
+-- game, not the path, so the path check alone never sees it. The marker menu
+-- shows 137009.
+local RAID_SHEET = { [137009] = true, [137010] = true }
 local function menuFileID(tex)
     local id = tex.GetTexture and tex:GetTexture()
     if type(id) == "number" then return id end
@@ -1319,10 +1320,16 @@ end
 -- The row's name is the marker ("Calavera", "Estrella", ...), and that name
 -- sits on the whole row. The hover covers the row and often has no size of
 -- its own (SetAllPoints). Only a texture with a real small size is the icon.
+-- A target's menu holds the target's name, a secret, and then every size on it
+-- reads back secret. There the icon is told apart by its anchors: it sits on
+-- one point with a size of its own, while the hover is pinned to the row on two.
 local function menuIconSized(tex)
     local w = tex.GetWidth and tex:GetWidth()
     local h = tex.GetHeight and tex:GetHeight()
-    if type(w) ~= "number" or type(h) ~= "number" or isSecret(w) or isSecret(h) then return false end
+    if isSecret(w) or isSecret(h) then
+        return tex.GetNumPoints ~= nil and tex:GetNumPoints() == 1
+    end
+    if type(w) ~= "number" or type(h) ~= "number" then return false end
     return w > 0 and h > 0 and w <= 24 and h <= 24
 end
 local function menuMarkerNumber(tex, frame)

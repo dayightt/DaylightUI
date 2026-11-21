@@ -3458,6 +3458,42 @@ T.test("skins: a unit menu's rows, tick, arrow and raid icons take our look", fu
     T.eq(reused.icon:GetTexture(), DaylightUI.MEDIA .. "marker-3.png", "a reused raid icon still gets our marker")
     T.eq(reused.icon:GetBlendMode(), "BLEND", "our marker draws plainly, not as a glow")
     T.eq(none.icon:GetTexture(), "", "the None row's empty spot is not painted as a hover box")
+    -- A target's menu holds the target's name, a secret, and every size on it
+    -- then reads back secret (seen in game). The row's icon sits on one point
+    -- (SetPoint "RIGHT", 16 x 16); the hover is pinned to the row on two. The
+    -- sheet's file id in game is 137009.
+    _G.RAID_TARGET_7 = "Cruz"
+    local function secretRow(text, coords)
+        local row = CreateFrame("Button", nil, menu)
+        row.text = row:CreateFontString()
+        row.text:SetText(text)
+        row.text:SetTextColor(1, 1, 1)
+        row.highlight = row:CreateTexture()
+        row.highlight:SetTexture(136810)
+        row.highlight:SetBlendMode("ADD")
+        row.highlight:SetPoint("TOPLEFT", row)
+        row.highlight:SetPoint("BOTTOMRIGHT", row)
+        row.icon = row:CreateTexture()
+        row.icon:SetPoint("RIGHT")
+        row.icon:SetSize(16, 16)
+        if coords then
+            row.icon:SetTexture(137009)
+            row.icon:SetTexCoord(coords[1], coords[2], coords[3], coords[4])
+        else
+            row.icon:SetTexture("")
+        end
+        for _, w in ipairs({ row, row.highlight, row.icon, row.text }) do stub.HeldSecret(w) end
+        return row
+    end
+    local cross = secretRow("Cruz", { 0.5, 0.75, 0.25, 0.5 })
+    local blank = secretRow("Ninguno")
+    callbacks["MenuProxy.OnShow"](menu)
+    stub.RunTimers()
+    T.eq(cross.icon:GetTexture(), DaylightUI.MEDIA .. "marker-7.png", "a marker shows on a menu whose sizes are secret")
+    T.eq(cross.icon:GetBlendMode(), "BLEND", "and draws plainly, not as a hover glow")
+    T.eq(blank.icon:GetTexture(), "", "the None row's empty spot stays empty on that menu")
+    T.eq(blank.icon:GetBlendMode(), "BLEND", "and is not lit as a hover box")
+    T.eq(cross.highlight:GetTexture(), "Interface\\Buttons\\WHITE8x8", "the row's real hover is still our wash")
     local holder
     for _, c in ipairs({ menu:GetParent():GetChildren() }) do
         if c.ignoreInLayout and c.GetScript and c:GetScript("OnUpdate") then holder = c end
