@@ -1,5 +1,5 @@
 -- Spellbook and talents window.
--- The game's PlayerSpellsFrame stays alive but hidden under a veil
+-- The game's PlayerSpellsFrame stays alive but held aside out of sight
 -- (Win.Follow). The game still decides when it opens and closes (keys, micro
 -- menu, Escape, loading screens, other addons) and its own scripts and
 -- EventRegistry events still run; this window just shows in its place.
@@ -106,16 +106,15 @@ local function place(f)
     local s = spot()
     if s then return Win.PlaceTop(f, s[1], s[2]) end
     local g = Book.Game()
-    local x, top
-    if g then
-        local cx, t = g:GetCenter(), g:GetTop()
-        if type(cx) == "number" and type(t) == "number" then
-            local k = (g:GetEffectiveScale() or 1) / (f:GetEffectiveScale() or 1)
-            x, top = cx * k, t * k
-        end
-    end
+    local x, y
+    if g then x, y = Win.Followers.Home(g) end
     f:ClearAllPoints()
-    if x then f:SetPoint("TOP", UIParent, "BOTTOMLEFT", x, top) else f:SetPoint("TOP", UIParent, "TOP", 0, Book.TOP) end
+    if x then
+        local s = f:GetScale()
+        f:SetPoint("TOP", UIParent, "TOPLEFT", (x + g:GetWidth() * g:GetScale() / 2) / s, y / s)
+    else
+        f:SetPoint("TOP", UIParent, "TOP", 0, Book.TOP)
+    end
 end
 Book.Place = place
 
@@ -257,7 +256,7 @@ function Book.GiveAway()
 end
 
 -- Switched back: an open game book showing your own spells or talents goes
--- under the veil again, and the follower's next look opens this one in its place.
+-- held aside again, and the follower's next look opens this one in its place.
 function Book.TakeBack()
     local g = Book.Game()
     if not (Book.follow and g and g:IsShown()) or Win.Followers.Parked(Book.follow, "book") then return end
@@ -439,7 +438,7 @@ function Book.Build(mod)
         Book.level = type(level) == "number" and level or nil
         if Win.IsOpen(f) then header(f, f.current) end
     end)
-    Book.follow = Win.Follow({ key = "book", frames = { book = Book.Game }, veil = { book = true }, changed = Book.Changed,
+    Book.follow = Win.Follow({ key = "book", frames = { book = Book.Game }, aside = { book = true }, changed = Book.Changed,
         leave = function() return not DUI.bookOwnWindow end })
     Book.Apply()
     return f

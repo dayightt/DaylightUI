@@ -31,7 +31,7 @@ local function settle() frame(30) end
 
 local function open(ns) return DaylightUI.Win.IsOpen(ns.Window.frame) end
 local function layer(ns) return ns.Fight.h end
-local function veil() return DaylightUI.Win.Followers.veil end
+local function aside() return DaylightUI.Win.Followers.aside end
 
 -- A long book: one line of 40 spells, more than the list shows.
 local function longBook()
@@ -51,7 +51,7 @@ end
 T.test("book fight: P in a fight opens ours on the spellbook, no error, the game's stays parked", function()
     local ns = load({ loaded = true })
     stub.EnterCombat()
-    T.eq(PlayerSpellsFrame:GetParent(), veil(), "not handed back")
+    T.eq(PlayerSpellsFrame:GetParent(), aside(), "not handed back")
     T.noerror(function() BW.Key("P"); settle() end)
     T.eq(open(ns), true)
     T.eq(ns.Window.frame.current, "spells")

@@ -2,7 +2,7 @@ local stub = require("stub")
 local BW = require("bookworld")
 
 -- The spellbook and talents window (Book/): the game's PlayerSpellsFrame parked
--- under the kit's veil with Daylight UI's window in its place, and the game's own
+-- held aside by the kit with Daylight UI's window in its place, and the game's own
 -- book in a fight.
 
 -- Switched on (the default, written out so the tests don't lean on it).
@@ -31,20 +31,20 @@ end
 local function settle() frame(30) end
 
 local function open(B) return DaylightUI.Win.IsOpen(B.frame) end
-local function veil() return DaylightUI.Win.Followers.veil end
+local function aside() return DaylightUI.Win.Followers.aside end
 local function blockedHides()
     local n = 0
     for _, c in ipairs(BW.Calls("HideUIPanel")) do if c[2] == false and stub.combat then n = n + 1 end end
     return n
 end
 
-T.test("book: switched on, the game's book is parked under the veil as it loads", function()
+T.test("book: switched on, the game's book is held aside as it loads", function()
     local B = load()
     T.eq(DaylightUI.bookOwnWindow, true)
     T.truthy(B.frame)
     T.isnil(_G.PlayerSpellsFrame, "load-on-demand: not loaded by us")
     BW.LoadBook()
-    T.eq(PlayerSpellsFrame:GetParent(), veil())
+    T.eq(PlayerSpellsFrame:GetParent(), aside())
 end)
 
 T.test("book: Ctrl + the wheel sizes the window, times the master Scale", function()
@@ -71,6 +71,18 @@ T.test("book: Ctrl + the wheel sizes the window, times the master Scale", functi
     _G.IsControlKeyDown = nil
 end)
 
+T.test("book: with no saved spot it opens over where the game placed its book", function()
+    local B = load()
+    BW.Open(BW.SPELLBOOK)
+    frame(); settle()
+    stub.PlacePanel(PlayerSpellsFrame)   -- the fake game has no panel manager here
+    B.Place(B.frame)
+    local p, rel, rp, x, y = B.frame:GetPoint(1)
+    T.eq(p, "TOP"); T.eq(rel, UIParent); T.eq(rp, "TOPLEFT")
+    T.eq(x, (16 + PlayerSpellsFrame:GetWidth() / 2) / B.frame:GetScale())
+    T.eq(y, -116 / B.frame:GetScale())
+end)
+
 T.test("book: P opens ours on the spellbook, N on talents", function()
     local B = load()
     BW.Open(BW.SPELLBOOK)
@@ -78,7 +90,9 @@ T.test("book: P opens ours on the spellbook, N on talents", function()
     T.eq(open(B), true)
     T.eq(B.frame.current, "spells")
     T.eq(B.frame.tab, "spells")
-    T.eq(PlayerSpellsFrame:GetParent(), veil(), "the game's out of sight")
+    T.eq(PlayerSpellsFrame:GetParent(), aside(), "the game's out of sight")
+    T.isnil(stub.ClipAncestor(PlayerSpellsFrame), "never under a clipping frame")
+    T.eq(PlayerSpellsFrame:IsVisible(), true)
     BW.Toggle(BW.SPELLBOOK)
     settle()
     T.eq(open(B), false, "P again closes both")
@@ -161,7 +175,7 @@ end)
 
 T.test("book: switched off for fights, as a fight starts the game's book is handed back, and parked again after it closes", function()
     local B = load({ loaded = true, fightBook = false })
-    T.eq(PlayerSpellsFrame:GetParent(), veil())
+    T.eq(PlayerSpellsFrame:GetParent(), aside())
     stub.EnterCombat()
     T.eq(PlayerSpellsFrame:GetParent(), UIParent, "handed back before the lockdown")
     BW.Open(BW.SPELLBOOK)   -- P in the fight
@@ -174,7 +188,7 @@ T.test("book: switched off for fights, as a fight starts the game's book is hand
     T.eq(PlayerSpellsFrame:GetParent(), UIParent, "still open: stays the game's")
     BW.Escape()
     frame(2)
-    T.eq(PlayerSpellsFrame:GetParent(), veil(), "closed: parked again")
+    T.eq(PlayerSpellsFrame:GetParent(), aside(), "closed: parked again")
     BW.Open(BW.SPELLBOOK)
     frame()
     T.eq(open(B), true, "ours again out of combat")
@@ -193,7 +207,7 @@ T.test("book: switched off for fights, ours open as the fight starts stays ours;
     BW.Open(BW.SPELLBOOK)
     settle()
     stub.EnterCombat()
-    T.eq(PlayerSpellsFrame:GetParent(), veil(), "a shown book isn't handed back")
+    T.eq(PlayerSpellsFrame:GetParent(), aside(), "a shown book isn't handed back")
     T.eq(open(B), true)
     T.noerror(function() B.frame.close:Click() end)
     settle()
@@ -230,7 +244,7 @@ T.test("book: the book's first load in a fight stays the game's", function()
     BW.Escape()
     stub.LeaveCombat()
     frame(2)
-    T.eq(PlayerSpellsFrame:GetParent(), veil())
+    T.eq(PlayerSpellsFrame:GetParent(), aside())
 end)
 
 T.test("book: inspecting someone is lent to the game: ours never shows their talents", function()
@@ -242,7 +256,7 @@ T.test("book: inspecting someone is lent to the game: ours never shows their tal
     T.eq(PlayerSpellsFrame:IsShown(), true)
     BW.Escape()
     frame(2)
-    T.eq(PlayerSpellsFrame:GetParent(), veil(), "parked again once closed")
+    T.eq(PlayerSpellsFrame:GetParent(), aside(), "parked again once closed")
     BW.Open(BW.SPELLBOOK)
     frame()
     T.eq(open(B), true)
@@ -410,7 +424,7 @@ T.test("book: the game's book's link switches back to Daylight UI's, no reload",
     T.eq(DaylightUI.bookOwnWindow, true)
     T.truthy(B.frame and open(B), "ours takes over the open book")
     T.eq(B.frame.current, "talents", "on the game's tab")
-    T.eq(PlayerSpellsFrame:GetParent(), veil(), "the game's frame goes under the veil")
+    T.eq(PlayerSpellsFrame:GetParent(), aside(), "the game's frame is held aside")
     T.falsy(link:IsShown(), "the link is gone with the game's look")
     T.truthy(B.Covers())
     BW.Toggle(BW.TALENTS)
