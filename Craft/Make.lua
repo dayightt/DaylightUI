@@ -163,7 +163,10 @@ function Make.SetAmount(v, typing)
     local box = Make.box
     Make.amount = math.max(1, math.min(Make.Most(), math.floor(tonumber(v) or 1)))
     if not box then return end
-    if not typing then box.num:SetText(tostring(Make.amount)) end
+    -- Typing past what you can make shows the most instead, so the box never
+    -- holds a number it won't make.
+    local typedOver = typing and (tonumber(v) or 0) > Make.amount
+    if not typing or typedOver then box.num:SetText(tostring(Make.amount)) end
     box.less.SetOff(Make.amount <= 1)
     box.more.SetOff(Make.amount >= Make.Most())
 end

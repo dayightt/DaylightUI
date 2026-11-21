@@ -6,8 +6,11 @@
 -- sells it for, and what making it yourself costs (when the open profession
 -- has a recipe for it, a few crafts deep at most, never in a loop). What it
 -- sells for is the made item's usual Auction House price, less the Auction
--- House's cut. Everything is per item made, so a craft that makes two halves
--- its cost. Enchants and soulbound items can't be sold: they show only the cost.
+-- House's cut. Everything is per craft: one craft's materials against what
+-- everything that craft makes sells for, so a recipe making five counts all
+-- five. A material made by another recipe is priced per item, though, since
+-- that's what one of it costs. Enchants and soulbound items can't be sold:
+-- they show only the cost.
 
 local _, DUI = ...
 DUI.Craft = DUI.Craft or {}
@@ -122,7 +125,7 @@ local function build(r)
         if each then sum = sum + each * m.need else missing[#missing + 1] = name end
         if src == "craft" then crafted[#crafted + 1] = name end
     end
-    if #missing == 0 and #r.mats > 0 then res.cost = round(sum / res.yield) end
+    if #missing == 0 and #r.mats > 0 then res.cost = round(sum) end
 
     local why = {}
     if #missing > 0 then
@@ -132,7 +135,7 @@ local function build(r)
         why[#why + 1] = string.format(L["Priced at what making it costs: %s."], list(crafted))
     end
     if res.yield ~= 1 then
-        why[#why + 1] = string.format(L["Makes about %s a craft, so these are for one."], string.format("%g", res.yield))
+        why[#why + 1] = string.format(L["One craft makes about %s, and these are for the whole craft."], string.format("%g", res.yield))
     end
 
     local out = ns.Data.OutputItem(r.id)
@@ -143,8 +146,9 @@ local function build(r)
         res.none = "bound"
         why[#why + 1] = L["Soulbound: no profit."]
     else
-        local value, seenAt = P.Item(out)
-        res.out, res.seenAt = out, seenAt
+        local each, seenAt = P.Item(out)
+        res.out, res.seenAt, res.each = out, seenAt, each
+        local value = each and round(each * res.yield)
         if not value then
             res.none = "nomarket"
             why[#why + 1] = string.format(L["No price for %s yet: search the Auction House."], nameOf(out, r.name))

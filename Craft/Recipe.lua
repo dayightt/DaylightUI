@@ -357,7 +357,11 @@ local function sellTip(row)
     GameTooltip:SetOwner(row, "ANCHOR_RIGHT")
     Tips.Clear()
     Tips.Title(L["Sells for"])
-    Tips.Text(L["Its usual price at the Auction House."])
+    if p.yield ~= 1 and p.each then
+        Tips.Text(string.format(L["About %s made, at %s each on the Auction House."], string.format("%g", p.yield), DUI.Widgets.Money(p.each)))
+    else
+        Tips.Text(L["Its usual price at the Auction House."])
+    end
     local P = DUI.AuctionPrices
     if p.seenAt and P and P.Ago then Tips.Sub(string.format(L["Seen %s ago"], P.Ago(p.seenAt))) end
     Tips.Flush(GameTooltip)

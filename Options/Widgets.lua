@@ -1382,6 +1382,22 @@ function W.InputLook(e, s, pad)
     return s
 end
 
+-- Letters, not bytes: maxLetters counts letters.
+local function letters(text)
+    local _, n = string.gsub(text, "[^\128-\191]", "")
+    return n
+end
+
+local function cutLetters(text, max)
+    local out, n = {}, 0
+    for ch in string.gmatch(text, "[%z\1-\127\192-\255][\128-\191]*") do
+        n = n + 1
+        if n > max then break end
+        out[n] = ch
+    end
+    return table.concat(out)
+end
+
 function W.Input(parent, opts)
     opts = opts or {}
     local h, size = opts.height or W.INPUT_H, opts.size or SIZE.body
@@ -1393,7 +1409,11 @@ function W.Input(parent, opts)
     W.TrackFont(e, W.BODY, size)
     W.TextColor(e, C.text)
     e:SetJustifyH(opts.justify or "LEFT")
-    if opts.maxLetters then e:SetMaxLetters(opts.maxLetters) end
+    -- The client lets a full box delete a selection but then drops the key that
+    -- replaced it, so Ctrl+A over a full amount and typing "56" left just "6".
+    -- The box gets one letter to spare and the limit is kept here instead.
+    e.maxLetters = opts.maxLetters
+    if opts.maxLetters then e:SetMaxLetters(opts.maxLetters + 1) end
     if opts.numeric then e:SetNumeric(true) end
     local left = opts.search and 26 or 10
     local right = opts.search and 22 or 10
@@ -1435,12 +1455,26 @@ function W.Input(parent, opts)
         end
     end
     e:SetScript("OnTextChanged", function(self, user)
+        if self.trimming then return end
         local text = self:GetText() or ""
         if user and self.locked and text ~= self.locked then
             self:SetText(self.locked)
             self:HighlightText()
             return
         end
+        local max = self.maxLetters
+        if user and max and self:GetNumLetters() > max then
+            -- A key on a full box is refused, as the client would; a paste
+            -- that runs long is cut to fit.
+            local kept, typed, at = self.kept or "", text, self:GetCursorPosition() or 0
+            local refuse = letters(kept) >= max
+            text = refuse and kept or cutLetters(text, max)
+            self.trimming = true
+            self:SetText(text)
+            self.trimming = nil
+            if refuse then self:SetCursorPosition(math.max(0, at - (#typed - #kept))) end
+        end
+        self.kept = text
         self.hint:SetShown(text == "")
         if self.clear then self.clear:SetShown(text ~= "") end
         if opts.onChange then opts.onChange(text, user) end

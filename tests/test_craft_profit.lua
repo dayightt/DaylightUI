@@ -74,7 +74,7 @@ local function rowTexts(b)
     return table.concat(out, ", ")
 end
 
-T.test("craft profit: materials, sale, cut and profit per item", function()
+T.test("craft profit: materials, sale, cut and profit per craft", function()
     local ns, A = load()
     price(A, SILK, 50)
     price(A, BOLT, 300)
@@ -119,7 +119,7 @@ T.test("craft profit: a missing price says which, and shows no profit", function
     T.truthy(p.why:find("Azure Silk Hood", 1, true), p.why)
 end)
 
-T.test("craft profit: a recipe making more than one prices one item", function()
+T.test("craft profit: a recipe making more than one prices the whole craft", function()
     local spec = { profs = PW.Sample() }
     spec.profs[1].recipes[2].yield = { 1, 3 }
     local ns, A = load({ craft = spec })
@@ -128,8 +128,13 @@ T.test("craft profit: a recipe making more than one prices one item", function()
     open(ns)
     local p = ns.Profit.Of(recipe(ns, 102))
     T.eq(p.yield, 2)
-    T.eq(p.cost, 100)
-    T.eq(p.profit, 300 - 15 - 100)
+    -- One craft's materials against both items it makes, never one item's share.
+    T.eq(p.cost, 200)
+    T.eq(p.each, 300)
+    T.eq(p.value, 600)
+    T.eq(p.cut, 30)
+    T.eq(p.profit, 600 - 30 - 200)
+    T.truthy(p.why:find("whole craft", 1, true), p.why)
 end)
 
 T.test("craft profit: the recipe side shows a Profit section", function()

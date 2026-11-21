@@ -907,6 +907,42 @@ T.test("craft: the footer: Create, the amount, Create all [n]", function()
     T.truthy(foot.buttons[2].off)
 end)
 
+-- What the client hands an edit box's OnTextChanged when the player types.
+local function typeInto(box, text)
+    box.__text = text
+    box:GetScript("OnTextChanged")(box, true)
+end
+
+T.test("craft: typing the amount past what you can make shows the most", function()
+    local ns = load()
+    open(ns)
+    local num = ns.Make.box.num
+    typeInto(num, "5555")
+    T.eq(ns.Make.amount, 2)
+    T.eq(num:GetText(), "2", "the box never holds a number it won't make")
+    typeInto(num, "")
+    T.eq(num:GetText(), "", "an emptied box stays empty while typing")
+end)
+
+-- The client deletes the selection on a full box but drops the key that
+-- replaced it: Ctrl+A over "5555" (four letters, the box's limit) then "56" left
+-- only "6". The box keeps a letter to spare, and the limit is kept in Lua.
+T.test("craft: a full amount box takes a key typed over its selection", function()
+    local W = DaylightUI.Widgets
+    local box = W.Input(UIParent, { numeric = true, maxLetters = 4 })
+    box:SetText("5555")
+    typeInto(box, "5")
+    T.eq(box:GetText(), "5", "typed over the whole selection")
+    typeInto(box, "56")
+    T.eq(box:GetText(), "56")
+    box:SetText("5555")
+    typeInto(box, "55556")
+    T.eq(box:GetText(), "5555", "a key on a full box is still refused")
+    box:SetText("")
+    typeInto(box, "12345")
+    T.eq(box:GetText(), "1234", "a long paste is cut to fit")
+end)
+
 T.test("craft: on a controller, as the game's crafting footer: X makes the amount, X held makes all, Y shares, the menu buttons filter and search", function()
     local ns = load()
     local f = open(ns)
