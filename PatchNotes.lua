@@ -18,6 +18,8 @@ DUI.PatchNotes = {
         { "Little touches", "The raid marker icons show in the right-click marker menu again, instead of dark empty boxes" },
         { "Unit frames", "The slanted level tag on set-in portraits stays put with a cast bar under the frame, instead of turning into a round badge" },
         { "Tooltips", "Prices from TradeSkillMaster, Disenchantry and other addons show as coins again on Rich tooltips, instead of stray letters and numbers" },
+        { "Raid frames", "Raid frames line up in clean groups when a raid grows to 40, like joining a battleground, without a reload" },
+        { "Raid frames", "Raid frames show up where test mode showed them, and a 10 player raid's unlock handle is the size of 10 frames" },
         { "Setup guide", "The slanted tag at the top of the setup guide's first and last pages shows in full instead of half under the banner" },
         { "Info panel", "The data texts no longer jiggle side to side as the framerate or your coordinates change" },
         { "Skins", "Opening the Auction House or the macro window no longer shows a Lua error now and then" },

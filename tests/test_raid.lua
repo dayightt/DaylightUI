@@ -189,6 +189,8 @@ end)
 
 T.test("raid tiles: the holder is the size of the groups shown", function()
     local DUI, ns = login()
+    stub.SetGroup(true, true, 30)
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
     stub.RunTimers()
     local all = ns.Raid.holder:GetWidth()
     DUI:Set("UnitFrames", "raid.groups", 2)
@@ -1305,4 +1307,83 @@ T.test("range ticker: a tile's group check is kept until the roster changes", fu
     T.eq(stub.Plain(b:GetAlpha()), 1, "no longer in the group: no fade")
     ns.UF.InGroup = real
     stub.units.raid3 = nil
+end)
+
+-- Where the tiles go: the holder is the room of the raid size in use, held by
+-- the corner its tiles start from, so test mode shows each size exactly where
+-- that size's real tiles go, and its handle is no bigger than that size.
+local function boofsRaid10(DUI)
+    for k, v in pairs({ sortBy = "grouprole", width = 150, height = 60, spacing = 4, perLine = 20 }) do
+        DUI:Set("UnitFrames", "raid." .. k, v)
+    end
+    stub.RunTimers()
+end
+
+local function point(f)
+    local p, rel, rp, x, y = f:GetPoint(1)
+    return table.concat({ tostring(p), tostring(rel), tostring(rp), tostring(x), tostring(y) }, " ")
+end
+
+T.test("a raid of ten has the room of ten, not of eight groups", function()
+    local DUI, ns = login()
+    boofsRaid10(DUI)
+    stub.SetGroup(true, true, 10)
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    local holder = ns.Raid.holder
+    local cfg = DUI:Get("UnitFrames", "raid")
+    T.near(holder:GetWidth(), 2 * holder.tileW + cfg.groupSpacing, 1, "two groups across, as ten players fill")
+    T.near(holder:GetHeight(), 5 * holder.tileH + 4 * cfg.spacing, 1)
+end)
+
+T.test("test mode's Raid 10 sits exactly where a real raid of ten goes", function()
+    local DUI, ns = login()
+    boofsRaid10(DUI)
+    stub.SetGroup(true, true, 10)
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    local holder = ns.Raid.holder
+    local w, h, at = holder:GetWidth(), holder:GetHeight(), point(holder)
+    local first = point(ns.Raid.group.headers[1])
+    ns.Raid.SetEditing(10)
+    DUI.SetTestMode(true)
+    stub.RunTimers()
+    T.eq(point(holder), at, "the holder stays put")
+    T.near(holder:GetWidth(), w, 0.5); T.near(holder:GetHeight(), h, 0.5)
+    local shown = 0
+    for _, b in ipairs(ns.Raid.preview) do if b:IsShown() then shown = shown + 1 end end
+    T.eq(shown, 10)
+    T.eq(point(ns.Raid.preview[1]), first, "the first sample where group 1's first tile is")
+    DUI.SetTestMode(false)
+end)
+
+T.test("a raid growing from ten to forty starts its first tile in the same spot", function()
+    local DUI, ns = login()
+    stub.SetGroup(true, true, 10)
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    local holder = ns.Raid.holder
+    local at, w = point(holder), holder:GetWidth()
+    T.eq((holder:GetPoint(1)), "TOPLEFT", "held by the corner the tiles start from")
+    stub.SetGroup(true, true, 40)
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    T.truthy(holder:GetWidth() > w, "room for forty now")
+    T.eq(point(holder), at, "the top left corner didn't move")
+end)
+
+T.test("a raid spot saved by its center keeps the tiles where they were", function()
+    local DUI, ns = login()
+    stub.RunTimers()
+    local holder = ns.Raid.holder
+    local cfg = DUI:Get("UnitFrames", "raid")
+    -- As saved before: the center of a holder with room for all eight groups.
+    DUI.DB.Positions()["unitframes.raid"] = { 100, 50 }
+    holder.__center = { UIParent:GetWidth() / 2 + 100, UIParent:GetHeight() / 2 + 50 }
+    ns.Raid.LayoutNow(ns.module.db)
+    local fw, fh = ns.Group.Footprint(cfg, 40, false, holder.tileW, holder.tileH)
+    local saved = DUI.DB.Positions()["unitframes.raid"]
+    T.eq(saved.at, "TOPLEFT")
+    T.near(saved.ax, 100 - fw / 2, 1, "the old box's left edge")
+    T.near(saved.ay, 50 + fh / 2, 1, "and its top")
 end)

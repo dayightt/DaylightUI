@@ -444,6 +444,27 @@ function Group:Resize(cfg)
     holder:SetSize(fw, fh + (holder.padUp or 0) + (holder.padDown or 0))
 end
 
+-- The game's header only ever adds points to a button it shows (its
+-- configureChildren never clears them), so a tile keeps an anchor from the
+-- last layout unless the new one has the same name. After a change of
+-- direction, tiles per line or raid size, tiles were pulled two ways, leaving
+-- holes and long columns until a reload. So once the attributes are set, every
+-- tile is cleared and each header places its tiles again from scratch (a
+-- hidden one does that as it shows). Protected, out of combat only.
+function Group:Replace()
+    for _, hh in ipairs({ self.header, unpack(self.headers) }) do
+        local i = 1
+        local b = hh:GetAttribute("child1")
+        while b do
+            b:ClearAllPoints()
+            i = i + 1
+            b = hh:GetAttribute("child" .. i)
+        end
+        -- Any attribute set runs the header's update while it's shown.
+        hh:SetAttribute("point", hh:GetAttribute("point"))
+    end
+end
+
 -- Protected (header attributes, sizes), so only call through DUI.AfterCombat.
 function Group:Layout(cfg, text, range)
     if self.sweep then cfg, text = self.sweep.cfg, self.sweep.text end
@@ -476,6 +497,7 @@ function Group:Layout(cfg, text, range)
     -- You can be left out of your own group.
     h:SetAttribute("showPlayer", cfg.hideSelf ~= true)
     if self.opts.solo then h:SetAttribute("showSolo", self.opts.solo(cfg) == true) end
+    self:Replace()
     self:ApplyTestAlpha()
     self:SetEnabled(on, cfg)
     self:MakeAhead()

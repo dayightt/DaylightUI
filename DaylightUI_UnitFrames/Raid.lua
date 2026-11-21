@@ -208,8 +208,18 @@ function Raid.CopyTen(size)
     DUI:Set("UnitFrames", key, t)
 end
 
+-- The most tiles a raid of size can show: the size itself, or fewer when only
+-- some groups are shown. The holder (and its handle) is this big, so a raid
+-- of ten never takes the room of forty.
+function Raid.Room(cfg, size)
+    return math.min(size, ns.Group.GroupsShown(cfg, Raid.GROUPS) * Raid.PER_GROUP)
+end
+
 -- Test mode's raid: the size the pages edit, or forty before any page opens.
-function Raid.PreviewCount() return Raid.Editing() end
+function Raid.PreviewCount(cfg)
+    if type(cfg) ~= "table" then return Raid.Editing() end
+    return Raid.Room(cfg, Raid.Editing())
+end
 
 -- The 10-player settings hold the raid's switches, shared by every size.
 local function base()
@@ -231,7 +241,7 @@ Raid.group = ns.Group.New({
         return d[key], d[key .. "Text"], d
     end,
     isOn = function() local b = base(); return b ~= nil and b.enabled == true end,
-    count = function(cfg) return ns.Group.GroupsShown(cfg, Raid.GROUPS) * Raid.PER_GROUP end,
+    count = function(cfg) return Raid.Room(cfg, Raid.ShownSize()) end,
     previewCount = Raid.PreviewCount,
     visibility = function()
         local G = ns.Group
@@ -291,9 +301,37 @@ end
 -- Lays the raid out for the size shown now. Protected, use DUI.AfterCombat.
 function Raid.LayoutNow(d)
     local cfg, text, key = Raid.Config(d)
-    Raid.laidKey = key
+    Raid.laidKey, Raid.laidSize = key, Raid.ShownSize()
+    Raid.Pin(cfg)
     Raid.Layout(cfg, text, d.range)
-    Raid.PlaceHolder(Raid.ShownSize())
+    Raid.PlaceHolder(Raid.laidSize)
+end
+
+-- The holder is as big as the raid size in use, so it's held by the corner
+-- the tiles start from (Group.Corner): a raid growing from ten to forty, or
+-- test mode showing another size, starts its first tile in the same spot.
+-- Called before the holder takes its new size, so the corner is re-saved
+-- where it is now. Spots used to be saved by the holder's center while the
+-- holder always had room for every group, so such a spot is turned into a
+-- corner from that old size, which keeps the tiles where they were.
+-- Protected, out of combat only.
+function Raid.Pin(cfg)
+    local Movers, KEY = DUI.Movers, "unitframes.raid"
+    local e = Movers.Get(KEY)
+    if not e or e.suspended then return end
+    local at = ns.Group.Corner(cfg)
+    local saved = DUI.DB.Positions()[KEY]
+    local picked = type(DUI.DB.General().frameAnchors) == "table" and DUI.DB.General().frameAnchors[KEY]
+    if Movers.Valid(saved) and saved.at == nil and not picked then
+        local holder = Raid.holder
+        local w = 2 * DUI.Pixel.Snap(holder, cfg.width / 2)
+        local ht = 2 * DUI.Pixel.Snap(holder, cfg.height / 2)
+        local up, down = Raid.group:Pads(cfg)
+        local fw, fh = ns.Group.Footprint(cfg, ns.Group.GroupsShown(cfg, Raid.GROUPS) * Raid.PER_GROUP,
+            ns.Group.Direction(cfg) == "rows", w, ht)
+        holder:SetSize(fw, fh + up + down)
+    end
+    Movers.SetPin(KEY, at)
 end
 
 -- An optional spot per raid size (raid20.ownSpot / raid40.ownSpot, off by
@@ -370,12 +408,13 @@ local function preview(on)
 end
 DUI.On("TestModeChanged", preview)
 
--- The raid grew or shrank past 10 or 20. Switch to its size's setup after combat.
+-- The raid grew or shrank past 10 or 20. Switch to its size's setup, room and
+-- spot after combat.
 DUI.RegisterEvent("GROUP_ROSTER_UPDATE", function()
     local d = db()
     if not (d and Raid.group.header) then return end
     local _, _, key = Raid.Config(d)
-    if key == Raid.laidKey then return end
+    if key == Raid.laidKey and Raid.ShownSize() == Raid.laidSize then return end
     DUI.AfterCombat(function()
         local now = db()
         if now then Raid.LayoutNow(now) end

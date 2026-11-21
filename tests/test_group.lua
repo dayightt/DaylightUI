@@ -630,6 +630,18 @@ local function headerUnits(h)
     return units
 end
 
+-- The game's getRelativePointAnchor: the opposite point and its axes.
+local ANCHORS = {
+    TOP = { "BOTTOM", 0, -1 }, BOTTOM = { "TOP", 0, 1 }, LEFT = { "RIGHT", 1, 0 }, RIGHT = { "LEFT", -1, 0 },
+    TOPLEFT = { "BOTTOMRIGHT", 1, -1 }, TOPRIGHT = { "BOTTOMLEFT", -1, -1 },
+    BOTTOMLEFT = { "TOPRIGHT", 1, 1 }, BOTTOMRIGHT = { "TOPLEFT", -1, 1 },
+}
+local function anchorOf(point)
+    local a = ANCHORS[string.upper(point)]
+    if not a then return "CENTER", 0, 0 end
+    return a[1], a[2], a[3]
+end
+
 local function headerUpdate(h)
     local units = headerUnits(h)
     local first = h:GetAttribute("startingIndex") or 1
@@ -660,18 +672,42 @@ local function headerUpdate(h)
         end
     end
     stub.inSecure = stub.inSecure + 1
-    local num = 0
+    -- Anchoring as the game's configureChildren does it: a shown button only
+    -- gets SetPoint, never ClearAllPoints, so a point it had in an earlier
+    -- layout stays unless the new one has the same name. Hidden ones are cleared.
+    local point = h:GetAttribute("point") or "TOP"
+    local relPoint, xm, ym = anchorOf(point)
+    local xOff, yOff = h:GetAttribute("xOffset") or 0, h:GetAttribute("yOffset") or 0
+    local colPoint, colRel, cxm, cym
+    if columns > 1 then
+        colPoint = h:GetAttribute("columnAnchorPoint")
+        colRel, cxm, cym = anchorOf(colPoint)
+    end
+    local spacing = h:GetAttribute("columnSpacing") or 0
+    local num, inColumn, prev = 0, 0, h
     for i = first, finish do
         num = num + 1
+        inColumn = inColumn + 1
+        if inColumn > perColumn then inColumn = 1 end
         local b = h:GetAttribute("child" .. num)
+        if num == 1 then
+            b:SetPoint(point, prev, point, 0, 0)
+            if colPoint then b:SetPoint(colPoint, prev, colPoint, 0, 0) end
+        elseif inColumn == 1 then
+            b:SetPoint(colPoint, h:GetAttribute("child" .. (num - perColumn)), colRel, cxm * spacing, cym * spacing)
+        else
+            b:SetPoint(point, prev, relPoint, math.abs(xm) * xOff, math.abs(ym) * yOff)
+        end
         b:SetAttribute("unit", units[i])
         b:Show()
+        prev = b
     end
     while true do
         num = num + 1
         local b = h:GetAttribute("child" .. num)
         if not b then break end
         b:Hide()
+        b:ClearAllPoints()
         b:SetAttribute("unit", nil)
     end
     stub.inSecure = stub.inSecure - 1
@@ -863,4 +899,50 @@ T.test("Show when alone: out of a group the party frames show you, and step asid
     stub.FireEvent("GROUP_ROSTER_UPDATE")
     stub.RunTimers()
     T.falsy(ns.Party.header:IsShown(), "switched off: hidden alone again")
+end)
+
+-- The game's header never clears a shown button's points before placing it
+-- again, so a button keeps an anchor from the last layout unless the new one
+-- has the same name. A raid that grows into a size with its own layout then
+-- showed tiles pulled two ways (holes, columns of six or seven) until a reload.
+local function strayPoints(h)
+    T.truthy(h:IsVisible(), "the raid shows")
+    T.truthy(h:GetAttribute("child40"):IsShown(), "all forty")
+    local bad = {}
+    for i = 2, 40 do
+        local b = h:GetAttribute("child" .. i)
+        if b and b:IsShown() and b:GetNumPoints() ~= 1 then bad[#bad + 1] = i end
+    end
+    return bad
+end
+
+T.test("a raid that grows into Raid 40's own layout lays every tile out fresh", function()
+    local DUI, ns = stub.Load({ module = true, before = realHeaders })
+    ns.Raid.SetFollow(40, false)
+    DUI:Set("UnitFrames", "raid40.direction", "rows")
+    DUI:Set("UnitFrames", "raid40.perLine", 8)
+    for i = 1, 40 do stub.units["raid" .. i] = { name = "Member" .. i, isPlayer = true, class = "MAGE", health = 5, maxHealth = 10 } end
+    stub.RunTimers()
+    join(true, 5)
+    stub.RunTimers()
+    join(true, 40)
+    stub.RunTimers()
+    local h = ns.Raid.header
+    T.eq(h:GetAttribute("point"), "LEFT", "Raid 40's rows")
+    local bad = strayPoints(h)
+    T.eq(#bad, 0, "tiles still holding an anchor from Raid 10's layout: " .. table.concat(bad, ","))
+end)
+
+T.test("a layout changed with the raid on screen leaves no old anchors behind", function()
+    local DUI, ns = stub.Load({ module = true, before = realHeaders })
+    for i = 1, 40 do stub.units["raid" .. i] = { name = "Member" .. i, isPlayer = true, class = "MAGE", health = 5, maxHealth = 10 } end
+    stub.RunTimers()
+    join(true, 40)
+    stub.RunTimers()
+    DUI:Set("UnitFrames", "raid.direction", "rows")
+    stub.RunTimers()
+    T.eq(#strayPoints(ns.Raid.header), 0)
+    DUI:Set("UnitFrames", "raid.perLine", 8)
+    stub.RunTimers()
+    T.eq(#strayPoints(ns.Raid.header), 0)
 end)
