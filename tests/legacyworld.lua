@@ -523,6 +523,7 @@ local function install()
     local show, hide = _G.ShowUIPanel, _G.HideUIPanel
     _G.ShowUIPanel = function(f)
         record("ShowUIPanel", f:GetName())
+        stub.PlacePanel(f)
         if show then show(f) else f:Show() end
     end
     -- UIParentPanelManager's rule: from addon code in combat it does nothing.

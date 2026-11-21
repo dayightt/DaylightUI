@@ -113,8 +113,7 @@ local function place(f)
     if s then return Win.PlaceTop(f, s[1], s[2]) end
     f:ClearAllPoints()
     local g = Legacy.Game()
-    if g then f:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-    else f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
+    if not (g and Win.Followers.PlaceOn(f, g)) then f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
 end
 
 -- The page the game's frame was opened on.
@@ -357,10 +356,10 @@ function Legacy.Build(mod)
     hookAsk()
     DUI.RegisterEvent("ADDON_LOADED", function() hookAsk() end)
     -- No width: the game's Legacy window has a wider panel width of its own,
-    -- and that is what the game reads. Veiled, not hidden: its challenges page builds
+    -- and that is what the game reads. Held aside, not hidden: its challenges page builds
     -- its category list only when it really shows, and a challenge alert's click
     -- selects in that list, erroring on an empty one.
-    Legacy.follow = Win.Follow({ key = "legacy", frames = { legacy = Legacy.Game }, veil = { legacy = true }, changed = Legacy.Changed,
+    Legacy.follow = Win.Follow({ key = "legacy", frames = { legacy = Legacy.Game }, aside = { legacy = true }, changed = Legacy.Changed,
         leave = function() return not Legacy.Ours() end })
     Legacy.Apply()
     return f
