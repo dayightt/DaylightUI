@@ -343,6 +343,12 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     local Panel, Rich = ns.RichPanel, ns.Rich
     local own = ownCount(data, n)
     local level, levelColor = World.Level(unit)
+    -- The level in its reaction's color, like the tag under it. "??" (far
+    -- above you) keeps its warning red.
+    local reaction = plain(UnitReaction(unit, "player"))
+    if level and level ~= "??" and type(reaction) == "number" then
+        levelColor = { Style.ReactionColor(reaction) }
+    end
     local r = World.ReadMob(lines, own, level)
     -- No lines (the game hid them): its name from the unit, maybe secret.
     if n == 0 then r.title = DUI.UnitName(unit, "tooltip") or "" end

@@ -1903,7 +1903,7 @@ T.test("rich tooltip: a mob's card, as the board lays it out", function()
     T.eq(head.icon.art.__portraitUnit, "mouseover", "its face as the icon")
     T.truthy(head.icon.art.__portraitSquare, "square: the card cuts the corner")
     T.eq(stub.Text(head.right), "23", "the level on the right")
-    T.rgb({ head.right:GetTextColor() }, DaylightUI.Style.INK.WARN, "yellow for you: WARN")
+    T.rgb({ head.right:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "the level in its reaction's color")
     T.eq(tagWords(head), "HOSTILE,BEAST,SKINNABLE")
     T.rgb({ head.tags[1].text:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "hostile in its color")
     T.rgb({ head.tags[2].text:GetTextColor() }, stub.tooltip.RichWorld.KIND_COLORS[1], "a beast in its color")
@@ -2171,7 +2171,7 @@ T.test("rich tooltip: a single tag wider than its row is cut at the row's edge",
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- The dev's rule: tags sit beside the icon while each fits on one row there;
+-- Tags sit beside the icon while each fits on one row there;
 -- one that would wrap sends them all under the icon, across the card's width.
 T.test("rich tooltip: tags beside the icon while they fit, under it when one would wrap", function()
     local _, Panel = login("rich")
