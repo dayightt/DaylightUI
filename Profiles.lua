@@ -171,36 +171,44 @@ end
 -- The parts of a shared profile that can be taken on their own, in the order
 -- the import box lists them: appearance, each module A to Z, frame positions,
 -- the Edit Mode layout. Each is { key, label }; a module's key is its name.
+-- Only parts that hold something are listed, and only modules this player
+-- has: the maker's other add-ons can keep their settings in the profile too.
 Profiles.GENERAL, Profiles.POSITIONS, Profiles.LAYOUT = "general", "positions", "layout"
+
+local function holds(t) return type(t) == "table" and next(t) ~= nil end
 
 function Profiles.Parts(p)
     local out = {}
-    if type(p.general) == "table" then out[#out + 1] = { key = Profiles.GENERAL, label = L["Appearance"] } end
+    if holds(p.general) then out[#out + 1] = { key = Profiles.GENERAL, label = L["Appearance"] } end
     local mods = {}
     for name, t in pairs(p.modules or {}) do
-        if type(t) == "table" then
-            local mod = DUI:GetModule(name)
-            mods[#mods + 1] = { key = name, label = L[mod and (mod.label or mod.name) or name] }
+        local mod = DUI:GetModule(name)
+        if mod and holds(t) then
+            mods[#mods + 1] = { key = name, label = L[mod.label or mod.name or name] }
         end
     end
     table.sort(mods, function(a, b) return a.label < b.label end)
     for _, m in ipairs(mods) do out[#out + 1] = m end
-    if type(p.positions) == "table" then out[#out + 1] = { key = Profiles.POSITIONS, label = L["Frame positions"] } end
+    if holds(p.positions) then out[#out + 1] = { key = Profiles.POSITIONS, label = L["Frame positions"] } end
     if type(p.layout) == "string" then out[#out + 1] = { key = Profiles.LAYOUT, label = L["Edit Mode layout"] } end
     return out
 end
 
 -- A shared profile with only the parts in take (a set of Parts keys) kept;
--- every other part is swapped for the active profile's own, so turning a part
--- off on import means keeping yours.
+-- every other listed part is swapped for the active profile's own, so turning
+-- a part off on import means keeping yours. Parts the list never offered come
+-- as shared, the same as a whole import.
 function Profiles.Take(shared, take)
     local mine = Profiles.Snapshot()
+    local offered = {}
+    for _, part in ipairs(Profiles.Parts(shared)) do offered[part.key] = true end
+    local function theirs(key) return take[key] or not offered[key] end
     local p = { v = shared.v, modules = {} }
-    p.general = copy(take[Profiles.GENERAL] and shared.general or mine.general)
-    p.positions = copy(take[Profiles.POSITIONS] and shared.positions or mine.positions)
-    p.layout = take[Profiles.LAYOUT] and shared.layout or mine.layout
+    p.general = copy(theirs(Profiles.GENERAL) and shared.general or mine.general)
+    p.positions = copy(theirs(Profiles.POSITIONS) and shared.positions or mine.positions)
+    p.layout = theirs(Profiles.LAYOUT) and shared.layout or mine.layout
     for name, t in pairs(shared.modules or {}) do
-        if take[name] then p.modules[name] = copy(t) else p.modules[name] = copy(mine.modules[name]) end
+        p.modules[name] = copy(theirs(name) and t or mine.modules[name])
     end
     return p
 end
@@ -1280,11 +1288,18 @@ function Profiles.ShowImport()
         for _ in pairs(take or {}) do n = n + 1 end
         return n
     end
-    local function ready() b.go:SetAlpha((pending and picked() > 0 and named() ~= "") and 1 or 0.4) end
+    -- A profile of only defaults lists no parts and imports whole.
+    local function enough() return count == 0 or picked() > 0 end
+    local function ready() b.go:SetAlpha((pending and enough() and named() ~= "") and 1 or 0.4) end
     -- How many parts it takes, the number in the accent.
     local function said()
         local W = DUI.Widgets
         local n = picked()
+        if count == 0 then
+            b.status:SetText(L["Nothing but the defaults."])
+            W.TextColor(b.status, W.COLORS.text)
+            return
+        end
         if n == 0 then
             b.status:SetText(L["Switch on at least one part to import."])
             W.TextColor(b.status, W.COLORS.warn)
@@ -1311,7 +1326,7 @@ function Profiles.ShowImport()
             -- The same string pasted again keeps the switches as they are.
             if now ~= shown then
                 local list = Profiles.Parts(p)
-                count = #list
+                count, take = #list, {}
                 Profiles.ShowParts(list, function(t) take = t; said(); ready() end)
             end
             pending, shown = p, now
@@ -1335,7 +1350,7 @@ function Profiles.ShowImport()
     end
     local function go()
         if not pending then return end
-        if picked() == 0 then return end
+        if not enough() then return end
         if named() == "" then
             warn(L["Give it a name first."])
             b.name:SetFocus()

@@ -626,6 +626,7 @@ T.test("profiles: importing only some parts keeps yours for the rest", function(
     local P = DUI.Profiles
     DUI:Set("UnitFrames", "swing.height", 30)
     DUI:Set("general", "softness", 0.9)
+    DUI.DB.Positions()["unitframes.player"] = { 10, 20 }
     local text = P.Encode(P.Snapshot())
     DUI:Set("UnitFrames", "swing.height", 12)
     DUI:Set("general", "softness", 0.1)
@@ -647,6 +648,45 @@ T.test("profiles: importing only some parts keeps yours for the rest", function(
     local made = DaylightUIDB.profileData.Half
     T.eq(made.modules.UnitFrames.swing.height, 30, "the part taken is theirs")
     T.eq(made.general.softness, 0.1, "the part left out is yours")
+end)
+
+-- A shared profile carries every module table its maker had, add-ons that store
+-- their settings in Daylight UI's profile too, and an unchanged module still
+-- leaves an empty table. Those aren't parts anyone can choose.
+T.test("profiles: import lists only parts you have that hold changes, and carries the rest", function()
+    local DUI = login()
+    local P = DUI.Profiles
+    DUI:Set("general", "softness", 0.9)
+    local shared = P.Snapshot()
+    shared.modules.UnitFrames = {}
+    shared.modules.CraftPilot = { width = 300 }
+    shared.positions = {}
+    local keys = {}
+    for _, part in ipairs(P.Parts(shared)) do keys[part.key] = true end
+    T.truthy(keys.general, "appearance, which changed")
+    T.isnil(keys.UnitFrames, "not a module with nothing changed")
+    T.isnil(keys.CraftPilot, "not an add-on this player doesn't have")
+    T.isnil(keys.positions, "not frame positions when none moved")
+    local made = P.Take(shared, {})
+    T.eq(made.modules.CraftPilot.width, 300, "the add-on's settings still come along")
+end)
+
+T.test("profiles: a shared profile of only defaults still imports", function()
+    local DUI = login()
+    local P = DUI.Profiles
+    local shared = P.Snapshot()
+    shared.general, shared.positions, shared.layout = {}, {}, nil
+    for name in pairs(shared.modules) do shared.modules[name] = {} end
+    T.eq(#P.Parts(shared), 0, "nothing to choose")
+    local text = P.Encode(shared)
+    P.ShowImport()
+    local box = _G.DaylightUIProfileBox
+    box.edit:SetText(text)
+    T.falsy(string.find(box.status.__text, "at least one", 1, true), "not asked to switch a part on")
+    box.name:SetText("Plain")
+    box.go:GetScript("OnClick")()
+    T.falsy(box:IsShown(), "imported")
+    T.truthy(DaylightUIDB.profileData.Plain, "made")
 end)
 
 T.test("profiles: import with every part switched off does nothing", function()
