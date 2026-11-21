@@ -18,6 +18,7 @@ local World = {}
 ns.RichWorld = World
 
 World.ICON = 36
+World.TITLE = Style.SIZE.head -- a creature's name, a size smaller than the title
 World.ICON_GAP = 10
 World.PAD_TOP = 16
 World.TAG_GAP = 5       -- between the title and its tags
@@ -353,7 +354,7 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     local cfg = ns.Tooltip.Config()
     local face = not (cfg and cfg.portraits == false) and unit or nil
     Panel.Header(p, { portrait = face, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = face and pair or nil,
-        title = r.title, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
+        title = r.title, titleSize = World.TITLE, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
     local barLow = cfg and cfg.mobBar == "bottom"
     if not barLow then
