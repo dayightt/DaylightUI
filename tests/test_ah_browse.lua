@@ -400,13 +400,32 @@ T.test("browse_failure_and_timeout", function()
     AHW.Settle()
     quiet(M)
 
-    M = load({ step = 60, auctions = { { itemID = LINEN, name = "Linen Cloth", count = 1, buyout = 100 } } })
+    M = load({ auctions = { { itemID = LINEN, name = "Linen Cloth", count = 1, buyout = 100 } } })
     AHW.Open()
+    local real = C_AuctionHouse.SendBrowseQuery
+    C_AuctionHouse.SendBrowseQuery = function() end   -- the answer never comes
     got = browse(M)
     AHW.Advance(M.AH.TIMEOUT + 1)
+    T.isnil(got.reason, "a first page that never answers is asked once more")
+    AHW.Advance(M.AH.LATE + M.AH.TIMEOUT)
     T.eq(got.reason, "timeout")
     T.isnil(got.rows)
+    C_AuctionHouse.SendBrowseQuery = real
     AHW.Settle()
+    quiet(M)
+end)
+
+T.test("browse_shows_each_page_as_it_comes", function()
+    local M = load({ page = 3, auctions = things(7) })
+    AHW.Open()
+    local pages = {}
+    local got = {}
+    M.Browse.Query({ searchString = "" }, function(rows, reason) got.rows, got.reason = rows, reason end, nil,
+        function(fresh) pages[#pages + 1] = #fresh end)
+    AHW.Settle()
+    T.deq(pages, { 3, 3 }, "the new rows of each page but the last")
+    T.eq(#got.rows, 7)
+    T.truthy(AHW.Calls("GetBrowseResults") <= 2, "added rows come with their event: " .. AHW.Calls("GetBrowseResults"))
     quiet(M)
 end)
 

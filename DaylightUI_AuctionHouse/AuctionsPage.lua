@@ -1,10 +1,11 @@
 -- The My auctions tab: what you have up, sold ones included, each saying
 -- whether someone sells it for less, and one click per cancel.
 --
--- Reading: the owned list (ns.Post.Owned) the first time the tab shows at the
--- Auction House, then each item still up searched once (ns.Search.Item), one
--- at a time with a pause between them, never while the player is clicking
--- (QUIET): the AH has one line for requests and a cancel needs it free.
+-- Reading: the owned list (ns.Post.Owned, read as the Auction House opens and
+-- again when one sells or gets a bid), then each item still up searched once
+-- (ns.Search.Item, its first page: the cheapest are on it), one at a time,
+-- never while the player is clicking (QUIET): the AH has one line for requests
+-- and a cancel needs it free. A search Sell made a moment ago is used as it is.
 -- "Check again" reads both again. Nothing is asked while the tab is hidden.
 --
 -- Cancel acts on the picked row only, so the row shown is the row canceled.
@@ -52,7 +53,8 @@ A.FILTERS = {
     { id = "bids", text = L["Bids"] },
 }
 A.QUIET = 4         -- seconds the background checks wait after a click on the page
-A.GAP = 1           -- seconds between two checks
+A.GAP = 0.2         -- seconds between two checks
+A.FRESH = 120       -- seconds another page's search of an item stands in for a check
 A.SHORT = 7200      -- seconds left under which the time shows as running low
 A.AGE_TICK = 60     -- seconds between repaints of "checked 4 min ago"
 
@@ -320,6 +322,13 @@ function A.CheckNext()
         end
         return
     end
+    -- Sell searched it a moment ago (and not before a "Check again"): that answer will do
+    local _, last, age = ns.Search.Last(want)
+    if last and age <= A.FRESH and GetTime() - age >= (A.forcedAt or 0) then
+        A.checked[want] = { at = GetTime() - age, auctions = last }
+        refresh()
+        return C_Timer.After(0, A.CheckNext)
+    end
     checking = want
     ns.Search.Item(want, function(found, reason, auctions)
         if checking == want then checking = nil end
@@ -329,18 +338,30 @@ function A.CheckNext()
             refresh()
         end
         C_Timer.After(A.GAP, A.CheckNext)
-    end)
+    end, { pages = 1 })
 end
 
-function A.Read()
+-- force: "Check again", everything asked afresh. Without it the owned list read
+-- as the Auction House opened is used.
+function A.Read(force)
     A.checked = {}
-    ns.Post.Owned(function(list)
-        if list then A.readAt = GetTime() end
-        refresh()
+    if force then A.forcedAt = GetTime() end
+    local function bids()
         ns.Post.Bids(function()
             refresh()
             C_Timer.After(0, A.CheckNext)
         end)
+    end
+    local at = ns.Post.ReadAt()
+    if at and not force then
+        A.readAt = at
+        bids()
+        return A.Paint()
+    end
+    ns.Post.Owned(function(list)
+        if list then A.readAt = GetTime() end
+        refresh()
+        bids()
     end)
     A.Paint()
 end
@@ -351,7 +372,7 @@ end
 
 local SAYS = {
     closed = L["Open the Auction House to cancel."],
-    busy = L["Still checking a price. Click again in a moment."],
+    busy = L["The Auction House is still answering. Click again in a moment."],
     late = L["Still waiting for the game's answer to your last click. Try again in a moment."],
     throttled = L["The Auction House is still answering. Try again in a moment."],
     notmine = L["That auction isn't in your list anymore. Check again."],
@@ -390,6 +411,14 @@ function A.Cancel()
     hush()
     local r = rowOf(A.picked)
     if not cancellable(r) then return end
+    -- a cancel that costs gold asks once, naming the cost
+    local cost = ns.Post.CancelCost(r.auctionID)
+    if cost > 0 and A.costAsked ~= r.auctionID then
+        A.costAsked = r.auctionID
+        A.Say(string.format(L["Canceling it costs %s. Click Cancel again to cancel it."], money(cost)), "WARN")
+        return A.Paint()
+    end
+    A.costAsked = nil
     local over = false   -- it can end inside the click: ns.AH.Act still says true then
     local ok, why = ns.Post.Cancel(r.auctionID, function(done, reason, said)
         busy, over = false, true
@@ -578,10 +607,11 @@ end
 -- and Buy out when it has a buyout.
 local function paintBidFooter(r)
     local open = ns.AH.IsOpen()
-    local list = { { text = busy and L["Bidding..."] or L["Bid"], primary = true, off = busy or not open,
+    local can = open and ns.AH.CanAct()
+    local list = { { text = busy and L["Bidding..."] or L["Bid"], primary = true, off = busy or not can,
         onClick = function() A.PlaceBid() end } }
     if r.buyout then
-        list[2] = { text = string.format(L["Buy out %s"], money(r.buyout, true)), beside = true, off = busy or not open,
+        list[2] = { text = string.format(L["Buy out %s"], money(r.buyout, true)), beside = true, off = busy or not can,
             onClick = function() A.BuyOut() end }
     end
     page.foot:Set(list)
@@ -609,7 +639,11 @@ local function paintFooter()
     elseif #rows > 0 then
         hint = L["Pick an auction to cancel it."]
     end
-    page.foot:Set({ { text = label, primary = true, off = busy or not cancellable(r) or not ns.AH.IsOpen(),
+    if not busy and r and A.costAsked == r.auctionID then
+        label = string.format(L["Cancel for %s"], money(ns.Post.CancelCost(r.auctionID), true))
+    end
+    -- off while a click would be refused (a check out on the line): back on when it's free
+    page.foot:Set({ { text = label, primary = true, off = busy or not cancellable(r) or not ns.AH.CanAct(),
         onClick = function() A.Cancel() end } })
     page.hint:ClearAllPoints()
     page.hint:SetPoint("LEFT", page.foot.buttons[1], "RIGHT", A.HINT_GAP, 0)
@@ -753,7 +787,7 @@ function A.Build(p)
     page.again:SetPoint("RIGHT", page.foot.frame, "RIGHT", 0, 0)
     page.again:SetScript("OnClick", function()
         hush()
-        if ns.AH.IsOpen() then A.Read() end
+        if ns.AH.IsOpen() then A.Read(true) end
     end)
     page.stat = Style.Text(page.foot.frame, Style.SIZE.small, "RIGHT")
     Style.InkText(page.stat, "LABEL")
@@ -794,11 +828,13 @@ function A.Key()
 end
 
 local function reset()
-    A.checked, A.readAt, A.picked = {}, nil, nil
+    A.checked, A.readAt, A.picked, A.forcedAt, A.costAsked = {}, nil, nil, nil, nil
     checking, busy, whyFor = nil, false, nil
 end
 
 ns.On("OwnedChanged", refresh)
+-- A Cancel click that would have been refused can go now (or no longer can).
+ns.On("LineChanged", function() if visible() and not moving then paintFooter() end end)
 ns.On("AHOpened", function()
     reset()
     if visible() then A.Fill() end

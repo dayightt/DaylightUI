@@ -5,12 +5,14 @@
 -- under it what's up on the Auction House right now and its cheapest price
 -- each day for two weeks.
 --
--- Prices: each item is searched once a visit (ns.Search.Item), the picked one
--- first and the rest in the background, one at a time and spaced out, since
--- the Auction House answers one request at a time and a Post click can't wait
--- in line. Until its search is back a row shows the saved price with its age;
--- Post waits for the search, so nothing is posted on an old price, and a
--- search older than FRESH is checked again first.
+-- Prices: each item is searched once a visit (ns.Search.Item, its first page:
+-- results come cheapest first), the picked one first and the rest in the
+-- background, one at a time, since the Auction House answers one request at a
+-- time and a Post click can't wait in line. Picking an item that isn't checked
+-- yet stops a background check, and a check My auctions made a moment ago is
+-- used as it is. Until its search is back a row shows the saved price with its
+-- age; Post waits for the search, so nothing is posted on an old price, and a
+-- search older than FRESH is checked again by itself.
 --
 -- The price: the cheapest one up from someone else, less the undercut setting
 -- (gear and recipes go a whole silver under, as the game takes only silver
@@ -51,9 +53,10 @@ P.LOWER_TOP = 294        -- what's up now and the daily lows
 P.DAYS = 14
 P.DAY_H = 120
 P.QUIET = 4              -- seconds the background checks wait after the player picks, types or posts
-P.GAP = 1                -- seconds between two background checks, so the line is often free for a click
+P.GAP = 0.2              -- seconds between two background checks, so the line is often free for a click
 P.FRESH = 120            -- seconds a search stays good for a post
 P.FAR_UNDER = 0.5        -- a price under this share of the usual one is said in the warning color
+P.DEPTH = 0.2            -- a stackable price is judged against the one this share of the way into what's up
 -- The Auction House's share of a sale. A guess: the modern game's 5%, not
 -- checked on Forever yet. Only "You get when it sells" reads it.
 P.CUT = 0.05
@@ -76,6 +79,9 @@ local rows, byKey = {}, {}
 local heads            -- the headings, until the rows are read again
 local lines = {}       -- key -> the list line showing it (Parts.Shine after a post)
 local checking = nil   -- the key being searched now
+local checkingID, checkingFn, checkingBg   -- its search, to stop a background one when the player picks
+local postedKeys = {}  -- key -> true: posted this visit, so an earlier search of it is old news
+local asked = nil      -- the low-price question waiting for a second Post click: key .. qty .. unit
 local busy = false     -- a post is out
 local ownedRead = false
 local quietUntil = 0
@@ -221,7 +227,29 @@ function P.Decide(r)
         d.far = true
         d.hint = L["under half the usual price"]
     end
+    if c and d.lowest then d.floor = P.Floor(c.auctions) end
     return d
+end
+
+-- The least a stackable item's price should be before Post asks twice: the price
+-- DEPTH of the way into what others have up, of which a share that shrinks as the
+-- price grows (70% at 1g and under, down to 30%). One silly-low listing then
+-- doesn't drag a post down with it unasked. Nil for gear (each piece is its own).
+function P.Floor(auctions)
+    if type(auctions) ~= "table" or not auctions.commodity then return nil end
+    local total = 0
+    for _, a in ipairs(auctions) do total = total + math.max(0, (a.qty or 0) - (a.own or 0) - (a.acct or 0)) end
+    if total <= 0 then return nil end
+    local want, n = math.max(1, floor(total * P.DEPTH)), 0
+    for _, a in ipairs(auctions) do
+        n = n + math.max(0, (a.qty or 0) - (a.own or 0) - (a.acct or 0))
+        if n >= want then
+            local unit = a.unit or 0
+            if unit <= 0 then return nil end
+            return floor(unit * (0.3 + 0.4 * math.min(1, 10000 / unit)))
+        end
+    end
+    return nil
 end
 
 local function makeRow(key)
@@ -231,7 +259,7 @@ local function makeRow(key)
     local r = {
         key = key, itemID = id, quality = info and info.quality, icon = info and info.icon, classID = info and info.classID,
         name = info and ns.Items.KeyName(key, info.name) or format(L["Item %d"], id or 0),
-        have = ns.Bags.Free(key),
+        have = ns.Post.Most(key),
     }
     r.d = P.Decide(r)
     r.worth = r.d.unit and r.d.unit * r.have or nil
@@ -368,15 +396,33 @@ function P.CheckNext()
     end
     if not want.itemID then return end
     local key = want.key
+    -- My auctions (or this page) searched it a moment ago: that answer will do
+    local _, auctions, age = ns.Search.Last(want.itemID)
+    if auctions and age <= P.FRESH and not postedKeys[key] then
+        P.checked[key] = { auctions = auctions, at = GetTime() - age }
+        refresh()
+        return C_Timer.After(0, P.CheckNext)
+    end
     checking = key
-    ns.Search.Item(want.itemID, function(_, reason, auctions)
-        if checking == key then checking = nil end
-        if reason == "closed" then return end
-        P.checked[key] = { auctions = auctions or {}, at = GetTime(), err = auctions == nil and reason or nil }
+    local function done(_, reason, found)
+        if checking == key then checking, checkingID, checkingFn = nil, nil, nil end
+        if reason == "closed" or reason == "dropped" then return end
+        postedKeys[key] = nil
+        P.checked[key] = { auctions = found or {}, at = GetTime(), err = found == nil and reason or nil }
         refresh()
         local pickWaits = P.picked and byKey[P.picked] and not P.checked[P.picked]
         C_Timer.After(background and not pickWaits and P.GAP or 0, P.CheckNext)
-    end)
+    end
+    checkingID, checkingFn, checkingBg = want.itemID, done, background
+    ns.Search.Item(want.itemID, done, { pages = 1, priority = not background })
+end
+
+-- The player picked an item that isn't checked: a background check gives way.
+local function yieldBackground(key)
+    if not (checking and checkingBg and checking ~= key) then return end
+    local id, fn = checkingID, checkingFn
+    checking, checkingID, checkingFn = nil, nil, nil
+    ns.Search.Cancel(id, fn)
 end
 
 -- An old search of the picked item is forgotten, and any warning with it.
@@ -395,7 +441,10 @@ local function watchAge(key, c)
     if c.watched then return end
     c.watched = true
     local function look()
-        if P.picked == key and P.checked[key] == c then refresh() end
+        if not (P.picked == key and P.checked[key] == c) then return end
+        -- still on it after FRESH: its price is checked again without a click
+        if P.Recheck() then P.CheckNext() end
+        refresh()
     end
     C_Timer.After(60, look)
     C_Timer.After(P.FRESH + 1, look)
@@ -434,6 +483,7 @@ function P.Pick(key, byHand)
     if c and c.err then P.checked[key] = nil end   -- a failed check: picking it tries once more
     hush()
     P.picked = key
+    if not P.checked[key] then yieldBackground(key) end
     P.Recheck()
     if changed and visible() and page.right.sale:IsVisible() then
         Motion.Fade(page.right.sale, 0.25, 1, Motion.FAST)
@@ -546,7 +596,8 @@ end
 
 local POST_SAYS = {
     closed = L["Open the Auction House to post."],
-    busy = L["Still checking a price. Click again in a moment."],
+    busy = L["The Auction House is still answering. Click again in a moment."],
+    checking = L["Still checking its price. Click again in a moment."],
     late = L["Still waiting for the game's answer to your last click. Try again in a moment."],
     throttled = L["The Auction House is still answering. Try again in a moment."],
     nobags = L["None of it is left in your bags to sell."],
@@ -591,6 +642,7 @@ local function posted(r, qty, unit)
         ns.Print(format(L["Posted %d %s at %s each."], qty, link, W.Money(unit, { color = false })))
     end
     P.checked[r.key] = nil   -- yours is up now: its price is searched again
+    postedKeys[r.key] = true
     P.edit = nil
     local nextRow = nextAfter(r.key)
     local text = format(L["Posted %d %s at %s each."], qty, r.name, money(unit))
@@ -600,7 +652,7 @@ local function posted(r, qty, unit)
         text = text .. " " .. format(L["That was the last of %s."], P.selling.name)
         P.selling = nil
     end
-    ns.Post.Owned(function() refresh() end)
+    P.OwnedSoon()
     local line = lines[r.key]
     if line then Parts.Shine(line) end
     P.Say(text, "GOOD")
@@ -639,7 +691,7 @@ function P.Post()
         return P.Paint()
     end
     ns.Post.Forget()
-    if not P.checked[r.key] then return P.Say(POST_SAYS.busy, "WARN") end
+    if not P.checked[r.key] then return P.Say(POST_SAYS.checking, "WARN") end
     if not unit then return P.Say(L["Type a price first."], "WARN") end
     if qty < 1 then return P.Say(L["Type how many to post."], "WARN") end
     -- A typed price off the step the Auction House takes (gear and recipes:
@@ -669,6 +721,14 @@ function P.Post()
         P.Say(format(L["The Auction House takes whole silver only for this item: %s each. Click Post to post it."], money(onStep)), "WARN")
         return P.Paint()
     end
+    local low = P.LowWords(r, qty, unit)
+    local ask = r.key .. ":" .. qty .. ":" .. unit
+    if low and asked ~= ask then
+        asked = ask
+        P.Say(low, "WARN")
+        return P.Paint()
+    end
+    asked = nil
     local ok, why, detail = ns.Post.Send(r.key, qty, unit, hours, function(done, reason, said)
         busy = false
         if done then return posted(r, qty, unit) end
@@ -689,6 +749,38 @@ function P.Post()
         P.Say(postSays(why, detail), "WARN")
     end
     P.Paint()
+end
+
+-- Why a price is worth a second look before it goes up, or nil: far under what
+-- most others ask (P.Floor), or less than a vendor pays once the Auction House
+-- takes its cut. Asked once per price; a second Post click posts it.
+function P.LowWords(r, qty, unit)
+    local vendor = r.itemID and ns.Items.VendorSell(r.itemID)
+    if vendor and vendor * qty > floor(unit * qty * (1 - P.CUT)) then
+        return format(L["A vendor pays more for it (%s each). Click Post again to post it anyway."], money(vendor))
+    end
+    local d = r.d
+    local typed = P.edit and P.edit.unit
+    if d and d.floor and not typed and unit <= d.floor then
+        return format(L["That's far under what most others ask (%s). Click Post again to post it anyway."], money(d.floor))
+    end
+    return nil
+end
+
+-- The owned list, read once the player pauses: right after a post it would hold
+-- the line while the next item's price check and Post click want it.
+local owning = false
+function P.OwnedSoon()
+    if owning then return end
+    owning = true
+    local function try()
+        if not ns.AH.IsOpen() then owning = false; return end
+        local left = quietUntil - GetTime()
+        if left > 0 or checking or busy then return C_Timer.After(math.max(left, P.GAP), try) end
+        owning = false
+        ns.Post.Owned(function() refresh() end)
+    end
+    C_Timer.After(P.QUIET, try)
 end
 
 -- ---------------------------------------------------------------------
@@ -752,14 +844,17 @@ function P.PaintBox()
     local c = P.checked[r.key]
     local old = c ~= nil and not c.err and GetTime() - c.at > P.FRESH
     local warned = P.Warned(r)
+    local lowAsk = unit and asked == r.key .. ":" .. qty .. ":" .. unit
     local label
     if busy then label = L["Posting..."]
     elseif old then label = L["Check the price again"]
     elseif warned then label = L["The game asks: click again"]
+    elseif lowAsk then label = L["Post anyway"]
     else label = format(L["Post %d"], qty) end
     box.post.text:SetText(label)
-    box.post.SetOff(busy or not c or (not old and (not unit or qty < 1)))
-    Parts.Tone(box.post, warned and "no" or "main")
+    -- off while a click would be refused: no price yet, or the Auction House busy answering
+    box.post.SetOff(busy or not c or (not old and (not unit or qty < 1)) or not ns.AH.CanAct())
+    Parts.Tone(box.post, (warned or lowAsk) and "no" or "main")
     box.skip.SetOff(busy)
     local key = GetBindingKey and GetBindingKey("DAYLIGHTUI_AH_ACT")
     box.key:SetText(key and format(L["or press %s"], pop(key)) or "")
@@ -1249,7 +1344,11 @@ end
 function P.Fill()
     if not page then return end
     if ns.AH.IsOpen() and not ownedRead then
-        ns.Post.Owned(function(list) if list then ownedRead = true; refresh() end end)
+        if ns.Post.ReadAt() then
+            ownedRead = true   -- read as the Auction House opened
+        else
+            ns.Post.Owned(function(list) if list then ownedRead = true; refresh() end end)
+        end
     end
     P.Paint()
     C_Timer.After(0, P.CheckNext)   -- once the page shows (Win.ShowPage fills it first)
@@ -1262,6 +1361,7 @@ end
 
 local function forget()
     P.checked, checking, busy, ownedRead, kinds, takes = {}, nil, false, false, {}, {}
+    checkingID, checkingFn, postedKeys, asked = nil, nil, {}, nil
     P.message, P.selling, P.edit = nil, nil, nil
 end
 
@@ -1271,6 +1371,8 @@ ns.On("BagsChanged", function()
 end)
 ns.On("PricesChanged", function() if visible() then refresh() end end)
 ns.On("OwnedChanged", function() if visible() then refresh() end end)
+-- A Post click that would have been refused can go now (or no longer can).
+ns.On("LineChanged", function() if visible() then P.PaintBox() end end)
 ns.On("RulesetChanged", function()
     P.checked = {}   -- every price was read against the old ruleset's
     if visible() then

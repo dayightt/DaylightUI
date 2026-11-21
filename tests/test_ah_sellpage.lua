@@ -196,7 +196,7 @@ T.test("sell: before its search a row shows the saved price and Post waits", fun
     T.truthy(page.right.box.post.off, "Post waits for the search")
     stub.Key(function() A.SellPage.Post() end)
     T.eq(AHW.Calls("PostCommodity"), 0, "nothing posts on a saved price")
-    T.eq(said(page), "Still checking a price. Click again in a moment.")
+    T.eq(said(page), "Still checking its price. Click again in a moment.")
     AHW.Settle()
     T.eq(page.right.form.price:GetText(), "9c", "the search is back")
     quiet()
@@ -588,5 +588,62 @@ T.test("sell: a right-click pins an item on top or hides it at the bottom", func
     lineOf(page, "Linen Cloth"):Click("RightButton")
     DaylightUI.Widgets.MenuRow(2):Click()   -- Show in the list again
     T.falsy(P.IsHidden("2589"))
+    quiet()
+end)
+
+T.test("sell: a price check reads only the first page", function()
+    local auctions = {}
+    for i = 1, 6 do auctions[#auctions + 1] = { itemID = LINEN, name = "Linen Cloth", count = 10, buyout = 10 * (10 + i), classID = 7 } end
+    local A = load({ page = 2, auctions = auctions })
+    open(A)
+    T.eq(AHW.Calls("RequestMoreCommoditySearchResults"), 0, "the cheapest is on the first page")
+    T.eq(A.SellPage.Row("2589").d.unit, 10, "a copper under the cheapest")
+    quiet()
+end)
+
+T.test("sell: one silly-low listing asks before it drags a post down", function()
+    local A = load({ auctions = {
+        { itemID = LINEN, name = "Linen Cloth", count = 1, buyout = 1, classID = 7 },
+        { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7 },
+        { itemID = WOOL, name = "Wool Cloth", count = 45, buyout = 45 * 32, classID = 7 },
+    } })
+    local page = open(A)
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 0, "asked first")
+    T.truthy(said(page):find("far under what most others ask", 1, true), said(page))
+    T.eq(page.right.box.post.text:GetText(), "Post anyway")
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 1, "the second click posts it")
+    quiet()
+end)
+
+T.test("sell: under what a vendor pays asks first", function()
+    local A = load({ auctions = {
+        { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7 },
+        { itemID = POTION, name = "Minor Healing Potion", count = 10, buyout = 10 * 12, classID = 0, vendorSell = 50 },
+    } })
+    local page = open(A)
+    lineOf(page, "Minor Healing Potion"):Click()
+    AHW.Settle()
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 0)
+    T.truthy(said(page):find("A vendor pays more", 1, true), said(page))
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 1)
+    quiet()
+end)
+
+T.test("sell: Post rests while the Auction House answers something else", function()
+    local A = load()
+    local page = open(A)
+    lineOf(page, "Wool Cloth"):Click()
+    AHW.Settle()
+    T.falsy(page.right.box.post.off)
+    A.Post.Owned(function() end)
+    T.truthy(page.right.box.post.off, "a click now would be refused")
+    AHW.Settle()
+    T.falsy(page.right.box.post.off, "free again")
     quiet()
 end)

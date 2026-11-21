@@ -18,6 +18,8 @@
 --       doesn't know the item yet (GetItemCommodityStatus Unknown)
 --   ns.Post.Sellable(key) -> true when a stack of it is in the bags and the game takes it
 --       (IsSellItemValid: a damaged item or one with used charges isn't taken)
+--   ns.Post.Most(key) -> how many of it can go up: the bags' count, capped by what the game
+--       says it would post (GetAvailablePostCount leaves out a damaged or used copy)
 --   ns.Post.Deposit(key, qty, hours) -> copper | nil
 --   ns.Post.Send(key, qty, unit, hours, onDone(ok, reason), bid) -> ok, reason
 --       bid: gear's starting bid each, under `unit` (nil, or a commodity: buyout only)
@@ -46,6 +48,11 @@
 --       left (seconds, nil when sold or unknown) },
 --       sold ones included (the game keeps them listed). Also kept: ns.Post.Mine().
 --   ns.Post.Mine() -> the last list read (empty before)
+--   ns.Post.ReadAt() -> GetTime() of the last read this visit, nil before one
+--       The list is read once just after the Auction House opens, so My auctions shows at
+--       once, and again by itself when one of them sells (an AUCTION_CANCELED that isn't a
+--       cancel of Daylight UI's) or gets a bid (AUCTION_HOUSE_NEW_BID_RECEIVED), as the
+--       game's own window does. The bids are read again then too, once they have been.
 --   ns.Post.KeyOf(auctionID) -> the price key of one of your auctions (the ledger's), nil unknown
 --   ns.Post.CountOf(auctionID) -> how many units a new auction holds (the ledger's): Daylight UI's own
 --       post's (a commodity: its qty; an item: 1 each), else the owned list's, else 1
@@ -71,9 +78,13 @@ ns.Post = Post
 
 Post.HOURS = { 2, 8, 24 }
 Post.TIMEOUT = 10        -- seconds for a post's answer, plus one per extra auction of an item's multisell
+Post.OPEN_READ = 0.1     -- seconds after the Auction House opens that your list is read (nil: not then)
 
 local warned    -- { key, qty, unit, hours, kind, loc, onDone }: the game asked "are you sure"
 local mine = {}
+local readAt          -- GetTime() of the owned list's last read this visit
+local cancelling = false   -- a cancel of Daylight UI's is out: its AUCTION_CANCELED is its own
+local bidsRead = false
 local sent      -- { key, n, at, wait }: the last post Daylight UI sent (its new auctions' item, units each)
 
 function Post.Index(hours)
@@ -120,6 +131,17 @@ local function location(key)
 end
 
 function Post.Sellable(key) return location(key) ~= nil end
+
+function Post.Most(key)
+    local n = ns.Bags.Free(key)
+    local a = api()
+    local loc = n > 0 and a and a.GetAvailablePostCount and location(key)
+    if loc then
+        local can = a.GetAvailablePostCount(loc)
+        if type(can) == "number" and can < n then n = math.max(0, can) end
+    end
+    return n
+end
 
 function Post.Kind(key)
     local loc = location(key)
@@ -232,7 +254,7 @@ function Post.Send(key, qty, unit, hours, onDone, bid)
     if unit < 1 then return false, "price" end
     local loc, bag, slot = location(key)
     if not loc then return false, "nobags" end
-    if qty < 1 or qty > ns.Bags.Free(key) then return false, "count" end
+    if qty < 1 or qty > Post.Most(key) then return false, "count" end
     local kind = Post.Kind(key)
     if not kind then return false, "unknown" end
     bid = type(bid) == "number" and math.floor(bid) or nil
@@ -296,24 +318,36 @@ local function readOwned()
     return list
 end
 
+-- A read already asked for answers everyone who asks meanwhile: one request.
+local ownedWait, bidsWait
+
 function Post.Owned(onDone)
     local a = api()
     if not (a and a.QueryOwnedAuctions) then
         if onDone then ns.SafeCall(onDone, nil, "error") end
         return false, "error"
     end
+    if ownedWait then
+        ownedWait[#ownedWait + 1] = onDone
+        return true
+    end
+    local waiting = { onDone }
+    ownedWait = waiting
     local ok = ns.AH.Request({
         name = "owned auctions",
         events = { OWNED_AUCTIONS_UPDATED = function() return true end },
         send = function() a.QueryOwnedAuctions({}) end,
         onDone = function(done, reason)
-            if not done then
-                if onDone then ns.SafeCall(onDone, nil, reason) end
-                return
+            if ownedWait == waiting then ownedWait = nil end
+            if done then
+                mine = readOwned()
+                readAt = GetTime()
+                ns.Fire("OwnedChanged")
             end
-            mine = readOwned()
-            ns.Fire("OwnedChanged")
-            if onDone then ns.SafeCall(onDone, mine) end
+            for i = 1, table.maxn(waiting) do
+                local fn = waiting[i]
+                if fn then ns.SafeCall(fn, done and mine or nil, not done and reason or nil) end
+            end
         end,
     })
     if not ok then return false, "closed" end
@@ -321,6 +355,7 @@ function Post.Owned(onDone)
 end
 
 function Post.Mine() return mine end
+function Post.ReadAt() return readAt end
 -- The auctions you bid on (the game's Bids list). high: you're the highest
 -- bidder; minBid is the least the next bid can be.
 local bids = {}
@@ -355,18 +390,27 @@ function Post.Bids(onDone)
         if onDone then ns.SafeCall(onDone, nil, "error") end
         return false, "error"
     end
+    if bidsWait then
+        bidsWait[#bidsWait + 1] = onDone
+        return true
+    end
+    local waiting = { onDone }
+    bidsWait = waiting
     local ok = ns.AH.Request({
         name = "bids",
         events = { BIDS_UPDATED = function() return true end },
         send = function() a.QueryBids({}, {}) end,
         onDone = function(done, reason)
-            if not done then
-                if onDone then ns.SafeCall(onDone, nil, reason) end
-                return
+            if bidsWait == waiting then bidsWait = nil end
+            if done then
+                bids = readBids()
+                bidsRead = true
+                ns.Fire("OwnedChanged")
             end
-            bids = readBids()
-            ns.Fire("OwnedChanged")
-            if onDone then ns.SafeCall(onDone, bids) end
+            for i = 1, table.maxn(waiting) do
+                local fn = waiting[i]
+                if fn then ns.SafeCall(fn, done and bids or nil, not done and reason or nil) end
+            end
         end,
     })
     if not ok then return false, "closed" end
@@ -450,7 +494,8 @@ function Post.Cancel(auctionID, onDone)
         end
         if onDone then ns.SafeCall(onDone, ok, reason, detail) end
     end
-    return ns.AH.Act({
+    cancelling = true
+    local ok, why = ns.AH.Act({
         name = "cancel",
         send = function() api().CancelAuction(auctionID) end,
         events = {
@@ -466,6 +511,7 @@ function Post.Cancel(auctionID, onDone)
             AUCTION_HOUSE_SHOW_ERROR = function(code) return false, "failed", (ns.AH.ErrorText(code)) end,
         },
         onDone = function(ok, reason, detail)
+            cancelling = false
             if reason ~= "timeout" then return finish(ok, reason, detail) end
             -- No answer: the owned list says whether it went.
             local asking, why = Post.Owned(function(list)
@@ -475,6 +521,53 @@ function Post.Cancel(auctionID, onDone)
             if not asking and why == "closed" and onDone then ns.SafeCall(onDone, false, "timeout") end
         end,
     })
+    if not ok then cancelling = false end
+    return ok, why
 end
 
-ns.On("AHClosed", function() warned = nil end)
+-- One read of the list (and the bids, once read) after something changed it,
+-- however many events say so.
+local rereading = false
+local function reread()
+    if rereading or not ns.AH.IsOpen() then return end
+    rereading = true
+    C_Timer.After(0.1, function()
+        rereading = false
+        if not ns.AH.IsOpen() then return end
+        Post.Owned()
+        if bidsRead then Post.Bids() end
+    end)
+end
+
+-- What changes your auctions while the Auction House is open: a sale (the game
+-- says AUCTION_CANCELED for one of yours that sold) or a bid.
+local watch = CreateFrame("Frame")
+watch:SetScript("OnEvent", function(_, event, id)
+    if event == "AUCTION_CANCELED" then
+        if cancelling then return end   -- a cancel of Daylight UI's: it reads the list itself
+        if issecretvalue and issecretvalue(id) then return reread() end
+        if type(id) == "number" and id ~= 0 then
+            local ours = false
+            for _, r in ipairs(mine) do if r.auctionID == id then ours = true; break end end
+            if not ours then return end
+        end
+    end
+    reread()
+end)
+
+ns.On("AHOpened", function()
+    if ns.mogul then return end
+    watch:RegisterEvent("AUCTION_CANCELED")
+    watch:RegisterEvent("AUCTION_HOUSE_NEW_BID_RECEIVED")
+    -- read now, so My auctions and Sell's "yours" know it when they show
+    if not Post.OPEN_READ then return end
+    C_Timer.After(Post.OPEN_READ, function()
+        if ns.AH.IsOpen() and not readAt then Post.Owned() end
+    end)
+end)
+
+ns.On("AHClosed", function()
+    warned = nil
+    readAt, cancelling, bidsRead, ownedWait, bidsWait = nil, false, false, nil, nil
+    watch:UnregisterAllEvents()
+end)

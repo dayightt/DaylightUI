@@ -222,7 +222,7 @@ T.test("paging_until_full", function()
     local linen = search(M, LINEN)
     AHW.Step()   -- the first page
     T.eq(linen.calls, 0, "not done on the first page")
-    T.eq(AHW.Calls("GetCommoditySearchResultInfo"), 0, "rows read once every page is in")
+    T.eq(AHW.Calls("GetCommoditySearchResultInfo"), 2, "the first page is read as it comes")
     AHW.Settle()
     T.eq(AHW.Calls("RequestMoreCommoditySearchResults"), 1)
     T.eq(AHW.Calls("SendSearchQuery"), 1, "one search, then the next page")
@@ -541,10 +541,10 @@ T.test("no_answer_times_out", function()
     local real = C_AuctionHouse.SendSearchQuery
     C_AuctionHouse.SendSearchQuery = function() end   -- the answer never comes
     local got = search(M, LINEN)
-    AHW.Advance(M.AH.TIMEOUT - 1)
-    T.eq(got.calls, 0)
-    AHW.Advance(1)
-    T.eq(got.reason, "timeout")
+    AHW.Advance(M.AH.TIMEOUT)
+    T.eq(got.calls, 0, "a first page that never answers is asked once more")
+    AHW.Advance(M.AH.LATE + M.AH.TIMEOUT)
+    T.eq(got.reason, "timeout", "then it gives up")
     T.isnil(got.rows)
     T.isnil(items())
     quiet(M)
@@ -618,7 +618,7 @@ T.test("a_search_that_ends_early_lets_the_next_go", function()
         return real(key, ...)
     end
     local a, b = search(M, LINEN), search(M, WOOL)
-    AHW.Advance(M.AH.TIMEOUT + 1)
+    AHW.Advance(2 * M.AH.TIMEOUT + M.AH.LATE + 1)
     AHW.Settle()
     T.eq(a.reason, "timeout")
     T.isnil(b.reason)
@@ -833,4 +833,86 @@ T.test("an_item_slot_comes_from_the_game", function()
     C_Item.GetItemInventoryTypeByID = function(id) return id == BLADE and 13 or nil end
     T.eq(M.Search.Slot(BLADE), 13)
     T.isnil(M.Search.Slot(LINEN))
+end)
+
+-- ---------------------------------------------------------------------
+-- A price check reads the first page; a list sees each page come in
+-- ---------------------------------------------------------------------
+
+T.test("one_page_is_enough_for_a_price", function()
+    local auctions = {}
+    for i = 1, 5 do auctions[#auctions + 1] = { itemID = LINEN, count = 1, buyout = 100 * i } end
+    local M = load({ commodities = { [LINEN] = true }, page = 2, auctions = auctions })
+    AHW.Open()
+    local got = {}
+    M.Search.Item(LINEN, function(rows, reason, a) got.rows, got.reason, got.auctions = rows, reason, a end, { pages = 1 })
+    AHW.Settle()
+    T.eq(AHW.Calls("RequestMoreCommoditySearchResults"), 0, "no second page asked")
+    T.eq(got.rows[1].unit, 100, "the cheapest is on the first page")
+    T.eq(#got.auctions, 2)
+    T.truthy(got.auctions.capped, "it says more were up")
+    quiet(M)
+end)
+
+T.test("pages_show_as_they_come", function()
+    local auctions = {}
+    for i = 1, 5 do auctions[#auctions + 1] = { itemID = LINEN, count = 1, buyout = 100 * i } end
+    local M = load({ commodities = { [LINEN] = true }, page = 2, auctions = auctions })
+    AHW.Open()
+    local seen, done = {}, nil
+    M.Search.Item(LINEN, function(_, _, a) done = a end,
+        { onPage = function(_, a) seen[#seen + 1] = #a end })
+    AHW.Settle()
+    T.deq(seen, { 2, 4 }, "each page but the last, everything so far")
+    T.eq(#done, 5)
+    T.falsy(done.capped)
+    quiet(M)
+end)
+
+T.test("a_search_nobody_wants_stops", function()
+    local M = load({ commodities = { [LINEN] = true }, auctions = {
+        { itemID = LINEN, count = 20, buyout = 2000 }, { itemID = WOOL, count = 1, buyout = 700 },
+    } })
+    AHW.Open()
+    local a, b = {}, {}
+    local function fa(rows) a.rows = rows end
+    M.Search.Item(LINEN, fa)
+    M.Search.Item(WOOL, function(rows) b.rows = rows end, { priority = true })
+    M.Search.Cancel(LINEN, fa)
+    AHW.Settle()
+    T.isnil(a.rows, "the canceled caller hears nothing")
+    T.eq(#b.rows, 1, "the next search ran")
+    T.eq(M.Search.Pending(), 0)
+    quiet(M)
+end)
+
+T.test("an_empty_first_answer_is_asked_again", function()
+    local M = load({ commodities = { [LINEN] = true }, emptyOnce = { [LINEN] = true },
+        auctions = { { itemID = LINEN, count = 20, buyout = 2000 } } })
+    AHW.Open()
+    local got = search(M, LINEN)
+    AHW.Settle()
+    T.eq(AHW.Calls("SendSearchQuery"), 2, "asked once more")
+    T.eq(#got.rows, 1, "and found it")
+    quiet(M)
+end)
+
+T.test("a_refresh_asks_the_held_results_again", function()
+    local M = load({ commodities = { [LINEN] = true }, auctions = { { itemID = LINEN, count = 20, buyout = 2000 } } })
+    AHW.Open()
+    search(M, LINEN)
+    AHW.Settle()
+    local got = {}
+    M.Search.Item(LINEN, function(rows) got.rows = rows end, { refresh = true })
+    AHW.Settle()
+    T.eq(AHW.Calls("SendSearchQuery"), 1, "no second search")
+    T.eq(AHW.Calls("RefreshCommoditySearchResults"), 1)
+    T.eq(#got.rows, 1)
+    local rows, auctions, age = M.Search.Last(LINEN)
+    T.eq(#rows, 1, "the last answer is kept for this visit")
+    T.eq(#auctions, 1)
+    T.truthy(age >= 0)
+    AHW.Close()
+    T.isnil((M.Search.Last(LINEN)), "and forgotten when the AH closes")
+    quiet(M)
 end)

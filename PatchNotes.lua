@@ -16,7 +16,13 @@ DUI.PatchNotes = {
         { "Auction House", "Sell remembers how many of an item you last posted, can undercut by a percent, and writes each post in chat if you like. Right-click an item in its list to pin it on top or hide it" },
         { "Auction House", "My auctions has a search box, and can let a few cheaper items from others pass before calling yours undercut. Buy takes a max price and an exact name switch" },
         { "Cooldown Manager", "Share your whole Cooldown Manager layout with friends: Export in the layout editor gives it as text, with every spell's options and its look, and Import takes it in" },
+        { "Flight timer", "A small button on the flight timer lands you at the next stop, and the timer then shows that stop and counts down to it" },
+        { "Auction House", "Sell asks once more before posting far under what most others ask, or for less than a vendor would pay you" },
+    }, changed = {
+        { "Chat", "\"You gain 45 experience\" lines from kills no longer fill the General tab while you grind. They still show in the Loot tab" },
+        { "Auction House", "Faster and smoother: lists and prices show as soon as the first page comes in, a new search takes over from the old one, and Post, Buy and Cancel go dim for a moment while the Auction House is busy instead of turning your click down. My auctions updates itself when something sells, and the Auction House key buys on Buy too" },
     }, fixed = {
+        { "Auction House", "Buying stops when the price jumps after you click Buy, the price you're holding counts down before it runs out, and canceling an auction that costs gold asks first, like the game's own window" },
         { "Auction House", "Bid on gear again, including auctions that only take bids, and follow your bids on a new Bids list under My auctions, like the game's own window. My auctions columns sort, and your gold shows in the window" },
         { "Auction House", "Selling gear takes a starting bid, a click on a listing copies its price, and a right-click on a bag item picks it to sell" },
         { "Auction House", "Searching works like the game's window: each quality has its own filter, recipes show and sort by the skill they need, long lists sort on the server, and the game's favorites show up in one search" },

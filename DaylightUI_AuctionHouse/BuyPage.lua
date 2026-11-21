@@ -53,6 +53,9 @@ BP.PRICE_W = 96      -- the max price box
 BP.DEAL = 70          -- a % at or under this is a deal (INK.GOOD), until the settings are read
 BP.RECENT_MAX = 10
 BP.CONFIRM_WAIT = 0.5 -- s a Confirm click is refused after its total shows or changes
+BP.PRICE_JUMP = 5     -- % a quote may be over what the list showed before it's refused, as the game's own dialog does
+BP.SPREAD = 50        -- % the dearest price bought may be over the cheapest before Confirm asks twice
+BP.QUOTE_SHOW = 10    -- s left on a held quote from which the Confirm button counts down
 BP.SUGGEST_MAX = 8
 BP.ROOM_GAP = 12      -- under the first-visit card
 
@@ -74,7 +77,7 @@ local STEP_CELLS = { "qty", "unit", "pct" }
 -- open row, the picked gear step, the row to open once the old one glided
 -- shut, the held quote, a purchase on its way, the footer's sentence.
 BP.state = {
-    query = nil, rows = {}, running = false, problem = nil, capped = nil, gen = 0,
+    query = nil, rows = {}, all = {}, seen = {}, running = false, problem = nil, capped = nil, gen = 0,
     open = nil, step = nil, pending = nil, closeDone = nil, opening = nil,
     quote = nil, buying = false, tell = nil, amount = 1, amountOf = nil, amountSet = false,
     want = nil, sort = { id = "unit", desc = false },
@@ -598,20 +601,51 @@ local function searchSentence(reason)
     return SEARCH_SAY[reason] or L["Something went wrong with that search."]
 end
 
+-- Over the Max price box: kept back, shown again when the box changes.
+local function tooDear(r)
+    local most = S.filters.maxPrice
+    return most ~= nil and type(r.minPrice) == "number" and r.minPrice > most
+end
+
+-- New browse rows into the list, once per item.
+local function addRows(rows)
+    for _, r in ipairs(rows) do
+        if type(r.key) == "string" and not S.seen[r.key] then
+            S.seen[r.key] = true
+            S.all[#S.all + 1] = r
+            if not tooDear(r) then S.rows[#S.rows + 1] = rowOf(r) end
+        end
+    end
+end
+
+-- The item asked for (a favorite) opens as soon as its row is in.
+local function pickWanted()
+    local want = S.want
+    if not want then return end
+    for _, d in ipairs(S.rows) do
+        if d.itemID == want then
+            S.want = nil
+            return BP.PickItem(d)
+        end
+    end
+end
+
+-- A page of rows while the rest still comes: the list shows it at once.
+local function paged(g, rows)
+    if g ~= S.gen then return end
+    local first = #S.rows == 0
+    addRows(rows)
+    BP.SortRows()
+    if first then BP.Changed(true) else BP.Rebuild(true); BP.PaintNote() end
+    pickWanted()
+end
+
 local function answered(g, rows, reason, capped)
     if g ~= S.gen then return end
     S.running = false
     if rows then
         if S.query and S.query.favorites then learnFavorites(rows) end
-        local byKey = {}
-        local most = S.filters.maxPrice
-        for _, r in ipairs(rows) do
-            local dear = most and type(r.minPrice) == "number" and r.minPrice > most
-            if type(r.key) == "string" and not byKey[r.key] and not dear then
-                byKey[r.key] = true
-                S.rows[#S.rows + 1] = rowOf(r)
-            end
-        end
+        addRows(rows)
         if capped then
             local cheapest = S.sort.id == "unit" and not S.sort.desc
             S.capped = string.format(cheapest and L["Showing the cheapest %s: add words to narrow it."]
@@ -622,13 +656,31 @@ local function answered(g, rows, reason, capped)
     end
     BP.SortRows()
     BP.Changed(true)
-    local want = S.want
+    pickWanted()
     S.want = nil
-    if want then
-        for _, d in ipairs(S.rows) do
-            if d.itemID == want then BP.PickItem(d); break end
-        end
+end
+
+-- The Max price box changed: the rows already in are filtered again, no new search.
+function BP.Refilter()
+    BP.PaintTools()
+    if not S.query then return end
+    local had = {}
+    for _, d in ipairs(S.rows) do had[d.key] = d end
+    S.rows = {}
+    for _, r in ipairs(S.all) do
+        if not tooDear(r) then S.rows[#S.rows + 1] = had[r.key] or rowOf(r) end
     end
+    local open = S.open
+    if open and tooDear({ minPrice = open.unit }) then BP.CloseOpen(nil) end
+    BP.SortRows()
+    BP.Changed(true)
+end
+
+-- The open row's search stops when the player moves on.
+local function stopOpening()
+    local o = S.openSearch
+    S.openSearch = nil
+    if o then ns.Search.Cancel(o.itemID, o.fn) end
 end
 
 -- Runs a search: { text } or { path, label } (a category). Drops what was
@@ -639,7 +691,8 @@ function BP.Run(q, pickItem)
     BP.DropQuote()
     S.gen = S.gen + 1
     local g = S.gen
-    S.query, S.rows, S.problem, S.capped, S.tell = q, {}, nil, nil, nil
+    stopOpening()
+    S.query, S.rows, S.all, S.seen, S.problem, S.capped, S.tell = q, {}, {}, {}, nil, nil, nil
     S.open, S.step, S.pending, S.closeDone, S.opening, S.want = nil, nil, nil, nil, nil, pickItem
     for id in pairs(waiting) do waiting[id] = nil end   -- the old rows' names aren't wanted now
     for id in pairs(skillWait) do skillWait[id] = nil end
@@ -655,7 +708,8 @@ function BP.Run(q, pickItem)
     ns.AH.Drop(ns.Browse.TAG)
     S.running = true
     BP.Changed(true)
-    ns.Browse.Query(BP.QueryOf(q), function(rows, reason, capped) answered(g, rows, reason, capped) end)
+    ns.Browse.Query(BP.QueryOf(q), function(rows, reason, capped) answered(g, rows, reason, capped) end, nil,
+        function(rows) paged(g, rows) end)
     return true
 end
 
@@ -665,7 +719,8 @@ function BP.Clear()
     if not page then return end
     BP.DropQuote()
     S.gen = S.gen + 1
-    S.query, S.rows, S.problem, S.capped, S.tell, S.running = nil, {}, nil, nil, nil, nil
+    stopOpening()
+    S.query, S.rows, S.all, S.seen, S.problem, S.capped, S.tell, S.running = nil, {}, {}, {}, nil, nil, nil, nil
     S.open, S.step, S.pending, S.closeDone, S.opening, S.want = nil, nil, nil, nil, nil, nil
     for id in pairs(waiting) do waiting[id] = nil end
     for id in pairs(skillWait) do skillWait[id] = nil end
@@ -777,15 +832,16 @@ end
 -- The cheapest `qty` units of the open commodity: their total, and the
 -- dearest unit among them (the safety net judges that step, not the average).
 local function costOf(d, qty)
-    local left, total, dearest = qty, 0, nil
+    local left, total, dearest, cheapest = qty, 0, nil, nil
     for _, s in ipairs(d.steps or {}) do
         local take = math.min(left, math.max(0, buyable(s)))
         total = total + take * s.unit
         if take > 0 and (dearest == nil or s.unit > dearest) then dearest = s.unit end
+        if take > 0 and (cheapest == nil or s.unit < cheapest) then cheapest = s.unit end
         left = left - take
         if left <= 0 then break end
     end
-    return total, dearest
+    return total, dearest, cheapest
 end
 
 -- How the usual price was made, one sentence.
@@ -1115,29 +1171,42 @@ function BP.Opened(d)
     BP.PaintFooter()
 end
 
--- Asks for the row's auctions (again, after a buy).
-function BP.OpenRow(d)
+-- Asks for the row's auctions (again after a buy: refresh asks the results the
+-- client holds, as the game's own window does). The first page shows at once;
+-- deeper prices join the steps as they come.
+function BP.OpenRow(d, refresh)
+    stopOpening()
     local token = {}
     S.opening = token
     d.opening = true
-    local ok, why = ns.Search.Item(d.itemID, function(rows, reason, auctions)
-        if S.opening ~= token then return end
-        S.opening = nil
-        d.opening = nil
-        if rows and auctions then
-            d.commodity = auctions.commodity == true
-            d.steps = stepsOf(d, auctions)
-            freshLine(d)
-            d.why = BP.Why(d)
-        else
-            d.steps = nil
-            d.why = reason == "uncached" and L["The game hasn't loaded this item yet. Try again in a moment."]
-                or searchSentence(reason)
-        end
+    local function show(auctions)
+        d.commodity = auctions.commodity == true
+        d.steps = stepsOf(d, auctions)
+        freshLine(d)
+        d.why = BP.Why(d)
         BP.Opened(d)
-    end)
+    end
+    local function done(rows, reason, auctions)
+        if S.opening ~= token then return end
+        S.opening, S.openSearch = nil, nil
+        d.opening = nil
+        if rows and auctions then return show(auctions) end
+        d.steps = nil
+        d.why = reason == "uncached" and L["The game hasn't loaded this item yet. Try again in a moment."]
+            or searchSentence(reason)
+        BP.Opened(d)
+    end
+    S.openSearch = { itemID = d.itemID, fn = done }
+    local ok, why = ns.Search.Item(d.itemID, done, {
+        priority = true, refresh = refresh,
+        onPage = function(_, auctions)
+            if S.opening ~= token then return end
+            d.opening = nil   -- the first prices are in: they can be bought while the rest comes
+            show(auctions)
+        end,
+    })
     if not ok and S.opening == token then
-        S.opening = nil
+        S.opening, S.openSearch = nil, nil
         d.opening = nil
         BP.Tell(searchSentence(why), "WARN")
     end
@@ -1161,6 +1230,7 @@ function BP.CloseOpen(nextRow)
         return
     end
     local n = #shownSteps(d) + (d.why and 1 or 0)
+    stopOpening()
     S.open, S.step, S.opening = nil, nil, nil
     d.steps, d.why, d.shown, d.opening = nil, nil, nil, nil
     local i = indexOf(d)
@@ -1311,7 +1381,7 @@ local function after(d, ok, reason, qty, sent, detail)
     end
     if S.open == d and ns.AH.IsOpen() then
         d.shine = ok or nil   -- once its steps are back
-        BP.OpenRow(d)
+        BP.OpenRow(d, true)
     elseif ok then
         BP.Shine(d)
     end
@@ -1321,11 +1391,15 @@ end
 function BP.BuyCommodity(qty)
     local d = S.open
     if not (d and d.commodity) or S.quote or S.buying then return end
-    local total, dearest = costOf(d, qty)
+    local total, dearest, cheapest = costOf(d, qty)
     local q = { row = d, qty = qty, expected = total, dearest = dearest }
+    if dearest and cheapest and cheapest > 0 and dearest * 100 >= cheapest * (100 + BP.SPREAD) then
+        q.spread = math.floor((dearest - cheapest) * 100 / cheapest + 0.5)
+    end
     S.quote = q
     BP.Tell(nil)
-    local ok, why = ns.Buy.Commodity(d.itemID, qty, math.floor(total / qty),
+    -- the unit price rounded up, as the game's own buy frame sends it (SanitizeAuctionHousePrice)
+    local ok, why = ns.Buy.Commodity(d.itemID, qty, math.ceil(total / qty),
         function(unit, sum) BP.Quoted(q, unit, sum) end,
         function(done, reason, detail)
             if S.quote == q or S.buying == q then after(d, done, reason, qty, q.sent, detail) end
@@ -1344,8 +1418,47 @@ local function settled(q)
     return q.total ~= nil and q.shownAt ~= nil and GetTime() - q.shownAt >= BP.CONFIRM_WAIT
 end
 
+-- Counts a held quote down on its Confirm button while it's nearly out, and
+-- drops it when it runs out, as the game's own dialog closes then.
+local function quoteLeft()
+    local api = C_AuctionHouse
+    local left = api and api.GetQuoteDurationRemaining and api.GetQuoteDurationRemaining()
+    return type(left) == "number" and left or nil
+end
+
+local function watchQuote(q)
+    if q.ticker then return end
+    q.ticker = C_Timer.NewTicker(1, function()
+        if S.quote ~= q then
+            q.ticker:Cancel()
+            q.ticker = nil
+            return
+        end
+        local left = quoteLeft()
+        if left and left <= 0 then
+            q.ticker:Cancel()
+            q.ticker = nil
+            BP.DropQuote()
+            BP.Tell(sentence("expired"), "WARN")
+            BP.PaintFooter()
+        elseif left and left <= BP.QUOTE_SHOW then
+            BP.PaintFooter()
+        end
+    end)
+end
+
 function BP.Quoted(q, unit, total)
     if S.quote ~= q then return end
+    -- More than PRICE_JUMP % over what the list showed: refused, as the game's own dialog
+    -- does (PriceUnavailable), and the prices shown again.
+    if q.expected and q.expected > 0 and total * 100 > q.expected * (100 + BP.PRICE_JUMP) then
+        local d = q.row
+        BP.DropQuote()
+        BP.Tell(L["The price went up since you looked: here are the prices now."], "WARN")
+        if S.open == d and ns.AH.IsOpen() then BP.OpenRow(d, true) end
+        return BP.PaintFooter()
+    end
+    watchQuote(q)
     local changed = q.total ~= total
     q.unit, q.total = unit, total
     -- over the net when the average is, or any step bought is: the words name
@@ -1446,7 +1559,7 @@ function BP.BidItem(s)
         else
             BP.Tell(sentence(reason, detail), "WARN")
         end
-        if S.open == d and ns.AH.IsOpen() then BP.OpenRow(d) end
+        if S.open == d and ns.AH.IsOpen() then BP.OpenRow(d, true) end
         BP.PaintFooter()
     end)
     if not ok then
@@ -1454,6 +1567,13 @@ function BP.BidItem(s)
         BP.Tell(sentence(why), "WARN")
     end
     BP.PaintFooter()
+end
+
+-- The key binding: the footer's main button, as a click would (its second-click asks too).
+function BP.Key()
+    if not (page and page:IsVisible() and ns.AH.IsOpen()) then return end
+    local b = page.foot and page.foot.buttons and page.foot.buttons[1]
+    if b and b:IsShown() and b.spec and not b.spec.off then b:Click() end
 end
 
 -- ---------------------------------------------------------------------
@@ -1538,9 +1658,18 @@ local function quoteSpecs(q)
         text = text .. SEP .. overWords(q.pct)
         ask = askWords(q.pct)
     elseif q.up then
+        -- a small rise still takes a second, deliberate click
         text = text .. SEP .. L["the price went up"]
+        ask = L["The price went up: click again"]
+    elseif q.spread then
+        text = text .. SEP .. string.format(L["some cost %d%% more"], q.spread)
+        ask = string.format(L["Some cost %d%% more: click again"], q.spread)
     end
-    return { id = "confirm:" .. q.total, text = text, warn = q.over or q.up, ask = ask,
+    local left = quoteLeft()
+    if left and left > 0 and left <= BP.QUOTE_SHOW then
+        text = text .. SEP .. string.format(L["%d s"], math.ceil(left))
+    end
+    return { id = "confirm:" .. q.total, text = text, warn = q.over or q.up or q.spread ~= nil, ask = ask,
         off = not settled(q), onClick = function() BP.ConfirmBuy() end }
 end
 
@@ -1593,6 +1722,12 @@ function BP.PaintFooter()
             if one then one.off = true end
             if two then two.off = true end
             box, bidBox = false, false
+        end
+        -- a search or another answer holds the Auction House: a click now would be
+        -- refused, so the buttons look it until the line is free (LineChanged)
+        if not ns.AH.CanAct() then
+            if one then one.off = true end
+            if two then two.off = true end
         end
     end
     one = one or { id = "idle", text = L["Buy"], off = true }
@@ -2127,7 +2262,7 @@ local function buildTools(right)
         end
         self.was = now
         S.filters.maxPrice = c
-        BP.ApplyFilters()
+        BP.Refilter()
     end
     page.maxPrice:SetScript("OnEnterPressed", function(self) self:ClearFocus(); applyPrice(self) end)
     page.maxPrice:HookScript("OnEditFocusLost", applyPrice)
@@ -2253,17 +2388,34 @@ local function itemLoaded(_, itemID)
     end
     if list or (Left.mode == "favorites" and BP.IsFavorite(itemID)) then repaintSoon() end
 end
-ns.RegisterEvent("GET_ITEM_INFO_RECEIVED", itemLoaded)
-
-ns.RegisterEvent("EXTRA_BROWSE_INFO_RECEIVED", function(_, itemID)
+local function skillLoaded(_, itemID)
     local list = type(itemID) == "number" and skillWait[itemID]
     if not list then return end
     skillWait[itemID] = nil
     for _, r in ipairs(list) do r.level = skillOf(r) end
     BP.SortRows()
     repaintSoon()
+end
+
+-- Item and skill answers only matter while the Auction House is open: out in the
+-- world GET_ITEM_INFO_RECEIVED fires all the time.
+local itemEvents = CreateFrame("Frame")
+local ITEM_EVENTS = { GET_ITEM_INFO_RECEIVED = itemLoaded, ITEM_DATA_LOAD_RESULT = itemLoaded,
+    EXTRA_BROWSE_INFO_RECEIVED = skillLoaded }
+itemEvents:SetScript("OnEvent", function(_, event, ...)
+    local fn = ITEM_EVENTS[event]
+    if fn then ns.SafeCall(fn, event, ...) end
 end)
-ns.RegisterEvent("ITEM_DATA_LOAD_RESULT", itemLoaded)
+local function listen(on)
+    for event in pairs(ITEM_EVENTS) do
+        if on then itemEvents:RegisterEvent(event) else itemEvents:UnregisterEvent(event) end
+    end
+end
+
+-- A click that would have been refused can go now (or no longer can).
+ns.On("LineChanged", function()
+    if page and page:IsVisible() then BP.PaintFooter() end
+end)
 
 -- New prices (a scan, a search): the usual column again, not under a pick.
 ns.On("PricesChanged", function()
@@ -2279,6 +2431,7 @@ ns.On("OfferChanged", function(shown) BP.Room(shown) end)
 
 -- The categories exist once the game's AH UI loaded.
 ns.On("AHOpened", function()
+    listen(true)
     if not page then return end
     if Left.mode == "browse" then Left.Fill(true) end
     BP.PaintFooter()
@@ -2288,6 +2441,7 @@ end)
 -- The AH closed: a purchase on its way may have gone through; that sentence
 -- stays for the next visit.
 ns.On("AHClosed", function()
+    listen(false)
     if S.buying then BP.Tell(sentence("lost"), "WARN") end
     S.quote, S.buying = nil, false
     S.running = false

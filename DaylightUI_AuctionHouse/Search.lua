@@ -1,6 +1,19 @@
 -- Search: one item's current prices from a targeted Auction House search.
 --
---   ns.Search.Item(itemID, function(rows, reason, auctions) end) -> true | false, reason
+--   ns.Search.Item(itemID, function(rows, reason, auctions) end, opts) -> true | false, reason
+--   opts (all optional):
+--     pages     how many pages it may read (default MAX_PAGES). A price check needs only the
+--               first: results come cheapest first, so the cheapest price is always on it
+--     onPage    function(rows, auctions) after each page but the last, with everything read so
+--               far, so a list can show the first page while the rest comes in
+--     priority  the player is waiting on it: goes ahead of background checks
+--     refresh   the client already holds this item's results (after a purchase): asks them
+--               again the way the game's own window does (Refresh*SearchResults), which isn't a
+--               SendSearchQuery and doesn't count toward the 100 a minute
+--   ns.Search.Cancel(itemID, onDone)   that caller no longer wants the answer; a search nobody
+--                                      waits for stops, and the line goes to the next
+--   ns.Search.Last(itemID) -> rows, auctions, age   copies of the last answer this visit, nil
+--                                      when none (Sell and My auctions share their checks)
 --
 -- rows: one row per price key (ns.Rows: { key, base, unit, qty }), each
 -- suffix of a random-suffix item its own row. They are recorded under the
@@ -14,6 +27,8 @@
 -- "uncached" (the client never learned the item's key: ITEM_WAIT seconds, or
 -- at once when it says no data is coming), "timeout", "error".
 --
+-- auctions.capped is true when more results were up than were read (the page cap, or a later
+-- page that never answered).
 -- auctions (nil with no rows): the raw results in the order the client gave
 -- them (cheapest first), one per row read, for buying and posting: a
 -- commodity's { unit, qty, own (how many of them are this character's:
@@ -52,8 +67,10 @@
 -- grew or the list is full. Pages are asked until HasFull*, at most MAX_PAGES
 -- (a HasFull that never says yes can't loop), or until RequestMore* says the
 -- list is full already (nothing sent: the runner's "answered", no wait); the
--- pages read are priced then. Rows are read once every page is in, SLICE a
--- frame. Item rows: unit = buyoutAmount (the price of one), bid-only rows skipped,
+-- pages read are priced then. Each page's new rows are read as it arrives, SLICE a
+-- frame. A first answer with no rows that doesn't say it's whole is asked once more (the
+-- server sometimes answers empty when there are auctions), and so is a first page that
+-- never answers. Item rows: unit = buyoutAmount (the price of one), bid-only rows skipped,
 -- the key from the row's itemKey when it has a suffix, else itemLink; commodity
 -- rows: unitPrice. Rows under a copper each
 -- are skipped (ns.Rows.Add). A second search for an item being searched waits
@@ -80,6 +97,7 @@ local waiting = {}                   -- itemID -> the search waiting for its key
 local numWaiting = 0
 local active                         -- the search asking and reading now, nil when none
 local line = {}                      -- searches with their key info, waiting their turn (oldest first)
+local last = {}                      -- itemID -> { rows, auctions, at }: the last answer this visit
 
 -- The item's equip slot (Enum.InventoryType), nil when it has none or the game
 -- hasn't loaded it. The Add panes' category box (Query.ItemPasses).
@@ -148,13 +166,21 @@ local function finish(j, rows, reason)
     stopWaiting(j)
     local wasActive = active == j
     if wasActive then active = nil end
-    for i, fn in ipairs(j.callbacks) do
+    if rows then last[j.itemID] = { rows = copyRows(rows), auctions = copyAuctions(j.auctions), at = GetTime() } end
+    for i, c in ipairs(j.callbacks) do
         local own = rows and i > 1
-        ns.SafeCall(fn, own and copyRows(rows) or rows, reason,
+        ns.SafeCall(c.done, own and copyRows(rows) or rows, reason,
             rows and (own and copyAuctions(j.auctions) or j.auctions) or nil)
     end
     -- the next one's query goes out only now: this one's rows are all read
     if wasActive then nextInLine() end
+end
+
+-- Everything read so far, to each caller that wants to see pages come in.
+local function tellPage(j)
+    for _, c in ipairs(j.callbacks) do
+        if c.page then ns.SafeCall(c.page, copyRows(j.rows.list), copyAuctions(j.auctions)) end
+    end
 end
 
 -- Runs fn(j, ...); an error is reported and ends the search instead of
@@ -249,11 +275,11 @@ local function slice(j)
     j.scheduled = false
     if j.done then return end
     if not ns.AH.IsOpen() then return finish(j, nil, "closed") end
-    local last = math.min(j.nextRow + ns.Game.SLICE - 1, j.total)
-    for index = j.nextRow, last do readRow(j, index) end
-    j.nextRow = last + 1
+    local upTo = math.min(j.nextRow + ns.Game.SLICE - 1, j.total)
+    for index = j.nextRow, upTo do readRow(j, index) end
+    j.nextRow = upTo + 1
     if j.nextRow <= j.total then return schedule(j) end
-    complete(j)
+    j.afterRead(j)
 end
 
 schedule = function(j)
@@ -279,15 +305,35 @@ function Search.PriceSort()
 end
 local priceSort = Search.PriceSort
 
+-- The pages so far are read: ask for the next, or price what is there.
+local function pageRead(j)
+    if not j.full and j.pages < j.maxPages and not hasFull(j) then
+        tellPage(j)
+        return ask(j, true)
+    end
+    if j.cut or not (j.full or hasFull(j)) then j.auctions.capped = true end
+    complete(j)
+end
+
 local function answered(j, ok, reason)
     if j.done then return end
-    -- a later page that never answers: the pages already in stand
-    if not ok and reason == "timeout" and j.pages > 1 then
-        ok, j.full = true, true
+    if not ok and reason == "timeout" then
+        if j.pages > 1 then
+            -- a later page that never answers: the pages already in stand
+            ok, j.full, j.cut = true, true, true
+        elseif not j.retried then
+            j.retried, j.pages = true, 0
+            return ask(j, false)
+        end
     end
     if not ok then return finish(j, nil, reason or "error") end
-    if not j.full and j.pages < Search.MAX_PAGES and not hasFull(j) then return ask(j, true) end
-    j.total, j.nextRow = numResults(j), 1
+    if j.pages == 1 and numResults(j) == 0 and not hasFull(j) and not j.retried then
+        -- an empty first answer that doesn't say it's whole: once more before "nobody sells it"
+        j.retried, j.pages = true, 0
+        return ask(j, false)
+    end
+    j.total = numResults(j)
+    j.afterRead = pageRead
     schedule(j)
 end
 
@@ -320,12 +366,25 @@ end
 ask = function(j, more)
     j.pages = j.pages + 1
     local before = { count = 0 }
+    local api = C_AuctionHouse
+    local refresh = not more and j.refresh and api.HasSearchResults ~= nil
+        and api.HasSearchResults(j.itemKey) == true
+    if not more then
+        -- a new answer replaces the list: read it from the top
+        j.nextRow, j.rows, j.auctions = 1, ns.Rows.New(), { commodity = j.commodity }
+    end
     ns.AH.Request({
-        name = more and "search: more results" or "search",
-        search = not more,   -- the docs' 100 a minute names SendSearchQuery only: more pages don't count
+        name = more and "search: more results" or (refresh and "search: refresh" or "search"),
+        -- the docs' 100 a minute names SendSearchQuery only: more pages and refreshes don't count
+        search = not more and not refresh,
+        priority = j.priority, tag = j.tag,
         events = resultEvents(j, more, before),
         send = function()
-            local api = C_AuctionHouse
+            if refresh then
+                if j.commodity then api.RefreshCommoditySearchResults(j.itemID)
+                else api.RefreshItemSearchResults(j.itemKey) end
+                return
+            end
             if not more then
                 if j.equipment then
                     api.SendSellSearchQuery(j.itemKey, priceSort(), false)
@@ -370,7 +429,7 @@ local function tryStart(j)
     -- so the client never fires a results event (in play: a 10 s timeout each)
     if j.equipment then j.itemKey.itemLevel, j.itemKey.itemSuffix = 0, 0 end
     j.queued = true
-    line[#line + 1] = j
+    if j.priority then table.insert(line, 1, j) else line[#line + 1] = j end
     nextInLine()
     return true
 end
@@ -410,18 +469,32 @@ end
 -- Searches the AH for one item (see the top of this file). Returns true
 -- when started (or joined to a search for the same item already running);
 -- false and the reason when it ended at once (onDone has run then).
-function Search.Item(itemID, onDone)
+local function caller(onDone, opts)
+    return { done = onDone or function() end, page = opts and opts.onPage or nil }
+end
+
+function Search.Item(itemID, onDone, opts)
     if type(itemID) ~= "number" or itemID <= 0 or itemID ~= math.floor(itemID) then
         error("ns.Search.Item needs an itemID (a whole number)", 2)
     end
+    opts = opts or {}
+    local pages = math.max(1, math.min(Search.MAX_PAGES, tonumber(opts.pages) or Search.MAX_PAGES))
     local running = jobs[itemID]
     if running then
-        if onDone then running.callbacks[#running.callbacks + 1] = onDone end
+        running.callbacks[#running.callbacks + 1] = caller(onDone, opts)
+        if pages > running.maxPages then running.maxPages = pages end
+        if opts.priority and not running.priority then
+            running.priority = true
+            for i, queued in ipairs(line) do
+                if queued == running then table.remove(line, i); table.insert(line, 1, running); break end
+            end
+        end
         return true
     end
     local j = {
-        itemID = itemID, key = (ns.Items.Key(itemID)), callbacks = { onDone },
+        itemID = itemID, key = (ns.Items.Key(itemID)), callbacks = { caller(onDone, opts) },
         rows = ns.Rows.New(), auctions = {}, pages = 0, rkey = ns.Ruleset.Key(),
+        maxPages = pages, priority = opts.priority == true, refresh = opts.refresh == true, tag = {},
     }
     if not ns.AH.IsOpen() then
         finish(j, nil, "closed")
@@ -434,7 +507,26 @@ function Search.Item(itemID, onDone)
     return true
 end
 
+function Search.Cancel(itemID, onDone)
+    local j = jobs[itemID]
+    if not j or j.done then return end
+    for i = #j.callbacks, 1, -1 do
+        if j.callbacks[i].done == onDone then table.remove(j.callbacks, i) end
+    end
+    if #j.callbacks > 0 then return end
+    -- nobody waits for it: let go of its request so the next search goes now
+    ns.AH.Drop(j.tag)
+    finish(j, nil, "dropped")
+end
+
+function Search.Last(itemID)
+    local l = last[itemID]
+    if not l then return nil end
+    return copyRows(l.rows), copyAuctions(l.auctions), GetTime() - l.at
+end
+
 ns.On("AHClosed", function()
     -- clearing a field while walking the table is allowed
     for _, j in pairs(jobs) do finish(j, nil, "closed") end
+    last = {}
 end)

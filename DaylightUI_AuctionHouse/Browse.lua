@@ -1,7 +1,10 @@
 -- Browse: the game's browse query, one row per item, priced from it.
 --
---   ns.Browse.Query(query, function(rows, reason, capped) end, tag) -> true | false, reason
---     capped: how many rows were read when MAX_PAGES stopped it (more were up); nil when whole
+--   ns.Browse.Query(query, function(rows, reason, capped) end, tag, onPage) -> true | false, reason
+--     capped: how many rows were read when MAX_PAGES stopped it, or a later page never
+--     answered (more were up); nil when whole
+--     onPage(newRows): after each page but the last, the rows that page brought, so the list
+--     shows the first page at once while the rest comes in
 --
 -- query: the game's AuctionHouseBrowseQuery { searchString, sorts, minLevel,
 -- maxLevel, filters (Enum.AuctionHouseFilter values), itemClassFilters
@@ -28,9 +31,11 @@
 -- at most MAX_PAGES; a page is done on _ADDED or _UPDATED (which one follows
 -- is unknown, as for ns.Search) once the rows grew or the list is full. The
 -- game has no GetNumBrowseResults: GetBrowseResults() is the whole list (a
--- copy), asked once per result event for its length (none when the list is full) and once more at the end, when
--- the rows are read from that copy SLICE a frame (so a later query can't
--- change what is being read).
+-- copy), so it's asked once for the first page; a later page is read from its
+-- _ADDED event's own table of added rows (the game's browse frame does the same),
+-- falling back to one copy when only _UPDATED comes. Each page's rows are read
+-- SLICE a frame as it arrives. A first answer that never comes, or comes empty
+-- without saying the list is whole, is asked once more.
 --
 -- One query at a time, each with all its pages: the client keeps one browse
 -- list, so a second query goes out only after the one before it has its list
@@ -52,7 +57,7 @@ function Browse.Pending()
     return (active and 1 or 0) + #line
 end
 
-local ask, nextInLine
+local ask, nextInLine, pageRead
 
 -- Ends `j` once: its caller hears the result, then the next in line asks.
 local function finish(j, rows, reason)
@@ -124,11 +129,12 @@ local function slice(j)
     j.scheduled = false
     if j.done then return end
     if not ns.AH.IsOpen() then return finish(j, nil, "closed") end
-    local last = math.min(j.nextRow + ns.Game.SLICE - 1, #j.list)
-    for index = j.nextRow, last do readRow(j, j.list[index]) end
-    j.nextRow = last + 1
+    local upTo = math.min(j.nextRow + ns.Game.SLICE - 1, #j.list)
+    for index = j.nextRow, upTo do readRow(j, j.list[index]) end
+    j.nextRow = upTo + 1
     if j.nextRow <= #j.list then return schedule(j) end
-    complete(j)
+    j.list = nil
+    pageRead(j)
 end
 
 schedule = function(j)
@@ -141,17 +147,48 @@ end
 -- Asking: the query, then a page at a time
 -- ---------------------------------------------------------------------
 
+-- This page's rows are read: tell the caller and ask for the next, or end.
+pageRead = function(j)
+    local full = j.full or hasFull()
+    if not full and not j.cut and j.pages < Browse.MAX_PAGES then
+        local fresh = {}
+        for i = j.shown + 1, #j.rows do fresh[#fresh + 1] = j.rows[i] end
+        j.shown = #j.rows
+        if j.onPage and #fresh > 0 then ns.SafeCall(j.onPage, fresh) end
+        return ask(j, true)
+    end
+    if not full then j.capped = j.read end
+    complete(j)
+end
+
 local function answered(j, ok, reason)
     if j.done then return end
-    -- a later page that never answers: the pages already in stand
-    if not ok and reason == "timeout" and j.pages > 1 then
-        ok, j.full = true, true
+    if not ok and reason == "timeout" then
+        if j.pages > 1 then
+            -- a later page that never answers: the pages already in stand
+            ok, j.cut = true, true
+            j.list = {}
+        elseif not j.retried then
+            j.retried, j.pages = true, 0
+            return ask(j, false)
+        end
     end
     if not ok then return finish(j, nil, reason or "error") end
-    local full = j.full or hasFull()
-    if not full and j.pages < Browse.MAX_PAGES then return ask(j, true) end
-    j.list, j.nextRow = browseResults(), 1
-    if not full then j.capped = #j.list end
+    if j.pages == 1 then
+        j.list = browseResults()
+        if #j.list == 0 and not hasFull() and not j.retried then
+            -- an empty first answer that doesn't say it's whole: once more
+            j.retried, j.pages = true, 0
+            return ask(j, false)
+        end
+    elseif not j.list then
+        -- only _UPDATED came: the rows past those already read
+        local all, list = browseResults(), {}
+        for i = j.read + 1, #all do list[#list + 1] = all[i] end
+        j.list = list
+    end
+    j.read = j.read + #j.list
+    j.nextRow = 1
     schedule(j)
 end
 
@@ -161,28 +198,28 @@ end
 
 ask = function(j, more)
     j.pages = j.pages + 1
+    j.list = nil
+    if not more then j.read, j.shown, j.rows, j.set = 0, 0, {}, ns.Rows.New() end
     local events = { AUCTION_HOUSE_BROWSE_FAILURE = failed }
     if more then
-        -- full: no count needed; else one copy of the list per event, against the count last seen
-        local grew = function()
+        -- the added rows come with the event; a page that only says _UPDATED is read from a copy
+        events.AUCTION_HOUSE_BROWSE_RESULTS_ADDED = function(added)
+            if type(added) == "table" and #added > 0 then j.list = added; return true end
+            if hasFull() then j.list = {}; return true end
+        end
+        events.AUCTION_HOUSE_BROWSE_RESULTS_UPDATED = function()
             if hasFull() then return true end
             local n = #browseResults()
-            local was = j.count
-            j.count = n
-            return n > was
+            if n > j.read then return true end
         end
-        events.AUCTION_HOUSE_BROWSE_RESULTS_ADDED = grew
-        events.AUCTION_HOUSE_BROWSE_RESULTS_UPDATED = grew
     else
-        events.AUCTION_HOUSE_BROWSE_RESULTS_UPDATED = function()
-            j.count = #browseResults()
-            return true
-        end
+        events.AUCTION_HOUSE_BROWSE_RESULTS_UPDATED = function() return true end
     end
     ns.AH.Request({
         name = more and "browse: more results" or "browse",
         search = not more,
         tag = j.tag,
+        priority = not more,   -- the player is waiting for the first page; the rest can wait behind a click
         events = events,
         send = function()
             if not more then
@@ -204,7 +241,7 @@ end
 
 -- Browses the AH (see the top of this file). Returns true when started;
 -- false and the reason when it ended at once (onDone has run then).
-function Browse.Query(query, onDone, tag)
+function Browse.Query(query, onDone, tag, onPage)
     if type(query) ~= "table" or type(query.searchString) ~= "string" then
         error("ns.Browse.Query needs a browse query table with a searchString", 2)
     end
@@ -215,7 +252,7 @@ function Browse.Query(query, onDone, tag)
         },
         favorites = query.favorites == true,
         onDone = onDone or function() end, tag = tag or Browse.TAG, rkey = ns.Ruleset.Key(),
-        set = ns.Rows.New(), rows = {}, pages = 0,
+        set = ns.Rows.New(), rows = {}, pages = 0, read = 0, shown = 0, onPage = onPage,
     }
     if not ns.AH.IsOpen() then
         finish(j, nil, "closed")

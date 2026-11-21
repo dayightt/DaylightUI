@@ -92,8 +92,10 @@ end
 -- opts.offer: leave the first-visit card wanted (no full scan, not offered).
 local function load(opts)
     opts = opts or {}
-    local _, A = AHW.Load({ auctions = opts.auctions or auctions(), commodities = { [RUNECLOTH] = true, [BOLT] = true },
-        favorites = opts.favorites }, {
+    local spec = { auctions = opts.auctions or auctions(), commodities = { [RUNECLOTH] = true, [BOLT] = true },
+        favorites = opts.favorites }
+    for k, v in pairs(opts.spec or {}) do spec[k] = v end
+    local _, A = AHW.Load(spec, {
         before = function()
             _G.AuctionHouseFrame = nil
             gameAH()
@@ -737,5 +739,86 @@ T.test("ah buy page: the first-visit card moves the right pane down, eased", fun
     tween(A, 1)
     _, _, _, _, y = page.right:GetPoint(1)
     T.eq(y, 0, "back up once the card goes")
+    quiet()
+end)
+
+-- ---------------------------------------------------------------------
+-- Smooth and safe: no needless searches, refused jumps, a quote that runs out
+-- ---------------------------------------------------------------------
+
+T.test("ah buy page: max price filters the rows in hand, no new search", function()
+    local A, page = load()
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    local sent = AHW.Calls("SendBrowseQuery")
+    page.maxPrice:SetText("2g")
+    page.maxPrice:GetScript("OnEnterPressed")(page.maxPrice)
+    T.eq(#page.table.rows, 1, "the bolt is left out at once")
+    page.maxPrice:SetText("")
+    page.maxPrice:GetScript("OnEnterPressed")(page.maxPrice)
+    T.eq(#page.table.rows, 2, "and comes back")
+    T.eq(AHW.Calls("SendBrowseQuery"), sent, "nothing asked of the server")
+    quiet()
+end)
+
+T.test("ah buy page: a quote far over the list is refused and the prices asked again", function()
+    local A, page = load()
+    local BP = A.BuyPage
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    page.table:Row(1):Click()
+    AHW.Settle()
+    tween(A, 1)
+    local buy = page.foot.buttons[1]
+    BP.SetAmount(60)
+    buy:Click()
+    T.eq(AHW.Log("StartCommoditiesPurchase")[1][3], 10500, "the unit price sent rounded up, as the game's frame does")
+    AHW.Settle()
+    AHW.Advance(BP.CONFIRM_WAIT + 0.01)
+    stub.FireEvent("COMMODITY_PRICE_UPDATED", 12000, 720000)   -- 14% over
+    T.eq(AHW.Calls("CancelCommoditiesPurchase"), 1, "the quote let go")
+    T.isnil(BP.state.quote)
+    T.truthy(textOf(page.stat):find("price went up", 1, true), textOf(page.stat))
+    AHW.Settle()
+    T.eq(AHW.Calls("RefreshCommoditySearchResults"), 1, "the steps asked again, as the game refreshes")
+    T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 0, "nothing bought")
+    quiet()
+end)
+
+T.test("ah buy page: a held quote counts down and lets go at the end", function()
+    local A, page = load({ spec = { quoteSeconds = 8 } })
+    local BP = A.BuyPage
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    page.table:Row(1):Click()
+    AHW.Settle()
+    tween(A, 1)
+    local buy = page.foot.buttons[1]
+    buy:Click()
+    AHW.Settle()
+    AHW.Advance(2)
+    T.truthy(textOf(buy.text):find(" s", 1, true), "the seconds left show: " .. textOf(buy.text))
+    AHW.Advance(8)
+    T.isnil(BP.state.quote, "the quote ran out")
+    T.truthy(textOf(page.stat):find("ran out", 1, true), textOf(page.stat))
+    T.eq(textOf(buy.text), "Buy 1")
+    quiet()
+end)
+
+T.test("ah buy page: the buttons rest while the Auction House is busy, and the key buys", function()
+    local A, page = load()
+    local BP = A.BuyPage
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    page.table:Row(1):Click()
+    AHW.Settle()
+    tween(A, 1)
+    local buy = page.foot.buttons[1]
+    A.Post.Owned(function() end)   -- something else out on the line
+    T.truthy(buy.spec.off, "a click now would be refused")
+    AHW.Settle()
+    T.falsy(buy.spec.off, "free again")
+    BP.Key()
+    T.eq(AHW.Calls("StartCommoditiesPurchase"), 1, "the key is the main button")
     quiet()
 end)

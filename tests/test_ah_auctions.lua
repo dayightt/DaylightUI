@@ -70,7 +70,9 @@ end
 local function load(opts)
     opts = opts or {}
     local commodities = { [LINEN] = true, [SILK] = true, [FELCLOTH] = true, [BOLT] = true, [ICECAP] = true }
-    local _, A = AHW.Load({ auctions = opts.auctions or AUCTIONS, commodities = commodities }, {
+    local spec = { auctions = opts.auctions or AUCTIONS, commodities = commodities }
+    for k, v in pairs(opts.spec or {}) do spec[k] = v end
+    local _, A = AHW.Load(spec, {
         before = function()
             _G.AuctionHouseFrame = nil
             _G.DaylightMogul = nil
@@ -327,11 +329,12 @@ T.test("ah auctions: nothing is asked until the tab shows, nor while it's hidden
     AHW.Frame()
     DaylightUI.Win.Followers.Tick()
     AHW.Advance(10)
-    T.eq(AHW.Calls("QueryOwnedAuctions"), 0, "opening the AH reads nothing")
+    T.eq(AHW.Calls("QueryOwnedAuctions"), 1, "opening the AH reads your list once, so the tab shows at once")
+    T.eq(AHW.Calls("SendSearchQuery") + AHW.Calls("SendSellSearchQuery"), 0, "and checks no prices")
     A.Window.ShowTab("auctions")
     A.Window.ShowTab("buy")
     AHW.Advance(30)
-    T.eq(AHW.Calls("QueryOwnedAuctions"), 1)
+    T.eq(AHW.Calls("QueryOwnedAuctions"), 1, "the tab uses that read")
     T.eq(AHW.Calls("SendSearchQuery") + AHW.Calls("SendSellSearchQuery"), 0, "no price checks behind another tab")
     quiet()
 end)
@@ -440,5 +443,41 @@ T.test("ah auctions: a few cheaper ones can pass, and the search box finds one",
     page.search:GetScript("OnTextChanged")(page.search, true)
     settle()
     T.eq(plain(stub.Text(page.chips.all.text)), "All 6")
+    quiet()
+end)
+
+T.test("ah auctions: a cancel that costs gold asks once, naming the cost", function()
+    local A, page = load({ spec = { cancelCost = 2500 } })
+    T.eq(pickedID(A), LINEN, "the undercut one is picked")
+    page.foot.buttons[1]:Click()
+    T.eq(AHW.Calls("CancelAuction"), 0, "asked first")
+    T.truthy(plain(stub.Text(page.stat)):find("Canceling it costs", 1, true), plain(stub.Text(page.stat)))
+    T.truthy(plain(stub.Text(page.foot.buttons[1].text)):find("Cancel for", 1, true))
+    page.foot.buttons[1]:Click()
+    T.eq(AHW.Calls("CancelAuction"), 1, "the second click cancels")
+    quiet()
+end)
+
+T.test("ah auctions: a sale while you look reads the list again by itself", function()
+    local A = load({ spec = { saleCancels = true } })
+    local reads = AHW.Calls("QueryOwnedAuctions")
+    local id
+    for _, o in ipairs(A.Post.Mine()) do if o.itemID == SILK then id = o.auctionID end end
+    AHW.Sell(id, "Brann")
+    AHW.Advance(1)
+    settle()
+    T.eq(AHW.Calls("QueryOwnedAuctions"), reads + 1, "one read after the sale")
+    T.truthy(rowOf(A, SILK).sold, "shown as sold")
+    T.eq(AHW.Calls("RequestMoreCommoditySearchResults"), 0, "the checks read one page each")
+    quiet()
+end)
+
+T.test("ah auctions: Cancel rests while the Auction House answers something else", function()
+    local A, page = load()
+    T.falsy(page.foot.buttons[1].spec and page.foot.buttons[1].spec.off)
+    A.Post.Bids(function() end)
+    T.truthy(page.foot.buttons[1].spec.off, "a click now would be refused")
+    settle()
+    T.falsy(page.foot.buttons[1].spec.off, "free again")
     quiet()
 end)

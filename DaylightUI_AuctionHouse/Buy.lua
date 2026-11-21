@@ -5,9 +5,9 @@
 --
 --   ns.Buy.Commodity(itemID, qty, unit, onQuote(unit, total), onDone(ok, reason)) -> ok, reason
 --       StartCommoditiesPurchase(itemID, qty, unit). `unit` in and out is the AVERAGE,
---       total / qty floored (the game's source: SetQuantitySelected passes
---       totalPrice / totalQuantity, and its dialog compares updatedUnitPrice with
---       currentTotalPrice / quantity). onQuote runs for the game's price
+--       total / qty; the caller rounds it up, as the game's buy frame does
+--       (SetQuantitySelected passes SanitizeAuctionHousePrice(totalPrice / totalQuantity),
+--       and its dialog compares updatedUnitPrice with currentTotalPrice / quantity). onQuote runs for the game's price
 --       (COMMODITY_PRICE_UPDATED) and again when it moves while the player looks.
 --       The quote waits (line free) for Confirm or Cancel, and goes stale after
 --       C_AuctionHouse.GetQuoteDurationRemaining() reaches 0.
@@ -28,7 +28,8 @@
 --   ns.Buy.Bid(auctionID, amount, buyout, onDone) -> ok, reason   PlaceBid(auctionID, amount);
 --       buyout is the auction's (0 = none): an amount at or over it would BUY the
 --       auction, so it is refused (false, "buyout": use Buy.Item). Done on BID_ADDED
---       (a GUESS: the docs' event; the game's bid popup listens for nothing), or
+--       (a GUESS: the docs' event; the game's bid popup listens for nothing), the game's
+--       "Bid accepted." system line (ERR_AUCTION_BID_PLACED), or
 --       AUCTION_HOUSE_PURCHASE_COMPLETED for that auction (a stale buyout), "failed" on
 --       AUCTION_HOUSE_SHOW_ERROR.
 --   ns.Buy.Pending() -> "quote" | "confirm" | "item" | "bid" | nil
@@ -233,7 +234,15 @@ local function place(kind, auctionID, amount, onDone)
         end,
         AUCTION_HOUSE_SHOW_ERROR = shownError,
     }
-    if kind == "bid" then events.BID_ADDED = function() return true end end
+    if kind == "bid" then
+        events.BID_ADDED = function() return true end
+        -- the game's own "Bid accepted." line also ends it, should BID_ADDED not come
+        -- for the player's own bid (TradeSkillMaster waits on this line too)
+        events.CHAT_MSG_SYSTEM = function(msg)
+            if issecretvalue and issecretvalue(msg) then return end
+            if type(msg) == "string" and msg == _G.ERR_AUCTION_BID_PLACED then return true end
+        end
+    end
     local ok, why = ns.AH.Act({
         name = "buy " .. kind,
         send = function() C_AuctionHouse.PlaceBid(auctionID, amount) end,

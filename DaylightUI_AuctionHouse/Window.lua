@@ -39,7 +39,7 @@ Main.TABS = {
     { id = "sell", text = L["Sell"] },
     { id = "auctions", text = L["My auctions"] },
 }
-Main.MONEY_GAP = 8          -- your gold, under the X
+Main.MONEY_GAP = 2          -- your gold, on the header's sub line, its right end under the X
 Main.AGE_TICK = 60          -- seconds between repaints of the sub line's age while open
 Main.SEP = "  \194\183  "   -- "  ·  " between the sub line's parts
 Main.LINK_BUSY = 0.35       -- the Full scan link while a scan runs
@@ -268,7 +268,7 @@ local function pageOf(id)
 end
 
 -- The key binding: the shown tab's main action in the key press (a hardware
--- event, like a click): Sell's Post, My auctions' Cancel.
+-- event, like a click): Buy's buy or confirm, Sell's Post, My auctions' Cancel.
 function Main.Key()
     if not Main.IsOpen() then return end
     local id = Main.frame.tab
@@ -518,7 +518,9 @@ function Main.Build(mod)
     link:Hide()
     Main.scanLink = link
     f.money = Style.Text(f, Style.SIZE.small, "RIGHT")
-    f.money:SetPoint("TOPRIGHT", f.close, "BOTTOMRIGHT", -2, -Main.MONEY_GAP)
+    -- on the sub line's row, right-aligned with the X: part of the header, not floating under it
+    f.money:SetPoint("RIGHT", f.close, "RIGHT", -Main.MONEY_GAP, 0)
+    f.money:SetPoint("TOP", f.sub, "TOP", 0, 0)
     f.money:SetWordWrap(false)
     Main.PaintMoney(true)
     if ns.ScanBand then ns.ScanBand.Build(f) end

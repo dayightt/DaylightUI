@@ -66,6 +66,10 @@
 --   auctions' `mine = true`             the player's own (search rows say containsOwnerItem, owners
 --                                       "player"; QueryOwnedAuctions lists them); `sold = true` with it:
 --                                       sold, still listed (status Sold) like the game's
+--   emptyOnce = { [itemID] = true }     the first search for it answers with no rows and HasFull*
+--                                       false, like the glitch Auctionator works around (its
+--                                       SearchScan.lua: "sometimes no results are returned when there
+--                                       are actually some"); the next search answers normally
 --   replicateCooldown = nil             seconds: a ReplicateItems within this long of the last one
 --                                       the server answered is ignored, no REPLICATE_ITEM_LIST_UPDATE
 --                                       (guess: the client documents no cooldown; the throttle
@@ -669,11 +673,15 @@ local function search(name, key)
         if sell then answered.itemLevel, answered.itemSuffix = 0, 0 end
         fire("AUCTION_HOUSE_NEW_RESULTS_RECEIVED", answered)
         if sell and (q.itemLevel ~= 0 or q.itemSuffix ~= 0) then return end
+        local glitch = S().emptyOnce and S().emptyOnce[id]
+        if glitch then S().emptyOnce[id] = nil end
+        local exact = name == "SendSearchQuery"
         if S().commodities[id] then
-            S().commodity[id] = { rows = commodityRows(id), shown = S().page }
+            S().commodity[id] = { rows = glitch and {} or commodityRows(id), shown = S().page, glitch = glitch }
             fire("COMMODITY_SEARCH_RESULTS_UPDATED", id)
         else
-            S().items[id] = { rows = itemRows(q, name == "SendSearchQuery"), shown = S().page }
+            S().items[id] = { rows = glitch and {} or itemRows(q, exact), shown = S().page, glitch = glitch,
+                key = copyKey(q), exact = exact }
             fire("ITEM_SEARCH_RESULTS_UPDATED", copyKey(q), nil)
         end
     end)
@@ -1026,7 +1034,7 @@ local function install()
     end)
     def("HasFullCommoditySearchResults", function(id)
         local r = S().commodity[id]
-        return r ~= nil and r.shown >= #r.rows
+        return r ~= nil and not r.glitch and r.shown >= #r.rows
     end)
     def("RequestMoreCommoditySearchResults", function(id)
         local r = S().commodity[id]
@@ -1056,7 +1064,34 @@ local function install()
     end)
     def("HasFullItemSearchResults", function(key)
         local r = itemResults("HasFullItemSearchResults", key)
-        return r ~= nil and r.shown >= #r.rows
+        return r ~= nil and not r.glitch and r.shown >= #r.rows
+    end)
+
+    -- The game's own window refreshes held results this way after a purchase
+    -- (Blizzard_AuctionHouseFrame.lua forever, RefreshSearchResults): the item's
+    -- results are asked again from the first page and answer *_UPDATED. Not a
+    -- SendSearchQuery, so not counted toward the 100 a minute (a GUESS: the docs
+    -- limit those two by name).
+    def("HasSearchResults", function(key)
+        checkKey("HasSearchResults", key)
+        local id = key.itemID
+        return (S().commodities[id] and S().commodity[id] or S().items[id]) ~= nil
+    end)
+    def("RefreshCommoditySearchResults", function(id)
+        if type(id) ~= "number" then error("RefreshCommoditySearchResults: bad argument #1 (a number)", 2) end
+        send("RefreshCommoditySearchResults", function()
+            S().commodity[id] = { rows = commodityRows(id), shown = S().page }
+            fire("COMMODITY_SEARCH_RESULTS_UPDATED", id)
+        end)
+    end)
+    def("RefreshItemSearchResults", function(key)
+        local r = itemResults("RefreshItemSearchResults", key)
+        local q = r and r.key or copyKey(key)
+        local exact = r == nil or r.exact
+        send("RefreshItemSearchResults", function()
+            S().items[key.itemID] = { rows = itemRows(q, exact), shown = S().page, key = q, exact = exact }
+            fire("ITEM_SEARCH_RESULTS_UPDATED", copyKey(key), nil)
+        end)
     end)
     def("RequestMoreItemSearchResults", function(key)
         local r = itemResults("RequestMoreItemSearchResults", key)
@@ -1553,7 +1588,7 @@ function AHW.world(spec)
             quoteSeconds = spec.quoteSeconds or 300,
             soldOut = copy(spec.soldOut or {}), purchase = nil,
             favorites = copy(spec.favorites or {}), responseFirst = spec.responseFirst == true,
-            readyEarly = spec.readyEarly == true,
+            readyEarly = spec.readyEarly == true, emptyOnce = copy(spec.emptyOnce or {}),
             known = copy(spec.items or {}), bags = copy(spec.bags), postWarning = copy(spec.postWarning or {}),
             postFails = copy(spec.postFails or {}), postRefused = copy(spec.postRefused or {}), cancelFails = spec.cancelFails, cancelCost = spec.cancelCost or 0, saleCancels = spec.saleCancels, cancelEvent = spec.cancelEvent,
             owned = {}, ownedLoaded = {}, mailed = {}, nextAuction = 5000, pendingPost = nil,
@@ -1622,6 +1657,9 @@ function AHW.Mog(opts)
     local spec = o.ah
     o.ah = nil
     local _, A = AHW.Load(spec, o)
+    -- the game layer's tests count requests and time them: the read of your
+    -- auctions as the AH opens (the window's convenience) stays out of them
+    A.Post.OPEN_READ = nil
     return A
 end
 

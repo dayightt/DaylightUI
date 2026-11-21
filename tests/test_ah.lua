@@ -173,17 +173,55 @@ T.test("timeout_fails_the_request", function()
     -- Sent, but the answer never comes (nothing is asked of the server).
     replicate(M, log, "A", { send = function() log[#log + 1] = "send A" end })
     search(M, log, "B")
-    T.eq(M.AH.TIMEOUT, 10, "the default")
-    AHW.Advance(9.75)
+    T.eq(M.AH.TIMEOUT, 6, "the default")
+    AHW.Advance(5.75)
     T.deq(log, { "send A" }, "still waiting")
     AHW.Advance(0.25)
-    T.deq(log, { "send A", "failed timeout A", "send B" }, "failed after 10 s; the next goes")
+    T.deq(log, { "send A", "failed timeout A", "send B" }, "failed after 6 s; the next goes")
     AHW.Settle()
     T.eq(log[4], "done B")
     -- A request's own timeout.
     replicate(M, log, "C", { timeout = 2, send = function() log[#log + 1] = "send C" end })
     AHW.Advance(2)
     T.deq({ log[5], log[6] }, { "send C", "failed timeout C" })
+end)
+
+T.test("priority_requests_go_first", function()
+    local M = world()
+    AHW.Open()
+    local log = {}
+    replicate(M, log, "A")
+    search(M, log, "B")
+    search(M, log, "C")
+    M.AH.Request({
+        name = "urgent", search = true, priority = true,
+        send = function()
+            log[#log + 1] = "send U"
+            C_AuctionHouse.SendSearchQuery(C_AuctionHouse.MakeItemKey(HERB), {}, false)
+        end,
+        events = { COMMODITY_SEARCH_RESULTS_UPDATED = function() return true end },
+        onDone = function() log[#log + 1] = "done U" end,
+    })
+    AHW.Settle()
+    T.deq(log, { "send A", "done A", "send U", "done U", "send B", "done B", "send C", "done C" },
+        "the urgent one goes right after the one in flight")
+end)
+
+T.test("can_act_follows_the_line", function()
+    local M = world()
+    local said = {}
+    M.On("LineChanged", function(on) said[#said + 1] = on end)
+    T.falsy((M.AH.CanAct()), "closed")
+    AHW.Open()
+    T.truthy((M.AH.CanAct()), "open and idle")
+    local log = {}
+    search(M, log, "A")
+    local ok, why = M.AH.CanAct()
+    T.falsy(ok, "a request is out")
+    T.eq(why, "busy")
+    AHW.Settle()
+    T.truthy((M.AH.CanAct()), "free again")
+    T.deq(said, { true, false, true }, "told once per turn")
 end)
 
 T.test("nothing_sent_while_closed", function()

@@ -11,6 +11,7 @@
 --       search = false,                     -- true: counts toward SEARCH_PER_MINUTE
 --       timeout = 10,                       -- seconds from sending to the answer
 --       wait = 90,                          -- optional: seconds it may wait in line before it's sent
+--       priority = true,                    -- optional: goes ahead of the ordinary requests waiting
 --       onDone = function(ok, reason) end,
 --   })
 --
@@ -41,6 +42,9 @@
 --   (the send raised: onDone(false, "error"), since it may have reached the
 --   server, e.g. a quote to let go; it returned "answered": onDone(true)).
 --   ns.AH.Busy() = a request is out.
+--   ns.AH.CanAct() -> ok, reason: whether Act would send right now (the same reasons), so a
+--   button can look unclickable exactly when a click would be refused. "LineChanged" fires
+--   whenever that answer may have turned.
 --   ns.AH.Close() asks the game to close the window when it is open.
 --
 -- Only answers to this addon's own messages count: the game's AuctionHouseFrame sends queries of its own (its OnShow
@@ -62,9 +66,9 @@ ns.AH = AH
 AH.SEARCH_PER_MINUTE = 100   -- SendSearchQuery / SendSellSearchQuery: the game's documented limit
 AH.WINDOW = 61               -- seconds that limit counts over, sliding: the documented minute and
                              -- a second's margin (our clock and the server's needn't agree)
-AH.TIMEOUT = 10              -- seconds a request waits for its answer unless it says otherwise
+AH.TIMEOUT = 6               -- seconds a request waits for its answer unless it says otherwise
 AH.RECHECK = 1               -- seconds between looks at a throttle that turned ready with no event
-AH.LATE = 10                 -- seconds a timed-out message of ours may still be answered (holds the line)
+AH.LATE = 4                  -- seconds a timed-out message of ours may still be answered (holds the line)
 
 local EPS = 1e-6
 local isOpen = false
@@ -90,12 +94,17 @@ local function ready()
     return api.IsThrottledMessageSystemReady() == true
 end
 
+-- Tells the pages when a click would now go through, or no longer would.
+local canAct = false
+local notify
+
 -- A request let go while in flight still holds the line (`current`) until
 -- its answer or timeout; this frees it.
 local function release(req)
     if current ~= req then return end
     current = nil
     for event in pairs(req.events) do frame:UnregisterEvent(event) end
+    notify()
 end
 
 local function finish(req, ok, reason, detail)
@@ -157,6 +166,9 @@ local function launch(req)
     sending = true
     local sent = ns.SafeCall(function() result = req.send() end)
     sending = false
+    -- Only now do the pages hear the line is busy: a purchase or post sends inside the
+    -- player's click, and nothing (a footer repaint) should run in that click before it.
+    notify()
     if not sent then
         finish(req, false, "error")
     elseif result == "answered" then
@@ -178,7 +190,7 @@ local function held()
         if left <= EPS then lateOut = nil; return false end
         if not lateTimer then
             lateTimer = true
-            C_Timer.After(left, function() lateTimer = false; pump() end)
+            C_Timer.After(left, function() lateTimer = false; pump(); notify() end)
         end
         return true
     end
@@ -238,7 +250,17 @@ function AH.Request(spec)
         finish(req, false, "closed")
         return false
     end
-    queue[#queue + 1] = req
+    if spec.priority then
+        -- behind the other urgent ones, ahead of everything else waiting
+        req.priority = true
+        local at = #queue + 1
+        for i, queued in ipairs(queue) do
+            if not queued.priority then at = i; break end
+        end
+        table.insert(queue, at, req)
+    else
+        queue[#queue + 1] = req
+    end
     -- A request that may only wait so long for its turn leaves the line then,
     -- unsent: the game's throttle can stay busy for minutes, and a full scan
     -- shouldn't sit on "asking" all that time.
@@ -281,15 +303,28 @@ function AH.Busy()
     return current ~= nil
 end
 
+function AH.CanAct()
+    if not isOpen then return false, "closed" end
+    if current then return false, "busy" end
+    if held() then return false, lateOut and "late" or "busy" end
+    if not ready() then return false, "throttled" end
+    return true
+end
+
+notify = function()
+    local now = AH.CanAct() == true
+    if now == canAct then return end
+    canAct = now
+    ns.Fire("LineChanged", now)
+end
+
 -- Sends now, in the caller's click, or says why not. Never queues.
 function AH.Act(spec)
     if type(spec) ~= "table" or type(spec.send) ~= "function" or type(spec.events) ~= "table" then
         error("ns.AH.Act needs { name =, send = function, events = { EVENT = function } }", 2)
     end
-    if not isOpen then return false, "closed" end
-    if current then return false, "busy" end
-    if held() then return false, lateOut and "late" or "busy" end
-    if not ready() then return false, "throttled" end
+    local can, why = AH.CanAct()
+    if not can then return false, why end
     launch({   -- ended at once (raised, "answered"): onDone has run, still true
         name = spec.name, send = spec.send, events = spec.events, search = false,
         timeout = tonumber(spec.timeout) or AH.TIMEOUT, onDone = spec.onDone,
@@ -349,6 +384,7 @@ ns.RegisterEvent("AUCTION_HOUSE_SHOW", function()
     forgetOut()
     ns.Fire("AHOpened")
     pump()
+    notify()
 end)
 
 -- Everything in flight or waiting fails: its answer won't come, and a scan
@@ -364,6 +400,7 @@ ns.RegisterEvent("AUCTION_HOUSE_CLOSED", function()
     end
     for _, req in ipairs(waiting) do finish(req, false, "closed") end
     forgetOut()
+    notify()
     if was then ns.Fire("AHClosed") end
 end)
 
@@ -375,6 +412,7 @@ ns.RegisterEvent("AUCTION_HOUSE_THROTTLED_MESSAGE_SENT", function()
     local req = current
     if req and not req.finished and (sending or not req.out) then req.out = true end
     pump()
+    notify()
 end)
 
 -- An answer came: the in-flight request's, the one just finished's, or not
@@ -389,13 +427,14 @@ ns.RegisterEvent("AUCTION_HOUSE_THROTTLED_MESSAGE_RESPONSE_RECEIVED", function()
         lateOut = nil
         if not tail then
             tail = true
-            C_Timer.After(0, function() tail = false; pump() end)
+            C_Timer.After(0, function() tail = false; pump(); notify() end)
         end
     end
     pump()
+    notify()
 end)
 
 for _, event in ipairs({ "AUCTION_HOUSE_THROTTLED_SYSTEM_READY", "AUCTION_HOUSE_THROTTLED_MESSAGE_DROPPED",
     "AUCTION_HOUSE_THROTTLED_MESSAGE_QUEUED", "AUCTION_HOUSE_BROWSE_FAILURE" }) do
-    ns.RegisterEvent(event, function() pump() end)
+    ns.RegisterEvent(event, function() pump(); notify() end)
 end
