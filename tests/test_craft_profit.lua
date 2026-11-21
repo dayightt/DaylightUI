@@ -88,6 +88,27 @@ T.test("craft profit: materials, sale, cut and profit per craft", function()
     T.eq(p.why, nil)
 end)
 
+T.test("craft profit: a price seen today wins over the usual one", function()
+    local ns, A = load()
+    price(A, SILK, 50)
+    -- The bolt sold for 600 most of the last week, and 300 today.
+    for d = 1, 6 do A.Store.Record("US-PvE", tostring(BOLT), 600, 20, NOW - d * 86400) end
+    price(A, BOLT, 300)
+    open(ns)
+    local p = ns.Profit.Of(recipe(ns, 102))
+    T.eq(p.value, 300)
+end)
+
+T.test("craft profit: an old sighting falls back to the usual price", function()
+    local ns, A = load()
+    price(A, SILK, 50)
+    for d = 2, 7 do A.Store.Record("US-PvE", tostring(BOLT), 600, 20, NOW - d * 86400) end
+    A.Store.Record("US-PvE", tostring(BOLT), 300, 20, NOW - 86400)
+    open(ns)
+    local p = ns.Profit.Of(recipe(ns, 102))
+    T.eq(p.value, 600)
+end)
+
 T.test("craft profit: a vendor price is learned at a merchant and used", function()
     local ns, A = load()
     price(A, BOLT, 300)
