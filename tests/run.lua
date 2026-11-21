@@ -34,10 +34,27 @@ local function win()
             uint32_t WaitForSingleObject(void *handle, uint32_t ms);
             uint32_t WaitForMultipleObjects(uint32_t count, void *const *handles, int all, uint32_t ms);
             int ReleaseMutex(void *handle);
+            void *GetCurrentProcess(void);
+            int GetProcessTimes(void *process, uint64_t *created, uint64_t *exited, uint64_t *kernel, uint64_t *user);
         ]]
     end
     return winApi
 end
+
+-- CPU seconds this process has used. On Windows os.clock counts wall time, which
+-- grows with whatever else the PC is doing, so ask the system for the real figure.
+local function cpuSeconds()
+    if not WINDOWS then return os.clock() end
+    local ffi = win()
+    local t = ffi.new("uint64_t[4]")
+    ffi.C.GetProcessTimes(ffi.C.GetCurrentProcess(), t, t + 1, t + 2, t + 3)
+    return tonumber(t[2] + t[3]) / 1e7
+end
+
+-- A file over this many CPU seconds fails a --par run. Split a big file, or move
+-- an every-combination sweep into SLOW: one file runs on one core, so the biggest
+-- file sets how long the whole run takes, and slow files crept in unseen before.
+local FILE_BUDGET = 60
 
 if arg and arg[1] == "--worker" then
     local base = arg[2]
@@ -154,17 +171,18 @@ function T.devtest(name, fn) if T.dev then T.test(name, fn) end end
 
 local TEST_FILES = {
     "test_core", "test_db", "test_pixel", "test_motion", "test_barfx", "test_feel", "test_pad", "test_windows", "test_controls_mogul", "test_sound", "test_style", "test_damagetext", "test_combattext", "test_tips", "test_gradients", "test_movers", "test_gamemovers", "test_options", "test_optionsui", "test_options_motion", "test_home_narrow", "test_samplestrip", "test_gamemenu",
-    "test_unitframes", "test_castbar", "test_castfade", "test_swing", "test_strata", "test_auras", "test_player_auras", "test_spots", "test_auragroups", "test_aura_lists", "test_indicators", "test_bg_auras", "test_texts", "test_looks", "test_combo", "test_personal", "test_dots", "test_dots_frames", "test_happiness", "test_colors", "test_portraits", "test_arrive", "test_ribbon", "test_testmode", "test_pagesample", "test_testbox", "test_party", "test_party_pets", "test_party_targets", "test_party_casts", "test_arena", "test_raid", "test_leader", "test_clickcast", "test_ping", "test_group", "test_group_sweep", "test_privateauras", "test_blizzard", "test_units", "test_secrets", "test_actionbars", "test_bars", "test_padskin", "test_gamecode", "test_cdm", "test_cdm_import", "test_cdm_switch", "test_cdm_game", "test_infopanel", "test_meters", "test_tracker", "test_datatexts",
-    "test_buffs_categories", "test_buffs_data", "test_buffs_classify", "test_buffs_spells", "test_buffs_layout", "test_buffs", "test_buffs_reminder", "test_tooltip", "test_tooltip_rich", "test_qol", "test_afk", "test_flight", "test_lootfeed", "test_levelup", "test_zonetitle", "test_repbanner", "test_campfire", "test_nameplates", "test_nameplate_sample", "test_nameplate_more", "test_nameplates_tickets", "test_platefix", "test_worldwatch", "test_skins", "test_rolls", "test_addonskins", "test_chat", "test_profiles", "test_screenfit", "test_release_moves", "test_plugins", "test_api", "test_api_frames", "test_api_promise", "test_api_windows", "test_api_paint", "test_api_castbar", "test_api_unitparts", "test_api_plates", "test_api_bars", "test_api_info", "test_api_more", "test_api_hooks", "test_api_texts", "test_api_quests", "test_api_defaults", "test_installer", "test_tour", "test_welcome", "test_patchnotes", "test_fade", "test_media", "test_bags", "test_bags_shelf", "test_bags_tickets", "test_bags_tipcounts", "test_guards", "test_locked", "test_hostile_bg", "test_hostile_fight", "test_hostile_party", "test_hostile_testmode", "test_quests", "test_quest_progress", "test_questnav", "test_questie_bridge", "test_towns", "test_givertips", "test_journal", "test_character", "test_character_pet", "test_inspect", "test_craft", "test_craft_profit", "test_lfg", "test_mailworld", "test_mail_ledger", "test_mail", "test_mail_ledger_mogul", "test_ah", "test_ah_market", "test_ah_store", "test_ah_items", "test_ah_scan", "test_ah_search", "test_ah_browse", "test_ah_buy", "test_ah_post", "test_ah_tooltip", "test_ah_window", "test_ah_swap_overlay", "test_ah_buypage", "test_ah_sellpage", "test_ah_auctions", "test_social", "test_legacy", "test_npc", "test_npc_trainer", "test_npc_popups", "test_book", "test_book_talents", "test_book_spend", "test_book_spells", "test_book_training", "test_book_fight", "test_ptrbutton", "test_bugreport",
+    "test_unitframes", "test_castbar", "test_castfade", "test_swing", "test_strata", "test_auras", "test_player_auras", "test_spots", "test_auragroups", "test_aura_lists", "test_indicators", "test_bg_auras", "test_texts", "test_looks", "test_combo", "test_personal", "test_dots", "test_dots_frames", "test_happiness", "test_colors", "test_portraits", "test_arrive", "test_ribbon", "test_ribbon_sweep", "test_testmode", "test_pagesample", "test_testbox", "test_party", "test_party_pets", "test_party_targets", "test_party_casts", "test_arena", "test_raid", "test_leader", "test_clickcast", "test_ping", "test_group", "test_group_sweep", "test_privateauras", "test_blizzard", "test_units", "test_secrets", "test_actionbars", "test_bars", "test_padskin", "test_gamecode", "test_cdm", "test_cdm_more", "test_cdm_import", "test_cdm_switch", "test_cdm_game", "test_infopanel", "test_meters", "test_tracker", "test_datatexts",
+    "test_buffs_categories", "test_buffs_data", "test_buffs_classify", "test_buffs_spells", "test_buffs_layout", "test_buffs", "test_buffs_reminder", "test_tooltip", "test_tooltip_rich", "test_qol", "test_afk", "test_flight", "test_lootfeed", "test_levelup", "test_zonetitle", "test_repbanner", "test_campfire", "test_nameplates", "test_nameplate_sample", "test_nameplate_more", "test_nameplates_tickets", "test_platefix", "test_worldwatch", "test_skins", "test_rolls", "test_addonskins", "test_chat", "test_profiles", "test_screenfit", "test_release_moves", "test_plugins", "test_api", "test_api_frames", "test_api_promise", "test_api_windows", "test_api_paint", "test_api_castbar", "test_api_unitparts", "test_api_plates", "test_api_bars", "test_api_info", "test_api_more", "test_api_hooks", "test_api_texts", "test_api_quests", "test_api_defaults", "test_installer", "test_tour", "test_welcome", "test_patchnotes", "test_fade", "test_media", "test_bags", "test_bags_more", "test_bags_views", "test_bags_shelf", "test_bags_tickets", "test_bags_tipcounts", "test_guards", "test_locked", "test_hostile_bg", "test_hostile_fight", "test_hostile_party", "test_hostile_testmode", "test_quests", "test_quest_progress", "test_questnav", "test_questie_bridge", "test_towns", "test_givertips", "test_journal", "test_character", "test_character_pet", "test_inspect", "test_craft", "test_craft_profit", "test_lfg", "test_mailworld", "test_mail_ledger", "test_mail", "test_mail_ledger_mogul", "test_ah", "test_ah_market", "test_ah_store", "test_ah_items", "test_ah_scan", "test_ah_search", "test_ah_browse", "test_ah_buy", "test_ah_post", "test_ah_tooltip", "test_ah_window", "test_ah_swap_overlay", "test_ah_buypage", "test_ah_sellpage", "test_ah_auctions", "test_social", "test_legacy", "test_npc", "test_npc_trainer", "test_npc_popups", "test_book", "test_book_talents", "test_book_spend", "test_book_spells", "test_book_training", "test_book_fight", "test_ptrbutton", "test_bugreport",
     "test_stub_reuse", "test_mogul_contract", "test_lag", "test_locale", "test_dev", "test_hygiene",
 }
 if T.docs then TEST_FILES[#TEST_FILES + 1] = "test_docs" end
 
--- Slow files: every-combination sweeps (group frames; every setting and event
--- in a battleground, a fight, a keystone, test mode), over half the suite's
--- time. Skipped by a plain run and by --par; included by --all, or when named.
+-- Slow files: every-combination sweeps (group frames; every option of the frame
+-- styles; every setting and event in a battleground, a fight, a keystone, test
+-- mode), over half the suite's time. Skipped by a plain run and by --par;
+-- included by --all, or when named.
 local SLOW = { test_group = true, test_group_sweep = true, test_hostile_bg = true, test_hostile_fight = true,
-               test_hostile_party = true, test_hostile_testmode = true }
+               test_hostile_party = true, test_hostile_testmode = true, test_ribbon_sweep = true }
 
 local filter, all, par, one, only
 for _, a in ipairs(arg or {}) do
@@ -254,6 +272,7 @@ if par then
         if fh then fh:close() end
         os.remove(base .. "." .. job.file .. ".out")
         local p, f = string.match(out, "(%d+) passed, (%d+) failed")
+        job.cpu = tonumber(string.match(out, "\ncpu ([%d%.]+)")) or 0
         if not p then
             failed = failed + 1
             failures[#failures + 1] = job.file .. ": no result\n" .. out
@@ -267,7 +286,21 @@ if par then
             end
         end
     end
+    local total, byCpu = 0, {}
+    for i, job in ipairs(jobs) do
+        total, byCpu[i] = total + job.cpu, job
+        if job.cpu > FILE_BUDGET and not SLOW[job.file] then
+            failed = failed + 1
+            failLines[#failLines + 1] = string.format(
+                "FAIL %s took %.0f CPU s, over the %d s a file may take: split it, or move its sweep into SLOW\n",
+                job.file, job.cpu, FILE_BUDGET)
+        end
+    end
+    table.sort(byCpu, function(a, b) return a.cpu > b.cpu end)
+    local top = {}
+    for i = 1, math.min(5, #byCpu) do top[i] = string.format("%s %.0f", byCpu[i].file, byCpu[i].cpu) end
     for _, f in ipairs(failures) do io.write("--- ", f, "\n\n") end
+    io.write(string.format("CPU %.0f s in all; slowest files: %s\n", total, table.concat(top, ", ")))
     for _, line in ipairs(failLines) do io.write(line) end
     if #skippedSlow > 0 then io.write("(the ", #skippedSlow, " slow sweeps skipped: --par --all runs them)\n") end
     io.write(string.format("%d passed, %d failed (%d files, in parallel)\n", passed, failed, #jobs))
@@ -320,6 +353,7 @@ for _, file in ipairs(TEST_FILES) do
 end
 
 io.write(string.format("\n%d passed, %d failed\n", passed, failed))
+if one then io.write(string.format("cpu %.1f\n", cpuSeconds())) end
 if #skipped > 0 then io.write("skipped slow: ", table.concat(skipped, ", "), " (run with --par --all)\n") end
 for _, f in ipairs(failures) do io.write("\n--- ", f, "\n") end
 os.exit(failed == 0 and 0 or 1)

@@ -49,7 +49,7 @@ ALWAYS_LUA = ["test_hygiene", "test_guards"]
 # only runs for a change to the text itself.
 LOCALE_WORDS = re.compile(r"\bL\[")
 SLOW = {"test_group", "test_group_sweep", "test_hostile_bg", "test_hostile_fight", "test_hostile_party",
-        "test_hostile_testmode"}
+        "test_hostile_testmode", "test_ribbon_sweep"}
 # A test loading this many modules is about the whole UI, not any one area, so
 # it's left to the whole suite (test_options, test_installer, test_lag...).
 BROAD = 3
