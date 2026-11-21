@@ -195,7 +195,11 @@ function Follow.Away(def, kind)
     if f:GetParent() ~= homeOf(def, kind) then return true end
     local scale = f:GetScale()
     if plain(scale) and scale < Follow.SHRUNK then return true end
-    local _, _, _, x, y = f:GetPoint(1)
+    -- Only an offset from the screen counts: one from another frame is in the
+    -- parked frame's own units, which under the aside holder are a thousand times
+    -- larger (the profession window pinned to Daylight UI's).
+    local _, rel, _, x, y = f:GetPoint(1)
+    if rel ~= nil and rel ~= UIParent then return false end
     return (plain(x) and math.abs(x) >= Follow.AWAY) or (plain(y) and math.abs(y) >= Follow.AWAY) or false
 end
 -- Where the game placed g's top-left corner, as offsets from UIParent's top

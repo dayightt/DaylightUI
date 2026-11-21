@@ -1,7 +1,7 @@
 -- Small read-only window for someone else's profession, opened from a linked
 -- profession or a guild member. One column: owner and skill, a search, and their
 -- recipes by category with materials. No crafting, tabs or spells. The game's frame
--- stays parked under the veil like for the player's own (Window.lua), so closing one
+-- stays parked aside like for the player's own (Window.lua), so closing one
 -- closes the other; both read the same trade skill, so only one shows at a time.
 
 local _, DUI = ...

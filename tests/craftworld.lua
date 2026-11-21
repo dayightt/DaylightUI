@@ -257,7 +257,7 @@ local function install()
         end
     end
     stub.onReset[#stub.onReset + 1] = function() stub.CastSpell = nil end
-    _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); f:Show() end
+    _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); stub.PlacePanel(f); f:Show() end
     -- The game's rule (UIParentPanelManager.lua) checks CheckProtectedFunctionsAllowed,
     -- so from addon code in combat it does nothing.
     _G.HideUIPanel = function(f)

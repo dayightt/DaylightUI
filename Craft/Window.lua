@@ -1,7 +1,7 @@
 -- Profession window. The game still runs the trade skill: casting a profession spell
 -- opens it (TRADE_SKILL_SHOW), Forever's ProfessionsFrame shows, and its OnHide closes
--- the trade skill (C_TradeSkillUI.CloseTradeSkill). That frame is parked under the
--- kit's veil (Win.Follow) so all of it keeps running, and this window shows in its
+-- the trade skill (C_TradeSkillUI.CloseTradeSkill). That frame is held aside by the
+-- kit (Win.Follow) so all of it keeps running, and this window shows in its
 -- place and closes with it.
 --
 -- The game's all-professions overview (BookPage, inside the same frame on Forever) is
@@ -372,14 +372,14 @@ end
 -- Open, close, follow the game's frame
 
 -- Dragged position (header, Win.Drag, saved per profile in the module's `spot`), else
--- the game's own spot: anchored to the top-left of its veiled window, the left panel spot.
+-- the game's own spot, read from its parked window's anchor: the left panel spot.
 local function spot()
     local s = ns.module and ns.module.db and ns.module.db.spot
     if type(s) == "table" and type(s[1]) == "number" and type(s[2]) == "number" then return s end
     return nil
 end
 
--- While this window is open the game's veiled window sits with its top right just
+-- While this window is open the game's parked window sits with its top right just
 -- above it. Other addons pin buttons inside its top-right corner (ItemTree's View,
 -- TradeSkillMaster's switch) and only check whether it's shown, so otherwise they'd
 -- float alone at the game's spot. This way they sit on this window's top edge.
@@ -408,11 +408,8 @@ function Craft.Pin(_, g)
     if rel == f and y == lift then return end
     if not pinnedTo(g) then Craft.home = nil end   -- the game placed it, so its spot changed
     if Craft.home == nil then
-        local l, t = g:GetLeft(), g:GetTop()
-        if type(l) == "number" and type(t) == "number" then
-            local k = g:GetEffectiveScale() / UIParent:GetEffectiveScale()
-            Craft.home = { l * k, t * k }
-        end
+        local x, y = Win.Followers.Home(g)
+        if x then Craft.home = { x, y } end
     end
     g:ClearAllPoints()
     g:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, lift)
@@ -440,17 +437,13 @@ local function place(f)
         Win.PlaceTop(f, s[1], s[2])
     else
         if g and not pinnedTo(g) then
-            local l, t = g:GetLeft(), g:GetTop()
-            if type(l) == "number" and type(t) == "number" then
-                local k = g:GetEffectiveScale() / UIParent:GetEffectiveScale()
-                Craft.home = { l * k, t * k }
-            end
+            local x, y = Win.Followers.Home(g)
+            if x then Craft.home = { x, y } end
         end
         f:ClearAllPoints()
         local h = Craft.home
         if h then
-            local k = UIParent:GetEffectiveScale() / f:GetEffectiveScale()
-            f:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", h[1] * k, h[2] * k)
+            f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", h[1] / f:GetScale(), h[2] / f:GetScale())
         else
             f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116)
         end
@@ -572,8 +565,8 @@ function Craft.GiveAway()
     Win.Followers.Unpark(Craft.follow, "craft")
 end
 
--- Switched back: an open game window showing the player's own recipes goes under the
--- veil again, and the follower's next look opens this one in its place.
+-- Switched back: an open game window showing the player's own recipes is held
+-- aside again, and the follower's next look opens this one in its place.
 function Craft.TakeBack()
     local g = Craft.Game()
     if not (Craft.follow and g and g:IsShown()) or Win.Followers.Parked(Craft.follow, "craft") then return end
@@ -912,7 +905,7 @@ function Craft.Build(mod)
     end)
     -- No width: the game sizes its profession window itself for each page and
     -- reads that, so resizing it here would only fight the game.
-    Craft.follow = Win.Follow({ key = "craft", frames = { craft = Craft.Game }, veil = { craft = true },
+    Craft.follow = Win.Follow({ key = "craft", frames = { craft = Craft.Game }, aside = { craft = true },
         changed = Craft.Changed, pin = Craft.Pin, leave = function() return not DUI.craftOwnWindow end })
     Craft.Apply()
     return f
