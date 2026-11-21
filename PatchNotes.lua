@@ -29,7 +29,7 @@ DUI.PatchNotes = {
         { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under, so prices stop creeping down" },
         { "Professions", "Recipe profit counts everything one craft makes, at today's Auction House price when it was seen today" },
         { "Tooltips", "Rich tooltips give other addons' lines their own headings, show the full card in fights, and put a player's level beside their name" },
-        { "General", "The UI scale reads like 0.71x and lands exactly on your screen's sharpest scale. The new size comes in once you let go" },
+        { "General", "The UI scale slider takes exact numbers and snaps to the sharpest size for your screen" },
         { "Loot", "The loot rolls switch works like every other switch again: on is Daylight UI's roll window, off the game's popups" },
         { "Languages", "Better Simplified Chinese thanks to Levis, and Spanish fixes thanks to Ángel" },
     }, fixed = {
