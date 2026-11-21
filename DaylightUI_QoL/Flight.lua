@@ -344,9 +344,8 @@ local function build()
 
     -- Land at the next stop: the game's own early landing, the one its
     -- leave-vehicle button asks for in flight, with the game's own words.
-    f.leave = DUI.Widgets.IconButton(f.box, "ui-leave.png", TAXI_CANCEL or L["Exit flight"],
-        function() Flight.LandEarly() end, nil,
-        TAXI_CANCEL_DESCRIPTION or L["You will land at the next flight point."])
+    f.leave = DUI.Widgets.IconButton(f.box, "ui-leave.png", Flight.LeaveTip,
+        function() Flight.LandEarly() end)
     f.leave:SetFrameLevel(f:GetFrameLevel() + 10)
     f.leave:SetPoint("TOPRIGHT", f.box, "TOPRIGHT", -Flight.LEAVE_INSET, -Flight.LEAVE_INSET)
     f.leave.vis = 0
@@ -821,6 +820,22 @@ function Flight.OnEarly()
     end
     remember()
     Flight.Update()
+end
+
+-- The name of the stop an early landing would set you down at, or nil when
+-- the map didn't say (no stops known, no time to place them, none left).
+function Flight.NextStopName()
+    if not (flight and flight.total and flight.total > 0) then return nil end
+    local _, i = nextStop((GetTime() - flight.start) / flight.total, flight.stops)
+    local name = i and flight.names and flight.names[i]
+    if type(name) == "string" and name ~= "" then return Flight.ShortName(name) end
+end
+
+-- The land-early button's tooltip: where you'd get off, when that's known.
+function Flight.LeaveTip()
+    local name = Flight.NextStopName()
+    if name then return L["Get off at %s"]:format(name), false end
+    return TAXI_CANCEL or L["Exit flight"], TAXI_CANCEL_DESCRIPTION or L["You will land at the next flight point."]
 end
 
 -- The banner's button.

@@ -145,6 +145,7 @@ T.test("flight: the land-early button heads for the next stop", function()
     settle()
     local box = bar().f
     T.truthy(box.leave:IsShown(), "shown with a stop ahead")
+    T.eq(F.LeaveTip(), "Get off at Ironforge", "its tooltip names the next stop")
     stub.Advance(20)
     F.Tick()
     box.leave:GetScript("OnClick")(box.leave, "LeftButton")
