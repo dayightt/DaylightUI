@@ -1313,7 +1313,7 @@ Options.RegisterPage({
         } },
         { label = "Size", items = {
             { type = "slider", label = "UI scale", min = DUI.Pixel.SCALE_MIN, max = DUI.Pixel.SCALE_MAX, step = 0.01,
-              unit = "%", since = "1.7.4", onRelease = true,
+              unit = "x", free = true, snapTo = function() return DUI.Pixel.perfect end, since = "1.7.4", onRelease = true,
               get = function() return DUI.Pixel.UIScale() or UIParent:GetScale() end,
               set = function(v) DUI.Pixel.SetUIScale(v) end,
               default = function() return DUI.Pixel.GameScale() or UIParent:GetScale() end,

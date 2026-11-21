@@ -2396,7 +2396,11 @@ end
 function W.FormatValue(item, v)
     if item.unit == "%" then return string.format("%d%%", math.floor(v * 100 + 0.5)) end
     if item.unit == "px" then return string.format("%d px", math.floor(v + 0.5)) end
-    if item.unit == "x" then return string.format("%.2fx", v) end
+    if item.unit == "x" then
+        -- Two decimals, more only when the value has them (a pixel-perfect 0.7111).
+        local t = string.format("%.4f", v):gsub("(%.%d%d%d-)0+$", "%1")
+        return t .. "x"
+    end
     if (item.step or 1) < 1 then return string.format("%.2f", v) end
     return tostring(math.floor(v + 0.5))
 end
@@ -2407,12 +2411,29 @@ function W.ParseValue(item, text)
     local n = tonumber((string.gsub(text or "", "[^%d%.%-]", "")))
     if not n then return nil end
     if item.unit == "%" then n = n / 100 end
+    -- "71" on a scale that tops out at 1.15x is a percent, as it was when this
+    -- slider showed whole percents.
+    if item.free and item.unit == "x" and item.max and n > item.max then n = n / 100 end
     return n
 end
 
+-- item.snapTo: a value (or a function giving one) that pulls in what lands
+-- within half a step of it, for a number off the step's grid that matters (the
+-- UI scale where one UI unit is exactly one screen pixel).
 function W.SnapValue(item, v)
     local step = item.step or 1
     v = math.floor((v - item.min) / step + 0.5) * step + item.min
+    local to = item.snapTo
+    if type(to) == "function" then to = to() end
+    if type(to) == "number" and math.abs(v - to) <= step / 2 then v = to end
+    v = math.max(item.min, math.min(item.max, v))
+    return tonumber(string.format("%.4f", v))
+end
+
+-- What was typed into a slider's box. Normally it lands on the step's grid like
+-- a drag; item.free keeps it as typed (to four decimals), inside the range.
+function W.TypedValue(item, v)
+    if not item.free then return W.SnapValue(item, v) end
     v = math.max(item.min, math.min(item.max, v))
     return tonumber(string.format("%.4f", v))
 end
@@ -2559,7 +2580,9 @@ end
 
 -- A slider on any frame: thin accent track, knob that grows on hover, and a
 -- value box you can type into ("35%" on a percent slider is 0.35).
--- spec: min, max, step?, unit? ("%", "px", "x"), width?, get(), set(v),
+-- spec: min, max, step?, unit? ("%", "px", "x"), snapTo? (a value, or a
+-- function giving one, that a drag within half a step of it lands on), free?
+-- (a typed number is kept as typed, not rounded to the step), width?, get(), set(v),
 -- preview(v)? (return true if a drag step was previewed; set is then called
 -- once on release), disabled()?. f.Refresh() shows get()'s value, sliding
 -- there FAST if it changed from elsewhere.
@@ -2665,7 +2688,7 @@ function W.Slider(parent, spec)
     box:SetScript("OnEnterPressed", function(self)
         local v = W.ParseValue(item, self:GetText())
         self:ClearFocus()
-        if v and not off() then spec.set(W.SnapValue(item, v)) end
+        if v and not off() then spec.set(W.TypedValue(item, v)) end
         f.Refresh()
     end)
     box:SetScript("OnEscapePressed", function(self)
@@ -2679,7 +2702,7 @@ end
 
 -- An options row's slider: W.Slider bound to the page's setting.
 function W.slider(row, page, item)
-    local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit,
+    local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit, snapTo = item.snapTo, free = item.free,
         get = function() return Options.Get(page, item) end,
         set = function(v) Options.Set(page, item, v) end,
         preview = function(v) return Options.Preview(page, item, v) end,
