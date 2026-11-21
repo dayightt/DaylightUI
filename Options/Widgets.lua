@@ -2584,7 +2584,8 @@ end
 -- function giving one, that a drag within half a step of it lands on), free?
 -- (a typed number is kept as typed, not rounded to the step), width?, get(), set(v),
 -- preview(v)? (return true if a drag step was previewed; set is then called
--- once on release), disabled()?. f.Refresh() shows get()'s value, sliding
+-- once on release), onRelease? (every change by hand is held and set just
+-- after release, the UI scale), disabled()?. f.Refresh() shows get()'s value, sliding
 -- there FAST if it changed from elsewhere.
 function W.Slider(parent, spec)
     local item = spec
@@ -2611,14 +2612,19 @@ function W.Slider(parent, spec)
     s.track, s.fill = look.track, look.fill
     -- On a page with a preview, drag steps only redraw the preview
     -- (spec.preview). The value is saved once, on release.
+    -- spec.onRelease (the UI scale) holds every change by hand until then, a
+    -- click on the track too, and saves a moment after the release: rescaling
+    -- the interface under a held slider pulls it away from the cursor, and the
+    -- drag then runs off in big jumps.
     local quiet
-    local function save()
+    local function save(later)
         local v = quiet
         quiet = nil
-        if v ~= nil then spec.set(v) end
+        if v == nil then return end
+        if later then C_Timer.After(0, function() spec.set(v) end) else spec.set(v) end
     end
-    s:HookScript("OnMouseUp", save)
-    s:HookScript("OnHide", save)
+    s:HookScript("OnMouseUp", function() save(spec.onRelease) end)
+    s:HookScript("OnHide", function() save(false) end)
     -- While one is held, the window refreshes at a steady pace, not at every step (Panel's refreshIfShown).
     s:HookScript("OnMouseDown", function() Options.sliderHeld = true end)
     s:HookScript("OnMouseUp", function() Options.sliderHeld = false; DUI.FlushHeldStyle() end)
@@ -2671,8 +2677,10 @@ function W.Slider(parent, spec)
         shownV = v
         paintFill(v)
         box:SetText(W.FormatValue(item, v))
-        if get() == v then return end
-        if look.held and spec.preview and spec.preview(v) then
+        -- Dragged back to where it started: the held value must follow, or the
+        -- release saves the last spot it passed.
+        if get() == v and quiet == nil then return end
+        if (look.held or spec.onRelease) and spec.preview and spec.preview(v) then
             quiet = v
         else
             spec.set(v)
@@ -2703,6 +2711,7 @@ end
 -- An options row's slider: W.Slider bound to the page's setting.
 function W.slider(row, page, item)
     local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit, snapTo = item.snapTo, free = item.free,
+        onRelease = item.onRelease,
         get = function() return Options.Get(page, item) end,
         set = function(v) Options.Set(page, item, v) end,
         preview = function(v) return Options.Preview(page, item, v) end,

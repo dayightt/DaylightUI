@@ -372,6 +372,42 @@ T.test("sliders snap, show units and take typed values", function()
     T.near(W.SnapValue({ min = 0.4, max = 1.15, step = 0.01 }, 0.71), 0.71, 1e-9, "no snapTo: the grid")
 end)
 
+-- Rescaling the whole interface under a held slider moved the slider away
+-- from the cursor, so one drag ran the scale off in big jumps.
+T.test("the UI scale slider changes the scale once, after the mouse is let go", function()
+    local DUI, pf = open("appearance")
+    local row
+    for _, card in ipairs(pf.cards) do
+        for _, r in ipairs(card.rows) do
+            if r.item and r.item.label == "UI scale" then row = r end
+        end
+    end
+    T.truthy(row, "the UI scale row")
+    local s = row.control.slider
+    local before = UIParent:GetScale()
+    -- A click on the track moves the value before the press is seen.
+    s:GetScript("OnValueChanged")(s, 0.9, true)
+    T.eq(UIParent:GetScale(), before, "a click on the track waits for the release")
+    s:GetScript("OnMouseDown")(s, "LeftButton")
+    s:GetScript("OnValueChanged")(s, 0.8, true)
+    s:GetScript("OnValueChanged")(s, 0.7, true)
+    T.eq(UIParent:GetScale(), before, "nothing changes while it's held")
+    T.eq(row.control.box:GetText(), "0.70x", "the number follows the knob")
+    s:GetScript("OnMouseUp")(s, "LeftButton")
+    T.eq(UIParent:GetScale(), before, "not inside the release itself")
+    stub.RunTimers()
+    T.near(UIParent:GetScale(), 0.7, 1e-4, "the next moment, once")
+    T.near(DUI.Pixel.UIScale(), 0.7, 1e-4, "saved")
+    -- Dragged away and back: nothing changes.
+    s:GetScript("OnMouseDown")(s, "LeftButton")
+    s:GetScript("OnValueChanged")(s, 0.9, true)
+    s:GetScript("OnValueChanged")(s, 0.7, true)
+    s:GetScript("OnMouseUp")(s, "LeftButton")
+    stub.RunTimers()
+    T.near(UIParent:GetScale(), 0.7, 1e-4, "back where it started")
+    T.eq(#stub.errors, 0)
+end)
+
 T.test("W.Slider: the same slider on any frame, through get and set", function()
     local DUI = open("appearance")
     local W = DUI.Widgets
