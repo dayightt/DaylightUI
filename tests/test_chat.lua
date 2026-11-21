@@ -985,6 +985,26 @@ T.test("chat: speech bubbles can be turned off, and turning them off hands shown
     T.eq(art2:GetAlpha(), 1)
 end)
 
+T.test("chat: the bubble size slider resizes bubbles without re-fonting the chat", function()
+    local DUI = login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1 = makeBubble("Hi")
+    stub.SetBubbles({ b1 })
+    stub.FireEvent("CHAT_MSG_SAY")
+    stub.RunTimers()
+    -- Re-fonting a chat window reflows its whole history: a hitch on every slider step.
+    local refreshed = 0
+    local Chat = stub.chatModule.Chat
+    local real = Chat.Refresh
+    Chat.Refresh = function(...) refreshed = refreshed + 1; return real(...) end
+    DUI:Set("Chat", "bubbleSize", 18)
+    stub.Advance(1)
+    stub.RunTimers()
+    Chat.Refresh = real
+    T.eq(refreshed, 0, "the chat left alone")
+    T.eq(select(2, Bubbles.OverlayOf(b1).text:GetFont()), 18, "the shown bubble takes the new size")
+end)
+
 T.test("chat: history is saved at logout, newest lines only, secret and combat log lines left out", function()
     local DUI = login()
     DaylightUI:Set("Chat", "historyLines", 20)
