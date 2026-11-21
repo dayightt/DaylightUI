@@ -474,23 +474,24 @@ T.test("quests: elite, dungeon, raid and PvP quests get a tag after their title"
     T.eq(ns.DEFAULTS.questTags, true, "on by default")
     local tag = frames["quest:2"].lines.title.tag
     T.eq(tag:IsShown(), true)
-    T.eq(tag.text:GetText(), string.upper(string.sub(ELITE or "Elite", 1, 1)), "the first letter")
+    T.eq(ns.DEFAULTS.tagLetter, false, "the whole word by default")
+    T.eq(tag.text:GetText(), string.upper(ELITE or "Elite"), "the whole word")
     T.rgb(tag.text.__textColor, look.c.elite)
     local sl = DaylightUI.Style.GetSlant(tag)
     T.eq(sl and sl.side, "both", "a slanted box, not a pill")
     T.eq(sl.under, "left", "leaning like the loot feed's rows")
     local dng = frames["quest:3"].lines.title.tag
-    T.eq(dng.text:GetText(), string.upper(string.sub(CALENDAR_TYPE_DUNGEON or "Dungeon", 1, 1)))
+    T.eq(dng.text:GetText(), string.upper(CALENDAR_TYPE_DUNGEON or "Dungeon"))
     T.rgb(dng.text.__textColor, look.c.dungeon)
     T.eq(frames["quest:1"].lines.title.tag:IsShown(), false)
     T.eq(frames["quest:7"].lines.title.tag:IsShown(), false, "a tag we don't show")
 end)
 
--- Seen in game: in a narrow tracker "MAZMORRA" sat glued to the end of a title. A tag
--- is its first letter, except a word that short already (JcJ, PvP).
-T.test("quests: a tag shows its first letter, and a word of three letters or less whole", function()
+-- Seen in game: in a narrow tracker "MAZMORRA" sat glued to the end of a title. With
+-- Short quest tags on, a tag is its first letter, except a word that short already (JcJ, PvP).
+T.test("quests: a short tag shows its first letter, and a word of three letters or less whole", function()
     local DNG, PVP = QW.quest(3, "Red Silk Bandanas", { tagID = 81 }), QW.quest(5, "Warsong Mark", { tagID = 41 })
-    local frames, ns, look = painted({ quests = { DNG, PVP } }, { tags = true })
+    local frames, ns, look = painted({ quests = { DNG, PVP } }, { tags = true }, function(db) db.tagLetter = true end)
     local d = frames["quest:3"].lines.title.tag
     T.eq(d.text:GetText(), string.upper(string.sub(CALENDAR_TYPE_DUNGEON or "Dungeon", 1, 1)), "the first letter")
     T.rgb(d.text.__textColor, look.c.dungeon, "in its own color")
@@ -503,6 +504,9 @@ T.test("quests: a tag shows its first letter, and a word of three letters or les
     local L = ns.Layout
     T.eq(L.TitleRoom(226, "dungeon"), 226 - L.TITLE_X - L.TagRoom("dungeon"), "the title's room")
     T.truthy(L.TitleRoom(226, "dungeon") > 226 - L.TITLE_X - 66, "more than the old whole-word reserve")
+    T.eq(ns.Look.TagWord("dungeon", true), string.upper(CALENDAR_TYPE_DUNGEON or "Dungeon"), "the journal keeps it whole")
+    DaylightUI:Set("Quests", "tagLetter", false)
+    T.eq(ns.Look.TagWord("elite"), string.upper(ELITE or "Elite"), "off: the whole word again")
 end)
 
 T.test("quests rows: a quest's title, icon and objectives", function()

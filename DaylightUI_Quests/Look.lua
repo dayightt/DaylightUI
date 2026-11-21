@@ -154,14 +154,15 @@ local function number(v)
 end
 Look.Number = number
 
--- The word on a tag: its first letter (M for Mazmorra, E for Élite), so it never
--- crowds a quest's title in a narrow tracker; a word that short already (JcJ,
--- PvP) stays whole, since a single letter would tell less than it does. The
--- journal has the room and keeps every word whole.
+-- The word on a tag. With tagLetter on, the tracker shows only its first letter
+-- (M for Mazmorra, E for Élite), so it never crowds a title in a narrow tracker;
+-- a word that short already (JcJ, PvP) stays whole, since a single letter would
+-- tell less. The journal has the room and keeps every word whole.
 Look.TAG_WHOLE = 3   -- letters up to which the whole word is kept
 function Look.TagWord(kind, whole)
     local word = kind and Look.TAG_WORDS[kind]
     if not word then return nil end
+    if whole == nil then whole = DUI:Get("Quests", "tagLetter") ~= true end
     local text = DUI.Style.Upper(word())
     local _, letters = text:gsub("[^\128-\191]", "")
     if not whole and letters > Look.TAG_WHOLE then text = text:match("^[%z\1-\127\194-\244][\128-\191]*") or text end

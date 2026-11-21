@@ -13,8 +13,12 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Cooldown Manager", "Poisons, sharpening stones, oils and shaman weapon imbues can go in your Cooldown Manager, with their time left and charges, and a glow when they wear off" },
+        { "Cooldown Manager", "Your power bar can go in your Cooldown Manager, lined up with your cooldowns, with all its usual looks and options" },
         { "Leader tools", "A slim, smaller leader tools card without the titles. Switch it with the arrow in its top right corner" },
+        { "Quests", "Short quest tags: the tracker's dungeon, elite and raid tags can show just their first letter, leaving long titles more room" },
     }, fixed = {
+        { "Quests", "A quest's dungeon or elite tag no longer sits squashed against the end of its title in a narrow tracker" },
+        { "Loot rolls", "Long item names, roll buttons and the result line on loot roll cards fit in every language instead of being cut off" },
         { "Little touches", "The raid marker icons show in the right-click marker menu again, instead of dark empty boxes" },
         { "Unit frames", "The slanted level tag on set-in portraits stays put with a cast bar under the frame, instead of turning into a round badge" },
         { "Tooltips", "Prices from TradeSkillMaster, Disenchantry and other addons show as coins again on Rich tooltips, instead of stray letters and numbers" },

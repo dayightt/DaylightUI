@@ -24,6 +24,7 @@ ns.DEFAULTS = {
     capsTitles = false,
     questLevels = false,      -- "[15] Title" in the tracker
     questTags = true,         -- small tag after an elite, dungeon, raid or PvP quest's title
+    tagLetter = false,        -- the tracker's tags show only their first letter
     questParty = true,        -- party members on a quest, at the end of its line
     hideDone = false,
     filter = "all",           -- all (tracked) | zone | log (every quest in the log, without adding watches)
