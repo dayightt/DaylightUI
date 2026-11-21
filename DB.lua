@@ -831,11 +831,13 @@ DB.Fill = fill
 
 -- Where every new standard setup starts on top of the defaults: the info
 -- panel closed (its tab opens the meter), the chat floating (only its
--- lines show) and the bars moving in Flow (BarFx.HOMES). The account's first
--- profile and every ready-made one built clean (Profiles.ReadyData) use it.
+-- lines show), the micro menu in the bottom-right corner and the bars moving
+-- in Flow (BarFx.HOMES). The account's first profile and every ready-made one
+-- built clean (Profiles.ReadyData) use it.
 function DB.StandardStart()
     local t = { InfoPanel = { meter = { enabled = false } },
-                Chat = { hides = "always" } }
+                Chat = { hides = "always" },
+                ActionBars = { microMenu = "shown", microMenuCorner = true } }
     if DUI.BarFx then DUI.BarFx.StartIn(t, DUI.BarFx.ASK_STYLE) end
     return t
 end

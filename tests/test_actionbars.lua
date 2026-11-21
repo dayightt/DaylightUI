@@ -684,7 +684,8 @@ T.test("action bars: the small bars cap the center bars, smaller", function()
 end)
 
 T.test("action bars: the bag bar and micro menu are parked, not destroyed", function()
-    login()
+    local DUI = login()
+    DUI:Set("ActionBars", "microMenu", "hidden") -- a new profile shows it
     T.eq(BagsBar:GetParent(), stub.actionbars.Hide.parent)
     T.eq(MicroMenuContainer:GetParent(), stub.actionbars.Hide.parent)
 end)
@@ -1522,6 +1523,7 @@ end)
 
 T.test("action bars: the bag bar and micro menu can be shown, faded, and hidden again", function()
     local DUI = login()
+    DUI:Set("ActionBars", "microMenu", "hidden") -- a new profile shows it
     local Fade, Hide = DUI.Fade, stub.actionbars.Hide
     local function settle() Fade.Step(); for _ = 1, 120 do stub.RunOnUpdate(Fade.driver, 1 / 60) end end
     DUI:Set("ActionBars", "bagBar", "shown")
@@ -1555,7 +1557,8 @@ T.test("action bars: a hidden micro menu stays hidden when the game hands it aro
         _G.FullScreenThing = fs
     end })
     local Hide = stub.actionbars.Hide
-    T.eq(MicroMenu:GetParent(), Hide.parent, "hidden by default")
+    DUI:Set("ActionBars", "microMenu", "hidden")
+    T.eq(MicroMenu:GetParent(), Hide.parent, "hidden")
     MicroMenuBar_SetFullScreenFrame(FullScreenThing)
     T.eq(MicroMenu:GetParent(), Hide.parent, "not on the full-screen window")
     MicroMenuBar_ClearFullScreenFrame()
@@ -1577,7 +1580,8 @@ T.test("action bars: a hidden micro menu stays hidden on a vehicle's bar", funct
         _G.UpdateMicroButtons = function() end
     end })
     local Hide = stub.actionbars.Hide
-    T.eq(MicroMenu:GetParent(), Hide.parent, "hidden by default")
+    DUI:Set("ActionBars", "microMenu", "hidden")
+    T.eq(MicroMenu:GetParent(), Hide.parent, "hidden")
     MicroMenu:SetParent(OverrideActionBar)
     UpdateMicroButtons()
     stub.RunTimers()
@@ -1592,6 +1596,7 @@ end)
 
 T.test("action bars: the shown bag bar and micro menu move in unlock mode and stay put", function()
     local DUI = login()
+    DUI:Set("ActionBars", "microMenu", "hidden") -- a new profile shows it
     BagsBar:SetPoint("BOTTOMRIGHT", UIParent, "BOTTOMRIGHT", -10, 10)
     DUI:Set("ActionBars", "bagBar", "shown")
     DUI.Movers.Unlock()

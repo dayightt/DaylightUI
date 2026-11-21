@@ -514,19 +514,16 @@ end
 
 Profiles.PRESETS = {
     -- The standard profile itself (DB.DEFAULT), always present, with the standard
-    -- Edit Mode layout "DaylightUI - DPS/Tank" and the micro menu in the
-    -- bottom-right corner.
+    -- Edit Mode layout "DaylightUI - DPS/Tank". The micro menu in the corner
+    -- comes from DB.StandardStart, like every new profile.
     ["DPS/Tank"] = {
-        ActionBars = { microMenu = "shown", microMenuCorner = true },
         UnitFrames = {},
     },
     -- A starting point for healers, built only from ordinary Party and Raid
     -- settings (anything here can be set by hand on those pages): the group as
     -- square tiles in a row under you, you included, with missing health shown and
-    -- dispels easy to see, and a raid as the same tiles in columns. Micro menu
-    -- as in DPS/Tank.
+    -- dispels easy to see, and a raid as the same tiles in columns.
     Healer = {
-        ActionBars = { microMenu = "shown", microMenuCorner = true },
         UnitFrames = {
             party = { width = 60, height = 56, spacing = 4, groupSpacing = 4, direction = "rows", perLine = 5,
                       hideSelf = false, portrait = "none", nameOnBar = true, slant = false,
@@ -552,7 +549,7 @@ Profiles.PRESETS = {
     -- raids, battlegrounds and arenas.
     ["Immersive Preset"] = {
         ActionBars = {
-            microMenu = "shown", microMenuCorner = true, microMenuFade = { mode = "always", alpha = 0.2, delay = 2 },
+            microMenuFade = { mode = "always", alpha = 0.2, delay = 2 },
             bars = {
                 main = { fade = { mode = "ooc", alpha = 0.2, delay = 2 } },
                 bar2 = { fade = { mode = "ooc", alpha = 0.2, delay = 2 } },

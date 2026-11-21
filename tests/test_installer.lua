@@ -629,6 +629,19 @@ T.test("installer: the first profile starts with the info panel's meter closed",
     end
 end)
 
+-- The account's first profile is the DPS/Tank a quick setup keeps, so it has to
+-- carry the micro menu in the corner like the ready-made card says.
+T.test("installer: DPS/Tank and Healer start with the micro menu shown in the corner", function()
+    for _, key in ipairs({ "DPS/Tank", "Healer" }) do
+        local DUI = login({ module = true, actionbars = true })
+        stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+        choose(DUI, key); go(DUI)
+        local ab = DaylightUIDB.profileData[DUI.Profiles.Chosen("character")].modules.ActionBars
+        T.eq(ab.microMenu, "shown", key .. ": shown")
+        T.eq(ab.microMenuCorner, true, key .. ": in the corner")
+    end
+end)
+
 T.test("installer: Quick setup, Immersive Preset: a new character gets the calm profile, its own layout, fades that step aside in dungeons", function()
     local function xp()
         _G.UnitXP = function() return 300 end
