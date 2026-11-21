@@ -965,22 +965,41 @@ local function gameDefault(name)
     return ok and type(v) == "string" and v or nil
 end
 
+-- The show switches a platefix step turned off, owed back until they read on again.
+-- The game saves these settings, so a fight starting in the gap (it refuses them in
+-- combat) or a logout in it would otherwise leave the player's plates off for good.
+local owed = {}
+local function payBack()
+    for name in pairs(owed) do
+        if R.CVar(name) ~= "0" then
+            owed[name] = nil -- on again, by this or by the player
+        else
+            DUI.SafeCall(SetCVar, name, "1")
+            if R.CVar(name) == "1" then owed[name] = nil end
+        end
+    end
+    if next(owed) and InCombatLockdown() then DUI.AfterCombat(payBack, "platefix:switches") end
+end
+DUI.RegisterEvent("PLAYER_LOGOUT", payBack)
+
+-- Switches the game's plates off for gap seconds so it builds them again, then on.
+function R.CycleShowSwitches(gap, after)
+    for _, name in ipairs(R.FIX_SHOW_CVARS) do
+        if R.CVar(name) == "1" then
+            owed[name] = true
+            DUI.SafeCall(SetCVar, name, "0")
+        end
+    end
+    C_Timer.After(gap, function()
+        payBack()
+        after()
+    end)
+end
+
 R.FIX = {
     -- 1. The game's show switches off and on, so it builds its plates again.
     function()
-        local was = {}
-        for _, name in ipairs(R.FIX_SHOW_CVARS) do
-            local v = R.CVar(name)
-            if v then
-                was[name] = v
-                DUI.SafeCall(SetCVar, name, "0")
-            end
-        end
-        local done = R.FixHold()
-        C_Timer.After(R.FIX_GAP, function()
-            for name, v in pairs(was) do DUI.SafeCall(SetCVar, name, v) end
-            done()
-        end)
+        R.CycleShowSwitches(R.FIX_GAP, R.FixHold())
         return "the game's plates switched off and on (" .. R.OFF .. ")"
     end,
     -- 2. The plate settings Daylight UI can change, back to the game's defaults.

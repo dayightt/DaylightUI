@@ -247,10 +247,7 @@ end
 
 -- A bar's empty part at that opacity, under whatever color it's painted.
 function Plate.BackAlpha(bar)
-    local back = Style.BarBack(bar)
-    if not back then return end
-    local a = Plate.Clear()
-    back:SetAlpha(a and a / Style.BAR_BACK_ALPHA or 1)
+    Style.SetBackAlpha(bar, Plate.Clear())
 end
 
 -- A piece claimed by a plugin (DaylightUI.API's Paint, kind "nameplate":
@@ -277,7 +274,7 @@ function Plate.SetBackColor(bar, r, g, b)
     local back = Style.BarBack(bar)
     if not back then return end
     local k = Style.BAR_BACK_DIM
-    back:SetVertexColor(r * k, g * k, b * k, Style.BAR_BACK_ALPHA)
+    back:SetVertexColor(r * k, g * k, b * k, Style.BackAlphaOf(bar))
 end
 
 -- ---------------------------------------------------------------------
@@ -1428,12 +1425,14 @@ function Plate.UpdateClassText(p)
     end
     if not copies then
         if p.classText then
+            p.classText.sel:Hide()
             for _, win in pairs(p.classText.wins) do win:Hide() end
         end
         return
     end
     local ct = classText(p)
     ct.sel:SetValue(id)
+    ct.sel:Show()
     local name = Plate.ShortName(DUI.UnitName(u, "nameplates"), Plate.Cfg(p))
     for token, win in pairs(ct.wins) do
         win:Show()

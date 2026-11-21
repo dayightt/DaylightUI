@@ -184,7 +184,7 @@ return {
         ["DaylightUI_InfoPanel/XPBar.lua"] = 2,
         ["DaylightUI_Nameplates/Auras.lua"] = 11,
         ["DaylightUI_Nameplates/Cast.lua"] = 4,
-        ["DaylightUI_Nameplates/Manager.lua"] = 19,
+        ["DaylightUI_Nameplates/Manager.lua"] = 16,
         ["DaylightUI_Nameplates/Plate.lua"] = 21,
         ["DaylightUI_Nameplates/Range.lua"] = 3,
         ["DaylightUI_QoL/Afk.lua"] = 3,

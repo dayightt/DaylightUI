@@ -652,6 +652,28 @@ function Manager.Recheck()
     Manager.Each(ns.Plate.UpdateFriendly)
 end
 
+-- An NPC that turns attackable (or stops being so) may send nothing on its plate's
+-- own events, so a plate set up as friendly would stay name-only or hidden.
+-- unit can be any token for it ("target" too); late checks once more a moment
+-- after, as the answer can lag behind the event.
+function Manager.RecheckUnit(unit, late)
+    if isSecret(unit) or type(unit) ~= "string" then return end
+    local p = byUnit[unit]
+    if not p then
+        for token, q in pairs(byUnit) do
+            if plain(UnitIsUnit, token, unit) == true then p = q break end
+        end
+    end
+    if not (p and Manager.StillUsable(p)) then return end
+    local token = p.unit
+    ns.Plate.UpdateFriendly(p)
+    if late then
+        C_Timer.After(Manager.RECHECK_LATE, function()
+            if byUnit[token] == p and Manager.StillUsable(p) then DUI.SafeCall(ns.Plate.UpdateFriendly, p) end
+        end)
+    end
+end
+
 -- Reconciles the plates with what the game shows now, as a /reload would, after
 -- a death, a resurrection or a loading screen (Manager.Recheck). A plate left on
 -- a unit that's gone, or a unit with no plate, would stay wrong until it left
@@ -740,9 +762,18 @@ end
 -- The core's repaint: every plate again only when something plates draw from changed.
 function Manager.StyleChanged()
     local sig = Manager.StyleSig()
-    if sig == Manager.styleSig then return end
-    Manager.styleSig = sig
-    Manager.Refresh()
+    if sig ~= Manager.styleSig then
+        Manager.styleSig = sig
+        return Manager.Refresh()
+    end
+    -- The client can change the UI scale in a fight, and Daylight UI only puts its own
+    -- back afterwards. A plate that came up in between was laid out at the passing scale,
+    -- while the look as a whole reads the same as before, so lay out just those again.
+    local ui = UIParent:GetEffectiveScale()
+    Manager.Each(function(p)
+        local L = p.unit and p.laid
+        if L and L.base ~= ui * (ns.Plate.Cfg(p).scale or 1) then ns.Plate.Layout(p) end
+    end)
 end
 
 -- The mouseover highlight follows the mouse; checked while it's over a plate.
@@ -993,8 +1024,10 @@ function Manager.Start()
     end
     DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function()
         Manager.UpdateTargets()
+        Manager.RecheckUnit("target")
         Manager.QueueFocus()
     end)
+    DUI.RegisterEvent("UNIT_TARGETABLE_CHANGED", function(_, unit) Manager.RecheckUnit(unit, true) end)
     DUI.RegisterEvent("UNIT_TARGET", Manager.FocusTargetChanged)
     for _, e in ipairs({ "GROUP_ROSTER_UPDATE", "NAME_PLATE_UNIT_ADDED", "NAME_PLATE_UNIT_REMOVED" }) do
         DUI.RegisterEvent(e, function() Manager.QueueFocus() end)
@@ -1252,22 +1285,15 @@ end, L["/dui plateprobe - run after /dui platecheck while nameplates are missing
 
 -- /dui platefix: run while every plate is invisible. In that state the game's
 -- plates exist, are shown at alpha 1, yet nothing on them draws (even a texture
--- made directly on one, with the Daylight UI plates hidden too); /reload fixes it, and it never
--- happens without Daylight UI. Each run undoes one thing Daylight UI does to the game's
--- plates and asks whether they're back: the first step that brings them back
+-- made directly on one, with the Daylight UI plates hidden too); /reload fixes it.
+-- Each run undoes one thing Daylight UI does to the game's plates and asks whether they're back: the first step that brings them back
 -- names the cause and fixes it without a reload. Out of combat only (the game
 -- refuses these settings in combat). Chat output stays in English since players
 -- send it in with bug reports.
 Manager.FIX_STEPS = 8
 Manager.FIX_GAP = 0.5 -- seconds the game's plates stay off in step 3
 Manager.FIX_BACK = 1 -- seconds until the Daylight UI plates go back on after step 3
-Manager.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
-
-local function cvar(name)
-    if type(GetCVar) ~= "function" then return nil end
-    local ok, v = pcall(GetCVar, name)
-    return ok and type(v) == "string" and v or nil
-end
+Manager.FIX_SHOW_CVARS = Report.FIX_SHOW_CVARS
 
 local function gameDefault(name)
     local fn = C_CVar and C_CVar.GetCVarDefault
@@ -1301,16 +1327,7 @@ end
 -- Daylight UI plates back a moment later.
 local function offAndOn()
     local done = Report.FixHold()
-    local was = {}
-    for _, name in ipairs(Manager.FIX_SHOW_CVARS) do
-        local v = cvar(name)
-        if v then
-            was[name] = v
-            pcall(SetCVar, name, "0")
-        end
-    end
-    C_Timer.After(Manager.FIX_GAP, function()
-        for name, v in pairs(was) do pcall(SetCVar, name, v) end
+    Report.CycleShowSwitches(Manager.FIX_GAP, function()
         C_Timer.After(Manager.FIX_BACK, function()
             Manager.fixPaused = nil
             DUI.SafeCall(Manager.Recheck)

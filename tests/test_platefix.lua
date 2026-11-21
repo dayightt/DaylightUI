@@ -93,6 +93,32 @@ T.test("platefix: after every step with no yes, the report says none did", funct
     T.truthy(text:find("  7: ", 1, true), "every step listed")
 end)
 
+T.test("platefix: a fight in the gap can't leave the game's plates switched off", function()
+    local _, cvars = login()
+    local set = _G.SetCVar
+    _G.SetCVar = function(k, v) if not InCombatLockdown() then set(k, v) end end -- refused in combat, as in game
+    cvars.nameplateShowFriendlyPlayers = "0"
+    local after = 0
+    DaylightUI.PlateReport.CycleShowSwitches(0.5, function() after = after + 1 end)
+    T.eq(cvars.nameplateShowEnemies, "0", "off for the gap")
+    stub.EnterCombat()
+    stub.RunTimers()
+    T.eq(after, 1, "the step carries on")
+    T.eq(cvars.nameplateShowEnemies, "0", "refused in the fight")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(cvars.nameplateShowEnemies, "1", "back on after the fight")
+    T.eq(cvars.nameplateShowFriendlyPlayers, "0", "a switch that was off stays off")
+end)
+
+T.test("platefix: logging out in the gap puts the switches back first", function()
+    local _, cvars = login()
+    DaylightUI.PlateReport.CycleShowSwitches(0.5, function() end)
+    T.eq(cvars.nameplateShowEnemies, "0")
+    stub.FireEvent("PLAYER_LOGOUT")
+    T.eq(cvars.nameplateShowEnemies, "1")
+end)
+
 T.test("platefix: yes with no step run asks for a run first, and opens nothing", function()
     local NP = login()
     local box = _G.DaylightUIProfileBox

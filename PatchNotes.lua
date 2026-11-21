@@ -38,6 +38,10 @@ DUI.PatchNotes = {
         { "Tooltips", "Boxes, arrows and words other addons draw on a tooltip, like Forever Leveling BiS, no longer show through the Rich tooltip on top of its lines" },
         { "Professions", "The SkillUp link in the profession window opens the game's profession window on screen again, instead of somewhere out of sight" },
         { "Tooltips", "TradeSkillMaster's disenchant lines keep their colors and indent on Rich tooltips, and long lines from other addons wrap instead of running off the edge" },
+        { "Nameplates", "Missing health opacity stays where you set it, instead of the empty part of the bar turning solid again after a few moments" },
+        { "Nameplates", "Nameplates that showed up while the game changed the UI scale in a fight go back to the right size when the fight ends" },
+        { "Nameplates", "An NPC that turns hostile gets its nameplate when you target it, instead of staying hidden or name-only" },
+        { "Nameplates", "/dui platefix can no longer leave enemy nameplates switched off if a fight starts or you log out while it runs" },
     } },
     { version = "2.2", date = "2026-11-21", summary = "A smarter bag search, profiles you can share in parts, and tidier Rich tooltips. Plus hidden names and solo threat colors on nameplates.", new = {
         { "Profiles", "Shared profiles can leave parts out, and imports list only the parts that really changed" },

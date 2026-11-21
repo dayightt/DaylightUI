@@ -2679,6 +2679,17 @@ end
 
 function Style.BarBack(bar) return barBack[bar] end
 
+-- How solid a bar's empty part is, when its area lets the player pick (nil puts
+-- back Style.BAR_BACK_ALPHA). A texture has one alpha in this client, shared with
+-- its vertex color, so every paint of the empty part carries this one.
+local backAlpha = setmetatable({}, { __mode = "k" })
+function Style.BackAlphaOf(bar) return backAlpha[bar] or Style.BAR_BACK_ALPHA end
+function Style.SetBackAlpha(bar, a)
+    backAlpha[bar] = a
+    local back = barBack[bar]
+    if back then back:SetAlpha(Style.BackAlphaOf(bar)) end
+end
+
 -- Cuts the track behind a bar's fill at the bar's own end, at the angle the
 -- fill wears (Style.AngleFill, same arguments). A full bar then ends in one
 -- clean slant instead of the fill's cut lying over a square corner of track.
@@ -2715,7 +2726,7 @@ function Style.SetBarGradient(bar, on)
         local back, m = barBack[bar], Style.GRADIENT_MID
         if back then
             local k = Style.BAR_BACK_DIM
-            back:SetVertexColor(m[1] * k, m[2] * k, m[3] * k, Style.BAR_BACK_ALPHA)
+            back:SetVertexColor(m[1] * k, m[2] * k, m[3] * k, Style.BackAlphaOf(bar))
         end
     end
     return on == true
@@ -2728,7 +2739,7 @@ function Style.SetBarColor(bar, r, g, b)
     local back = barBack[bar]
     if back then
         local k = Style.BAR_BACK_DIM
-        back:SetVertexColor(r * k, g * k, b * k, Style.BAR_BACK_ALPHA)
+        back:SetVertexColor(r * k, g * k, b * k, Style.BackAlphaOf(bar))
     end
 end
 

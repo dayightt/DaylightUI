@@ -76,6 +76,28 @@ local function fillRed(p)
     return p.health.__barColor and p.health.__barColor[1]
 end
 
+T.test("nameplates: a plate that came up while a fight held another UI scale follows the saved one after", function()
+    local NP = login()
+    local p = added("nameplate1")
+    DaylightUI.Pixel.SetUIScale(.8)
+    stub.RunTimers()
+    T.eq(p:GetEffectiveScale(), .8)
+    stub.EnterCombat()
+    stub.SetScreen(stub.physW, stub.physH, .64)
+    stub.FireEvent("UI_SCALE_CHANGED")
+    stub.RunTimers()
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    T.eq(added("nameplate1"), p)
+    T.eq(p.laid.base, .64, "laid out at the passing scale")
+    local gen = NP.Plate.gen
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(UIParent:GetEffectiveScale(), .8)
+    T.eq(p.laid.base, .8, "laid out again at the saved scale")
+    T.eq(p:GetEffectiveScale(), .8)
+    T.eq(NP.Plate.gen, gen, "only that plate, not a full refresh")
+end)
+
 T.test("nameplates: the game's plate is put away and ours shows the unit", function()
     local NP = login()
     local p = added("nameplate1")
@@ -2057,6 +2079,45 @@ T.test("nameplates: quest mobs in their own color (off by default), with or with
     T.eq(p.kind, nil, "done")
     T.rgb(p.health.__barColor, { S.ReactionColor(u.reaction) }, "reaction color again")
     stub.tooltips = nil
+end)
+
+local function gradientVisitor()
+    login(function()
+        stub.units.nameplate3 = { name = "Town visitor", isPlayer = true, class = "PRIEST", classHidden = true,
+            hostile = true, reaction = 2, health = 70, maxHealth = 100 }
+    end)
+    DaylightUI:Set("Nameplates", "nameColor", "classGradient")
+    local p = added("nameplate3")
+    T.truthy(p.classText and p.classText.sel:IsVisible(), "the gradient artwork is active on its owner")
+    return p, p.classText.sel
+end
+
+T.test("nameplates: a recycled enemy hides the previous name-art helper on assignment", function()
+    local p, helper = gradientVisitor()
+    local visitor = stub.units.nameplate3
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate3")
+    stub.units.nameplate3 = stub.units.nameplate1
+    stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate3")
+    T.eq(stub.nameplates.Manager.byUnit.nameplate3, p)
+    T.eq(p.name:GetAlpha(), 1)
+    T.falsy(helper:IsShown(), "hide the inactive helper before the first frame")
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate3")
+    stub.units.nameplate3 = visitor
+    T.eq(added("nameplate3"), p)
+    T.eq(p.classText.sel, helper)
+    T.truthy(helper:IsVisible(), "the same helper returns for the next eligible occupant")
+end)
+
+T.test("nameplates: disabling gradient names hides their helper on the current plate", function()
+    local p, helper = gradientVisitor()
+    DaylightUI:Set("Nameplates", "nameColor", "reaction")
+    stub.RunTimers()
+    T.eq(p.name:GetAlpha(), 1)
+    T.falsy(helper:IsVisible(), "the inactive artwork left the visible tree")
+    DaylightUI:Set("Nameplates", "nameColor", "classGradient")
+    stub.RunTimers()
+    T.eq(p.classText.sel, helper)
+    T.truthy(helper:IsVisible(), "reselecting gradient names restores their artwork")
 end)
 
 T.test("nameplates: a hidden class (battlegrounds) still shows its own colors", function()
@@ -4683,25 +4744,38 @@ T.test("nameplates: /dui platefix step 4 puts our plate settings to the game's d
 end)
 
 T.test("nameplates: missing health opacity lets the world show through the empty part, the plate's dark inside with it", function()
+    stub.AlphaRule = true    -- a texture's one alpha, as in game
+    local ok, err = pcall(function()
     login()
     local p = added("nameplate1")
     local S = DaylightUI.Style
     local back = S.BarBack(p.health)
-    T.near(back:GetAlpha(), 1, 0.001, "as ever by default")
+    T.near(back:GetAlpha(), S.BAR_BACK_ALPHA, 0.001, "as ever by default")
     T.falsy(p.body.shellMode, "the lean rings by default: no shell, no masks")
     DaylightUI:Set("Nameplates", "backAlpha", 0)
     stub.RunTimers()
     T.near(back:GetAlpha(), 0, 0.001, "the empty part see-through")
+    stub.FireEvent("UNIT_FACTION", "nameplate1")
+    stub.RunTimers()
+    T.near(back:GetAlpha(), 0, 0.001, "a repaint keeps it see-through (its color carries the same alpha)")
+    DaylightUI:Set("Nameplates", "backAlpha", 0.4)
+    stub.RunTimers()
+    T.near(back:GetAlpha(), 0.4, 0.001, "the value picked, not more")
+    DaylightUI:Set("Nameplates", "backAlpha", 0)
+    stub.RunTimers()
     T.truthy(p.body.shellMode, "the shell: stacked rings would fill the inside")
     local sh = S.GetShell(p.hp)
     T.eq(sh.opts.bgAlpha, 0, "the plate's inside see-through")
     T.falsy(p.body.holder:IsShown(), "the rings hidden")
     DaylightUI:Set("Nameplates", "backAlpha", 0.8)
     stub.RunTimers()
-    T.near(back:GetAlpha(), 1, 0.001, "back to the usual")
+    T.near(back:GetAlpha(), S.BAR_BACK_ALPHA, 0.001, "back to the usual")
     T.falsy(p.body.shellMode)
     T.truthy(p.body.holder:IsShown(), "the rings back")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end)
+    stub.AlphaRule = nil
+    if not ok then error(err, 0) end
 end)
 
 T.test("nameplates: target arrows (off by default) point at your target from both sides or over it, and its name can be bigger", function()

@@ -50,6 +50,59 @@ local function added(unit)
     return stub.nameplates.Manager.byUnit[unit]
 end
 
+-- An NPC you couldn't attack (your soft target, friendly NPC plates off) that
+-- turns attackable: its plate was set up friendly and hidden, and nothing on
+-- the plate's own events asked again.
+local function roadTarget(attackable)
+    login(function()
+        local shown = { nameplateShowFriendlyPlayers = "0", nameplateShowFriendlyNpcs = "0" }
+        _G.GetCVar = function(k) return shown[k] end
+        _G.SetCVar = function(k, v) shown[k] = v end
+    end)
+    local mob = { name = "Road NPC", reaction = 2, hostile = attackable, health = 181, maxHealth = 281 }
+    stub.units.nameplate1, stub.units.softinteract = mob, mob
+    return mob, added("nameplate1")
+end
+
+T.test("nameplates: a soft target that turned attackable shows once you target it", function()
+    local mob, p = roadTarget(false)
+    T.truthy(p.softOnly and not p:IsShown())
+    mob.hostile = true
+    stub.units.target = mob
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.truthy(p.isTarget and not p.friendly and not p.softOnly and p:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: turning attackable and back redoes the plate, by any token for the unit", function()
+    local mob, p = roadTarget(false)
+    stub.units.target = mob
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    mob.hostile = true
+    stub.FireEvent("UNIT_TARGETABLE_CHANGED", "nameplate1")
+    T.truthy(not p.friendly and p:IsShown())
+    mob.hostile = false
+    stub.FireEvent("UNIT_TARGETABLE_CHANGED", "target")
+    T.truthy(p.friendly and p.softOnly and not p:IsShown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: a targetable change for another unit leaves the plates alone", function()
+    local mob, p = roadTarget(false)
+    local neighbor = { name = "Other", reaction = 2, hostile = true, health = 77, maxHealth = 155 }
+    stub.units.nameplate2 = neighbor
+    local other = added("nameplate2")
+    mob.hostile, neighbor.hostile = true, false
+    stub.FireEvent("UNIT_TARGETABLE_CHANGED", "player")
+    stub.FireEvent("UNIT_TARGETABLE_CHANGED", nil)
+    T.truthy(p.friendly and not other.friendly)
+    stub.units.mouseover = mob
+    stub.FireEvent("UNIT_TARGETABLE_CHANGED", "mouseover")
+    T.truthy(not p.friendly and not other.friendly and p:IsShown())
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The PvP crest says "attacking this flags you", which means nothing on a player
 -- of your own faction you can't attack. With "Other faction's crest" off, a
 -- flagged guildmate still wore a crest, and the switch looked broken.
