@@ -487,13 +487,12 @@ function Layout.Groups(cfg, window)
             end
         end
     end
-    local out = {}
-    for _, key in ipairs(Cat.Order()) do
-        local g = Cat.Get(key)
-        local entries = lists[key] or {}
-        if key == "empty" then
-            entries = {}
-            for _, section in ipairs(sections) do
+    -- The keyring's free slots stay with its keys, so they never read as room
+    -- in the bags.
+    local ringOwn = Cat.Get("keyring") ~= nil
+    local function addEmpties(entries, keyring)
+        for _, section in ipairs(sections) do
+            if (string.sub(section, 1, 8) == "keyring|") == keyring then
                 local list = empties[section]
                 if cfg.emptySlots == "grouped" then
                     if #list > 0 then
@@ -504,8 +503,19 @@ function Layout.Groups(cfg, window)
                     for _, s in ipairs(list) do entries[#entries + 1] = { button = s.button, empty = true } end
                 end
             end
+        end
+    end
+    local out = {}
+    for _, key in ipairs(Cat.Order()) do
+        local g = Cat.Get(key)
+        local entries = lists[key] or {}
+        if key == "empty" then
+            entries = {}
+            addEmpties(entries, false)
+            if not ringOwn then addEmpties(entries, true) end
         else
             table.sort(entries, Cat.Before)
+            if key == "keyring" then addEmpties(entries, true) end
         end
         -- An empty custom group shows in the bag only while it can be dropped on
         -- (Layout.ShowEmpty); its heading is where the first item goes. Never in the
@@ -711,11 +721,12 @@ function Layout.Headed(window, cfg)
         end
         taken[h] = true
         h.key, h.name, h.empty = g.key, g.name, #g.entries == 0
-        -- Empty counts the slots its tiles stand for, as the tile does.
-        local shownN = #g.entries
-        if g.key == "empty" then
-            shownN = 0
-            for _, e in ipairs(g.entries) do shownN = shownN + (e.free or 1) end
+        -- Empty counts the slots its tiles stand for, as the tile does. Any other
+        -- group counts its items only (the keyring's free slots sit in its group).
+        local shownN = 0
+        for _, e in ipairs(g.entries) do
+            if g.key == "empty" then shownN = shownN + (e.free or 1)
+            elseif not e.empty then shownN = shownN + 1 end
         end
         h.count:SetText(#g.entries == 0 and L["(drag items here)"] or tostring(shownN))
         Layout.PaintHeading(h, folded)

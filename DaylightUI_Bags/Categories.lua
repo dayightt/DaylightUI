@@ -5,7 +5,8 @@
 -- custom group whose search matches (a custom group without a search only takes
 -- what's pinned to it); the first built-in group in Categories.PRIORITY whose
 -- test passes (so Junk beats Weapons, and set or quest items beat Junk).
--- Anything left goes to Other. Keyring slots are Keys, empty slots are Empty.
+-- Anything left goes to Other. Keyring slots, empty ones too, are Keyring (Keys
+-- if that group was deleted), empty bag slots are Empty.
 --
 -- Settings (module "Bags"): groupOrder (keys, nil = default), groupNames
 -- (key -> name), groupColors (key -> { r, g, b }), customGroups (list of { key, name, search? }), collapsed
@@ -46,6 +47,7 @@ Cat.BUILTIN = {
     { key = "other", ink = "LABEL", name = L["Other"] },
     { key = "junk", quality = 0, name = L["Junk"] },
     { key = "empty", ink = "LABEL", name = L["Empty"] },
+    { key = "keyring", color = { 0.92, 0.8, 0.32 }, name = L["Keyring"] },
 }
 Cat.BY_KEY = {}
 for _, g in ipairs(Cat.BUILTIN) do Cat.BY_KEY[g.key] = g end
@@ -864,7 +866,10 @@ end
 -- noRecent: the group the item falls in once it's no longer new.
 function Cat.Assign(f, section, noRecent)
     local gone = removed()
-    if section == "keyring" then return gone.key and "other" or "key" end
+    if section == "keyring" then
+        if not gone.keyring then return "keyring" end
+        return gone.key and "other" or "key"
+    end
     local pinned = Cat.PinOf(f.itemID)
     if pinned and Cat.Get(pinned) then return pinned end
     for _, g in ipairs(Cat.Custom()) do

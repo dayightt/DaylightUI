@@ -2025,6 +2025,39 @@ T.test("bags: categories put each item in its group; the most specific wins", fu
     T.eq(groupOf(ns, B.buttons[0][3]), "empty")
 end)
 
+-- The keyring's free slots looked exactly like free bag slots under Empty, and
+-- its keys mixed with the bags' own under Keys.
+T.test("bags: on the Shelf the keyring is its own group, its free slots out of Empty", function()
+    local ns = login({ keyring = true, keyringSize = 4, view = "categories" })
+    categoryWorld()
+    world.items[-2] = { [1] = { iconFileID = 901, stackCount = 1, quality = 1, hyperlink = "|Hitem:90|h", itemID = 90 } }
+    ns.module.db.showKeyring = true
+    ns.Refresh(ns.module)
+    local f = open(ns)
+    ns.Relayout()
+    ns.FillAll()
+    local B = ns.Bags
+    T.eq(groupOf(ns, B.buttons[-2][1]), "keyring", "a key on the keyring")
+    T.eq(groupOf(ns, B.buttons[-2][2]), "keyring", "a free keyring slot stays with the keyring")
+    local counts = {}
+    for _, h in ipairs(f.headings) do
+        if h:IsShown() then counts[h.key] = h.count:GetText() end
+    end
+    T.eq(counts.keyring, "1", "the heading counts the keys, not the free slots")
+    local bagFree = 0
+    for bag = 0, 5 do
+        for slot = 1, world.sizes[bag] or 0 do
+            if not (world.items[bag] and world.items[bag][slot]) then bagFree = bagFree + 1 end
+        end
+    end
+    T.eq(counts.empty, tostring(bagFree), "Empty counts the bags' free slots only")
+    -- Deleting the Keyring group puts its slots back where they were before.
+    ns.Categories.Delete("keyring")
+    T.eq(groupOf(ns, B.buttons[-2][1]), "key")
+    T.eq(groupOf(ns, B.buttons[-2][2]), "empty")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: stacks of the same item show as one, with the total", function()
     local ns = catLogin()
     local B = ns.Bags
