@@ -227,6 +227,15 @@ local function stack(h, three)
         h.name:SetPoint("TOP" .. p, h.icon, "TOP" .. edge, x, 1)
         h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
         h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
+    elseif h.lineWrap then
+        -- A line on two rows: the words are centered on the icon as a block.
+        local nameH = h.name:GetStringHeight()
+        local lineH = h.line:GetStringHeight()
+        if type(nameH) ~= "number" or DUI.IsSecret(nameH) then nameH = Slots.NAME_SIZE + 3 end
+        if type(lineH) ~= "number" or DUI.IsSecret(lineH) then lineH = 2 * (Slots.LINE_SIZE + 3) end
+        h.name:SetPoint("TOP" .. p, h.icon, edge, x, (nameH + 1 + lineH) / 2)
+        h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
+        h.enchant:SetPoint("TOP" .. p, h.line, "BOTTOM" .. p, 0, -1)
     elseif h.lineless then
         h.name:SetPoint(p, h.icon, edge, x, 0)
         h.line:SetPoint("TOP" .. p, h.name, "BOTTOM" .. p, 0, -1)
@@ -241,8 +250,9 @@ local function stack(h, three)
     end
 end
 
--- The words fit the room beside the icon: a long name takes a second line (a slot with an
--- enchant has no room for one, and ends in dots). The whole name is in the tooltip.
+-- The words fit the room beside the icon: a long name takes a second line, and so does a
+-- long line under it ("Repair soon", "Broken" in a long language), so none ends in dots
+-- (a slot with an enchant has no room for one). The whole name is in the tooltip.
 function Slots.FitText(h)
     if not h.entry then return end
     local lineless = h.lineFull == ""
@@ -254,12 +264,22 @@ function Slots.FitText(h)
     local width = h.name:GetWidth() or 0
     if width <= 0 then return end
     local wrap = h.three ~= true and h.entry.empty ~= true and natural(h.name) > width + 0.5
+    local lw = h.three ~= true and not lineless and h.entry.empty ~= true
+        and natural(h.line) > (h.line:GetWidth() or 0) + 0.5
+    local lineWrap = lw == true
+    local changed = wrap ~= (h.wrap == true) or lineWrap ~= (h.lineWrap == true)
     if wrap ~= (h.wrap == true) then
         h.wrap = wrap
         h.name:SetWordWrap(wrap)
         h.name:SetMaxLines(wrap and 2 or 0)
-        stack(h, h.three == true)
     end
+    if lineWrap ~= (h.lineWrap == true) then
+        h.lineWrap = lineWrap
+        h.line:SetWordWrap(lineWrap)
+        h.line:SetMaxLines(lineWrap and 2 or 0)
+    end
+    -- A text that changed under the same wrap (another item in the slot) moves the block.
+    if changed or h.lineWrap then stack(h, h.three == true) end
 end
 
 -- width is the slot's full width. names toggles text beside the icon. lead is
