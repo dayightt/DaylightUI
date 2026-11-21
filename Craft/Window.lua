@@ -428,6 +428,22 @@ function Craft.Unpin()
     g:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", r, t)
 end
 
+-- The pin's offset is in the parked holder's units, a thousand times too large once
+-- the game's window is back on the screen, so a window handed back still showing
+-- goes to the spot the game had given it. A hidden one is placed by the game when
+-- it next opens.
+function Craft.Parked(_, g, parked)
+    if parked or not (g and pinnedTo(g)) or InCombatLockdown() then return end
+    local h = Craft.home
+    local s = g:GetScale()
+    g:ClearAllPoints()
+    if h and type(s) == "number" and s > 0 then
+        g:SetPoint("TOPLEFT", UIParent, "TOPLEFT", h[1] / s, h[2] / s)
+    else
+        g:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116)
+    end
+end
+
 -- Its own spot, else the game's left panel spot, read before the game's window is
 -- pinned to this one. Never anchored to it, which would loop.
 local function place(f)
@@ -906,7 +922,8 @@ function Craft.Build(mod)
     -- No width: the game sizes its profession window itself for each page and
     -- reads that, so resizing it here would only fight the game.
     Craft.follow = Win.Follow({ key = "craft", frames = { craft = Craft.Game }, aside = { craft = true },
-        changed = Craft.Changed, pin = Craft.Pin, leave = function() return not DUI.craftOwnWindow end })
+        changed = Craft.Changed, pin = Craft.Pin, onPark = Craft.Parked,
+        leave = function() return not DUI.craftOwnWindow end })
     Craft.Apply()
     return f
 end

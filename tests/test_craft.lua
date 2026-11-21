@@ -1623,6 +1623,11 @@ T.test("craft: with SkillUp Forever on, its link hands the game's window back un
     frame(10)
     T.falsy(DaylightUI.Win.IsOpen(f), "ours steps aside")
     T.eq(ProfessionsFrame:GetParent(), UIParent, "the game's window is back")
+    -- While parked it was pinned above ours with an offset in the tiny holder's
+    -- units; handed back with that pin it sat thousands of units off screen.
+    local _, rel, _, x, y = ProfessionsFrame:GetPoint(1)
+    T.eq(rel, UIParent, "no longer hung on the hidden Daylight UI window")
+    T.truthy(math.abs(x) < 3000 and math.abs(y) < 3000, "on screen: " .. tostring(x) .. ", " .. tostring(y))
     PW.Open(185)
     frame(20)
     T.falsy(DaylightUI.Win.IsOpen(f), "another profession stays in the game's window")
