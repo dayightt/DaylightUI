@@ -403,6 +403,65 @@ T.test("nameplates: the execute range as your finisher's icon by the bar, lit on
     end)
 end)
 
+T.test("nameplates: a new finisher rank updates its icon without laying every plate out again", function()
+    local NP = login(function() stub.knownSpells = { [20658] = true } end)
+    local oldTexture = C_Spell.GetSpellTexture
+    C_Spell.GetSpellTexture = function(id) return 1000 + id end
+    DaylightUI:Set("Nameplates", "execute", "auto")
+    DaylightUI:Set("Nameplates", "executeStyle", "icon")
+    stub.RunTimers()
+    local p = added("nameplate1")
+    T.eq(p.execIcon.icon:GetTexture(), 21658)
+    local refreshes, oldRefresh = 0, NP.Manager.Refresh
+    NP.Manager.Refresh = function(...) refreshes = refreshes + 1; return oldRefresh(...) end
+    stub.knownSpells[20660] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.RunTimers()
+    local texture = p.execIcon.icon:GetTexture()
+    NP.Manager.Refresh, C_Spell.GetSpellTexture, stub.knownSpells = oldRefresh, oldTexture, {}
+    T.eq(texture, 21660, "the new rank's icon")
+    T.eq(refreshes, 0, "no full refresh")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: the execute band comes and goes with the finisher without a full refresh", function()
+    local NP = login(function() stub.units.player.class = "PRIEST" end)
+    stub.knownSpells = {}
+    DaylightUI:Set("Nameplates", "execute", "auto")
+    stub.RunTimers()
+    local p = added("nameplate1")
+    local refreshes, oldRefresh = 0, NP.Manager.Refresh
+    NP.Manager.Refresh = function(...) refreshes = refreshes + 1; return oldRefresh(...) end
+    stub.knownSpells[32379] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.RunTimers()
+    local learned = p.exec:IsShown()
+    stub.knownSpells = {}
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.RunTimers()
+    NP.Manager.Refresh = oldRefresh
+    T.truthy(learned, "learned: shown")
+    T.falsy(p.exec:IsShown(), "unlearned: gone")
+    T.eq(refreshes, 0, "no full refresh")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: a plate added before its unit's name and health arrive reads them a frame later", function()
+    login()
+    local u = stub.units.nameplate1
+    u.name, u.health, u.pct = nil, 0, 0
+    stub.FireEvent("NAME_PLATE_UNIT_ADDED", "nameplate1")
+    local p = stub.nameplates.Manager.byUnit.nameplate1
+    stub.FireEvent("UNIT_HEALTH", "nameplate1")
+    stub.FireEvent("UNIT_NAME_UPDATE", "nameplate1")
+    -- The data settles with no event of its own.
+    u.name, u.health, u.pct = "Searing Whelp", 60, 60
+    stub.RunTimers()
+    T.eq(stub.Text(p.name), "Searing Whelp")
+    T.eq(stub.Plain(p.health:GetValue()), 60)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: the group focus mark goes over the enemy most of your party targets, counted after a burst", function()
     local NP = login()
     T.eq(NP.DEFAULTS.groupFocus, false, "off as shipped")

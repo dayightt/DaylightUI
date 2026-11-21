@@ -795,6 +795,7 @@ function Plate.Layout(p)
     local L = p.laid
     if L and L.gen == Plate.gen and L.w == w and L.h == h and L.nameOnly == nameOnly
         and L.friendly == friendly and L.base == base and L.minion == kind and L.nameSize == nameSize then
+        Plate.RefreshExecuteSpell(p)
         return
     end
     L = L or {}
@@ -1090,14 +1091,41 @@ function Plate.ExecuteSpell()
     return finisher
 end
 
--- Spells learned: "auto" may now show (or not), so plates are laid out again
--- when the answer changed.
+local function setExecuteIcon(f, spell)
+    local id = spell or Plate.EXECUTE_ICON
+    local tex = type(C_Spell) == "table" and type(C_Spell.GetSpellTexture) == "function"
+        and C_Spell.GetSpellTexture(id) or nil
+    f.icon:SetTexture(tex or "Interface\\Icons\\INV_Sword_48")
+end
+
+-- Brings one plate's execute piece up to date with the finisher you know now.
+-- A plate kept aside while your spells changed catches up when it is laid out.
+function Plate.RefreshExecuteSpell(p)
+    local laid = p.laid
+    local now = finisher
+    if not laid or p.execSpell == now then return end
+    local show = not (laid.nameOnly or laid.minion)
+    local on = show and Plate.ExecutePct(p) ~= nil
+    if on ~= (p.execOn == true) then
+        local hadIcon = p.execIconOn
+        Plate.LayoutExecute(p, show)
+        if hadIcon ~= p.execIconOn then
+            p.spotsStale = true
+            Plate.PlaceSpots(p)
+        end
+    elseif p.execIconOn then
+        setExecuteIcon(p.execIcon, now)
+    end
+    p.execSpell = now
+end
+
+-- Spells learned: a new rank only changes the execute piece, so only that is
+-- redone on the plates that are up, never a whole new layout.
 function Plate.ExecuteSpellsChanged()
     local was = finisher
     finisherRead = false
-    if Plate.ExecuteSpell() ~= was and ns.Manager and ns.cfg and ns.cfg.execute == "auto" then
-        ns.Manager.Refresh()
-    end
+    if Plate.ExecuteSpell() == was or not ns.Manager or not ns.cfg or ns.cfg.execute == "off" then return end
+    ns.Manager.Each(Plate.RefreshExecuteSpell)
 end
 
 -- The execute fraction for this plate (0.2 = 20%), or nil. Enemies only.
@@ -1167,10 +1195,7 @@ function Plate.LayoutExecuteIcon(p, on, h)
     f.icon:ClearAllPoints()
     f.icon:SetPoint("TOPLEFT", f, "TOPLEFT", T, -T)
     f.icon:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -T, T)
-    local id = Plate.ExecuteSpell() or Plate.EXECUTE_ICON
-    local tex = type(C_Spell) == "table" and type(C_Spell.GetSpellTexture) == "function"
-        and C_Spell.GetSpellTexture(id) or nil
-    f.icon:SetTexture(tex or "Interface\\Icons\\INV_Sword_48")
+    setExecuteIcon(f, Plate.ExecuteSpell())
     f:Show()
 end
 
@@ -1183,6 +1208,7 @@ function Plate.LayoutExecute(p, show)
     local c = cfg()
     local style = c.executeStyle or "band"
     Plate.LayoutExecuteIcon(p, pct ~= nil and style == "icon", p.hp:GetHeight())
+    p.execSpell = finisher
     if not pct then
         e:Hide()
         e.pulse:Stop()
@@ -1830,6 +1856,10 @@ end
 -- plugin holds: the letters would carry Daylight UI's colors over its own).
 function Plate.UpdateName(p)
     local text = Plate.ShortName(DUI.UnitName(p.unit, "nameplates"), Plate.Cfg(p))
+    -- A secret name is there, just unreadable; only a plain empty one is missing.
+    if p.retryName and (isSecret(text) or (type(text) == "string" and text ~= "")) then
+        p.retryName = nil
+    end
     if Plate.Cfg(p).nameColor == "classGradient" and DUI.Gradients and not p.groupName
         and not Plate.Owned("name") then
         text = DUI.Gradients.Text(DUI.Gradients.KeyFor(p.unit), text)
@@ -2903,12 +2933,15 @@ function Plate.Dim(p, snap)
         goal > from and M.FAST or M.NORMAL, function(v) p:SetAlpha(v) end)
 end
 
+local queueContent -- set with the next-frame queue below
+
 -- Marks your target as configured: a colored outline, a colored glow, or nothing.
 function Plate.UpdateTarget(p)
     local target
     if p.isSample then target = p.sampleTarget == true else target = plain(UnitIsUnit, p.unit, "target") == true end
     local was = p.isTarget == true
     p.isTarget = target
+    if target and not was and not p.isSample and p.unit then queueContent(p) end
     -- Power bar on your target only: it comes and goes with the target.
     if p.powerSet and was ~= target then ns.Power.Refresh(p) end
     ns.Minion.Target(p, target)
@@ -3126,29 +3159,55 @@ local function updateAll(p)
     updateNow(p)
 end
 
-function Plate.UpdateAll(p) withTooltip(updateAll, p) end
-
 -- A new plate shows the essentials at once and does the rest the next frame, in
 -- one pass for every plate that appeared meanwhile. Turning the camera in a crowd
 -- shows many plates at once, and each one's tooltip read and text were the spike.
 -- Nothing shows late: the pass runs before the next frame is drawn.
 local later, laterQueued = {}, false
+
+-- The unit's name and health can still be missing when the plate first reads them,
+-- and no event may follow. One more read the next frame catches them.
+local function rereadContent(p)
+    Plate.UpdateHealthMax(p)
+    Plate.UpdateHealth(p)
+    Plate.UpdatePrediction(p)
+    Plate.UpdateName(p)
+end
+
 local function finishLater()
     laterQueued = false
     for p, unit in pairs(later) do
         later[p] = nil
-        local usable = not ns.Manager or ns.Manager.Usable(p)
-        if usable and p.unit == unit then DUI.SafeCall(withTooltip, updateRest, p) end
+        local content, details = p.rereadLater, p.detailsLater
+        p.rereadLater, p.detailsLater = nil, nil
+        if p.unit == unit and (not ns.Manager or ns.Manager.Usable(p)) then
+            if content then DUI.SafeCall(rereadContent, p) end
+            if details then DUI.SafeCall(withTooltip, updateRest, p) end
+        end
     end
 end
 
-function Plate.UpdateFirst(p)
-    updateNow(p)
+local function queueLater(p, content, details)
+    if content then p.rereadLater = true end
+    if details then p.detailsLater = true end
     later[p] = p.unit
     if not laterQueued then
         laterQueued = true
         C_Timer.After(0, finishLater)
     end
+end
+
+queueContent = function(p) queueLater(p, true, false) end
+
+function Plate.UpdateAll(p)
+    withTooltip(updateAll, p)
+    if p.unit and not p.isSample then queueContent(p) end
+end
+
+function Plate.UpdateFirst(p)
+    p.retryName = true
+    updateNow(p)
+    queueLater(p, p.retryName, true)
 end
 
 -- ---------------------------------------------------------------------
@@ -3178,6 +3237,10 @@ function Plate.OnEvent(p, event, unit, ...)
     local what = Plate.UNIT_EVENTS[event]
     if what == "health" then
         Plate.UpdateCorpse(p)
+        if p.retryName then
+            p.retryName = nil
+            queueContent(p)
+        end
         if event == "UNIT_MAXHEALTH" then Plate.UpdateHealthMax(p) end
         Plate.UpdateHealth(p)
         -- The heal and absorb bars only follow the max (their amounts have their own
@@ -3190,6 +3253,7 @@ function Plate.OnEvent(p, event, unit, ...)
     elseif what == "name" then
         Plate.UpdateSub(p, true)
         Plate.UpdateColor(p) -- the name and its class copies
+        queueContent(p)
     elseif what == "color" then
         -- Threat lists change many times a second in combat; the plate only changes when
         -- the threat color does. The threat % follows every update (it changes while the
@@ -3289,6 +3353,7 @@ function Plate.Install(p, unit)
 end
 
 function Plate.Uninstall(p)
+    later[p], p.rereadLater, p.detailsLater, p.retryName = nil, nil, nil, nil
     p:UnregisterAllEvents()
     -- The next unit starts clean: no size group, no known color or mark, nothing of
     -- this unit left showing. Its level, guild or title line, quest mark and raid
