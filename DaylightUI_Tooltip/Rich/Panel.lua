@@ -1279,6 +1279,7 @@ function Panel.Mute(p)
     local tip = p.tip
     p.muted = p.muted or setmetatable({}, { __mode = "k" })
     muteRegions(p.muted, tip:GetRegions())
+    p.regions = tip:GetNumRegions()
     -- The game keeps a count of them (SetTooltipMoney), each named
     -- <tooltip>MoneyFrame<n>.
     local money, name = tip.shownMoneyFrames, tip:GetName()
@@ -1287,6 +1288,13 @@ function Panel.Mute(p)
     end
     -- A compare tooltip's "Equipped" tab: the card says it in its own tag.
     if type(tip.CompareHeader) == "table" then muteRegions(p.muted, tip.CompareHeader) end
+end
+
+-- Another addon can make textures and texts on the tooltip after the card is
+-- built (Forever Leveling BiS draws boxes and an arrow on its lines). Those
+-- would draw over the card, so new ones are hidden as they turn up.
+function Panel.MuteNew(p)
+    if p and p.muted and p.tip:GetNumRegions() ~= p.regions then Panel.Mute(p) end
 end
 
 function Panel.Unmute(p)

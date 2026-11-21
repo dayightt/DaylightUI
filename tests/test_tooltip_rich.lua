@@ -1115,6 +1115,24 @@ T.test("rich tooltip: change lines added while a compare tooltip shows join its 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Forever Leveling BiS draws boxes, an arrow and text right on the tooltip
+-- after it shows. Made after the card hid the tooltip's own pieces, they drew
+-- over the card (seen in game on loot and compare tooltips).
+T.test("rich tooltip: pieces another addon makes on a shown tooltip are hidden under the card", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "legplates", LEGPLATES)
+    local p = Panel.Get(GameTooltip)
+    T.truthy(p and p:IsShown(), "the card")
+    local band = GameTooltip:CreateTexture(nil, "BORDER")
+    local words = GameTooltip:CreateFontString(nil, "OVERLAY")
+    words:SetText("No use found for you")
+    GameTooltip:GetScript("OnUpdate")(GameTooltip, 0.02)
+    T.eq(band:GetAlpha(), 0, "the addon's band")
+    T.eq(words:GetAlpha(), 0, "the addon's text")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: compare tooltips keep the skinned look in Simple", function()
     local Tip, Panel = login()
     items()
