@@ -1,10 +1,11 @@
 -- Recipe list, the left side of the window. Search and chips on top (Skill-ups, Have
 -- materials, and Slot for gear professions, which drives the game's own slot filter;
--- Rarity colors sits beside the search; Profit, with Auction House prices, shows each
--- recipe's profit in place of its materials, the best first). Below, learned recipes under category headings
--- that collapse on click (saved per character). Each row shows the icon, the name in its
--- difficulty color (or item quality with Rarity colors on), the materials underneath,
--- and how many can be made on the right. Clicking a row shows it in Recipe.lua.
+-- Rarity colors sits beside the search; Profit, with Auction House prices, puts the best
+-- earners first). Below, learned recipes under category headings that collapse on click
+-- (saved per character). Each row shows the icon, the name in its difficulty color (or
+-- item quality with Rarity colors on), the materials underneath, and on the right how
+-- many can be made, with the profit under it when prices are known. Clicking a row shows
+-- it in Recipe.lua.
 
 local _, DUI = ...
 DUI.Craft = DUI.Craft or {}
@@ -107,22 +108,6 @@ local function byProfit(list)
     end)
 end
 
--- A row's second line with the Profit chip on: the profit in green or soft red,
--- else what it costs (an enchant), else that a price is missing.
-local function profitSub(recipe)
-    local p = ns.Profit.Of(recipe)
-    local INK = Style.INK
-    if p and p.profit then
-        local text = ns.Profit.Money(p.profit)
-        if p.pct then text = text .. "  (" .. p.pct .. "%)" end
-        return text, ns.Profit.Color(p.profit)
-    end
-    if p and p.none and p.none ~= "nomarket" and p.cost then
-        return string.format(L["Costs %s"], DUI.Widgets.Money(p.cost)), INK.LABEL
-    end
-    return L["No price yet"], INK.LABEL
-end
-
 local function keep(recipe)
     if List.chipOn.skill and not ns.Data.SkillsUp(recipe) then return false end
     if List.chipOn.mats and recipe.count <= 0 then return false end
@@ -188,36 +173,59 @@ local function onClick(b)
     List.Pick(r.id)
 end
 
--- The skill-up chance under the count on a row's right: a small number in the
--- accent, the count moving up to the name's line to make room. Gray recipes show
--- none, and neither does one whose range isn't known.
+-- Under the count on a row's right: the profit (green or soft red, only once
+-- prices are known) and the skill-up chance (a small number in the accent; none on
+-- gray recipes or when the range isn't known). With either, the count moves up to
+-- the name's line, and the materials stop short of them.
 List.chances = {}
+List.profits = {}
+List.CORNER_GAP = 6   -- between the profit and the chance
 
-local function chanceText(b)
+local function corner(b)
     if not b.chance then
         b.chance = Style.Text(b, Style.SIZE.tiny, "RIGHT")
         b.chance:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -8, 6)
+        b.profit = Style.Text(b, Win.Parts.LINE_SUB, "RIGHT")
+        b.profit:SetWordWrap(false)
     end
-    return b.chance
+    return b.chance, b.profit
+end
+
+local function eased(fs, kept, id, text)
+    local was = kept[id]
+    kept[id] = text
+    if text and was and was ~= text and DUI.Motion then DUI.Motion.Fade(fs, 0, 1, DUI.Motion.FAST) end
 end
 
 function List.PaintChance(b, recipe)
-    local fs = chanceText(b)
+    local fs, pf = corner(b)
     local data = List.data
     local chance = ns.Setting("skillUps") == true and recipe.difficulty ~= ns.Data.TRIVIAL and ns.Data.Chance(recipe, ns.Data.Skill(data and data.prof)) or nil
     local text = ns.Data.ChanceText(chance)
-    b.value:ClearAllPoints()
+    local p = ns.Profit.Of(recipe)
+    local gain = p and p.profit and ns.Profit.Short(p.profit)
     fs:SetText(text or "")
     fs:SetShown(text ~= nil)
-    -- The sub keeps the block's two bottom points; it stops short of the chance
-    -- by how much wider the chance is than the count (the block ends at the count).
+    pf:SetText(gain or "")
+    pf:SetShown(gain ~= nil)
+    -- The profit sits on the materials' line, left of the chance.
+    pf:ClearAllPoints()
+    local x = -8 - (text and fs:GetStringWidth() + List.CORNER_GAP or 0)
+    pf:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", x, (Win.Parts.LINE - b.block:GetHeight()) / 2)
+    b.value:ClearAllPoints()
+    local wide = 0
+    if text then wide = fs:GetStringWidth() end
+    if gain then wide = wide + pf:GetStringWidth() + (text and List.CORNER_GAP or 0) end
+    -- The sub keeps the block's two bottom points; it stops short of the corner by
+    -- how much wider the corner is than the count (the block ends at the count).
     local inset = 0
-    if text then
+    if text or gain then
         -- The count sits on the name's line: its top is the name's top, which is
         -- where the centered block starts.
         local top = (Win.Parts.LINE - b.block:GetHeight()) / 2
         b.value:SetPoint("TOPRIGHT", b, "TOPRIGHT", -8, -top)
-        inset = math.max(0, fs:GetStringWidth() - b.value:GetStringWidth())
+        inset = math.max(0, wide - b.value:GetStringWidth())
+        if gain then inset = inset + List.CORNER_GAP end
     else
         b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     end
@@ -225,9 +233,12 @@ function List.PaintChance(b, recipe)
     b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
     b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", -inset, 0)
     Style.InkText(fs, "pop")
-    local was = List.chances[recipe.id]
-    List.chances[recipe.id] = text
-    if text and was and was ~= text and DUI.Motion then DUI.Motion.Fade(fs, 0, 1, DUI.Motion.FAST) end
+    if gain then
+        local c = ns.Profit.Color(p.profit)
+        pf:SetTextColor(c[1], c[2], c[3])
+    end
+    eased(fs, List.chances, recipe.id, text)
+    eased(pf, List.profits, recipe.id, gain)
 end
 
 -- Each recipe's last drawn color. When it changes (a skill-up turned it from orange to
@@ -237,10 +248,8 @@ List.colors = {}
 function List.Line(s, recipe, picked)
     local accent = { Style.Accent() }
     local c = ns.Data.NameColor(recipe, ns.Setting("rarityNames") == true)
-    local sub, subColor = recipe.sub, nil
-    if profitOn() then sub, subColor = profitSub(recipe) end
     local b = s:Line({ recipe = recipe, icon = recipe.icon, text = recipe.name, color = c,
-        sub = sub, subColor = subColor, value = recipe.count > 0 and tostring(recipe.count) or "", valueColor = accent,
+        sub = recipe.sub, value = recipe.count > 0 and tostring(recipe.count) or "", valueColor = accent,
         picked = picked, onClick = onClick, onRightClick = List.Menu, tooltip = tooltip, id = "recipe:" .. tostring(recipe.id) })
     List.PaintChance(b, recipe)
     local was = List.colors[recipe.id]
@@ -396,7 +405,7 @@ function List.Build(pane)
     pane.mats = chip(pane, "mats", L["Have materials"], List.EDGE + pane.skill:GetWidth() + DUI.Widgets.CHIP_GAP)
     pane.profit = chip(pane, "profit", L["Profit"], List.EDGE + pane.skill:GetWidth() + pane.mats:GetWidth() + 2 * DUI.Widgets.CHIP_GAP)
     pane.profit:HookScript("OnEnter", function(self)
-        DUI.Widgets.Tooltip(self, L["Profit"], L["Each recipe shows its profit instead of its materials, the best first, from the prices the Auction House has shown you."])
+        DUI.Widgets.Tooltip(self, L["Profit"], L["Puts the recipes that earn the most first, from the prices the Auction House has shown you."])
     end)
     pane.profit:HookScript("OnLeave", DUI.Widgets.HideTooltip)
     pane.profit:SetShown(ns.Profit.On())

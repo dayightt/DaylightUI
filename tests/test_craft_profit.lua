@@ -173,7 +173,27 @@ T.test("craft profit: switched off in the options, nothing shows", function()
     T.eq(page.list.profit:IsShown(), false)
 end)
 
-T.test("craft profit: the Profit chip puts the best first and shows each profit", function()
+T.test("craft profit: every row shows its profit beside the materials", function()
+    local ns, A = load()
+    price(A, SILK, 50)
+    price(A, BOLT, 300)        -- silk bolt: 85 profit
+    price(A, LINEN, 10)
+    price(A, LINEN_BOLT, 500)  -- linen bolt: 455 profit
+    open(ns)
+    local line = ns.List.lines[104]
+    T.truthy(line.profit and line.profit:IsShown(), "profit shown")
+    T.truthy(line.profit:GetText():find("^%+"), line.profit:GetText())
+    T.eq(line.sub:GetText(), recipe(ns, 104).sub, "materials stay")
+end)
+
+T.test("craft profit: a row with no price shows no profit", function()
+    local ns = load()
+    open(ns)
+    local line = ns.List.lines[104]
+    T.truthy(not (line.profit and line.profit:IsShown()), "nothing to show")
+end)
+
+T.test("craft profit: the Profit chip puts the best first", function()
     local ns, A = load()
     price(A, SILK, 50)
     price(A, BOLT, 300)        -- silk bolt: 85 profit
@@ -189,8 +209,7 @@ T.test("craft profit: the Profit chip puts the best first and shows each profit"
     page.list.profit:Click()
     frame(5)
     T.deq(order(), { 104, 102 })
-    local line = ns.List.lines[104]
-    T.truthy(line.sub:GetText():find("^%+"), line.sub:GetText())
+    T.eq(ns.List.lines[104].sub:GetText(), recipe(ns, 104).sub, "materials stay")
     page.list.profit:Click()
     frame(5)
     T.deq(order(), { 102, 104 })

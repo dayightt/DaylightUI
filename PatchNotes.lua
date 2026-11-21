@@ -29,7 +29,7 @@ DUI.PatchNotes = {
         { "Loot", "A loot roll card shows a mark for everyone in the group right away, not only once someone has picked" },
     } },
     { version = "2.1.2", date = "2026-11-20", summary = "Your profiles and Cooldown Manager layouts are back. Blizzard quietly changed how the game reports realms, to stop layer hopping, and that unhooked characters from their profiles. Nothing was lost.", new = {
-        { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. The Profit button over the list puts the best earners first" },
+        { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. Each recipe in the list shows its profit, and the Profit button puts the best earners first" },
         { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours. On an ultrawide or other screen shape than the one it was made on, its frames are brought in to the same places instead of spreading to your screen's edges" },
         { "Bars", "Health, power, cast and swing bars, combo points, nameplates, the experience bar, meters, tooltips, quest bars and Cooldown Manager bars can each wear a gradient of two to five colors you pick, like the custom gradient accent. Pick Custom gradient in a bar's color menu" },
         { "Loot", "Prefer the game's own roll popups? A new switch brings them back in Daylight UI style, with how many players picked Need, Greed and Pass on each button" },

@@ -189,6 +189,15 @@ function Profit.Money(profit)
     return text
 end
 
+-- The same, short enough for a list row: copper goes once there's gold, silver
+-- once there's a hundred gold.
+function Profit.Short(profit)
+    local n = math.abs(profit)
+    if n >= 1000000 then n = floor(n / 10000 + 0.5) * 10000
+    elseif n >= 10000 then n = floor(n / 100 + 0.5) * 100 end
+    return Profit.Money(profit < 0 and -n or n)
+end
+
 -- Prices moved (a scan, a search, a merchant): drop what's kept and repaint once
 -- the burst is over, only while the window shows.
 local soon = false
