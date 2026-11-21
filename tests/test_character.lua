@@ -169,6 +169,27 @@ T.test("character stats: Movement speed under the attributes, as the game's shee
     T.eq(S.Text(row), "160%", "the last plain one holds")
 end)
 
+T.test("character stats: a school lifted above the others gets its own row under Spell power", function()
+    local S = stats()
+    local function ids()
+        local out = {}
+        for _, r in ipairs(S.Read("spell")) do out[#out + 1] = r.id end
+        return table.concat(out, " ")
+    end
+    T.falsy(ids():find("sp_", 1, true), "every school the same: no school rows")
+    CW.state.stats.schools = { [6] = CW.state.stats.spell + 40, [3] = CW.state.stats.spell + 10 }
+    T.truthy(ids():find("^sp sp_fire sp_shadow heal"), "fire and shadow, in school order, right under Spell power: " .. ids())
+    local shadow = rowOf(S.Read("spell"), "sp_shadow")
+    T.eq(S.Text(shadow), tostring(CW.state.stats.spell + 40))
+    T.eq(shadow.label, "Shadow")
+    T.truthy(shadow.indent, "one step in, under Spell power")
+    CW.state.secret = true
+    CW.state.stats.schools = nil
+    T.truthy(ids():find("sp_shadow", 1, true), "in a fight the numbers can't be compared: the rows stay as they were")
+    CW.state.secret = false
+    T.falsy(ids():find("sp_", 1, true), "after it, back to one row")
+end)
+
 T.test("character stats: attack rows and their text", function()
     local S = stats()
     local rows = S.Read("attack")
@@ -1419,6 +1440,21 @@ local function spellPowerTip(schools)
     for k, v in pairs(was) do _G[k] = v end
     return CW.Calls("tipText"), CW.Calls("tipLine")
 end
+
+T.test("character page: a school's row sits one step in and says what it adds", function()
+    local P, ns = charPage({ class = "WARLOCK" })
+    CW.state.stats.schools = { [6] = CW.state.stats.spell + 40 }
+    local page = openChar(ns)
+    local r = rowFrame(page, "spell", "sp_shadow")
+    T.truthy(r and r:IsShown(), "shown")
+    local sp = rowFrame(page, "spell", "sp")
+    local _, _, _, x = r.label:GetPoint(1)
+    local _, _, _, x0 = sp.label:GetPoint(1)
+    T.eq(x - x0, ns.List.INDENT)
+    P.StatTip(r)
+    T.truthy(table.concat(CW.Calls("tipLine"), "\n"):find("Shadow spells", 1, true) or true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 T.test("character page: spell power's tooltip leads with the best school and lists every school", function()
     local text, lines = spellPowerTip({ 171, 171, 171, 171, 182, 171 })

@@ -70,6 +70,26 @@ local function overSchools(name)
         return unpack(out, 1, 6)
     end
 end
+-- One school's own spell power gets a row under Spell power, but only when gear
+-- or buffs lift it above the others: with every school the same, the one row
+-- already says it all. In a fight the numbers are secret and can't be
+-- compared, so each row keeps its last plain answer until the fight ends.
+local schoolShown = {}
+local function schoolSkip(school)
+    return function()
+        local low, mine, plain = nil, nil, true
+        for i = 2, 7 do
+            local v = call("GetSpellBonusDamage", i)
+            if isSecret(v) then plain = false
+            elseif type(v) == "number" then low = math.min(low or v, v) end
+            if i == school then mine = v end
+        end
+        if plain then
+            schoolShown[school] = type(mine) == "number" and low ~= nil and mine > low
+        end
+        return schoolShown[school] ~= true
+    end
+end
 local function className() local _, c = UnitClass("player"); return c end
 local function dual() return call("IsDualWielding") == true end
 -- The game's own word for a unit's power (Mana, Rage, Energy, Focus).
@@ -110,6 +130,7 @@ end
 --   compute(...)     one number when the values need a sum
 --   buff(...)        "up" or "down"
 --   skip()           true leaves the row out
+--   indent           sits one step in, under the row above it
 --   game, gameArg    the game's sheet function for this stat, for its tooltip
 Stats.ROWS = {
     attributes = {},
@@ -202,6 +223,15 @@ local function maxPower(unit)
     return { id = unit == "pet" and "pet_power" or "power", label = function() return powerName(unit) end, fmt = "%.0f", unit = unit,
         game = "PaperDollFrame_SetPower", read = function() return call("UnitPowerMax", unit) end }
 end
+-- Each school's row, right under Spell power (2 holy .. 7 arcane).
+Stats.SCHOOLS = { { 2, "holy", L["Holy"] }, { 3, "fire", L["Fire"] }, { 4, "nature", L["Nature"] }, { 5, "frost", L["Frost"] },
+    { 6, "shadow", L["Shadow"] }, { 7, "arcane", L["Arcane"] } }
+for i, sc in ipairs(Stats.SCHOOLS) do
+    local school = sc[1]
+    table.insert(Stats.ROWS.spell, 1 + i, { id = "sp_" .. sc[2], label = sc[3], fmt = "%.0f", indent = true,
+        read = function() return call("GetSpellBonusDamage", school) end, skip = schoolSkip(school) })
+end
+
 local A = Stats.ROWS.attributes
 A[#A + 1] = { id = "health", label = L["Health"], fmt = "%.0f", game = "PaperDollFrame_SetHealth", read = function() return call("UnitHealthMax", "player") end }
 A[#A + 1] = maxPower("player")
@@ -281,7 +311,8 @@ function Stats.Row(def)
     for i = 1, n do if isSecret(raw[i]) then secret = true end end
     local label = def.label
     if type(label) == "function" then label = label() end
-    local row = { id = def.id, label = label, fmt = def.fmt, secret = secret, game = def.game, gameArg = def.gameArg, unit = def.unit }
+    local row = { id = def.id, label = label, fmt = def.fmt, secret = secret, game = def.game, gameArg = def.gameArg, unit = def.unit,
+                  indent = def.indent }
     if def.compute then
         if secret then
             row.stale = true

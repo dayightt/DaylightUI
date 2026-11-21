@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Tooltips", "Durability on item tooltips turns from green to amber to red as your gear wears down" },
         { "Nameplates", "Names on nameplates can be hidden, for enemy and friendly plates separately" },
         { "Nameplates", "Threat colors can work solo too: mobs attacking you turn red, the rest stay as they are" },
+        { "Character", "A spell school your gear boosts, like Shadow or Fire, gets its own spell power row in the character window" },
         { "Info panel", "The data texts and data bar can show their numbers in white, your class color or a color you pick, instead of the accent" },
     }, changed = {
         { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under it, so prices stop creeping down" },

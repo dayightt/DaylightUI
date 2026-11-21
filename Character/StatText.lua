@@ -72,6 +72,13 @@ StatText.SAY = {
     res_arcane = resist(L["Lowers the arcane damage you take, and how often arcane spells hit you in full."]),
 }
 
+-- A school's own spell power row (Stats.SCHOOLS).
+for _, sc in ipairs(ns.Stats.SCHOOLS) do
+    local name = sc[3]
+    StatText.SAY["sp_" .. sc[2]] = { say = function(v) return string.format(L["Adds up to %.0f to your %s spells' damage."], v, name) end,
+        from = L["From gear and buffs for this school, on top of your spell power."] }
+end
+
 function StatText.For(row)
     if row.secret or row.stale or not row.values then return nil end
     local e = StatText.SAY[row.id]

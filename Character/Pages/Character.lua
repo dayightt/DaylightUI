@@ -270,14 +270,15 @@ function CharacterPage.FitStat(r, w)
     -- A value that cannot be measured (secret, in a fight) keeps the width it last had, or a usual one.
     local vw = measure(r.value, "GetStringWidth")
     if vw then r.valueW = vw else vw = r.valueW or CharacterPage.STAT_SECRET_W end
-    local room = math.max(20, w - 2 * inset - vw - CharacterPage.STAT_GAP)
+    local indent = r.row and r.row.indent and ns.List.INDENT or 0
+    local room = math.max(20, w - 2 * inset - indent - vw - CharacterPage.STAT_GAP)
     r.label:SetWidth(room)
     local lh, vh = tall(r.label, size), tall(r.value, size)
     local h = math.max(CharacterPage.STAT_ROW, math.ceil(lh) + 2 * CharacterPage.STAT_PAD)
     local wrapped = lh > vh * 1.5   -- the name takes more lines than the value does
     r.label:ClearAllPoints()
     r.value:ClearAllPoints()
-    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", inset, -(wrapped and CharacterPage.STAT_PAD or math.floor((h - lh) / 2)))
+    r.label:SetPoint("TOPLEFT", r, "TOPLEFT", inset + indent, -(wrapped and CharacterPage.STAT_PAD or math.floor((h - lh) / 2)))
     r.value:SetPoint("TOPRIGHT", r, "TOPRIGHT", -inset, -(wrapped and CharacterPage.STAT_PAD or math.floor((h - vh) / 2)))
     r:SetHeight(h)
     return h

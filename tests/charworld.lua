@@ -261,7 +261,11 @@ local function installStats()
     _G.GetArmorPenetration = function() return secret(st().armorPen) end
     _G.GetSpellPenetration = function() return secret(st().spellPen) end
     _G.MANA, _G.RAGE, _G.ENERGY = "Mana", "Rage", "Energy"   -- the game's power words
-    _G.GetSpellBonusDamage = function() return secret(st().spell) end
+    -- A school's own power (CW stats.schools[school]) or the shared one.
+    _G.GetSpellBonusDamage = function(school)
+        local own = type(st().schools) == "table" and st().schools[school]
+        return secret(own or st().spell)
+    end
     _G.GetSpellBonusHealing = function() return secret(st().heal) end
     _G.GetSpellCritChance = function() return secret(st().scrit) end
     _G.GetManaRegen = function() return many(st().regen[1], st().regen[2]) end
