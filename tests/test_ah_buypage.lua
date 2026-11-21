@@ -822,3 +822,24 @@ T.test("ah buy page: the buttons rest while the Auction House is busy, and the k
     T.eq(AHW.Calls("StartCommoditiesPurchase"), 1, "the key is the main button")
     quiet()
 end)
+
+T.test("ah buy page: suggestions never make the game load names, and learn them as they come", function()
+    local LATE = 30001
+    local A, page = load({ auctions = (function()
+        local list = auctions()
+        list[#list + 1] = { itemID = LATE, name = "Runeweave Sash", count = 1, buyout = 500, cached = false }
+        return list
+    end)() })
+    A.Store.Record(RKEY, tostring(LATE), 500, 1, A.Game.Now())
+    A.BuyPage.Suggest("rune")   -- starts the build
+    for _ = 1, 200 do AHW.Frame() end
+    local function names()
+        local out = {}
+        for _, s in ipairs(A.BuyPage.Suggest("rune") or {}) do out[#out + 1] = s.insert end
+        return table.concat(out, ",")
+    end
+    T.falsy(names():find("Sash", 1, true), "not loaded: left out, not asked for: " .. names())
+    AHW.Cache(LATE)
+    T.truthy(names():find("Runeweave Sash", 1, true), "in once the game loaded it: " .. names())
+    quiet()
+end)

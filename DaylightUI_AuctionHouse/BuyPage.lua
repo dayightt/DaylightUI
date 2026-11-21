@@ -284,13 +284,16 @@ end
 -- can know 30,000 items: never in one frame), each slice sorted on its own,
 -- then merged pairwise a budget a frame. Until a build is done the last
 -- complete index serves. It's rebuilt when the ruleset knows a different
--- number of items, or now and then while names were missing.
-local index = { rkey = nil, n = -1, entries = {}, missing = false, builtAt = 0 }
+-- number of items. Only names the game already holds go in; one it hadn't
+-- loaded is added when it arrives (its item event), never by asking for it or
+-- building again: asking for thousands of names made the game itself stall
+-- while typing.
+local index = { rkey = nil, n = -1, entries = {}, missing = {}, builtAt = 0 }
 BP.nameIndex = index
 local build
 BP.MERGE_BUDGET = 8000
 BP.CONTAINS_LOOKED = 2000
-BP.REBUILD_MISSING = 10   -- s before a build with names missing is tried again
+BP.INDEX_SLICE = 100      -- names looked up a frame while building: each unknown one is a load for the game
 
 local function byLower(a, b) return a[1] < b[1] end
 
@@ -310,12 +313,15 @@ local function buildStep(job)
     local keys = job.keys
     if job.pos <= #keys then
         local chunk = {}
-        local last = math.min(job.pos + ns.Game.SLICE - 1, #keys)
+        local last = math.min(job.pos + BP.INDEX_SLICE - 1, #keys)
+        local cached = C_Item and C_Item.IsItemDataCachedByID
         for k = job.pos, last do
             local id = ns.Items.ID(keys[k])
-            local name = id and ns.Items.Name(id)
+            -- only names the game already holds: asking for one it doesn't makes it load
+            -- the item, and thousands of those stall the game while the player types
+            local name = id and (not cached or cached(id)) and ns.Items.Name(id) or nil
             if name then chunk[#chunk + 1] = { string.lower(name), name, id }
-            elseif id then job.missing = true end
+            elseif id then job.missing[id] = true end
         end
         job.pos = last + 1
         table.sort(chunk, byLower)
@@ -351,16 +357,31 @@ local function ensureIndex(rkey)
     if build and build.rkey ~= rkey then build = nil end
     if build then return end
     local n = ns.Store.Count(rkey)
-    if rkey == index.rkey and n == index.n
-        and not (index.missing and GetTime() - index.builtAt >= BP.REBUILD_MISSING) then return end
+    if rkey == index.rkey and n == index.n then return end
     local keys = {}
     local items = ns.Store.Items(rkey)
     for key in pairs(items or {}) do
         if not string.find(key, ":", 1, true) then keys[#keys + 1] = key end
     end
-    local job = { rkey = rkey, keys = keys, pos = 1, runs = {}, missing = false, n = n }
+    local job = { rkey = rkey, keys = keys, pos = 1, runs = {}, missing = {}, n = n }
     build = job
     C_Timer.After(0, function() buildStep(job) end)
+end
+
+-- A name the index was missing, now loaded: put in its sorted place.
+function BP.IndexLearn(itemID)
+    if not index.missing[itemID] then return end
+    local name = ns.Items.Name(itemID)
+    if not name then return end
+    index.missing[itemID] = nil
+    local lower, e = string.lower(name), index.entries
+    local lo, hi = 1, #e + 1
+    while lo < hi do
+        local mid = math.floor((lo + hi) / 2)
+        if e[mid][1] < lower then lo = mid + 1 else hi = mid end
+    end
+    if e[lo] and e[lo][1] == lower then return end
+    table.insert(e, lo, { lower, name, itemID })
 end
 
 -- W.Complete's suggest: names that start with what's typed, then names that
@@ -2380,6 +2401,7 @@ local function repaintSoon()
 end
 
 local function itemLoaded(_, itemID)
+    if type(itemID) == "number" then BP.IndexLearn(itemID) end
     local list = type(itemID) == "number" and waiting[itemID]
     if list then
         waiting[itemID] = nil
