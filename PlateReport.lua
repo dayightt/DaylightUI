@@ -583,6 +583,7 @@ end)
 -- steps that need nothing of it.
 R.CHECK_DETAIL = 6
 R.REPORT_MAX = 3800
+R.ADDONS_ROOM = 400
 R.FIX_GAP = 0.5
 R.FIX_SETTLE = 1
 R.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
@@ -907,16 +908,39 @@ function R.BuildFixReport(title, run, world)
     out[#out + 1] = "Before step 1:"
     for _, line in ipairs(run.before) do out[#out + 1] = line end
     for i, did in ipairs(run.did) do out[#out + 1] = string.format("  %d. %s", i, did) end
+    -- The setup and Daylight UI state lines go before the log, and the addon
+    -- list goes last: a busy log or a long list used to push the state lines
+    -- past the end, and they were cut from nearly every report.
+    local addons
+    for _, line in ipairs(world) do
+        if line:find("^Other addons:") then addons = line else out[#out + 1] = line end
+    end
     out[#out + 1] = "What happened before step 1 (most recent first, minutes:seconds before it):"
-    local log = run.log or {}
-    for i = #log, 1, -1 do out[#out + 1] = log[i] end
-    out[#out + 1] = ""
-    for _, line in ipairs(world) do out[#out + 1] = line end
-    local text = R.Printable(table.concat(out, "\n"))
-    if #text <= R.REPORT_MAX then return text end
+    local head = R.Printable(table.concat(out, "\n"))
     local omitted = "\n[Further report lines omitted]"
-    local prefix = text:sub(1, R.REPORT_MAX - #omitted + 1)
-    return prefix:match("^(.*)\n") .. omitted
+    if #head > R.REPORT_MAX then
+        local prefix = head:sub(1, R.REPORT_MAX - #omitted + 1)
+        return prefix:match("^(.*)\n") .. omitted
+    end
+    -- The log keeps room for a short addon list, then takes what it needs.
+    local room = R.REPORT_MAX - #omitted - (addons and R.ADDONS_ROOM or 0)
+    local log, lines, size, cut = run.log or {}, {}, #head, false
+    for i = #log, 1, -1 do
+        local line = "\n" .. R.Printable(log[i])
+        if size + #line > room then cut = true break end
+        lines[#lines + 1] = line
+        size = size + #line
+    end
+    local text = head .. table.concat(lines)
+    if addons then
+        local line = "\n\n" .. R.Printable(addons)
+        local left = R.REPORT_MAX - #text - #omitted
+        if #line > left then
+            line, cut = line:sub(1, left):match("^(.*),") or "", true
+        end
+        text = text .. line
+    end
+    return cut and text .. omitted or text
 end
 
 local fixStep, fixRun

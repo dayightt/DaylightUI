@@ -125,6 +125,9 @@ T.test("platefix: the report fits one Discord report, log and all", function()
     T.truthy(text:find("  8: ", 1, true), "the last step's counts survive")
     T.truthy(text:find("fight over", 1, true), "the event closest to the failure survives")
     T.truthy(text:find("[Further report lines omitted]", 1, true), "the reader knows when detail was dropped")
+    T.truthy(text:find("Daylight UI now:", 1, true), "a busy log never pushes out the held-open count")
+    T.truthy(text:find("World UI:", 1, true), "a busy log never pushes out the world switch line")
+    T.truthy(text:find("Other addons:", 1, true), "a busy log never pushes out the addon list")
 end)
 
 -- Players can't say what they did before the plates went (their reasons have
@@ -171,7 +174,7 @@ T.test("platefix: the report carries a log of what happened before step 1", func
         "restriction 1=2", "AFK screen", "UI faded out", "UI back", "buffers drawn 1", "plates +1 -1" }) do
         T.truthy(text:find(want, 1, true), want .. " in: " .. text)
     end
-    local log = text:match("(What happened before step 1.-)\n\n")
+    local log = (text .. "\n\n"):match("(What happened before step 1.-)\n\n")
     T.truthy(log, text)
     local _, fights = log:gsub("fight\n", "")
     T.eq(fights, 1, "the fight after step 1 isn't in it")
@@ -519,7 +522,7 @@ T.test("platefix: the log names who switched the plates and bubbles off", functi
     withStack("", function() SetInWorldUIVisibility(false) end)
     NP.Manager.Fix()
     local text = NP.Manager.FixReport(1)
-    local log = text:match("(What happened before step 1.-)\n\n")
+    local log = (text .. "\n\n"):match("(What happened before step 1.-)\n\n")
     T.truthy(log, text)
     for _, want in ipairs({ "whole UI and plates off by SomeAfkAddon", "UI hidden", "UI shown",
         "plates and bubbles off by a key or the client" }) do
@@ -716,7 +719,7 @@ T.test("platefix: switch changes stay in the report after the log has filled", f
     withStack("", function() SetInWorldUIVisibility(true) end)
     NP.Manager.Fix()
     local text = NP.Manager.FixReport(1)
-    local log = text:match("(What happened before step 1.-)\n\n")
+    local log = (text .. "\n\n"):match("(What happened before step 1.-)\n\n")
     T.truthy(log, text)
     T.falsy(log:find("plates and bubbles off", 1, true), "gone from the log")
     T.truthy(text:find("switch changes: off by a key or the client -0:00, on by a key or the client -0:00", 1, true),
