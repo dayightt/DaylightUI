@@ -1,3 +1,29 @@
+# DaylightUI 2.1.3
+
+A much fuller Auction House: bids, smarter selling and a quicker feel. Plus Cooldown Manager layouts you can share, and a land-early button on the flight timer.
+
+## New
+- Auction House: Sell remembers how many you last posted, can undercut by a percent and warns before you post far too cheap. Pin or hide items, search My auctions, and set a max price on Buy
+- Auction House: Waylaid Crate tooltips show what each bundle costs and the cheapest way to fill the crate
+- Cooldown Manager: Share your whole Cooldown Manager layout with friends: Export and Import in the layout editor
+- Flight timer: A button on the flight timer lands you at the next stop
+- Tooltips: A weapon's damage per second stands out in big letters on Rich tooltips
+
+## Changed
+- Auction House: Faster and smoother: prices show as the first page comes in, buttons wait a moment instead of refusing your click, and My auctions updates when something sells
+- Professions: Each recipe in the profession list shows its profit
+- Chat: "You gain 45 experience" lines from kills stay in the Loot tab instead of filling General
+
+## Fixed
+- Auction House: Bid on gear again, follow your bids on a Bids list, and give gear a starting bid when selling, like the game's own window
+- Auction House: Searching works like the game's window again: a filter for each quality, recipes by the skill they need, and your favorites
+- Auction House: Buying stops if the price jumps after you click, and canceling an auction that costs gold asks first
+- Auction House: Typing in the search box no longer makes the game stutter
+- Tooltips: TSM prices with a percent in front of them show coins again instead of "s" and "c"
+- Loot: A loot roll card shows everyone in the group right away, not only once someone has picked
+- Controller: Logging in with the controller UI on no longer swaps your Edit Mode layout and asks you to reload
+- Little touches: The chat bubble size slider no longer sticks while you drag it, and a gear slot's repair line in the character window no longer gets cut off
+
 # DaylightUI 2.1.2
 
 Your profiles and Cooldown Manager layouts are back. Blizzard quietly changed how the game reports realms, to stop layer hopping, and that unhooked characters from their profiles. Nothing was lost.

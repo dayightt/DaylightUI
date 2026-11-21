@@ -11,28 +11,29 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", new = {
-        { "Tooltips", "A weapon's damage per second stands out in big letters on Rich tooltips, with a size slider of its own" },
-        { "Auction House", "Sell remembers how many of an item you last posted, can undercut by a percent, and writes each post in chat if you like. Right-click an item in its list to pin it on top or hide it" },
-        { "Auction House", "My auctions has a search box, and can let a few cheaper items from others pass before calling yours undercut. Buy takes a max price and an exact name switch" },
-        { "Cooldown Manager", "Share your whole Cooldown Manager layout with friends: Export in the layout editor gives it as text, with every spell's options and its look, and Import takes it in" },
-        { "Flight timer", "A small button on the flight timer lands you at the next stop, and the timer then shows that stop and counts down to it" },
-        { "Auction House", "Sell asks once more before posting far under what most others ask, or for less than a vendor would pay you" },
-        { "Auction House", "Waylaid Crate tooltips show what each bundle costs at the Auction House, and the cheapest way to fill the crate" },
+    { version = "Unreleased" },
+    { version = "2.1.3", date = "2026-11-20", summary = "A much fuller Auction House: bids, smarter selling and a quicker feel. Plus Cooldown Manager layouts you can share, and a land-early button on the flight timer.", new = {
+        { "Auction House", "Sell remembers how many you last posted, can undercut by a percent and warns before you post far too cheap. Pin or hide items, search My auctions, and set a max price on Buy" },
+        { "Auction House", "Waylaid Crate tooltips show what each bundle costs and the cheapest way to fill the crate" },
+        { "Cooldown Manager", "Share your whole Cooldown Manager layout with friends: Export and Import in the layout editor" },
+        { "Flight timer", "A button on the flight timer lands you at the next stop" },
+        { "Tooltips", "A weapon's damage per second stands out in big letters on Rich tooltips" },
     }, changed = {
-        { "Chat", "\"You gain 45 experience\" lines from kills no longer fill the General tab while you grind. They still show in the Loot tab" },
-        { "Auction House", "Faster and smoother: lists and prices show as soon as the first page comes in, a new search takes over from the old one, and Post, Buy and Cancel go dim for a moment while the Auction House is busy instead of turning your click down. My auctions updates itself when something sells, and the Auction House key buys on Buy too" },
+        { "Auction House", "Faster and smoother: prices show as the first page comes in, buttons wait a moment instead of refusing your click, and My auctions updates when something sells" },
+        { "Professions", "Each recipe in the profession list shows its profit" },
+        { "Chat", "\"You gain 45 experience\" lines from kills stay in the Loot tab instead of filling General" },
     }, fixed = {
-        { "Auction House", "Buying stops when the price jumps after you click Buy, the price you're holding counts down before it runs out, and canceling an auction that costs gold asks first, like the game's own window" },
-        { "Auction House", "Bid on gear again, including auctions that only take bids, and follow your bids on a new Bids list under My auctions, like the game's own window. My auctions columns sort, and your gold shows in the window" },
-        { "Auction House", "Selling gear takes a starting bid, a click on a listing copies its price, and a right-click on a bag item picks it to sell" },
-        { "Auction House", "Searching works like the game's window: each quality has its own filter, recipes show and sort by the skill they need, long lists sort on the server, and the game's favorites show up in one search" },
-        { "Loot", "A loot roll card shows a mark for everyone in the group right away, not only once someone has picked" },
+        { "Auction House", "Bid on gear again, follow your bids on a Bids list, and give gear a starting bid when selling, like the game's own window" },
+        { "Auction House", "Searching works like the game's window again: a filter for each quality, recipes by the skill they need, and your favorites" },
+        { "Auction House", "Buying stops if the price jumps after you click, and canceling an auction that costs gold asks first" },
+        { "Auction House", "Typing in the search box no longer makes the game stutter" },
         { "Tooltips", "TSM prices with a percent in front of them show coins again instead of \"s\" and \"c\"" },
-        { "Tooltips", "Rich tooltips no longer show a reset arrow in the options as if you had changed them, and resetting the setting keeps Rich" },
+        { "Loot", "A loot roll card shows everyone in the group right away, not only once someone has picked" },
+        { "Controller", "Logging in with the controller UI on no longer swaps your Edit Mode layout and asks you to reload" },
+        { "Little touches", "The chat bubble size slider no longer sticks while you drag it, and a gear slot's repair line in the character window no longer gets cut off" },
     } },
     { version = "2.1.2", date = "2026-11-20", summary = "Your profiles and Cooldown Manager layouts are back. Blizzard quietly changed how the game reports realms, to stop layer hopping, and that unhooked characters from their profiles. Nothing was lost.", new = {
-        { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. Each recipe in the list shows its profit, and the Profit button puts the best earners first" },
+        { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. The Profit button over the list puts the best earners first" },
         { "Profiles", "Importing a shared profile lets you pick which parts to take, like only someone's nameplates or unit frames. Everything you switch off stays as yours. On an ultrawide or other screen shape than the one it was made on, its frames are brought in to the same places instead of spreading to your screen's edges" },
         { "Bars", "Health, power, cast and swing bars, combo points, nameplates, the experience bar, meters, tooltips, quest bars and Cooldown Manager bars can each wear a gradient of two to five colors you pick, like the custom gradient accent. Pick Custom gradient in a bar's color menu" },
         { "Loot", "Prefer the game's own roll popups? A new switch brings them back in Daylight UI style, with how many players picked Need, Greed and Pass on each button" },
@@ -41,7 +42,6 @@ DUI.PatchNotes = {
     }, changed = {
         { "Cooldown Manager", "The talent set button at the top of the layout editor opens a list of your layouts, so you can pick which one each talent set uses right there" },
     }, fixed = {
-        { "Controller", "Logging in with the controller UI on no longer swaps your Edit Mode layout and asks you to reload" },
         { "Profiles", "Profiles and Cooldown Manager layouts looked reset after Blizzard quietly changed how realms are reported. Every character is back on its own profile at next login, with nothing lost" },
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },
