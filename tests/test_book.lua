@@ -433,6 +433,34 @@ T.test("book: the game's book's link switches back to Daylight UI's, no reload",
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's book is a toplevel window raised on every click, its page at a
+-- fixed frame level 100 and its maximize button at 5510 right by the X: a link
+-- kept by frame level sat under them, its words cut off, dimmed and deaf.
+T.test("book: the game's book's link sits left of its maximize button, a strata above the book", function()
+    stub.Load({ before = function()
+        BW.world()()
+        DaylightUIDB = { profileData = { ["DPS/Tank"] = { modules = { Book = { enabled = false } } } } }
+    end })
+    local B = stub.book.Window
+    BW.Open(BW.SPELLBOOK)
+    settle()
+    local g, link = PlayerSpellsFrame, B.swap.link
+    local mm = g.MaximizeMinimizeButton
+    T.truthy(link:IsShown())
+    local p, rel, rp = link:GetPoint(1)
+    T.eq(p, "RIGHT"); T.eq(rel, mm, "beside the maximize button, not under it"); T.eq(rp, "LEFT")
+    local ORDER = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
+    T.truthy(ORDER[link:GetFrameStrata()] > ORDER[g:GetFrameStrata()], "drawn and clicked above the whole book")
+    mm:Hide()
+    T.eq(select(2, link:GetPoint(1)), g.CloseButton, "no maximize button: beside the X")
+    mm:Show()
+    T.eq(select(2, link:GetPoint(1)), mm)
+    link:Click()
+    settle()
+    T.eq(DaylightUI.bookOwnWindow, true, "and a click switches back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("book: a page dragged wider by the grip opens at that size again", function()
     local B = load()
     BW.Open(BW.TALENTS)

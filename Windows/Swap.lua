@@ -21,7 +21,26 @@ local Win = DUI.Win
 local L = DUI.L
 
 Win.SWAP_ICON = "ui-swap.png"
-Win.SWAP_GAP = 10   -- between the link on the game's window and its X
+Win.SWAP_GAP = 10   -- between the link on the game's window and its X (or maximize button)
+
+-- One strata above a frame's. The game's toplevel windows hold pages at fixed
+-- frame levels and get raised on every click, so no frame level inside one
+-- stays on top: a link there ended up under the spellbook's page, dimmed and
+-- deaf to clicks. A strata above always draws and clicks first.
+Win.STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
+function Win.StrataAbove(frame)
+    local strata = frame:GetFrameStrata()
+    for i, s in ipairs(Win.STRATA) do
+        if s == strata then return Win.STRATA[math.min(i + 1, #Win.STRATA)] end
+    end
+    return "DIALOG"
+end
+
+-- The game's maximize/minimize button beside the X, when the window has one.
+local function maxMin(g)
+    local mm = g.MaximizeMinimizeButton or g.MaximizeMinimizeFrame
+    return type(mm) == "table" and type(mm.IsShown) == "function" and mm or nil
+end
 
 local function tipLink(self)
     if not GameTooltip then return end
@@ -63,6 +82,20 @@ function Win.Swap(spec)
         local b = s.link
         if not b then return end
         b:SetShown(not blocked() and (not s.Ours() or (spec.lent ~= nil and spec.lent() == true)))
+        s.Place()
+    end
+
+    -- Left of the maximize button while it shows (the spellbook's sits right by
+    -- the X and cut the words off), else left of the X.
+    function s.Place()
+        local b, g = s.link, game()
+        if not (b and g) or InCombatLockdown() then return end
+        local mm, close = maxMin(g), type(g.CloseButton) == "table" and g.CloseButton or nil
+        local beside = mm and mm:IsShown() and mm or close
+        b:ClearAllPoints()
+        if beside then b:SetPoint("RIGHT", beside, "LEFT", -Win.SWAP_GAP, 0)
+        else b:SetPoint("TOPRIGHT", g, "TOPRIGHT", -32, -4) end
+        b:SetFrameStrata(Win.StrataAbove(g))
     end
 
     -- Quiet words beside the game's X, as its child so it shows and moves with it.
@@ -72,15 +105,16 @@ function Win.Swap(spec)
         if g.IsForbidden and g:IsForbidden() then return end
         local b = DUI.Widgets.Link(g, DUI.Style.SIZE.small)
         b.SetLabel(L["Daylight UI window"])
-        local close = type(g.CloseButton) == "table" and g.CloseButton
-        if close then b:SetPoint("RIGHT", close, "LEFT", -Win.SWAP_GAP, 0)
-        else b:SetPoint("TOPRIGHT", g, "TOPRIGHT", -32, -4) end
-        b:SetFrameLevel(g:GetFrameLevel() + 510)   -- above the game's pages
         b:SetScript("OnClick", function() s.Use(true) end)
         b:HookScript("OnEnter", tipLink)
         b:HookScript("OnLeave", hideTip)
         s.link = b
         g:HookScript("OnShow", s.Paint)
+        local mm = maxMin(g)
+        if mm and mm.HookScript then
+            mm:HookScript("OnShow", s.Place)
+            mm:HookScript("OnHide", s.Place)
+        end
         s.Paint()
     end
 

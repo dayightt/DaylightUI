@@ -33,14 +33,7 @@ local function UI() return DUI.Widgets end
 -- frameLevel 100 inside a toplevel window the game raises on every click, so
 -- no frame level beside it stays on top. Under the page's dark background the
 -- switch looked grayed out and clicks went to the book.
-B.STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
-function B.Above(frame)
-    local strata = frame:GetFrameStrata()
-    for i, s in ipairs(B.STRATA) do
-        if s == strata then return B.STRATA[math.min(i + 1, #B.STRATA)] end
-    end
-    return "DIALOG"
-end
+function B.Above(frame) return DUI.Win.StrataAbove(frame) end
 
 -- The game's spellbook page, once its addon has loaded.
 function B.Book()
@@ -214,16 +207,18 @@ local function makeToggle()
     return t
 end
 
--- Beside the book's search box in its top bar, above the book.
+-- In the book's bottom-left corner, level with its page arrows and as far in
+-- from the edge. Its top row has no room to spare: the spell tabs run right up
+-- to the search box, and a switch beside the search box sat over the tabs.
+B.TOGGLE_X, B.TOGGLE_Y = 75, 40   -- the page arrows' own inset, mirrored
 local function placeToggle(book)
     local t = B.toggle
     t:ClearAllPoints()
-    local search = book.SearchBox
-    if type(search) == "table" and type(search.GetLeft) == "function" then
-        t:SetPoint("RIGHT", search, "LEFT", -10, 0)
-    else
-        t:SetPoint("TOPRIGHT", book, "TOPRIGHT", -300, -24)
-    end
+    local paged = book.PagedSpellsFrame
+    local arrows = type(paged) == "table" and paged.PagingControls
+    local h = type(arrows) == "table" and type(arrows.GetHeight) == "function" and arrows:GetHeight()
+    local y = B.TOGGLE_Y + ((type(h) == "number" and h > 0) and h / 2 or t:GetHeight() / 2)
+    t:SetPoint("LEFT", book, "BOTTOMLEFT", B.TOGGLE_X, y)
     t:SetFrameStrata(B.Above(_G.PlayerSpellsFrame))
 end
 

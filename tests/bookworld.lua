@@ -74,6 +74,7 @@ local function bookFrame()
     f = CreateFrame("Frame", "PlayerSpellsFrame", UIParent)
     f.__protected = true
     f:Hide()
+    f:SetFrameStrata("MEDIUM")   -- a UI panel's
     f:SetSize(1618, 720)
     f:SetPoint("TOP", UIParent, "TOP", 0, -104)   -- the center panel spot
     f.specTabID, f.talentTabID, f.spellBookTabID = BW.SPEC, BW.TALENTS, BW.SPELLBOOK
@@ -101,6 +102,16 @@ local function bookFrame()
     f:SetScript("OnEvent", function(_, event)
         if event == "PLAYER_LEAVING_WORLD" then asGame(HideUIPanel, f) end
     end)
+    -- PortraitFrameTemplate's X, and Forever's maximize/minimize right beside it
+    -- (Camelot/Blizzard_PlayerSpellsFrame.xml: frameLevel 5510, 24 by 24).
+    f.CloseButton = CreateFrame("Button", "PlayerSpellsFrameCloseButton", f)
+    f.CloseButton:SetSize(24, 24)
+    f.CloseButton:SetPoint("TOPRIGHT", f, "TOPRIGHT", 1, 0)
+    local mm = CreateFrame("Frame", nil, f)
+    mm:SetSize(24, 24)
+    mm:SetPoint("RIGHT", f.CloseButton, "LEFT", 0, 0)
+    mm:SetFrameLevel(5510)
+    f.MaximizeMinimizeButton = mm
     record("LoadAddOn", "Blizzard_PlayerSpells")
     stub.FireEvent("ADDON_LOADED", "Blizzard_PlayerSpells")
     return f
