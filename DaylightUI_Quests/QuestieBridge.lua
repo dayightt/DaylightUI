@@ -8,8 +8,8 @@
 -- What it reads from Questie's source:
 -- - QuestieLoader:ImportModule(name) returns the module, or an empty table for an
 --   unknown name (Modules/Libs/QuestieLoader.lua:165).
--- - QuestieTooltips.lookupByKey["m_<npcId>"] = { [k] = { questId, starterId,
---   ... } }: quests that NPC starts and the player can take, filled by Questie's
+-- - QuestieTooltips.lookupByKey["m_<npcId>"] (or "o_<objectId>") = { [k] = {
+--   questId, starterId, ... } }: quests it starts and the player can take, filled by Questie's
 --   available-quest pass (RegisterQuestStartTooltip, Tooltips/Tooltip.lua:78).
 --   An entry with `objective` is a quest target, not a start.
 -- - Questie.API.GetQuestObjectiveIconForUnit(guid) = an icon file path for the
@@ -149,16 +149,16 @@ function Bridge.WatchHover(fn)
     end)
 end
 
--- Quests this NPC starts that Questie says the player can take: { questID, ... }
--- (a sorted copy), or nil without Questie.
-function Bridge.NpcQuests(npcID)
-    if type(npcID) ~= "number" or not Bridge.Loaded() then return nil end
+-- Quests an NPC (or an object, `object` true) starts that Questie says the player
+-- can take: { questID, ... } (a sorted copy), or nil without Questie.
+function Bridge.NpcQuests(id, object)
+    if type(id) ~= "number" or not Bridge.Loaded() then return nil end
     return safe(function()
         local m = module("QuestieTooltips")
         local byKey = m and m.lookupByKey
         if type(byKey) ~= "table" then return nil end
         local out, seen = {}, {}
-        local entries = byKey["m_" .. npcID]
+        local entries = byKey[(object and "o_" or "m_") .. id]
         for _, e in pairs(type(entries) == "table" and entries or {}) do
             local id = type(e) == "table" and e.starterId ~= nil and e.questId
             if type(id) == "number" and not seen[id] then

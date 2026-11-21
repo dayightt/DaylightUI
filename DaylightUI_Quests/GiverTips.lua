@@ -1,5 +1,5 @@
--- Quests an NPC has for the player, in its tooltip (mapQuests.tooltip, on with
--- Questie). A "?" line for each quest ready to turn in to them, a "!" line for each
+-- Quests an NPC (or a thing in the world, like a Wanted Poster) has for the player,
+-- in its tooltip (mapQuests.tooltip, on with Questie). A "?" line for each quest ready to turn in to them, a "!" line for each
 -- one available, then one for each quest in progress that ends with them (with its
 -- progress, drawn like the NPC window does). Name and level in the quest log's
 -- difficulty color, its kind as a letter (E elite, D dungeon...). Available quests
@@ -80,12 +80,16 @@ local function order(a, b)
     return tostring(a.name) < tostring(b.name)
 end
 
--- Everything for one NPC: { { kind, quest, name, level, low, rep }, ... }, sorted
--- by kind (RANK), then level.
-function GT.For(npc)
+-- Everything for one NPC (or object, `object` true): { { kind, quest, name, level,
+-- low, rep }, ... }, sorted by kind (RANK), then level. `seen` (optional) skips
+-- quests already listed and notes the new ones.
+function GT.For(npc, object, seen)
     local out = {}
-    for _, id in ipairs(ns.Bridge.NpcQuests(npc) or {}) do
-        if not call(QL("GetLogIndexForQuestID"), id) then
+    seen = seen or {}
+    local enders = object and ns.Spots.EnderObjects or ns.Spots.Enders
+    for _, id in ipairs(ns.Bridge.NpcQuests(npc, object) or {}) do
+        if not seen[id] and not call(QL("GetLogIndexForQuestID"), id) then
+            seen[id] = true
             local lv = quest(id, "questLevel")
             lv = type(lv) == "number" and lv or 0
             local flags = quest(id, "specialFlags")
@@ -98,9 +102,10 @@ function GT.For(npc)
     for i = 1, (type(n) == "number" and n or 0) do
         local info = call(QL("GetInfo"), i)
         local id = type(info) == "table" and not info.isHeader and info.questID
-        if type(id) == "number" and id > 0 then
-            for _, eid in ipairs(ns.Spots.Enders(id)) do
+        if type(id) == "number" and id > 0 and not seen[id] then
+            for _, eid in ipairs(enders(id)) do
                 if eid == npc then
+                    seen[id] = true
                     out[#out + 1] = { kind = ready(id) and "?" or "~", quest = id,
                                       name = call(QL("GetTitleForQuestID"), id) or info.title,
                                       level = type(info.level) == "number" and info.level or 0 }
@@ -264,6 +269,68 @@ function GT.OnUnit(tip, data)
     if npc then GT.Add(tip, GT.For(npc)) end
 end
 
+-- An object's id from its GUID ("GameObject-0-1-2-3-<objectID>-<spawn>"), nil
+-- for anything else or a secret one.
+function GT.ObjectID(guid)
+    guid = plain(guid)
+    if type(guid) ~= "string" then return nil end
+    local id = guid:match("^GameObject%-%d+%-%d+%-%d+%-%d+%-(%d+)")
+    return id and tonumber(id) or nil
+end
+
+GT.MAX_OBJECTS = 10    -- objects of one name looked at, at most
+
+-- The objects of this name that stand on your map or a map it lies in. Many
+-- things share a name (a Wanted Poster in every town), and the world's tooltip
+-- only sometimes says which one it is. An object QuestieDB has no map spot
+-- for (inside an instance) counts as here, as does the only one of its name.
+function GT.ObjectsHere(name)
+    local ids = ns.Spots.ObjectsNamed(name)
+    if #ids <= 1 then return ids end
+    local here, map = {}, call(C_Map and C_Map.GetBestMapForUnit, "player")
+    for _ = 1, 10 do
+        if type(map) ~= "number" or map <= 0 or here[map] then break end
+        here[map] = true
+        local info = call(C_Map.GetMapInfo, map)
+        map = type(info) == "table" and info.parentMapID or nil
+    end
+    local out = {}
+    for _, id in ipairs(ids) do
+        local spots = ns.Spots.Object(id)
+        local found = #spots == 0
+        for _, s in ipairs(spots) do
+            if here[s.map] then found = true break end
+        end
+        if found then out[#out + 1] = id end
+        if #out >= GT.MAX_OBJECTS then break end
+    end
+    return out
+end
+
+-- A thing in the world (a Wanted Poster, a chest, a sign): the quests it starts
+-- and the ones you hand in to it, as on an NPC. The game's own quest lines on it
+-- get the same colors as a mob's.
+function GT.OnObject(tip, data)
+    if tip ~= GameTooltip then return end
+    GT.PaintQuestLines(tip, data)
+    if not GT.On() or type(data) ~= "table" then return end
+    local id = GT.ObjectID(data.guid)
+    local ids = id and { id }
+    if not ids then
+        local lines = plain(data.lines)
+        local first = type(lines) == "table" and plain(lines[1])
+        local name = type(first) == "table" and plain(first.leftText)
+        if type(name) ~= "string" or name == "" then return end
+        ids = GT.ObjectsHere(name)
+    end
+    local list, seen = {}, {}
+    for _, oid in ipairs(ids) do
+        for _, q in ipairs(GT.For(oid, true, seen)) do list[#list + 1] = q end
+    end
+    table.sort(list, order)
+    GT.Add(tip, list)
+end
+
 function GT.Enable(m)
     mod = m
     local TDP = TooltipDataProcessor
@@ -272,4 +339,5 @@ function GT.Enable(m)
     hooked = true
     if types.Unit then TDP.AddTooltipPostCall(types.Unit, function(tip, data) DUI.SafeCall(GT.OnUnit, tip, data) end) end
     if types.Item then TDP.AddTooltipPostCall(types.Item, paint) end
+    if types.Object then TDP.AddTooltipPostCall(types.Object, function(tip, data) DUI.SafeCall(GT.OnObject, tip, data) end) end
 end

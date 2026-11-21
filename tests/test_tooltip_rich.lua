@@ -2066,6 +2066,31 @@ T.test("rich tooltip: a node's card shows your skill in its skill-up color over 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("rich tooltip: a Wanted Poster's card shows the quests another addon lists on it", function()
+    local _, Panel = login("rich")
+    stub.SetSkills({})
+    local tip = GameTooltip
+    GameTooltip_SetDefaultAnchor(tip, UIParent)
+    tip.__unit = nil
+    tip:AddLine("Wanted Poster")
+    local data = { type = 4, lines = { {} } }
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    -- The Quests module's lines for what it starts, as GiverTips adds them.
+    tip:AddLine(" ")
+    tip:AddDoubleLine("|A:QuestNormal:14:14|a |cffffff00Wanted: Hogger|r", "|cffffff0011|r", 1, 1, 0, 1, 1, 0)
+    tip:Show()
+    update()
+    local p = Panel.Get(tip)
+    T.eq(stub.Text(p.items[1].title), "Wanted Poster")
+    local found
+    for i = 1, p.count do
+        local item = p.items[i]
+        if item.kind == "row" and (stub.Text(item.label) or ""):find("Wanted: Hogger", 1, true) then found = item end
+    end
+    T.truthy(found, "the quest on the card")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: a mailbox is its name and the game's lines, as wide as it needs", function()
     local _, Panel = login("rich")
     stub.SetSkills({})

@@ -44,8 +44,9 @@ end
 local function mapOf(area)
     if areaToMap == nil then
         areaToMap = false
-        local L = lib()
-        local ok, zones = pcall(L.Support.Get, "ZoneDB")
+        local S = lib().Support
+        local ok, zones = false, nil
+        if type(S) == "table" and type(S.Get) == "function" then ok, zones = pcall(S.Get, "ZoneDB") end
         local src = ok and type(zones) == "table" and type(zones.private) == "table" and zones.private.areaIdToUiMapId
         if type(src) == "table" then
             areaToMap = src
@@ -267,6 +268,29 @@ end
 function Spots.Enders(questID)
     if not Spots.Ready() or type(questID) ~= "number" then return NONE end
     return finishers(questID).npcs
+end
+
+-- Objects a quest is turned in at: { objectID, ... } (cached). Shared table, read only.
+function Spots.EnderObjects(questID)
+    if not Spots.Ready() or type(questID) ~= "number" then return NONE end
+    return finishers(questID).objects
+end
+
+-- Every object QuestieDB has under this exact name (a poster stands in many
+-- zones under one name), or NONE. Shared table, read only.
+function Spots.ObjectsNamed(name)
+    local db = _G.ObjectDB
+    if not Spots.Ready() or type(name) ~= "string" or type(db) ~= "table" or type(db.IdsByName) ~= "function" then
+        return NONE
+    end
+    local ok, ids = DaylightUI.SafeReturn(db.IdsByName, name)
+    return ok and type(ids) == "table" and ids or NONE
+end
+
+-- Where an object stands, as map spots (cached). Shared table, read only.
+function Spots.Object(id)
+    if not Spots.Ready() or type(id) ~= "number" then return NONE end
+    return entity("object", id)
 end
 
 -- Where to turn it in: the NPCs and objects that end it (cached, they never

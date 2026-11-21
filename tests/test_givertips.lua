@@ -12,7 +12,15 @@ local DB = {
     [200] = { name = "Bears", questLevel = 10 },
     [210] = { name = "Again and again", questLevel = 12, specialFlags = 1 },
     [211] = { name = "Into the dungeon", questLevel = 13 },
+    [220] = { name = "Wanted: Hogger", questLevel = 11 },
+    [230] = { name = "Wanted: Far Away", questLevel = 12 },
+    [240] = { name = "Read the Notice", questLevel = 10, finishedBy = { {}, { 50 } } },
 }
+
+-- Two objects called "Wanted Poster" in QuestieDB: 50 stands in your zone
+-- (area 17 = map 40), 60 in another (area 44 = map 70).
+local POSTER, ELSEWHERE = 50, 60
+local OBJECTS = { [50] = { [17] = { { 50, 50 } } }, [60] = { [44] = { { 20, 20 } } } }
 
 -- Questie, with its loader handing out its tooltip registry: the quests NPC 9
 -- starts that it says you can take (200, 210, 211), a target line (an objective
@@ -28,20 +36,30 @@ local function questie()
             ["100 1"] = { questId = 100, objective = { Index = 1 } },
         },
         m_7 = { ["300 Ada 7"] = { questId = 300, name = "Ada", starterId = 7, type = "NPC" } },
+        o_50 = { ["220 Wanted Poster 50"] = { questId = 220, name = "Wanted Poster", starterId = 50, type = "Object" } },
+        o_60 = { ["230 Wanted Poster 60"] = { questId = 230, name = "Wanted Poster", starterId = 60, type = "Object" } },
     }
     _G.QuestieLoader = { ImportModule = function(_, name)
         if name == "QuestieTooltips" then return { lookupByKey = byKey } end
         return { private = {} }
     end }
     -- QuestieDB as Spots.Ready() finds it, with finishedBy a fresh copy per read like its own.
-    _G.LibQuestieDB, _G.NpcDB = {}, { Get = function() return nil end }
+    _G.NpcDB = { Get = function() return nil end }
+    _G.LibQuestieDB = { Support = { Get = function(name)
+        if name == "ZoneDB" then return { private = { areaIdToUiMapId = { [17] = 40, [44] = 70 } } } end
+    end } }
     _G.QuestDB = { Get = function(id, key)
         local e = DB[id]
         local v = e and e[key]
         if key == "finishedBy" then stub.finishedByReads = (stub.finishedByReads or 0) + 1 end
-        if key == "finishedBy" and type(v) == "table" then return { { unpack(v[1] or {}) } } end
+        if key == "finishedBy" and type(v) == "table" then return { { unpack(v[1] or {}) }, { unpack(v[2] or {}) } } end
         return v
     end }
+    -- Its object lookup by name, as Questie's own object tooltips use it.
+    _G.ObjectDB = {
+        IdsByName = function(name) if name == "Wanted Poster" then return { POSTER, ELSEWHERE } end end,
+        Get = function(id, key) if key == "spawns" then return OBJECTS[id] end end,
+    }
 end
 
 local post
@@ -51,12 +69,12 @@ local function load(spec)
     stub.Load({ quests = true, before = function()
         world()
         post = {}
-        Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
+        Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2, Object = 4 }
         _G.TooltipDataProcessor = {
             AllTypes = "ALL",
             AddTooltipPostCall = function(kind, fn) post[kind] = post[kind] or {}; table.insert(post[kind], fn) end,
         }
-        _G.Questie, _G.QuestieLoader, _G.QuestDB, _G.LibQuestieDB, _G.NpcDB = nil, nil, nil, nil, nil
+        _G.Questie, _G.QuestieLoader, _G.QuestDB, _G.LibQuestieDB, _G.NpcDB, _G.ObjectDB = nil, nil, nil, nil, nil, nil
         stub.loadedAddOns.Questie = nil
         if spec.questie then questie() end
     end })
@@ -148,6 +166,61 @@ T.test("NPC tooltip: nothing without Questie, for players, or when switched off"
     T.eq(#hover("Player-1-0001"), 0, "a player")
     load({ questie = true, settings = { ["mapQuests.tooltip"] = false } })
     T.eq(#hover(GIVER), 0, "switched off")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Points at a thing in the world: the game fills its tooltip with an Object
+-- fill (its name first, an id only sometimes), then runs the post-calls.
+local function hoverObject(name, guid)
+    GameTooltip:SetOwner(UIParent, "ANCHOR_NONE")
+    GameTooltip:Show()
+    local data = { guid = guid, lines = { { leftText = name, type = 0 } } }
+    for _, fn in ipairs(post[Enum.TooltipDataType.Object] or {}) do fn(GameTooltip, data) end
+    return GameTooltip.lines
+end
+
+local function inZone(map)
+    C_Map.GetBestMapForUnit = function(unit) if unit == "player" then return map end end
+    C_Map.GetMapInfo = function(id) return { mapID = id, parentMapID = id == 41 and 40 or 0 } end
+end
+
+T.test("Object tooltip: a Wanted Poster lists the quests it starts, only the one standing in your zone", function()
+    load({ questie = true })
+    inZone(40)
+    local lines = hoverObject("Wanted Poster")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local i, line = find(lines, "Wanted: Hogger")
+    T.truthy(i, "its quest listed: " .. table.concat(lines, " / "))
+    T.truthy(line:find("|A:QuestNormal:", 1, true), "the game's ! in front")
+    T.falsy(find(lines, "Wanted: Far Away"), "a poster of the same name in another zone isn't this one")
+    inZone(41)
+    T.truthy(find(hoverObject("Wanted Poster"), "Wanted: Hogger"), "a map inside the zone counts as the zone")
+end)
+
+T.test("Object tooltip: the object's own id is used when the game gives one", function()
+    load({ questie = true })
+    inZone(40)
+    local lines = hoverObject("Wanted Poster", "GameObject-0-1-2-3-60-0")
+    T.truthy(find(lines, "Wanted: Far Away"), "that poster's quest: " .. table.concat(lines, " / "))
+    T.falsy(find(lines, "Wanted: Hogger"), "not every poster of that name")
+end)
+
+T.test("Object tooltip: a quest you hand in at the object shows Ready", function()
+    local done = QW.quest(240, "Read the Notice", { complete = true, objs = { { text = "Notice read", have = 1, need = 1, done = true } } })
+    load({ questie = true, world = { quests = { done } } })
+    inZone(40)
+    local i, line = find(hoverObject("Wanted Poster"), "Read the Notice")
+    T.truthy(i, "listed: " .. table.concat(GameTooltip.lines, " / "))
+    T.truthy(line:find(DaylightUI.L["Ready"], 1, true), line)
+end)
+
+T.test("Object tooltip: nothing for a thing Questie doesn't know, or when switched off", function()
+    load({ questie = true })
+    inZone(40)
+    T.eq(#hoverObject("Copper Vein"), 0, "an unknown name")
+    load({ questie = true, settings = { ["mapQuests.tooltip"] = false } })
+    inZone(40)
+    T.eq(#hoverObject("Wanted Poster"), 0, "switched off")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
