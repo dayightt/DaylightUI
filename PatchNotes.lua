@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", new = {
+        { "Cooldown Manager", "Poisons, sharpening stones, oils and shaman weapon imbues can go in your Cooldown Manager, with their time left and charges, and a glow when they wear off" },
+    } },
     { version = "2.2", date = "2026-11-21", summary = "A smarter bag search, profiles you can share in parts, and tidier Rich tooltips. Plus hidden names and solo threat colors on nameplates.", new = {
         { "Profiles", "Shared profiles can leave parts out, and imports list only the parts that really changed" },
         { "Bags", "The bag search knows the game's item types and slots, like herb, cloth or trinket" },

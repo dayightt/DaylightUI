@@ -130,6 +130,17 @@ Custom.PETS = {
     WARLOCK = { 691, 712, 697, 688 },       -- Felhunter, Succubus, Voidwalker, Imp
 }
 
+-- Weapon enchant pieces, for every class: a poison, stone, oil or shaman imbue on
+-- that weapon. Not an aura, so CdmAuras draws it itself from DUI.Weapons, which the
+-- client answers plainly in a fight too.
+Custom.WEAPONS = {
+    mainhand = { slot = 0, inv = 16, name = L["Main-hand enchant"] },
+    offhand = { slot = 1, inv = 17, name = L["Off-hand enchant"] },
+}
+Custom.WEAPON_ORDER = { "mainhand", "offhand" }
+-- Shown while the weapon has no enchant and no weapon is in the slot.
+Custom.WEAPON_ICON = "Interface/Icons/INV_Stone_SharpeningStone_01"
+
 -- Shaman element pieces: one per totem slot, showing whichever totem stands there,
 -- then a cooldown totem's cooldown once it's gone (Custom.SlotNow).
 Custom.TOTEM_ELEMENTS = {
@@ -140,9 +151,9 @@ Custom.TOTEM_ELEMENTS = {
 }
 Custom.ELEMENT_ORDER = { "fire", "earth", "water", "air" }
 
--- Addon-made keys: "seal", "aura", "blessing", "pet", the elements, "s<spell id>" (a
+-- Addon-made keys: "seal", "aura", "blessing", "pet", the weapons, the elements, "s<spell id>" (a
 -- list family or a spell added by ID in the editor) and "i<item id>" (an item added by ID).
-Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true,
+Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true, mainhand = true, offhand = true,
                  fire = true, earth = true, water = true, air = true }
 function Custom.Is(id)
     return type(id) == "string" and (Custom.NAMED[id] == true or id:match("^[si]%d+$") ~= nil)
@@ -350,6 +361,12 @@ local function build()
     end
     if type(class) == "string" then
         for _, f in ipairs(S[class] or {}) do add(f, false) end
+    end
+    -- After the class's own spells: anyone can put a stone or oil on a weapon.
+    for _, key in ipairs(Custom.WEAPON_ORDER) do
+        local w = Custom.WEAPONS[key]
+        index[key] = { ids = {}, aura = true, self = true, weapon = w, name = w.name }
+        order[#order + 1] = key
     end
     for _, f in ipairs(S.GROUP or {}) do add(f, true) end
     -- Every rank of every totem, for a one-lookup Custom.Totem and Custom.SlotOf.
@@ -694,7 +711,7 @@ end
 -- An element piece's is the totem in its slot now (Custom.SlotNow), if any.
 function Custom.SpellOf(id)
     local f = Custom.Family(id)
-    if not f then return nil end
+    if not f or f.weapon then return nil end
     local now = f.element and Custom.SlotNow(id)
     return now or Custom.Learned(id) or f.ids[1]
 end
@@ -708,6 +725,12 @@ function Custom.Ranks(id)
         for _, s in ipairs(f.auras or {}) do out[s] = true end
     end
     return out
+end
+
+-- A weapon enchant piece's Custom.WEAPONS entry, else nil.
+function Custom.Weapon(id)
+    local f = type(id) == "string" and Custom.WEAPONS[id] and Custom.Family(id)
+    return f and f.weapon or nil
 end
 
 -- Another class's buff on you. The tray lists these behind their own switch.
@@ -770,6 +793,8 @@ end
 function Custom.Look(id)
     local e = Custom.Element(id)
     if e then return e.name, e.icon end
+    local w = Custom.Weapon(id)
+    if w then return w.name, Custom.WeaponIcon(w) end
     local item = Custom.ItemOf(id)
     if item and type(C_Item) == "table" then
         local okN, name = false, nil
@@ -792,12 +817,21 @@ function Custom.Look(id)
     return f and f.name or name, f and f.icon or okT and type(tex) ~= "nil" and tex or nil
 end
 
+-- The enchant's icon while one is on, else the weapon's, else a whetstone.
+function Custom.WeaponIcon(w)
+    local list = DUI.Weapons.Read(w.slot)
+    local icon = list[1] and list[1].icon
+    if type(icon) == "nil" then icon = GetInventoryItemTexture("player", w.inv) end
+    if type(icon) == "nil" then icon = Custom.WEAPON_ICON end
+    return icon
+end
+
 -- The card's What it shows can pick its cooldown, its buff or both. Not for
 -- someone else's buff on you, the merged families (seal, aura, blessing, elements) or the pet,
 -- which have no cooldown of yours to show.
 function Custom.CanTrack(id)
     local f = Custom.Family(id)
-    return f ~= nil and not (f.group or f.merged or f.pet) and not worn(id, f)
+    return f ~= nil and not (f.group or f.merged or f.pet or f.weapon) and not worn(id, f)
 end
 
 -- "cooldown", "aura" or "both": the piece's saved choice (Data.SetTrack) if the
@@ -825,7 +859,7 @@ end
 -- group buffs always count.
 function Custom.Entry(id)
     local f = Custom.Family(id)
-    if not f or not (f.group or f.item or f.onYou or Custom.Learned(id)) then return nil end
+    if not f or not (f.group or f.item or f.onYou or f.weapon or Custom.Learned(id)) then return nil end
     local e = entries[id]
     if not e then
         e = { kind = "icon", custom = true }
@@ -844,7 +878,7 @@ function Custom.Tray()
         local e = { id = k, aura = Custom.Track(k) == "aura" }
         if index[k].group then
             group[#group + 1] = e
-        elseif Custom.Learned(k) then
+        elseif index[k].weapon or Custom.Learned(k) then
             out[#out + 1] = e
         end
     end
@@ -857,7 +891,7 @@ function Custom.Unlearned()
     build()
     local out = {}
     for _, k in ipairs(order) do
-        if not index[k].group and not Custom.Learned(k) then
+        if not (index[k].group or index[k].weapon) and not Custom.Learned(k) then
             out[#out + 1] = { id = k, aura = Custom.Track(k) == "aura", unlearned = true }
         end
     end

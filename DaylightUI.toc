@@ -39,6 +39,7 @@ Sound.lua
 Pad.lua
 Media.lua
 Health.lua
+Weapons.lua
 Threat.lua
 Interrupt.lua
 Spots.lua

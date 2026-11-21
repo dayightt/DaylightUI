@@ -3,6 +3,7 @@
 -- secret guard, so a restricted field is simply absent.
 
 local _, BL = ...
+local DUI = DaylightUI
 
 local Auras = {}
 BL.Auras = Auras
@@ -13,8 +14,6 @@ Auras.MAX = 64
 -- the debuff bar: Boosted Rest, the hour before a Camp Tent gives rested
 -- experience again.
 BL.QUIET_DEBUFFS = { [1229451] = true }
-
-local WEAPON_SLOT_TO_INVENTORY = { [0] = 16, [1] = 17, [2] = 18 }
 
 local function plainNumber(v)
     v = BL.Plain(v)
@@ -165,29 +164,6 @@ function Auras.KeepDebuffs(entries)
     return entries
 end
 
--- The enchant's own name is only available from the item tooltip: the
--- first green line, minus any "(30 min)" suffix.
-local function enchantName(invSlot)
-    if not (C_TooltipInfo and C_TooltipInfo.GetInventoryItem) then return nil end
-    local ok, info = pcall(C_TooltipInfo.GetInventoryItem, "player", invSlot)
-    info = ok and BL.PlainTable(info) or nil
-    local lines = info and BL.PlainTable(info.lines)
-    if not lines then return nil end
-    for i = 2, #lines do
-        local line = BL.PlainTable(lines[i])
-        local color = line and BL.PlainTable(line.leftColor)
-        local text = line and BL.Plain(line.leftText)
-        if color and type(text) == "string" then
-            local r, g, b = BL.Plain(color.r), BL.Plain(color.g), BL.Plain(color.b)
-            if type(g) == "number" and g > 0.9 and (r or 0) < 0.2 and (b or 0) < 0.2 then
-                text = string.gsub(text, "%s*%(.-%)%s*$", "")
-                if text ~= "" then return text end
-            end
-        end
-    end
-    return nil
-end
-
 -- Returns the entry list and a flag that is true when the client refused the
 -- read. skipNames skips the tooltip lookup for the enchant's name (the bar's
 -- timer tick doesn't need it). into: an existing list to fill, reusing its entry
@@ -229,32 +205,28 @@ function Auras.CollectWeapons(skipNames, into, skipDrawn)
         table.sort(slots)
         Auras.weaponSlots = slots
     end
+    local Weapons = DUI.Weapons
     for _, slotID in ipairs(slots) do
-        local invSlot = WEAPON_SLOT_TO_INVENTORY[slotID]
-        local ok, list = pcall(C_Item.GetWeaponEnchantInfo, slotID)
-        if not ok then return trim(entries, 0), true, 0 end
-        list = BL.PlainTable(list)
-        if invSlot and list then
-            for _, enchant in ipairs(list) do
-                enchant = BL.PlainTable(enchant)
-                local kind = enchant and plainNumber(enchant.enchantType) or 0
-                if enchant and BL.Plain(enchant.hasEnchant) and skipDrawn and containerDraws(invSlot, enchant, kind) then
-                    skipped = skipped + 1
-                elseif enchant and BL.Plain(enchant.hasEnchant) then
-                    local ms = plainNumber(enchant.timeLeft) or 0
-                    n = n + 1
-                    local e = entries[n]
-                    if type(e) ~= "table" then e = {}; entries[n] = e end
-                    e.kind = "weapon"
-                    e.slot = invSlot
-                    e.weaponSlot = slotID
-                    e.enchantType = kind
-                    e.name = (not skipNames and enchantName(invSlot)) or "Weapon Enchant"
-                    e.icon = BL.Plain(enchant.enchantIconID) or GetInventoryItemTexture("player", invSlot)
-                    e.applications = plainNumber(enchant.charges) or 0
-                    e.expirationTime = now + ms / 1000
-                    e.timed = true
-                end
+        local invSlot = Weapons.INVENTORY[slotID]
+        local list, refused = Weapons.Read(slotID, Auras.readInto)
+        Auras.readInto = list
+        if refused then return trim(entries, 0), true, 0 end
+        for _, enchant in ipairs(invSlot and list or {}) do
+            if skipDrawn and containerDraws(invSlot, enchant, enchant.kind) then
+                skipped = skipped + 1
+            else
+                n = n + 1
+                local e = entries[n]
+                if type(e) ~= "table" then e = {}; entries[n] = e end
+                e.kind = "weapon"
+                e.slot = invSlot
+                e.weaponSlot = slotID
+                e.enchantType = enchant.kind
+                e.name = (not skipNames and Weapons.Name(invSlot)) or "Weapon Enchant"
+                e.icon = enchant.icon
+                e.applications = enchant.charges
+                e.expirationTime = now + enchant.msLeft / 1000
+                e.timed = true
             end
         end
     end

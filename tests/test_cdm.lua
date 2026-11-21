@@ -5878,10 +5878,10 @@ T.test("cdm editor: the tray lists every spell once, placed ones marked, other t
     D.AddPiece(D.Current(), 12, "icon", 0, 0)
     local ids, placed = {}, {}
     for _, e in ipairs(Ed.Spells()) do ids[#ids + 1] = e.id; placed[e.id] = e.placed end
-    T.deq(ids, { 11, 12, 13, 21, 22 })
+    T.deq(ids, { 11, 12, 13, 21, 22, "mainhand", "offhand" })
     T.truthy(placed[12]); T.falsy(placed[11])
     Ed.SetShowUnlearned(true)
-    local last = Ed.Spells()[6]
+    local last = Ed.Spells()[8]
     T.eq(last.id, 14); T.truthy(last.unlearned)
     Ed.SetQuery("spell 113")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -7303,7 +7303,7 @@ T.test("cdm custom: our keys, the highest known rank, every rank, the track", fu
     T.isnil(C.Entry(11), "a game id")
     local tray = {}
     for _, e in ipairs(C.Tray()) do tray[#tray + 1] = e.id end
-    T.deq(tray, { "s6673", "s2687", "s1243" }, "learned ones, then group buffs")
+    T.deq(tray, { "s6673", "s2687", "mainhand", "offhand", "s1243" }, "learned ones, the weapons, then group buffs")
     T.eq(C.Unlearned()[1].id, "s12292")
     stub.knownSpells[6192] = true
     stub.FireEvent("SPELLS_CHANGED")
@@ -7514,6 +7514,81 @@ T.test("cdm custom: the Pet piece shows while your pet is out and glows when it 
         stub.LeaveCombat()
     end
     stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm custom: the weapon enchant pieces are offered to every class and watch no aura", function()
+    local AB, C = customWorld("WARRIOR")
+    AB.CdmSpells.WARRIOR = {}
+    C.Forget()
+    for _, key in ipairs({ "mainhand", "offhand" }) do
+        T.truthy(C.Is(key)); T.truthy(C.Weapon(key))
+        T.truthy(C.Entry(key) and C.Entry(key).aura, key .. ": a buff-like piece, always there")
+        T.isnil(C.SpellOf(key), key .. ": no spell behind it")
+        T.deq(C.Ranks(key), {}, key .. ": no aura to look for")
+        T.falsy(C.CanTrack(key), key .. ": nothing else to pick")
+    end
+    T.eq((C.Look("mainhand")), "Main-hand enchant")
+    T.eq(select(2, C.Look("offhand")), "tex:17", "no enchant: the weapon's own icon")
+    stub.SetWeaponEnchants({ { slot = 0, timeLeft = 60000, enchantIconID = 4321 } })
+    T.eq(select(2, C.Look("mainhand")), 4321, "the enchant's icon while it's on")
+    local tray = {}
+    for _, e in ipairs(C.Tray()) do tray[e.id] = true end
+    T.truthy(tray.mainhand and tray.offhand, "in the tray")
+    for _, e in ipairs(C.Unlearned()) do T.truthy(e.id ~= "mainhand" and e.id ~= "offhand") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm custom: a weapon enchant piece shows its time and charges and glows when it's gone, as an icon and as a bar", function()
+    local DUI, AB, D, set = customRows()
+    DUI.DB.General().motion = false
+    D.AddPiece(set, "mainhand", "icon", 0, 0)
+    T.truthy(D.SetSpellValue(set, "mainhand", "missingGlow", true))
+    for _, shape in ipairs({ "icon", "bar" }) do
+        T.truthy(D.SetShape(set, "mainhand", shape) or shape == "icon")
+        stub.SetWeaponEnchants({})
+        AB.CdmAuras.WeaponsChanged()
+        refresh(AB)
+        local h = shape == "bar" and AB.CdmBars.AuraFrame("mainhand") or AB.CdmAuras.Frame("mainhand")
+        T.truthy(h and h:IsShown(), shape .. ": drawn")
+        T.eq(#(h.containers or {}), 0, shape .. ": no aura container")
+        T.truthy(h.face, shape .. ": drawn by the addon")
+        T.eq(h.up, false, shape .. ": no enchant")
+        T.truthy(AB.CdmEffects.GlowShown(h), shape .. ": glows while missing")
+        T.truthy(AB.CdmRows.Tracked("mainhand") ~= false, shape .. ": the card keeps its buff rows")
+        -- A poison goes on: 30 minutes, 40 charges.
+        stub.SetWeaponEnchants({ { slot = 0, timeLeft = 1800000, charges = 40, enchantIconID = 4321, enchantID = 7 } })
+        stub.FireEvent("WEAPON_ENCHANT_CHANGED"); stub.RunTimers()
+        T.eq(h.up, true, shape .. ": enchanted")
+        T.eq(h.face:GetAlpha(), 1)
+        T.falsy(AB.CdmEffects.GlowShown(h), shape .. ": no glow")
+        T.eq(h.auraLasts, 1800, shape .. ": its full length")
+        T.eq(stub.Text(h.face.count), "40", shape .. ": its charges")
+        T.eq(h.face.shownIcon, 4321, shape .. ": the enchant's icon")
+        -- A hit uses a charge, in a fight too: the client answers plainly there.
+        stub.EnterCombat()
+        stub.Advance(60)
+        stub.SetWeaponEnchants({ { slot = 0, timeLeft = 1740000, charges = 39, enchantIconID = 4321, enchantID = 7 } })
+        stub.FireEvent("UNIT_INVENTORY_CHANGED", "player"); stub.RunTimers()
+        T.eq(stub.Text(h.face.count), "39", shape .. ": a charge used")
+        T.eq(h.auraLasts, 1800, shape .. ": still the same enchant")
+        -- Put on again early: a fresh full length.
+        stub.SetWeaponEnchants({ { slot = 0, timeLeft = 1800000, charges = 40, enchantIconID = 4321, enchantID = 7 } })
+        stub.FireEvent("WEAPON_ENCHANT_CHANGED"); stub.RunTimers()
+        T.eq(h.auraLasts, 1800, shape .. ": the new one's length")
+        -- It wears off.
+        stub.SetWeaponEnchants({})
+        stub.FireEvent("WEAPON_ENCHANT_CHANGED"); stub.RunTimers()
+        T.eq(h.up, false, shape .. ": worn off in a fight")
+        T.truthy(AB.CdmEffects.GlowShown(h), shape .. ": glows again")
+        stub.LeaveCombat()
+    end
+    -- The off-hand piece reads its own weapon only.
+    D.AddPiece(set, "offhand", "icon", 0, 100)
+    stub.SetWeaponEnchants({ { slot = 0, timeLeft = 60000 } })
+    AB.CdmAuras.WeaponsChanged()
+    refresh(AB)
+    T.eq(AB.CdmAuras.Frame("offhand").up, false, "the main hand's enchant isn't the off hand's")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -8054,7 +8129,7 @@ T.test("cdm editor: a paladin's Seal is in the tray with Group buffs off", funct
     AB.CdmSpells.GROUP = { { 1243, class = "PRIEST" } }
     stub.knownSpells = { [21084] = true }
     AB.CdmCustom.Forget()
-    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "seal", "s20154" }, "the Seal first of ours, no group buff")
+    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "seal", "s20154", "mainhand", "offhand" }, "the Seal first of ours, no group buff")
     stub.knownSpells = {}
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -8064,11 +8139,11 @@ T.test("cdm editor: the tray adds our class spells and group buffs, once each, a
     -- 111 is the game's spell 11 (same name), so it's listed once, as the game's.
     customTray(AB, { { 111, aura = true }, { 2687, cd = true }, { 12292, cd = true } },
         { [111] = true, [2687] = true })
-    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "s2687" }, "group buffs off by default")
+    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "s2687", "mainhand", "offhand" }, "group buffs off by default")
     Ed.SetShowGroup(true)
-    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "s2687", "s1243" })
+    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "s2687", "mainhand", "offhand", "s1243" })
     Ed.SetShowUnlearned(true)
-    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "s2687", "s1243", 14, "s12292" })
+    T.deq(trayIds(Ed), { 11, 12, 13, 21, 22, "s2687", "mainhand", "offhand", "s1243", 14, "s12292" })
     Ed.SetShowUnlearned(false)
     Ed.SetShowGroup(false)
     -- A group buff already placed stays listed (as known) with the switch off.

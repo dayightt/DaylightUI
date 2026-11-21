@@ -408,6 +408,11 @@ local function showsBuff(set, id, p)
     if not hasBuff(set, id, p) then return false end
     return not (ns.CdmOwn ~= nil and ns.CdmOwn.Track(id, p) == "cooldown")
 end
+-- Something you cast puts it up. A weapon enchant piece has no spell, so there's
+-- no cast to time a recast by.
+local function cast(_, id)
+    return ns.CdmOwn ~= nil and ns.CdmOwn.SpellOf(id) ~= nil
+end
 -- Whether the picked piece's chain has a piece of this shape.
 local function chainHas(shape)
     return function(set, id)
@@ -667,10 +672,10 @@ Card.ROWS = {
             desc = "Glows while the buff is up: Clearcasting, Nightfall." }) },
         { show = function(...) return showsBuff(...) and tellsState(...) and opt("hideActive") ~= true and opt("upGlow") == true end,
           item = spell("upGlowColor", { type = "color", label = "Glow color" }) },
-        { show = function(...) return showsBuff(...) and not (tellsState(...) and opt("hideActive") == true) end,
+        { show = function(...) return showsBuff(...) and cast(...) and not (tellsState(...) and opt("hideActive") == true) end,
           item = spell("clipGlow", { type = "toggle", label = "Glow to recast",
             desc = "Glows when it's time to cast it again: your next cast would land just as it runs out. Cast any sooner and a damage over time spell loses the ticks it had left." }) },
-        { show = function(...) return showsBuff(...) and not (tellsState(...) and opt("hideActive") == true)
+        { show = function(...) return showsBuff(...) and cast(...) and not (tellsState(...) and opt("hideActive") == true)
               and opt("clipGlow") == true end,
           item = spell("clipGlowColor", { type = "color", label = "Recast color" }) },
         { show = function(...) return showsBuff(...) and tellsState(...) end, item = soundRow("buffSound", "Sound",

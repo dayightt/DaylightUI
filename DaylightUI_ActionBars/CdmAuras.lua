@@ -416,6 +416,14 @@ local function setup(h, id)
         paintFace(h)
         return
     end
+    if custom and C.Weapon(id) then
+        -- A weapon enchant isn't an aura either: drawn by the addon from the weapon.
+        h.weapon = C.Weapon(id)
+        makeFace(h)
+        A.IsUp(h)
+        paintFace(h)
+        return
+    end
     local self_
     if custom then
         self_ = C.SelfOnly(id) or nil
@@ -858,6 +866,13 @@ function paintFace(h)
         end
         local n = h.selfStacks
         f.count:SetText(n and n > 1 and tostring(n) or "")
+        local icon = h.weapon and h.weaponIcon
+        if type(icon) ~= "nil" and icon ~= false and f.shownIcon ~= icon then
+            f.shownIcon = icon
+            local tex = f.icon or (f.parts and f.parts.icon)
+            if tex then tex:SetTexture(icon) end
+            if h.under then h.under:SetTexture(icon) end
+        end
     end
     local a = (up and not h.hideUp) and 1 or 0
     if f.alphaTo == a then return end
@@ -985,9 +1000,33 @@ function A.PetOut()
     return not (not isSecret(dead) and dead == true)
 end
 
+-- A weapon piece's enchant, read again: up while there is one, its time and charges.
+-- The client gives only the time left, so the full length is the time left when it
+-- was put on (a new enchant, or one that now ends later than before).
+local function readWeapon(h)
+    local list, refused = DUI.Weapons.Read(h.weapon.slot, h.weaponRead)
+    h.weaponRead = list
+    if refused then return h.up end
+    local e = list[1]
+    if not e then
+        h.up, h.endsAt, h.selfStacks, h.weaponID = false, nil, nil, nil
+        return false
+    end
+    local now = GetTime()
+    local ends = e.msLeft > 0 and now + e.msLeft / 1000 or nil
+    if ends and (h.weaponID ~= e.enchantID or not h.auraLasts or not h.endsAt or ends > h.endsAt + 1) then
+        h.auraLasts = e.msLeft / 1000
+    end
+    h.up, h.endsAt, h.weaponID = true, ends, e.enchantID
+    h.selfStacks = e.charges > 0 and e.charges or nil
+    h.weaponIcon = e.icon
+    watchEnd(h)
+    return true
+end
+
 -- Whether the holder's aura is up, for the few holders that can say so themselves:
--- the pet piece, the pieces counted from your own casts, and an aura the game never
--- hides (read by its id, in a fight too). Every other buff is the game's own item's
+-- the pet piece, a weapon enchant, the pieces counted from your own casts, and an
+-- aura the game never hides (read by its id, in a fight too). Every other buff is the game's own item's
 -- to answer (CdmRows); without one nobody knows, and this returns nil.
 function A.IsUp(h)
     if type(h) ~= "table" then return nil end
@@ -995,6 +1034,7 @@ function A.IsUp(h)
         h.up = A.PetOut()
         return h.up
     end
+    if h.weapon then return readWeapon(h) end
     if h.summon then
         -- Each helper leaves when its own time runs out.
         local now, left, newest = GetTime(), {}, nil
@@ -1047,7 +1087,7 @@ function A.AuraChanged()
         if h.face and h:IsShown() then
             -- Self-debuff faces always update, including time and stacks.
             local was = h.up
-            if readable() or h.petWatch then
+            if readable() or h.petWatch or h.weapon then
                 A.IsUp(h)
             elseif h.castAt then
                 -- Cast while auras could still be read and not seen landing before
@@ -1413,6 +1453,25 @@ function A.PetChanged(newPet)
     end)
     if moved and ns.CdmRows then ns.CdmRows.Refresh() end
 end
+
+-- A weapon enchant went on, came off, lost a charge or the weapon changed.
+function A.WeaponsChanged()
+    local moved = false
+    each(function(h)
+        if h.weapon then
+            local was, count = h.up, h.selfStacks
+            A.IsUp(h)
+            paintFace(h)
+            if h.up ~= was or h.selfStacks ~= count then moved = true end
+        end
+    end)
+    if moved and ns.CdmRows then ns.CdmRows.Refresh() end
+end
+DUI.RegisterEvent("WEAPON_ENCHANT_CHANGED", function() A.WeaponsChanged() end)
+DUI.RegisterEvent("PLAYER_EQUIPMENT_CHANGED", function() A.WeaponsChanged() end)
+DUI.RegisterEvent("UNIT_INVENTORY_CHANGED", function(_, unit)
+    if unit == "player" then A.WeaponsChanged() end
+end)
 
 local pets = CreateFrame("Frame")
 pets:RegisterUnitEvent("UNIT_PET", "player")
