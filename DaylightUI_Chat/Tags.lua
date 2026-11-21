@@ -339,7 +339,9 @@ function Tags.Each(msg)
     if type(fmt) ~= "string" then return msg end
     local pat, at = wonPattern(fmt)
     if not pat then return msg end
-    local count = tonumber(select(at, string.match(msg, pat)))
+    -- Any other line matches nothing, and select() then hands tonumber no value at all.
+    local caps = { string.match(msg, pat) }
+    local count = caps[at] and tonumber(caps[at])
     if not count then return msg end
     usedAt = now
     if count < 2 then return msg end

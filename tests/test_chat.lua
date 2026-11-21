@@ -6470,6 +6470,8 @@ T.test("chat: a won commodity auction says what each one cost", function()
     local Money = DaylightUI.Widgets.Money
     local function last() return boxTexts(box)[box:GetNumMessages()] end
     stub.FireEvent("COMMODITY_PRICE_UPDATED", 345, 4830)
+    ChatFrame1:AddMessage("Bob says hi", 1, 1, 1, 1)
+    T.eq(last(), "Bob says hi", "another line while a quote waits")
     ChatFrame1:AddMessage("You won an auction for Linen Cloth x14", 1, 1, 0, 1)
     T.eq(last(), "You won an auction for Linen Cloth x14 (" .. Money(345) .. " each)", "4830 over 14, rounded")
     stub.Advance(1)
