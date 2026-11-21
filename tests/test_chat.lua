@@ -2524,10 +2524,25 @@ T.test("chat daylight: experience from kills shows though only the combat log ca
     T.truthy(ChatFrame2:ContainsMessageGroup("COMBAT_XP_GAIN"))
     local text = "Young Wolf dies, you gain 45 experience."
     stub.FireEvent("CHAT_MSG_COMBAT_XP_GAIN", text, "", "", "", "", "", 0, 0, "", 0, 0)
-    Box.Pick(1)
+    Box.Pick(4)
     local texts = table.concat(boxTexts(box), "|")
-    T.truthy(texts:find("you gain 45 experience", 1, true), "in Everything: " .. texts)
+    T.truthy(texts:find("you gain 45 experience", 1, true), "on Loot: " .. texts)
+    Box.Pick(1)
+    texts = table.concat(boxTexts(box), "|")
+    T.falsy(texts:find("you gain 45 experience", 1, true), "not on General: " .. texts)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("chat daylight: saved everything tabs leave experience out, picked tabs keep it", function()
+    local Kinds = stub.chatModule.Kinds
+    local all = { name = "General", all = true, kinds = { tradeskill = false }, v = 7 }
+    local loot = { name = "Loot", kinds = { loot = true, progress = true }, v = 7 }
+    Kinds.Upgrade(all)
+    Kinds.Upgrade(loot)
+    T.falsy(Kinds.Shows(all, "progress"), "no kill experience on the everything tab")
+    T.truthy(Kinds.Shows(all, "loot") and all.all, "still everything else")
+    T.truthy(Kinds.Shows(loot, "progress"), "a tab picked for it keeps it")
+    T.eq(all.v, Kinds.VERSION)
 end)
 
 T.test("chat daylight: a line no game window has stays out of the box", function()
@@ -2659,7 +2674,7 @@ T.test("chat daylight: a window that carries experience lines keeps them single"
     stub.FireEvent("CHAT_MSG_COMBAT_XP_GAIN", text, "", "", "", "", "", 0, 0, "", 0, 0)
     Kinds.Filter(ChatFrame1, "CHAT_MSG_COMBAT_XP_GAIN", text)
     ChatFrame1:AddMessage(text, 0.4, 0.4, 1, 9)
-    Box.Pick(1)
+    Box.Pick(4)   -- Loot: General leaves experience out
     local n = 0
     for _, t in ipairs(boxTexts(box)) do if t:find("you gain 45 experience", 1, true) then n = n + 1 end end
     T.eq(n, 1, "once")

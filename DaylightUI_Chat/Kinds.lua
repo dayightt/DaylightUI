@@ -79,14 +79,22 @@ Kinds.SPLIT = {
     [6] = { loot = { "tradeskill", "opening" }, money = { "currency" },
             system = { "pvp", "pet", "misc", "icons", "bnalert" } },
     [7] = {}, -- not a split, see Kinds.LEFT_OUT
+    [8] = {}, -- not a split, see Kinds.EVERYTHING_LEAVES
 }
-Kinds.VERSION = 7
+Kinds.VERSION = 8
 
 -- Kinds a saved tab stops showing at that tab version. Crafting reached every
 -- tab that showed everything, and loot tabs through the split above, so a busy
 -- city filled the chat with "X creates Y". A tab can switch it back on.
 Kinds.LEFT_OUT = {
     [7] = { "tradeskill" },
+}
+
+-- Kinds only a tab showing everything stops showing at that version. Every kill's
+-- "you gain 45 experience" flooded the main tab while grinding; a tab picked for
+-- them on purpose (Loot) keeps them.
+Kinds.EVERYTHING_LEAVES = {
+    [8] = { "progress" },
 }
 
 -- Upgrades a saved tab: each old kind turns on its new kinds, only for splits
@@ -111,6 +119,12 @@ function Kinds.Upgrade(tab)
                 tab.kinds[k] = false
             elseif type(tab.kinds) == "table" then
                 tab.kinds[k] = nil
+            end
+        end
+        if tab.all then
+            for _, k in ipairs(Kinds.EVERYTHING_LEAVES[v] or {}) do
+                tab.kinds = type(tab.kinds) == "table" and tab.kinds or {}
+                tab.kinds[k] = false
             end
         end
     end
@@ -403,10 +417,11 @@ end
 
 -- Default tabs for a new chat box: everything, guild, trade and loot (named with
 -- the game's own strings). No tab shows crafting: in a city it fills with every
--- "X creates Y" nearby, and the game's own chat leaves it off too.
+-- "X creates Y" nearby, and the game's own chat leaves it off too. Experience
+-- shows only on Loot, so grinding doesn't bury the main tab.
 function Kinds.DefaultTabs()
     local tabs = {
-        { name = _G.GENERAL or L["General"], all = true, kinds = { tradeskill = false } },
+        { name = _G.GENERAL or L["General"], all = true, kinds = { tradeskill = false, progress = false } },
         { name = _G.GUILD or L["Guild"], kinds = { guild = true, officer = true } },
         { name = _G.TRADE or L["Trade"], kinds = { trade = true, [Kinds.SERVICES] = true, [Kinds.TRADE_LOCAL] = true } },
         { name = _G.LOOT or L["Loot"], kinds = { loot = true, money = true, currency = true,
