@@ -17,6 +17,8 @@ DUI.PatchNotes = {
     }, fixed = {
         { "Little touches", "The raid marker icons show in the right-click marker menu again, instead of dark empty boxes" },
         { "Unit frames", "The slanted level tag on set-in portraits stays put with a cast bar under the frame, instead of turning into a round badge" },
+        { "Tooltips", "Prices from TradeSkillMaster, Disenchantry and other addons show as coins again on Rich tooltips, instead of odd |cff letters" },
+        { "Tooltips", "TradeSkillMaster's disenchant lines keep their colors and indent on Rich tooltips, and long lines from other addons wrap instead of running off the edge" },
     } },
     { version = "2.2", date = "2026-11-21", summary = "A smarter bag search, profiles you can share in parts, and tidier Rich tooltips. Plus hidden names and solo threat colors on nameplates.", new = {
         { "Profiles", "Shared profiles can leave parts out, and imports list only the parts that really changed" },

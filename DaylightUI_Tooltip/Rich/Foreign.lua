@@ -143,12 +143,26 @@ end
 -- A coin letter in its own color code right after its digits (TSM's
 -- "1|cffc7c7cfs|r", the digits maybe colored too) is money even beside other
 -- words, like "[+46%] 1s 01c". Plain "5s" in a sentence is still a time.
+-- A color code's hex can end in digits (TSM's |cffecf4f3, |cffffd100), and the
+-- coin patterns would read those as the start of the price and tear the code
+-- apart. While looking for coins, a code's digits are swapped for bytes no
+-- text uses, and put back after.
+local HIDDEN = "|c" .. ("[%a\14-\23]"):rep(8)
+local function hideCodes(t)
+    return (t:gsub("|c(%x%x%x%x%x%x%x%x)", function(hex)
+        return "|c" .. hex:gsub("%d", function(d) return string.char(14 + d) end)
+    end))
+end
+local function showCodes(t)
+    return (t:gsub("[\14-\23]", function(c) return string.char(c:byte() + 34) end))
+end
+
 local function coloredLetters(t)
-    t = t:gsub("(%d[%d,%.]*)|r|c%x%x%x%x%x%x%x%x([gsc])|r", function(d, k)
+    t = t:gsub("(%d[%d,%.]*)|r" .. HIDDEN .. "([gsc])|r", function(d, k)
         local m = mark(d, k)
         return m and ("|r" .. m) or nil
     end)
-    return (t:gsub("(%d[%d,%.]*)|c%x%x%x%x%x%x%x%x([gsc])|r", mark))
+    return (t:gsub("(%d[%d,%.]*)" .. HIDDEN .. "([gsc])|r", mark))
 end
 
 -- The text with every run of coins in it as Daylight UI's (W.Money); the text
@@ -157,13 +171,16 @@ function Foreign.Money(text)
     if type(text) ~= "string" then return text end
     local whole = Foreign.CopperOf(text)
     if whole then return DUI.Widgets.Money(whole) end
-    local t = marked(coloredLetters(text))
+    local t = marked(coloredLetters(hideCodes(text)))
     if not t:find("\1", 1, true) then return text end
-    -- Coins side by side are one amount.
+    -- Coins side by side are one amount. A color that was left holding nothing
+    -- (its digits became the coin) sits between them and draws nothing.
+    t = t:gsub(HIDDEN .. "|r", "")
     local merged
     repeat
         t, merged = t:gsub("\1(%d+)\2(%s*)\1(%d+)\2", function(a, _, b) return "\1" .. (a + b) .. "\2" end)
     until merged == 0
+    t = showCodes(t)
     return (t:gsub("\1(%d+)\2", function(c) return DUI.Widgets.Money(tonumber(c)) end))
 end
 
@@ -260,8 +277,14 @@ local function row(p, left, right, rightColor, leftColor)
     item.value:Hide()
     p.used.text = p.used.text - 2
     p.items[p.count], p.count = nil, p.count - 1
-    Panel.Text(p, left, leftColor)
-    Panel.Row(p, "", right, rightColor)
+    if not Foreign.Blank(left) then Panel.Text(p, left, leftColor) end
+    -- A right side wider than the card on its own (a long list of zones)
+    -- would run past the left edge at the right: it wraps like a sentence.
+    if rw > inner then
+        Panel.Text(p, right, rightColor)
+    else
+        Panel.Row(p, "", right, rightColor)
+    end
 end
 Foreign.Row = row
 
@@ -405,18 +428,22 @@ Foreign.ADAPTERS = {
             end
             return nil
         end,
+        -- The label keeps the addon's own colors and indent (TSM's disenchant
+        -- results under their heading, each in its quality color) and wraps
+        -- when it's long, as any other line of theirs.
         draw = function(p, lines, i, _, money)
-            local Panel, INK = ns.RichPanel, Style.INK
+            local INK = Style.INK
             local line = lines[i]
             if money[i] then return moneyRow(p, line, money[i]) end
             local head, copper
             if line.right then
                 head, copper = line.left, Foreign.CopperOf(line.right)
             else
-                local h, tail = strip(line.left):match("^(.-):%s*(.+)$")
+                local h, tail = line.left:match("^(.-):%s*(.+)$")
                 head, copper = h, Foreign.CopperOf(tail)
             end
-            Panel.Row(p, label(head), DUI.Widgets.Money(copper), INK.VALUE, INK.TEXT)
+            head = Foreign.Words(head or ""):gsub(":(|r)%s*$", "%1"):gsub(":%s*$", "")
+            row(p, head, DUI.Widgets.Money(copper), INK.VALUE, sideColor(line))
         end,
     },
     -- A score (Raider.IO's "M+ Score  2140"): the label, the number popped.

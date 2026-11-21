@@ -2786,7 +2786,7 @@ T.test("other addons: prices (Auctionator, TSM, a money frame) as a label and th
     T.eq(stub.Text(rows[5].value), W.Money(29400), "Daylight UI's own coins kept")
     T.eq(stub.Text(rows[1].label), "Auction x5")
     T.eq(stub.Text(rows[1].value), W.Money(123400), "Auctionator's coins")
-    T.eq(stub.Text(rows[2].label), "DBMarket", "the label without its color or colon")
+    T.eq(stub.Text(rows[2].label), "|cff82c5ffDBMarket|r", "the label in its own color, without its colon")
     T.eq(stub.Text(rows[2].value), W.Money(123456), "TSM's lettered coins")
     T.eq(stub.Text(rows[3].label), "Vendor")
     T.eq(stub.Text(rows[3].value), W.Money(10005))
@@ -2815,6 +2815,60 @@ T.test("other addons: TSM's lettered coins after a percent become coins, the per
     T.truthy(v1:find("+46%", 1, true) and v1:find("cff00ff00", 1, true), "the percent and its color kept: " .. v1)
     T.falsy(v1:find("c7c7cfs", 1, true), "no letter left: " .. v1)
     T.truthy(v2:find(W.Money(52), 1, true), "52c as coins: " .. v2)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: a color code ending in a digit stays whole beside coins", function()
+    foreignLogin()
+    local W = DaylightUI.Widgets
+    local p = withAddon({ "Murloc Skin Bag" }, function(t)
+        -- TSM paints its digits ecf4f3 and Disenchantry its counts ffd100: both
+        -- end in a digit right before the price's own digits.
+        t:AddDoubleLine("  Market Value", "[|cff00ff00+13%|r] |cffecf4f33|r|cffffd70ag|r |cffecf4f340|r|cffc7c7cfs|r |cffecf4f352|r|cffeda55fc|r")
+        t:AddDoubleLine("Large Glimmering Shard", "1x 100% |cffffd10095|A:coin-silver:0:0|a|r")
+    end)
+    local rows = {}
+    for _, item in ipairs(afterRule(p)) do if item.kind == "row" then rows[#rows + 1] = item end end
+    T.eq(#rows, 2)
+    local v1, v2 = stub.Text(rows[1].value), stub.Text(rows[2].value)
+    T.truthy(v1:find(W.Money(34052), 1, true), "3g 40s 52c as coins: " .. v1)
+    T.falsy(v1:find("|cffecf4f|", 1, true) or v1:find("cffecf4f3", 1, true), "no torn color code: " .. v1)
+    T.eq(v2, "1x 100% |cffffd100" .. W.Money(9500) .. "|r", "95s as coins, the color code whole")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: a price line keeps its own colored label", function()
+    foreignLogin()
+    local W = DaylightUI.Widgets
+    local p = withAddon({ "Shimmering Trousers" }, function(t)
+        t:AddDoubleLine("  Disenchant Value:", "6|cffc7c7cfs|r 21|cffeda55fc|r")
+        t:AddDoubleLine("    |cff0070dd10% Small Glimmering Shard x0.1|r |cffffd100[1]|r", "55|cffeda55fc|r")
+    end)
+    local rows = {}
+    for _, item in ipairs(afterRule(p)) do if item.kind == "row" then rows[#rows + 1] = item end end
+    T.eq(#rows, 2)
+    local l1 = stub.Text(rows[1].label)
+    T.falsy(l1:find(":", 1, true), "the colon dropped: " .. l1)
+    -- Too long beside its price: the words wrap on a line of their own above it.
+    local words
+    for _, item in ipairs(afterRule(p)) do
+        if item.fs and stub.Text(item.fs):find("Glimmering", 1, true) then words = stub.Text(item.fs) end
+    end
+    T.truthy(words and words:find("cff0070dd", 1, true) and words:find("[1]", 1, true), "its quality color and count kept: " .. tostring(words))
+    T.eq(stub.Text(rows[2].value), W.Money(55))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("other addons: a right side too long for the card wraps instead of running off it", function()
+    foreignLogin()
+    local zones = "Dun Morogh 60%, Mulgore 60%, Elwynn Forest 59%, Tirisfal Glades 45%, Teldrassil 26%, Darkshore 12%"
+    local p = withAddon({ "Raw Brilliant Smallfish" }, function(t) t:AddDoubleLine(" ", zones) end)
+    local found
+    for _, item in ipairs(afterRule(p)) do
+        if item.kind == "row" then T.falsy(stub.Text(item.value or item.label):find("Mulgore", 1, true), "never a row") end
+        if item.kind == "text" and stub.Text(item.fs):find("Mulgore", 1, true) then found = item end
+    end
+    T.truthy(found, "a wrapped line")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
