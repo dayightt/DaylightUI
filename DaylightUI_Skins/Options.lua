@@ -27,8 +27,8 @@ local function rollsPage()
       sample = function(parent) return ns.RollSample.New(parent) end,
       groups = {
         { label = "Loot rolls", tab = "Basics", items = {
-            row({ type = "toggle", key = "rolls.enabled", invert = true, since = "2.2", label = "The game's roll popups", reload = true,
-              desc = "The game's own roll popups in Daylight UI style, with how many players picked Need, Greed and Pass on each button. When off, rolls show in Daylight UI's roll window, with who picked what, every roll and who won." }),
+            row({ type = "toggle", key = "rolls.enabled", since = "2.2", label = "Daylight UI loot rolls", reload = true,
+              desc = "Loot rolls in Daylight UI's own roll window, with who picked what, every roll and who won. When off, the game's own roll popups show in Daylight UI style, with how many players picked Need, Greed and Pass on each button." }),
             row({ type = "dropdown", key = "rolls.list", label = "Group list",
               values = { auto = "With one roll", always = "Always", hover = "On mouseover", off = "Never" },
               order = { "auto", "always", "hover", "off" },

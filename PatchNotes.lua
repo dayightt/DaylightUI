@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Flight timer", "Point at a stop on the flight timer's route to see its name" },
     }, changed = {
         { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under it, so prices stop creeping down" },
+        { "Loot", "The loot rolls switch works like every other switch again: on shows Daylight UI's roll window, off the game's own popups" },
     }, fixed = {
         { "Little touches", "Small icon buttons show their name much sooner when you point at them" },
         { "Quests", "Wanted Posters and other things in the world that give quests list them in their tooltip again, with Questie on" },
