@@ -28,6 +28,7 @@ DUI.PatchNotes = {
         { "Auction House", "Selling gear takes a starting bid, a click on a listing copies its price, and a right-click on a bag item picks it to sell" },
         { "Auction House", "Searching works like the game's window: each quality has its own filter, recipes show and sort by the skill they need, long lists sort on the server, and the game's favorites show up in one search" },
         { "Loot", "A loot roll card shows a mark for everyone in the group right away, not only once someone has picked" },
+        { "Tooltips", "TSM prices with a percent in front of them show coins again instead of \"s\" and \"c\"" },
     } },
     { version = "2.1.2", date = "2026-11-20", summary = "Your profiles and Cooldown Manager layouts are back. Blizzard quietly changed how the game reports realms, to stop layer hopping, and that unhooked characters from their profiles. Nothing was lost.", new = {
         { "Professions", "The profession window shows what a recipe's materials cost, what it sells for and your profit, from the prices you've seen at the Auction House and at vendors. Each recipe in the list shows its profit, and the Profit button puts the best earners first" },

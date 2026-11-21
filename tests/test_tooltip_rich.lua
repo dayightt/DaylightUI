@@ -2460,6 +2460,24 @@ T.test("other addons: prices (Auctionator, TSM, a money frame) as a label and th
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("other addons: TSM's lettered coins after a percent become coins, the percent kept", function()
+    foreignLogin()
+    local W = DaylightUI.Widgets
+    local p = withAddon({ "Peacebloom" }, function(t)
+        t:AddDoubleLine("  Market Value", "[|cff00ff00+46%|r] 1|cffc7c7cfs|r 01|cffeda55fc|r")
+        t:AddDoubleLine("  Region Avg", "[|cff00ff00+16%|r] |cffffffff52|r|cffeda55fc|r")
+    end)
+    local rows = {}
+    for _, item in ipairs(afterRule(p)) do if item.kind == "row" then rows[#rows + 1] = item end end
+    T.eq(#rows, 2)
+    local v1, v2 = stub.Text(rows[1].value), stub.Text(rows[2].value)
+    T.truthy(v1:find(W.Money(101), 1, true), "1s 01c as coins: " .. v1)
+    T.truthy(v1:find("+46%", 1, true) and v1:find("cff00ff00", 1, true), "the percent and its color kept: " .. v1)
+    T.falsy(v1:find("c7c7cfs", 1, true), "no letter left: " .. v1)
+    T.truthy(v2:find(W.Money(52), 1, true), "52c as coins: " .. v2)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("a card text that once showed a secret draws plain text and coins again when reused", function()
     foreignLogin()
     local W = DaylightUI.Widgets

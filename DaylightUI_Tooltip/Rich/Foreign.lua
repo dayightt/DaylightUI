@@ -140,13 +140,24 @@ function Foreign.CopperOf(text)
     return nil
 end
 
+-- A coin letter in its own color code right after its digits (TSM's
+-- "1|cffc7c7cfs|r", the digits maybe colored too) is money even beside other
+-- words, like "[+46%] 1s 01c". Plain "5s" in a sentence is still a time.
+local function coloredLetters(t)
+    t = t:gsub("(%d[%d,%.]*)|r|c%x%x%x%x%x%x%x%x([gsc])|r", function(d, k)
+        local m = mark(d, k)
+        return m and ("|r" .. m) or nil
+    end)
+    return (t:gsub("(%d[%d,%.]*)|c%x%x%x%x%x%x%x%x([gsc])|r", mark))
+end
+
 -- The text with every run of coins in it as Daylight UI's (W.Money); the text
--- as it was when it holds none.
+-- as it was when it holds none. The words around the coins keep their colors.
 function Foreign.Money(text)
     if type(text) ~= "string" then return text end
     local whole = Foreign.CopperOf(text)
     if whole then return DUI.Widgets.Money(whole) end
-    local t = marked(strip(text))
+    local t = marked(coloredLetters(text))
     if not t:find("\1", 1, true) then return text end
     -- Coins side by side are one amount.
     local merged
