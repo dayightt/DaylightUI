@@ -1077,7 +1077,9 @@ T.test("rich tooltip: a compare tooltip is the same card as the item's, its chan
     T.eq(stub.Text(last.list[3].text), "+1% CRIT")
     T.eq(stub.Text(last.list[4].text), "\226\136\14696 ARMOR", "a loss with a real minus sign")
     T.near(({ last.list[4].text:GetTextColor() })[1], DaylightUI.Style.INK.DAMAGE[1], 1e-6)
-    T.eq(p.items[p.count - 1].kind, "rule", "under a rule")
+    T.eq(p.items[p.count - 1].kind, "section", "a heading says they're the swap")
+    T.eq(stub.Text(p.items[p.count - 1].fs), "IF YOU SWAP")
+    T.eq(p.items[p.count - 2].kind, "rule", "under a rule")
     for i = 1, p.count do
         local it = p.items[i]
         if it.kind == "text" then T.falsy(stub.Text(it.fs):find("If you replace", 1, true), "the game's change heading left out") end

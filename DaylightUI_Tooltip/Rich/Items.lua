@@ -617,10 +617,12 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         part(groups.effects, groups.set, groups.facts, groups.quote, mixed)
     end
     part(other, wear)
-    -- A compare's chips: what changes if you swap, last.
+    -- A compare's chips: what changes if you swap, last. They sit on the
+    -- equipped item's card, so a heading says they're the trade, not its stats.
     if compare and #compare.chips > 0 then
         if any then Panel.Rule(p) end
         any = true
+        Panel.Section(p, L["If you swap"])
         Panel.Tags(p, compare.chips)
     end
     -- Nothing under the header: no room kept for it.
