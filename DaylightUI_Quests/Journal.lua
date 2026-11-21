@@ -337,7 +337,7 @@ local function paintQuest(b, q)
     if q.state == "ready" and db.journalProgress == false then b.title:SetTextColor(ns.Look.Color(lk, "ready"))
     else b.title:SetTextColor(ns.Look.TitleColor(lk, q)) end
     -- the quest's tag right after its title, which makes room for it
-    local tagged = ns.Look.PaintTag(b.tag, lk, db.questTags and q.tag or nil)
+    local tagged = ns.Look.PaintTag(b.tag, lk, db.questTags and q.tag or nil, true)
     local room = tagged and (b.tag:GetWidth() + ns.Look.TAG_GAP) or 0
     if ns.Look.PaintParty(b.party, db.questParty and q.party or nil, sameQuest) then
         room = room + ns.Layout.PARTY_W + Journal.PARTY_GAP
@@ -577,7 +577,7 @@ function Journal.FillQuest(lift)
     s:Piece("back", makeBack, 20, 0).Paint(false)
     s:Text(q.title, { size = Style.SIZE.head, color = { ns.Look.TitleColor(lk, q) }, gap = 6 })
     local tagged = db.questTags and q.tag
-    if tagged then ns.Look.PaintTag(s:Piece("tag", makeTag, ns.Look.TAG_H, 4).tag, lk, q.tag) end
+    if tagged then ns.Look.PaintTag(s:Piece("tag", makeTag, ns.Look.TAG_H, 4).tag, lk, q.tag, true) end
     s:Text(ns.Look.LevelLine(q), { size = Style.SIZE.small, color = Journal.DIM, gap = tagged and 5 or 2 })
     local story, steps = call(GetQuestLogQuestText, q.logIndex)
     if plain(story) then s:Text(story, { size = Style.SIZE.body, gap = 10 }) end

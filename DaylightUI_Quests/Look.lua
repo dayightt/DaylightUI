@@ -154,18 +154,54 @@ local function number(v)
 end
 Look.Number = number
 
--- Paints a tag for kind (nil = hidden), sized to its word. The caller positions
--- it. Returns whether it shows.
-function Look.PaintTag(tag, look, kind)
+-- The word on a tag: its first letter (M for Mazmorra, E for Élite), so it never
+-- crowds a quest's title in a narrow tracker; a word that short already (JcJ,
+-- PvP) stays whole, since a single letter would tell less than it does. The
+-- journal has the room and keeps every word whole.
+Look.TAG_WHOLE = 3   -- letters up to which the whole word is kept
+function Look.TagWord(kind, whole)
     local word = kind and Look.TAG_WORDS[kind]
-    if not word then tag:Hide(); return false end
-    tag.text:SetText(DUI.Style.Upper(word()))
+    if not word then return nil end
+    local text = DUI.Style.Upper(word())
+    local _, letters = text:gsub("[^\128-\191]", "")
+    if not whole and letters > Look.TAG_WHOLE then text = text:match("^[%z\1-\127\194-\244][\128-\191]*") or text end
+    return text
+end
+
+local function boxWidth(tag, text)
+    local tw = number(tag.text:GetStringWidth()) or 7 * #text
+    return math.floor(tw + 2 * Look.TAG_PAD + Look.TagCut(tag) + 0.5)
+end
+
+-- A tag's width, the word measured in the tag's own font (the layout reserves it
+-- on the title's line), cached until a font or scale change (Look.ForgetTagWidths).
+local ruler, widths = nil, {}
+function Look.ForgetTagWidths() widths = {} end
+function Look.TagWidth(kind)
+    local text = Look.TagWord(kind)
+    if not text then return 0 end
+    if widths[text] then return widths[text] end
+    if not ruler then
+        ruler = Look.NewTag(UIParent)
+        Style.SetTextSlot(ruler.text, ns.MEDIA.font)
+    end
+    ruler.text:SetText(text)
+    local w = boxWidth(ruler, text)
+    if number(ruler.text:GetStringWidth()) then widths[text] = w end
+    return w
+end
+
+-- Paints a tag for kind (nil = hidden), sized to its word (whole: all of it, in the
+-- journal, which has the room). The caller positions it. Returns whether it shows.
+function Look.PaintTag(tag, look, kind, whole)
+    local text = Look.TagWord(kind, whole)
+    if not text then tag:Hide(); return false end
+    tag.text:SetText(text)
     local r, g, b = Look.Color(look, kind)
     tag.text:SetTextColor(r, g, b)
     tag.fill:SetVertexColor(r, g, b, Look.TAG_FILL)
-    local tw = number(tag.text:GetStringWidth()) or 7 * #word()
     local cut = Look.TagCut(tag)
-    tag:SetWidth(math.floor(tw + 2 * Look.TAG_PAD + cut + 0.5))
+    tag:SetWidth(boxWidth(tag, text))
     Style.Slant(tag, "both", cut, nil, "left")
     tag:Show()
     return true

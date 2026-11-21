@@ -468,22 +468,41 @@ T.test("quests: elite, dungeon, raid and PvP quests get a tag after their title"
     T.isnil(lay({ quests = { ELITE_Q } }, { tags = false })[3].lines[1].tag, "switched off")
     -- the title wraps short of the tag's room
     local widths = {}
-    lay({ quests = { ELITE_Q } }, { tags = true, measure = function(_, size, w) widths[#widths + 1] = w; return size + 3 end })
-    T.eq(widths[3], 226 - 18 - 50, "header, zone, then the title")
+    local _, lns = lay({ quests = { ELITE_Q } }, { tags = true, measure = function(_, size, w) widths[#widths + 1] = w; return size + 3 end })
+    T.eq(widths[3], 226 - 18 - lns.Layout.TagRoom("elite"), "header, zone, then the title: what is left of the tag's measured room")
     local frames, ns, look = painted({ quests = quests }, { tags = true })
     T.eq(ns.DEFAULTS.questTags, true, "on by default")
     local tag = frames["quest:2"].lines.title.tag
     T.eq(tag:IsShown(), true)
-    T.eq(tag.text:GetText(), string.upper(ELITE or "Elite"))
+    T.eq(tag.text:GetText(), string.upper(string.sub(ELITE or "Elite", 1, 1)), "the first letter")
     T.rgb(tag.text.__textColor, look.c.elite)
     local sl = DaylightUI.Style.GetSlant(tag)
     T.eq(sl and sl.side, "both", "a slanted box, not a pill")
     T.eq(sl.under, "left", "leaning like the loot feed's rows")
     local dng = frames["quest:3"].lines.title.tag
-    T.eq(dng.text:GetText(), string.upper(CALENDAR_TYPE_DUNGEON or "Dungeon"))
+    T.eq(dng.text:GetText(), string.upper(string.sub(CALENDAR_TYPE_DUNGEON or "Dungeon", 1, 1)))
     T.rgb(dng.text.__textColor, look.c.dungeon)
     T.eq(frames["quest:1"].lines.title.tag:IsShown(), false)
     T.eq(frames["quest:7"].lines.title.tag:IsShown(), false, "a tag we don't show")
+end)
+
+-- Seen in game: in a narrow tracker "MAZMORRA" sat glued to the end of a title. A tag
+-- is its first letter, except a word that short already (JcJ, PvP).
+T.test("quests: a tag shows its first letter, and a word of three letters or less whole", function()
+    local DNG, PVP = QW.quest(3, "Red Silk Bandanas", { tagID = 81 }), QW.quest(5, "Warsong Mark", { tagID = 41 })
+    local frames, ns, look = painted({ quests = { DNG, PVP } }, { tags = true })
+    local d = frames["quest:3"].lines.title.tag
+    T.eq(d.text:GetText(), string.upper(string.sub(CALENDAR_TYPE_DUNGEON or "Dungeon", 1, 1)), "the first letter")
+    T.rgb(d.text.__textColor, look.c.dungeon, "in its own color")
+    T.eq(ns.Look.TagWord("elite"), string.upper(string.sub(ELITE or "Elite", 1, 1)), "E for Elite")
+    T.eq(ns.Look.TagWord("raid"), string.upper(string.sub(RAID or "Raid", 1, 1)), "R for Raid")
+    local word = string.upper(CALENDAR_TYPE_PVP or "PvP")
+    T.eq(frames["quest:5"].lines.title.tag.text:GetText(), word, "PvP: already short, whole")
+    -- Its room is its own width, and the title gets the rest.
+    T.truthy(ns.Look.TagWidth("dungeon") < ns.Look.TagWidth("pvp") + 8, "a letter's box is the small one")
+    local L = ns.Layout
+    T.eq(L.TitleRoom(226, "dungeon"), 226 - L.TITLE_X - L.TagRoom("dungeon"), "the title's room")
+    T.truthy(L.TitleRoom(226, "dungeon") > 226 - L.TITLE_X - 66, "more than the old whole-word reserve")
 end)
 
 T.test("quests rows: a quest's title, icon and objectives", function()

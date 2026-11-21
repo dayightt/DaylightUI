@@ -311,6 +311,7 @@ Tracker.MEASURE_KEEP = 1000       -- max cached texts; past this the cache start
 
 function Tracker.ForgetMeasures()
     measured, measuredN = {}, 0
+    if ns.Look and ns.Look.ForgetTagWidths then ns.Look.ForgetTagWidths() end
 end
 
 function Tracker.Measure(text, size, width)
