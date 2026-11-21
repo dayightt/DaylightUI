@@ -16,7 +16,7 @@ ns.DEFAULTS = {
     media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS, ns.MEDIA_FONTS),
     -- "simple": the game's tooltip in the Daylight UI look; "rich": Daylight UI's
     -- own cards drawn over it (Rich/).
-    style = "simple",
+    style = "rich",
     pill = "combat", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
     pillKey = "shift", -- held, the full card in the pill's place: "shift", "ctrl", "alt", "none"
     portraits = true, -- a creature's face and a player's class icon at the top of their card

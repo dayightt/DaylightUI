@@ -272,6 +272,39 @@ T.test("a bar texture saved as the window color goes back to the window bar back
     T.eq(kept.general.windowBack, "glass")
 end)
 
+-- Rich is the tooltips' own default, so the options don't offer to "reset" a new profile to
+-- Simple. Profiles from before Rich existed keep Simple, once.
+T.test("tooltips default to Rich, existing profiles keep the look they had", function()
+    local DUI = stub.Load({ tooltip = true, before = function()
+        DaylightUIDB = { version = 2, profileData = {
+            Old = { modules = { Tooltip = { textSize = 13 } } },
+            NoTip = { modules = {} },
+            Rich = { modules = { Tooltip = { style = "rich" } } } } }
+    end })
+    local pd = DaylightUIDB.profileData
+    T.eq(DUI:GetModule("Tooltip").defaults.style, "rich", "Rich is the default")
+    T.eq(pd.Old.modules.Tooltip.style, "simple", "an existing profile keeps Simple")
+    T.eq(pd.NoTip.modules.Tooltip.style, "simple", "even one that never loaded the tooltips")
+    T.eq(pd.Rich.modules.Tooltip.style, "rich", "one already in Rich stays there")
+    T.eq(pd.Old.tipStyle1, true)
+    pd.Old.modules.Tooltip.style = nil
+    DUI.DB.Init()
+    T.isnil(pd.Old.modules.Tooltip.style, "only once")
+end)
+
+T.test("a fresh install and a new profile start in Rich tooltips with nothing saved", function()
+    local DUI = stub.Load({ tooltip = true })
+    local first = DaylightUIDB.profileData[DUI.DB.DEFAULT]
+    T.eq(first.tipStyle1, true, "marked as already past the one-time step")
+    T.eq(DUI:Get("Tooltip", "style"), "rich")
+    DUI.DB.Init()
+    T.eq(DUI:Get("Tooltip", "style"), "rich", "and not Simple on the next load either")
+    DUI.Profiles.Create("Fresh")
+    local p = DaylightUIDB.profileData.Fresh
+    T.eq(p.tipStyle1, true, "a new profile is marked too")
+    T.eq(p.modules.Tooltip.style, "rich")
+end)
+
 -- The short chat tags start from the player's language on a new profile; a profile that existed
 -- before keeps the English letters, once.
 T.test("existing profiles keep the English chat tag letters, new ones start in the player's language", function()

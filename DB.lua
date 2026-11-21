@@ -699,6 +699,14 @@ function DB.KeepEnglishTags(p)
     if p.modules.Chat.tagLetters == nil then p.modules.Chat.tagLetters = "english" end
 end
 
+-- Rich became the tooltips' default. A profile from before keeps the Simple
+-- look it had, unless it already picked Rich.
+function DB.KeepSimpleTips(p)
+    if type(p.modules) ~= "table" then p.modules = {} end
+    if type(p.modules.Tooltip) ~= "table" then p.modules.Tooltip = {} end
+    if p.modules.Tooltip.style == nil then p.modules.Tooltip.style = "simple" end
+end
+
 local function migrate(sv)
     if type(sv.profileData) ~= "table" then sv.profileData = {} end
     local pd = sv.profileData
@@ -751,6 +759,10 @@ local function migrate(sv)
         if type(p) == "table" and not p.tagLetters1 then
             p.tagLetters1 = true
             DB.KeepEnglishTags(p)
+        end
+        if type(p) == "table" and not p.tipStyle1 then
+            p.tipStyle1 = true
+            DB.KeepSimpleTips(p)
         end
         if type(p) == "table" and not p.localFont1 then
             p.localFont1 = true
@@ -819,13 +831,11 @@ DB.Fill = fill
 
 -- Where every new standard setup starts on top of the defaults: the info
 -- panel closed (its tab opens the meter), the chat floating (only its
--- lines show), Rich tooltips and the bars moving in Flow (BarFx.HOMES). The
--- account's first profile and every ready-made one built clean
--- (Profiles.ReadyData) use it. Profiles made before keep Simple tooltips.
+-- lines show) and the bars moving in Flow (BarFx.HOMES). The account's first
+-- profile and every ready-made one built clean (Profiles.ReadyData) use it.
 function DB.StandardStart()
     local t = { InfoPanel = { meter = { enabled = false } },
-                Chat = { hides = "always" },
-                Tooltip = { style = "rich" } }
+                Chat = { hides = "always" } }
     if DUI.BarFx then DUI.BarFx.StartIn(t, DUI.BarFx.ASK_STYLE) end
     return t
 end
@@ -836,7 +846,7 @@ local function point()
     if type(pd[DB.activeName]) ~= "table" then DB.activeName = DB.Fallback() end
     if type(pd[DB.activeName]) ~= "table" then
         -- The account's first profile. Whatever the setup guide saves comes from this.
-        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, tagLetters1 = true, unsaved = true,
+        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, tagLetters1 = true, tipStyle1 = true, unsaved = true,
                               general = {},
                               modules = DB.StandardStart() }
         pd[DB.activeName].general.localFont = DB.NonLatinClient() or nil
