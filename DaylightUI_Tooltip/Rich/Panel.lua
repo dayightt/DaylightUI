@@ -696,6 +696,9 @@ function place.header(p, item, y, inner)
     -- Never past the card's edge (or the level beside it). A long name wraps
     -- onto a second line rather than losing its end ("of Healing" is the point).
     local room = inner + padX(p) - x - (item.right and (12 + widthOf(item.right)) or 0)
+    -- A clicked item's popup has the game's X in its top right corner.
+    local close = p.tip and p.tip.CloseButton
+    if type(close) == "table" and close:IsShown() then room = room - 18 end
     if isSecret(item.spec.title) then
         -- A secret name can't be measured: it gets the whole room, cut there.
         item.title:SetWidth(room)

@@ -16,9 +16,8 @@ ns.Rich = Rich
 local Panel, Read = ns.RichPanel, ns.RichRead
 
 -- The tooltips that get the card: the main one and the compare tooltips
--- beside it (and beside a clicked item). The clicked item's own popup keeps
--- the skinned look for now.
-Rich.TIPS = { GameTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
+-- beside it, and a clicked item's popup with its own compares.
+Rich.TIPS = { GameTooltip = true, ItemRefTooltip = true, ShoppingTooltip1 = true, ShoppingTooltip2 = true,
               ItemRefShoppingTooltip1 = true, ItemRefShoppingTooltip2 = true }
 
 -- The game's health bar hangs under the main tooltip only.
