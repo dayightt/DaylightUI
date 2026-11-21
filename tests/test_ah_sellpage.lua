@@ -3,8 +3,9 @@ local stub = require("stub")
 
 -- The Sell tab (DaylightUI_AuctionHouse/SellPage.lua) on the fake Auction
 -- House with real bags: the bag items under the game's item classes, each
--- searched once a visit; a pick fills the price under the cheapest (copper
--- for a commodity, whole silver for gear); Post (the button or the key)
+-- searched once a visit; a pick fills the cheapest price, or under it by the
+-- undercut setting (copper for a commodity, whole silver for gear); Post (the
+-- button or the key)
 -- sends it in the click and picks the next; refusals and the game's price
 -- warning say what to do.
 
@@ -66,7 +67,9 @@ local function spec(extra)
 end
 
 -- usual: key -> copper, five days of lows (the usual price).
-local function load(extra, usual)
+-- Most of these tests post a copper under the cheapest, so the price they
+-- check differs from the cheapest. Pass asShipped = true for the real default.
+local function load(extra, usual, asShipped)
     local DUI, A = AHW.Load(spec(extra), {
         before = function()
             _G.AuctionHouseFrame = nil
@@ -75,6 +78,7 @@ local function load(extra, usual)
         end,
     })
     A.Replicate.SETTLE, A.Replicate.EMPTY_WAIT = 0, 0
+    if not asShipped then DaylightUI:Set("AuctionHouse", "undercut", 1) end
     local now = A.Game.Now()
     usual = usual or { [LINEN] = 10, [WOOL] = 34, [POTION] = 13, [SWORD] = 2 * G }
     for id, c in pairs(usual) do
@@ -202,7 +206,19 @@ T.test("sell: before its search a row shows the saved price and Post waits", fun
     quiet()
 end)
 
-T.test("sell: a pick fills the price a copper under the cheapest, and says why", function()
+T.test("sell: by default a pick fills the cheapest price itself, and says why", function()
+    local A = load(nil, nil, true)
+    local page = open(A)
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    local right = page.right
+    T.eq(right.form.price:GetText(), "10c", "no undercut: the same as the cheapest")
+    T.eq(plain(right.form.hint:GetText()), "the same as the cheapest")
+    T.eq(why(page), "10c each: the same as the cheapest one up right now (10c, 200 of them, checked just now).")
+    quiet()
+end)
+
+T.test("sell: with an undercut set, a pick fills the price under the cheapest", function()
     local A = load()
     local page = open(A)
     lineOf(page, "Linen Cloth"):Click()

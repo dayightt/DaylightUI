@@ -14,6 +14,8 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Tooltip", "A creature's health bar can sit at the bottom of its tooltip, and quest progress bars can be turned off" },
         { "Flight timer", "Point at a stop on the flight timer's route to see its name" },
+    }, changed = {
+        { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under it, so prices stop creeping down" },
     }, fixed = {
         { "Little touches", "Small icon buttons show their name much sooner when you point at them" },
         { "Quests", "Wanted Posters and other things in the world that give quests list them in their tooltip again, with Questie on" },

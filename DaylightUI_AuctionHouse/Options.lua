@@ -14,7 +14,9 @@ ns.DEFAULTS = {
     askHigh = true,           -- a buy over askAbove of the usual price asks once more
     askAbove = 1.5,
     dealBelow = 0.7,          -- a price at or under this share of the usual one shows as a deal
-    undercut = 1,             -- copper under the cheapest when Sell fills a price (gear: whole silver)
+    -- Copper under the cheapest when Sell fills a price (gear rounds to whole silver).
+    -- 0 posts at the same price: undercutting by a copper only drags the price down.
+    undercut = 0,
     undercutPct = 0,          -- a share under the cheapest instead (0 = the copper above)
     chatPosts = false,        -- a chat line for each post
     undercutAhead = 0,        -- My auctions: this many cheaper ones from others still count as fine
