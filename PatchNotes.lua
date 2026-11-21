@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Tooltips", "Durability on item tooltips turns from green to amber to red as your gear wears down" },
         { "Nameplates", "Names on nameplates can be hidden, for enemy and friendly plates separately" },
         { "Nameplates", "Threat colors can work solo too: mobs attacking you turn red, the rest stay as they are" },
+        { "Info panel", "The data texts and data bar can show their numbers in white, your class color or a color you pick, instead of the accent" },
     }, changed = {
         { "Auction House", "Sell puts your price at the cheapest one up instead of a copper under it, so prices stop creeping down" },
         { "Loot", "The loot rolls switch works like every other switch again: on shows Daylight UI's roll window, off the game's own popups" },

@@ -43,6 +43,19 @@ end
 
 -- Data bar: the same texts, plus "None" for an empty slot.
 local function noBar(get) return get("databar.enabled") ~= true end
+
+-- The numbers' color, for the strip under the map and for the data bar.
+local NUMBER_COLORS = { accent = "Accent color", white = "White", class = "Class color", custom = "One color" }
+local function numberColor(prefix, off, what)
+    return { type = "dropdown", key = prefix .. "numberColor", label = what .. " color", since = "2.2",
+             values = NUMBER_COLORS, order = { "accent", "white", "class", "custom" }, disabled = off,
+             desc = "The color of the numbers. Accent color follows your accent along the strip. Pick White or One color if a dark accent is hard to read." }
+end
+local function numberCustom(prefix, off, what)
+    return { type = "color", key = prefix .. "numberCustom", label = "Custom " .. what:lower() .. " color", since = "2.2",
+             desc = "The numbers' color when " .. what .. " color is One color.",
+             disabled = function(get) return off(get) or get(prefix .. "numberColor") ~= "custom" end }
+end
 local function barChoices()
     local names, order = { none = "None" }, { "none" }
     for _, key in ipairs(byName()) do
@@ -340,6 +353,8 @@ ns.OPTIONS = { pages = {
               disabled = noData },
             { type = "slider", key = "data.textSize", label = "Data text size", min = 8, max = 14, step = 1, disabled = noData,
               desc = "How big the data texts are." },
+            numberColor("data.", noData, "Data text"),
+            numberCustom("data.", noData, "Data text"),
             DaylightUI.Options.FontRow("media.font", "Data text font", "The data texts, the data bar, and the clock, framerate, zone name and coordinates on the minimap"),
             { type = "dropdown", key = "data.goldChars", label = "Gold characters",
               values = { all = "Every character", faction = "This faction" }, order = { "all", "faction" },
@@ -363,8 +378,10 @@ ns.OPTIONS = { pages = {
               disabled = noBar, desc = "How tall the data bar is." },
             { type = "slider", key = "databar.textSize", label = "Data bar text size", min = 9, max = 16, step = 1,
               disabled = noBar, desc = "How big the texts are. The one in the middle is a little bigger." },
+            numberColor("databar.", noBar, "Data bar text"),
+            numberCustom("databar.", noBar, "Data bar text"),
             { type = "toggle", key = "databar.icons", label = "Data bar icons", disabled = noBar,
-              desc = "A small icon before each text, in your accent color." },
+              desc = "A small icon before each text, in the numbers' color." },
             { type = "toggle", key = "databar.labels", label = "Data bar labels", disabled = noBar,
               desc = "Short labels like Gear, Bags and Guild before each number. They drop off when the bar is too narrow." },
             { type = "toggle", key = "databar.line", label = "Data bar accent line", disabled = noBar,

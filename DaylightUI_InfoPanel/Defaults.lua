@@ -110,14 +110,15 @@ ns.DEFAULTS = {
              critKind = "auto",           -- auto (by class), attack, ranged or spell
              apKind = "auto",             -- auto (ranged for hunters), attack or ranged
              goldChars = "all",           -- gold tooltip lists "all" characters or only your "faction"
-             soulBag = false },           -- the Soul Shards text shows the soul bag's size too
+             soulBag = false,             -- the Soul Shards text shows the soul bag's size too
+             numberColor = "accent", numberCustom = ink(INK.VALUE) },   -- accent, white, class or custom
     -- Data bar along the bottom of the screen. Up to four texts on each side
     -- of the center one; "none" leaves a slot empty.
     databar = { enabled = false, widthPct = 60, height = 24, textSize = 12, icons = true, labels = false, line = true,
                 -- No border by default: on a strip this thin the top accent line is enough.
                 frameStyle = DaylightUI.Style.LookDefaults({ borderAlpha = 0, heavyBorder = false }), angled = true,
                 left1 = "location", left2 = "coords", left3 = "xp", left4 = "durability",
-                center = "time",
+                center = "time", numberColor = "accent", numberCustom = ink(INK.VALUE),
                 right1 = "bags", right2 = "social", right3 = "gold", right4 = "system",
                 fade = DaylightUI.Fade.Defaults() },
     tracker = { enabled = true, fade = DaylightUI.Fade.Defaults() },

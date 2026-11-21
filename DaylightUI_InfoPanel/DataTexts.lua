@@ -64,10 +64,27 @@ local function hex(c)
         math.floor(c[3] * 255 + 0.5))
 end
 local function word(s) return hex(DT.LABEL) .. s .. "|r" end
--- Numbers use the accent, read at draw time. With a gradient accent, `spot`
--- is how far along the strip the current text sits.
-local spot
-local function value(s, c) return hex(c or { DUI.Style.AccentAt(spot) }) .. s .. "|r" end
+-- The color a slot's number is drawn in, read at draw time. "accent" (the
+-- default) follows the accent, and with a gradient accent the slot's `spot`,
+-- how far along the strip it sits. A dark class accent on the dark strip is
+-- hard to read, so the strip can take white, the class color or one color.
+function DT.Ink(s)
+    local kind = s and s.ink
+    if kind == "white" then
+        local c = DUI.Style.INK.VALUE
+        return c[1], c[2], c[3]
+    elseif kind == "class" then
+        local _, token = UnitClass("player")
+        return DUI.Style.ClassTextColor(token)
+    elseif kind == "custom" and type(s.inkCustom) == "table" then
+        local c = s.inkCustom
+        return c[1] or 1, c[2] or 1, c[3] or 1
+    end
+    return DUI.Style.AccentAt(s and s.spot)
+end
+
+local cur   -- the slot being drawn
+local function value(s, c) return hex(c or { DT.Ink(cur) }) .. s .. "|r" end
 DT.Word, DT.Value = word, value   -- used by Broker.lua
 
 local function thousands(n) return DUI.Thousands(math.floor(n)) end
@@ -1409,9 +1426,9 @@ end
 -- Draws a slot's text with its accent spot. n overrides the number for
 -- texts that count up.
 local function drawText(s, t, n)
-    spot = s.spot
+    cur = s
     local ok, long, short = pcall(t.text, n)
-    spot = nil
+    cur = nil
     return ok, long, short
 end
 
@@ -1447,9 +1464,9 @@ function DT.CountGold(s, changed)
     DUI.Motion.Tween(s, from, now, DUI.Motion.SLOW, function(v)
         v = math.floor(v + 0.5)
         s.rollShown = v
-        spot = s.spot
+        cur = s
         s.rollText = value(DT.ShortMoney(v), up and DT.GAIN or nil)
-        spot = nil
+        cur = nil
         s.text:SetText(s.rollText)
     end, function() settle(s) end)
 end
@@ -1761,7 +1778,7 @@ function DT.New(S, opts)
         end
         s.icon:SetTexCoord(0, 1, 0, 1)
         s.icon:SetTexture(DUI.MEDIA .. "ui-data-" .. s.key .. ".png")
-        s.icon:SetVertexColor(Style.AccentAt(s.spot or 0.5))
+        s.icon:SetVertexColor(DT.Ink(s))
     end
 
     -- Called after the panel lays out. Sets up texts, size, events and ticker.
@@ -1795,6 +1812,7 @@ function DT.New(S, opts)
             s.key = key
             s.spot = #keys > 1 and (i - 1) / (#keys - 1) or nil   -- spread evenly along the accent
             if opts.spot then s.spot = opts.spot(s.spot or 0.5) end
+            s.ink, s.inkCustom = c.numberColor, c.numberCustom
             s.long, s.short = nil, nil
             s.wLong, s.wShort = nil, nil   -- re-measure
             stopCount(s)

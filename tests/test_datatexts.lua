@@ -313,6 +313,34 @@ T.test("data texts: with a gradient accent each text takes the next color along 
         "a one-color accent stays that one color")
 end)
 
+T.test("data texts: the numbers can be white, the class color or one color instead of the accent", function()
+    local DUI = login()
+    local D, S, Hex = DT(), DUI.Style, DUI.Win.Parts.Hex
+    DUI:Set("general", "accent", "gradient")
+    stub.RunTimers()
+    local function all(c)
+        for i = 3, 4 do
+            if not D.slots[i].text:GetText():find(Hex(c), 1, true) then return false, D.slots[i].text:GetText() end
+        end
+        return true
+    end
+    DUI:Set("InfoPanel", "data.numberColor", "white")
+    stub.RunTimers()
+    T.truthy(all(S.INK.VALUE), "white: every number white, whatever the accent")
+    DUI:Set("InfoPanel", "data.numberColor", "class")
+    stub.RunTimers()
+    local _, token = UnitClass("player")
+    T.truthy(all({ S.ClassTextColor(token) }), "class: the player's class color")
+    DUI:Set("InfoPanel", "data.numberCustom", { 0.9, 0.3, 0.6 })
+    DUI:Set("InfoPanel", "data.numberColor", "custom")
+    stub.RunTimers()
+    T.truthy(all({ 0.9, 0.3, 0.6 }), "one color: the picked one")
+    DUI:Set("InfoPanel", "data.numberColor", "accent")
+    stub.RunTimers()
+    T.truthy(D.slots[4].text:GetText():find(Hex({ S.SweepAt(1) }), 1, true), "back on the accent's sweep")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("data texts: bags, gear and friends count to the new number, its color following; the slots beside glide", function()
     socialIn4(login())
     measureLikeTheGame()
