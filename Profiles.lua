@@ -197,20 +197,38 @@ end
 -- A shared profile with only the parts in take (a set of Parts keys) kept;
 -- every other listed part is swapped for the active profile's own, so turning
 -- a part off on import means keeping yours. Parts the list never offered come
--- as shared, the same as a whole import.
+-- as shared, the same as a whole import, and a part the string doesn't carry
+-- at all (left out on export) is yours too.
 function Profiles.Take(shared, take)
     local mine = Profiles.Snapshot()
     local offered = {}
     for _, part in ipairs(Profiles.Parts(shared)) do offered[part.key] = true end
     local function theirs(key) return take[key] or not offered[key] end
-    local p = { v = shared.v, modules = {} }
+    local p = { v = shared.v, screen = shared.screen, modules = {} }
     p.general = copy(theirs(Profiles.GENERAL) and shared.general or mine.general)
     p.positions = copy(theirs(Profiles.POSITIONS) and shared.positions or mine.positions)
     p.layout = theirs(Profiles.LAYOUT) and shared.layout or mine.layout
-    for name, t in pairs(shared.modules or {}) do
+    local mods = shared.modules or {}
+    for name, t in pairs(mods) do
         p.modules[name] = copy(theirs(name) and t or mine.modules[name])
     end
+    for name, t in pairs(mine.modules) do
+        if mods[name] == nil then p.modules[name] = copy(t) end
+    end
     return p
+end
+
+-- A profile to share with only the parts in take (a set of Parts keys); the
+-- rest are left out, so whoever imports it keeps their own for those.
+function Profiles.Only(p, take)
+    local out = { v = p.v, screen = p.screen, modules = {} }
+    if take[Profiles.GENERAL] then out.general = copy(p.general) end
+    if take[Profiles.POSITIONS] then out.positions = copy(p.positions) end
+    if take[Profiles.LAYOUT] then out.layout = p.layout end
+    for name, t in pairs(p.modules or {}) do
+        if take[name] then out.modules[name] = copy(t) end
+    end
+    return out
 end
 
 -- Fitting a shared profile's frames to another screen shape
@@ -1127,7 +1145,6 @@ local function buildBox()
     parts:Hide()
     parts.head = W.Font(parts, W.BODY, SIZE.small, C.dim, "LEFT")
     parts.head:SetPoint("TOPLEFT", parts, "TOPLEFT", 0, -6)
-    parts.head:SetText(L["Take these parts. Whatever you switch off stays as yours."])
     parts.rows = {}
     box.parts = parts
     area:SetPoint("BOTTOM", parts, "TOP", 0, 0)
@@ -1192,13 +1209,15 @@ end
 
 -- Lists list (Profiles.Parts) as switches, all on; onChange(take) runs with
 -- the set of parts switched on whenever one flips. nil list hides them.
-function Profiles.ShowParts(list, onChange)
+-- head is the line over them (the import's when not given).
+function Profiles.ShowParts(list, onChange, head)
     if not box then buildBox() end
     local parts = box.parts
     if not list or #list == 0 then
         fitParts(0)
         return
     end
+    parts.head:SetText(head or L["Take these parts. Whatever you switch off stays as yours."])
     local take = {}
     local half = math.ceil(#list / 2)
     local colW = (Profiles.BOX[1] - 2 * DUI.Win.EDGE) / 2
@@ -1245,18 +1264,51 @@ local function showBox(title, hint)
 end
 
 function Profiles.ShowExport()
-    local text, why = Profiles.Encode(Profiles.Snapshot())
+    local snap = Profiles.Snapshot()
     local b = showBox(L["Export profile"], string.format(L["The profile %s: its settings, frame positions and Edit Mode layout. "
         .. "Ctrl+C to copy, then share it."], Profiles.Current()))
     b.go:Hide()
     b.name:Hide()
-    text = text and Profiles.Wrap(text)
-    b.edit:SetText(text or "")
-    b.status:SetText(text and "" or string.format(L["Couldn't export: %s."], tostring(why)))
-    -- Typing can't change it: restore the profile text, selected.
-    if text then b.area.Lock(text, true) end
-    b.edit:SetFocus()
-    b.edit:HighlightText()
+    local list = Profiles.Parts(snap)
+    local count = #list
+    -- The text for the parts switched on, remade on each flip.
+    local function show(take)
+        local W = DUI.Widgets
+        local n = 0
+        for _ in pairs(take) do n = n + 1 end
+        if count > 0 and n == 0 then
+            b.area.Lock("", false)
+            b.edit:SetText("")
+            b.status:SetText(L["Switch on at least one part to share."])
+            W.TextColor(b.status, W.COLORS.warn)
+            return
+        end
+        local text, why = Profiles.Encode(n == count and snap or Profiles.Only(snap, take))
+        text = text and Profiles.Wrap(text)
+        b.edit:SetText(text or "")
+        if not text then
+            b.status:SetText(string.format(L["Couldn't export: %s."], tostring(why)))
+            W.TextColor(b.status, W.COLORS.warn)
+            return
+        end
+        local pop = DUI.Win.Parts.Hex({ Style.Pop() })
+        if n == count then
+            b.status:SetText(count == 0 and "" or string.format(L["Shares all %s parts."], pop .. n .. "|r"))
+        else
+            b.status:SetText(string.format(L["Shares %s of %s parts. Whoever imports it keeps their own for the rest."],
+                pop .. n .. "|r", count))
+        end
+        W.TextColor(b.status, W.COLORS.text)
+        -- Typing can't change it: restore the profile text, selected.
+        b.area.Lock(text, true)
+        b.edit:SetFocus()
+        b.edit:HighlightText()
+    end
+    if count > 0 then
+        Profiles.ShowParts(list, show, L["Share these parts. Whatever you switch off, they keep their own."])
+    else
+        show({})
+    end
 end
 
 -- The same box for any text to copy out (a report to send in), selected and
@@ -1358,7 +1410,8 @@ function Profiles.ShowImport()
         end
         local shared, from, to = pending
         if take[Profiles.POSITIONS] then shared, from, to = Profiles.Fit(pending) end
-        if picked() ~= count then shared = Profiles.Take(shared, take) end
+        -- Always through Take: a string shared with parts left out gets yours for those.
+        shared = Profiles.Take(shared, take)
         local made, why = Profiles.Create(named(), shared)
         if not made then
             warn(string.format(L["Can't import: %s."], tostring(why)))

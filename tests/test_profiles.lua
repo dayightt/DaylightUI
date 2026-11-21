@@ -689,6 +689,51 @@ T.test("profiles: a shared profile of only defaults still imports", function()
     T.truthy(DaylightUIDB.profileData.Plain, "made")
 end)
 
+T.test("profiles: export can leave parts out, and an import keeps yours for those", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    local P = DUI.Profiles
+    DUI:Set("UnitFrames", "swing.height", 30)
+    DUI:Set("general", "softness", 0.9)
+    P.ShowExport()
+    local box = _G.DaylightUIProfileBox
+    local keys = {}
+    for i, part in ipairs(P.Parts(P.Snapshot())) do keys[part.key] = i end
+    T.truthy(keys.general and keys.UnitFrames, "a switch per part")
+    T.truthy(box.parts.rows[keys.general].switch.on, "all on to start")
+    T.truthy(string.find(box.status.__text, "all", 1, true), "says it shares everything")
+    box.parts.rows[keys.general]:GetScript("OnClick")()
+    T.truthy(string.find(box.status.__text, "keeps their own", 1, true), "says the rest stays theirs")
+    local text = box.edit.__text
+    local p = P.Decode(text)
+    T.isnil(p.general, "appearance left out of the string")
+    T.eq(p.modules.UnitFrames.swing.height, 30, "the unit frames still in it")
+    -- Someone else imports it.
+    DUI:Set("UnitFrames", "swing.height", 12)
+    DUI:Set("general", "softness", 0.1)
+    stub.Dismiss()
+    P.ShowImport()
+    box.edit:SetText(text)
+    box.name:SetText("Frames only")
+    box.go:GetScript("OnClick")()
+    T.falsy(box:IsShown(), "imported")
+    local made = DaylightUIDB.profileData["Frames only"]
+    T.eq(made.modules.UnitFrames.swing.height, 30, "their unit frames")
+    T.eq(made.general.softness, 0.1, "your own appearance")
+end)
+
+T.test("profiles: export with every part switched off gives no text", function()
+    local DUI = login()
+    local P = DUI.Profiles
+    DUI:Set("general", "softness", 0.9)
+    P.ShowExport()
+    local box = _G.DaylightUIProfileBox
+    for i = 1, #P.Parts(P.Snapshot()) do box.parts.rows[i]:GetScript("OnClick")() end
+    T.eq(box.edit.__text, "", "nothing to copy")
+    T.truthy(string.find(box.status.__text, "at least one", 1, true), "asks for a part")
+end)
+
 T.test("profiles: import with every part switched off does nothing", function()
     local DUI = login()
     local P = DUI.Profiles
