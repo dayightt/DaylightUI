@@ -116,25 +116,10 @@ function Data.SameFaction(f)
     return f == nil or f.faction == nil or mine == nil or f.faction == mine or Data.CanCrossFaction()
 end
 
--- One friend: { id, account, tag, favorite, status ("on", "away", "busy", "off"),
--- inGame (in this World of Warcraft), char, class, level, zone, race, faction
--- ("Alliance" or "Horde"), ruleset, game (another game's name), lastOnline (seconds
--- ago), note, broadcast, gameAccountID }.
-local function friend(info)
-    if type(info) ~= "table" then return nil end
-    local g = type(info.gameAccountInfo) == "table" and info.gameAccountInfo or {}
-    local f = { id = num(info.bnetAccountID), account = str(info.accountName) or str(info.battleTag) or "?",
-        tag = str(info.battleTag), favorite = info.isFavorite == true, note = str(info.note),
-        broadcast = str(info.customMessage), gameAccountID = num(g.gameAccountID) }
-    local online = g.isOnline == true
-    if not online then
-        f.status = "off"
-        f.lastOnline = ago(info.lastOnlineTime)
-        return f
-    end
-    if info.isDND == true or g.isGameBusy == true then f.status = "busy"
-    elseif info.isAFK == true or g.isGameAFK == true then f.status = "away"
-    else f.status = "on" end
+-- One game account's part of a friend: the character in this World of Warcraft, the
+-- realm, or the other game they're in.
+local function play(f, g)
+    f.gameAccountID = num(g.gameAccountID)
     f.inGame = g.clientProgram == Data.CLIENT_WOW and (g.wowProjectID == nil or g.wowProjectID == WOW_PROJECT_ID)
     if f.inGame then
         f.char, f.class, f.level = str(g.characterName), str(g.classFilename), num(g.characterLevel)
@@ -154,11 +139,82 @@ local function friend(info)
     return f
 end
 
+-- The Battle.net app itself and its launcher count as game accounts too; the game's
+-- own card leaves them out (BNET_CLIENT_APP, BNET_CLIENT_CLNT).
+local function launcher(program)
+    return program == (_G.BNET_CLIENT_APP or "App") or program == (_G.BNET_CLIENT_CLNT or "CLNT")
+end
+
+-- A friend can play on several game accounts at once (two copies of the game on one
+-- Battle.net account). GetFriendAccountInfo gives only the one in focus; the rest are
+-- read one by one, as the game's own friends card does.
+local function accounts(index, focus)
+    local B = bn()
+    local n = index and B and num(call(B.GetFriendNumGameAccounts, index)) or 0
+    if n < 2 then return nil end
+    local out = {}
+    for a = 1, n do
+        local g = call(B.GetFriendGameAccountInfo, index, a)
+        if type(g) == "table" and g.isOnline ~= false and g.hasFocus ~= true and not launcher(g.clientProgram)
+            and not (focus and num(g.gameAccountID) == focus) then
+            out[#out + 1] = play({}, g)
+        end
+    end
+    return #out > 0 and out or nil
+end
+
+-- One friend: { id, account, tag, favorite, status ("on", "away", "busy", "off"),
+-- inGame (in this World of Warcraft), char, class, level, zone, race, faction
+-- ("Alliance" or "Horde"), ruleset, game (another game's name), lastOnline (seconds
+-- ago), note, broadcast, gameAccountID, others (the other game accounts online, each
+-- with the same character fields) }. index: its place in the friends list, to read
+-- the other game accounts.
+local function friend(info, index)
+    if type(info) ~= "table" then return nil end
+    local g = type(info.gameAccountInfo) == "table" and info.gameAccountInfo or {}
+    local f = { id = num(info.bnetAccountID), account = str(info.accountName) or str(info.battleTag) or "?",
+        tag = str(info.battleTag), favorite = info.isFavorite == true, note = str(info.note),
+        broadcast = str(info.customMessage), gameAccountID = num(g.gameAccountID) }
+    local online = g.isOnline == true
+    if not online then
+        f.status = "off"
+        f.lastOnline = ago(info.lastOnlineTime)
+        return f
+    end
+    if info.isDND == true or g.isGameBusy == true then f.status = "busy"
+    elseif info.isAFK == true or g.isGameAFK == true then f.status = "away"
+    else f.status = "on" end
+    play(f, g)
+    local others = accounts(index, f.gameAccountID)
+    -- In focus is whatever they touched last: when that's another game and a character
+    -- is in this one, the character leads, so the row, the filter and Invite see it.
+    if others and not f.inGame then
+        for i, o in ipairs(others) do
+            if o.inGame then
+                others[i] = play({}, g)
+                for _, k in ipairs({ "inGame", "char", "class", "level", "zone", "race", "faction", "guid", "realmID",
+                    "region", "realmName", "realm", "ruleset", "game", "gameAccountID" }) do
+                    f[k] = o[k]
+                end
+                break
+            end
+        end
+    end
+    f.others = others
+    return f
+end
+
 -- One friend by Battle.net account id (from a whisper conversation).
 function Data.Friend(id)
     local B = C_BattleNet
     if type(B) == "table" and type(id) == "number" and type(B.GetAccountInfoByID) == "function" then
-        return friend(B.GetAccountInfoByID(id))
+        -- Its place in the list too, so its other game accounts are read.
+        local n, index = num(call(BNGetNumFriends)) or 0, nil
+        for i = 1, n do
+            local info = call(B.GetFriendAccountInfo, i)
+            if type(info) == "table" and num(info.bnetAccountID) == id then index = i; break end
+        end
+        return friend(B.GetAccountInfoByID(id), index)
     end
 end
 
@@ -169,7 +225,7 @@ function Data.Friends()
     local n = call(BNGetNumFriends)
     if not (B and num(n)) then return out end
     for i = 1, n do
-        local f = friend(call(B.GetFriendAccountInfo, i))
+        local f = friend(call(B.GetFriendAccountInfo, i), i)
         if f then
             f.index = i
             out[#out + 1] = f

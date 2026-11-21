@@ -115,6 +115,16 @@ local function copy(t)
     return out
 end
 
+local function gameAccounts(f)
+    local g = f and f.gameAccountInfo
+    if not (g and g.isOnline) then return {} end
+    local focus = copy(g)
+    focus.hasFocus = true
+    local out = { focus }
+    for _, o in ipairs(f.gameAccounts or {}) do out[#out + 1] = o end
+    return out
+end
+
 -- ---------------------------------------------------------------------
 -- SocialUIFrame and its toggles (SocialUI.lua, SocialUIControl.lua)
 -- ---------------------------------------------------------------------
@@ -305,6 +315,10 @@ local function install()
     local bn = keep(_G, "C_BattleNet")
     _G.C_BattleNet = setmetatable({
         GetFriendAccountInfo = function(i) return copy(S().friends[i]) end,
+        -- A friend's game accounts online: the one in focus (gameAccountInfo, hasFocus)
+        -- and any more in the friend's gameAccounts, as the game's friends card reads them.
+        GetFriendNumGameAccounts = function(i) return #gameAccounts(S().friends[i]) end,
+        GetFriendGameAccountInfo = function(i, a) return copy(gameAccounts(S().friends[i])[a]) end,
         GetFriendInviteInfo = function(i) return copy(S().invites[i]) end,
         InviteFriend = function(gameAccountID) record("InviteFriend", gameAccountID) end,
         SetAFK = function(on)

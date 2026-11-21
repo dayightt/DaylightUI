@@ -105,6 +105,27 @@ function Friends.InviteWord(f)
     return Data().InviteKind(f) == "REQUEST_INVITE" and L["Request invite"] or INVITE or L["Invite"]
 end
 
+-- "Level 46 Tauren Hunter" for one character.
+function Friends.Who(c)
+    return ((c.level and string.format(L["Level %s"], c.level) .. " ") or "") .. (c.race and (c.race .. " ") or "") .. Rows().ClassWord(c.class)
+end
+
+-- The card's lines for a friend's other game accounts: each character in its class
+-- color with what it is, and where, or the other game they're in.
+function Friends.Others(f)
+    local lines = {}
+    for _, o in ipairs(f.others or {}) do
+        if o.char then
+            lines[#lines + 1] = Rows().Named(o.char, o.class) .. "  " .. Friends.Who(o)
+            if o.zone then lines[#lines + 1] = Win.Parts.Hex(Style.INK.LABEL) .. o.zone .. "|r" end
+        elseif o.game then
+            lines[#lines + 1] = string.format(L["Playing %s"], o.game)
+        end
+    end
+    if #lines == 0 then return nil, 0 end
+    return table.concat(lines, "\n"), #lines
+end
+
 function Friends.Tip(owner, f)
     if not (GameTooltip and f) then return end
     local T = DUI.Tips
@@ -112,12 +133,20 @@ function Friends.Tip(owner, f)
     T.Clear()
     T.Title(f.account)
     T.Sub(f.status == "off" and Friends.Sub(f) or ns.Window.STATUS_WORD[f.status])
-    if f.char then
-        local r, g, b = Style.ClassTextColor(f.class)
-        T.Person(f.char, f.zone, { r, g, b })
-        T.Text(((f.level and string.format(L["Level %s"], f.level) .. " ") or "") .. (f.race and (f.race .. " ") or "") .. Rows().ClassWord(f.class), Style.INK.LABEL)
-    elseif f.game and f.status ~= "off" then
-        T.Text(string.format(L["Playing %s"], f.game))
+    local function show(c)
+        if c.char then
+            local r, g, b = Style.ClassTextColor(c.class)
+            T.Person(c.char, c.zone, { r, g, b })
+            T.Text(Friends.Who(c), Style.INK.LABEL)
+        elseif c.game and f.status ~= "off" then
+            T.Text(string.format(L["Playing %s"], c.game))
+        end
+    end
+    show(f)
+    -- Their other game accounts online, under the one in focus, as the game's card has them.
+    for _, o in ipairs(f.others or {}) do
+        T.Gap()
+        show(o)
     end
     if f.faction and ns.Setting("friendFactions") == true then T.Line(L["Faction"], f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"])) end
     if f.ruleset then T.Line(L["Server"], f.ruleset) end
@@ -205,6 +234,8 @@ function Friends.Spec(f)
         add(L["Faction"], word)
         add(L["Server"], f.ruleset)
     end
+    local others, n = Friends.Others(f)
+    if others then rows[#rows + 1] = { label = L["Also playing"], value = others, lines = n } end
     add(L["Note"], f.note)
     if f.broadcast then add(nil, "\"" .. f.broadcast .. "\"", ink.LABEL) end
     local icon

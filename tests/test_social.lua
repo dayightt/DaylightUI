@@ -491,6 +491,49 @@ T.test("social: a friend's ruleset is on the row and the card, and searchable; t
     T.eq(#rows(page.stack, "friend"), 1)
 end)
 
+-- Two copies of the game on one Battle.net account: GetFriendAccountInfo gives only the
+-- one in focus, so the other character went missing from the card and the tooltip.
+T.test("social: a friend playing on two game accounts shows both characters", function()
+    local function wow(id, name, class, level, zone, race)
+        return { gameAccountID = id, clientProgram = "WoW", isOnline = true, wowProjectID = WOW_PROJECT_ID,
+            characterName = name, classFilename = class, characterLevel = level, areaName = zone, raceName = race }
+    end
+    local ns = load({ friends = {
+        { bnetAccountID = 1, accountName = "Bo", gameAccountInfo = wow(101, "Lyra", "PALADIN", 45, "Riverglades", "Undead"),
+          gameAccounts = { wow(102, "Tarn", "HUNTER", 46, "Stranglethorn Vale", "Tauren"),
+                           { gameAccountID = 103, clientProgram = "App", isOnline = true } } },
+        -- In focus in another game, a character in this one: the character leads.
+        { bnetAccountID = 2, accountName = "Cy", gameAccountInfo = { gameAccountID = 201, clientProgram = "Fen", isOnline = true, richPresence = "Diablo IV" },
+          gameAccounts = { wow(202, "Vess", "MAGE", 30, "Tanaris", "Gnome") } },
+    } })
+    open(ns)
+    local list = ns.Data.Friends()
+    local bo, cy = list[1], list[2]
+    T.eq(bo.char, "Lyra")
+    T.eq(#bo.others, 1, "the Battle.net app isn't a character")
+    T.eq(bo.others[1].char, "Tarn")
+    T.eq(bo.others[1].level, 46)
+    T.eq(cy.char, "Vess")
+    T.truthy(cy.inGame)
+    T.eq(cy.gameAccountID, 202, "Invite goes to the character in this game")
+    T.eq(cy.others[1].game, "Diablo IV")
+
+    _G.GameTooltip = _G.GameTooltip or CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    local Tips, people, was = DaylightUI.Tips, {}, DaylightUI.Tips.Person
+    Tips.Person = function(name, where, ...) people[#people + 1] = name .. " / " .. tostring(where); return was(name, where, ...) end
+    ns.Friends.Tip(ns.Window.frame, bo)
+    Tips.Person = was
+    T.deq(people, { "Lyra / Riverglades", "Tarn / Stranglethorn Vale" })
+
+    local spec = ns.Friends.Spec(bo)
+    local also
+    for _, r in ipairs(spec.rows) do if r.label == "Also playing" then also = r end end
+    T.truthy(also, "the card lists the other character")
+    T.truthy(also.value:find("Tarn", 1, true) and also.value:find("Level 46 Tauren Hunter", 1, true), also.value)
+    T.truthy(also.value:find("Stranglethorn Vale", 1, true), also.value)
+    clean()
+end)
+
 T.test("social: friends show their faction; another game or ruleset is dimmed; chips filter All, Same game, Online", function()
     local function friend(id, name, extra)
         local g = { gameAccountID = 100 + id, clientProgram = "WoW", isOnline = true, wowProjectID = WOW_PROJECT_ID,
