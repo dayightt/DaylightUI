@@ -264,11 +264,11 @@ end
 -- Every number on the card the way the game writes it, number first at the
 -- left edge ("1,287 Armor", "+8 Stamina"): one column the eye runs down. The
 -- number in the accent, or a stat's in its color, so it stands out from the
--- word in the sentence color. One from an Equip line says so after it, small.
+-- word in the sentence color. A stat from an Equip line reads like any other.
 local function popHex() return hex({ Style.Pop() }) end
 local function numText(num, word, color) return (color and hex(color) or popHex()) .. num .. "|r " .. word end
-local function numLine(p, num, word, color, equip)
-    ns.RichPanel.Line(p, numText(num, word, color), Style.INK.TEXT, nil, equip and L["Equip"] or nil, Style.INK.GOOD)
+local function numLine(p, num, word, color)
+    ns.RichPanel.Line(p, numText(num, word, color), Style.INK.TEXT)
 end
 
 -- "31.5 damage per second" from the game's own words, its brackets off, the
@@ -466,7 +466,7 @@ local function sort(n, lines, own, info, groups)
                     local num, name, color = Items.Stat(part)
                     if num then
                         color = color or Style.INK.GOOD
-                        g.list[#g.list + 1] = function(p) numLine(p, num, name, color, true) end
+                        g.list[#g.list + 1] = function(p) numLine(p, num, name, color) end
                     end
                 end
             elseif word then

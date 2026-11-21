@@ -115,7 +115,7 @@ local function buildRich(parent)
         Panel.Gap(p, Items.AFTER_HEADER)
         Panel.Line(p, hex({ Style.Pop() }) .. item.armor .. "|r " .. (ARMOR or L["Armor"]))
         for _, s in ipairs(item.stats) do Panel.Line(p, statText(s[1], s[2])) end
-        Panel.Line(p, statText(item.equip[1], item.equip[2]), Style.INK.TEXT, nil, L["Equip"], Style.INK.GOOD)
+        Panel.Line(p, statText(item.equip[1], item.equip[2]))
         Panel.Rule(p)
         Panel.Row(p, SELL_PRICE or L["Sell price"], DUI.Widgets.Money(item.money), Style.INK.VALUE, Style.INK.LABEL,
             Style.SIZE.small, Style.SIZE.body)
