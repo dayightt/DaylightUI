@@ -14,6 +14,7 @@ local function tipWorld()
     post = {}
     Enum.TooltipDataType = Enum.TooltipDataType or {}
     Enum.TooltipDataType.Item = 0
+    Enum.TooltipDataType.Spell = 1
     _G.TooltipDataProcessor = {
         AddTooltipPostCall = function(kind, fn)
             post[kind] = post[kind] or {}
@@ -202,4 +203,60 @@ end)
 T.test("ah tooltip: dash lines naming no known item add nothing", function()
     local M = load()
     T.deq(lefts(fillCrate(M, "Use: something\n- 3 made up things")), { "Use: something\n- 3 made up things" })
+end)
+
+-- A recipe's spell tooltip (a recipe linked in chat): its reagents from the
+-- game's schematic, the cost added under the game's lines.
+local ENCHANT = 13890
+local function fillRecipe(M, spellID, schematics)
+    Enum.TooltipDataType.Spell = 1
+    Enum.TradeskillRecipeType = Enum.TradeskillRecipeType or { Item = 1, Enchant = 3 }
+    C_TradeSkillUI = C_TradeSkillUI or {}
+    C_TradeSkillUI.GetRecipeSchematic = function(id)
+        local s = schematics[id]
+        local slots = {}
+        for i, m in ipairs(s and s.mats or {}) do
+            slots[i] = { reagents = { { itemID = m[1] } }, quantityRequired = m[2], required = true, hiddenInCraftingForm = false }
+        end
+        return { recipeID = id, reagentSlotSchematics = slots, outputItemID = s and s.out,
+                 recipeType = s and (s.out and Enum.TradeskillRecipeType.Item or Enum.TradeskillRecipeType.Enchant) }
+    end
+    local tip = ItemRefTooltip
+    tip:ClearLines()
+    tip:AddLine("Enchanting: Enchant Weapon - Recovery")
+    for _, fn in ipairs(post[1] or {}) do fn(tip, { type = 1, id = spellID }) end
+    return tip.__rows
+end
+
+T.test("ah tooltip: a linked enchant adds up its reagents at their cheapest", function()
+    local M = load()
+    M.Store.Record("US-PvE", "11176", 300, 60, NOW)    -- 3s each at the AH
+    M.Store.Record("US-PvE", "2775", 500, 60, NOW)
+    M.DB.Vendor()[2775] = 200                          -- a vendor sells it cheaper
+    local rows = fillRecipe(M, ENCHANT, { [ENCHANT] = { mats = { { 11176, 6 }, { 2775, 4 } } } })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.deq(lefts(rows), { "Enchant cost" })
+    T.eq(rows[2].right, DaylightUI.Widgets.Money(6 * 300 + 4 * 200), "the vendor's price wins when lower")
+    M.Tooltip.OnSpell(ItemRefTooltip, { id = ENCHANT })
+    T.eq(#ItemRefTooltip.__rows, 2, "the line goes in once")
+end)
+
+T.test("ah tooltip: a reagent with no price names itself and holds the total", function()
+    local M = load()
+    M.Store.Record("US-PvE", "11176", 300, 60, NOW)
+    local rows = fillRecipe(M, ENCHANT, { [ENCHANT] = { mats = { { 11176, 6 }, { 2775, 4 } } } })
+    T.eq(rows[2].left, "Enchant cost")
+    T.eq(rows[2].right, "no price yet")
+    T.truthy(rows[3].left:find("^No price yet for "), rows[3].left)
+    T.eq(#rows, 3, "the priced reagent isn't named")
+end)
+
+T.test("ah tooltip: a recipe that makes an item says cost to make; a plain spell adds nothing", function()
+    local M = load()
+    M.Store.Record("US-PvE", "2840", 100, 60, NOW)
+    local rows = fillRecipe(M, 2662, { [2662] = { out = 2852, mats = { { 2840, 3 } } } })
+    T.deq(lefts(rows), { "Cost to make" })
+    T.eq(rows[2].right, DaylightUI.Widgets.Money(300))
+    T.deq(lefts(fillRecipe(M, 133, {})), {}, "Fireball has no reagents")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

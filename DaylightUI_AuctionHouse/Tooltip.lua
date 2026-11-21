@@ -194,6 +194,81 @@ local function addLines(tip, data)
     if fill and not hasLine(tip, name, fill[1][1]) then addRows(tip, fill) end
 end
 
+-- What one of an item costs at its cheapest: the Auction House price the
+-- profession window uses, or what a vendor sells it for.
+local function cheapest(itemID)
+    local best = ns.Bridge.Item(itemID)
+    local vendor = ns.Vendor.Price(itemID)
+    if vendor and (not best or vendor < best) then best = vendor end
+    return best
+end
+
+-- A recipe's reagents, once per recipe: a schematic never changes. A spell
+-- that isn't a recipe has no reagent slots, so it gets nothing.
+local recipes = {}
+
+local function reagentsOf(spellID)
+    local hit = recipes[spellID]
+    if hit ~= nil then return hit or nil end
+    local TS = C_TradeSkillUI
+    local s = TS and TS.GetRecipeSchematic and TS.GetRecipeSchematic(spellID, false)
+    local out = { mats = {} }
+    for _, slot in ipairs(type(s) == "table" and type(s.reagentSlotSchematics) == "table" and s.reagentSlotSchematics or {}) do
+        local first = type(slot.reagents) == "table" and slot.reagents[1]
+        local itemID = type(first) == "table" and plain(first.itemID)
+        if type(itemID) == "number" and slot.required ~= false and slot.hiddenInCraftingForm ~= true then
+            out.mats[#out.mats + 1] = { itemID = itemID, need = plain(slot.quantityRequired) or 1 }
+        end
+    end
+    local kinds = Enum and Enum.TradeskillRecipeType
+    out.enchant = type(s) == "table" and kinds ~= nil and s.recipeType == kinds.Enchant
+    recipes[spellID] = out.mats[1] and out or false
+    return out.mats[1] and out or nil
+end
+
+-- "Enchant cost" (or "Cost to make") for a recipe: every reagent at its
+-- cheapest known price. A reagent with no price yet is named under it, and
+-- the total waits for it, since a part of the cost would read as the whole.
+function Tooltip.CostLines(spellID)
+    local r = reagentsOf(spellID)
+    if not (r and ns.Ruleset.Key()) then return nil end
+    local INK = DUI.Style.INK
+    local sum, missing = 0, {}
+    for _, m in ipairs(r.mats) do
+        local each = cheapest(m.itemID)
+        if each then
+            sum = sum + each * m.need
+        else
+            local name = C_Item and C_Item.GetItemNameByID and plain(C_Item.GetItemNameByID(m.itemID))
+            missing[#missing + 1] = type(name) == "string" and name ~= "" and name or string.format(L["Item %d"], m.itemID)
+        end
+    end
+    local label = r.enchant and L["Enchant cost"] or L["Cost to make"]
+    if not missing[1] then
+        return { { label, DUI.Widgets.Money(math.floor(sum + 0.5)), INK.TEXT, INK.VALUE } }
+    end
+    return {
+        { label, L["no price yet"], INK.TEXT, INK.OFF },
+        { string.format(L["No price yet for %s"], table.concat(missing, ", ")), nil, INK.LABEL },
+    }
+end
+
+local function addCost(tip, data)
+    if ns.mogul or not on("tooltip") then return end
+    local name = tip.GetName and tip:GetName()
+    local id = type(data) == "table" and plain(data.id) or nil
+    if type(name) ~= "string" or type(id) ~= "number" then return end
+    local rows = Tooltip.CostLines(id)
+    if rows and not hasLine(tip, name, rows[1][1]) then addRows(tip, rows) end
+end
+
+-- The spell post-call: a recipe linked in chat, or hovered.
+function Tooltip.OnSpell(tip, data)
+    if tip ~= GameTooltip and tip ~= ItemRefTooltip then return end
+    if tip.IsForbidden and tip:IsForbidden() then return end
+    ns.SafeCall(addCost, tip, data)
+end
+
 -- The post-call: the two item tooltips, never a compare or a forbidden one.
 function Tooltip.OnItem(tip, data)
     if tip ~= GameTooltip and tip ~= ItemRefTooltip then return end
@@ -206,4 +281,7 @@ end
 if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall
     and Enum and Enum.TooltipDataType and Enum.TooltipDataType.Item then
     TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Item, Tooltip.OnItem)
+    if Enum.TooltipDataType.Spell then
+        TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Spell, Tooltip.OnSpell)
+    end
 end
