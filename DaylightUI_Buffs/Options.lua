@@ -368,6 +368,9 @@ local function noLists() return not DUI.AuraLists end
 local function listChoices(mode)
     return function()
         if DUI.AuraLists then return DUI.AuraLists.Choices(mode) end
+        -- The hide rows' default is the built-in Hidden list, so it stays a
+        -- valid pick while the lists are away.
+        if mode == "hide" then return { none = "None", hidden = "Hidden" }, { "none", "hidden" } end
         return { none = "None" }, { "none" }
     end
 end

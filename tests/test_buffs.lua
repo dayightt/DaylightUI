@@ -1505,6 +1505,26 @@ T.test("buffs: the buff bar's hide and show-only lists", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("buffs: a buff put on Hidden leaves the buff bar without picking anything", function()
+    local shows = require("aura_rules")
+    local BL = login({ module = true })
+    local me = { canAssist = true, groupMember = true }
+    stub.SetAuras("player", "HELPFUL", { { name = "Find Herbs", spellId = 2383 }, { name = "Something", spellId = 99999 } })
+    DaylightUI:Set("UnitFrames", "auraLists.hidden.spells", "1229451 2383")
+    stub.RunTimers()
+    T.eq(BL.GetSetting("hideList"), "hidden")
+    T.eq(BL.GetSetting("hideList", "debuff"), "hidden")
+    T.eq(shows(group("other"), me, { spellId = 2383, duration = 0 }), false, "Find Herbs hidden")
+    T.eq(shows(group("other"), me, { spellId = 99999, duration = 0 }), true)
+    BL.Bar:InvalidateMembers()
+    local shown = {}
+    for _, list in pairs(BL.Bar:AllMembers()) do
+        for _, e in ipairs(list) do shown[#shown + 1] = e.spellId end
+    end
+    T.deq(shown, { 99999 }, "nor in the hover")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("buffs: the list rows hide while the unit frames are off", function()
     local BL = login()
     local function item(page, key)
