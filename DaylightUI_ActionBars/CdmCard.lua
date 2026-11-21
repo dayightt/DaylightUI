@@ -476,53 +476,11 @@ local function chainTitle()
     return string.format(L["All %d spells snapped together"], n)
 end
 
--- The power bar piece: its rows are the Player page's own power bar settings, so
--- the two can never disagree, and every other row on the card stays off for it.
-local function isPower(_, id) return id == "power" end
-local function power(key, item)
-    item.key = "cdm.card.power." .. key
-    item.get = function() return DUI:Get("UnitFrames", "player." .. key) end
-    item.set = function(v) DUI:Set("UnitFrames", "player." .. key, v) end
-    return item
-end
-local function powerIs(key, value) return function() return DUI:Get("UnitFrames", "player." .. key) == value end end
-local function powerOn(key) return function() return DUI:Get("UnitFrames", "player." .. key) == true end end
-local POWER_COLORS = { global = "Same as the Look page", type = "By power type", gradient = "Power gradient",
-    custom = "One color", customGradient = "Custom gradient" }
-local POWER_COLOR_ORDER = { "global", "type", "gradient", "custom", "customGradient" }
-local POWER_TEXT_POS = { inner = "Inner end", center = "Center", outer = "Outer end" }
-
 -- Each tab's rows, top to bottom: { head = text or fn, show }, { item, show }, or
 -- { box = "position", show } (built by the card itself), { box = "note", show, text = fn }
 -- (a few lines of quiet text).
 Card.ROWS = {
     look = {
-        { head = L["Power bar"], show = isPower, power = true },
-        { show = isPower, power = true, item = power("powerWidth", { type = "slider", label = "Width", min = 40, max = 500, step = 1, unit = "px" }) },
-        { show = isPower, power = true, item = power("powerHeight", { type = "slider", label = "Height", min = 2, max = 20, step = 1, unit = "px" }) },
-        { show = isPower, power = true, item = power("powerSlant", { type = "toggle", label = "Angled end",
-            desc = "Cuts the bar's end at an angle, on the same side as your player frame's." }) },
-        { show = function(...) return isPower(...) and powerOn("powerSlant")() end, power = true,
-          item = power("powerSlantBoth", { type = "toggle", label = "Angled at both ends" }) },
-        { show = isPower, power = true, item = power("colorPower", { type = "dropdown", label = "Color",
-            values = POWER_COLORS, order = POWER_COLOR_ORDER }) },
-        { show = function(...) return isPower(...) and powerIs("colorPower", "custom")() end, power = true,
-          item = power("colorPowerCustom", { type = "color", label = "Custom color" }) },
-        { head = L["Text"], show = isPower, power = true },
-        { show = isPower, power = true, item = power("showPowerText", { type = "toggle", label = "Show" }) },
-        { show = function(...) return isPower(...) and powerOn("showPowerText")() end, power = true,
-          item = power("powerFormat", { type = "dropdown", label = "Format",
-            values = DUI.Health.POWER_FORMATS, order = DUI.Health.POWER_FORMAT_ORDER }) },
-        { show = function(...) return isPower(...) and powerOn("showPowerText")() end, power = true,
-          item = power("powerTextPos", { type = "dropdown", label = "Position",
-            values = POWER_TEXT_POS, order = { "inner", "center", "outer" } }) },
-        { show = isPower, power = true, item = { type = "button", key = "cdm.card.power.more", label = "Every power bar option",
-            text = "More options",
-            desc = "Background, texture, font, angle, cost shade, mana regen sweep and the rest, on the Player page.",
-            func = function()
-                DUI.OptionsPanel.Show("UnitFrames.player")
-                DUI.OptionsPanel.JumpTo({ "player.powerAt" })
-            end } },
         { head = L["Icon"], show = isIcon },
         { show = isIcon, item = look("size", { type = "slider", label = "Size", min = 16, max = 64, step = 1, unit = "px",
             desc = "This icon's own size. Whole group sizes every icon in the group." }) },
@@ -1099,21 +1057,17 @@ end
 -- now. A heading with no rows under it is left out.
 local function sections(set, id, p)
     local out, cur = {}, nil
-    -- The power bar takes only its own rows, and the group's (position, When to show).
-    local onlyPower = id == "power" and tab ~= "chain"
     for _, r in ipairs(Card.ROWS[tab]) do
-        if not onlyPower or r.power then
-            if r.head then
-                cur = { head = r.show(set, id, p) == true and r or nil, rows = {} }
+        if r.head then
+            cur = { head = r.show(set, id, p) == true and r or nil, rows = {} }
+            out[#out + 1] = cur
+        elseif r.show(set, id, p) == true then
+            if r.box == "note" then r.height = r.frame.Set(r.text(set, id, p)) end
+            if not cur then
+                cur = { rows = {} }
                 out[#out + 1] = cur
-            elseif r.show(set, id, p) == true then
-                if r.box == "note" then r.height = r.frame.Set(r.text(set, id, p)) end
-                if not cur then
-                    cur = { rows = {} }
-                    out[#out + 1] = cur
-                end
-                cur.rows[#cur.rows + 1] = r
             end
+            cur.rows[#cur.rows + 1] = r
         end
     end
     local kept = {}

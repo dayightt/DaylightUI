@@ -663,8 +663,6 @@ end
 -- A piece's size on screen.
 function Data.Dims(set, id)
     local p = set.pieces[id]
-    -- The power bar's size is its own (Unit Frames, Player page).
-    if id == "power" and DUI.CdmPower then return DUI.CdmPower.Size() end
     if p and p.shape == "bar" then
         return Data.PieceLook(set, id, "width"), Data.PieceLook(set, id, "height")
     end
@@ -1015,15 +1013,12 @@ function Data.AddPiece(set, id, shape, x, y)
     local p = set.pieces[id]
     if p then
         Data.Unhook(set, id, x, y)
-        if shape and id ~= "power" then p.shape = shape end
+        if shape then p.shape = shape end
         return p
     end
     Data.Changed()
-    if id == "power" then shape = "bar" end
     p = { shape = shape == "bar" and "bar" or "icon", x = floor((x or 0) + 0.5), y = floor((y or 0) + 0.5) }
     set.pieces[id] = p
-    -- Placing the power bar is the choice to have it here.
-    if id == "power" and DUI.CdmPower then DUI.SafeCall(DUI.CdmPower.Want, true) end
     return p
 end
 
@@ -1133,10 +1128,7 @@ function Data.RemoveChain(set, id)
     local root = Data.Root(set, id)
     local gone = Data.Subtree(set, root)
     Data.Changed()
-    for _, q in ipairs(gone) do
-        set.pieces[q] = nil; set.chains[q] = nil
-        if q == "power" then Data.PowerGone() end
-    end
+    for _, q in ipairs(gone) do set.pieces[q] = nil; set.chains[q] = nil end
     return true
 end
 
@@ -1163,18 +1155,6 @@ function Data.RemovePiece(set, id, boxes)
     Data.Changed()
     set.pieces[id] = nil
     set.chains[id] = nil
-    if id == "power" then Data.PowerGone() end
-end
-
--- Taken off the layout: the power bar goes back to standing on its own, unless
--- another talent set still has it.
-function Data.PowerGone()
-    if not DUI.CdmPower then return end
-    for g = 1, Data.SETS do
-        local other = Data.Get(g)
-        if type(other) == "table" and type(other.pieces) == "table" and other.pieces.power then return end
-    end
-    DUI.SafeCall(DUI.CdmPower.Want, false)
 end
 
 -- ---------------------------------------------------------------------
@@ -1409,7 +1389,6 @@ end
 function Data.SetShape(set, id, shape)
     local p = set.pieces[id]
     if not p or (shape ~= "icon" and shape ~= "bar") then return false end
-    if id == "power" and shape ~= "bar" then return false end
     if p.shape ~= shape then
         Data.Changed()
         p.shape = shape

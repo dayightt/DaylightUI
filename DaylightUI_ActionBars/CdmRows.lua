@@ -714,11 +714,6 @@ local function drawOurs(id, p, block, f, always, aura, track)
     return item
 end
 
--- Hands the power bar its spot, or nil to let it stand on its own.
-function Rows.PlacePower(f)
-    if DUI.CdmPower then DUI.SafeCall(DUI.CdmPower.Place, f) end
-end
-
 function Rows.Update()
     pending = false
     if not ready then return end
@@ -788,133 +783,128 @@ function Rows.Update()
         for id, p in pairs(set.pieces) do
             local block = blocks[id]
             local f = pieceFrame(g, id)
-            if id == "power" then
-                -- Unit Frames draws it; the piece only keeps its spot (Rows.PlacePower).
-                if DUI.CdmPower then shown[id] = true end
-            else
-                local always = block.always == true   -- "Show when missing", per spell
-                local item = mine[id]
-                if item then drawn[id] = "game" end
-                local k
-                if Own and (not item or always) then k = Own.Entry(id, knownNow()) end
-                local away = not item and elsewhere[id]
-                local awayAura = elsewhereAura[id]
-                if away then
-                    -- The game draws it in the other shape. An aura the game's item
-                    -- says is down closes up; "Show missing buffs" keeps it, empty.
-                    local up = awayAura and itemUp(away, true)
-                    if awayAura and up ~= nil then downs[id] = not up end
-                    if always or not block.collapse or not awayAura or up ~= false then
-                        -- A cooldown set to Cooldown and buff by hand keeps the cooldown
-                        -- under the aura bar even when that can't be told.
-                        local both = not awayAura and Own and Own.Picked(p) == "both" and "both" or nil
-                        item = drawOurs(id, p, block, f, always, awayAura, both)
-                        if item and block.kind == "bar" and awayAura then
-                            Fx.Flash(item, item.Bar, always and not up
-                                and Fx.Get(p, "inactiveFlash") == true)
-                        end
+            local always = block.always == true   -- "Show when missing", per spell
+            local item = mine[id]
+            if item then drawn[id] = "game" end
+            local k
+            if Own and (not item or always) then k = Own.Entry(id, knownNow()) end
+            local away = not item and elsewhere[id]
+            local awayAura = elsewhereAura[id]
+            if away then
+                -- The game draws it in the other shape. An aura the game's item
+                -- says is down closes up; "Show missing buffs" keeps it, empty.
+                local up = awayAura and itemUp(away, true)
+                if awayAura and up ~= nil then downs[id] = not up end
+                if always or not block.collapse or not awayAura or up ~= false then
+                    -- A cooldown set to Cooldown and buff by hand keeps the cooldown
+                    -- under the aura bar even when that can't be told.
+                    local both = not awayAura and Own and Own.Picked(p) == "both" and "both" or nil
+                    item = drawOurs(id, p, block, f, always, awayAura, both)
+                    if item and block.kind == "bar" and awayAura then
+                        Fx.Flash(item, item.Bar, always and not up
+                            and Fx.Get(p, "inactiveFlash") == true)
                     end
-                elseif not item and k then
-                    local track = trackOf(id, p)
-                    if track == "buff" then
-                        item = drawOurs(id, p, block, f, always, true)
-                    elseif track then
-                        item = drawOurs(id, p, block, f, always, false, track)
-                    else
-                        item = drawOurs(id, p, block, f, always, k.aura)
-                    end
-                elseif item and Own then
-                    heldState(id, p, item)
                 end
-                -- Daylight UI's aura holder (icon or bar). Whether its buff is up is the
-                -- game's own item's to say, else the holder's where it really knows
-                -- (CdmAuras.Knows). A buff nothing can tell about is drawn and nothing
-                -- more: every option that needs its state stays off.
-                local holder = item and ns.CdmAuras and (HOLDS[drawn[id]] and item
-                    or drawn[id] == "aura and cooldown icon" and ns.CdmAuras.Frame(id))
-                local closedNow = false
-                if holder then
-                    local up = truthUp(id, holder)
-                    local knows = up ~= nil or ns.CdmAuras.Knows(holder)
-                    -- The game's item for this buff sits in a row that only shows in a
-                    -- fight. It answers there, and out of one the aura reads plainly, so
-                    -- the buff's options work all the time and the card keeps them.
-                    local hasRow = not knows and not ns.CdmAuras.Unseen(id) and sleeps(holder.ids)
-                    holder.reads = hasRow or nil
-                    if hasRow then
-                        up = ns.CdmAuras.Read(holder)
-                        knows = up ~= nil
-                    end
-                    tracked[id] = knows or hasRow
-                    local hide = knows and Fx.Get(p, "hideActive") == true
-                    local sound = knows and Fx.Get(p, "buffSound") ~= "none"
-                    -- An end sound needs the ups as well as the downs.
-                    local ends = knows and Fx.Get(p, "buffEndSound") ~= "none"
-                    -- "Slide over when a buff drops": a Daylight UI buff that's down gives
-                    -- up its spot like the game's own (which hide). Not a shield bar,
-                    -- which stays as an empty bar, nor a bar with its cooldown under it.
-                    local canSlide = knows and block.collapse and HOLDS[drawn[id]] == true
-                        and drawn[id] ~= "aura and cooldown bar"
-                    local slides = canSlide and not always
-                        and not (byShield(set, id, block.kind) and Fx.Get(p, "hideMissing") ~= true)
-                    -- Hidden while up (Buff up Hide) has nothing to keep a spot for,
-                    -- whatever Keep its spot says, since that's about while it's missing.
-                    -- Otherwise a missing buff set to Show stayed off the group's middle.
-                    local hideSlides = canSlide and hide
-                    local glowUp = knows and Fx.UpGlows(p)
-                    local clip = Fx.ClipGlows(p)
-                    -- A cooldown with its buff over it, faded or hidden on cooldown or
-                    -- while ready: while the buff is up it shows (CdmEffects), so it
-                    -- needs the ups too.
-                    local cdFx = knows and drawn[id] ~= nil and string.find(drawn[id], "aura and cooldown", 1, true) ~= nil
-                        and (Fx.Get(p, "onCd") ~= "show" or Fx.Get(p, "onReady") ~= "show"
-                            or Fx.Get(p, "onUnusable") ~= "show" or Fx.Get(p, "onShort") ~= "show")
-                    local missing = knows and Fx.Get(p, "missingGlow") == true
-                    holder.wantsUp = (hide or sound or ends or slides or glowUp or cdFx or missing) or nil
-                    -- Glow to recast runs on your own cast's clock (CdmAuras.Clip), so it
-                    -- works with no word on the buff too; a "down" still turns it off.
-                    holder.wantsClip = clip or nil
-                    if up ~= nil then
-                        ns.CdmAuras.Told(holder, up)
-                    elseif knows then
-                        -- Asked only when an option needs it; the holder keeps its own
-                        -- answer fresh on aura and cast events.
-                        if holder.wantsUp then up = ns.CdmAuras.IsUp(holder) else up = holder.up end
-                    else
-                        ns.CdmAuras.Told(holder, nil)
-                    end
-                    if holder.wantsUp then
-                        if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or cdFx))) then downs[id] = not up end
-                        -- Only a known "down"; an unknown one keeps its spot.
-                        closedNow = (slides and up == false) or (hideSlides and up == true)
-                        if closedNow and up == true then closedUp[id] = true end
-                    end
-                    if clip and up ~= false then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
-                    ns.CdmAuras.SetHideUp(holder, hide)
+            elseif not item and k then
+                local track = trackOf(id, p)
+                if track == "buff" then
+                    item = drawOurs(id, p, block, f, always, true)
+                elseif track then
+                    item = drawOurs(id, p, block, f, always, false, track)
+                else
+                    item = drawOurs(id, p, block, f, always, k.aura)
                 end
-                if item and drawn[id] == "game" and always and k and (k.aura or block.kind == "bar") and not item:IsShown() then
-                    -- Hidden by the game, but "Show missing buffs" is on: use a stand-in.
-                    item = Own.Placeholder(id, f, block.kind, Fx.Get(p, "hideActive") == true)
-                    usedHolds[id .. block.kind] = true
-                    extra[item] = true
-                    drawn[id] = "stand-in"
-                    downs[id] = true
+            elseif item and Own then
+                heldState(id, p, item)
+            end
+            -- Daylight UI's aura holder (icon or bar). Whether its buff is up is the
+            -- game's own item's to say, else the holder's where it really knows
+            -- (CdmAuras.Knows). A buff nothing can tell about is drawn and nothing
+            -- more: every option that needs its state stays off.
+            local holder = item and ns.CdmAuras and (HOLDS[drawn[id]] and item
+                or drawn[id] == "aura and cooldown icon" and ns.CdmAuras.Frame(id))
+            local closedNow = false
+            if holder then
+                local up = truthUp(id, holder)
+                local knows = up ~= nil or ns.CdmAuras.Knows(holder)
+                -- The game's item for this buff sits in a row that only shows in a
+                -- fight. It answers there, and out of one the aura reads plainly, so
+                -- the buff's options work all the time and the card keeps them.
+                local hasRow = not knows and not ns.CdmAuras.Unseen(id) and sleeps(holder.ids)
+                holder.reads = hasRow or nil
+                if hasRow then
+                    up = ns.CdmAuras.Read(holder)
+                    knows = up ~= nil
                 end
-                -- A cooldown hidden by On cooldown or When ready Hide gives up its spot
-                -- too with Slide over (Grow from Middle recenters). So does Buff up Hide
-                -- on the game's buff item or Daylight UI's cooldown icon under a buff, whatever
-                -- Keep its spot says (Fx.GoneUp).
-                if item and not closedNow and block.collapse and Fx.Gone(item)
-                    and (not always or Fx.GoneUp(item) or Fx.GoneForm(item)) then
-                    closedNow = true
-                    if Fx.GoneUp(item) then closedUp[id] = true end
+                tracked[id] = knows or hasRow
+                local hide = knows and Fx.Get(p, "hideActive") == true
+                local sound = knows and Fx.Get(p, "buffSound") ~= "none"
+                -- An end sound needs the ups as well as the downs.
+                local ends = knows and Fx.Get(p, "buffEndSound") ~= "none"
+                -- "Slide over when a buff drops": a Daylight UI buff that's down gives
+                -- up its spot like the game's own (which hide). Not a shield bar,
+                -- which stays as an empty bar, nor a bar with its cooldown under it.
+                local canSlide = knows and block.collapse and HOLDS[drawn[id]] == true
+                    and drawn[id] ~= "aura and cooldown bar"
+                local slides = canSlide and not always
+                    and not (byShield(set, id, block.kind) and Fx.Get(p, "hideMissing") ~= true)
+                -- Hidden while up (Buff up Hide) has nothing to keep a spot for,
+                -- whatever Keep its spot says, since that's about while it's missing.
+                -- Otherwise a missing buff set to Show stayed off the group's middle.
+                local hideSlides = canSlide and hide
+                local glowUp = knows and Fx.UpGlows(p)
+                local clip = Fx.ClipGlows(p)
+                -- A cooldown with its buff over it, faded or hidden on cooldown or
+                -- while ready: while the buff is up it shows (CdmEffects), so it
+                -- needs the ups too.
+                local cdFx = knows and drawn[id] ~= nil and string.find(drawn[id], "aura and cooldown", 1, true) ~= nil
+                    and (Fx.Get(p, "onCd") ~= "show" or Fx.Get(p, "onReady") ~= "show"
+                        or Fx.Get(p, "onUnusable") ~= "show" or Fx.Get(p, "onShort") ~= "show")
+                local missing = knows and Fx.Get(p, "missingGlow") == true
+                holder.wantsUp = (hide or sound or ends or slides or glowUp or cdFx or missing) or nil
+                -- Glow to recast runs on your own cast's clock (CdmAuras.Clip), so it
+                -- works with no word on the buff too; a "down" still turns it off.
+                holder.wantsClip = clip or nil
+                if up ~= nil then
+                    ns.CdmAuras.Told(holder, up)
+                elseif knows then
+                    -- Asked only when an option needs it; the holder keeps its own
+                    -- answer fresh on aura and cast events.
+                    if holder.wantsUp then up = ns.CdmAuras.IsUp(holder) else up = holder.up end
+                else
+                    ns.CdmAuras.Told(holder, nil)
                 end
-                if closedNow then
-                    closed[id] = item
-                elseif item and (always or not block.collapse or item:IsShown()) then
-                    shown[id] = true
-                    items[id] = item
+                if holder.wantsUp then
+                    if downs[id] == nil and (up == false or (up == true and (hide or sound or ends or glowUp or cdFx))) then downs[id] = not up end
+                    -- Only a known "down"; an unknown one keeps its spot.
+                    closedNow = (slides and up == false) or (hideSlides and up == true)
+                    if closedNow and up == true then closedUp[id] = true end
                 end
+                if clip and up ~= false then clips[id] = ns.CdmAuras.Clip(holder, Own.SpellOf(id)) end
+                ns.CdmAuras.SetHideUp(holder, hide)
+            end
+            if item and drawn[id] == "game" and always and k and (k.aura or block.kind == "bar") and not item:IsShown() then
+                -- Hidden by the game, but "Show missing buffs" is on: use a stand-in.
+                item = Own.Placeholder(id, f, block.kind, Fx.Get(p, "hideActive") == true)
+                usedHolds[id .. block.kind] = true
+                extra[item] = true
+                drawn[id] = "stand-in"
+                downs[id] = true
+            end
+            -- A cooldown hidden by On cooldown or When ready Hide gives up its spot
+            -- too with Slide over (Grow from Middle recenters). So does Buff up Hide
+            -- on the game's buff item or Daylight UI's cooldown icon under a buff, whatever
+            -- Keep its spot says (Fx.GoneUp).
+            if item and not closedNow and block.collapse and Fx.Gone(item)
+                and (not always or Fx.GoneUp(item) or Fx.GoneForm(item)) then
+                closedNow = true
+                if Fx.GoneUp(item) then closedUp[id] = true end
+            end
+            if closedNow then
+                closed[id] = item
+            elseif item and (always or not block.collapse or item:IsShown()) then
+                shown[id] = true
+                items[id] = item
             end
         end
         local layout = frames[g].layout
@@ -944,17 +934,10 @@ function Rows.Update()
             f:Show()
             place(item, blocks[id], f, set.pieces[id])
         end
-        if shown.power then
-            local b, f = boxes.power, pieceFrame(g, "power")
-            put(f, layout, b.x, b.y)
-            f:SetSize(b.w, b.h)
-            f:Show()
-        end
         for id in pairs(set.pieces) do
             if not shown[id] and not closed[id] then pieceFrame(g, id):Hide() end
         end
     end
-    Rows.PlacePower(on and shown.power and frames[g].pieces.power or nil)
     if ns.CdmOwn then ns.CdmOwn.ReleaseExcept(usedOwn, usedHolds) end
     if ns.CdmAuras then ns.CdmAuras.ReleaseExcept(usedHolders) end
     if ns.CdmBars then ns.CdmBars.ReleaseExcept(usedBars) end
@@ -1059,20 +1042,7 @@ function Rows.Away()
         -- hidden while up uses its Hide's alpha (Fx.SetDown).
         if gone or not (Fx.Gone(item) or closedUp[id]) then item:SetAlpha(gone and 0 or 1) end
     end
-    -- The power bar sits in its piece's frame, so the frame's alpha carries the rules.
-    local fr = frames[Data.CurrentIndex()]
-    local pf = fr and fr.pieces.power
-    if pf and blocks.power then
-        pf:SetAlpha((Rows.editing or Data.Away(blocks.power, now)) and 0 or 1)
-    end
 end
-
--- The power bar changed size on the Player page: its box in the layout follows.
-DUI.On("CdmPowerSized", function()
-    Data.Changed()
-    Rows.Refresh()
-    if ns.CdmEditor then ns.CdmEditor.Draw() end
-end)
 
 -- /dui cdm why: one line per placed spell saying what the last pass did with it.
 -- Ends up in the player's saved settings file for bug reports.
