@@ -1,3 +1,46 @@
+# DaylightUI 2.2
+
+A smarter bag search, profiles you can share in parts, and tidier Rich tooltips. Plus hidden names and solo threat colors on nameplates.
+
+## New
+- Profiles: Shared profiles can leave parts out, and imports list only the parts that really changed
+- Bags: The bag search knows the game's item types and slots, like herb, cloth or trinket
+- Bags: New items can show in their own group as well as Recent, and the keyring gets its own group
+- Bags: Items you mark as junk get the gold coin, and Clean Up puts them with your gray junk
+- Nameplates: Names can be hidden on enemy or friendly plates, and threat colors can work solo
+- Tooltips: A creature's health bar can sit at the bottom, quest bars can be turned off, and durability turns amber then red as it wears
+- Unit frames: The level can sit under the portrait, and the power number fades while a cast bar covers it
+- Character: Each spell school your gear boosts, like Shadow or Fire, gets its own spell power row
+- Info panel: Data text numbers can be white, your class color or any color you pick
+- Tooltips: Recipe tooltips list each reagent with its icon and count, and show what the recipe costs to make
+- Flight timer: Point at a stop on the route to see its name
+- General: Two easy-to-read fonts for small text: Inter and Atkinson Hyperlegible, thanks to Ángel
+
+## Changed
+- Auction House: Sell puts your price at the cheapest one up instead of a copper under, so prices stop creeping down
+- Professions: Recipe profit counts everything one craft makes, at today's Auction House price when it was seen today
+- Tooltips: Rich tooltips give other addons' lines their own headings, show the full card in fights, and put a player's level beside their name
+- General: The UI scale reads like 0.71x and lands exactly on your screen's sharpest scale. The new size comes in once you let go
+- Loot: The loot rolls switch works like every other switch again: on is Daylight UI's roll window, off the game's popups
+- Languages: Better Simplified Chinese thanks to Levis, and Spanish fixes thanks to Ángel
+
+## Fixed
+- Bags: Bag group strings from newer Baganator versions import, with their categories, and their groups fill up instead of sitting empty
+- Chat: After you send a whisper from its conversation window, your keys go back to your spells
+- Cooldown Manager: Weakened Soul shows its time left, and buffs already up no longer slide in again after a fight
+- Nameplates: The execute band on enemy health bars ends right at the health you picked, not a few percent higher
+- Nameplates: Small nameplates always keep some health showing instead of turning all border, and no longer rebuild when another addon adds textures or fonts
+- Nameplates: A nameplate no longer stays empty when its name or health wasn't readable yet
+- Speech bubbles: Speech bubbles no longer lose their words when their size can't be read
+- Quests: Wanted Posters and other things that give quests list them in their tooltip again, with Questie on
+- Social: A Battle.net friend playing on two accounts at once shows both characters
+- Auction House: Arrows and other ammo can be bought and priced again
+- Character: With a controller, weapon scrolls, enchants and repairs go onto the gear slot you pick
+- Spellbook: The Daylight UI button on the game's spellbook shows in full and can be clicked again
+- Loot: The loot window keeps the size you gave it instead of growing back each time it opens
+- Tooltips: Tooltips have their thin border back when the window border is set thicker
+- Little touches: Icon buttons name themselves sooner, borders stay even at the corners, and the auto attack flash fits every button
+
 # DaylightUI 2.1.3
 
 A much fuller Auction House: bids, smarter selling and a quicker feel. Plus Cooldown Manager layouts you can share, and a land-early button on the flight timer.
