@@ -21,6 +21,9 @@ local overlay = setmetatable({}, WEAK)  -- the game's bubble -> the frame drawin
 local hooked = setmetatable({}, WEAK)
 local shown = setmetatable({}, WEAK)    -- bubbles drawn by a frame right now
 local childOf = setmetatable({}, WEAK)  -- the bubble's balloon, kept to hand it back
+-- The holder that last took each balloon. The client pools balloons, so one can
+-- move to another holder before its old holder hears about it.
+local ownerOf = setmetatable({}, { __mode = "kv" })
 -- Balloons left faded because they were locked when handed back. The client
 -- unlocks pooled bubbles again outside instances, so they're given back then.
 local owed = setmetatable({}, WEAK)
@@ -67,6 +70,16 @@ local function giveBack(child)
     owed[child] = not setGameAlpha(child, 1) or nil
 end
 
+-- Hands back the holder's balloon, unless another holder has taken it since.
+local function releaseChild(outer)
+    local child = childOf[outer]
+    childOf[outer] = nil
+    if child and ownerOf[child] == outer then
+        ownerOf[child] = nil
+        giveBack(child)
+    end
+end
+
 -- Tries every balloon still owed its alpha.
 function Bubbles.PayBack()
     for child in pairs(owed) do giveBack(child) end
@@ -93,14 +106,24 @@ local function newOverlay()
     return f
 end
 
+-- A measurement can be refused or secret while the client places the bubble.
+-- Only a plain positive number counts; a missing reading gives `missing`.
+local function positive(region, method, missing)
+    if type(method) ~= "function" then return missing end
+    local ok, v = pcall(method, region)
+    if not ok or DUI.IsSecret(v) then return nil end
+    if v == nil then return missing end
+    if type(v) == "number" and v > 0 then return v end
+end
+
 -- The world layer ignores the UI scale, so a stand-in on UIParent would shrink
 -- with a small UI scale. Match the balloon's real size instead.
 local function matchScale(f)
     local child = f.balloon
     if not child then return end
-    local ok, k = pcall(child.GetEffectiveScale, child)
+    local k = positive(child, child.GetEffectiveScale)
     local ui = UIParent:GetEffectiveScale()
-    if not ok or type(k) ~= "number" or DUI.IsSecret(k) or k <= 0 or type(ui) ~= "number" or ui <= 0 then return end
+    if not k or type(ui) ~= "number" or DUI.IsSecret(ui) or ui <= 0 then return end
     f:SetScale(k / ui)
 end
 
@@ -109,12 +132,17 @@ local function layout(f)
     local size = face(f)
     local wrap = Bubbles.WRAP * size / 12
     f.text:SetWidth(wrap)
-    local w = f.text.GetUnboundedStringWidth and f.text:GetUnboundedStringWidth() or f.text:GetStringWidth()
-    if type(w) ~= "number" or w > wrap then w = wrap end
-    f.text:SetWidth(math.ceil(w) + 1)
-    local h = f.text:GetStringHeight()
-    if type(h) ~= "number" then h = size end
-    f:SetSize(f.text:GetWidth() + 2 * Bubbles.PAD, h + 2 * Bubbles.PAD)
+    -- The unbounded width can read 0 for a fresh line, so the bounded one is
+    -- tried next. With neither, the stand-in can't show the words: say so.
+    local w = positive(f.text, f.text.GetUnboundedStringWidth)
+        or positive(f.text, f.text.GetStringWidth)
+    if not w then return false end
+    local width = math.ceil(math.min(w, wrap)) + 1
+    f.text:SetWidth(width)
+    local h = positive(f.text, f.text.GetStringHeight, size)
+    if not h then return false end
+    f:SetSize(width + 2 * Bubbles.PAD, h + 2 * Bubbles.PAD)
+    return true
 end
 
 -- Lets go of the game's frame: a stand-in that's fading out stays where it is,
@@ -136,10 +164,10 @@ local function hide(f)
 end
 
 -- Gives the game its bubble back and lets the stand-in fade away.
-local function release(outer, child)
+local function release(outer)
     local f = overlay[outer]
     shown[outer] = nil
-    giveBack(child or childOf[outer])
+    releaseChild(outer)
     if not f then return end
     if not f:IsShown() then return hide(f) end
     f.token = (f.token or 0) + 1
@@ -155,11 +183,12 @@ local function draw(outer)
     if not on() then return end
     local ok, child, fs, isShown = pcall(parts, outer)
     if not ok or not child then return end
-    if not isShown then return release(outer, child) end
+    if childOf[outer] and childOf[outer] ~= child then releaseChild(outer) end
+    if not isShown then return release(outer) end
     local okText, text = pcall(fs.GetText, fs)
     -- Secret words can be shown but not measured: the game's own bubble stays.
     if not okText or type(text) ~= "string" or DUI.IsSecret(text) or text == "" then
-        return release(outer, child)
+        return release(outer)
     end
     local f = overlay[outer]
     if not f then
@@ -167,7 +196,7 @@ local function draw(outer)
         overlay[outer] = f
     end
     local was = shown[outer] and f:IsShown()
-    if was and f.said == text then return end
+    if was and f.said == text and childOf[outer] == child then return end
     f.said = text
     f.text:SetText(text)
     -- The game colors a bubble by its kind of chat; keep that color.
@@ -181,14 +210,18 @@ local function draw(outer)
     if not was then f:SetAlpha(0) end
     f:Show()
     f.balloon = child
-    layout(f)
+    if not layout(f) then
+        hide(f)
+        return release(outer)
+    end
     f:ClearAllPoints()
     if not pcall(f.SetPoint, f, "CENTER", child, "CENTER", 0, 0) then
         hide(f)
-        return release(outer, child)
+        return release(outer)
     end
     shown[outer] = true
     childOf[outer] = child
+    ownerOf[child] = outer
     if not was then Motion.Fade(f, 0, 1, Motion.FAST) end
     setGameAlpha(child, 0)
     owed[child] = nil
@@ -221,7 +254,10 @@ function Bubbles.Refresh()
     for outer in pairs(shown) do
         if on() then
             local f = overlay[outer]
-            if f then layout(f) end
+            if f and not layout(f) then
+                hide(f)
+                release(outer)
+            end
         else
             release(outer)
         end
@@ -249,7 +285,8 @@ function Bubbles.Build(mod)
     -- frame; a line in a later frame checks again.
     local queuedAt
     local function onMessage()
-        if not on() then return end
+        -- With the skin off, still look when balloons are owed their alpha.
+        if not on() and (inside or not next(owed)) then return end
         local now = GetTime()
         if queuedAt == now then return end
         queuedAt = now

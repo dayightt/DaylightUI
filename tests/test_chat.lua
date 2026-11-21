@@ -796,6 +796,70 @@ T.test("chat: a speech bubble is drawn by a frame of Daylight UI's own, the game
     T.isnil(Bubbles.OverlayOf(b2), "forbidden (an instance): left alone")
 end)
 
+T.test("chat: a zero unbounded width falls back to the measured speech line", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local outer, art = makeBubble("Fresh words")
+    stub.SetBubbles({ outer })
+    Bubbles.DressAll()
+    local mine = Bubbles.OverlayOf(outer)
+    mine.text.GetUnboundedStringWidth = function() return 0 end
+    mine.text.GetStringWidth = function() return 52.5 end
+    Bubbles.Refresh()
+    T.eq(mine.text:GetWidth(), 54, "fits the bounded measurement")
+    T.eq(art:GetAlpha(), 0, "the stand-in shows the words")
+end)
+
+T.test("chat: unreadable speech measurements hand the words back to the game", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local outer, art = makeBubble("Fresh words")
+    stub.SetBubbles({ outer })
+    Bubbles.DressAll()
+    local mine = Bubbles.OverlayOf(outer)
+    mine.text.GetUnboundedStringWidth = function() return 0 end
+    mine.text.GetStringWidth = function() return stub.Secret(48) end
+    Bubbles.Refresh()
+    T.eq(art:GetAlpha(), 1, "the game draws the words")
+    T.falsy(mine:IsShown(), "no one-unit-wide stand-in")
+    mine.text.GetStringWidth = function() return 48 end
+    mine.text.GetStringHeight = function() error("refused") end
+    Bubbles.DressAll()
+    T.eq(art:GetAlpha(), 1, "a refused height leaves it to the game")
+    mine.text.GetStringHeight = function() return 12 end
+    Bubbles.DressAll()
+    T.truthy(mine:IsShown(), "the same line is taken again")
+    T.eq(mine.text:GetWidth(), 49)
+    T.eq(art:GetAlpha(), 0)
+end)
+
+T.test("chat: a pooled balloon that moves to another bubble stays with its new owner", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    local b1, art = makeBubble("First")
+    stub.SetBubbles({ b1 })
+    Bubbles.DressAll()
+    T.eq(art:GetAlpha(), 0)
+    -- The client hands the balloon to another holder, and b1 a fresh one.
+    local b2 = CreateFrame("Frame", nil, UIParent)
+    art:SetParent(b2)
+    stub.SetBubbles({ b2 })
+    Bubbles.DressAll()
+    T.eq(select(2, Bubbles.OverlayOf(b2):GetPoint(1)), art, "drawn by its new holder")
+    -- The old holder only hears about it afterwards.
+    b1:Hide()
+    stub.RunTimers()
+    T.eq(art:GetAlpha(), 0, "the old holder leaves the moved balloon alone")
+    -- A fresh balloon with the same words still gets the stand-in pinned to it.
+    local _, art2 = makeBubble("First")
+    art2:SetParent(b2)
+    art:SetParent(UIParent)
+    stub.SetBubbles({ b2 })
+    Bubbles.DressAll()
+    T.eq(select(2, Bubbles.OverlayOf(b2):GetPoint(1)), art2, "re-pinned to the new balloon")
+    T.eq(art2:GetAlpha(), 0)
+end)
+
 T.test("chat: a bubble that goes out of sight takes its look along and gets it back", function()
     login()
     local Bubbles = stub.chatModule.Bubbles
