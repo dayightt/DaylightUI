@@ -41,7 +41,7 @@ T.test("mail: the game's mailbox really opens, so an addon hooking its OnShow he
     load()
     local heard = 0
     MailFrame:HookScript("OnShow", function() heard = heard + 1 end)
-    T.eq(MailFrame:GetParent(), DaylightUI.Win.Followers.veil)
+    T.eq(MailFrame:GetParent(), DaylightUI.Win.Followers.aside)
     MW.Open()
     frame(2)
     T.eq(heard, 1)
@@ -89,7 +89,12 @@ T.test("mail: a mailbox opens ours in place of the game's, on the inbox, with th
     frame(20)
     local f = ns.Window.frame
     T.truthy(DaylightUI.Win.IsOpen(f), "ours is open")
-    T.eq(MailFrame:GetParent(), DaylightUI.Win.Followers.veil, "the game's is under the veil, out of sight")
+    T.eq(MailFrame:GetParent(), DaylightUI.Win.Followers.aside, "the game's is held aside, out of sight")
+    T.isnil(stub.ClipAncestor(MailFrame), "never under a clipping frame")
+    T.eq(MailFrame:IsVisible(), true)
+    frame(40)
+    local p, rel, _, x, y = f:GetPoint(1)
+    T.eq(p, "TOPLEFT"); T.eq(rel, UIParent); T.eq(x, 16 / f:GetScale()); T.eq(y, -116 / f:GetScale())
     T.eq(f.current, "inbox")
     local sub = stub.Text(f.sub)
     T.truthy(sub:find("3", 1, true) and sub:find("letters", 1, true), sub)
@@ -187,7 +192,7 @@ T.test("mail: the game's mailbox's button switches back to Daylight UI's, no rel
     local f = ns.Window.frame
     T.truthy(f and DaylightUI.Win.IsOpen(f), "ours takes over the open mailbox")
     T.eq(f.current, "inbox")
-    T.eq(MailFrame:GetParent(), DaylightUI.Win.Followers.veil, "the game's frame goes under the veil")
+    T.eq(MailFrame:GetParent(), DaylightUI.Win.Followers.aside, "the game's frame is held aside")
     T.falsy(OpenMailFrame:IsShown(), "the open letter closes: letters show on the inbox page")
     T.eq(OpenMailFrame:GetParent(), DaylightUI.Win.Followers.hidden)
     T.truthy(MW.IsOpen(), "the same mailbox visit goes on")

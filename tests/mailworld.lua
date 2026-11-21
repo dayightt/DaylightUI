@@ -315,7 +315,7 @@ end
 -- ---------------------------------------------------------------------
 
 local function install()
-    _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); f:Show() end
+    _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); stub.PlacePanel(f); f:Show() end
     _G.HideUIPanel = function(f) record("HideUIPanel", f:GetName()); f:Hide() end
     _G.GetMoney = function() return S().money end
     _G.CloseMail = function()

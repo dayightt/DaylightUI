@@ -1,10 +1,10 @@
 -- Mailbox window with three tabs: Inbox, Send and Ledger.
 -- The game still runs the mailbox: right-clicking one shows MailFrame (MailFrame_Show,
--- from the player interaction), which is parked under the kit's veil (Win.Follow;
+-- from the player interaction), which the kit holds aside (Win.Follow;
 -- OpenMailFrame under its hidden frame). This window shows in its place and closes with it.
 --
 -- CloseMail: MailFrame tells the client the mailbox closed from its OnHide, which still
--- runs under the veil. This window never says it on the game's behalf, so an addon that
+-- runs while held aside. This window never says it on the game's behalf, so an addon that
 -- hooks MailFrame's OnHide and hides it (TradeSkillMaster's mailing window) keeps the
 -- mailbox open.
 
@@ -92,8 +92,7 @@ local function place(f)
     if s then return Win.PlaceTop(f, s[1], s[2]) end
     f:ClearAllPoints()
     local g = Mail.Game()
-    if g then f:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-    else f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
+    if not (g and Win.Followers.PlaceOn(f, g)) then f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
 end
 
 function Mail.Open()
@@ -142,7 +141,7 @@ function Mail.GiveAway()
     Win.Followers.Release(def, "letter")
 end
 
--- Picked this one: an open game mailbox goes under the veil again and the
+-- Picked this one: an open game mailbox is held aside again and the
 -- follower's next look opens this window in its place. An open letter closes,
 -- since letters show on the inbox page here.
 function Mail.TakeBack()
@@ -267,7 +266,7 @@ function Mail.Build(mod)
             Mail.Header()
         end)
     end)
-    Mail.follow = Win.Follow({ key = "mail", frames = { mail = Mail.Game, letter = Mail.Letter }, veil = { mail = true }, changed = Mail.Changed,
+    Mail.follow = Win.Follow({ key = "mail", frames = { mail = Mail.Game, letter = Mail.Letter }, aside = { mail = true }, changed = Mail.Changed,
         leave = function() return not DUI.mailOwnWindow end,
         width = function() return (Mail.sizer and Mail.sizer.Size(Mail.page) or Mail.W) * Win.Scale(ns.Setting("scale")) end })
     Mail.Apply()
