@@ -23,6 +23,13 @@ PB.KEY = "unitframes.playerPower"
 PB.FREE = { player = PB.KEY, target = "unitframes.targetPower", focus = "unitframes.focusPower" }
 
 function PB.KeyFor(unit) return PB.FREE[unit] end
+
+-- Whether a frame's power bar stands apart from it: on its own mover, or (the
+-- player's only) on the Cooldown Manager, which is the same bar placed there.
+function PB.Apart(cfg, unit)
+    local at = type(cfg) == "table" and cfg.powerAt
+    return at == "free" or (at == "cdm" and (unit == nil or unit == "player"))
+end
 PB.FIELDS = { "power", "powerText", "altMana", "cost", "costHolder" }
 
 -- The frame's own pieces to point back at, saved once before any swap.
@@ -95,7 +102,7 @@ end
 -- free bar) only reads the choice, so its preview is all health like the game's.
 function PB.Pick(f, cfg)
     local where = "inside"
-    if cfg.powerAt == "free" and (f.freePower or PB.FREE[f.spec.unit]) then
+    if PB.Apart(cfg, f.spec.unit) and (f.freePower or PB.FREE[f.spec.unit]) then
         where = "free"
     elseif f.powerLine then
         where = "line"
@@ -118,7 +125,8 @@ function PB.Pick(f, cfg)
     end
     if f.freePower then
         f.freePower.want = where == "free" and ns.UF.ShowsPower(cfg)
-        DUI.Movers.Suspend(f.freePower.key, not f.freePower.want)
+        f.freePower.onCdm = f.freePower.want and cfg.powerAt == "cdm" or nil
+        DUI.Movers.Suspend(f.freePower.key, not f.freePower.want or PB.Docked(f.freePower))
     end
     return where
 end
@@ -129,7 +137,7 @@ function PB.Layout(f, cfg, text)
     local UF, h = ns.UF, f.freePower
     if not h then return end
     local show = cfg.enabled ~= false and UF.ShowsPower(cfg)
-    h:SetScale(DUI.Movers.Scale(h.key))
+    h:SetScale(PB.Docked(h) and 1 or DUI.Movers.Scale(h.key))
     local T = Pixel.Px(h, Style.BorderPx(h))
     local H = Pixel.Snap(h, cfg.powerHeight) + 2 * T
     h:SetSize(2 * Pixel.Snap(h, (tonumber(cfg.powerWidth) or tonumber(cfg.width) or 187) / 2), H)
@@ -166,11 +174,83 @@ function PB.Layout(f, cfg, text)
     Style.AngleFill(p, edge, cut * (H - 2 * T) / H, UF.EdgeUnder(under, edge))
     UF.LayoutPowerExtras(f, cfg, text, side, cut, H, true)
     h.want = show
+    PB.Dock(h)
+    -- The CDM keeps a box the bar's size: tell it when that changes.
+    if h.key == PB.KEY then
+        local w = h:GetWidth()
+        if h.sizedW ~= w or h.sizedH ~= H then
+            h.sizedW, h.sizedH = w, H
+            DUI.Fire("CdmPowerSized")
+        end
+    end
     h:SetShown(show and (f.spec.unit == "player" or f:IsShown()))
     if show and not f.test and type(f.unitToken) == "string" and UnitExists(f.unitToken) then
         UF.UpdatePower(f, true)
     end
 end
+
+-- The player's bar on the Cooldown Manager. The CDM keeps a "Power bar" piece in
+-- its layout (ActionBars, CdmRows) and hands its frame over here whenever it lays
+-- out; the bar is parented to that frame, so it moves, fades and hides with the
+-- CDM. With no piece placed, or the CDM off, it stands on its own mover again so
+-- it never just vanishes. Neither side is protected, so this works in a fight.
+PB.spot = nil
+
+function PB.Docked(h)
+    return h ~= nil and h.onCdm == true and PB.spot ~= nil
+end
+
+function PB.Dock(h)
+    if not h then return end
+    if PB.Docked(h) then
+        if h:GetParent() ~= PB.spot then h:SetParent(PB.spot) end
+        h:SetScale(1)
+        h:ClearAllPoints()
+        h:SetPoint("CENTER", PB.spot, "CENTER", 0, 0)
+        h.docked = true
+    elseif h.docked then
+        h.docked = nil
+        h:SetParent(UIParent)
+        h:SetScale(DUI.Movers.Scale(h.key))
+        DUI.Movers.Suspend(h.key, not h.want)
+    end
+end
+
+local function playerBar()
+    local f = ns.frames and ns.frames.player
+    return f and f.freePower
+end
+
+-- What the Cooldown Manager asks: the bar's size in its own units, and where to sit.
+DUI.CdmPower = {
+    Size = function()
+        local cfg = DUI:Get("UnitFrames", "player") or {}
+        local h = playerBar()
+        local T = h and Pixel.Px(h, Style.BorderPx(h)) or 1
+        local w = tonumber(cfg.powerWidth) or tonumber(cfg.width) or 187
+        local ht = (tonumber(cfg.powerHeight) or 11) + 2 * T
+        return math.floor(w + 0.5), math.floor(ht + 0.5)
+    end,
+    -- frame = the piece's frame while it shows, nil when it doesn't.
+    Place = function(frame)
+        if PB.spot == frame then return end
+        PB.spot = frame
+        local h = playerBar()
+        if not h then return end
+        PB.Dock(h)
+    end,
+    -- Whether the player picked this spot (the CDM's tray only offers the piece then
+    -- reads it as a choice, never a requirement).
+    Wanted = function() return DUI:Get("UnitFrames", "player.powerAt") == "cdm" end,
+    Want = function(on)
+        local now = DUI:Get("UnitFrames", "player.powerAt")
+        if on and now ~= "cdm" then
+            DUI:Set("UnitFrames", "player.powerAt", "cdm")
+        elseif not on and now == "cdm" then
+            DUI:Set("UnitFrames", "player.powerAt", "free")
+        end
+    end,
+}
 
 -- Lays out a style's power line under f: the gap, then a bar as wide as the frame.
 -- Its angle continues the frame's edge using one mask measured from the

@@ -1756,16 +1756,25 @@ local function framePage(id, label, desc, opts)
         for _, it in ipairs(backColorRows(id, "Power", powerOff)) do frame[#frame + 1] = it end
     end
     if opts.powerFree then
-        local notFree = function(get) return powerOff(get) or get(k("powerAt")) ~= "free" end
+        local cdm = id == "player"
+        local apart = function(v) return v == "free" or (cdm and v == "cdm") end
+        local notFree = function(get) return powerOff(get) or not apart(get(k("powerAt"))) end
         local AT = { inside = "Inside the frame", free = "On its own (unlock to move)" }
         local AT_LINE = { inside = "Under the frame", free = AT.free }
+        local ORDER = { "inside", "free" }
+        if cdm then
+            AT.cdm = "On the Cooldown Manager"
+            AT_LINE.cdm = AT.cdm
+            ORDER[3] = "cdm"
+        end
         frame[#frame + 1] = { type = "dropdown", key = k("powerAt"), label = "Power bar position",
-            values = AT, order = { "inside", "free" },
+            values = AT, order = ORDER,
             -- With a style's power line "inside" is the line under the frame.
             choices = function()
-                return (onLine(liveGet) and AT_LINE or AT), { "inside", "free" }
+                return (onLine(liveGet) and AT_LINE or AT), ORDER
             end,
-            desc = "On its own, the power bar leaves the frame and you can move it anywhere in unlock mode, like the middle of the screen. The frame is then all health.",
+            desc = cdm and "On its own, the power bar leaves the frame and you can move it anywhere in unlock mode, like the middle of the screen. On the Cooldown Manager, it's a piece of your cooldown layout: drag Power bar from the Cooldown Manager editor's list and it moves, fades and hides with your cooldowns. The frame is then all health."
+                or "On its own, the power bar leaves the frame and you can move it anywhere in unlock mode, like the middle of the screen. The frame is then all health.",
             disabled = powerOff }
         frame[#frame + 1] = { type = "slider", key = k("powerWidth"), label = "Power bar width", min = 40, max = 500, step = 1,
             desc = "How wide the power bar is. Only while it's on its own.", disabled = notFree }
@@ -2621,7 +2630,7 @@ local PLAYER_CAST = {
           values = { frame = "The player frame", power = "The power bar" }, order = { "frame", "power" },
           desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
           disabled = function(get)
-              return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or get("player.powerAt") ~= "free"
+              return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or (get("player.powerAt") ~= "free" and get("player.powerAt") ~= "cdm")
                   or get("player.powerSlantUnder") == true or get("player.powerSlantUnderLeft") == true
           end },
         nudge("player", "x"),

@@ -138,6 +138,13 @@ Custom.WEAPONS = {
     offhand = { slot = 1, inv = 17, name = L["Off-hand enchant"] },
 }
 Custom.WEAPON_ORDER = { "mainhand", "offhand" }
+
+-- The player's power bar as a piece of the layout. It isn't a spell: Unit Frames
+-- draws it (its own options, on the Player page) and this piece only keeps its
+-- spot, so it lines up and moves with the cooldowns (DUI.CdmPower).
+Custom.POWER = "power"
+Custom.POWER_ICON = "Interface/Icons/Spell_Arcane_ArcanePotency"
+function Custom.IsPower(id) return id == Custom.POWER end
 -- Shown while the weapon has no enchant and no weapon is in the slot.
 Custom.WEAPON_ICON = "Interface/Icons/INV_Stone_SharpeningStone_01"
 
@@ -153,7 +160,7 @@ Custom.ELEMENT_ORDER = { "fire", "earth", "water", "air" }
 
 -- Addon-made keys: "seal", "aura", "blessing", "pet", the weapons, the elements, "s<spell id>" (a
 -- list family or a spell added by ID in the editor) and "i<item id>" (an item added by ID).
-Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true, mainhand = true, offhand = true,
+Custom.NAMED = { seal = true, aura = true, blessing = true, pet = true, power = true, mainhand = true, offhand = true,
                  fire = true, earth = true, water = true, air = true }
 function Custom.Is(id)
     return type(id) == "string" and (Custom.NAMED[id] == true or id:match("^[si]%d+$") ~= nil)
@@ -367,6 +374,11 @@ local function build()
         local w = Custom.WEAPONS[key]
         index[key] = { ids = {}, aura = true, self = true, weapon = w, name = w.name }
         order[#order + 1] = key
+    end
+    -- Offered only with Unit Frames on, since that's what draws it.
+    if DUI.CdmPower then
+        index[Custom.POWER] = { ids = {}, power = true, name = L["Power bar"], icon = Custom.POWER_ICON }
+        order[#order + 1] = Custom.POWER
     end
     for _, f in ipairs(S.GROUP or {}) do add(f, true) end
     -- Every rank of every totem, for a one-lookup Custom.Totem and Custom.SlotOf.
@@ -793,6 +805,7 @@ end
 function Custom.Look(id)
     local e = Custom.Element(id)
     if e then return e.name, e.icon end
+    if Custom.IsPower(id) then return L["Power bar"], Custom.POWER_ICON end
     local w = Custom.Weapon(id)
     if w then return w.name, Custom.WeaponIcon(w) end
     local item = Custom.ItemOf(id)
@@ -831,7 +844,7 @@ end
 -- which have no cooldown of yours to show.
 function Custom.CanTrack(id)
     local f = Custom.Family(id)
-    return f ~= nil and not (f.group or f.merged or f.pet or f.weapon) and not worn(id, f)
+    return f ~= nil and not (f.group or f.merged or f.pet or f.weapon or f.power) and not worn(id, f)
 end
 
 -- "cooldown", "aura" or "both": the piece's saved choice (Data.SetTrack) if the
@@ -859,7 +872,7 @@ end
 -- group buffs always count.
 function Custom.Entry(id)
     local f = Custom.Family(id)
-    if not f or not (f.group or f.item or f.onYou or f.weapon or Custom.Learned(id)) then return nil end
+    if not f or not (f.group or f.item or f.onYou or f.weapon or f.power or Custom.Learned(id)) then return nil end
     local e = entries[id]
     if not e then
         e = { kind = "icon", custom = true }
@@ -878,7 +891,7 @@ function Custom.Tray()
         local e = { id = k, aura = Custom.Track(k) == "aura" }
         if index[k].group then
             group[#group + 1] = e
-        elseif index[k].weapon or Custom.Learned(k) then
+        elseif index[k].weapon or index[k].power or Custom.Learned(k) then
             out[#out + 1] = e
         end
     end
@@ -891,7 +904,7 @@ function Custom.Unlearned()
     build()
     local out = {}
     for _, k in ipairs(order) do
-        if not (index[k].group or index[k].weapon) and not Custom.Learned(k) then
+        if not (index[k].group or index[k].weapon or index[k].power) and not Custom.Learned(k) then
             out[#out + 1] = { id = k, aura = Custom.Track(k) == "aura", unlearned = true }
         end
     end

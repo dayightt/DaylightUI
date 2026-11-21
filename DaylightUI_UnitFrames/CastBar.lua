@@ -70,7 +70,7 @@ function CB.At(unit, cfg)
     if found == "power" then
         local db = ns.module and ns.module.db
         local u = type(db) == "table" and db[unit]
-        if type(u) == "table" and (ns.UF.StyleDef(u).line or ns.UF.StyleDef(u).backdrop or not ns.UF.ShowsPower(u) or u.powerAt == "free") then
+        if type(u) == "table" and (ns.UF.StyleDef(u).line or ns.UF.StyleDef(u).backdrop or not ns.UF.ShowsPower(u) or ns.PowerBar.Apart(u, unit)) then
             -- A party bar has no "below" and hangs under its frame instead.
             return unit == "party" and "slide" or "below"
         end
@@ -445,7 +445,7 @@ function CB.Layout(h, cfg, parentCfg)
         local db = ns.module and ns.module.db
         -- Not from a power bar with flipped angles: its line can't be continued.
         local onPower = cfg.from == "power" and type(pb) == "table" and pb:IsShown() and not pb.flip
-            and type(db) == "table" and db.player.powerAt == "free"
+            and type(db) == "table" and ns.PowerBar.Apart(db.player, "player")
         h.under = onPower and pb or pf
     end
     local at = CB.At(h.kind, cfg)
