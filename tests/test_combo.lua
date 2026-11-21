@@ -103,7 +103,22 @@ T.test("spacing moves the pips apart", function()
     DUI:Set("UnitFrames", "combo.gap", 6)
     stub.RunTimers()
     local _, _, _, x = ns.combo.pips[2]:GetPoint(1)
-    T.eq(x, size + 6)
+    local Snap = function(v) return DaylightUI.Pixel.Snap(ns.combo, v) end
+    T.near(x, Snap(size) + Snap(6), 1e-6, "on whole screen pixels")
+end)
+
+T.test("pips sit on whole screen pixels, so their borders draw evenly", function()
+    local DUI, ns = login("ROGUE")
+    DUI:Set("UnitFrames", "combo.size", 15)
+    stub.RunTimers()
+    local u = DaylightUI.Pixel.Unit(ns.combo)
+    for _, pip in ipairs(ns.combo.pips) do
+        local w, h = pip:GetWidth() / u, pip:GetHeight() / u
+        T.near(w, math.floor(w + 0.5), 1e-6, "width")
+        T.near(h, math.floor(h + 0.5), 1e-6, "height")
+        local _, _, _, x = pip:GetPoint(1)
+        T.near(x / u, math.floor(x / u + 0.5), 1e-6, "spot")
+    end
 end)
 
 T.test("outline 0 and gradient on don't error; the last pip stays red", function()

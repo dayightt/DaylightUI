@@ -1556,6 +1556,11 @@ function Style.LayoutShell(s)
     if ok and not secret and type(w) == "number" and type(h) == "number" and w > 0 and h > 0 then
         F = math.min(F, math.max(0, math.min(w, h) - 2 * T) / 4)
     end
+    -- Keep the outline's outer curve on the same center as the inner one. When
+    -- the inner curve was held back above, an outer curve left at full size
+    -- thinned the outline at each corner, which on small pieces like combo
+    -- pips looked like broken corners.
+    if R > T then R = math.min(R, T + F) end
     local C = T + F
     s.radius = R -- the angled end's masks stay clear of the curve (LayoutSlant)
     -- A shell's own shadow size, color and strength (a glow is a colored shadow),

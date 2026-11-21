@@ -91,9 +91,12 @@ function Combo.Layout(c, cfg)
     c.enabled = cfg.enabled
     local onPlayer = cfg.anchor == "player" and ns.frames and ns.frames.player
     local f = onPlayer or c.target
-    local h = Combo.Height(cfg)
-    local gap = cfg.gap or Combo.GAP
-    local w = pipWidth(cfg, f, gap)
+    -- Whole screen pixels for every pip: a size between pixels blurs a 2 px
+    -- border unevenly from one pip to the next.
+    local px = Pixel.Px(c, 1)
+    local h = math.max(px, Pixel.Snap(c, Combo.Height(cfg)))
+    local gap = Pixel.Snap(c, cfg.gap or Combo.GAP)
+    local w = math.max(px, Pixel.Snap(c, pipWidth(cfg, f, gap)))
     local border = cfg.border or Combo.BORDER_PX
     local cut = Pixel.Snap(c, h * 0.5)
     local T = Pixel.Px(c, border)

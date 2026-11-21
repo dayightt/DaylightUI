@@ -643,8 +643,9 @@ T.test("a big rounding on a thick border keeps the inner curve off thin bars", f
     DUI.Style.LayoutShell(s)
     local u = 768 / 1080
     local T8 = DUI.Pixel.Px(s, 8)
-    T.near(s.border.TOPLEFT:GetWidth(), 24 * u, 1e-6, "the outline keeps its rounding")
-    T.near(s.fillet.TOPLEFT:GetWidth(), (42 - 2 * T8) / 4, 1e-6, "the inner curve is a quarter of the inside")
+    local F = (42 - 2 * T8) / 4
+    T.near(s.fillet.TOPLEFT:GetWidth(), F, 1e-6, "the inner curve is a quarter of the inside")
+    T.near(s.border.TOPLEFT:GetWidth(), T8 + F, 1e-6, "the outline curves round the same center, so it stays as thick at the corner")
     -- The ring's hole is centered on the inner curve's center.
     local _, _, _, x, y = s.holes[s.border.TOPLEFT]:GetPoint(1)
     T.near(x, T8 + (42 - 2 * T8) / 4); T.near(y, -(T8 + (42 - 2 * T8) / 4))
@@ -652,6 +653,20 @@ T.test("a big rounding on a thick border keeps the inner curve off thin bars", f
     s:SetSize(300, 300)
     DUI.Style.LayoutShell(s)
     T.near(s.fillet.TOPLEFT:GetWidth(), 24 * u - T8, 1e-6)
+    T.near(s.border.TOPLEFT:GetWidth(), 24 * u, 1e-6, "and its full outline rounding")
+end)
+
+T.test("a combo pip's thin border stays even round its corners", function()
+    local DUI = stub.Load()
+    local f = CreateFrame("Frame", nil, UIParent)
+    local s = DUI.Style.Shell(f, { borderPx = 2, noBevel = true })
+    s:SetSize(20, 8)   -- a pip of the personal display's combo row
+    DUI.Style.LayoutShell(s)
+    local T2 = DUI.Pixel.Px(s, 2)
+    local F = (8 - 2 * T2) / 4
+    T.near(s.border.TOPLEFT:GetWidth(), T2 + F, 1e-6, "outer curve on the inner curve's center")
+    local _, _, _, x = s.holes[s.border.TOPLEFT]:GetPoint(1)
+    T.near(x, T2 + F)
 end)
 
 T.test("a zero corner curve hides the corner pieces instead of sizing them 0", function()
