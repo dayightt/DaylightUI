@@ -1,27 +1,16 @@
 -- Test helpers not tied to one part of the addon.
 local M = {}
 
-local GARBAGE_ROUNDS = 3
-
--- KB of garbage, the smallest of several rounds so one-off growth drops out. The game has no JIT, so
--- compiled code is flushed too. The collector restarts even on error: later test files share the process.
+-- KB of garbage left by calling work the given number of times.
 function M.garbageMadeBy(work, calls)
-    local function smallestRoundGrowth()
-        local smallest = math.huge
-        for _ = 1, GARBAGE_ROUNDS do
-            local before = collectgarbage("count")
-            for _ = 1, calls do work() end
-            smallest = math.min(smallest, collectgarbage("count") - before)
-        end
-        return smallest
-    end
-    jit.off(); jit.flush()
+    jit.off()   -- the game has no JIT, and its own bookkeeping isn't the addon's to count
     collectgarbage("collect"); collectgarbage("stop")
-    local ok, smallestOrError = xpcall(smallestRoundGrowth, debug.traceback)
+    local before = collectgarbage("count")
+    for _ = 1, calls do work() end
+    local grown = collectgarbage("count") - before
     collectgarbage("restart")
     jit.on()
-    if not ok then error(smallestOrError, 0) end
-    return smallestOrError
+    return grown
 end
 
 function M.visibleMenuRowOf(W, key)
