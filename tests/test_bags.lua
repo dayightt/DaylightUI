@@ -4409,6 +4409,8 @@ T.test("bank: a new character's first visit gets the game's free first tab, and 
     T.eq(#ns.Bank.set.buttons[6], 8, "and the bank has slots to drop items in")
     T.eq(f.free:GetText(), "7 / 8")
     T.falsy(BankFrame:GetParent() == UIParent, "the game's bank window stays out of sight")
+    T.eq(BankFrame:GetParent(), DaylightUI.Win.Followers.aside, "held aside for its first show")
+    T.isnil(stub.ClipAncestor(BankFrame), "never under a clipping frame")
     gameClosesBank()
     stub.FinishFade(f)
     -- From now on it's parked. The game's panel stays hidden, so right-clicks
@@ -4427,7 +4429,7 @@ T.test("bank: a character who has a tab keeps the game's bank frame parked: it n
     T.truthy(ns.bank:IsShown())
 end)
 
-T.test("bank: a character whose tab shows only once at the banker isn't veiled again next login", function()
+T.test("bank: a character whose tab shows only once at the banker isn't held aside again next login", function()
     local ns, bank = bankLogin()
     DaylightUI.DB.Character().inventory = { bank = { { size = 8, items = {} } } }
     bank.tabs[0] = {}

@@ -271,7 +271,7 @@ hidden:Hide()
 -- PurchaseBankTab is refused to addon code (see the footer above), and a frame
 -- shown by addon code would run that OnShow tainted, so only the game's own
 -- ShowUIPanel can do it. Until this character has a tab, the bank frame waits
--- under the veil where the game's show really shows it. After that it's parked
+-- on the kit's aside holder, where the game's show really shows it. After that it's parked
 -- for good: its BankPanel stays hidden, the game reads nil, and right-clicks go
 -- to the bank being viewed (see the top of this file).
 function Bank.HasTab()
@@ -284,7 +284,7 @@ end
 local function park(hasTab)
     local game = _G.BankFrame
     if not game then return end
-    local home = hasTab and hidden or DUI.Win.Followers.veil
+    local home = hasTab and hidden or DUI.Win.Followers.aside
     if game:GetParent() ~= home then game:SetParent(home) end
 end
 
