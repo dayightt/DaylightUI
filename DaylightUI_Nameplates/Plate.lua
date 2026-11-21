@@ -809,11 +809,15 @@ function Plate.Layout(p)
     hp:SetShown(not nameOnly and not minion)
     p.name:SetShown(not minion and Plate.NameShown(p, c))
     ns.Minion.Layout(p, c, kind, h)
-    -- The border is clamped to this bar's height, so a thin friendly bar keeps some
-    -- visible fill instead of being all border.
+    -- Keep the usual border, but leave at least one physical pixel for health.
+    -- A repaint can change the pixel size even when the layout height is unchanged.
     if p.shellH ~= h then
         p.shellH = h
-        p.body.opts.borderPx = function(px) return Plate.BORDER(px, h) end
+        p.body.opts.borderPx = function(px)
+            local heightPx = h / Pixel.Unit(hp)
+            local maxBorder = math.max(0, math.floor((heightPx - 1) / 2))
+            return math.min(Plate.BORDER(px, h), maxBorder)
+        end
     end
     local cut = (friendly or c.slant == false) and 0 or Pixel.Snap(hp, h * Plate.SLANT)
     ns.Body.Layout(p.body, 0, cut)

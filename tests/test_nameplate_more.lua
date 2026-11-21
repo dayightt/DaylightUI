@@ -309,6 +309,49 @@ local function withExecuteCurves(fn)
     if not ok then error(err, 0) end
 end
 
+-- The stub stores anchors without resolving a status bar's height.
+local function fillPixels(p)
+    local _, _, _, _, top = p.health:GetPoint(1)
+    local _, _, _, _, bottom = p.health:GetPoint(2)
+    return (p.hp:GetHeight() + top - bottom) / DaylightUI.Pixel.Unit(p.hp)
+end
+
+T.test("nameplates: learning Execute keeps fill on a compact target", function()
+    local NP = login(function()
+        stub.SetScreen(1366, 768, 1)
+        stub.knownSpells = { [5308] = true }
+        stub.units.nameplate1.health, stub.units.nameplate1.pct = 100, 100
+    end)
+    DaylightUI:Set("Nameplates", "execute", "auto")
+    DaylightUI:Set("Nameplates", "height", 4)
+    DaylightUI:Set("Nameplates", "target.scale", 0.5)
+    stub.RunTimers()
+    local p = added("nameplate1")
+    stub.units.target = stub.units.nameplate1
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.truthy(fillPixels(p) >= 1, "visible before training")
+    stub.knownSpells[20658] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.RunTimers()
+    T.eq(NP.Plate.ExecuteSpell(), 20658)
+    stub.knownSpells = {}
+    T.truthy(fillPixels(p) >= 1, "visible after learning the next rank")
+end)
+
+T.test("nameplates: compact health fill survives a display height change", function()
+    login(function() stub.SetScreen(2560, 1440, 1) end)
+    DaylightUI:Set("Nameplates", "height", 4)
+    DaylightUI:Set("Nameplates", "scale", 0.5)
+    stub.RunTimers()
+    local p = added("nameplate1")
+    T.truthy(fillPixels(p) >= 1, "visible before the display changes")
+    stub.SetScreen(1366, 768, 1)
+    stub.FireEvent("DISPLAY_SIZE_CHANGED")
+    stub.RunTimers()
+    T.truthy(fillPixels(p) >= 1, "existing plate after repaint")
+    T.truthy(fillPixels(added("nameplate2")) >= 1, "fresh plate at the new height")
+end)
+
 T.test("nameplates: execute range on Your class for a priest once Shadow Word: Death is known", function()
     login(function() stub.units.player.class = "PRIEST" end)
     stub.knownSpells = {}
