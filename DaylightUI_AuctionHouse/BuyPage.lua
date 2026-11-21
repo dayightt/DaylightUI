@@ -52,9 +52,11 @@ BP.BID_W = 100       -- the bid amount box
 BP.PRICE_W = 96      -- the max price box
 BP.DEAL = 70          -- a % at or under this is a deal (INK.GOOD), until the settings are read
 BP.RECENT_MAX = 10
-BP.CONFIRM_WAIT = 0.5 -- s a Confirm click is refused after its total shows or changes
+-- One double-click guard for every button (W.CONFIRM_GAP, 0.25 s)
+BP.CONFIRM_WAIT = W.CONFIRM_GAP   -- s a Confirm click is refused after a held total changes
+BP.DOUBLE = W.CONFIRM_GAP         -- s after the Buy click a Confirm click is taken for the double-click's second half
 BP.PRICE_JUMP = 5     -- % a quote may be over what the list showed before it's refused, as the game's own dialog does
-BP.SPREAD = 50        -- % the dearest price bought may be over the cheapest before Confirm asks twice
+BP.SPREAD = 50        -- % the dearest price bought may be over the cheapest before Confirm says so
 BP.QUOTE_SHOW = 10    -- s left on a held quote from which the Confirm button counts down
 BP.SUGGEST_MAX = 8
 BP.ROOM_GAP = 12      -- under the first-visit card
@@ -1413,7 +1415,7 @@ function BP.BuyCommodity(qty)
     local d = S.open
     if not (d and d.commodity) or S.quote or S.buying then return end
     local total, dearest, cheapest = costOf(d, qty)
-    local q = { row = d, qty = qty, expected = total, dearest = dearest }
+    local q = { row = d, qty = qty, expected = total, dearest = dearest, askedAt = GetTime() }
     if dearest and cheapest and cheapest > 0 and dearest * 100 >= cheapest * (100 + BP.SPREAD) then
         q.spread = math.floor((dearest - cheapest) * 100 / cheapest + 0.5)
     end
@@ -1432,11 +1434,15 @@ function BP.BuyCommodity(qty)
     BP.PaintFooter()
 end
 
--- The quote shown is the one Confirm sends. A new or changed total waits
--- CONFIRM_WAIT before the button takes a click: a double-click never buys a
--- total the player didn't see.
+-- The quote shown is the one Confirm sends. A double-click on Buy never buys:
+-- Confirm takes no click until DOUBLE after the Buy click, and the game's answer
+-- usually takes longer than that, so Confirm lights as its total shows. A total
+-- that changes while held waits CONFIRM_WAIT before it takes a click.
 local function settled(q)
-    return q.total ~= nil and q.shownAt ~= nil and GetTime() - q.shownAt >= BP.CONFIRM_WAIT
+    if q.total == nil then return false end
+    local now = GetTime()
+    if q.askedAt and now - q.askedAt < BP.DOUBLE then return false end
+    return not q.changedAt or now - q.changedAt >= BP.CONFIRM_WAIT
 end
 
 -- Counts a held quote down on its Confirm button while it's nearly out, and
@@ -1480,6 +1486,7 @@ function BP.Quoted(q, unit, total)
         return BP.PaintFooter()
     end
     watchQuote(q)
+    local first = q.total == nil
     local changed = q.total ~= total
     q.unit, q.total = unit, total
     -- over the net when the average is, or any step bought is: the words name
@@ -1492,15 +1499,23 @@ function BP.Quoted(q, unit, total)
     q.pct, q.over = pct, warn
     q.up = total > q.expected
     if changed then
-        q.shownAt = GetTime()
+        local now = GetTime()
+        local wait = 0
+        if first then
+            wait = q.askedAt and math.max(0, q.askedAt + BP.DOUBLE - now) or 0
+        else
+            q.changedAt = now
+            wait = BP.CONFIRM_WAIT
+        end
         local token = {}
         q.wait = token
-        C_Timer.After(BP.CONFIRM_WAIT, function()
+        local function ready()
             if S.quote == q and q.wait == token then
                 DUI.Sound.Play("toggle")   -- the first click worked: Confirm takes the second now
                 BP.PaintFooter()
             end
-        end)
+        end
+        if wait > 0 then C_Timer.After(wait, ready) else ready() end
     end
     BP.PaintFooter()
 end
@@ -1679,12 +1694,10 @@ local function quoteSpecs(q)
         text = text .. SEP .. overWords(q.pct)
         ask = askWords(q.pct)
     elseif q.up then
-        -- a small rise still takes a second, deliberate click
+        -- said in the warning color; still the one Confirm click, as in the game's window
         text = text .. SEP .. L["the price went up"]
-        ask = L["The price went up: click again"]
     elseif q.spread then
         text = text .. SEP .. string.format(L["some cost %d%% more"], q.spread)
-        ask = string.format(L["Some cost %d%% more: click again"], q.spread)
     end
     local left = quoteLeft()
     if left and left > 0 and left <= BP.QUOTE_SHOW then

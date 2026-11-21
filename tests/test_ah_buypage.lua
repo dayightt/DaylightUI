@@ -408,12 +408,10 @@ T.test("ah buy page: a commodity opens its steps, then the game's two clicks buy
     -- the first click asks the game for the price
     buy:Click()
     T.eq(AHW.Calls("StartCommoditiesPurchase"), 1, "asked inside the click")
+    buy:Click()   -- a double-click's second half
     AHW.Settle()
     T.truthy(textOf(buy.text):find("Confirm 63", 1, true), textOf(buy.text))
-    T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 0, "nothing bought on the first click")
-    buy:Click()   -- a double-click: the total only just showed
-    T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 0, "refused while the total is new")
-    AHW.Advance(BP.CONFIRM_WAIT + 0.01)
+    T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 0, "nothing bought on the first click, nor by a double-click")
     buy:Click()
     T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 1)
     AHW.Settle()
@@ -841,5 +839,23 @@ T.test("ah buy page: suggestions never make the game load names, and learn them 
     T.falsy(names():find("Sash", 1, true), "not loaded: left out, not asked for: " .. names())
     AHW.Cache(LATE)
     T.truthy(names():find("Runeweave Sash", 1, true), "in once the game loaded it: " .. names())
+    quiet()
+end)
+
+T.test("ah buy page: Confirm takes the click as soon as its total shows, a double-click on Buy still can't buy", function()
+    local A, page = load({ spec = { step = 0.5 } })
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    page.table:Row(1):Click()
+    AHW.Settle()
+    tween(A, 1)
+    local buy = page.foot.buttons[1]
+    buy:Click()
+    buy:Click()   -- the double-click's second half, before the answer
+    T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 0)
+    AHW.Settle()   -- the total shows half a second after the click
+    T.falsy(buy.spec.off, "lit at once: no wait after the total shows")
+    buy:Click()
+    T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 1, "two clicks bought it")
     quiet()
 end)
