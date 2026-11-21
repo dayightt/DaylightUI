@@ -3,13 +3,13 @@ local stub = require("stub")
 -- The flight timer (QoL/Flight.lua): a banner while on a flight path, with the
 -- time left from your own earlier flights or the game's path lengths.
 
-local onTaxi, taken, mapNodes, hops
+local onTaxi, taken, mapNodes, hops, earlyAsked
 
 -- A flight master in Stormwind (slot 1, node 2) with Ironforge (slot 2, node 6)
 -- and Menethil Harbor (slot 3, node 7, by way of Ironforge) reachable.
 -- ids = false means a client without C_TaxiMap (names only).
 local function world(ids)
-    onTaxi, taken = false, {}
+    onTaxi, taken, earlyAsked = false, {}, 0
     mapNodes = {
         { slotIndex = 1, nodeID = 2, name = "Stormwind, Elwynn", state = 0 },
         { slotIndex = 2, nodeID = 6, name = "Ironforge, Dun Morogh", state = 1 },
@@ -24,7 +24,7 @@ local function world(ids)
     end
     _G.UnitOnTaxi = function(unit) return unit == "player" and onTaxi end
     _G.TakeTaxiNode = function(slot) taken[#taken + 1] = slot end
-    _G.TaxiRequestEarlyLanding = function() end
+    _G.TaxiRequestEarlyLanding = function() earlyAsked = earlyAsked + 1 end
     _G.NumTaxiNodes = function() return #mapNodes end
     _G.TaxiNodeName = function(i) return mapNodes[i] and mapNodes[i].name end
     _G.TaxiNodeGetType = function(i) return mapNodes[i] and (mapNodes[i].state == 0 and "CURRENT" or "REACHABLE") end
@@ -136,6 +136,30 @@ T.test("flight: a first flight counts down from the game's path length", functio
     leave()
     fly(F, 3)
     T.eq(box.time:GetText(), "1:10", "and beats the path's guess next time")
+end)
+
+T.test("flight: the land-early button heads for the next stop", function()
+    local F = login()
+    stub.qol.FlightPaths = { ["2>6"] = 60, ["7>6"] = 40 }
+    fly(F, 3)
+    settle()
+    local box = bar().f
+    T.truthy(box.leave:IsShown(), "shown with a stop ahead")
+    stub.Advance(20)
+    F.Tick()
+    box.leave:GetScript("OnClick")(box.leave, "LeftButton")
+    T.eq(earlyAsked, 1, "asks the game to land early")
+    T.eq(box.name:GetText(), "Ironforge", "now flying to the stop")
+    T.eq(box.time:GetText(), "0:40", "the time left to it")
+    settle()
+    T.falsy(box.leave:IsShown(), "gone once asked")
+    land(F)
+    T.isnil(F.Routes()["2>7"], "not learned")
+    T.falsy(welcomed(), "no welcome to the old destination")
+    leave()
+    fly(F, 2)
+    settle()
+    T.falsy(box.leave:IsShown(), "a direct flight has no stop to land at")
 end)
 
 T.test("flight: the shipped path table covers Stormwind to Ironforge", function()

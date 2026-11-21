@@ -35,6 +35,7 @@ local Flight = {
     MIN_LEARN = 5,      -- a shorter "flight" is a hiccup, not a route: not learned
     RESUME_MAX = 3600,  -- a saved flight older than this is stale (after a /reload)
     SOON = 10,          -- seconds left under which the time turns amber
+    LEAVE_INSET = 5,    -- the land-early button's room from the box's top right corner
     GLOW = DUI.MEDIA .. "char-glow.png",
     CIRCLE = DUI.MEDIA .. "shape-circle.png",
     MOVER = "qol.flight",
@@ -129,7 +130,7 @@ function Flight.Hops(slot)
         local a = nodes[TaxiGetNodeSlot(slot, i, true)]
         local b = nodes[TaxiGetNodeSlot(slot, i, false)]
         if not (a and a.id and b and b.id) then return nil end
-        hops[i] = { a.id, b.id }
+        hops[i] = { a.id, b.id, b.name }
     end
     return hops
 end
@@ -150,6 +151,24 @@ function Flight.Guess(from, to, hops)
     if total <= 0 then return nil end
     for i = 1, #at do at[i] = at[i] / total end
     return total, at
+end
+
+-- Each stop's name along the way, in order (the last hop's end is the
+-- destination, not a stop).
+local function stopNames(hops)
+    if not hops then return nil end
+    local names = {}
+    for i = 1, #hops - 1 do names[i] = hops[i][3] or false end
+    return names
+end
+
+-- The first stop still ahead at p (0..1): its place and its number, or nil
+-- when none is left.
+local function nextStop(p, stops)
+    if not stops then return nil end
+    for i, at in ipairs(stops) do
+        if at > p + 0.005 then return at, i end
+    end
 end
 
 -- ---------------------------------------------------------------------
@@ -322,6 +341,17 @@ local function build()
     Style.InkText(f.from, "LABEL")
     f.time = Style.Text(over, Style.SIZE.head, "RIGHT", Flight.FONT)
     f.time.tone = nil
+
+    -- Land at the next stop: the game's own early landing, the one its
+    -- leave-vehicle button asks for in flight, with the game's own words.
+    f.leave = DUI.Widgets.IconButton(f.box, "ui-leave.png", TAXI_CANCEL or L["Exit flight"],
+        function() Flight.LandEarly() end, nil,
+        TAXI_CANCEL_DESCRIPTION or L["You will land at the next flight point."])
+    f.leave:SetFrameLevel(f:GetFrameLevel() + 10)
+    f.leave:SetPoint("TOPRIGHT", f.box, "TOPRIGHT", -Flight.LEAVE_INSET, -Flight.LEAVE_INSET)
+    f.leave.vis = 0
+    f.leave:SetAlpha(0)
+    f.leave:Hide()
     layout()
     paint()
     DUI.Movers.Register(holder, Flight.MOVER, "Flight timer", { "TOP", nil, "TOP", 0, -88 },
@@ -379,15 +409,29 @@ local function setFront(p)
     f.head:SetPoint("CENTER", f.bar, "LEFT", x, 0)
 end
 
+-- The land-early button eases in while there's a stop ahead to land at, and
+-- out once asked (or past the last stop).
+local function showLeave(want)
+    local b = holder.f.leave
+    if b.want == want then return end
+    b.want = want
+    if want then b:Show() end
+    Motion.Tween("qol:flightLeave", b.vis, want and 1 or 0, Motion.FAST, function(v)
+        b.vis = v
+        b:SetAlpha(v)
+    end, function() if not want then b:Hide() end end)
+end
+
 -- What the banner shows: where to, from where, how far along, the time.
-local function show(name, from, elapsed, total, stops)
+-- landAt: asked to land early, at that stop's place along the line.
+local function show(name, from, elapsed, total, stops, landAt, canLeave)
     local f = holder.f
     setText(f.name, Flight.ShortName(name))
     setText(f.from, Flight.ShortName(from))
     local p
     if total and total > 0 then
         p = math.min(1, elapsed / total)
-        local left = total - elapsed
+        local left = (landAt or 1) * total - elapsed
         setText(f.time, left > 0 and Flight.FormatTime(left) or L["Almost there"])
         tone(f.time, (left > 0 and left < Flight.SOON) and "WARN" or "pop")
         f.spark:SetShown(holder.lineOn == true)
@@ -403,6 +447,8 @@ local function show(name, from, elapsed, total, stops)
     f.bar:SetMinMaxValues(0, 1)
     setFront(p)
     placeStops((holder.lineOn and on("flightStops")) and stops or nil, p)
+    -- A direct flight has no stop to land at; without the map's stops it may.
+    showLeave(canLeave == true and (stops == nil or nextStop(p, stops) ~= nil))
 end
 
 -- The glide: alpha and a short drop from above, from wherever it is.
@@ -438,10 +484,11 @@ function Flight.Update()
     end
     build()
     if flight then
-        show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops)
+        show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops,
+            flight.landAt, not flight.early)
     elseif sampleWanted() then
         local s = Flight.SAMPLE
-        show(s.name, s.from, s.elapsed, s.total, s.stops)
+        show(s.name, s.from, s.elapsed, s.total, s.stops, nil, true)
     else
         glide(false)
         Flight.WelcomeSample(false)
@@ -641,12 +688,13 @@ end
 local function remember()
     saved({ key = flight.key, back = flight.back, name = flight.name, from = flight.from,
             guess = flight.guess, stops = flight.stops, early = flight.early or nil,
-            wall = time() - (GetTime() - flight.start) })
+            names = flight.names, landAt = flight.landAt, wall = time() - (GetTime() - flight.start) })
 end
 
 local function takeOff(p, start)
     flight = { key = p.key, back = p.back, name = p.name, from = p.from, guess = p.guess,
-               stops = p.stops, start = start or GetTime(), early = p.early }
+               stops = p.stops, names = p.names, landAt = p.landAt,
+               start = start or GetTime(), early = p.early }
     flight.total = knownTime(p.key, p.back, p.guess)
     pending = nil
     remember()
@@ -657,7 +705,8 @@ function Flight.Tick()
     if flight then
         if not onTaxi() then land() return end
         if holder and holder:IsShown() then
-            show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops)
+            show(flight.name, flight.from, GetTime() - flight.start, flight.total, flight.stops,
+                flight.landAt, not flight.early)
         end
     elseif pending then
         if onTaxi() then takeOff(pending)
@@ -728,9 +777,11 @@ function Flight.OnTake(slot)
         to = { name = TaxiNodeName(slot) }
     end
     if not (to and type(to.name) == "string" and to.name ~= "") then return end
-    local guess, stops = Flight.Guess(here, to, Flight.Hops(slot))
+    local hops = Flight.Hops(slot)
+    local guess, stops = Flight.Guess(here, to, hops)
     pending = { key = Flight.Key(here, to), back = Flight.Key(to, here), name = to.name,
-                from = here and here.name or nil, guess = guess, stops = stops, at = GetTime() }
+                from = here and here.name or nil, guess = guess, stops = stops,
+                names = stopNames(hops), at = GetTime() }
     startDriver()
 end
 
@@ -746,9 +797,36 @@ function Flight.Resume(login)
         return
     end
     takeOff({ key = s.key, back = s.back, name = s.name, from = s.from, guess = s.guess,
-              stops = type(s.stops) == "table" and s.stops or nil, early = s.early or login or nil },
+              stops = type(s.stops) == "table" and s.stops or nil,
+              names = type(s.names) == "table" and s.names or nil,
+              landAt = type(s.landAt) == "number" and s.landAt or nil,
+              early = s.early or login or nil },
             GetTime() - ago)
     startDriver()
+end
+
+-- Asked to land early (the banner's button or the game's own): that flight's
+-- time isn't the route's. The banner now heads for the next stop when the
+-- map said where it is: its name and the time left to it.
+function Flight.OnEarly()
+    if not flight or flight.early then return end
+    flight.early = true
+    if flight.total and flight.total > 0 then
+        local at, i = nextStop((GetTime() - flight.start) / flight.total, flight.stops)
+        if at then
+            flight.landAt = at
+            local name = flight.names and flight.names[i]
+            if type(name) == "string" and name ~= "" then flight.name = name end
+        end
+    end
+    remember()
+    Flight.Update()
+end
+
+-- The banner's button.
+function Flight.LandEarly()
+    if not (flight and onTaxi()) or flight.early then return end
+    if type(TaxiRequestEarlyLanding) == "function" then TaxiRequestEarlyLanding() end
 end
 
 -- ---------------------------------------------------------------------
@@ -764,7 +842,7 @@ function Flight.Enable(m)
         end
         -- Asking to land early: that flight's time isn't the route's.
         if type(TaxiRequestEarlyLanding) == "function" then
-            hooksecurefunc("TaxiRequestEarlyLanding", function() if flight then flight.early = true remember() end end)
+            hooksecurefunc("TaxiRequestEarlyLanding", function() Flight.OnEarly() end)
         end
         DUI.RegisterEvent("TAXIMAP_OPENED", function() if enabled() then Flight.ReadMap() end end)
         DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isLogin)
