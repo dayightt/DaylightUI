@@ -446,7 +446,11 @@ local function hideTether(f)
     f:Hide()
 end
 
-local function placeTethers(g)
+-- Closed-up buffs count by their closed box, so they never push a group off the screen edge.
+local function placeTethers(g, set, items, closed, boxes)
+    readAttachedChains(set)
+    for id in pairs(items) do coverBox(set, id, boxes[id]) end
+    for id in pairs(closed) do coverBox(set, id, boxes[id]) end
     for root, chain in pairs(attachedChains) do
         if chain.key and chain.left then
             local f = tetherFrame(g, root)
@@ -1068,11 +1072,7 @@ function Rows.Update()
         end
         local layout = frames[g].layout
         local boxes = Data.Layout(set, shown)
-        -- Closed-up buffs count by their closed box, so they never push a group off the screen edge.
-        readAttachedChains(set)
-        for id in pairs(items) do coverBox(set, id, boxes[id]) end
-        for id in pairs(closed) do coverBox(set, id, boxes[id]) end
-        placeTethers(g)
+        placeTethers(g, set, items, closed, boxes)
         -- A closed-up Daylight UI buff stays shown where it gave up its spot, with
         -- nothing visible while down, so its button comes up there the moment the
         -- buff does. The game's item saying "up" reopens the spot.
