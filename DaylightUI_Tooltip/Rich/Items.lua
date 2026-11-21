@@ -596,13 +596,15 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     if compare then
         for i in pairs(compare.skip) do taken[i] = true end
     end
-    local mixed, other = {}, {}
+    local mixed, other, wear = {}, {}, {}
     if Foreign.Has(p, "mixed", taken) then mixed[1] = function() Foreign.Place(p, "mixed", taken) end end
     if Foreign.Has(p, "own", taken) then other[1] = function() Foreign.Place(p, "own", taken) end end
     if foot.durability or foot.money then
         -- A sell price alone (a quest reward has no durability) says what it is.
         local label = foot.durability or (type(SELL_PRICE) == "string" and SELL_PRICE or L["Sell price"])
-        other[#other + 1] = function()
+        -- A list of its own: a small gap keeps it from reading as the last
+        -- addon's line.
+        wear[1] = function()
             Panel.Row(p, label, foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small, Style.SIZE.body)
         end
     end
@@ -614,7 +616,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     else
         part(groups.effects, groups.set, groups.facts, groups.quote, mixed)
     end
-    part(other)
+    part(other, wear)
     -- A compare's chips: what changes if you swap, last.
     if compare and #compare.chips > 0 then
         if any then Panel.Rule(p) end

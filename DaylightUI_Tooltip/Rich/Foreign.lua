@@ -243,17 +243,120 @@ local function moneyRow(p, line, money)
     Panel.Row(p, label(words), value, INK.VALUE, INK.TEXT)
 end
 
+-- A row whose two sides don't fit the card side by side: its words wrap on a
+-- line of their own and the right side goes under them, at the right edge.
+-- Cut to fit, the left side lost its end ("-55.1..." beside a long "vs ...").
+local function row(p, left, right, rightColor, leftColor)
+    local Panel = ns.RichPanel
+    Panel.Row(p, left, right, rightColor, leftColor)
+    local item = p.items[p.count]
+    if not (item and item.kind == "row" and item.value) then return end
+    local lw, rw = item.label:GetStringWidth(), item.value:GetStringWidth()
+    if type(lw) ~= "number" or type(rw) ~= "number" or isSecret(lw) or isSecret(rw) then return end
+    local inner = (Panel.WIDTH[p.kind] or Panel.WIDTH.other) - 2 * (p.padX or Panel.PAD_X)
+    if lw + Panel.ROW_GAP_X + rw <= inner then return end
+    -- Undo the row: its two texts were the last taken from the pool.
+    item.label:Hide()
+    item.value:Hide()
+    p.used.text = p.used.text - 2
+    p.items[p.count], p.count = nil, p.count - 1
+    Panel.Text(p, left, leftColor)
+    Panel.Row(p, "", right, rightColor)
+end
+Foreign.Row = row
+
 -- One line, repainted. money: the money frame on it, if any.
 function Foreign.Line(p, line, money)
     local Panel = ns.RichPanel
     if money then return moneyRow(p, line, money) end
     if line.right and not Foreign.Blank(line.right) then
-        Panel.Row(p, Foreign.Words(line.left or ""), Foreign.Words(line.right), sideColor(line, true), sideColor(line))
+        row(p, Foreign.Words(line.left or ""), Foreign.Words(line.right), sideColor(line, true), sideColor(line))
     elseif ns.Rich.IsFlavor(line) then
         ns.Rich.Flavor(p, line)
     else
         Panel.Text(p, Foreign.Words(line.left), sideColor(line))
     end
+end
+
+-- An addon's title over its own lines ("Forever Leveling BiS" with its logo):
+-- words alone on the left, short, not a sentence or a "Label:", in a color of
+-- their own or after an icon, opening a part (the area's first line or after
+-- a blank one) with more lines under it. It becomes a heading like the card's
+-- own parts, so each addon's lines read as a group of their own.
+Foreign.HEAD_MAX = 40 -- letters; longer reads as a sentence
+
+function Foreign.Heading(lines, i, n, money, opens)
+    local line = lines[i]
+    if not opens or money[i] or not line.left or not Foreign.Blank(line.right) then return false end
+    local words = ns.Rich.Bare(line.left)
+    if words == "" or #words > Foreign.HEAD_MAX or words:find("[:%.!?]$") then return false end
+    local raw = trim(line.left)
+    local colored = raw:find("^|T") ~= nil
+    if not colored then
+        local own = raw:match("^|c%x%x(%x%x%x%x%x%x)")
+        if own then
+            local r, g, b = own:sub(1, 2), own:sub(3, 4), own:sub(5, 6)
+            colored = not grayHex(r, g, b) and own:lower() ~= "ffffff"
+        elseif line.hasLC then
+            local kind = DUI.Tips.GameColor(line.lc[1], line.lc[2], line.lc[3])
+            colored = kind ~= "white" and not Foreign.Gray(line.lc)
+        end
+    end
+    if not colored then return false end
+    for j = i + 1, n do
+        if money[j] or not (Foreign.Blank(lines[j].left) and Foreign.Blank(lines[j].right)) then return true end
+    end
+    return false
+end
+
+-- A hint ("Hold Ctrl for details", "Alt-click: guide me"): a short line on
+-- its own naming a modifier key or a click. Small, its key in the accent, as
+-- Daylight UI's own hints.
+local function keyWords()
+    local out = { "shift", "ctrl", "alt", "click" }
+    for _, k in ipairs({ _G.SHIFT_KEY_TEXT, _G.CTRL_KEY_TEXT, _G.ALT_KEY_TEXT }) do
+        if type(k) == "string" and k:find("^%a+$") then out[#out + 1] = k:lower() end
+    end
+    -- Whole words only: "Altar" isn't Alt.
+    for i, k in ipairs(out) do out[i] = "%f[%w]" .. k .. "%f[^%w]" end
+    return out
+end
+
+function Foreign.IsHint(line)
+    if not line.left or not Foreign.Blank(line.right) then return false end
+    local words = strip(line.left)
+    if #words > Foreign.HEAD_MAX then return false end
+    local low = words:lower()
+    if low:find("%f[%w]click%f[^%w]") then return true end
+    -- A key alone needs a sign it's pressed: "Alt-", "Shift+", "Ctrl:",
+    -- "Hold Ctrl". Plain "alt" is also a second character ("known by your alt").
+    for _, k in ipairs(keyWords()) do
+        if low:find(k .. "%s*[%-%+:]") or low:find("^hold%s+" .. k) or low:find("^press%s+" .. k) then return true end
+    end
+    return false
+end
+
+function Foreign.Hint(p, line)
+    local words = trim(strip(Foreign.Crop(line.left)))
+    local hex = DUI.Win.Parts.Hex({ Style.Accent() })
+    local key, what = words:match("^(.-:)(%s.*)$")
+    if key then
+        words = hex .. key .. "|r" .. what
+    else
+        -- The first key word ("Hold Ctrl for details": Ctrl) in the accent.
+        local low, at, to = words:lower(), nil, nil
+        for _, k in ipairs(keyWords()) do
+            local s, e = low:find(k)
+            if s and (not at or s < at) then at, to = s, e end
+        end
+        if at then
+            -- The whole word it's in ("Alt-click", "Shift-right-click").
+            while at > 1 and words:sub(at - 1, at - 1):find("[%w%-]") do at = at - 1 end
+            while to < #words and words:sub(to + 1, to + 1):find("[%w%-]") do to = to + 1 end
+            words = words:sub(1, at - 1) .. hex .. words:sub(at, to) .. "|r" .. words:sub(to + 1)
+        end
+    end
+    ns.RichPanel.Text(p, words, Style.INK.TEXT, Style.SIZE.small)
 end
 
 -- ---------------------------------------------------------------------
@@ -397,9 +500,9 @@ function Foreign.Blocks(f, taken)
             if piece.kind ~= "tag" then block(f, "piece", i, i, { piece = piece }) end
             i = i + 1
         elseif not money[i] and Foreign.Blank(line.left) and Foreign.Blank(line.right) then
-            -- A gap, never two, never first.
+            -- A gap, never two, never first, never right under a heading.
             local last = f.blocks[#f.blocks]
-            if last and last.kind ~= "gap" then block(f, "gap", i, i) end
+            if last and last.kind ~= "gap" and last.kind ~= "heading" then block(f, "gap", i, i) end
             i = i + 1
         else
             local done = false
@@ -416,7 +519,15 @@ function Foreign.Blocks(f, taken)
                 end
             end
             if not done then
-                block(f, "line", i, i)
+                local last = f.blocks[#f.blocks]
+                local opens = not last or last.kind == "gap"
+                local kind = "line"
+                if Foreign.Heading(lines, i, n, money, opens) then
+                    kind = "heading"
+                elseif Foreign.IsHint(line) then
+                    kind = "hint"
+                end
+                block(f, kind, i, i)
                 i = i + 1
             end
         end
@@ -483,11 +594,18 @@ function Foreign.Place(p, spot, taken)
             local isQuest = b.adapter ~= nil and b.adapter.quest == true
             if quest and not isQuest then
                 Panel.Rule(p)
+            elseif b.kind == "heading" and drew then
+                -- Another addon's part starts: a rule, as between the card's parts.
+                Panel.Rule(p)
             elseif gap and not isQuest then
                 Panel.Gap(p, Foreign.GAP)
             end
             gap, drew, quest = false, true, isQuest
-            if b.kind == "piece" then
+            if b.kind == "heading" then
+                Panel.Section(p, ns.Rich.Bare(f.lines[b.from].left))
+            elseif b.kind == "hint" then
+                Foreign.Hint(p, f.lines[b.from])
+            elseif b.kind == "piece" then
                 Foreign.Piece(p, b.piece)
             elseif b.kind == "adapter" then
                 b.adapter.draw(p, f.lines, b.from, b.to, f.money)
