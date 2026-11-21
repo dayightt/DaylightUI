@@ -620,6 +620,8 @@ end
 -- place: the same spell's icon is already there, so a drop looked like the icon
 -- jumping (Shield Block).
 Fx.SLIDE = 6   -- px it drops in from
+Fx.SLIDE_HOLD = 0.3   -- seconds the slide stays still while the client rebuilds its buttons
+local slides = setmetatable({}, weak)   -- every client button given a slide
 
 function Fx.MakeSlide(btn, h)
     -- No OnShow/OnHide on a Daylight UI frame inside the button: the client refuses them
@@ -636,6 +638,7 @@ function Fx.MakeSlide(btn, h)
     s.show = ag:CreateAnimation("Alpha")
     s.show:SetOrder(2); s.show:SetSmoothing("OUT"); s.show:SetToAlpha(1)
     btn.cdmSlide, btn.cdmSlideHolder = s, h
+    slides[btn] = true
     Fx.TuneSlide(btn)
     DUI.SafeCall(btn.AddAuraShownAnimation, btn, ag)
 end
@@ -650,17 +653,57 @@ local function tune(s, on, drop)
     s.show:SetFromAlpha(on and 0 or 1)
 end
 
--- A locked button (in a fight, under restrictions) refuses; retried next layout.
+-- A locked button (in a fight, under restrictions) refuses on purpose; retried next
+-- layout. Returns whether it took.
+local function tryTune(s, on, drop) return pcall(tune, s, on, drop) end
+
 function Fx.TuneSlide(btn)
     local s = btn.cdmSlide
-    if not s then return end
+    if not s or btn.cdmSlideHeld then return end
     local on = Motion.On()
     local h = btn.cdmSlideHolder
     local drop = not (type(h) == "table" and h.overIcon == true)
     local key = on and (drop and "slide" or "fade") or false
     if btn.cdmSlideKey == key then return end
-    if pcall(tune, s, on, drop) then btn.cdmSlideOn, btn.cdmSlideKey = on, key end
+    if tryTune(s, on, drop) then btn.cdmSlideOn, btn.cdmSlideKey = on, key end
 end
+
+-- The client's aura containers rebuild every button on a fight's end, entering the
+-- world, a spec change and the unit's flags or faction changing (FullAuraRefreshEvents
+-- in Blizzard_CustomAuraContainer.lua): each button is let go and handed its aura
+-- again, which plays its shown animation, so a buff that had been up all along slid
+-- in as if it had just landed. The rebuild waits for the container's next update, so
+-- the slide is stilled before it and tuned back after. Only out of a fight: the
+-- buttons are locked in one, and stilled there they would stay still for the whole
+-- fight, when a proc landing is what the slide is for. A fight's start is the one
+-- rebuild left: its buttons lock as it begins.
+function Fx.HoldSlides()
+    if InCombatLockdown() then return end
+    local any = false
+    for btn in pairs(slides) do
+        if not btn.cdmSlideHeld and tryTune(btn.cdmSlide, false) then
+            btn.cdmSlideHeld, btn.cdmSlideKey = true, nil
+            any = true
+        end
+    end
+    if not any then return end
+    C_Timer.After(Fx.SLIDE_HOLD, function()
+        for btn in pairs(slides) do
+            if btn.cdmSlideHeld then
+                btn.cdmSlideHeld = nil
+                Fx.TuneSlide(btn)
+            end
+        end
+    end)
+end
+for _, e in ipairs({ "PLAYER_REGEN_ENABLED", "PLAYER_ENTERING_WORLD", "PLAYER_SPECIALIZATION_CHANGED" }) do
+    DUI.RegisterEvent(e, function() DUI.SafeCall(Fx.HoldSlides) end)
+end
+-- A unit event takes two units at most: the holders watch you and your target.
+local flags = CreateFrame("Frame")
+flags:RegisterUnitEvent("UNIT_FLAGS", "player", "target")
+flags:RegisterUnitEvent("UNIT_FACTION", "player", "target")
+flags:SetScript("OnEvent", function() DUI.SafeCall(Fx.HoldSlides) end)
 
 -- Sounds ---------------------------------------------------------------
 -- Like a proc addon: a per-spell sound the moment it matters. Each fires on the

@@ -698,6 +698,35 @@ T.test("cdm game: the card is drawn again once a just-placed buff has been looke
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- With nothing to tell the buff, the card says why its up and missing options are
+-- gone. Without a word, a buff row hidden in Edit Mode looked like options that had
+-- vanished in an update.
+for _, case in ipairs({ { "its row is hidden", "Tracked Buffs row is set to Hidden" },
+                        { "the game's layout hides the buff", "makes no icon for this buff" } }) do
+T.test("cdm game: the card says why a buff has no up or missing options, " .. case[1], function()
+    local DUI, AB, D, R = classWorld("DRUID", THORNS, { THORNS }, case[1] ~= "its row is hidden")
+    if case[1] == "its row is hidden" then
+        CW.Setting("BuffIconCooldownViewer", "VisibleSetting", Enum.CooldownViewerVisibleSetting.Hidden); stub.RunTimers()
+    end
+    local id = CW.ID(THORNS, BUFFS)
+    local Ed, Card = AB.CdmEditor, AB.CdmCard
+    Ed.Open(1); stub.RunTimers()
+    D.AddPiece(D.Current(), id, "icon", 0, 0)
+    D.Changed()
+    Ed.Select(id)
+    R.Refresh(); stub.RunTimers()
+    T.eq(R.Tracked(id), false)
+    Card.SetTab("show")
+    local note
+    for _, r in ipairs(Card.ROWS.show) do if r.box == "note" then note = r.frame end end
+    T.truthy(note and note:IsShown(), "the note is on the Behavior tab")
+    local text = note.text:GetText() or ""
+    T.truthy(text:find(case[2], 1, true), text)
+    Ed.Close()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 -- The game's item finds an aura only by the spell ids its row lists. Some rows
 -- stop at rank 1: Sap's lists none of the debuffs its higher ranks leave, and
 -- Touch of Weakness's lists the debuff on your attacker but not the buff's own

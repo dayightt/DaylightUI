@@ -267,7 +267,9 @@ function Sound.AlertChoices()
     end
     local Media = DUI.Media
     if Media then
-        local names, keys = Media.List("sound")
+        -- The library always lists its own silent "None", which is the same as
+        -- the None at the top. Alone it made an empty-looking Shared media heading.
+        local names, keys = Media.List("sound", { None = true })
         if #keys > 0 then
             head("shared", "Shared media")
             for _, key in ipairs(keys) do add(key, names[key]) end

@@ -2412,6 +2412,8 @@ T.test("cdm report: /dui cdm report saves each placed spell's state in the setti
     local all = table.concat(lines, "\n")
     T.truthy(all:find("11: icon, track nil, slide true, keep false, drawn game", 1, true), all)
     T.truthy(all:find("auras readable true", 1, true), all)
+    T.truthy(all:find("EssentialCooldownViewer shown true", 1, true), "each of the game's rows, to tell a hidden buff row: " .. all)
+    T.truthy(all:find("buffs switched on 0", 1, true), all)
     T.truthy(all:find("12: icon on 11 right", 1, true), all)
     T.truthy(all:find("in its piece held", 1, true), all)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -2688,6 +2690,20 @@ T.test("cdm sounds: the list, its saved keys and how each kind plays", function(
     for _, k in ipairs(order) do
         T.truthy(titles[k] or Sound.IsAlert(k), "every choice can be saved: " .. k)
     end
+    -- Shared media: the library's own silent "None" isn't a second None, and
+    -- with nothing else there's no Shared media heading at all.
+    local shared = { "None" }
+    _G.LibStub = function(name)
+        return name == "LibSharedMedia-3.0" and { List = function(_, kind) return kind == "sound" and shared or {} end } or nil
+    end
+    values, order, titles = Sound.AlertChoices()
+    T.isnil(values["lsm:None"])
+    T.isnil(titles["head:shared"], "no heading over nothing")
+    shared[2] = "Test Horn"
+    values, order, titles = Sound.AlertChoices()
+    T.eq(values["lsm:Test Horn"], "Test Horn", "another addon's sound is offered")
+    T.truthy(titles["head:shared"])
+    _G.LibStub = nil
     _G.CooldownViewerSoundData = nil
     -- The game's sound kits play the way the game plays them, with the same call
     -- and sub type (CooldownViewerAlert_PlaySoundAlert, TriggerAlertEvent in
@@ -7992,6 +8008,46 @@ T.test("cdm custom: the Blessing wears Blessing of Might's own icon as an icon a
     stub.knownSpells = {}
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The client rebuilds every button of its aura containers on a fight's end, the
+-- unit's flags changing and entering the world (FullAuraRefreshEvents in
+-- Blizzard_CustomAuraContainer.lua): each is let go and handed its aura again, which
+-- plays its shown animation. A buff up all along slid in again as if it had landed.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm custom: a buff already up doesn't slide in again when the client rebuilds its buttons (" .. shape .. ")", function()
+    local DUI, AB, D, set = customRows()
+    plainAuras()
+    stub.SetUnits({ player = { class = "PALADIN" } })
+    AB.CdmSpells.PALADIN = { { 20375, 20915, aura = true } }
+    stub.knownSpells = { [20375] = true }
+    AB.CdmCustom.Forget()
+    D.AddPiece(set, "seal", shape, 0, 0)
+    stub.SetAuras("player", "HELPFUL", { { spellId = 20375, name = "Seal of Command" } })
+    refresh(AB)
+    stub.FireEvent("UNIT_AURA", "player", {}); stub.RunTimers()
+    local h = shape == "bar" and AB.CdmBars.AuraFrame("seal") or AB.CdmAuras.Frame("seal")
+    local btn = (h.buttons and h.buttons[1]) or (h.parts and next(h.parts))
+    T.truthy(btn and btn.cdmSlide, "its button has the slide")
+    T.eq(btn.cdmSlideKey, "slide")
+    for _, ev in ipairs({ { "PLAYER_REGEN_ENABLED" }, { "PLAYER_ENTERING_WORLD" }, { "UNIT_FLAGS", "player" } }) do
+        stub.FireEvent(ev[1], ev[2])
+        T.truthy(btn.cdmSlideHeld, ev[1] .. ": still for the rebuild")
+        -- The client's rebuild, on its next update: let go, then shown again.
+        stub.AuraVisible(btn, false); stub.AuraVisible(btn, true)
+        stub.RunTimers()
+        T.falsy(btn.cdmSlideHeld, ev[1] .. ": tuned back after it")
+        T.eq(btn.cdmSlideKey, "slide", ev[1] .. ": a buff landing later still slides in")
+    end
+    -- In a fight the buttons are locked: stilled there, they'd stay still all fight.
+    stub.EnterCombat()
+    stub.FireEvent("UNIT_FLAGS", "player")
+    T.falsy(btn.cdmSlideHeld, "left alone in a fight")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.eq(btn.cdmSlideKey, "slide")
+    stub.knownSpells = {}
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
 
 -- The Seal as an icon with "Glow when not active" on, no seal up, and no glow:
 -- the aura holders never said whether the buff was down.

@@ -288,6 +288,19 @@ end
 local function tellsState(_, id)
     return not (ns.CdmRows and ns.CdmRows.Tracked(id) == false)
 end
+-- Why the card has no up or missing options for this buff. The usual reason is a
+-- buff row the player hid in Edit Mode, which takes every buff's icon with it.
+local ROW_NAMES = { BuffIconCooldownViewer = "Tracked Buffs", BuffBarCooldownViewer = "Tracked Bars" }
+local function whyUntold()
+    local hidden = ns.CdmRows and ns.CdmRows.HiddenBuffRows() or {}
+    if #hidden > 0 then
+        local names = {}
+        for i, name in ipairs(hidden) do names[i] = L[ROW_NAMES[name] or name] end
+        return string.format(L["The game's %s row is set to Hidden in Edit Mode, so Daylight UI can't tell when this buff is up or missing. Set it to Always in Edit Mode for those options: Daylight UI still keeps the game's own icons out of sight."],
+            table.concat(names, L[" and "]))
+    end
+    return L["The game's Cooldown Manager makes no icon for this buff, so Daylight UI can't tell when it's up or missing, and the options for those are left out."]
+end
 local VISIBILITY = { values = { show = "Show", hide = "Hide" }, order = { "show", "hide" } }
 local BUFF_UP = { type = "dropdown", key = "cdm.card.buffUp", label = "Visibility",
     values = VISIBILITY.values, order = VISIBILITY.order,
@@ -459,7 +472,8 @@ local function chainTitle()
 end
 
 -- Each tab's rows, top to bottom: { head = text or fn, show }, { item, show }, or
--- { box = "position", show } (built by the card itself).
+-- { box = "position", show } (built by the card itself), { box = "note", show, text = fn }
+-- (a few lines of quiet text).
 Card.ROWS = {
     look = {
         { head = L["Icon"], show = isIcon },
@@ -646,6 +660,7 @@ Card.ROWS = {
             "Plays once as you become able to cast it: Revenge after a block, Overpower after a dodge, Execute on a low target. Rage or mana coming back doesn't count.") },
         { head = L["Form or stance"], show = function(...) return isCooldown(...) and ns.CdmEffects.FormsOf() ~= nil end },
         { head = L["Buff up"], show = hasBuff },
+        { box = "note", show = function(...) return hasBuff(...) and not tellsState(...) end, text = whyUntold },
         { show = function(...) return hasBuff(...) and tellsState(...) end, item = BUFF_UP },
         { show = function(...) return showsBuff(...) and tellsState(...) and opt("hideActive") ~= true end,
           item = spell("upGlow", { type = "toggle", label = "Glow",
@@ -882,6 +897,28 @@ local function sectionHead(f, width)
     return h
 end
 
+-- A note: wrapped small text in the label color, as tall as its lines.
+local NOTE_PAD = 4
+local function noteRow(f, width)
+    local n = CreateFrame("Frame", nil, f)
+    n:SetWidth(width)
+    n.text = DUI.Style.Text(n, DUI.Style.SIZE.small, "LEFT")
+    n.text:SetPoint("TOPLEFT", n, "TOPLEFT", 0, -NOTE_PAD)
+    n.text:SetWidth(width)
+    n.text:SetWordWrap(true)
+    -- Returns the height the text needs.
+    function n.Set(text)
+        n.text:SetText(text or "")
+        DUI.Style.InkText(n.text, "LABEL")
+        local h = n.text:GetStringHeight()
+        h = (type(h) == "number" and h > 0 and h or DUI.Style.SIZE.small) + NOTE_PAD * 2
+        n:SetHeight(h)
+        return h
+    end
+    function n.Refresh() DUI.Style.InkText(n.text, "LABEL") end
+    return n
+end
+
 -- A button item drawn as a plain button of the given width. Its label and desc go
 -- in the tooltip. disabled() grays it.
 local function buttonRow(f, item, width)
@@ -992,6 +1029,9 @@ local function build()
             if r.head then
                 r.frame = sectionHead(f, col)
                 r.height = Card.HEAD_H
+            elseif r.box == "note" then
+                r.frame = noteRow(f, col)
+                r.height = r.frame.Set("")
             elseif r.box == "position" then
                 r.frame = buildPosition(f, col)
                 r.height = r.frame:GetHeight() + 6
@@ -1017,6 +1057,7 @@ local function sections(set, id, p)
             cur = { head = r.show(set, id, p) == true and r or nil, rows = {} }
             out[#out + 1] = cur
         elseif r.show(set, id, p) == true then
+            if r.box == "note" then r.height = r.frame.Set(r.text(set, id, p)) end
             if not cur then
                 cur = { rows = {} }
                 out[#out + 1] = cur

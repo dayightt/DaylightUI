@@ -63,6 +63,19 @@ function Rows.Bars() return ns.CdmBars end
 -- pass didn't draw it.
 function Rows.Tracked(id) return Rows.tracked[id] end
 
+-- The game's buff rows set to Hidden in Edit Mode, by viewer name. Such a row never
+-- shows its icons, so none of its buffs can be told up or down, in a fight or out.
+function Rows.HiddenBuffRows()
+    local out = {}
+    local E = Enum and Enum.CooldownViewerVisibleSetting
+    if not (E and E.Hidden ~= nil) then return out end
+    for _, name in ipairs(CD.VIEWERS) do
+        local v = _G[name]
+        if AURA_VIEWERS[name] and type(v) == "table" and v.visibleSetting == E.Hidden then out[#out + 1] = name end
+    end
+    return out
+end
+
 -- Every item the game's viewers hold right now that has an id.
 function Rows.EachItem(fn)
     for _, name in ipairs(CD.VIEWERS) do
@@ -1049,6 +1062,20 @@ function Rows.Why()
         word(g), word(Data.Switch("on")), word(Data.Switch("hideUnplaced")), word(Rows.editing),
         word(InCombatLockdown()), word(fr ~= nil), word(ns.CdmAuras ~= nil and ns.CdmAuras.Readable()),
         word(DUI.Restricted()), okS and word(secret) or "unknown")
+    -- Each of the game's rows: a buff row hidden in Edit Mode, or one with no items
+    -- at all, is why every buff of a layout reads "game: none".
+    local rows, switched = {}, DUI.DB.Character().cdmSwitched
+    for _, name in ipairs(CD.VIEWERS) do
+        local v, n = _G[name], 0
+        if type(v) == "table" then
+            CD.EachItem(v, function() n = n + 1 end)
+            rows[#rows + 1] = string.format("%s shown %s visibility %s items %d", name, word(v:IsShown()), word(v.visibleSetting), n)
+        end
+    end
+    local count = 0
+    for _ in pairs(type(switched) == "table" and switched or {}) do count = count + 1 end
+    out[#out + 1] = string.format("%s; game's CVar %s, buffs switched on %d", table.concat(rows, ", "),
+        word(type(GetCVar) == "function" and GetCVar(CD.GAME_SWITCH) or nil), count)
     local games = {}
     Rows.EachItem(function(item, id, kind)
         local t = games[id] or {}
