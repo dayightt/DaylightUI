@@ -196,7 +196,7 @@ T.test("platefix: the last loading screen, zone change and lost control stay in 
     _G.GetRealZoneText = function() return "Undercity" end
     stub.FireEvent("ZONE_CHANGED_NEW_AREA")
     -- A busy minute pushes all of it out of the log.
-    for i = 1, R.LOG_SIZE + 5 do stub.FireEvent("CVAR_UPDATE", "setting" .. i, "1") end
+    for i = 1, R.LOG_SIZE + 5 do R.Note("thing" .. i) end
     stub.Advance(60)
     local line = R.Travel()
     T.truthy(line:find("loading screens 1 (last -7:35 into Tirisfal Glades)", 1, true), line)
@@ -210,13 +210,11 @@ end)
 T.test("platefix: the log keeps only the latest moments, and the same thing again counts up", function()
     login()
     local R = DaylightUI.PlateReport
-    for i = 1, R.LOG_SIZE + 10 do
-        stub.FireEvent("CVAR_UPDATE", "setting" .. i, "1")
-    end
+    for i = 1, R.LOG_SIZE + 10 do R.Note("thing" .. i) end
     T.eq(R.LogSize(), R.LOG_SIZE)
     local text = table.concat(R.LogLines(), "\n")
-    T.falsy(text:find("setting1=1\n", 1, true), "the oldest went")
-    T.truthy(text:find("setting" .. (R.LOG_SIZE + 10) .. "=1", 1, true), text)
+    T.falsy(text:find("thing1\n", 1, true), "the oldest went")
+    T.truthy(text:find("thing" .. (R.LOG_SIZE + 10), 1, true), text)
     stub.FireEvent("PLAYER_REGEN_DISABLED")
     stub.FireEvent("PLAYER_REGEN_ENABLED")
     stub.FireEvent("PLAYER_REGEN_DISABLED")
@@ -225,6 +223,66 @@ T.test("platefix: the log keeps only the latest moments, and the same thing agai
     stub.FireEvent("CVAR_UPDATE", "same", "1")
     text = table.concat(R.LogLines(), "\n")
     T.truthy(text:find("same=1 (x2)", 1, true), text)
+end)
+
+T.test("platefix: an addon easing the sound takes one line, not the whole log", function()
+    login()
+    local R = DaylightUI.PlateReport
+    R.Note("fight")
+    local base = R.LogSize()
+    for step = 1, 9 do
+        local k = step / 10
+        stub.FireEvent("CVAR_UPDATE", "Sound_MusicVolume", tostring(0.3 + k / 10))
+        stub.FireEvent("CVAR_UPDATE", "Sound_AmbienceVolume", tostring(0.5 + k / 10))
+        stub.FireEvent("CVAR_UPDATE", "Sound_SFXVolume", tostring(0.9 + k / 10))
+        stub.Advance(0.1)
+    end
+    T.eq(R.LogSize(), base + 1, "one line for the sound")
+    local text = table.concat(R.LogLines(), "\n")
+    T.truthy(text:find("settings Sound_MusicVolume=0.39 Sound_AmbienceVolume=0.59 Sound_SFXVolume=0.99 (27 changes)",
+        1, true), text)
+    -- A setting changed long after starts its own line, and one setting alone reads as before.
+    stub.Advance(R.FOLD_GAP.settings + 1)
+    stub.FireEvent("CVAR_UPDATE", "nameplateShowEnemies", "0")
+    stub.FireEvent("CVAR_UPDATE", "nameplateShowEnemies", "1")
+    T.eq(R.LogSize(), base + 2)
+    text = table.concat(R.LogLines(), "\n")
+    T.truthy(text:find("setting nameplateShowEnemies=1 (x2)", 1, true), text)
+    -- More settings than fit name the first ones and count the rest.
+    stub.Advance(R.FOLD_GAP.settings + 1)
+    for i = 1, R.FOLD_NAMES + 3 do stub.FireEvent("CVAR_UPDATE", "s" .. i, "1") end
+    text = table.concat(R.LogLines(), "\n")
+    T.truthy(text:find("s6=1 +3 more (9 changes)", 1, true), text)
+end)
+
+T.test("platefix: a visit to an NPC is one line with its windows and quests", function()
+    login()
+    local R = DaylightUI.PlateReport
+    _G.Enum = _G.Enum or {}
+    _G.Enum.PlayerInteractionType = { Gossip = 3, QuestGiver = 4, Trainer = 7 }
+    _G.C_QuestLog = _G.C_QuestLog or {}
+    _G.C_QuestLog.GetTitleForQuestID = function(id) return id == 452 and "Pyrewood Ambush" or nil end
+    R.Note("fight")
+    local base = R.LogSize()
+    stub.FireEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 3)
+    stub.Advance(2)
+    stub.FireEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", 3)
+    stub.FireEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", 4)
+    stub.Advance(30)
+    stub.FireEvent("QUEST_ACCEPTED", 452)
+    stub.FireEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", 4)
+    T.eq(R.LogSize(), base + 1)
+    local text = table.concat(R.LogLines(), "\n")
+    T.truthy(text:find("NPC Gossip, closed, QuestGiver, took quest Pyrewood Ambush, closed", 1, true), text)
+    -- A quest handed in with no NPC window, after a fight, has its own line by its number.
+    R.Note("fight")
+    stub.FireEvent("QUEST_TURNED_IN", 999, 0, 0)
+    text = table.concat(R.LogLines(), "\n")
+    T.truthy(text:find("handed in quest 999", 1, true), text)
+    T.falsy(text:find("NPC handed in", 1, true), "not called an NPC visit: " .. text)
+    -- A secret kind never reaches a comparison.
+    stub.FireEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", stub.Secret(7))
+    T.truthy(table.concat(R.LogLines(), "\n"):find("NPC ", 1, true))
 end)
 
 T.test("platefix: the log is in the report with the Nameplates module off too", function()
@@ -715,7 +773,7 @@ end)
 T.test("platefix: switch changes stay in the report after the log has filled", function()
     local NP = login()
     withStack("", function() SetInWorldUIVisibility(false) end)
-    for i = 1, 30 do stub.FireEvent("CVAR_UPDATE", "someSetting" .. i, "1") end
+    for i = 1, 30 do DaylightUI.PlateReport.Note("someThing" .. i) end
     withStack("", function() SetInWorldUIVisibility(true) end)
     NP.Manager.Fix()
     local text = NP.Manager.FixReport(1)

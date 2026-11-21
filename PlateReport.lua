@@ -167,7 +167,7 @@ DUI.RegisterEvent("DISPLAY_SIZE_CHANGED", function() R.changes.display = R.chang
 -- first: fights, loading screens, zones, game settings changed, the screen
 -- and UI scale, cinematics, lost control, vehicles, the client's restrictions,
 -- the AFK screen, the UI faded out and back, frames drawn to their own buffer,
--- and plates coming and going. Players can't say what they did before the
+-- NPC windows and quests taken or handed in, and plates coming and going. Players can't say what they did before the
 -- plates went, so the report carries it. Only events feed it, nothing runs each
 -- frame, and the same thing twice in a row counts up instead of taking a line.
 R.LOG_SIZE = 24
@@ -230,9 +230,68 @@ for event, what in pairs(NOTES) do DUI.RegisterEvent(event, function() R.Note(wh
 DUI.RegisterEvent("ZONE_CHANGED_NEW_AREA", function()
     R.Note("zone " .. tostring(type(GetRealZoneText) == "function" and plain(GetRealZoneText()) or "?"))
 end)
+-- Some changes come in runs and share one line, so they don't push everything
+-- else out of the log: settings another addon eases a step at a time (voice-over
+-- addons lower the sound while an NPC talks, nine lines a time), and one visit
+-- to an NPC (its windows, the quests taken or handed in, closing it). Anything
+-- else noted in between starts a new line.
+R.FOLD_GAP = { settings = 10, npc = 120 } -- most seconds between two changes on one line
+R.FOLD_NAMES = 6 -- settings named on one line, then "+N more"
+R.FOLD_PARTS = 12 -- steps of one NPC visit on one line, then "..."
+
+local function folding(kind)
+    buffers()
+    local last, now = R.log[#R.log], clock()
+    if last and last.fold == kind and now - last.at < R.FOLD_GAP[kind] then
+        last.at = now
+        return last
+    end
+    local e = { at = now, fold = kind, times = 1, parts = {}, values = {}, changes = 0 }
+    keep(e)
+    return e
+end
+
 DUI.RegisterEvent("CVAR_UPDATE", function(_, name, value)
-    R.Note(string.format("setting %s=%s", tostring(plain(name)), tostring(plain(value))))
+    local e = folding("settings")
+    name, value = tostring(plain(name)), tostring(plain(value))
+    if e.values[name] == nil then e.parts[#e.parts + 1] = name end
+    e.values[name] = value
+    e.changes = e.changes + 1
 end)
+
+local function npcStep(text, isNpc)
+    local e = folding("npc")
+    e.npc = e.npc or isNpc
+    if e.parts[#e.parts] == text then return end
+    if #e.parts >= R.FOLD_PARTS then e.cut = true; return end
+    e.parts[#e.parts + 1] = text
+end
+
+-- The game's own name for the kind of window (Gossip, QuestGiver, Trainer...).
+local function interaction(kind)
+    kind = plain(kind)
+    local names = type(Enum) == "table" and Enum.PlayerInteractionType
+    if type(names) == "table" then
+        for name, v in pairs(names) do
+            if v == kind then return name end
+        end
+    end
+    return "window " .. tostring(kind)
+end
+
+local function questName(id)
+    id = plain(id)
+    local title = type(id) == "number" and C_QuestLog and C_QuestLog.GetTitleForQuestID
+        and C_QuestLog.GetTitleForQuestID(id)
+    title = plain(title)
+    if type(title) == "string" and title ~= "" then return R.Printable(title, 40) end
+    return tostring(id)
+end
+
+DUI.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_SHOW", function(_, kind) npcStep(interaction(kind), true) end)
+DUI.RegisterEvent("PLAYER_INTERACTION_MANAGER_FRAME_HIDE", function() npcStep("closed", true) end)
+DUI.RegisterEvent("QUEST_ACCEPTED", function(_, id) npcStep("took quest " .. questName(id)) end)
+DUI.RegisterEvent("QUEST_TURNED_IN", function(_, id) npcStep("handed in quest " .. questName(id)) end)
 DUI.RegisterEvent("UNIT_ENTERED_VEHICLE", function(_, unit) if unit == "player" then R.Note("vehicle") end end)
 DUI.RegisterEvent("UNIT_EXITED_VEHICLE", function(_, unit) if unit == "player" then R.Note("vehicle over") end end)
 DUI.RegisterEvent("ADDON_RESTRICTION_STATE_CHANGED", function(_, kind, state)
@@ -426,6 +485,20 @@ function R.InWorldBack()
     return "the game refused to turn nameplates and speech bubbles on (" .. R.Printable(tostring(why), R.MARK_WHY) .. ")"
 end
 
+-- One folded line in words, and how many times to count it.
+local function foldedLine(e)
+    if e.fold == "npc" then
+        return (e.npc and "NPC " or "") .. table.concat(e.parts, ", ") .. (e.cut and ", ..." or ""), 1
+    end
+    local shown = {}
+    for i = 1, math.min(#e.parts, R.FOLD_NAMES) do
+        shown[i] = e.parts[i] .. "=" .. e.values[e.parts[i]]
+    end
+    if #e.parts == 1 then return "setting " .. shown[1], e.changes end
+    local more = #e.parts > R.FOLD_NAMES and string.format(" +%d more", #e.parts - R.FOLD_NAMES) or ""
+    return string.format("settings %s%s (%d changes)", table.concat(shown, " "), more, e.changes), 1
+end
+
 -- The log as report lines, each with how long before `at` (now when left out).
 function R.LogLines(at)
     buffers()
@@ -433,9 +506,14 @@ function R.LogLines(at)
     local out = {}
     for _, e in ipairs(R.log) do
         if e.at <= at then
-            local what = e.what or string.format("plates +%d -%d", e.added, e.removed)
+            local what, times = e.what, e.times
+            if e.fold then
+                what, times = foldedLine(e)
+            elseif not what then
+                what = string.format("plates +%d -%d", e.added, e.removed)
+            end
             out[#out + 1] = string.format("  %s %s%s", ago(e.at, at), what,
-                e.times > 1 and string.format(" (x%d)", e.times) or "")
+                times > 1 and string.format(" (x%d)", times) or "")
         end
     end
     if #out == 0 then out[1] = "  nothing yet" end
