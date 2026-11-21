@@ -7418,6 +7418,52 @@ T.test("cdm custom: Weakened Soul is drawn by ours, from your read debuff or you
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's Cooldown Manager has a Weakened Soul row of its own (Tracked Buffs,
+-- spell 6788, on no class list). Its item looks for HELPFUL|PLAYER on you, so it
+-- lit up without a time in game. Placed by that row, it's drawn by ours, the same
+-- way as when it's added by its ID, icon and bar.
+T.test("cdm self debuff: the game's Weakened Soul row is drawn by ours with its time, icon and bar", function()
+    local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31 })
+    stub.SetUnits({ player = { class = "PRIEST" } })
+    AB.CdmSpells.PRIEST = {}
+    AB.CdmCustom.Forget()
+    withCategories({ [2] = { 31 } }, { [2] = { 31 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = id == 31 and 6788 or 100 + id, selfAura = true }
+    end
+    unplace(D, set, 41)
+    place(D, set, 31, 1, 1)
+    icons[1]:SetIsActive(true)   -- the game's item lights up, but has no time
+    for _, shape in ipairs({ "icon", "bar" }) do
+        if shape == "bar" then D.SetShape(set, 31, "bar") end
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        local h = AB.CdmAuras.Frame(31)
+        if shape == "bar" then h = AB.CdmBars.AuraFrame(31) end
+        T.truthy(h and h.face, shape .. ": drawn by ours")
+        T.eq(icons[1]:GetAlpha(), 0, shape .. ": the game's item out of sight")
+        -- Out of a fight it's read on you, with its time.
+        stub.auras.player = { HARMFUL = { { spellId = 6788, duration = 15, expirationTime = GetTime() + 15,
+            sourceUnit = "player", isHarmful = true, isFromPlayerOrPlayerPet = true } } }
+        stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
+        AB.CdmRows.Refresh(); stub.RunTimers()
+        T.eq(h.face.alphaTo, 1, shape .. ": shown")
+        T.truthy(h.face.shownEnd, shape .. ": its time")
+        stub.auras.player = {}
+        stub.FireEvent("UNIT_AURA", "player", { isFullUpdate = true }); stub.RunTimers()
+        T.eq(h.face.alphaTo, 0, shape .. ": gone")
+        -- In a fight, your shield on you puts it up for 15 s.
+        stub.combat = true
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "pws-" .. shape, 10901); stub.RunTimers()
+        T.eq(h.face.alphaTo, 1, shape .. ": your shield on you: up")
+        T.truthy(h.face.shownEnd and math.abs(h.face.shownEnd - GetTime() - 15) < 0.01, shape .. ": for 15 s")
+        stub.Advance(16.2); stub.RunTimers()
+        T.eq(h.face.alphaTo, 0, shape .. ": 15 s later: gone")
+        stub.combat = false
+    end
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Forbearance (25771), added by its ID: a debuff on you. Watched among your debuffs too.
 T.test("cdm custom: a spell added by its ID is watched among your own debuffs too", function()
     local AB, C = customWorld("PRIEST")

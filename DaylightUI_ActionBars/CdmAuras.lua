@@ -106,7 +106,14 @@ local function ownKey(id)
     if C.Is(id) then return id end
     local info = infoOf(id)
     local base = info and plain(info.spellID)
-    return base and C.KeyOfAuraSpell(base) or nil
+    if not base then return nil end
+    local key = C.KeyOfAuraSpell(base)
+    if key then return key end
+    -- A debuff on you that's on no class list has a game row of its own too
+    -- (Weakened Soul). Its item lights up but never finds the time, so the row
+    -- goes to the same piece as the spell added by its ID.
+    if C.SELF_DEBUFF[base] then return "s" .. base end
+    return nil
 end
 
 function A.SelfDebuff(id)
