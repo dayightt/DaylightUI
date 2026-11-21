@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", new = {
+        { "Tooltip", "A creature's health bar can sit at the bottom of its tooltip, and quest progress bars can be turned off" },
+    }, fixed = {
         { "Nameplates", "The execute range band on enemy health bars ends right at the health you picked, instead of looking a few percent higher" },
     } },
     { version = "2.1.3", date = "2026-11-20", summary = "A much fuller Auction House: bids, smarter selling and a quicker feel. Plus Cooldown Manager layouts you can share, and a land-early button on the flight timer.", new = {

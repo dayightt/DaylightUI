@@ -27,6 +27,13 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "portraits", label = "Portraits", since = "2.0.2",
               desc = "A creature's face and a player's class icon at the top of their card. Off, the card starts with the name.",
               hidden = function(get) return get("style") ~= "rich" end },
+            { type = "dropdown", key = "mobBar", label = "Creature health bar", since = "2.1.4",
+              values = { top = "Top", bottom = "Bottom" }, order = { "top", "bottom" },
+              desc = "Where a creature's health bar sits on its card: under the name, or at the end of the card.",
+              hidden = function(get) return get("style") ~= "rich" end },
+            { type = "toggle", key = "questBars", label = "Quest progress bars", since = "2.1.4",
+              desc = "A thin bar under each quest objective on the card. Off, the objective and its count still show.",
+              hidden = function(get) return get("style") ~= "rich" end },
         } },
         { label = "Other addons", items = {
             { type = "dropdown", key = "addonLines", label = "Other addons' lines", since = "2.0",

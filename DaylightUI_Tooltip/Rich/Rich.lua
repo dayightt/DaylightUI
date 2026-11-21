@@ -377,7 +377,10 @@ local function questRow(p, name, have, need, chance, done)
     elseif have then
         local r, g, b = Style.Accent()
         Panel.Row(p, label, string.format(L["%d / %d"], have, need), { r, g, b }, Style.INK.TEXT)
-        Panel.Bar(p, { value = have, max = need, pair = accentPair(), h = 4 })
+        local cfg = ns.Tooltip.Config()
+        if not (cfg and cfg.questBars == false) then
+            Panel.Bar(p, { value = have, max = need, pair = accentPair(), h = 4 })
+        end
     else
         Panel.Text(p, name, Style.INK.TEXT)
     end

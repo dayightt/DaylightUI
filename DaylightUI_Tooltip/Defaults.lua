@@ -20,6 +20,8 @@ ns.DEFAULTS = {
     pill = "combat", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
     pillKey = "shift", -- held, the full card in the pill's place: "shift", "ctrl", "alt", "none"
     portraits = true, -- a creature's face and a player's class icon at the top of their card
+    mobBar = "top", -- a creature card's health bar: "top" (under the name) or "bottom" (end of the card)
+    questBars = true, -- a thin progress bar under each quest objective on the card
     -- Other addons' lines on the rich card (Rich/Foreign.lua): "own" (their
     -- own area at the bottom), "mixed" (in with the card's rows), "hidden".
     addonLines = "own",

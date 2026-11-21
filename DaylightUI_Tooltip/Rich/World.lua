@@ -355,8 +355,11 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     Panel.Header(p, { portrait = face, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = face and pair or nil,
         title = r.title, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
-    Panel.Gap(p, World.BEFORE_BAR)
-    Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
+    local barLow = cfg and cfg.mobBar == "bottom"
+    if not barLow then
+        Panel.Gap(p, World.BEFORE_BAR)
+        Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
+    end
     if n == 0 then
         World.DrawDataQuests(p, World.DataQuests(data))
     else
@@ -372,6 +375,10 @@ function World.Mob(p, tip, unit, data, n, lines, light)
         for _, i in ipairs(r.facts) do fact(p, lines[i]) end
         Foreign.Place(p, "mixed")
         if target then Panel.Row(p, L["Targeting"], target[1], target[2]) end
+    end
+    if barLow then
+        Panel.Gap(p, World.BEFORE_BAR)
+        Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
     end
     Foreign.Place(p, "own")
     Panel.Finish(p)
