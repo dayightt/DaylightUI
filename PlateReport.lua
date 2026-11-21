@@ -483,7 +483,7 @@ end
 -- Which Daylight UI modules are on, and the state right now of the things only
 -- Daylight UI does outside its own plates: frames drawn to their own buffer,
 -- UIParent's alpha (the AFK screen and NPC scene fade it), the AFK screen and
--- speech bubble settings, game windows held open out of sight (Win.Follow's
+-- speech bubble settings, game windows held open out of sight (Win.Follow's aside holder and
 -- veil), and a quest waypoint being tracked.
 function R.Daylight()
     local on, off = {}, {}
@@ -499,12 +499,20 @@ function R.Daylight()
     end
     local Fade = DUI.Fade
     local buffers = Fade and Fade.WholeCount and Fade.WholeCount() or "?"
-    local held = 0
+    local held, clipped = 0, 0
     local F = DUI.Win and DUI.Win.Followers
-    if F and F.veil then
-        for _, c in ipairs({ F.veil:GetChildren() }) do
-            if c.IsShown and c:IsShown() then held = held + 1 end
+    local function count(holder)
+        local n = 0
+        if holder then
+            for _, c in ipairs({ holder:GetChildren() }) do
+                if c.IsShown and c:IsShown() then n = n + 1 end
+            end
         end
+        return n
+    end
+    if F then
+        clipped = count(F.veil)
+        held = count(F.aside) + clipped
     end
     local waypoint = "?"
     local S = C_SuperTrack
@@ -516,8 +524,8 @@ function R.Daylight()
         string.format("Daylight UI modules on: %s; off: %s", #on > 0 and table.concat(on, " ") or "none",
             #off > 0 and table.concat(off, " ") or "none"),
         string.format("Daylight UI now: buffers drawn %s, UIParent alpha %s, AFK screen %s, bubble skin %s, "
-            .. "game windows held open %d, quest waypoint tracked %s", tostring(buffers), R.Asked(UIParent, "GetAlpha"),
-            setting("QoL", "afkScreen"), setting("Chat", "bubbles"), held, waypoint),
+            .. "game windows held open %d (clipped %d), quest waypoint tracked %s", tostring(buffers), R.Asked(UIParent, "GetAlpha"),
+            setting("QoL", "afkScreen"), setting("Chat", "bubbles"), held, clipped, waypoint),
     }
 end
 

@@ -28,6 +28,7 @@ local function showPanel(f)
     for _, other in ipairs({ _G.GossipFrame, _G.QuestFrame, _G.MerchantFrame, _G.ClassTrainerFrame }) do
         if other and other ~= f and other:IsShown() then other:Hide() end
     end
+    stub.PlacePanel(f)
     f:Show()
 end
 

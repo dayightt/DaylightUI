@@ -14,9 +14,12 @@
 -- Parking only happens out of combat. Until then the game's own window shows
 -- instead. Load-on-demand addons (the trainer) are parked as they load.
 --
--- def.veil = { kind = true } parks under the veil instead: shown, alpha 0 and
--- clipped to a pixel off screen. Needed for windows that check IsVisible as
--- they open (the trainer closes itself otherwise).
+-- def.aside = { kind = true } parks under the aside holder instead: shown, but
+-- see-through and tiny, and never clipped. Needed for windows that check
+-- IsVisible as they open (the trainer closes itself otherwise) or end their
+-- session in OnHide. The window then takes the game's spot with Follow.PlaceOn,
+-- since the parked frame itself is a dot in the corner. def.veil (the same, but
+-- clipped to a pixel off screen) is on its way out.
 -- Follow.Lend gives a shown window back for a while (Beast Training) and it is
 -- parked again once hidden. Follow.Unpark hands a hidden window back right as
 -- combat starts, so the game's window can open untainted in the fight.
@@ -41,6 +44,16 @@ Follow.veil:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", -64, -64)
 Follow.veil:SetAlpha(0)
 Follow.veil:SetClipsChildren(true)
 Follow.veil:EnableMouse(false)
+-- Windows that must stay really shown (the trainer closes itself unless it is
+-- visible, others end their session in OnHide) wait here: see-through, and
+-- small enough that nothing in them can be clicked. Never a clipping frame.
+Follow.ASIDE_SCALE = 0.001
+Follow.aside = CreateFrame("Frame", nil, UIParent)
+Follow.aside:SetSize(1, 1)
+Follow.aside:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 0, 0)
+Follow.aside:SetAlpha(0)
+Follow.aside:SetScale(Follow.ASIDE_SCALE)
+Follow.aside:EnableMouse(false)
 Follow.GAP = 20   -- space between the window and the next game window
 Follow.AWAY = 10000    -- offsets this large mean the window was moved off screen on purpose
 Follow.SHRUNK = 0.01   -- scales below this mean the window was shrunk away
@@ -48,6 +61,12 @@ Follow.SHRUNK = 0.01   -- scales below this mean the window was shrunk away
 local list = {}
 
 local function plain(v) return type(v) == "number" and not DUI.IsSecret(v) end
+
+local function homeOf(def, kind)
+    if def.aside and def.aside[kind] then return Follow.aside end
+    if def.veil and def.veil[kind] then return Follow.veil end
+    return Follow.hidden
+end
 
 local function frameOf(def, kind)
     local get = def.frames[kind]
@@ -112,7 +131,7 @@ local function park(def)
         local f = frameOf(def, kind)
         if f and not def.parked[kind] and not f:IsShown() and not (def.lent and def.lent[kind])
             and not (def.leave and def.leave(kind)) then
-            f:SetParent(def.veil and def.veil[kind] and Follow.veil or Follow.hidden)
+            f:SetParent(homeOf(def, kind))
             def.parked[kind] = true
             writeWidth(def, f, kind)
             if def.onPark then DUI.SafeCall(def.onPark, kind, f, true) end
@@ -132,15 +151,15 @@ function Follow.Lend(def, kind)
 end
 
 -- Park a window while it is still shown: a lent profession overview that turns
--- into a recipe list, or one the player switches back from the game's look. Veil
--- only: a hidden parent would fire its OnHide and close the trade skill. Out of
+-- into a recipe list, or one the player switches back from the game's look. Aside
+-- or veil only: a hidden parent would fire its OnHide and close the trade skill. Out of
 -- combat only.
 function Follow.Reclaim(def, kind)
     local f = frameOf(def, kind)
-    if not (f and not def.parked[kind] and def.veil and def.veil[kind]) then return false end
+    if not (f and not def.parked[kind] and homeOf(def, kind) ~= Follow.hidden) then return false end
     if InCombatLockdown() or not f:IsShown() then return false end
     def.lent[kind] = nil
-    f:SetParent(Follow.veil)
+    f:SetParent(homeOf(def, kind))
     def.parked[kind] = true
     writeWidth(def, f, kind)
     if def.onPark then DUI.SafeCall(def.onPark, kind, f, true) end
@@ -173,12 +192,44 @@ function Follow.Parked(def, kind) return def.parked[kind] == true end
 function Follow.Away(def, kind)
     local f = frameOf(def, kind)
     if not (f and def.parked[kind]) then return false end
-    if f:GetParent() ~= (def.veil and def.veil[kind] and Follow.veil or Follow.hidden) then return true end
+    if f:GetParent() ~= homeOf(def, kind) then return true end
     local scale = f:GetScale()
     if plain(scale) and scale < Follow.SHRUNK then return true end
     local _, _, _, x, y = f:GetPoint(1)
     return (plain(x) and math.abs(x) >= Follow.AWAY) or (plain(y) and math.abs(y) >= Follow.AWAY) or false
 end
+-- Where the game placed g's top-left corner, as offsets from UIParent's top
+-- left in UIParent units, whatever g's parent is. Read from its anchor, since a
+-- parked frame's own position is the holder's corner. Nil when it hangs on
+-- another frame or a number can't be read.
+local function share(name, a, b)
+    if name:find(a) then return 0 end
+    if name:find(b) then return 1 end
+    return 0.5
+end
+
+function Follow.Home(g)
+    local point, rel, relPoint, x, y = g:GetPoint(1)
+    if point == nil or (rel ~= nil and rel ~= UIParent) then return nil end
+    local s, w, h = g:GetScale(), g:GetWidth(), g:GetHeight()
+    if not (plain(x) and plain(y) and plain(s) and plain(w) and plain(h)) then return nil end
+    relPoint = relPoint or point
+    local W, H = UIParent:GetWidth(), UIParent:GetHeight()
+    local left = share(relPoint, "LEFT", "RIGHT") * W + x * s - share(point, "LEFT", "RIGHT") * w * s
+    local top = -share(relPoint, "TOP", "BOTTOM") * H + y * s + share(point, "TOP", "BOTTOM") * h * s
+    return left, top
+end
+
+-- Put f's top-left corner where the game placed g.
+function Follow.PlaceOn(f, g)
+    local x, y = Follow.Home(g)
+    if not x then return false end
+    local s = f:GetScale()
+    f:ClearAllPoints()
+    f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", x / s, y / s)
+    return true
+end
+
 function Follow.Shown(def, kind) return def.shown[kind] == true end
 
 -- Runs every frame while anything is followed.

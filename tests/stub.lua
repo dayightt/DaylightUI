@@ -210,6 +210,21 @@ _G.issecurevariable = function(t, k)
     return true, nil
 end
 
+-- The nearest ancestor that clips its children, else nil.
+function stub.ClipAncestor(frame)
+    local p = frame:GetParent()
+    while p do
+        if p:DoesClipChildren() then return p end
+        p = p:GetParent()
+    end
+end
+
+-- The game puts a left panel here (UIPanelLayoutFrame.lua: LEFT_OFFSET 16, TOP_OFFSET -116).
+function stub.PlacePanel(frame)
+    frame:ClearAllPoints()
+    frame:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116)
+end
+
 -- The game's panel layout (UIParentPanelManager.lua), put in place by a test
 -- that needs it. Each panel keeps its layout in "UIPanelLayout-*" attributes,
 -- copied from UIPanelWindows the first time anything reads or writes one, and an
