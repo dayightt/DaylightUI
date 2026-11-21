@@ -15,17 +15,36 @@
 -- go past that many tests in flight (three runs of 14 each kept the CPU at 100%
 -- with the game open). Waiting takes no CPU, and the system frees the mutex of a
 -- process that dies. Elsewhere only the run's own workers limit it.
-if arg and arg[1] == "--worker" then
-    local base = arg[2]
-    local takeSlot, freeSlot = function() end, function() end
-    if package.config:sub(1, 1) == "\\" then
-        local ffi = require("ffi")
-        ffi.cdef[[
+local WINDOWS = package.config:sub(1, 1) == "\\"
+
+-- Three slots per eight logical cores: 6 on a 16-thread PC. One per physical core
+-- swamped the PC with the game open; full runs queue (see --par below), so these
+-- slots are shared by one full run and the small runs of other sessions at most.
+local function slotCount()
+    local cores = tonumber(os.getenv("NUMBER_OF_PROCESSORS") or "") or 4
+    return math.max(2, math.floor(cores * 3 / 8))
+end
+
+local winApi
+local function win()
+    if not winApi then
+        winApi = require("ffi")
+        winApi.cdef[[
             void *CreateMutexA(void *attrs, int owned, const char *name);
+            uint32_t WaitForSingleObject(void *handle, uint32_t ms);
             uint32_t WaitForMultipleObjects(uint32_t count, void *const *handles, int all, uint32_t ms);
             int ReleaseMutex(void *handle);
         ]]
-        local count = math.max(2, math.floor((tonumber(os.getenv("NUMBER_OF_PROCESSORS") or "") or 4) / 4))
+    end
+    return winApi
+end
+
+if arg and arg[1] == "--worker" then
+    local base = arg[2]
+    local takeSlot, freeSlot = function() end, function() end
+    if WINDOWS then
+        local ffi = win()
+        local count = slotCount()
         local handles = ffi.new("void *[?]", count)
         for i = 1, count do handles[i - 1] = ffi.C.CreateMutexA(nil, 0, "Local\\DaylightUI_tests_" .. i) end
         local held
@@ -171,12 +190,15 @@ local function wanted(file)
     return all or not SLOW[file]
 end
 
--- Parallel: one child process per file, each run with --one, one slot per four
--- logical cores, at low priority on Windows. All ~70 at once froze the PC and the
--- game, and one per physical core still swamped it, since low priority doesn't
--- shield memory (up to 2.7 GB a file). Each slot takes the next file when it's
--- free; starting them in list order instead left every other slot idle behind one
--- slow file. Results print in list order.
+-- Parallel: one child process per file, each run with --one, in slotCount() slots,
+-- at low priority on Windows. All ~70 at once froze the PC and the game, and one
+-- per physical core still swamped it, since low priority doesn't shield memory
+-- (up to 3.4 GB a file). Each slot takes the next file when it's free; starting
+-- them in list order instead left every other slot idle behind one slow file.
+-- Results print in list order.
+-- A full run (no file names given) waits in line for any other full run on the
+-- machine to end, so one full run at a time gets the slots instead of several
+-- sharing them and all finishing late.
 if par then
     local jobs, skippedSlow = {}, {}
     for _, file in ipairs(TEST_FILES) do
@@ -186,9 +208,18 @@ if par then
             skippedSlow[#skippedSlow + 1] = file
         end
     end
-    local windows = package.config:sub(1, 1) == "\\"
-    local cores = tonumber(os.getenv("NUMBER_OF_PROCESSORS") or "") or 4
-    local pool = math.max(2, math.floor(cores / 4))
+    local windows = WINDOWS
+    local pool = slotCount()
+    if windows and not filter and not only then
+        local ffi = win()
+        -- Held until this run exits; the system frees it then, even after a crash.
+        local lock = ffi.C.CreateMutexA(nil, 0, "Local\\DaylightUI_tests_full_run")
+        if ffi.C.WaitForSingleObject(lock, 0) == 0x102 then
+            io.write("Another full test run is going; waiting for it to finish...\n")
+            io.flush()
+            ffi.C.WaitForSingleObject(lock, 0xFFFFFFFF)
+        end
+    end
     -- Names unique to this run, since other runs may happen at the same time.
     local base = (os.getenv("TEMP") or os.getenv("TMPDIR") or "/tmp") .. "/dui_par_" .. os.time()
         .. "_" .. string.match(tostring({}), "%x+$")
