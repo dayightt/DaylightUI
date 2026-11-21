@@ -29,6 +29,9 @@ Panel.CUT = 12         -- the card's bottom-right corner
 Panel.ICON_CUT = 8
 Panel.LIGHT_H = 2      -- the colored line along the top
 Panel.MIN_W = 160
+Panel.TEXT_ROOM = 1.05 -- the game draws a line a little wider than it measures
+Panel.SHRINK_MIN = 0.7  -- a title's longest word may shrink the letters this far to fit
+Panel.GROW = 1.3       -- a fixed card widens this much at most, for a long tag or tile
 -- Each kind's card is as wide as its board; anything else is as wide as it
 -- needs, up to "other".
 Panel.WIDTH = { unit = 300, mob = 260, node = 210, item = 290, compare = 290, spell = 270, other = 280 }
@@ -428,6 +431,7 @@ function Panel.Begin(p, kind, light, fade)
     p.kind = kind or "other"
     p.lightPair, p.lightFade = light, fade
     p.washColor, p.washDown = nil, nil
+    p.tagSpots = {}
     p.padX, p.padTop, p.rowGap, p.ruleGap = nil, nil, nil, nil
     p.chrome = false
 end
@@ -638,6 +642,15 @@ local function tagsWidth(list)
     return w
 end
 
+-- What a tile's words need across.
+local function tileWidth(t)
+    if t.Need then
+        local w = t.Need()
+        if w > 2 * W().TILE_PAD then return w end
+    end
+    return math.max(widthOf(t.value), widthOf(t.caption)) + 2 * W().TILE_PAD
+end
+
 local function natural(item)
     local k = item.kind
     if k == "header" then
@@ -665,12 +678,67 @@ local function natural(item)
     return 0
 end
 
+-- What a fixed-width card makes room for beyond its board's width: its
+-- widest tag, its sub line, and its tiles side by side. Nothing else (a title and a sentence
+-- wrap).
+local function needed(item)
+    local k, w = item.kind, 0
+    if k == "tiles" then
+        w = (#item.list - 1) * Panel.TILE_GAP
+        for _, t in ipairs(item.list) do w = w + tileWidth(t) end
+    end
+    return w
+end
+
 -- Each piece placed from the panel's top-left at y (going down) and across
 -- the inside width; returns its height.
 -- A card's own spacing (Begin clears them): padX, padTop, rowGap, ruleGap.
 local function padX(p) return p.padX or Panel.PAD_X end
 
 local place = {}
+
+-- A tag on whole screen pixels, height too: its outline is one pixel thick and
+-- drawn through a mask, so off the pixel grid its top or bottom line is lost.
+-- The grid is the screen's, not the card's: the card sits wherever the game
+-- put the tooltip, so each tag's offset is worked out from where the card is
+-- (alignTags, once laid out and again a frame later, when the game has put it).
+local function alignTag(p, spot)
+    local snap = DUI.Pixel.Snap
+    local tag, x, y = spot[1], spot[2], spot[3]
+    local l, t = p:GetLeft(), p:GetTop()
+    if type(l) == "number" and type(t) == "number" and not isSecret(l) and not isSecret(t) then
+        x = snap(p, l + x) - l
+        y = t - snap(p, t - y)
+    else
+        x, y = snap(p, x), snap(p, y)
+    end
+    tag:ClearAllPoints()
+    tag:SetPoint("TOPLEFT", p, "TOPLEFT", x, -y)
+end
+
+local function alignTags(p)
+    for _, spot in ipairs(p.tagSpots) do alignTag(p, spot) end
+end
+
+local function snapTag(p, tag, x, y)
+    tag:SetHeight(math.max(DUI.Pixel.Px(tag, 1), DUI.Pixel.Snap(tag, tag:GetHeight())))
+    local spot = { tag, x, y }
+    p.tagSpots[#p.tagSpots + 1] = spot
+    alignTag(p, spot)
+end
+
+-- The widest single word of a text, measured on the fs itself (its text put
+-- back after).
+local function longestWord(fs, text)
+    if type(text) ~= "string" then return 0 end
+    local best = 0
+    for word in text:gmatch("%S+") do
+        fs:SetText(word)
+        best = math.max(best, widthOf(fs))
+    end
+    fs:SetText(text)
+    return best
+end
 
 function place.header(p, item, y, inner)
     local x = padX(p)
@@ -679,7 +747,6 @@ function place.header(p, item, y, inner)
         local s = spec.iconSize or 36
         local ic = item.icon
         ic:SetSize(s, s)
-        ic:SetPoint("TOPLEFT", p, "TOPLEFT", x, -y)
         local one = DUI.Pixel.Px(ic, 1)
         ic.edge:ClearAllPoints()
         ic.edge:SetPoint("TOPLEFT", ic, "TOPLEFT", -one, one)
@@ -700,6 +767,18 @@ function place.header(p, item, y, inner)
         -- A secret name can't be measured: it gets the whole room, cut there.
         item.title:SetWidth(room)
     elseif widthOf(item.title) > room + 1 then
+        -- A word wider than the row can't wrap: the letters shrink to fit it
+        -- (down to SHRINK_MIN) instead of ending in "...".
+        local word = longestWord(item.title, item.spec.title)
+        if word > room then
+            local z = item.title.size * math.max(Panel.SHRINK_MIN, room / word)
+            Style.SetTextSize(item.title, z)
+            item.title.size = z
+            one = lineHeight(z, item.title.slot)
+            th = one
+        end
+    end
+    if not isSecret(item.spec.title) and widthOf(item.title) > room + 1 then
         item.title:SetWidth(room)
         item.title:SetWordWrap(true)
         item.title:SetMaxLines(2)
@@ -728,26 +807,46 @@ function place.header(p, item, y, inner)
     end
     local tagGap = spec.tagGap or 5
     local rows = {}
+    -- Tags sit beside the icon, under the words, while each fits on one row
+    -- there. A tag that would wrap (a long "Consumable · Food & Drink" in
+    -- Spanish) moves them all under the icon instead, across the card's whole
+    -- width, so no tag is two lines tall next to a short icon.
+    local under = false
+    local tagRoom = wide
     if item.tags and #item.tags > 0 then
-        -- As many rows as the tags need beside the icon; a tag longer than a
-        -- whole row wraps its own words (W.Tag's FitTo) and its row grows.
+        for _, tag in ipairs(item.tags) do
+            if tag:GetWidth() > wide then under = true end
+        end
+        if under then tagRoom = inner end
+        -- As many rows as the tags need; a tag longer than a whole row wraps
+        -- its own words (W.Tag's FitTo) and its row grows.
         local tx = 0
         rows[1] = W().TAG_H
         for _, tag in ipairs(item.tags) do
-            local tagH = tag.FitTo and tag.FitTo(wide) or W().TAG_H
+            local tagH = tag.FitTo and tag.FitTo(tagRoom) or W().TAG_H
             local w = tag:GetWidth()
-            if tx > 0 and tx + w > wide then
+            if tx > 0 and tx + w > tagRoom then
                 rows[#rows + 1], tx = W().TAG_H, 0
             end
             tag.row, tag.at = #rows, tx
             rows[#rows] = math.max(rows[#rows], tagH)
             tx = tx + w + Panel.TAG_GAP
         end
-        col = col + tagGap
-        for i, rh in ipairs(rows) do col = col + rh + (i > 1 and Panel.TAG_ROW_GAP or 0) end
     end
-    -- The words sit in the middle of the icon's height when shorter.
-    local top = y + math.max(0, (h - col) / 2)
+    local rowsH = 0
+    for i, rh in ipairs(rows) do rowsH = rowsH + rh + (i > 1 and Panel.TAG_ROW_GAP or 0) end
+    local beside = #rows > 0 and not under
+    if beside then col = col + tagGap + rowsH end
+    -- Shorter than the icon, the words sit in the middle of its height; taller
+    -- (a wrapped name), the icon sits in the middle of theirs.
+    local block = math.max(h, col)
+    local top = y + (block - col) / 2
+    if item.icon then
+        -- With tags beside it the icon keeps the top; without, it sits in the
+        -- middle of a taller (wrapped) name.
+        local drop = beside and 0 or (block - h) / 2
+        item.icon:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -(y + drop))
+    end
     item.title:SetPoint("TOPLEFT", p, "TOPLEFT", x, -top)
     if item.right then
         -- On the title's baseline, at the right edge (a mob's level).
@@ -760,17 +859,22 @@ function place.header(p, item, y, inner)
     end
     if #rows > 0 then
         local rowY = {}
+        local tagX = x
         local at = ty + tagGap
+        if under then
+            tagX = padX(p)
+            at = y + block + tagGap
+        end
         for i, rh in ipairs(rows) do
             rowY[i] = at
             at = at + rh + Panel.TAG_ROW_GAP
         end
         for _, tag in ipairs(item.tags) do
-            tag:SetPoint("TOPLEFT", p, "TOPLEFT", x + tag.at, -rowY[tag.row])
+            snapTag(p, tag, tagX + tag.at, rowY[tag.row])
         end
         ty = at - Panel.TAG_ROW_GAP
     end
-    item.h = math.max(h, ty - y)
+    item.h = math.max(block, ty - y)
     return item.h
 end
 
@@ -804,9 +908,20 @@ function place.text(p, item, y, inner)
     return lines * (fs.size + Panel.LINE_EXTRA) + (lines - 1) * Panel.LINE_SPACING
 end
 
-function place.section(p, item, y)
-    item.fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
-    return lineHeight(item.fs.size, item.fs.slot)
+function place.section(p, item, y, inner)
+    local fs = item.fs
+    fs:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p), -y)
+    local one = lineHeight(fs.size, fs.slot)
+    -- A quest's name and its tags can be longer than the card: they wrap onto a
+    -- second line (the game's measure is a little short, hence the margin).
+    if widthOf(fs) * Panel.TEXT_ROOM > inner then
+        fs:SetWidth(inner)
+        fs:SetWordWrap(true)
+        fs:SetMaxLines(2)
+        fs:SetSpacing(Panel.LINE_SPACING)
+        return 2 * one + Panel.LINE_SPACING
+    end
+    return one
 end
 
 function place.line(p, item, y, inner)
@@ -867,9 +982,22 @@ end
 function place.tiles(p, item, y, inner)
     local n = #item.list
     local w = (inner - (n - 1) * Panel.TILE_GAP) / math.max(1, n)
+    -- Equal widths; when one's words need more, each takes what its words
+    -- need and the rest is shared out, so none is cut.
+    local nat, total, tight = {}, (n - 1) * Panel.TILE_GAP, false
     for i, t in ipairs(item.list) do
-        t:SetSize(w, W().TILE_H)
-        t:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p) + (i - 1) * (w + Panel.TILE_GAP), -y)
+        nat[i] = tileWidth(t)
+        total = total + nat[i]
+        if nat[i] > w + 0.5 then tight = true end
+    end
+    local x = 0
+    for i, t in ipairs(item.list) do
+        local tw = w
+        if tight then tw = nat[i] + math.max(0, inner - total) / n end
+        if tight and total > inner then tw = nat[i] * inner / total end
+        t:SetSize(tw, W().TILE_H)
+        t:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p) + x, -y)
+        x = x + tw + Panel.TILE_GAP
         Style.LayoutShell(Style.GetShell(t))
     end
     return W().TILE_H
@@ -878,11 +1006,12 @@ end
 function place.tags(p, item, y, inner)
     local x, row = 0, 0
     for _, tag in ipairs(item.list) do
+        if tag:GetWidth() > inner then tag.FitWidth(inner) end
         local w = tag:GetWidth()
         if x > 0 and x + w > inner then
             x, row = 0, row + 1
         end
-        tag:SetPoint("TOPLEFT", p, "TOPLEFT", padX(p) + x, -(y + row * (W().TAG_H + 4)))
+        snapTag(p, tag, padX(p) + x, y + row * (W().TAG_H + 4))
         x = x + w + 4
     end
     return (row + 1) * W().TAG_H + row * 4
@@ -917,7 +1046,11 @@ function Panel.Finish(p)
     local most = Panel.WIDTH[p.kind] or Panel.WIDTH.other
     -- Rounded up: a card a fraction short of its widest text cut it with "...".
     local w = math.ceil(math.min(most, math.max(Panel.MIN_W, widest + 2 * padX(p))))
-    if Panel.FIXED[p.kind] then w = most end
+    if Panel.FIXED[p.kind] then
+        local need = 0
+        for i = 1, p.count do need = math.max(need, needed(p.items[i])) end
+        w = math.ceil(math.min(most * Panel.GROW, math.max(most, need + 2 * padX(p))))
+    end
     local inner = w - 2 * padX(p)
     local y, last = p.padTop or Panel.PAD_TOP, nil
     local rowGap = p.rowGap or Panel.ROW_GAP
@@ -936,6 +1069,9 @@ function Panel.Finish(p)
     local h = math.floor(y + Panel.PAD_BOTTOM + 0.5)
     p.wantW, p.wantH = w, h
     Panel.Pin(p)
+    alignTags(p)
+    -- Where the game puts the tooltip may come a frame later.
+    C_Timer.After(0, function() if p:IsShown() then alignTags(p) end end)
     Panel.PaintLight(p)
     Panel.PaintWash(p)
     p.shell:Show()
