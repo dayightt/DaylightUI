@@ -18,8 +18,7 @@
 -- see-through and tiny, and never clipped. Needed for windows that check
 -- IsVisible as they open (the trainer closes itself otherwise) or end their
 -- session in OnHide. The window then takes the game's spot with Follow.PlaceOn,
--- since the parked frame itself is a dot in the corner. def.veil (the same, but
--- clipped to a pixel off screen) is on its way out.
+-- since the parked frame itself is a dot in the corner.
 -- Follow.Lend gives a shown window back for a while (Beast Training) and it is
 -- parked again once hidden. Follow.Unpark hands a hidden window back right as
 -- combat starts, so the game's window can open untainted in the fight.
@@ -38,12 +37,6 @@ Win.Followers = Follow
 
 Follow.hidden = CreateFrame("Frame", nil, UIParent)   -- child of UIParent so parked windows keep their scale and position
 Follow.hidden:Hide()
-Follow.veil = CreateFrame("Frame", nil, UIParent)
-Follow.veil:SetSize(1, 1)
-Follow.veil:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", -64, -64)
-Follow.veil:SetAlpha(0)
-Follow.veil:SetClipsChildren(true)
-Follow.veil:EnableMouse(false)
 -- Windows that must stay really shown (the trainer closes itself unless it is
 -- visible, others end their session in OnHide) wait here: see-through, and
 -- small enough that nothing in them can be clicked. Never a clipping frame.
@@ -64,7 +57,6 @@ local function plain(v) return type(v) == "number" and not DUI.IsSecret(v) end
 
 local function homeOf(def, kind)
     if def.aside and def.aside[kind] then return Follow.aside end
-    if def.veil and def.veil[kind] then return Follow.veil end
     return Follow.hidden
 end
 
@@ -152,7 +144,7 @@ end
 
 -- Park a window while it is still shown: a lent profession overview that turns
 -- into a recipe list, or one the player switches back from the game's look. Aside
--- or veil only: a hidden parent would fire its OnHide and close the trade skill. Out of
+-- only: a hidden parent would fire its OnHide and close the trade skill. Out of
 -- combat only.
 function Follow.Reclaim(def, kind)
     local f = frameOf(def, kind)

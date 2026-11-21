@@ -80,7 +80,7 @@ end
 local function parked(f)
     local follow = DUI.Win and DUI.Win.Followers
     local p = f:GetParent()
-    return follow ~= nil and p ~= nil and (p == follow.hidden or p == follow.veil or p == follow.aside)
+    return follow ~= nil and p ~= nil and (p == follow.hidden or p == follow.aside)
 end
 
 -- Moves a window to its saved spot: top-left corner, in UIParent units from

@@ -107,8 +107,8 @@ T.test("windows: a parked window handed back for a fight gets the game's own wid
     local game = CreateFrame("Frame", "TestPanelWindow", UIParent)
     game:SetWidth(338)
     game:Hide()
-    local def = Win.Follow({ key = "fight", frames = { w = function() return game end }, veil = { w = true }, width = function() return 300 end })
-    T.eq(game:GetParent(), Win.Followers.veil)
+    local def = Win.Follow({ key = "fight", frames = { w = function() return game end }, aside = { w = true }, width = function() return 300 end })
+    T.eq(game:GetParent(), Win.Followers.aside)
     T.eq(game:GetWidth(), 320, "ours, plus the gap")
     T.eq(Win.Followers.Unpark(def, "w"), true)
     T.eq(game:GetParent(), UIParent)
@@ -118,7 +118,7 @@ T.test("windows: a parked window handed back for a fight gets the game's own wid
     T.eq(game:GetParent(), UIParent, "not in the fight")
     stub.LeaveCombat()
     Win.Followers.Tick()
-    T.eq(game:GetParent(), Win.Followers.veil, "parked again after it")
+    T.eq(game:GetParent(), Win.Followers.aside, "parked again after it")
     T.eq(game:GetWidth(), 320)
     ShowUIPanel(game)
     T.eq(Win.Followers.Unpark(def, "w"), false, "a shown one stays")
@@ -167,6 +167,16 @@ T.test("windows: a covered game window opened by a key in a fight still lets the
     noPanelManager()
 end)
 
+
+T.test("windows: no game window is ever parked under a clipping frame", function()
+    local DUI = stub.Load()
+    local F = DUI.Win.Followers
+    T.isnil(F.veil, "the clipping veil is gone")
+    for _, home in ipairs({ F.hidden, F.aside }) do
+        T.eq(home:DoesClipChildren(), false)
+        T.isnil(stub.ClipAncestor(home))
+    end
+end)
 
 T.test("windows: the aside holder keeps a game window shown and visible without clipping it", function()
     local DUI = stub.Load()
