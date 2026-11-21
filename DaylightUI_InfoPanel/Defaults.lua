@@ -111,7 +111,9 @@ ns.DEFAULTS = {
              apKind = "auto",             -- auto (ranged for hunters), attack or ranged
              goldChars = "all",           -- gold tooltip lists "all" characters or only your "faction"
              soulBag = false,             -- the Soul Shards text shows the soul bag's size too
-             numberColor = "accent", numberCustom = ink(INK.VALUE) },   -- accent, white, class or custom
+             numberColor = "accent", numberCustom = ink(INK.VALUE),   -- accent, white, class or custom
+             ownFade = false,             -- false: fades with the panel; true: uses the fade below
+             fade = DaylightUI.Fade.Defaults() },
     -- Data bar along the bottom of the screen. Up to four texts on each side
     -- of the center one; "none" leaves a slot empty.
     databar = { enabled = false, widthPct = 60, height = 24, textSize = 12, icons = true, labels = false, line = true,

@@ -20,6 +20,7 @@ DUI.PatchNotes = {
         { "Fade", "The whole UI can fade away while you fly on a flight path and come back as you land. Switch it on in General > Fade" },
         { "NPC window", "Dungeon, elite, raid and PvP quests wear the same tag as in the quest tracker, in an NPC's quest list and under the quest's title" },
         { "Unit frames", "The name tab above your frames can be dark, your class color, your accent or any color you pick" },
+        { "Info panel", "The data texts under the minimap can have their own fade and opacity, apart from the minimap" },
     }, fixed = {
         { "Quests", "A quest's dungeon or elite tag no longer sits squashed against the end of its title in a narrow tracker" },
         { "Loot rolls", "Long item names, roll buttons and the result line on loot roll cards fit in every language instead of being cut off" },

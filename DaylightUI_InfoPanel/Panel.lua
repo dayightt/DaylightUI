@@ -509,6 +509,7 @@ function Panel.Layout(db)
     end
     Style.LayoutShell(Style.GetShell(xp))
     Panel.PlaceXPFade(db)
+    Panel.PlaceDataFade(db)
     DUI.Movers.Suspend("infopanel.xp", not xpDetached)
     Panel.UpdateXPGrip(db)
 
@@ -628,6 +629,19 @@ function Panel.PlaceXPFade(db)
     if was then DUI.Fade.Hold(owner == "own" and "InfoPanel.xp" or "InfoPanel.panel", false) end
 end
 
+-- The same for the data texts under the map: the panel's fade (as its child),
+-- or their own, ignoring the panel's alpha so the two fade apart.
+function Panel.PlaceDataFade(db)
+    local own = db.data.ownFade == true
+    local was = Panel.dataFadeOwner
+    if own == was then return end
+    Panel.dataFadeOwner = own
+    local strip = Panel.dataArea
+    strip:SetIgnoreParentAlpha(own)
+    if not own then strip:SetAlpha(1) end
+    if was ~= nil then DUI.Fade.Hold(own and "InfoPanel.data" or "InfoPanel.panel", false) end
+end
+
 -- The same for the damage meters: the panel's fade, or their own. Inside the
 -- panel the meter then ignores the panel's alpha, so the two fade apart; in
 -- its own window that window is faded instead.
@@ -704,6 +718,12 @@ function ns.Build(mod)
         frames = function()
             xpList[1] = mod.db.xp.ownFade and Panel.xp:IsShown() and Panel.xp or nil
             return xpList
+        end }
+    local dataList = {}
+    DUI.Fade.Register{ key = "InfoPanel.data", scope = "InfoPanel", path = "data.fade", page = "InfoPanel.data",
+        frames = function()
+            dataList[1] = mod.db.data.ownFade and Panel.dataArea:IsShown() and Panel.dataArea or nil
+            return dataList
         end }
     local meterList = {}
     DUI.Fade.Register{ key = "InfoPanel.meter", scope = "InfoPanel", path = "meter.fade", page = ns.MeterOptions.PAGE,

@@ -1741,6 +1741,42 @@ T.test("info panel: the experience bar's own fade, attached or separate, and bac
     T.eq(P.xp:GetAlpha(), 1, "float: back on a gain")
 end)
 
+T.test("info panel: the data texts' own fade, and back to the panel's", function()
+    login()
+    local F = DaylightUI.Fade
+    local function settle()
+        F.Step()
+        for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
+    end
+    local P = stub.infopanel.Panel
+    local strip = P.dataArea
+    local function set(k, v) DaylightUI:Set("InfoPanel", k, v) end
+    local function rest() stub.Advance(3); settle() end
+    set("fade.delay", 0)
+    set("data.fade.delay", 0)
+    T.falsy(strip:IsIgnoringParentAlpha(), "off by default: it follows the panel")
+    set("data.fade.mode", "always")
+    set("data.fade.alpha", 0.3)
+    rest()
+    T.eq(strip:GetAlpha(), 1, "its fade waits for the switch")
+    set("data.ownFade", true)
+    rest()
+    T.near(strip:GetAlpha(), 0.3, 0.01, "its own fade: dimmer than the map")
+    T.eq(P.holder:GetAlpha(), 1, "the panel stays")
+    set("data.fade.mode", "never")
+    set("data.fade.opacity", 0.6)
+    set("fade.mode", "always")
+    set("fade.alpha", 0)
+    rest()
+    T.eq(P.holder:GetAlpha(), 0, "the panel faded")
+    T.truthy(strip:IsIgnoringParentAlpha(), "the texts don't")
+    T.near(strip:GetAlpha(), 0.6, 0.01, "and rest at their own opacity")
+    set("data.ownFade", false)
+    rest()
+    T.falsy(strip:IsIgnoringParentAlpha(), "switch off: the panel's fade again")
+    T.eq(strip:GetAlpha(), 1, "no alpha of its own left over")
+end)
+
 T.test("info panel: faded out, the minimap goes see-through, never hidden (its icons can't fade with the panel)", function()
     login()
     -- Hidden and shown again, the game's map lost its picture (blank at login

@@ -18,6 +18,14 @@ local function xpFadeCard()
     card.tab = "Fade"
     return card
 end
+-- The data texts' own fade, the same way: off, they fade with the panel.
+local function dataFadeCard()
+    local card = DaylightUI.Fade.Card("data.fade.", nil, function(get) return get("data.enabled") ~= true end, "Data texts", { own =
+        { type = "toggle", key = "data.ownFade", label = "Data texts have their own fade", since = "2.3",
+          desc = "When off, the data texts fade with the panel. When on, they follow the settings here, so they can rest dimmer than the minimap or fade away on their own." } })
+    card.label = "Data texts fade"
+    return card
+end
 local function noClock(get) return get("map.enabled") ~= true or get("map.clock.enabled") ~= true end
 local function noFps(get) return get("map.enabled") ~= true or get("map.fps.enabled") ~= true end
 local function noLocation(get) return get("map.enabled") ~= true or get("map.location.enabled") ~= true end
@@ -112,7 +120,7 @@ ns.OPTIONS = { pages = {
       desc = "The top-right panel: experience bar on top, damage meter and minimap below. Move it in unlock mode. The experience bar has its own page.",
       groups = {
         { label = "Borders and background", desc = "The experience bar's box. The minimap's box and each meter window have their own. At 0 opacity the box disappears; the bars still show.", items = panelLook },
-        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter windows, if used). So does the experience bar, unless you give it its own fade on the Experience bar page. The damage meters can have their own on the Meters page." } }, nil, "Info panel"),
+        DaylightUI.Fade.Card("fade.", { { type = "text", label = "The damage meter and minimap fade together (and the separate meter windows, if used). So do the experience bar and the data texts, unless you give them their own fade on their pages. The damage meters can have their own on the Meters page." } }, nil, "Info panel"),
       } },
     { id = "xp", label = "Experience bar",
       desc = "What the experience and reputation bars show, how they look and where they sit.",
@@ -365,6 +373,7 @@ ns.OPTIONS = { pages = {
         { label = "Slots", desc = "What each slot shows, left to right. The clock, framerate and coordinates are on the minimap too.", items = {
             slotItem(1), slotItem(2), slotItem(3), slotItem(4), slotItem(5),
         } },
+        dataFadeCard(),
       } },
     { id = "databar", label = "Data bar",
       desc = "A slim angled bar at the bottom of the screen: the clock in the middle, your data texts on both sides.",
