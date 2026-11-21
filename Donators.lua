@@ -38,6 +38,7 @@ Donators.LIST = {
     "Vlora",
     "scoobydoomh",
     "tanglies",
+    "Webster Wyrmcrest",
     "Alcasan",
     "blukraken",
     "Gimson",
@@ -68,6 +69,7 @@ Donators.LIST = {
     "amshagar",
     "Stavlor",
     "Luka",
+    "Clément aka Harlow Bloom - Forever - PvP RP",
     "HappyS",
     "ramnokri",
     "Shady",
@@ -87,11 +89,14 @@ Donators.LIST = {
     "Doyal_Christopher",
     "Caucherman",
     "Gutrush",
+    "ElJakeo",
     "Hugo",
+    "Daniel C.",
     "sam",
     "Daniel",
     "Dragon Slayer",
     "Auld Gadgie",
+    "Serzhyk",
 }
 
 -- Monthly supporters (a Ko-fi subscription or an active Patreon member), shown
@@ -119,6 +124,7 @@ Donators.MONTHLY = {
     "Stavlor",
     "Harrumph",
     "Luka",
+    "Daniel C.",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
