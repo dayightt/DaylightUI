@@ -663,3 +663,47 @@ T.test("sell: Post rests while the Auction House answers something else", functi
     T.falsy(page.right.box.post.off, "free again")
     quiet()
 end)
+
+-- On a controller the boxes are stepped with the D-pad, never typed: A picks
+-- one up, left and right change it, and X posts.
+T.test("sell: on a controller the D-pad steps the amount and price, and X posts", function()
+    local A, DUI = load()
+    local page = open(A)
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    A.SellPage.Pick("2592", true)
+    AHW.Settle()
+    local form = page.right.form
+    local function press(box, dir)
+        box.OnSmartNavSelect()
+        box.OnSmartNavClick()   -- A picks it up
+        T.truthy(stub.overrides.PADDRIGHT, "left and right taken while it's up")
+        local b = _G[stub.overrides[dir > 0 and "PADDRIGHT" or "PADDLEFT"].click]
+        b:GetScript("OnClick")(b, "LeftButton", true)
+        b:GetScript("OnClick")(b, "LeftButton", false)
+        box.OnSmartNavClick()   -- A puts it down
+        T.eq(stub.overrides.PADDRIGHT, nil, "put down")
+        box.OnSmartNavDeselect()
+    end
+    press(form.qty, -1)
+    T.eq(form.qty:GetText(), "13", "one fewer")
+    press(form.price, 1)
+    T.eq(form.price:GetText(), "32c", "a copper price steps by a copper")
+    -- a gold price lands on round amounts
+    T.eq(A.SellPage.StepMoney(12 * G + 3400, 1), 13 * G)
+    T.eq(A.SellPage.StepMoney(12 * G + 3400, -1), 12 * G)
+    T.eq(A.SellPage.StepMoney(155, -1, 1), 150)
+    T.eq(A.SellPage.StepMoney(1, -1, 1), 1, "never under the lowest")
+    local x
+    for _, e in ipairs(DUI.Pad.Entries(A.Window.frame)) do
+        if e.key == "X" and (not e.when or e.when()) then x = e; break end
+    end
+    T.truthy(x, "X acts on Sell")
+    T.eq(x.label(), page.right.box.post.text:GetText())
+    stub.Key(x.run)   -- the controller's button press is the player's
+    local args = AHW.Log("PostCommodity")[1]
+    T.truthy(args, "X posted")
+    T.eq(args[3], 13)
+    _G.GamepadMode, _G.InputUtil = nil, nil
+    quiet()
+end)

@@ -859,3 +859,37 @@ T.test("ah buy page: Confirm takes the click as soon as its total shows, a doubl
     T.eq(AHW.Calls("ConfirmCommoditiesPurchase"), 1, "two clicks bought it")
     quiet()
 end)
+
+T.test("ah buy page: on a controller the D-pad steps the amount, and Y opens a row's menu by the row", function()
+    local A, page = load()
+    local BP = A.BuyPage
+    local nop = function() end
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = nop, FrameHidden = nop,
+        HandlePopupShown = nop, HandlePopupHide = nop } }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    enter(page.box, "runecloth")
+    AHW.Settle()
+    local t = page.table
+    local line = t:Row(1)
+    local more = line.padMore(line)
+    T.truthy(more, "Y on an item row: its menu")
+    more(line)
+    T.eq(DaylightUI.Widgets.menuOwner, line, "opened by the row, not where the hidden mouse is")
+    menuRow("fav")
+    DaylightUI.Widgets.CloseMenu()
+    line:Click()
+    AHW.Settle()
+    tween(A, 1)
+    T.isnil(t:Row(2).padMore(t:Row(2)), "a price step has no menu")
+    local box = page.amount
+    box.OnSmartNavClick()
+    local right = _G[stub.overrides.PADDRIGHT.click]
+    right:GetScript("OnClick")(right, "LeftButton", true)
+    right:GetScript("OnClick")(right, "LeftButton", false)
+    T.eq(BP.state.amount, 2, "one more")
+    T.eq(page.amount:GetText(), "2")
+    box.OnSmartNavDeselect()
+    T.eq(stub.overrides.PADDRIGHT, nil, "moving away puts it down")
+    _G.GamepadMode, _G.InputUtil = nil, nil
+    quiet()
+end)

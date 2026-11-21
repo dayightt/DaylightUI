@@ -513,6 +513,15 @@ function Main.Build(mod)
     for _, t in ipairs(Main.TABS) do Win.AddPage(f, t.id, pageOf(t.id)) end
     for _, t in ipairs(Main.TABS) do Win.Build(f, t.id) end
     Win.Tabs(f, Main.TABS, function(id) Main.ShowTab(id) end)
+    -- On a controller X posts on the Sell page, whose Post button sits in its
+    -- own box rather than a footer; the other pages' footers answer X as usual.
+    f.padKeys = {
+        { key = "X", follow = true,
+          label = function() local b = ns.SellPage.PostButton(); return b and b.text:GetText() end,
+          when = function() return ns.SellPage.PostButton() ~= nil end,
+          run = function() ns.SellPage.Key() end },
+        DUI.Pad.FOOTER_KEY,
+    }
     local link = W.Link(f, Style.SIZE.small)
     link.SetLabel(L["Full scan"])
     link:SetScript("OnClick", function() Main.FullScan() end)

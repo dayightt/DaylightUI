@@ -124,6 +124,16 @@ function P.PlainMoney(c)
     return table.concat(out, " ")
 end
 
+-- One controller step of a price: a tenth of its first digit, landing on
+-- round amounts (12g 34s steps to 13g, 31c to 32c), so a few presses reach
+-- any price whatever its size.
+function P.StepMoney(c, dir, lowest)
+    c = floor(c or 0)
+    local unit = 10 ^ math.max(0, #tostring(c) - 2)
+    local to = dir > 0 and (floor(c / unit) + 1) * unit or (math.ceil(c / unit) - 1) * unit
+    return math.max(lowest or 0, to)
+end
+
 -- "1g 20s 5c" -> 12005; nil when it isn't an amount (a bare number has no
 -- coin, so it isn't one). Gold, silver and copper in that order, each once.
 function P.ReadMoney(text)
@@ -1012,7 +1022,7 @@ function P.FillList()
                 picked = P.picked == r.key, tooltip = lineTip,
                 link = function() return ns.Items.Hyperlink(r.key) end,
                 onClick = function() P.Pick(r.key, true) end,
-                onRightClick = function() P.LineMenu(r) end,
+                onRightClick = function(b) P.LineMenu(r, b) end,
             })
         end
     end
@@ -1022,9 +1032,9 @@ function P.FillList()
 end
 
 -- A line's right-click: pin it on top, or hide it at the bottom of the list.
-function P.LineMenu(r)
+function P.LineMenu(r, owner)
     local pinned, hidden = P.IsPinned(r.key), P.IsHidden(r.key)
-    W.OpenMenu(nil, { "pin", "hide" }, {
+    W.OpenMenu(owner, { "pin", "hide" }, {
         pin = pinned and L["Unpin"] or L["Pin to the top"],
         hide = hidden and L["Show in the list again"] or L["Hide from the list"],
     }, nil, function(k)
@@ -1097,6 +1107,14 @@ local function buildForm(right, sale)
     label(form, L["How many"], 0)
     form.qty = W.Input(form, { numeric = true, justify = "CENTER", onChange = function(text, user) typed("qty", text, user) end })
     form.qty:SetWidth(64)
+    W.PadNumber(form.qty, function(dir)
+        local r = P.picked and byKey[P.picked]
+        if not r then return end
+        local n = (P.edit and P.edit.qty) or tonumber(form.qty:GetText()) or 0
+        n = math.max(1, math.min(r.have or 1, n + dir))
+        form.qty:SetText(tostring(n))
+        typed("qty", tostring(n), true)
+    end)
     form.qty:SetPoint("TOPLEFT", form, "TOPLEFT", P.LABEL_W, 0)
     form.all = W.Link(form)
     form.all:SetPoint("LEFT", form.qty, "RIGHT", 10, 0)
@@ -1113,6 +1131,11 @@ local function buildForm(right, sale)
     label(form, L["Price each"], P.FORM_STEP)
     form.price = W.Input(form, { hint = P.PlainMoney(12005), onChange = function(text, user) typed("price", text, user) end })
     form.price:SetWidth(120)
+    W.PadNumber(form.price, function(dir)
+        local text = P.PlainMoney(P.StepMoney(P.ReadMoney(form.price:GetText()), dir, 1))
+        form.price:SetText(text)
+        typed("price", text, true)
+    end)
     form.price:SetPoint("TOPLEFT", form, "TOPLEFT", P.LABEL_W, -P.FORM_STEP)
     form.hint = Style.Text(form, Style.SIZE.small, "LEFT")
     -- the right end on the price line itself: the form's own middle is a line lower
@@ -1139,6 +1162,12 @@ local function buildForm(right, sale)
     label(form, L["Starting bid"], 3 * P.FORM_STEP)
     form.bid = W.Input(form, { hint = L["none"], onChange = function(text, user) typed("bid", text, user) end })
     form.bid:SetWidth(120)
+    W.PadNumber(form.bid, function(dir)
+        local c = P.StepMoney(P.ReadMoney(form.bid:GetText()), dir)
+        local text = c > 0 and P.PlainMoney(c) or ""
+        form.bid:SetText(text)
+        typed("bid", text, true)
+    end)
     form.bid:SetPoint("TOPLEFT", form, "TOPLEFT", P.LABEL_W, -3 * P.FORM_STEP)
     form.bidHint = Style.Text(form, Style.SIZE.small, "LEFT")
     form.bidHint:SetPoint("LEFT", form.bid, "RIGHT", 10, 0)
@@ -1357,6 +1386,12 @@ end
 -- The key binding: the Post button, in the key press.
 function P.Key()
     if visible() and ns.AH.IsOpen() then P.Post() end
+end
+
+-- The Post button while it shows on this page, for the controller's X.
+function P.PostButton()
+    local b = page and page.right and page.right.box and page.right.box.post
+    if b and visible() and b:IsVisible() then return b end
 end
 
 local function forget()

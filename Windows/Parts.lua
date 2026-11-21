@@ -966,6 +966,13 @@ local function makeTableRow(t, kind)
             t.opts.onClick(self, d, self.index, button)
         end
     end)
+    -- Only rows in view have a frame, so the D-pad reaching the edge scrolls.
+    b.OnSmartNavSelect = function(self) if self.index then t:PadEdge(self.index) end end
+    -- The controller's Y does what a right-click would (opts.padMore(data) returns it).
+    b.padMore = function(self)
+        local d = self.data
+        if d and not d.dim and t.opts.padMore then return t.opts.padMore(d) end
+    end
     local make = t.opts.make and t.opts.make[kind]
     if make then make(b) end
     return b
@@ -1193,6 +1200,25 @@ function Table:Scroll(px)
     self.at = math.max(0, px or 0)
     self:Draw()
     self.bar.Update()
+end
+
+-- The D-pad landed on row i. Scroll so it and the rows on either side are in view,
+-- then aim the D-pad at the frame now showing row i: frames are handed out by
+-- position, so after a scroll another frame holds it.
+function Table:PadEdge(i)
+    local view = self:ViewHeight()
+    local at = self.at
+    local below, above = i + 1, i - 1
+    if below <= #self.rows and self.tops[below] + self:RowHeight(below) > at + view then
+        at = self.tops[below] + self:RowHeight(below) - view
+    end
+    local top = self.tops[math.max(1, above)]
+    if top < at then at = top end
+    if at == self.at then return end
+    self:Scroll(at)
+    self.bar.Wake()
+    local b = self.shown[i]
+    if b then DUI.Pad.Settle(b) end
 end
 
 -- The frame showing row i, or nil if it's out of view.

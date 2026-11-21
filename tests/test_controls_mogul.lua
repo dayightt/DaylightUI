@@ -961,3 +961,38 @@ T.test("controls_mogul: a modified click on an item row or line goes to the game
     T.eq(lines, 1, "a plain click on a line")
     _G.HandleModifiedItemClick = nil
 end)
+
+-- On a controller the game runs a row's OnSmartNavSelect when the D-pad lands
+-- on it. Only rows in view have a frame, so landing at the edge must scroll.
+T.test("controls_mogul: the D-pad scrolls a table at its edge and stays on the same row", function()
+    local DUI = stub.Load()
+    local t = table400(DUI, 100)
+    local line = DUI.Win.Parts.LINE
+    local aimed
+    local was = _G.SmartNavigation
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+    _G.SmartNavigation = { RefreshButtonGroups = function() end, GetCurrentButton = function() end,
+        SetTargetButtonForFrame = function(_, _, b) aimed = b end }
+    DUI.Pad.focused = t.page
+    -- the last row wholly in view
+    local last = math.floor(400 / line)
+    local b = t.shown[last]
+    T.truthy(b and b.OnSmartNavSelect, "the row answers the D-pad")
+    b.OnSmartNavSelect(b)
+    stub.RunTimers()
+    T.truthy(t.at > 0, "moved down")
+    T.truthy(t.tops[last + 1] + line <= t.at + 400, "the next row is in view")
+    T.eq(aimed, t.shown[last], "still on the row it landed on")
+    local first
+    for i = 1, 100 do if t.shown[i] then first = i; break end end
+    t.shown[first].OnSmartNavSelect(t.shown[first])
+    stub.RunTimers()
+    T.truthy(t.tops[math.max(1, first - 1)] >= t.at, "it and the row above are in view")
+    T.eq(aimed, t.shown[first], "still on the same row")
+    t:Scroll(0)
+    t.shown[3].OnSmartNavSelect(t.shown[3])
+    T.eq(t.at, 0, "a row in the middle moves nothing")
+    DUI.Pad.focused = nil
+    _G.SmartNavigation, _G.InputUtil, _G.GamepadMode = was, nil, nil
+end)

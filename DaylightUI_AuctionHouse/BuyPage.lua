@@ -1287,19 +1287,19 @@ function BP.PickStep(s)
 end
 
 -- A result's right-click: on or off the favorites.
-function BP.RowMenu(d)
+function BP.RowMenu(d, owner)
     if type(d.itemID) ~= "number" then return end
     local on = BP.IsFavorite(d.itemID)
-    W.OpenMenu(nil, { "fav" }, { fav = on and L["Remove from favorites"] or L["Add to favorites"] }, nil, function()
+    W.OpenMenu(owner, { "fav" }, { fav = on and L["Remove from favorites"] or L["Add to favorites"] }, nil, function()
         BP.SetFavorite(d.itemID, not on, d.itemKey)
         BP.Tell(string.format(on and L["%s is off your favorites."] or L["%s is on your favorites now."], nameOf(d)), "LABEL")
         if Left.mode == "favorites" then Left.Fill(true) end
     end, nil, { atCursor = true })
 end
 
-local function onClick(_, d, _, button)
+local function onClick(row, d, _, button)
     if button == "RightButton" then
-        if d.kind == "line" then BP.RowMenu(d) end
+        if d.kind == "line" then BP.RowMenu(d, row) end
         return
     end
     if d.kind == "line" then BP.PickItem(d)
@@ -1862,12 +1862,19 @@ local function buildFooter(right)
     box:SetFrameLevel(page.foot.frame:GetFrameLevel() + 3)
     box:EnableMouseWheel(true)
     box:SetScript("OnMouseWheel", function(_, delta) BP.SetAmount((S.amount or 1) + (delta > 0 and 1 or -1)) end)
+    W.PadNumber(box, function(dir) BP.SetAmount((S.amount or 1) + dir) end)
     box:SetScript("OnEnterPressed", function(self) self:ClearFocus() end)
     box:HookScript("OnEditFocusLost", function(self) self:SetText(tostring(S.amount or 1)) end)
     box:Hide()
     page.amount = box
     local bid = W.Input(page.foot.frame, { justify = "RIGHT", hint = plainMoney(12000) })
     bid:SetWidth(BP.BID_W)
+    W.PadNumber(bid, function(dir)
+        local s = S.step
+        if not (s and s.minBid) then return end
+        local c = ns.SellPage.ReadMoney(trim(bid:GetText())) or s.minBid
+        bid:SetText(plainMoney(ns.SellPage.StepMoney(c, dir, s.minBid)))
+    end)
     bid:SetFrameLevel(page.foot.frame:GetFrameLevel() + 3)
     bid:SetScript("OnEnterPressed", function(self)
         self:ClearFocus()
@@ -1945,8 +1952,8 @@ local function hideTip(b)
     if GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(b) then GameTooltip:Hide() end
 end
 
-function Left.FavoriteMenu(id)
-    W.OpenMenu(nil, { "off" }, { off = L["Remove from favorites"] }, nil, function()
+function Left.FavoriteMenu(id, owner)
+    W.OpenMenu(owner, { "off" }, { off = L["Remove from favorites"] }, nil, function()
         BP.SetFavorite(id, false)
         Left.Fill(true)
     end, nil, { atCursor = true })
@@ -1977,7 +1984,7 @@ local function fillFavorites(stack)
                 GameTooltip:Show()
             end,
             leave = hideTip,
-            onRightClick = function() Left.FavoriteMenu(id) end,
+            onRightClick = function(b) Left.FavoriteMenu(id, b) end,
             onClick = function()
                 local now = ns.Items.Name(id)
                 if not now then return end
@@ -2220,6 +2227,11 @@ local function levelBox(parent, hintText)
     end
     e:SetScript("OnEnterPressed", function(self) self:ClearFocus(); apply(self) end)
     e:HookScript("OnEditFocusLost", apply)
+    W.PadNumber(e, function(dir)
+        local v = (levelOf(e) or 0) + dir
+        e:SetText(v >= 1 and tostring(math.min(999, v)) or "")
+        apply(e)
+    end)
     return e
 end
 
@@ -2300,6 +2312,11 @@ local function buildTools(right)
     end
     page.maxPrice:SetScript("OnEnterPressed", function(self) self:ClearFocus(); applyPrice(self) end)
     page.maxPrice:HookScript("OnEditFocusLost", applyPrice)
+    W.PadNumber(page.maxPrice, function(dir)
+        local c = ns.SellPage.StepMoney(ns.SellPage.ReadMoney(trim(page.maxPrice:GetText())), dir)
+        page.maxPrice:SetText(c > 0 and plainMoney(c) or "")
+        applyPrice(page.maxPrice)
+    end)
     page.where = smallText(filterRow, "")
     page.where:SetJustifyH("RIGHT")
     page.where:SetWordWrap(false)
@@ -2364,6 +2381,9 @@ function BP.Build(p)
         make = { line = makeLine, step = makeStep },
         fill = { line = fillLine, step = fillStep },
         onClick = onClick, onEnter = onEnter, onLeave = onLeave,
+        padMore = function(d)
+            if d.kind == "line" and type(d.itemID) == "number" then return function(b) BP.RowMenu(d, b) end end
+        end,
         link = function(d) return ns.Items.RowLink(d.kind == "step" and S.open or d) end,
         onSort = function(id, desc)
             S.sort.id, S.sort.desc = id, desc

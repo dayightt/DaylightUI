@@ -995,6 +995,29 @@ function W.PadSkip(f)
     DUI.AfterCombat(function() SmartNavigation_MarkFrameIgnored(f) end, f)
 end
 
+-- A number or money box on a controller is stepped, not typed: A picks it up,
+-- left and right change it (held repeats), A or B puts it down, and moving
+-- away does too. step(dir) makes the change and applies it. The mouse and
+-- keyboard keep typing as before.
+function W.PadNumber(e, step, label)
+    e.padStep = step
+    e.padStepLabel = label
+    local function stop()
+        if not e.padEditing then return end
+        e.padEditing = nil
+        DUI.Pad.FreeSides(step)
+        e.Ease()
+    end
+    function e.OnSmartNavSelect() e.padOn = true; e.Ease() end
+    function e.OnSmartNavDeselect() e.padOn = nil; stop() end
+    function e.OnSmartNavClick()
+        if e.padEditing then return stop() end
+        e.padEditing = true
+        DUI.Pad.HoldSides(step, stop)
+        e.Ease()
+    end
+end
+
 -- Puts a wide stop's anchor near its left edge instead of its middle, so
 -- pressing right from a list's left column goes to the next column rather
 -- than up to a heading. The game's Settings lists do the same with a custom
@@ -1364,7 +1387,7 @@ function W.InputLook(e, s, pad)
         Style.PaintAccent(s.lit, s.glow)
     end
     function s.Ease()
-        local to = (e:HasFocus() and 1) or (e:IsMouseOver() and 0.5) or 0
+        local to = ((e:HasFocus() or e.padEditing) and 1) or ((e:IsMouseOver() or e.padOn) and 0.5) or 0
         local M = DUI.Motion
         if M then
             M.Tween(s.lit, s.glow, to, M.FAST, function(v) s.glow = v; s.Paint() end)

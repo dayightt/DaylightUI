@@ -774,6 +774,12 @@ function A.Build(p)
     page.foot = Parts.Footer(body)
     page.bidBox = W.Input(page.foot.frame, { justify = "RIGHT", hint = ns.SellPage.PlainMoney(12000) })
     page.bidBox:SetWidth(A.BID_W)
+    W.PadNumber(page.bidBox, function(dir)
+        local r = rowOf(A.picked)
+        if not (r and r.isBid) then return end
+        local c = ns.SellPage.ReadMoney(page.bidBox:GetText()) or r.minBid or 0
+        page.bidBox:SetText(ns.SellPage.PlainMoney(ns.SellPage.StepMoney(c, dir, r.minBid or 1)))
+    end)
     page.bidBox:SetScript("OnEnterPressed", function(self)
         self:ClearFocus()
         A.PlaceBid()
