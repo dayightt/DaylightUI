@@ -32,6 +32,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Cooldown Manager", "The talent set button at the top of the layout editor opens a list of your layouts, so you can pick which one each talent set uses right there" },
     }, fixed = {
+        { "Controller", "Logging in with the controller UI on no longer swaps your Edit Mode layout and asks you to reload" },
         { "Profiles", "Profiles and Cooldown Manager layouts looked reset after Blizzard quietly changed how realms are reported. Every character is back on its own profile at next login, with nothing lost" },
         { "Fading", "Faded unit frames, party and raid frames, out-of-range players and bars fade as one smooth picture again, with no bar showing through its frame" },
         { "Loot", "Scrolling the loot log no longer leaves the silver and copper coins of money lines hanging behind until it stops" },

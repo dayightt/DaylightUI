@@ -1090,11 +1090,10 @@ end)
 T.test("edit mode: nothing is written while controller mode is on", function()
     local DUI = login()
     Enum.InputDeviceInterfaceType = { Mkb = 0, Gamepad = 1 }
-    local first = EditModePresetLayoutManager.presetLayoutInfo[1]
-    first.interfaceStyle = 1
+    _G.C_InputInterfaceStyle = { GetCurrentStyle = function() return 1 end }
     saved.layouts, saved.activeLayout = {}, 1
     local ok, why = DUI.EditMode.Install()
-    first.interfaceStyle = nil
+    _G.C_InputInterfaceStyle = nil
     T.falsy(ok); T.truthy(string.find(why, "controller mode", 1, true), "says why")
     T.eq(#saved.layouts, 0, "no layout written")
 end)
@@ -1109,9 +1108,9 @@ T.test("edit mode: asking about the controller UI copies no presets", function()
     PLM.GetCopyOfPresetLayouts = function(...) copies = copies + 1; return old(...) end
     for _ = 1, 5 do T.falsy(DUI.EditMode.GamepadMode()) end
     DUI.EditMode.IsActive()
-    PLM.presetLayoutInfo[1].interfaceStyle = 1
+    _G.C_InputInterfaceStyle = { GetCurrentStyle = function() return 1 end }
     local on = DUI.EditMode.GamepadMode()
-    PLM.presetLayoutInfo[1].interfaceStyle = nil
+    _G.C_InputInterfaceStyle = nil
     PLM.GetCopyOfPresetLayouts = old
     T.truthy(on, "still sees the controller UI")
     T.eq(copies, 0, "no copies made")

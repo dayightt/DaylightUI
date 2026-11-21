@@ -165,15 +165,12 @@ function EditMode.IsActive(profile) return isOurs(activeSaved(), profile) end
 -- Whether any profile's layout is active.
 function EditMode.AnyActive() return isAnyOurs(activeSaved()) end
 
--- Whether the controller UI is on. Its Edit Mode keeps gamepad layouts, and
--- switching to our keyboard-and-mouse one while it's on crashes the game.
--- Only its presets reveal it: GamePadEnable (gamepad input) stays on even
--- with the controller UI off.
-function EditMode.GamepadMode()
-    local pad = Enum.InputDeviceInterfaceType and Enum.InputDeviceInterfaceType.Gamepad
-    local p = presetsRead()[1]
-    return pad ~= nil and type(p) == "table" and p.interfaceStyle == pad
-end
+-- Whether the controller UI is on. It keeps the character on the Gamepad
+-- preset, and switching to a keyboard-and-mouse layout while it's on crashes
+-- the game. The presets can't tell: the list is the same either way. Ask the
+-- interface style, as the game's own Edit Mode does; GamePadEnable (gamepad
+-- input) stays on even with the controller UI off.
+function EditMode.GamepadMode() return DUI.DB.PadUI() end
 
 -- Whether a layout can be written now. Returns nil, or a reason why not.
 local function notReady()

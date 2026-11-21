@@ -844,6 +844,24 @@ T.test("installer: a set-up character on the game's layout is put back on its ow
     T.falsy(DaylightUIInstaller and DaylightUIInstaller:IsShown(), "nor on entering the world")
 end)
 
+-- The controller UI keeps the character on the game's Gamepad preset. Putting
+-- a keyboard-and-mouse layout in under it can crash the game, so nothing is
+-- written or asked until the controller UI is off again.
+T.test("installer: a set-up character in controller mode is left on the game's layout", function()
+    local DUI = login()
+    DUI.Installer.Install()
+    DUI = reload()
+    Enum.InputDeviceInterfaceType = { Mkb = 0, Gamepad = 1 }
+    _G.C_InputInterfaceStyle = { GetCurrentStyle = function() return 1 end }
+    saved.activeLayout = 2
+    stub.Dismiss()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    local active, asked = saved.activeLayout, stub.Asked()
+    _G.C_InputInterfaceStyle = nil
+    T.eq(active, 2, "still on the game's layout")
+    T.falsy(asked, "no reload asked")
+end)
+
 T.test("installer: a set-up character whose layout was deleted gets it back, not the guide", function()
     local DUI = login()
     DUI.Installer.Install()

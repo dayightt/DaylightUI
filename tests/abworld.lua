@@ -47,7 +47,10 @@ function M.world()
     local function preset(i)
         local systems = {}
         for idx = 1, 4 do systems[idx] = { system = 0, systemIndex = idx, settings = {}, anchorInfo = {} } end
-        return { layoutIndex = i, layoutType = 0, layoutName = "p" .. i, systems = systems }
+        -- Every preset says which input it's for. The game's list is always
+        -- Modern and Classic (keyboard and mouse, 0) then Gamepad (1), so the
+        -- first one never tells whether the controller UI is on.
+        return { layoutIndex = i, layoutType = 0, layoutName = "p" .. i, interfaceStyle = 0, systems = systems }
     end
     -- As in the game (EditModePresetLayoutsManager.lua): the presets are built
     -- once at load, and GetCopyOfPresetLayouts deep-copies them on every call.
