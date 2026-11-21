@@ -88,6 +88,19 @@ T.test("full_scan_prices_everything", function()
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
 
+-- A crate's bundle lines name their items, and the game finds a name only
+-- for an item it loaded this session: the scan keeps each name it read.
+T.test("full_scan_keeps_item_names", function()
+    local M = load({ { itemID = LINEN, count = 20, buyout = 2000 } })
+    AHW.Open()
+    M.Scan.Full()
+    AHW.Settle()
+    local name = C_AuctionHouse.GetReplicateItemInfo(0)
+    T.truthy(type(name) == "string" and name ~= "", "the fake scan has a name")
+    T.eq(M.Items.Names()[name:lower()], LINEN)
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
+
 T.test("bad_rows_are_ignored", function()
     local M = load({
         { itemID = LINEN, count = 5, buyout = 0, minBid = 50 },   -- bid only

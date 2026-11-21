@@ -109,7 +109,7 @@ end
 
 -- One replicate row (0-based) into the job's rows.
 local function read(j, index)
-    local _, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, _, itemID, hasAllInfo =
+    local name, _, count, _, _, _, _, _, _, buyout, _, _, _, _, _, _, itemID, hasAllInfo =
         C_AuctionHouse.GetReplicateItemInfo(index)
     if type(itemID) ~= "number" then
         j.blank[#j.blank + 1] = index   -- may only not be ready yet: settle reads it again
@@ -131,6 +131,9 @@ local function read(j, index)
     if not key or ns.Items.ID(key) ~= itemID then key, base = ns.Items.Key(itemID) end
     if not key then return end
     ns.Rows.Add(j.rows, key, base, unit, count)
+    -- Kept for a crate's bundle lines, which name their items.
+    j.names = j.names or ns.Items.Names()
+    ns.Items.LearnName(name, itemID, j.names)
 end
 
 local function listSize()

@@ -414,12 +414,26 @@ end
 -- The itemID the client knows by an item's name (only items in its cache:
 -- C_Item.GetItemInfoInstant takes a name too), nil when it doesn't. A
 -- letter that names only an item finds its key this way (ns.Book.KeyOfName).
+-- The game finds an item by its name only once it has loaded that item this
+-- session, so names a full scan read are kept too, by client language.
+function Items.Names()
+    local all = ns.DB.Table("itemNames")
+    local lang = GetLocale and GetLocale() or "enUS"
+    if type(all[lang]) ~= "table" then all[lang] = {} end
+    return all[lang]
+end
+
+function Items.LearnName(name, id, names)
+    if type(name) ~= "string" or name == "" or type(id) ~= "number" then return end
+    if issecretvalue and (issecretvalue(name) or issecretvalue(id)) then return end
+    (names or Items.Names())[name:lower()] = id
+end
+
 function Items.IDByName(name)
     if type(name) ~= "string" or name == "" then return nil end
-    if not (C_Item and C_Item.GetItemInfoInstant) then return nil end
-    local id = C_Item.GetItemInfoInstant(name)
-    if (issecretvalue and issecretvalue(id)) or type(id) ~= "number" then return nil end
-    return id
+    local id = C_Item and C_Item.GetItemInfoInstant and C_Item.GetItemInfoInstant(name)
+    if not (issecretvalue and issecretvalue(id)) and type(id) == "number" then return id end
+    return Items.Names()[name:lower()]
 end
 
 -- ---------------------------------------------------------------------

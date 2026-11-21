@@ -200,6 +200,19 @@ T.test("ah tooltip: a crate prices each bundle that fills it", function()
     end)
 end)
 
+-- The game finds an item by name only once it has loaded that item, so a
+-- miner's crate of herbs never listed its prices (a player's report). Names a
+-- full scan read are kept and used instead.
+T.test("ah tooltip: a crate finds bundles the game hasn't loaded by names a scan read", function()
+    local M = load()
+    M.Store.Record("US-PvE", "2840", 30, 60, NOW)   -- Copper Bar
+    M.Items.LearnName("Copper Bar", 2840)
+    local rows = fillCrate(M, "Use: Fill the crate with any bundle from the following list:\n- 10 Copper Bar")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(rows[3] and rows[3].left, "Cheapest to fill")
+    T.eq(rows[3].right, DaylightUI.Widgets.Money(300))
+end)
+
 T.test("ah tooltip: dash lines naming no known item add nothing", function()
     local M = load()
     T.deq(lefts(fillCrate(M, "Use: something\n- 3 made up things")), { "Use: something\n- 3 made up things" })

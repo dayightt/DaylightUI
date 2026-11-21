@@ -34,6 +34,7 @@ DUI.PatchNotes = {
         { "Setup guide", "The slanted tag at the top of the setup guide's first and last pages shows in full instead of half under the banner" },
         { "Info panel", "The data texts no longer jiggle side to side as the framerate or your coordinates change" },
         { "Skins", "Opening the Auction House or the macro window no longer shows a Lua error now and then" },
+        { "Auction House", "Waylaid Crate tooltips show the cheapest way to fill the crate for materials you don't carry too, after one full scan" },
         { "Tooltips", "Boxes, arrows and words other addons draw on a tooltip, like Forever Leveling BiS, no longer show through the Rich tooltip on top of its lines" },
         { "Professions", "The SkillUp link in the profession window opens the game's profession window on screen again, instead of somewhere out of sight" },
         { "Tooltips", "TradeSkillMaster's disenchant lines keep their colors and indent on Rich tooltips, and long lines from other addons wrap instead of running off the edge" },
