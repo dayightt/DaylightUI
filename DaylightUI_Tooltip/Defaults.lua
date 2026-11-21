@@ -17,7 +17,7 @@ ns.DEFAULTS = {
     -- "simple": the game's tooltip in the Daylight UI look; "rich": Daylight UI's
     -- own cards drawn over it (Rich/).
     style = "rich",
-    pill = "combat", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
+    pill = "never", -- a unit as one small line where the tooltip would be: "combat" (and under restrictions), "always", "never"
     pillKey = "shift", -- held, the full card in the pill's place: "shift", "ctrl", "alt", "none"
     portraits = true, -- a creature's face and a player's class icon at the top of their card
     mobBar = "top", -- a creature card's health bar: "top" (under the name) or "bottom" (end of the card)

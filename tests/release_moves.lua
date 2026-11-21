@@ -8,7 +8,9 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {},
+    values = {
+        ["Tooltip.pill"] = "The fight pill confused players who never picked it, so it is off until chosen.",
+    },
     frames = {},
     plates = {},
 }

@@ -93,7 +93,7 @@ end
 local function login(style)
     stub.Load({ tooltip = true, before = function()
         world()
-        _G.DaylightUIDB = { modules = { Tooltip = { style = "simple" } } }
+        _G.DaylightUIDB = { modules = { Tooltip = { style = "simple", pill = "combat" } } }
     end })
     if style then
         DaylightUI:Set("Tooltip", "style", style)
@@ -2765,4 +2765,19 @@ T.test("rich tooltip: Portraits off leaves the face and class icon off the cards
     head = Panel.Get(GameTooltip).items[1]
     T.isnil(head.icon, "no class icon on a player's card")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: the fight pill is off unless picked, so a fight shows the card", function()
+    stub.Load({ tooltip = true, before = function()
+        world()
+        _G.DaylightUIDB = { modules = { Tooltip = { style = "rich" } } }
+    end })
+    player()
+    stub.units.mouseover = { name = "Ridgeback Boar", isPlayer = false, reaction = 2, health = 31, maxHealth = 100, level = 23 }
+    stub.EnterCombat()
+    hover("mouseover", { "Ridgeback Boar", "Level 23 Beast" })
+    local pill = _G.DaylightUITooltipPill
+    T.falsy(pill and pill:IsShown(), "no pill")
+    T.isnil(stub.tooltip.Tooltip.Muted(GameTooltip))
+    stub.LeaveCombat()
 end)

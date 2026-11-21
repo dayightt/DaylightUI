@@ -35,7 +35,7 @@ end
 function Pill.Wanted(tip, unit)
     local Tip = ns.Tooltip
     local cfg = Tip.Config()
-    local mode = cfg and cfg.pill or "combat"
+    local mode = cfg and cfg.pill or "never"
     if mode == "never" or type(unit) ~= "string" or Pill.KeyHeld(cfg) then return false end
     -- unit "": something in the world that isn't a unit (Pill.WantedWorld).
     -- Hidden in combat by its own switch: that wins.
