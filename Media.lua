@@ -208,16 +208,18 @@ function Media.RegisterOwn()
     end
 end
 
--- Whether a pick (General's or a slot's) uses shared media. With name, only that one.
-local function usesShared(name)
+-- Whether a pick (General's or a slot's) uses shared media. With name, only that one;
+-- with kind ("statusbar" or "font"), only picks of that kind, since a texture and a
+-- font can share a name.
+local function usesShared(name, kind)
     local g = DUI.DB.General()
-    local function is(v)
+    local function is(v, k)
         local n = Media.SharedName(v)
-        return n ~= nil and (name == nil or n == name)
+        return n ~= nil and (name == nil or n == name) and (kind == nil or kind == k)
     end
-    if is(g.barTexture) or is(g.barBack) or is(g.font) then return true end
-    for id in pairs(Media.SLOTS) do
-        if is(Media.Pick(id)) then return true end
+    if is(g.barTexture, "statusbar") or is(g.barBack, "statusbar") or is(g.font, "font") then return true end
+    for id, s in pairs(Media.SLOTS) do
+        if is(Media.Pick(id), s.kind == "font" and "font" or "statusbar") then return true end
     end
     return false
 end
@@ -231,7 +233,7 @@ function Media.Hook()
     if lsm and not hooked and lsm.RegisterCallback then
         hooked = true
         lsm.RegisterCallback(Media, "LibSharedMedia_Registered", function(_, kind, name)
-            if (kind == "statusbar" or kind == "font") and usesShared(tostring(name)) then
+            if (kind == "statusbar" or kind == "font") and usesShared(tostring(name), kind) then
                 DUI.NotifyStyleChanged()
             end
         end)

@@ -417,3 +417,46 @@ T.test("media: a shared font registered after Daylight UI loads is on everything
     T.eq(GameFontNormal.face, roboto, "the game's text, so other addons' too")
     _G.LibStub, _G.GameFontNormal, _G.GetFonts = nil, nil, nil
 end)
+
+T.test("media: a late registration repaints only when its kind matches a pick", function()
+    local lsm = fakeLSM()
+    -- Media.lua calls it as lsm.RegisterCallback(owner, event, fn).
+    function lsm.RegisterCallback(_, _, fn) lsm.callback = fn end
+    local DUI = stub.Load({ nameplates = true })
+    stub.FireEvent("PLAYER_LOGIN")
+    DUI:Set("Nameplates", "media.nameFont", "lsm:Later")
+    DUI:Set("Nameplates", "media.healthBack", "lsm:Backing")
+    stub.RunTimers()
+    local calls = 0
+    local notify = DUI.NotifyStyleChanged
+    DUI.NotifyStyleChanged = function() calls = calls + 1 end
+    lsm.callback("LibSharedMedia_Registered", "statusbar", "Later")
+    lsm.callback("LibSharedMedia_Registered", "font", "Backing")
+    local unrelated = calls
+    lsm.callback("LibSharedMedia_Registered", "font", "Later")
+    lsm.callback("LibSharedMedia_Registered", "statusbar", "Backing")
+    DUI.NotifyStyleChanged, _G.LibStub = notify, nil
+    T.eq(unrelated, 0, "a texture under a font's name, or the reverse")
+    T.eq(calls, 2, "the right kinds")
+end)
+
+T.test("media: the plate signature follows only the files plates draw", function()
+    local lsm = fakeLSM()
+    local DUI = stub.Load({ nameplates = true })
+    stub.FireEvent("PLAYER_LOGIN")
+    DUI:Set("Nameplates", "media.nameFont", "lsm:Later")
+    DUI:Set("Nameplates", "media.healthBack", "lsm:Backing")
+    stub.RunTimers()
+    local signature = stub.nameplates.Manager.StyleSig
+    local before = signature()
+    lsm.media.statusbar.Later = "fixture-wrong-kind.tga"
+    local same = signature()
+    lsm.media.font.Later = "fixture-new-font.ttf"
+    local changed = signature()
+    lsm.media.statusbar.Backing = "fixture-new-back.tga"
+    local newBack = signature()
+    _G.LibStub = nil
+    T.eq(same, before, "a texture under the font's name")
+    T.truthy(changed ~= same, "the font arrived")
+    T.truthy(newBack ~= changed, "the back texture arrived")
+end)

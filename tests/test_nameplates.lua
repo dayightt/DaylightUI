@@ -1663,6 +1663,23 @@ T.test("nameplates: the power bar: off as shipped; on, under a caster's health b
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: a small power bar keeps a pixel of fill inside a thick border", function()
+    login(function() stub.SetScreen(1366, 768, 1) end)
+    DaylightUI:Set("general", "borderPx", 8)
+    DaylightUI:Set("Nameplates", "power", true)
+    DaylightUI:Set("Nameplates", "scale", 0.5)
+    DaylightUI:Set("Nameplates", "target.scale", 0.5)
+    stub.RunTimers()
+    local p = added("nameplate1")
+    T.truthy(p.power:IsShown())
+    local unit = DaylightUI.Pixel.Unit(p.power)
+    local heightPx = p.power:GetHeight() / unit
+    local borderPx = p.power.body.T / unit
+    T.truthy(heightPx - 2 * borderPx >= 1 - 1e-6,
+        ("fill %.2f px (bar %.2f px, border %.2f px)"):format(heightPx - 2 * borderPx, heightPx, borderPx))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: the power bar's color: the power type's pair, or one color", function()
     login()
     DaylightUI:Set("general", "smoothBars", false)

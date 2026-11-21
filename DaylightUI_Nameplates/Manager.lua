@@ -709,13 +709,19 @@ local function sigOf(v, out)
     end
 end
 
--- A shared font or bar can arrive after login without a setting changing.
-local function sharedFiles(t, out)
-    if type(t) ~= "table" then return end
-    local Media = DUI.Media
-    for _, v in pairs(t) do
-        if type(v) == "string" and Media.SharedName(v) then
-            out[#out + 1] = tostring(Media.Fetch("statusbar", v)) .. tostring(Media.Fetch("font", v))
+-- A shared font or bar can arrive after login without a setting changing. Only the
+-- files the plates really draw count, so a texture registered under a picked font's
+-- name doesn't rebuild every plate.
+local function sharedFiles(out)
+    local Style, Media = DUI.Style, DUI.Media
+    out[#out + 1] = tostring(Style.SharedBar()) .. tostring(Style.SharedBack())
+    for id, s in pairs(Media.SLOTS) do
+        if s.scope == "Nameplates" then
+            local file
+            if s.kind == "font" then file = Style.FontFile(id)
+            elseif s.kind == "back" then file = Style.SharedBack(id)
+            else file = Style.SharedBar(id) end
+            out[#out + 1] = id .. "=" .. tostring(file)
         end
     end
 end
@@ -724,8 +730,7 @@ function Manager.StyleSig()
     local out = {}
     local g = DUI.DB.General()
     sigOf(g, out)
-    sharedFiles(g, out)
-    sharedFiles(ns.cfg and ns.cfg.media, out)
+    sharedFiles(out)
     out[#out + 1] = tostring(UIParent:GetEffectiveScale())
     out[#out + 1] = tostring(DUI.Pixel.perfect)
     out[#out + 1] = tostring(DUI.Style.FONT)

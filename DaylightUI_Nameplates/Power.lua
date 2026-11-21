@@ -22,16 +22,21 @@ Power.SHOW_ORDER = { "players", "all", "target" }
 
 local plain = ns.Plate.Plain   -- a call's plain first return, or nil (Plate.lua loads first)
 
--- Never thicker than half the health bar, so a thin bar keeps some visible fill.
-local function borderPx(h)
-    return function(px) return ns.Plate.BORDER(px, h) end
+-- Never thicker than half the bar, so a thin bar keeps some visible fill. A small
+-- plate can be fewer physical pixels tall than layout units, so cap it in pixels too.
+local function borderPx(f, h)
+    return function(px)
+        local heightPx = h / DUI.Pixel.Unit(f)
+        local maxBorder = math.max(0, math.floor((heightPx - 1) / 2))
+        return math.min(ns.Plate.BORDER(px, h), maxBorder)
+    end
 end
 
 function Power.Create(p)
     local f = CreateFrame("Frame", nil, p)
     -- Slim and plain, continuing the health bar's angle along its top (Body.lua's
     -- shell look, no masks), like the cast bar.
-    f.body = ns.Body.New(f, { borderPx = borderPx(Power.HEIGHT), flat = true, joined = true, clear = ns.Plate.Clear })
+    f.body = ns.Body.New(f, { borderPx = borderPx(f, Power.HEIGHT), flat = true, joined = true, clear = ns.Plate.Clear })
     f.bar = Style.Bar(f, nil, ns.Plate.MEDIA.bars.power)
     DUI.BarFx.Track(f.bar, "power", "plate", nil, nil, ns.Plate.FxCfg(p, "power"))
     f.bar:SetMinMaxValues(0, 1)
@@ -105,7 +110,7 @@ function Power.Layout(p, cut)
     f:SetFrameLevel(hp:GetFrameLevel() + 3)
     if f.bodyH ~= h then
         f.bodyH = h
-        f.body.opts.borderPx = borderPx(h)
+        f.body.opts.borderPx = borderPx(f, h)
     end
     -- Continue the health bar's edge at this bar's top and bottom, like Cast.Layout.
     local total = hh + o.gap + h
