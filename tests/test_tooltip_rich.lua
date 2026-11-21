@@ -816,7 +816,8 @@ T.test("rich tooltip: an item's card, as the board lays it out", function()
     end
     local rows = kinds(p, "row")
     local foot = rows[#rows]
-    T.eq(stub.Text(foot.label), "Durability 98 / 100")
+    local wear = DaylightUI.Win.Parts.Hex(DaylightUI.Tips.Wear(98))
+    T.eq(stub.Text(foot.label), "Durability " .. wear .. "98|r / 100", "the current number in how worn it is")
     T.truthy(stub.Text(foot.value):find("3", 1, true) and stub.Text(foot.value):find("42", 1, true), "the sell price")
     T.falsy(stub.Text(foot.value):find("Sell Price", 1, true))
     T.eq(#kinds(p, "hints"), 0, "no key hints: the card is what you read")
@@ -1138,6 +1139,18 @@ T.test("rich tooltip: an item's quality outline sits under its art", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("rich tooltip: durability is colored by how worn the item is", function()
+    login("rich")
+    local Items = stub.tooltip.RichItems
+    local Tips, hex = DaylightUI.Tips, DaylightUI.Win.Parts.Hex
+    T.eq(Items.WearText("Durability 55 / 55"), "Durability " .. hex(Tips.GOOD) .. "55|r / 55", "whole: green")
+    T.eq(Items.WearText("Durability 5 / 55"), "Durability " .. hex(Tips.BAD) .. "5|r / 55", "nearly broken: red")
+    T.eq(Items.WearText("Durability 0 / 55"), "Durability " .. hex(Tips.BAD) .. "0|r / 55", "broken: red")
+    T.eq(Items.WearText("Durability 1 / 0"), "Durability 1 / 0", "no most: left as it is")
+    local half = hex(Tips.Wear(50))
+    T.eq(half, hex(Tips.WARN), "half worn: amber")
+end)
+
 -- Seen in game with DaylightMogul: it rewrites the game's Sell Price line as
 -- "Vendor price" with the coins on the right, and the foot read "ce".
 T.test("rich tooltip: a sell price line another addon rewrote keeps its coins", function()
@@ -1149,7 +1162,7 @@ T.test("rich tooltip: a sell price line another addon rewrote keeps its coins", 
     local p = Panel.Get(GameTooltip)
     local rows = kinds(p, "row")
     local foot = rows[#rows]
-    T.eq(stub.Text(foot.label), "Durability 51 / 55")
+    T.truthy(stub.Text(foot.label):find("51|r / 55", 1, true), "the durability line")
     T.eq(stub.Text(foot.value), "1g 25s", "the coins from its right side")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -37,7 +37,7 @@ DT.GEAR = { { 1, HEADSLOT or L["Head"] }, { 3, SHOULDERSLOT or L["Shoulders"] },
             { 18, RANGEDSLOT or L["Ranged"] } }
 DT.BAGS = { 0, 1, 2, 3, 4 }
 -- Thresholds where durability (percent) and free bag slots turn amber, then red.
-DT.GEAR_WARN, DT.GEAR_BAD = 50, 20
+DT.GEAR_WARN, DT.GEAR_BAD = DUI.Tips.WEAR_WARN, DUI.Tips.WEAR_BAD
 DT.BAGS_WARN, DT.BAGS_BAD = 4, 0
 DT.AMMO_WARN, DT.AMMO_BAD = 200, 50
 
@@ -255,15 +255,8 @@ local function gearColor(pct)
     if pct <= DT.GEAR_BAD then return DT.BAD end
     if pct <= DT.GEAR_WARN then return DT.WARN end
 end
--- Tooltip color for one item's durability, blended from green at 100%
--- through amber at GEAR_WARN to red at GEAR_BAD.
-local function mix(a, b, t) return { a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t } end
-function DT.GearShade(pct)
-    if pct >= 100 then return DT.GOOD end
-    if pct <= DT.GEAR_BAD then return DT.BAD end
-    if pct >= DT.GEAR_WARN then return mix(DT.WARN, DT.GOOD, (pct - DT.GEAR_WARN) / (100 - DT.GEAR_WARN)) end
-    return mix(DT.BAD, DT.WARN, (pct - DT.GEAR_BAD) / (DT.GEAR_WARN - DT.GEAR_BAD))
-end
+-- Tooltip color for one item's durability.
+DT.GearShade = DUI.Tips.Wear
 local function ammoColor(n)
     if n <= DT.AMMO_BAD then return DT.BAD end
     if n <= DT.AMMO_WARN then return DT.WARN end

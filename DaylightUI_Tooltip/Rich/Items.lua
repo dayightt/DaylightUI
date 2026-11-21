@@ -233,7 +233,20 @@ function Items.Patterns()
         setOff = whole(ITEM_SET_BONUS_GRAY or "(%d) Set: %s"),
         level = whole(ITEM_LEVEL or "Item Level %d"),
     }
+    -- The same durability line, also giving where its first number starts.
+    pats.wear = pats.durability:gsub("%(%%d%+%)", "()(%%d+)", 1)
     return pats
+end
+
+-- The durability line with its current number colored by how worn the item
+-- is (the same shades as the info panel's durability), so worn gear shows at
+-- a glance. A line that doesn't read as two numbers stays as it is.
+function Items.WearText(t)
+    local at, cur, max = t:match(Items.Patterns().wear)
+    local have, most = tonumber(cur), tonumber(max)
+    if not (at and have and most and most > 0) then return t end
+    local color = DUI.Tips.Wear(have / most * 100)
+    return t:sub(1, at - 1) .. hex(color) .. cur .. "|r" .. t:sub(at + #cur)
 end
 
 -- A line's words alone: no color codes or inline icons, trimmed. A leading
@@ -409,7 +422,7 @@ local function sort(n, lines, own, info, groups)
         elseif t:find(P.durability) and inMade then
             g.facts[#g.facts + 1] = function(p) ns.RichPanel.Text(p, t, Style.INK.LABEL, Style.SIZE.small) end
         elseif t:find(P.durability) then
-            foot.durability = t
+            foot.durability = Items.WearText(t)
         elseif t:find(P.armor) then
             local armor = { t:match(P.armor), ARMOR or L["Armor"] }
             g.armor = armor

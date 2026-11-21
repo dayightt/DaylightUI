@@ -109,6 +109,16 @@ function Tips.Progress(have, need)
     return mix(Tips.WARN, Tips.GOOD, (f - 0.5) / 0.5 * 0.6)
 end
 
+-- Durability (percent) as a color: green when whole, amber by WEAR_WARN, red
+-- at WEAR_BAD and under, blended in between so a glance reads how worn it is.
+Tips.WEAR_WARN, Tips.WEAR_BAD = 50, 20
+function Tips.Wear(pct)
+    if pct >= 100 then return Tips.GOOD end
+    if pct <= Tips.WEAR_BAD then return Tips.BAD end
+    if pct >= Tips.WEAR_WARN then return mix(Tips.WARN, Tips.GOOD, (pct - Tips.WEAR_WARN) / (100 - Tips.WEAR_WARN)) end
+    return mix(Tips.BAD, Tips.WARN, (pct - Tips.WEAR_BAD) / (Tips.WEAR_WARN - Tips.WEAR_BAD))
+end
+
 -- Adds the rows to tip (GameTooltip by default) and empties the list.
 -- opts.sweep = "daylight" uses the Daylight sweep whatever the accent (for the
 -- options window, which always uses it).
