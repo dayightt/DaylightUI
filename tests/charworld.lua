@@ -231,6 +231,9 @@ local function installInventory()
     C_Item.DoesItemExist = function(loc) return it(loc.equipmentSlotIndex) ~= nil end
     C_Item.DoesItemMatchTargetEnchantingSpell = function(loc) return aimed("enchant") and fits(loc) end
     C_Item.DoesItemMatchSpellItemCondition = function(loc) return aimed("condition") and fits(loc) end
+    -- True while any spell waits for an item, fitting or not; S().repair = the repair cursor.
+    _G.SpellCanTargetItem = function() return S().aim ~= nil end
+    _G.InRepairMode = function() return S().repair == true end
 end
 
 local function installStats()

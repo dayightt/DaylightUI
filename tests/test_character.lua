@@ -3061,6 +3061,46 @@ T.test("character list: on a controller the D-pad reaching the last row in view 
     _G.SmartNavigation, _G.InputUtil, _G.GamepadMode = was, nil, nil
 end)
 
+T.test("character on a controller: A puts a waiting scroll, enchant or repair on the slot's piece, as the game's slots do", function()
+    local CP, ns = charPage({ items = { MainHand = CW.item("Sword", { weapon = 1 }) } })
+    local page = openChar(ns)
+    stub.RunTimers()
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+    local picked, popped = {}, 0
+    _G.PickupInventoryItem = function(id) picked[#picked + 1] = id end
+    local hand, head = page.slots.MainHand, page.slots.Head
+    CW.state.items[CW.SLOT_IDS.Head] = nil
+    T.truthy(hand.button, "the game's button is lent")
+    local pop = CreateFrame("Button", nil, hand.button)
+    pop:SetScript("OnClick", function() popped = popped + 1 end)
+    hand.button.popoutButton = pop
+    local A = hand:GetScript("OnMouseUp")
+    local f = ns.window
+    T.isnil(f.padSelect(hand), "nothing waiting: A says Select")
+    A(hand)
+    T.eq(popped, 1, "nothing waiting: A opens the swap menu")
+    T.deq(picked, {})
+    CW.state.aim = { kind = "condition", fits = { [CW.SLOT_IDS.MainHand] = true } }
+    A(hand)
+    T.deq(picked, { CW.SLOT_IDS.MainHand }, "the scroll goes on the weapon")
+    T.eq(popped, 1, "and no swap menu")
+    T.isnil(f.padSelect(hand), "a scroll: Select, as the game's")
+    T.eq(f.padSelect(head), false, "an empty slot: A does nothing")
+    head:GetScript("OnMouseUp")(head)
+    T.deq(picked, { CW.SLOT_IDS.MainHand }, "nothing to put it on")
+    CW.state.aim = { kind = "enchant", fits = { [CW.SLOT_IDS.MainHand] = true } }
+    T.eq(f.padSelect(hand), CONTEXT_ACTION_LABEL_APPLY or DaylightUI.L["Apply"], "an enchant: Apply")
+    CW.state.aim, CW.state.repair = nil, true
+    T.eq(f.padSelect(hand), CONTEXT_ACTION_LABEL_REPAIR or DaylightUI.L["Repair"])
+    A(hand)
+    T.deq(picked, { CW.SLOT_IDS.MainHand, CW.SLOT_IDS.MainHand }, "the repair cursor fixes it")
+    CW.state.repair = nil
+    _G.InputUtil, _G.GamepadMode = nil, nil
+    A(hand)
+    T.eq(#picked, 2, "with the mouse it's the game's own button that gets the click")
+end)
+
 T.test("character on a controller: place in bags puts a piece in the first plain bag with room, or leaves it on", function()
     local CP = charPage()
     local put, held

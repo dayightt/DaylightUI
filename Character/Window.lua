@@ -328,6 +328,7 @@ function Window.OnEvent(_, event, ...)
     -- Fires on every cast, so only re-light the slots. No full refresh.
     if event == "CURRENT_SPELL_CAST_CHANGED" then
         if f.current == "character" and ns.Slots then ns.Slots.Holding() end
+        DUI.Pad.Refresh(f)   -- A's hint follows a spell starting or stopping its wait for an item
         return
     end
     if not Window.Wants(f.current, event) then return end
