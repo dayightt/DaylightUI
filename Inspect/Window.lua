@@ -1,6 +1,6 @@
 -- Inspect window. The game still runs the inspect: InspectUnit / InspectFrame_Show ask
 -- the server (NotifyInspect), its INSPECT_READY handler shows InspectFrame, and its
--- OnHide calls ClearInspectPlayer. That frame is parked under the kit's veil
+-- OnHide calls ClearInspectPlayer. That frame is held aside by the kit
 -- (Win.Follow) so all of it keeps running, and this window shows in its place for the
 -- unit it holds (InspectFrame.unit) and closes with it.
 -- If opened in combat before it was ever parked, the game's own window shows (parking
@@ -58,7 +58,7 @@ local function header(f, unit)
 end
 
 -- Dragged position (header, Win.Drag, saved per profile in the module's `spot`), else
--- the game's own spot: anchored to the top-left of its veiled window, the left panel
+-- the game's own spot, read from its parked window's anchor: the left panel
 -- spot, like the character and NPC windows. The spot itself is Win.Spot (Insp.spot,
 -- created in Insp.Build).
 local function spot() return Insp.spot and Insp.spot.Get() end
@@ -68,8 +68,7 @@ local function place(f)
     if s then return Win.PlaceTop(f, s[1], s[2]) end
     f:ClearAllPoints()
     local g = Insp.Game()
-    if g then f:SetPoint("TOPLEFT", g, "TOPLEFT", 0, 0)
-    else f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
+    if not (g and Win.Followers.PlaceOn(f, g)) then f:SetPoint("TOPLEFT", UIParent, "TOPLEFT", 16, -116) end
 end
 
 -- A page of this window only; the game's frame keeps its own tab.
@@ -141,7 +140,7 @@ end
 
 -- The pick changed (out of combat). To the game's: this one closes and an open game
 -- window shows as itself, a closed one is let go so it opens as itself. Back to this
--- one: an open game window goes under the veil and the follower's next look opens this
+-- one: an open game window is held aside and the follower's next look opens this
 -- one in its place.
 local function pick(ours)
     if ours then
@@ -289,7 +288,7 @@ function Insp.Build(mod)
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Insp.ResetSpot   -- /dui reset
     DUI.RegisterEvent("INSPECT_READY", function(_, guid) Insp.Ready(guid) end)
     DUI.RegisterEvent("UNIT_INVENTORY_CHANGED", function(_, unit) Insp.ItemsChanged(unit) end)
-    Insp.follow = Win.Follow({ key = "inspect", frames = { inspect = Insp.Game }, veil = { inspect = true },
+    Insp.follow = Win.Follow({ key = "inspect", frames = { inspect = Insp.Game }, aside = { inspect = true },
         changed = Insp.Changed, leave = function() return not Insp.Ours() end, width = function() return Insp.W * Win.Scale(ns.Setting("scale")) end })
     Insp.Apply()
     return f

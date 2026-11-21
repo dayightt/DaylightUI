@@ -81,7 +81,7 @@ end
 function IW.Hide() asGame(function() HideUIPanel(inspectFrame()) end) end
 
 local function install()
-    _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); f:Show() end
+    _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); stub.PlacePanel(f); f:Show() end
     _G.HideUIPanel = function(f) record("HideUIPanel", f:GetName()); f:Hide() end
     _G.NotifyInspect = function(unit) record("NotifyInspect", unit) end
     _G.CanInspect = function(unit) return UnitIsPlayer(unit) end
