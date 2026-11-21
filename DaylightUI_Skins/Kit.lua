@@ -1999,6 +1999,10 @@ end
 function Kit.EachRow(box, fn, key)
     if not isTable(box) or not box.ForEachFrame then return end
     local function each(f)
+        -- The game's ForEachFrame asks the list's view with no check, and a
+        -- list that hasn't been filled yet has none. Its rows come later,
+        -- through the callbacks below.
+        if box.GetView and not box:GetView() then return end
         local t0 = Kit.Profiling and debugprofilestop()
         DUI.SafeCall(box.ForEachFrame, box, function(row) DUI.SafeCall(f, row) end)
         if t0 then Kit.Spent("rows", debugprofilestop() - t0) end

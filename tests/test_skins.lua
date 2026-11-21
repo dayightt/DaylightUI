@@ -31,7 +31,11 @@ local function list(parent)
     local box = CreateFrame("Frame", nil, parent)
     box.rows = {}
     box.callbacks = {}
-    function box:ForEachFrame(fn) for _, r in ipairs(self.rows) do fn(r) end end
+    -- The game's ForEachFrame asks its view with no check (ScrollBox.lua:595),
+    -- so a list whose view isn't set up yet errors.
+    box.view = { ForEachFrame = function(_, fn) for _, r in ipairs(box.rows) do fn(r) end end }
+    function box:GetView() return self.view end
+    function box:ForEachFrame(fn) return self:GetView():ForEachFrame(fn) end
     function box:RegisterCallback(event, fn, owner)
         self.callbacks[event] = self.callbacks[event] or {}
         self.callbacks[event][owner] = fn
@@ -1160,6 +1164,24 @@ T.test("skins: a list's rows are gone over once a frame however often it updates
     T.eq(calls, 0, "not on each update")
     stub.RunTimers()
     T.eq(calls, 1, "once, the frame after")
+end)
+
+T.test("skins: a list with no view yet is left until its rows come, with no error", function()
+    login()
+    local Kit = stub.skins.Kit
+    local box = list(UIParent)
+    box.rows[1] = CreateFrame("Frame", nil, box)
+    local view = box.view
+    box.view = nil
+    local calls = 0
+    Kit.EachRow(box, function() calls = calls + 1 end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(calls, 0)
+    box.view = view
+    box:Update()
+    stub.RunTimers()
+    T.eq(calls, 1, "its rows done once the list fills")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("skins: /dui skins profile toggles", function()
