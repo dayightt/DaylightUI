@@ -1686,7 +1686,7 @@ return {
     },
     ["damageFont"] = "Interface\\AddOns\\DaylightUI\\Media\\fonts\\ExpresswayFree.ttf",
     ["lastVersion"] = "test",
-    ["notesSeen"] = "2.2.1",
+    ["notesSeen"] = "2.2.2",
     ["oneStandard"] = true,
     ["profileData"] = {
       ["DPS/Tank"] = {
@@ -2838,6 +2838,7 @@ return {
     ["Buffs.settings.debuff.maxTime"] = 0,
     ["Buffs.settings.debuff.privateAuras"] = true,
     ["Buffs.settings.debuff.showBackground"] = false,
+    ["Buffs.settings.debuff.sortOrder"] = "soonest",
     ["Buffs.settings.debuff.spacing"] = 3,
     ["Buffs.settings.expiring"] = true,
     ["Buffs.settings.fade.alpha"] = 0,
@@ -2870,6 +2871,7 @@ return {
     ["Buffs.settings.reminder.seconds"] = 10,
     ["Buffs.settings.showBackground"] = false,
     ["Buffs.settings.showTimers"] = true,
+    ["Buffs.settings.sortOrder"] = "soonest",
     ["Buffs.settings.spacing"] = 3,
     ["Buffs.settings.textOutline"] = "general",
     ["Buffs.settings.timePos"] = "top",
@@ -4213,6 +4215,7 @@ return {
     ["Skins.rolls.linger"] = 5,
     ["Skins.rolls.list"] = "auto",
     ["Skins.rolls.maxShown"] = 4,
+    ["Skins.rolls.popups"] = true,
     ["Skins.rolls.qualityLine"] = true,
     ["Skins.rolls.rollBars"] = true,
     ["Skins.rolls.showPass"] = true,
@@ -4555,6 +4558,7 @@ return {
     ["UnitFrames.casts.channel.1"] = 0.78,
     ["UnitFrames.casts.channel.2"] = 0.62,
     ["UnitFrames.casts.channel.3"] = 0.3,
+    ["UnitFrames.casts.channelTicks"] = false,
     ["UnitFrames.casts.classColor"] = false,
     ["UnitFrames.casts.customGradient.c1.1"] = 0.2,
     ["UnitFrames.casts.customGradient.c1.2"] = 0.82,
@@ -8824,5 +8828,5 @@ return {
     ["general.windowTintColor.2"] = 0.078,
     ["general.windowTintColor.3"] = 0.09,
   },
-  ["version"] = "2.2.1",
+  ["version"] = "2.2.2",
 }
