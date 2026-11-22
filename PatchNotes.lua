@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Auction House", "Gear with a random bonus like \"of the Defender\" no longer shows the auction price of the same item with a different bonus" },
+    } },
     { version = "2.2.2", date = "2026-11-22", summary = "Channel ticks on your cast bar, an equipment set data text and Disenchant that stays on in your bags. Plus fixes for vanishing nameplates.", new = {
         { "Cast bars", "Your cast bar can mark each tick of a channel like Drain Life or Mind Flay, so you don't cut one short" },
         { "Combo points", "Combo points can stand on their own anywhere on your screen" },

@@ -710,3 +710,101 @@ T.test("scan_gives_up_when_the_game_never_takes_the_ask", function()
     T.eq(M.Replicate.Running(), false)
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
+
+-- ---------------------------------------------------------------------
+-- Forever's random suffixes ("Phalanx Girdle of the Defender")
+-- ---------------------------------------------------------------------
+
+-- The girdle in a player's report: one "of the Monkey" at 16s 95c and three
+-- "of the Defender" from 50s 90c. A Forever link names its suffix only by a
+-- bonus ID, the AH by its own number; a full scan sees links only.
+local GIRDLE = 7418
+local function girdles()
+    return {
+        { itemID = GIRDLE, count = 1, buyout = 1695, suffix = 14455, words = "of the Monkey" },
+        { itemID = GIRDLE, count = 1, buyout = 5090, suffix = 14333, words = "of the Defender" },
+        { itemID = GIRDLE, count = 1, buyout = 5090, suffix = 14333, words = "of the Defender" },
+        { itemID = GIRDLE, count = 1, buyout = 5095, suffix = 14333, words = "of the Defender" },
+    }
+end
+local function girdleLoad()
+    local M = AHW.Mog({ ah = { auctions = girdles(), items = { [GIRDLE] = { name = "Phalanx Girdle", classID = 4 } } } })
+    M.Replicate.SETTLE, M.Replicate.EMPTY_WAIT = 0, 0
+    return M
+end
+-- The Defender girdle in the bags, as the game links it (bonus 12753).
+local DEFENDER = "|cnIQ2:|Hitem:7418::::::::27:1491:::1:12753::::::|h[Phalanx Girdle of the Defender]|h|r"
+
+T.test("a suffix never paired gets no price, not the cheapest of every suffix", function()
+    local M = girdleLoad()
+    -- the words alone are known (a name to show), but never pick a price
+    M.DB.Suffixes()[14333] = "of the Defender"
+    AHW.Open()
+    T.eq(M.Scan.Full(), true)
+    AHW.Settle()
+    T.eq(M.Store.Min(RKEY, "7418"), 1695, "the plain girdle: cheapest of every suffix")
+    T.isnil(M.Store.Min(RKEY, "7418:14333"), "no Defender price from the scan before the pairing")
+    local key, _, unplaced = M.Items.Key(DEFENDER)
+    T.eq(key, "7418")
+    T.eq(unplaced, true)
+    T.isnil(M.Tooltip.Lines(DEFENDER, false, 1), "no line rather than the Monkey's 16s 95c")
+end)
+
+T.test("a Sell search pairs the suffix, then the scan and the tooltip price the Defender", function()
+    local M = girdleLoad()
+    AHW.Open()
+    local done
+    M.Search.Item(GIRDLE, function() done = true end)
+    AHW.Settle()
+    T.truthy(done)
+    T.eq(M.DB.Table("suffixBonus")["12753"], 14333, "paired from the auction's own row")
+    T.eq(M.DB.Table("suffixBonus")["12875"], 14455)
+    AHW.Advance(M.Scan.FULL_COOLDOWN + 1)
+    T.eq(M.Scan.Full(), true)
+    AHW.Settle()
+    T.eq(M.Store.Min(RKEY, "7418:14333"), 5090)
+    T.eq(M.Store.Min(RKEY, "7418:14455"), 1695)
+    T.eq(M.Items.Key(DEFENDER), "7418:14333")
+    local rows = M.Tooltip.Lines(DEFENDER, false, 1)
+    T.eq(rows and rows[1][2], DaylightUI.Widgets.Money(5090), "the Defender's own 50s 90c")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("a girdle whose name the game hasn't loaded gets no price", function()
+    local M = girdleLoad()
+    M.Store.Record(RKEY, "7418", 1695, 1, M.Game.Now())
+    local name = M.Items.Name
+    M.Items.Name = function() return nil end
+    T.isnil(M.Tooltip.Lines(DEFENDER, false, 1), "can't tell its suffix: no plain price")
+    M.Items.Name = name
+end)
+
+T.test("a key's sample link and the AH's name for a key pair nothing", function()
+    local M = girdleLoad()
+    AHW.Open()
+    -- the game hands back a Monkey girdle as the Defender key's sample
+    local monkey = "|cnIQ2:|Hitem:7418::::::::27:1491:::1:12875::::::|h[Phalanx Girdle of the Monkey]|h|r"
+    local sampleOf = C_AuctionHouse.GetItemKeySampleLink
+    C_AuctionHouse.GetItemKeySampleLink = function() return monkey end
+    local tip = CreateFrame("GameTooltip", nil, UIParent)
+    tip.SetHyperlink = function() end
+    tip.SetItemKey = function() end
+    M.Items.SetTip(tip, "7418:14333", GIRDLE)
+    C_AuctionHouse.GetItemKeySampleLink = sampleOf
+    M.Items.LearnKey({ itemID = GIRDLE, itemLevel = 32, itemSuffix = 14333, battlePetSpeciesID = 0 })
+    T.isnil(next(M.DB.Table("suffixBonus")), "nothing paired from a sample or a name")
+    T.isnil(M.Items.RealLinkOf("7418:14333"), "the sample isn't kept as the key's link")
+end)
+
+T.test("an item in the bags pairs its suffix through the game's item key", function()
+    local M = girdleLoad()
+    local fromItem = C_AuctionHouse.GetItemKeyFromItem
+    local hadLocation = ItemLocation
+    C_AuctionHouse.GetItemKeyFromItem = function() return { itemID = GIRDLE, itemLevel = 32, itemSuffix = 14333, battlePetSpeciesID = 0 } end
+    ItemLocation = ItemLocation or { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    T.eq(M.Items.BagKey(0, 1, DEFENDER, GIRDLE), "7418:14333")
+    T.eq(M.DB.Table("suffixBonus")["12753"], 14333)
+    C_AuctionHouse.GetItemKeyFromItem = fromItem
+    ItemLocation = hadLocation
+    T.eq(M.Items.Key(DEFENDER), "7418:14333", "known from then on, without the bag")
+end)

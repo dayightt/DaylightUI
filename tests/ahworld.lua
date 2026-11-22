@@ -116,7 +116,8 @@
 --     suffix, only that one (guess). Results are kept per itemID.
 --   * Forever's suffixed gear (an auction with `words`, "of Defense"): the AH's
 --     number (itemSuffix 14303, one per suffix name) is NOT in the link, whose
---     suffix field is empty and whose [text] holds the whole name; SendSearchQuery
+--     suffix field is empty, whose bonus ID (`a.bonus`, else the AH number less
+--     1580) names the suffix and whose [text] holds the whole name; SendSearchQuery
 --     finds it only by its exact key (level and suffix), a cleared key finds
 --     nothing; SendSellSearchQuery with a cleared key finds every suffix (the
 --     game's sell frame, ConvertItemSellItemKey). Numbers and links seen in play.
@@ -557,7 +558,11 @@ local function linkOf(a)
     if not cached(a.itemID) then return nil end
     if a.link then return a.link end
     if a.words then
-        return "|cnIQ2:|Hitem:" .. a.itemID .. "::::::::19:1491::::1:" .. a.suffix .. ":::|h[" .. nameOf(a.itemID) .. " " .. a.words .. "]|h|r"
+        -- A real Forever link: the 13th field counts the bonus IDs after it, and
+        -- the bonus is the suffix, a number apart from the AH's (seen in play:
+        -- "of the Bandit" is bonus 12751, AH 14330).
+        local bonus = a.bonus or (a.suffix - 1580)
+        return "|cnIQ2:|Hitem:" .. a.itemID .. "::::::::19:1491:::1:" .. bonus .. "::::::|h[" .. nameOf(a.itemID) .. " " .. a.words .. "]|h|r"
     end
     local suffix = a.suffix and tostring(a.suffix) or ""
     return "|cffffffff|Hitem:" .. a.itemID .. "::::::" .. suffix .. ":::60::::::::|h[" .. nameOf(a.itemID) .. "]|h|r"

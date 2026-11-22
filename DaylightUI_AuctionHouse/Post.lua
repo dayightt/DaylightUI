@@ -295,9 +295,7 @@ local function readOwned()
         local r = a.GetOwnedAuctionInfo(i)
         if type(r) == "table" and type(r.auctionID) == "number" then
             local id = type(r.itemKey) == "table" and r.itemKey.itemID or nil
-            local key
-            if type(r.itemLink) == "string" then key = ns.Items.Key(r.itemLink)
-            else key = ns.Items.KeyOf(r.itemKey) or ns.Items.Key(id) end
+            local key = ns.Items.RowKey(r.itemKey, r.itemLink)
             local qty = tonumber(r.quantity) or 1
             -- An owned auction's buyoutAmount is the price of ONE (Auctionator's Cancelling.lua
             -- 242-244 multiplies it by the quantity for its total on sale), but a SOLD one's is
@@ -369,9 +367,7 @@ local function readBids()
         local r = a.GetBidInfo(i)
         if type(r) == "table" and type(r.auctionID) == "number" then
             local id = type(r.itemKey) == "table" and r.itemKey.itemID or nil
-            local key
-            if type(r.itemLink) == "string" then key = ns.Items.Key(r.itemLink)
-            else key = ns.Items.KeyOf(r.itemKey) or ns.Items.Key(id) end
+            local key = ns.Items.RowKey(r.itemKey, r.itemLink)
             local buyout = tonumber(r.buyoutAmount)
             if buyout and buyout <= 0 then buyout = nil end
             list[#list + 1] = {
@@ -434,7 +430,7 @@ function Post.KeyOf(auctionID)
     if a and a.GetAuctionInfoByID then
         local info = a.GetAuctionInfoByID(auctionID)
         if type(info) == "table" then
-            local key = type(info.itemLink) == "string" and ns.Items.Key(info.itemLink) or ns.Items.KeyOf(info.itemKey)
+            local key = ns.Items.RowKey(info.itemKey, info.itemLink)
             if key then return key end
         end
     end

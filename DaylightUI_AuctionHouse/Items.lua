@@ -42,27 +42,10 @@ local function wordsIn(link, id)
     return wordsAfter(string.match(link, "|h%[(.-)%]|h"), id)
 end
 
--- A suffix is the same words on every item, so one number per words (Forever's
--- AH: about 45 of them, 14296-14473). Forever's links don't carry the AH's
--- number, only the words in their [text]: the words are the way back to it.
-local numbers, numbersOf   -- words -> suffix number, built from ns.DB.Suffixes()
-local function numberOf(words)
-    local all = ns.DB.Suffixes()
-    if numbersOf ~= all then
-        numbers, numbersOf = {}, all
-        for n, w in pairs(all) do numbers[w] = n end
-    end
-    return numbers[words]
-end
-
--- Keeps a suffix's words, once (a few hundred at most); a new one reaches the
--- lists already showing it a frame later ("SuffixLearned", once a frame).
+-- A suffixed item lists the bags and the lists showing it again a frame after
+-- something new is learned about suffixes ("SuffixLearned", once a frame).
 local telling = false
-local function learn(suffix, words)
-    local all = ns.DB.Suffixes()
-    if not words or all[suffix] then return end
-    all[suffix] = words
-    if numbersOf == all then numbers[words] = suffix end
+local function tell()
     if telling then return end
     telling = true
     C_Timer.After(0, function()
@@ -71,19 +54,46 @@ local function learn(suffix, words)
     end)
 end
 
--- This session: a link's item string -> the AH key it came from (a search
--- row's link, a key's sample link). One suffix name can be several AH numbers
--- (strengths), so the words alone can't say which; a link the AH gave for a
--- key can. A few hundred at most a session.
-local keyOfLink = {}
--- The link's item string without the fields a link fills in per viewer
--- (8th-10th after "item:": unique id, the viewer's level, spec), so the
--- tooltip's own copy of a link matches the one the AH gave.
-local function itemString(link)
+-- Keeps a suffix's words for showing its name ("of the Defender"), once. Words
+-- only ever name a suffix: they never decide which price an item gets.
+local function learn(suffix, words)
+    local all = ns.DB.Suffixes()
+    if not words or all[suffix] then return end
+    all[suffix] = words
+    tell()
+end
+
+-- The bonus IDs of a link ("12751", or "12751:6654" for two), nil for none.
+-- On Forever a random suffix is a bonus ID in the link, one per suffix, while
+-- the Auction House has its own number for it (a fixed list, 14296-14473, not
+-- a fixed distance from the bonus). The 13th field counts the IDs after it.
+local BONUS = "^" .. string.rep("[^:]*:", 12) .. "(%d+):([^|]*)"
+local bonusPatterns = {}   -- how many IDs -> a pattern taking that many
+local function bonusOf(link)
     local body = string.match(link, "item:([^|]+)")
-    if not body then return nil end
-    local head, tail = string.match(body, "^([^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*:[^:]*):[^:]*:[^:]*:[^:]*(.*)$")
-    return head and (head .. tail) or body
+    local count, rest
+    if body then count, rest = string.match(body, BONUS) end
+    count = tonumber(count)
+    if not count or count < 1 or count > 16 then return nil end
+    local pattern = bonusPatterns[count]
+    if not pattern then
+        pattern = "^" .. string.rep("%d+:", count - 1) .. "%d+"
+        bonusPatterns[count] = pattern
+    end
+    return string.match(rest, pattern)
+end
+
+-- Pairs a link's bonus with the AH's suffix number. Only called with a link and
+-- a number the game gave for the very same item (an auction's row, an item in
+-- the bags), never from a name or a sample: a wrong pair would show one
+-- suffix's price on another. Saved for the account, so it's learned once.
+local function pair(link, suffix)
+    local bonus = type(link) == "string" and bonusOf(link)
+    if not bonus or type(suffix) ~= "number" or suffix == 0 then return end
+    local paired = ns.DB.Table("suffixBonus")
+    if paired[bonus] == suffix then return end
+    paired[bonus] = suffix
+    tell()
 end
 
 local function plainNumber(v)
@@ -96,8 +106,9 @@ end
 -- with a random suffix (classic "of the Monkey" gear: the link's 7th field
 -- after "item:", itemID being the 1st). A key gives itself back
 -- ("7429:-15" -> "7429:-15", "7429"). Nil for anything that is not an item.
--- A third value, true: the link names a suffix whose number Daylight UI doesn't
--- know yet (its words unseen at the AH), so the plain key isn't its price.
+-- A third value, true: the link has a suffix whose AH number isn't paired yet,
+-- so it has no price of its own, and the plain key's (the cheapest of every
+-- suffix) isn't its price either.
 function Items.Key(linkOrID)
     local id, suffix, unplaced
     if type(linkOrID) == "number" then
@@ -112,11 +123,15 @@ function Items.Key(linkOrID)
             if id and suffix and suffix ~= 0 then
                 learn(suffix, wordsIn(linkOrID, id))
             elseif id then
-                local known = keyOfLink[itemString(linkOrID) or ""]
-                if known then return known, string.format("%d", id) end
-                local words = wordsIn(linkOrID, id)
-                suffix = words and numberOf(words)
-                unplaced = words ~= nil and not suffix
+                local bonus = bonusOf(linkOrID)
+                suffix = bonus and ns.DB.Table("suffixBonus")[bonus]
+                if not suffix then
+                    -- Words after the item's name are a suffix not paired yet.
+                    -- A bonus on an item whose name the game hasn't loaded may
+                    -- be one too, so it gets no price rather than a guess.
+                    unplaced = wordsIn(linkOrID, id) ~= nil
+                        or (bonus ~= nil and Items.Name(id) == nil)
+                end
             end
         else
             local idText, suffixText = string.match(linkOrID, OWN_KEY)
@@ -150,19 +165,19 @@ function Items.KeyOf(itemKey)
     return key, base
 end
 
--- Learns a suffix's words from an AH row's item key: from the row's link when
--- it has one, else from the name the game gives the key (GUESS, the same name
--- its own browse list shows: holds the words). Nothing to learn for a plain key.
+-- Learns from an AH row's item key. With the row's own link (the same
+-- auction): the link's bonus is paired with the key's suffix number, and the
+-- words are kept for its name. Without one, only a name to show, from the name
+-- the game gives the key (the same name its own browse list shows); a name
+-- never decides a price. Nothing to learn for a plain key.
 local seenLinks = {}   -- this session: a suffixed price key -> a real link of it
 function Items.LearnKey(itemKey, link)
     if type(itemKey) ~= "table" then return end
     local id, suffix = itemKey.itemID, plainNumber(itemKey.itemSuffix)
     if type(id) ~= "number" or not suffix or suffix == 0 then return end
     if type(link) == "string" then
-        local key = id .. ":" .. string.format("%d", suffix)
-        seenLinks[key] = link
-        local body = itemString(link)
-        if body then keyOfLink[body] = key end
+        seenLinks[id .. ":" .. string.format("%d", suffix)] = link
+        pair(link, suffix)
         learn(suffix, wordsIn(link, id))
     end
     if ns.DB.Suffixes()[suffix] or not (C_AuctionHouse and C_AuctionHouse.GetItemKeyInfo) then return end
@@ -173,21 +188,35 @@ function Items.LearnKey(itemKey, link)
     end
 end
 
--- The price key of what sits in a bag slot. A name with words whose number
--- isn't known yet asks the game for the AH's key of that very item (what its
--- own sell frame does; it may answer only at the AH), so what you carry and
--- what's up for sale are one item.
+-- The price key of what sits in a bag slot. A suffix not paired yet asks the
+-- game for the AH's key of that very item (what its own sell frame does; it
+-- may answer only at the AH) and pairs it, so what you carry and what's up for
+-- sale are one item.
 function Items.BagKey(bag, slot, link, id)
     local isLink = type(link) == "string"
-    local key, base = Items.Key(isLink and link or id)
-    if key ~= base or not isLink then return key end
-    local words = wordsIn(link, Items.ID(key))
-    if not words or not (C_AuctionHouse and C_AuctionHouse.GetItemKeyFromItem and ItemLocation) then return key end
+    local key, base, unplaced = Items.Key(isLink and link or id)
+    if not unplaced or not isLink then return key end
+    if not (C_AuctionHouse and C_AuctionHouse.GetItemKeyFromItem and ItemLocation) then return key end
     local itemKey = C_AuctionHouse.GetItemKeyFromItem(ItemLocation:CreateFromBagAndSlot(bag, slot))
     local suffix = type(itemKey) == "table" and plainNumber(itemKey.itemSuffix)
     if not suffix or suffix == 0 then return key end
-    learn(suffix, words)
+    pair(link, suffix)
+    learn(suffix, wordsIn(link, Items.ID(key)))
     return base .. ":" .. string.format("%d", suffix)
+end
+
+-- The price key of an auction's own row (a search, your auctions, your bids):
+-- the game's item key, which carries the AH's suffix number, pairs the row's
+-- link with it; a plain one goes by the link, else the itemID.
+function Items.RowKey(itemKey, link)
+    local key, base = Items.KeyOf(itemKey)
+    if key and key ~= base then
+        Items.LearnKey(itemKey, link)
+        return key, base
+    end
+    if type(link) == "string" then return Items.Key(link) end
+    if key then return key, base end
+    return Items.Key(type(itemKey) == "table" and itemKey.itemID or nil)
 end
 
 -- The itemID of a key ("7429:-15" -> 7429).
@@ -350,10 +379,8 @@ function Items.SetTip(tip, key, itemID)
         -- SetItemKey alone is the group's "may vary" tooltip, no stats
         if C_AuctionHouse and C_AuctionHouse.GetItemKeySampleLink and tip.SetHyperlink then
             local sample = C_AuctionHouse.GetItemKeySampleLink(itemKey)
+            -- Shown, never kept or paired: a sample may not be the key's own item.
             if type(sample) == "string" and not (issecretvalue and issecretvalue(sample)) and sample ~= "" then
-                seenLinks[key] = sample
-                local body = itemString(sample)
-                if body then keyOfLink[body] = key end
                 tip:SetHyperlink(sample)
                 return
             end
