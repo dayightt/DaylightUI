@@ -202,7 +202,7 @@ end
 local function lineOf(l, picked, id)
     local value, vc
     if l.money > 0 then value, vc = money(l.money), Style.INK.MONEY
-    elseif l.cod > 0 then value, vc = L["COD"], Style.INK.WARN
+    elseif l.cod > 0 then value, vc = ns.Game("COD", L["COD"]), Style.INK.WARN
     elseif l.items > 0 then value, vc = l.items == 1 and L["1 item"] or string.format(L["%d items"], l.items), Style.INK.LABEL end
     local days = daysText(l.days)
     if l.days <= Inbox.LOW_DAYS then days = Win.Parts.Hex(Style.INK.WARN) .. days .. "|r" end
@@ -363,15 +363,15 @@ local function receipt(s, l)
     -- The other side of the sale, like the game's letter shows it.
     local who = type(v.player) == "string" and v.player ~= "" and Win.Parts.Hex(Style.INK.VALUE) .. v.player .. "|r"
     if v.type == "seller" or v.type == "seller_temp_invoice" then
-        if who then row(L["Bought by"], who) end
-        row(L["Sold for"], money(v.bid))
-        if v.cut > 0 then row(L["Auction house cut"], Win.Parts.Hex(Style.INK.DAMAGE) .. "-" .. DUI.Widgets.Money(v.cut, { color = false }) .. "|r") end
-        if v.deposit > 0 then row(L["Deposit back"], money(v.deposit)) end
-        row(L["You keep"], money(v.bid - v.cut + v.deposit))
+        if who then row(ns.Game("PURCHASED_BY_COLON", L["Bought by"]), who) end
+        row(ns.Game("SALE_PRICE_COLON", L["Sold for"]), money(v.bid))
+        if v.cut > 0 then row(ns.Game("AUCTION_HOUSE_CUT_COLON", L["Auction house cut"]), Win.Parts.Hex(Style.INK.DAMAGE) .. "-" .. DUI.Widgets.Money(v.cut, { color = false }) .. "|r") end
+        if v.deposit > 0 then row(ns.Game("DEPOSIT_COLON", L["Deposit back"]), money(v.deposit)) end
+        row(ns.Game("AMOUNT_RECEIVED_COLON", L["You keep"]), money(v.bid - v.cut + v.deposit))
         if v.type == "seller_temp_invoice" then row(L["Gold on its way"], "") end
     else
-        if who then row(L["Sold by"], who) end
-        row(L["Bought for"], money(v.bid))
+        if who then row(ns.Game("SOLD_BY_COLON", L["Sold by"]), who) end
+        row(ns.Game("AMOUNT_PAID_COLON", L["Bought for"]), money(v.bid))
     end
 end
 
@@ -654,7 +654,7 @@ function Inbox.PaintFooter(pane)
     -- sharing the width under the letter (five in one row overlapped).
     local ticks = #S.ticked
     if Inbox.list and Inbox.list.foot then
-        local collect = L["Collect all"]
+        local collect = ns.Game("OPEN_ALL_MAIL_BUTTON", L["Collect all"])
         if S.collecting then collect = L["Collecting..."]
         elseif ticks > 0 then collect = string.format(L["Collect ticked (%d)"], ticks) end
         Inbox.list.foot:Set({
@@ -665,7 +665,7 @@ function Inbox.PaintFooter(pane)
         { text = take, primary = true, off = busy or not (l and (l.money > 0 or l.items > 0)), onClick = Inbox.Take },
         { text = REPLY_MESSAGE or L["Reply"], off = busy or not (l and l.canReply), onClick = Inbox.Reply },
         -- when the last button returns it, this one would say the same
-        { text = L["Return"], off = busy or not (l and l.canReply and not l.returned and l.canDelete), onClick = Inbox.Return },
+        { text = ns.Game("MAIL_RETURN", L["Return"]), off = busy or not (l and l.canReply and not l.returned and l.canDelete), onClick = Inbox.Return },
         { text = delete, tone = "no", off = busy or not l, onClick = Inbox.Delete },
     })
     pane.full:SetShown(S.full == true)

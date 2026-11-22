@@ -164,7 +164,7 @@ function Send.PaintCod(page)
     page = page or Send.page
     if not page then return end
     page.cod.SetOn(S.cod)
-    page.goldLabel:SetText(S.cod and L["COD"] or L["Gold"])
+    page.goldLabel:SetText(S.cod and ns.Game("COD", L["COD"]) or L["Gold"])
 end
 
 function Send.Clear()
@@ -366,7 +366,7 @@ end
 function Send.Build(page)
     Send.page = page
     local y = 14
-    label(page, L["To"], y)
+    label(page, ns.Game("MAIL_TO_LABEL", L["To"]), y)
     page.chips = {}
     page.to = box(page, y, { hint = L["First and last name"],
         onChange = function(_, user) if user then Send.Chips(page) end end })
@@ -378,7 +378,7 @@ function Send.Build(page)
     y = y + Send.ROW
     page.chipsY = y
     y = y + W().CHIP_HEIGHT + 10
-    label(page, L["Subject"], y)
+    label(page, ns.Game("MAIL_SUBJECT_LABEL", L["Subject"]), y)
     page.subject = box(page, y, { hint = L["Subject"], maxLetters = 64 })
     y = y + Send.ROW
     -- The letter: multi-line (Enter adds a line), in the shared text area. Its background
@@ -414,7 +414,7 @@ function Send.Build(page)
     local codLabel = Style.Text(page, Style.SIZE.small, "RIGHT")
     codLabel:SetPoint("RIGHT", page.cod, "LEFT", -8, 0)
     Style.InkText(codLabel, "LABEL")
-    codLabel:SetText(L["Cash on delivery"])
+    codLabel:SetText(ns.Game("CASH_ON_DELIVERY", L["Cash on delivery"]))
     y = y + Send.ROW + 6
     page.itemsLabel = label(page, L["Items"], y - 7)
     page.postage = Style.Text(page, Style.SIZE.small, "RIGHT")
