@@ -2101,9 +2101,9 @@ function UF.LayoutPortrait(f, cfg)
     local mode = UF.PortraitMode(f, cfg)
     local holder = f.portraitHolder
     local free = UF.PORTRAIT_FREE[f.spec.unit] and cfg.portraitAt == "free"
-    -- An options preview has no holder, so a portrait on its own is drawn
-    -- where it sits on the frame.
-    if free and not holder then free = false end
+    -- An options preview has no holder, so a portrait on its own leaves it,
+    -- as a power bar on its own does.
+    if free and not holder then mode = "none" end
     f.portraitFree = (free and mode ~= "none" and cfg.enabled ~= false) and true or false
     f.iconsStay = f.portraitFree and cfg.portraitIconsStay == true
     UF.HomePortrait(f)

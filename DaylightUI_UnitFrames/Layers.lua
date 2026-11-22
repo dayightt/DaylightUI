@@ -88,7 +88,7 @@ end
 local function extraTexts(out)
     for i in ipairs(ns.TEXT_SLOTS or {}) do
         out[#out + 1] = part("text" .. i, "Extra text " .. i, function(f) return f.extraTexts and f.extraTexts[i] end,
-            { region = true })
+            { region = true, slot = ns.TEXT_SLOTS[i] })
     end
     return out
 end
@@ -196,18 +196,24 @@ end
 
 -- Sets one frame's level and keeps everything inside it at its offset (the
 -- portrait's ring over its model, a tab's crest over the tab).
+-- The game's aura containers carry their own buttons and order each button's
+-- frames themselves (its border among them), so only the container is moved.
+local function gameOwned(frame) return frame.GetObjectType and frame:GetObjectType() == "AuraContainer" end
+
 local function setLevel(frame, level)
     if frame.layerHome == nil then frame.layerHome = frame:GetFrameLevel() end
-    ns.UF.NoteLevels(frame)
+    local inner = not gameOwned(frame)
+    if inner then ns.UF.NoteLevels(frame) end
     frame:SetFrameLevel(math.max(0, level))
-    ns.UF.Relevel(frame)
+    if inner then ns.UF.Relevel(frame) end
 end
 
 local function restore(frame)
     if frame.layerHome == nil then return end
-    ns.UF.NoteLevels(frame)
+    local inner = not gameOwned(frame)
+    if inner then ns.UF.NoteLevels(frame) end
     frame:SetFrameLevel(frame.layerHome)
-    ns.UF.Relevel(frame)
+    if inner then ns.UF.Relevel(frame) end
     frame.layerHome = nil
 end
 
@@ -330,6 +336,8 @@ function Layers.Rows(unit, off)
     for _, part in ipairs(Layers.PARTS[unit] or {}) do
         local key = part.key
         local f = frameOf(unit)
+        -- An extra text's rows only show while that text is added (Add piece).
+        local unused = part.slot and function(get) return get(unit .. ".texts." .. part.slot .. ".show") ~= true end
         rows[#rows + 1] = { type = "slider", key = unit .. ".parts." .. key .. ".order", label = part.label .. " order",
             min = Layers.MIN, max = Layers.MAX, step = 1,
             desc = "Where it draws among this frame's parts: a higher number draws on top. "
@@ -337,7 +345,7 @@ function Layers.Rows(unit, off)
             get = function() return Layers.OrderOf(unit, key) end,
             set = function(v) Layers.Set(unit, key, v, false) end,
             default = function() return nil end,
-            disabled = off }
+            disabled = off, hidden = unused }
         if part.free and not part.ownLayer then
             rows[#rows + 1] = { type = "dropdown", key = unit .. ".parts." .. key .. ".layer", label = part.label .. " layer",
                 values = ns.CASTBAR_STRATA_LABELS, order = ns.CASTBAR_STRATA,

@@ -76,16 +76,14 @@ T.test("layers: buffs and debuffs are layered on their own", function()
     T.eq(ns.auras.buffs:GetFrameLevel(), f:GetFrameLevel() + 8)
 end)
 
-T.test("layers: the options preview draws the same order, a free portrait included", function()
+T.test("layers: the options preview draws the same order", function()
     local DUI, ns = freeTarget()
     set("target.parts.portrait.order", 2)
     set("target.parts.health.order", 9)
     local s = ns.PageSample.New("target", UIParent)
     s.Refresh(400, 200)
     local f = s.f
-    T.truthy(f.portrait:IsShown(), "a portrait on its own still shows in the preview")
-    T.eq(f.health:GetFrameLevel(), f:GetFrameLevel() + 9)
-    T.eq(f.portrait:GetFrameLevel(), f:GetFrameLevel() + 2, "under the health bar, as asked")
+    T.eq(f.health:GetFrameLevel(), f:GetFrameLevel() + 9, "the preview takes the order")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -162,4 +160,31 @@ T.test("layers: the target page has a Layers tab", function()
     P.Show("UnitFrames.party")
     tabs = P.PageFrame().tabs
     T.truthy(tabs[#tabs] ~= "Layers", "not on party")
+end)
+
+T.test("layers: a level change leaves the game's aura buttons alone", function()
+    local _, ns, f = freeTarget()
+    local rows = ns.auras.buffs
+    local btn = CreateFrame("Button", nil, rows)
+    local edge = CreateFrame("Frame", nil, btn)
+    btn:SetFrameLevel(rows:GetFrameLevel() + 1)
+    edge:SetFrameLevel(btn:GetFrameLevel() + 3)
+    set("target.parts.buffs.order", 60)
+    T.eq(rows:GetFrameLevel(), f:GetFrameLevel() + 60)
+    T.isnil(btn.levelOffset, "nothing noted inside the container")
+    T.isnil(edge.levelOffset)
+end)
+
+T.test("layers: an extra text's rows show only while it's added", function()
+    local DUI = login()
+    local page = DUI.Options.GetPage("UnitFrames.target")
+    local row
+    for _, g in ipairs(page.groups) do
+        for _, it in ipairs(g.items or {}) do if it.key == "target.parts.text1.order" then row = it end end
+    end
+    T.truthy(row and row.hidden, "has a hidden check")
+    local get = function(k) return DUI:Get("UnitFrames", k) end
+    T.truthy(row.hidden(get), "hidden while unused")
+    set("target.texts.t1.show", true)
+    T.falsy(row.hidden(get), "shown once added")
 end)
