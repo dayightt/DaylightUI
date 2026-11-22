@@ -26,6 +26,7 @@ Locales\koKR.lua
 Locales\frFR.lua
 Locales\esES.lua
 Locales\deDE.lua
+Locales\huHU.lua
 
 Core.lua
 DB.lua
