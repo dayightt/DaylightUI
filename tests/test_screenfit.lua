@@ -145,6 +145,26 @@ T.test("screen fit: from 32:9 to 16:9, the middle and the edges keep their spots
     T.eq(made.general.scale, 1, "the Scale is the same: same height")
 end)
 
+T.test("screen fit: from 32:9 to 16:9 without Appearance, a side piece in the way keeps its size and stays on the screen", function()
+    local DUI = login(5120, 1440)
+    local P, M = DUI.Profiles, DUI.Movers
+    DUI:Set("general", "borderPx", 3)
+    local at = DUI.DB.Positions()
+    at["unitframes.pet"] = { 1260, 300 } -- on the screen, by its right edge
+    at["infopanel"] = { 300, 300 }
+    M.SetPieceScale("unitframes.pet", 2)
+    M.SetPieceScale("infopanel", 2)
+    local text = P.Encode(P.Snapshot())
+
+    stub.SetScreen(1920, 1080, 1)
+    local room = UIParent:GetWidth() / 2
+    -- Its smaller size couldn't be saved, so it isn't placed as if it had one.
+    local made = import(DUI, text, "Narrow", { [P.GENERAL] = true })
+    local pet = box(DUI, "unitframes.pet", made.positions["unitframes.pet"])
+    T.truthy(pet.r <= room + 1e-6, "its full size is on the screen: right edge " .. pet.r .. " of " .. room)
+    T.eq((made.general.frameScales or {})["unitframes.pet"], 2, "its own size, untouched")
+end)
+
 T.test("screen fit: from 1080p's UI scale to 1440p's, everything grows with the height, in the same places", function()
     local DUI = login(1920, 1080, 768 / 1080)
     local P, M = DUI.Profiles, DUI.Movers

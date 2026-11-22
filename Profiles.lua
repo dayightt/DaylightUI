@@ -341,6 +341,9 @@ local function overlap(a, b) return a.l < b.r and b.l < a.r and a.b < b.t and b.
 local function fitPositions(fs, at, size, grow, general)
     local M = DUI.Movers
     local resize = math.abs(fs.k - 1) > Profiles.FIT_NEAR
+    -- A piece only shrinks when its smaller size is saved too. Otherwise it would
+    -- be placed for a size it never gets and stick out past its neighbors.
+    local function canShrink(it) return general ~= nil and M.Scalable(it.key) end
     local list = {}
     local function add(key, x, y, point, ax, ay)
         local w, h = M.SizeOf(key)
@@ -394,7 +397,7 @@ local function fitPositions(fs, at, size, grow, general)
     if l and r - l > fs.w then
         local s = math.max(Profiles.FIT_SHRINK, fs.w / (r - l))
         for _, it in ipairs(list) do
-            if it.side == 0 and not it.fixed then it.shrink = s end
+            if it.side == 0 and not it.fixed and canShrink(it) then it.shrink = s end
         end
     end
     -- Each side piece's gap from its own edge on the old screen.
@@ -410,7 +413,7 @@ local function fitPositions(fs, at, size, grow, general)
         return a.key < b.key
     end)
     for _, it in ipairs(outer) do
-        if clash(it) then
+        if canShrink(it) and clash(it) then
             -- What it still runs into at its smallest is in the way at any
             -- size: shrinking for that only makes it small and still covered.
             it.shrink = Profiles.FIT_SHRINK
@@ -445,7 +448,7 @@ local function fitPositions(fs, at, size, grow, general)
             end
             at[it.key] = v
             local s = it.shrink or 1
-            if general and s < 1 and M.Scalable(it.key) then
+            if s < 1 then
                 if type(general.frameScales) ~= "table" then general.frameScales = {} end
                 general.frameScales[it.key] = clamp((tonumber(general.frameScales[it.key]) or 1) * s, M.MIN, M.MAX)
             end
