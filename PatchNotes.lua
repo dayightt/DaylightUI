@@ -11,9 +11,28 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", new = {
+        { "Cast bars", "Your cast bar can mark where each tick of a channel like Drain Life, Mind Flay or Arcane Missiles lands, so you don't cut one short" },
+        { "Combo points", "Combo points can stand on their own anywhere on your screen, not only on the target or player frame" },
+        { "Buffs", "Buffs and debuffs can be ordered longest first, with forms and auras that never run out at the start" },
+        { "Data texts", "A data text for your equipment set: see which set you're wearing and switch sets from it" },
+        { "Bags", "Disenchant can stay on in your bags, so a pile of greens is one click each" },
+    }, fixed = {
         { "Nameplates", "Nameplates and speech bubbles no longer vanish after dragging a spell out of the spellbook or a chat tab to the other chat panel, and /dui platefix brings them back if they ever do" },
         { "Auction House", "Picking an item to buy now picks its cheapest auction, not sometimes the most expensive one" },
+        { "Nameplates", "With names turned off, enemy players' guild names and NPC jobs go too, instead of floating over the bar" },
+        { "DoT damage", "The damage your DoTs still have to do no longer shrinks to almost nothing as you level up, like Shadow Word: Pain on a higher level priest" },
+        { "DoT damage", "The damage your DoTs still have to do and the kill skull now work on Spanish, Portuguese, German, Russian, Chinese and Korean game clients" },
+        { "Tooltips", "Rich tooltips no longer flicker while you hover something after a tooltip has faded out once" },
+        { "Tooltips", "Forever Leveling BiS's green upgrade arrow no longer floats in the middle of Rich item tooltips" },
+        { "Tooltips", "The outlined tags on Rich tooltips no longer lose their top or bottom edge at some UI scales" },
+        { "Tooltips", "A price addon's long label stays on one line with its price on Rich item tooltips, which widen a little for it" },
+        { "NPC window", "With Immersion on, talking to NPCs opens only Immersion, not the NPC window beside it. Vendors and trainers still open in the NPC window" },
+        { "Info panel", "A faded info panel no longer leaves a colored patch where the experience bar was, with a picked bar texture or a gradient of three or more colors" },
+        { "Characters", "Removing a deleted character from the gold list now takes it off the profiles page and the mail name suggestions too" },
+        { "Beast Training", "Beast Training opens looking right: the filter button no longer runs off the window and every ability shows its name" },
+        { "Bags", "An item taken from the mail or a trade no longer turns invisible in your bag, and neither does the Recent heading above it" },
+        { "Bags", "You can choose again which bags Clean Up leaves alone: right-click a bag above your bags. A bag it skips says so, which is why Clean Up could leave gaps and unsorted items" },
     } },
     { version = "2.2.1", date = "2026-11-21", summary = "Poisons, oils and weapon imbues in the Cooldown Manager, a UI that fades away on flight paths, and a big batch of fixes.", new = {
         { "Cooldown Manager", "Poisons, sharpening stones, oils and shaman weapon imbues can go in your Cooldown Manager, glowing when they wear off" },
