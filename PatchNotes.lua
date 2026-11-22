@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Bags", "With the ItemTree addon installed, your bags show what it says to keep, sell or use now, selling junk never sells what it keeps, and its tooltip advice gets a tidy section" },
         { "Profiles", "Importing a profile can go straight into the one you use: pick only the parts you like, such as someone's frames, and keep everything else" },
     }, fixed = {
+        { "Inspect", "The inspect window has room for the bigger item icons again, so slots no longer run into each other and item names aren't cut off" },
         { "Auction House", "Hovering the item you're selling on the Sell page shows its tooltip" },
         { "Unit frames", "Rip and Rupture no longer vanish from the DoT shade when an auto attack misses at the same moment" },
         { "Unit frames", "Rake and other bleeds no longer show a DoT shade on mobs that are immune to bleeds" },

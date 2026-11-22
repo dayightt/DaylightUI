@@ -16,7 +16,7 @@ local Insp = {}
 ns.Window = Insp
 
 Insp.NAME = "DaylightUIInspect"
-Insp.W, Insp.H = 660, 534
+Insp.W, Insp.H = 720, 624
 
 function ns.Setting(key) return ns.module and ns.module.db and ns.module.db[key] end
 

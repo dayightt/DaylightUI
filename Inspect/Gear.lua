@@ -14,7 +14,9 @@ local Style = DUI.Style
 local Page = {}
 ns.GearPage = Page
 
-Page.EDGE, Page.TOP, Page.ROW, Page.COL, Page.GAP = 16, 12, 46, 176, 8
+-- ROW and COL follow the slot icon size (Slots.ICON): a row is the icon plus room for a
+-- wrapped name, and a column leaves the words about 140 wide beside the icon.
+Page.EDGE, Page.TOP, Page.ROW, Page.COL, Page.GAP = 16, 12, 58, 200, 8
 Page.FOOT_Y = 14   -- item level line, up from the page's bottom
 
 -- Slots that take a permanent enchant (enchanting, plus head, leg and shoulder
