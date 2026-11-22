@@ -428,6 +428,15 @@ T.test("the target's free pieces, aura rows and cast bar dim out of range with i
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("a free portrait sits over a free power bar, so its level badge shows", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "target.powerAt", "free")
+    DUI:Set("UnitFrames", "target.portraitAt", "free")
+    stub.RunTimers()
+    local f = ns.frames.target
+    T.truthy(f.portraitHolder:GetFrameLevel() > f.pieces[2]:GetFrameLevel(), "portrait above power")
+end)
+
 T.test("the target's cast bar draws with the target by default, or in its own pick", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "target.strata", "HIGH")

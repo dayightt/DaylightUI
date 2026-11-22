@@ -837,8 +837,11 @@ end
 -- level 30), so one dragged over it drew underneath. It goes above the frame
 -- and everything on it, as on the player frame.
 UF.PIECE_LIFT = 15
-function UF.LiftPiece(h, f)
-    h:SetFrameLevel(f:GetFrameLevel() + UF.PIECE_LIFT)
+-- A free portrait sits over the other free pieces, as the ring sits over the
+-- frame's own bars, so its level badge stays on top of a free power bar.
+UF.PORTRAIT_LIFT = 5
+function UF.LiftPiece(h, f, over)
+    h:SetFrameLevel(f:GetFrameLevel() + UF.PIECE_LIFT + (over or 0))
 end
 
 -- The standalone tag (target.threatTagAt = "free"): a holder on UIParent with
@@ -868,7 +871,7 @@ UF.PORTRAIT_FREE = { player = "unitframes.playerPortrait", target = "unitframes.
 function UF.CreatePortraitHolder(f)
     local unit = f.spec.unit
     local h = CreateFrame("Frame", "DaylightUIPortrait_" .. unit, UIParent)
-    UF.LiftPiece(h, f)
+    UF.LiftPiece(h, f, UF.PORTRAIT_LIFT)
     h:SetSize(40, 40)
     h.key = UF.PORTRAIT_FREE[unit]
     h:Hide()

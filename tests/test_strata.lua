@@ -83,7 +83,7 @@ T.test("a frame's free pieces draw above the frame, the target's too", function(
         local f = ns.frames[u]
         local above = f:GetFrameLevel() + ns.UF.PIECE_LIFT
         T.eq(f.freePower:GetFrameLevel(), above, u .. "'s free power bar")
-        if f.portraitHolder then T.eq(f.portraitHolder:GetFrameLevel(), above, u .. "'s free portrait") end
+        if f.portraitHolder then T.eq(f.portraitHolder:GetFrameLevel(), above + ns.UF.PORTRAIT_LIFT, u .. "'s free portrait, over the other pieces") end
         if f.threatHolder then T.eq(f.threatHolder:GetFrameLevel(), above, u .. "'s threat %") end
     end
     T.truthy(ns.frames.target:GetFrameLevel() > ns.frames.player:GetFrameLevel())
