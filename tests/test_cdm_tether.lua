@@ -1139,6 +1139,28 @@ test("cdm tether: the open editor follows a moving lead; stepping it, the lead s
     T.eq(D.version, version, "nothing written")
 end)
 
+test("cdm tether: edits that leave a group put don't move its offset or spot, its lead's point on a half pixel", function()
+    local world = tetherWorld({ editor = true })
+    local D, Ed, set = world.D, world.Ed, world.set
+    world.lead:ClearAllPoints()
+    world.lead:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    moveLead(world.lead, 860.5, 500.5, 200, 40)
+    attachInEditor(world, "test.lead")
+    stepEditor(Ed)
+    local function attachment()
+        local _, offsetX, offsetY, at = world.Tether.Of(set, 11)
+        return { offsetX, offsetY, at, set.pieces[11].x, set.pieces[11].y }
+    end
+    local before = attachment()
+    T.eq(before[3], "CENTER", "measured from the lead's center")
+    for spacing = 1, 4 do
+        D.SetChainValue(set, 11, "spacing", spacing)
+        Ed.Changed()
+        stepEditor(Ed)
+        T.deq(attachment(), before, "spacing " .. spacing .. ": offset and spot kept")
+    end
+end)
+
 test("cdm tether: unhooking, removing or swapping pieces of an attached group keeps the attachment with the group's first spot and every piece put on screen", function()
     local world = tetherWorld({ editorLead = "test.lead" })
     local AB, D, Ed, set = world.AB, world.D, world.Ed, world.set

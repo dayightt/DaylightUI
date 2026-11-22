@@ -363,9 +363,17 @@ local function measureOffset(set, root, leadFrame, hang)
     if offsetX then saveOffset(set, root, hang, offsetX, offsetY) end
 end
 
+local function isAtSavedOffset(set, root)
+    local p, x, y = set.pieces[root], spotAtLeadPoint(set, root)
+    return p.x == x and p.y == y
+end
+
+-- Measured again, a whole-pixel spot off a lead point on a half pixel comes out a
+-- pixel further each time, so a group still where its offset puts it keeps it.
 local function rebaseOffset(set, root)
-    local p, _, _, _, leadFrame, hang = attachedGroup(set, root)
-    if p then measureOffset(set, root, leadFrame, hang) end
+    local p, _, _, at, leadFrame, hang = attachedGroup(set, root)
+    if not p or (at == hang and isAtSavedOffset(set, root)) then return end
+    measureOffset(set, root, leadFrame, hang)
 end
 
 -- After an edit moved spots, so groups stay where the edit put them.
