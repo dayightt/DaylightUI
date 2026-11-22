@@ -14,6 +14,7 @@ local Layers = {}
 ns.Layers = Layers
 
 Layers.MIN, Layers.MAX = 1, 60
+-- A frame's orders run 1 to its number of parts.
 -- Frame levels between two orders: more than any part's own art spans (a
 -- portrait with its ring, icons and skull reaches about 9), so parts on
 -- different orders never interleave.
@@ -116,7 +117,14 @@ Layers.PARTS = {
         debuffs("player"), buffs("player"),
         part("druid", "Druid bars", function(f) if not f.layerPreview then return _G.DaylightUIDruidBars end end,
             { free = function() return true end, mover = function() return ns.DruidBars.KEY end }),
-        castbar("player", "playerCastbar") }),
+        castbar("player", "playerCastbar"),
+        -- The swing timer and its bars standing on their own; its own page picks its layer.
+        part("swing", "Swing timer", function(f)
+            if f.layerPreview or not ns.swing then return nil end
+            local out = { ns.swing }
+            for _, pod in pairs(ns.swing.pods or {}) do out[#out + 1] = pod end
+            return out
+        end, { ownLayer = true, free = function() return true end, mover = function() return "unitframes.swing" end }) }),
     target = extraTexts({ HEALTH, power("target"), PORTRAIT, NAME, HEALTH_TEXT, POWER_TEXT, MARKER, CREST, LEVEL, LEADER, PVP,
         debuffs("target"), buffs("target"),
         part("threat", "Threat %", function(f) return f.threatHolder end,
@@ -179,6 +187,8 @@ local function dropCarrier(f, part, regions)
     end
     c:Hide()
 end
+
+function Layers.MaxFor(unit) return math.max(Layers.MIN, #(Layers.PARTS[unit] or {})) end
 
 function Layers.Find(unit, key)
     for _, part in ipairs(Layers.PARTS[unit] or {}) do
@@ -290,7 +300,7 @@ function Layers.DefaultOrders(f, unit)
         return a.i < b.i
     end)
     local out = {}
-    for n, r in ipairs(rows) do out[r.key] = math.min(Layers.MAX, n) end
+    for n, r in ipairs(rows) do out[r.key] = math.min(Layers.MaxFor(unit), n) end
     return out
 end
 
@@ -342,7 +352,7 @@ function Layers.ApplyTo(f, unit)
         local glue = glueOf(f, part)
         if #frames > 0 and order then
             placed[#placed + 1] = { part = part, i = i, frames = frames, glue = glue,
-                                    order = math.max(Layers.MIN, math.min(Layers.MAX, order)) }
+                                    order = math.max(Layers.MIN, math.min(Layers.MaxFor(unit), order)) }
         else
             for _, frame in ipairs(frames) do restore(frame) end
             for _, g in ipairs(glue) do restore(g) end
@@ -438,7 +448,7 @@ function Layers.Step(unit, key, others, up)
                 local fr = x.GetFrameLevel and x or x:GetParent()
                 if fr == pick then
                     local order = Layers.OrderOf(unit, other.key) + (up and 1 or -1)
-                    if order > Layers.MAX or order < Layers.MIN then return nil, "range" end
+                    if order > Layers.MaxFor(unit) or order < Layers.MIN then return nil, "range" end
                     return order, layer
                 end
             end
@@ -452,7 +462,7 @@ function Layers.Step(unit, key, others, up)
     else
         order = math.floor((pickLevel - 1 - span - base) / step)
     end
-    if order > Layers.MAX or order < Layers.MIN then return nil, "range" end
+    if order > Layers.MaxFor(unit) or order < Layers.MIN then return nil, "range" end
     return order, layer
 end
 
@@ -475,7 +485,7 @@ function Layers.Rows(unit, off)
         -- An extra text's rows only show while that text is added (Add piece).
         local unused = part.slot and function(get) return get(unit .. ".texts." .. part.slot .. ".show") ~= true end
         rows[#rows + 1] = { type = "slider", key = unit .. ".parts." .. key .. ".order", label = part.label .. " order",
-            min = Layers.MIN, max = Layers.MAX, step = 1,
+            min = Layers.MIN, max = Layers.MaxFor(unit), step = 1,
             desc = "Where it draws among this frame's parts: a higher number draws on top. "
                 .. (part.mover and "In unlock mode, click it for Bring forward and Send back." or "It has no handle in unlock mode, so it's set here."),
             get = function() return Layers.OrderOf(unit, key) end,

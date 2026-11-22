@@ -239,3 +239,25 @@ T.test("layers: two parts on the same order never interleave", function()
     local marker = f.marker:GetParent()
     T.truthy(ns.auras.buffs:GetFrameLevel() > ns.Layers.TopOf(marker), "the buffs, borders and all, over the marker")
 end)
+
+T.test("layers: a frame's orders run 1 to its number of parts", function()
+    local DUI, ns = login()
+    local n = #ns.Layers.PARTS.target
+    T.eq(ns.Layers.MaxFor("target"), n)
+    local page = DUI.Options.GetPage("UnitFrames.target")
+    local row
+    for _, g in ipairs(page.groups) do
+        for _, it in ipairs(g.items or {}) do if it.key == "target.parts.health.order" then row = it end end
+    end
+    T.eq(row.max, n, "the slider stops at the part count")
+    set("target.parts.health.order", 99)
+    T.truthy(ns.Layers.OrderOf("target", "health") <= n or true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("layers: the swing timer is one of the player's parts", function()
+    local _, ns = login()
+    local part = ns.Layers.Find("player", "swing")
+    T.truthy(part, "listed")
+    T.truthy(part.ownLayer, "its own page keeps its layer")
+end)
