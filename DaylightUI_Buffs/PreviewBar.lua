@@ -109,7 +109,7 @@ local function render()
     local state = { inGroup = IsInGroup(), inRaid = IsInRaid() }
 
     -- Same inputs the live bar gives the client.
-    local clusters = Layout.ClusterEntries(entries, BL.DB.categories, BL.Categories.Order())
+    local clusters = Layout.ClusterEntries(entries, BL.DB.categories, BL.Categories.Order(), s.sortOrder == "longest")
     local byKey, groups = {}, {}
     local spot = {}
     for index, id in ipairs(BL.Categories.Order()) do spot[id] = index end
@@ -227,10 +227,14 @@ local function renderDebuffs()
     dFrame:SetScale(DUI.Movers.Scale("buffs.debuff"))
     dFrame:SetSize(math.max(flow.width, size), math.max(flow.height, height))
     sampleBackground(dFrame, s, room, DEBUFF_LOOK)
-    -- Soonest first, as the live bar sorts them.
+    -- In the live bar's order: soonest first, or longest first.
     local order = {}
     for i = 1, #samples do order[i] = samples[i] end
-    table.sort(order, function(a, b) return a.left < b.left end)
+    local longest = s.sortOrder == "longest"
+    table.sort(order, function(a, b)
+        if longest then return a.left > b.left end
+        return a.left < b.left
+    end)
     local now = BL.Clock()
     dActive = {}
     for i, e in ipairs(flow.elements) do

@@ -93,6 +93,10 @@ BL.DEFAULTS = {
         categoryRows = false, -- class buffs share a row, every other kind starts its own
         columns = 34,
         growLeft = true,
+        -- Within each category: soonest to run out first, or longest first
+        -- with buffs that never run out leading (soonest | longest). The
+        -- client's container sorts them, so the order holds in a fight.
+        sortOrder = "soonest",
         showBackground = false,
         -- The bar background's border, shadow and opacity, or General's. Its
         -- border is thin by design.
@@ -130,6 +134,7 @@ BL.DEFAULTS = {
             attach = true,
             attachY = 0,
             growLeft = true,
+            sortOrder = "soonest",
             fade = DaylightUI.Fade.Defaults(),
             showBackground = false,
             frameStyle = DaylightUI.Style.LookDefaults({ borderPx = 2 }),

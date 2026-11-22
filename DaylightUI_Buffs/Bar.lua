@@ -138,6 +138,9 @@ local BarMixin = {}
 
 function BarMixin:Setting(key) return BL.GetSetting(key, self.scope) end
 function BarMixin:IsDebuff() return self.scope == "debuff" end
+-- Longest first (buffs that never run out leading) or soonest to run out first.
+function BarMixin:Longest() return self:Setting("sortOrder") == "longest" end
+function BarMixin:SortDirection() return Layout.SortDirection(self:Longest()) end
 function BarMixin:Corner() return self:Setting("growLeft") and "TOPRIGHT" or "TOPLEFT" end
 function BarMixin:Size() return self:Setting("iconSize") end
 function BarMixin:BorderPx() return self:Setting("borderPx") end
@@ -265,7 +268,8 @@ function BarMixin:Create()
     self.frame = c
     self.groups = {}        -- [groupKey] = true once registered with the container
     self.refused = {}       -- [groupKey] = true when the client refused its filter
-    self.buttons = {}       -- [groupKey] = { button, ... } created by the client for that group
+    self.groupSort = {}     -- [groupKey] = the sort direction the client last got
+    self.buttons = {}      -- [groupKey] = { button, ... } created by the client for that group
     self.consolidated = {}  -- [groupKey] = true while the group is collapsed to one icon
     self.memberCounts = {}  -- [groupKey] = n, refreshed whenever auras are readable
     self.badged = {} -- [groupKey] = how many of its buttons show the count above
@@ -401,16 +405,22 @@ function BarMixin:ApplyGroups()
                 local ok, err = pcall(c.AddAuraGroup, c, id, "HELPFUL", {
                     candidateFilters = filters,
                     sortMethod = AuraContainerSortMethod.ExpirationOnly,
-                    sortDirection = AuraContainerSortDirection.Normal,
+                    sortDirection = self:SortDirection(),
                     maxFrameCount = max,
                     layout = layout,
                     initializeFrame = function(btn) self:InitButton(btn, id) end,
                 })
-                if ok then self.groups[id] = true else BL.Print("Group " .. id .. " failed: " .. tostring(err)) end
+                if ok then
+                    self.groups[id] = true
+                    self.groupSort[id] = self:SortDirection()
+                else
+                    BL.Print("Group " .. id .. " failed: " .. tostring(err))
+                end
             else
                 pcall(c.SetAuraGroupCandidateFilters, c, id, filters)
                 pcall(c.SetAuraGroupLayout, c, id, layout)
                 pcall(c.SetAuraGroupMaxFrameCount, c, id, max)
+                self:ApplySort(id)
             end
         end
     end
@@ -440,13 +450,14 @@ function BarMixin:ApplyDebuffGroups()
         local ok, err = pcall(c.AddAuraGroup, c, key, DEBUFF_FILTERS[key], {
             candidateFilters = cand,
             sortMethod = AuraContainerSortMethod.ExpirationOnly,
-            sortDirection = AuraContainerSortDirection.Normal,
+            sortDirection = self:SortDirection(),
             maxFrameCount = key == want and math.huge or 0,
             layout = self:GroupLayout(1),
             initializeFrame = function(btn) self:InitButton(btn, key) end,
         })
         if ok then
             self.groups[key] = true
+            self.groupSort[key] = self:SortDirection()
         else
             -- Every debuff is tried again next time; a refused filter isn't.
             if key ~= "debuffs" then self.refused[key] = true end
@@ -460,10 +471,23 @@ function BarMixin:ApplyDebuffGroups()
             pcall(c.SetAuraGroupCandidateFilters, c, key, cand)
             pcall(c.SetAuraGroupLayout, c, key, self:GroupLayout(1))
             pcall(c.SetAuraGroupMaxFrameCount, c, key, key == want and math.huge or 0)
+            self:ApplySort(key)
         end
     end
     self.debuffGroup = want
     self.countStale = true
+end
+
+-- Hands a group already added the bar's order, when it changed. The container
+-- sorts the auras itself, so the order holds in a fight, when the auras are
+-- secret; this only talks to the container, never to its buttons.
+function BarMixin:ApplySort(key)
+    local dir = self:SortDirection()
+    if self.groupSort[key] == dir then return end
+    local c = self.frame
+    if DUI.SafeCall(c.SetAuraGroupSortMethod, c, key, AuraContainerSortMethod.ExpirationOnly, dir) then
+        self.groupSort[key] = dir
+    end
 end
 
 -- The debuffs the bar shows, as the client would list them, or nil while they
@@ -813,7 +837,8 @@ function BarMixin:AllMembers()
             table.insert(byGroup[key], e)
         end
     end
-    for key, list in pairs(byGroup) do byGroup[key] = Layout.SortLikeClient(list) end
+    local longest = self:Longest()
+    for key, list in pairs(byGroup) do byGroup[key] = Layout.SortLikeClient(list, longest) end
     self.membersCache = byGroup
     return byGroup
 end
@@ -1149,14 +1174,20 @@ function BarMixin:ShowPopout(groupKey, members, anchorX, anchorY)
         local ok = pcall(c.AddAuraGroup, c, "members", "HELPFUL", {
             candidateFilters = filters,
             sortMethod = AuraContainerSortMethod.ExpirationOnly,
-            sortDirection = AuraContainerSortDirection.Normal,
+            sortDirection = self:SortDirection(),
             layout = layout,
             initializeFrame = function(btn) self:InitPopoutButton(btn) end,
         })
         c.hasGroup = ok
+        c.sortDir = ok and self:SortDirection() or nil
     else
         pcall(c.SetAuraGroupCandidateFilters, c, "members", filters)
         pcall(c.SetAuraGroupLayout, c, "members", layout)
+        -- In the bar's order, like the members list the hover reads.
+        local dir = self:SortDirection()
+        if c.sortDir ~= dir and DUI.SafeCall(c.SetAuraGroupSortMethod, c, "members", AuraContainerSortMethod.ExpirationOnly, dir) then
+            c.sortDir = dir
+        end
     end
     local size, spacing = self:Size(), self:Setting("spacing")
     local room = textRoom(size)
@@ -1648,6 +1679,13 @@ BL.On("SETTINGS_CHANGED", function(key, scope)
         return
     end
     if key == "attachY" then return end -- the anchors moved (Module.lua), the bar follows them
+    if key == "sortOrder" then
+        -- Each group gets the new order (ApplyGroups), which also drops the
+        -- hover's copy of the old one.
+        local bar = (scope == "debuff") and BL.DebuffBar or BL.Bar
+        if bar and bar.frame then bar:ApplyGroups() end
+        return
+    end
     local bar = (scope == "debuff") and BL.DebuffBar or BL.Bar
     if bar and bar.frame then bar:ApplyAll() end
 end)

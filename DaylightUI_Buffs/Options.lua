@@ -344,6 +344,11 @@ local function barItems(debuff)
           desc = "Icons on a row before it wraps to the next." },
         { type = "toggle", key = p .. "growLeft", label = "Grow to the left",
           desc = "Icons fill from the bar's right edge leftward, toward the middle of the screen." },
+        { type = "dropdown", key = p .. "sortOrder", label = debuff and "Debuff order" or "Buff order", since = "2.3",
+          values = { soonest = "Soonest to run out first", longest = "Longest first" }, order = { "soonest", "longest" },
+          desc = debuff
+              and "Which debuffs come first on the bar. Longest first starts with debuffs that never run out, then the longest timers."
+              or "Which buffs come first within each category. Longest first starts with buffs that never run out, like forms and auras, then the longest timers." },
         { type = "toggle", key = p .. "showBackground", label = "Bar background",
           desc = "A framed panel behind the bar." },
     }

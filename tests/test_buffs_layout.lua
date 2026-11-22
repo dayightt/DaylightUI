@@ -125,3 +125,16 @@ T.test("consolidation gate matrix", function()
     T.falsy(allowed(cat, raid, party))
     T.truthy(allowed(cat, raid, inRaid))
 end)
+
+T.test("longest first turns each category round, buffs that never run out leading", function()
+    local BL = loadBL()
+    local function e(name, exp, i) return { kind = "aura", name = name, expirationTime = exp, timed = exp ~= nil and exp > 0, index = i, auraInstanceID = i, sourceUnit = "player" } end
+    local entries = { e("Arcane Intellect", 0, 2), e("Frost Armor", 900, 3), e("Mage Armor", 300, 4), e("Ice Armor", 0, 6) }
+    local clusters = BL.Layout.ClusterEntries(entries, BL.DB.categories, BL.Categories.Order(), true)
+    local names = {}
+    for i, x in ipairs(clusters[1].entries) do names[i] = x.name end
+    -- The client's Reverse swaps both sides of the compare, ties by aura id too.
+    T.deq(names, { "Ice Armor", "Arcane Intellect", "Frost Armor", "Mage Armor" })
+    T.eq(BL.Layout.SortDirection(true), AuraContainerSortDirection.Reverse)
+    T.eq(BL.Layout.SortDirection(false), AuraContainerSortDirection.Normal)
+end)

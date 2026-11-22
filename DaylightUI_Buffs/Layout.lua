@@ -112,21 +112,33 @@ function Layout.ConsolidateAllowed(category, settings, groupState)
     return true
 end
 
-local function sortByExpiry(list)
-    table.sort(list, function(a, b)
-        if a.timed ~= b.timed then return a.timed end
-        if a.timed and a.expirationTime ~= b.expirationTime then
-            return a.expirationTime < b.expirationTime
-        end
-        return (a.auraInstanceID or a.index or 0) < (b.auraInstanceID or b.index or 0)
-    end)
+-- The client's ExpirationOnly order: soonest to run out first, buffs that never
+-- run out last, then by aura id.
+local function soonestFirst(a, b)
+    if a.timed ~= b.timed then return a.timed end
+    if a.timed and a.expirationTime ~= b.expirationTime then
+        return a.expirationTime < b.expirationTime
+    end
+    return (a.auraInstanceID or a.index or 0) < (b.auraInstanceID or b.index or 0)
+end
+-- The client's Reverse direction swaps the two sides of the same compare, so
+-- the whole list turns round: buffs that never run out lead, then the longest.
+local function longestFirst(a, b) return soonestFirst(b, a) end
+
+local function sortByExpiry(list, longest)
+    table.sort(list, longest and longestFirst or soonestFirst)
     return list
 end
 Layout.SortLikeClient = sortByExpiry
 
+-- The sort direction the client gets for a bar's "sortOrder" setting.
+function Layout.SortDirection(longest)
+    return longest and AuraContainerSortDirection.Reverse or AuraContainerSortDirection.Normal
+end
+
 -- Groups entries by resolved category in categoryOrder (hidden categories
 -- dropped), each sorted the way the client sorts a group.
-function Layout.ClusterEntries(entries, categories, order)
+function Layout.ClusterEntries(entries, categories, order, longest)
     local byCategory = {}
     for i = 1, #entries do
         local entry = entries[i]
@@ -140,7 +152,7 @@ function Layout.ClusterEntries(entries, categories, order)
         local list = byCategory[id]
         local cat = categories[id]
         if list and cat and not cat.hidden then
-            clusters[#clusters + 1] = { categoryId = id, entries = sortByExpiry(list) }
+            clusters[#clusters + 1] = { categoryId = id, entries = sortByExpiry(list, longest) }
         end
     end
     return clusters

@@ -1520,3 +1520,53 @@ T.test("buffs: the list rows hide while the unit frames are off", function()
     stub.RunTimers()
     T.isnil(group("priest").opts.candidateFilters.excludeSpellIDs)
 end)
+
+-- The order is the container's own sort, so it holds in a fight when the auras
+-- are secret: the setting only changes what the client is told.
+T.test("buffs: the order setting goes to every group of both bars, and the hover follows it", function()
+    local BL = login()
+    local c, d = DaylightUIBuffs, DaylightUIDebuffs
+    local NORMAL, REVERSE = AuraContainerSortDirection.Normal, AuraContainerSortDirection.Reverse
+    local EXP = AuraContainerSortMethod.ExpirationOnly
+    for key, g in pairs(c.__groups) do T.deq(g.sort, { EXP, NORMAL }, "soonest first by default: " .. key) end
+    for key, g in pairs(d.__groups) do T.deq(g.sort, { EXP, NORMAL }, "debuffs soonest first: " .. key) end
+
+    stub.SetAuras("player", "HELPFUL", {
+        { name = "Power Word: Fortitude", spellId = 1243, icon = 1, expirationTime = 2000, auraInstanceID = 1 },
+        { name = "Inner Fire", spellId = 588, icon = 2, expirationTime = 0, auraInstanceID = 2 },
+        { name = "Divine Spirit", spellId = 14752, icon = 3, expirationTime = 2100, auraInstanceID = 3 },
+    })
+    BL.Bar:InvalidateMembers()
+    local function names()
+        local out = {}
+        -- Whichever category they fall in, the three share one.
+        local lists = 0
+        for _, list in pairs(BL.Bar:AllMembers()) do
+            if #list > 0 then lists = lists + 1 end
+            for _, e in ipairs(list) do out[#out + 1] = e.name end
+        end
+        T.eq(lists, 1, "one category")
+        return out
+    end
+    T.deq(names(), { "Power Word: Fortitude", "Divine Spirit", "Inner Fire" })
+
+    -- Changed in a fight, it waits for the fight to end like every module setting.
+    stub.EnterCombat()
+    DaylightUI:Set("Buffs", "settings.sortOrder", "longest")
+    stub.RunTimers()
+    stub.LeaveCombat()
+    stub.RunTimers()
+    for key, g in pairs(c.__groups) do T.deq(g.sort, { EXP, REVERSE }, "longest first: " .. key) end
+    for _, g in pairs(d.__groups) do T.deq(g.sort, { EXP, NORMAL }, "the debuff bar keeps its own order") end
+    T.deq(names(), { "Inner Fire", "Divine Spirit", "Power Word: Fortitude" }, "the hover's copy matches the client's")
+
+    DaylightUI:Set("Buffs", "settings.debuff.sortOrder", "longest")
+    stub.RunTimers()
+    for key, g in pairs(d.__groups) do T.deq(g.sort, { EXP, REVERSE }, "debuffs longest first: " .. key) end
+
+    -- Only a change is sent: a regroup with the same order leaves the groups be.
+    local sent = c.__sortSets
+    BL.Bar:ApplyGroups()
+    T.eq(c.__sortSets, sent)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

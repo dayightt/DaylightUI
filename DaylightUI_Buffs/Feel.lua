@@ -133,7 +133,7 @@ local function membersOf(bar)
     if not bar:IsDebuff() then return bar:AllMembers() end
     local entries = bar:DebuffEntries()
     if not entries then return nil end
-    return { debuffs = BL.Layout.SortLikeClient(entries) }
+    return { debuffs = BL.Layout.SortLikeClient(entries, bar:Longest()) }
 end
 
 function Feel.Snap(bar)
