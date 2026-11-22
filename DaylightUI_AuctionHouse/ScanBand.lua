@@ -37,6 +37,7 @@ local room = 0   -- how far the pages are down now (px)
 local function pop(text) return Parts.Hex({ Style.Pop() }) .. text .. "|r" end
 local function popNumber(n) return pop(ns.Thousands(n)) end
 local function main() return ns.Window end
+local function items(n) return string.format(n == 1 and L["%s item"] or L["%s items"], popNumber(n)) end
 
 local function stopTicker()
     if ticker then ticker:Cancel() end
@@ -82,15 +83,14 @@ end
 
 -- One look at the running scan.
 local function follow()
-    local stage, done, total, left, share = ns.Scan.Now()
+    local stage, _, _, left, share, unique = ns.Scan.Now()
     if not stage then return stopTicker() end
     if stage == "asking" then
         say(L["Asking the Auction House..."], L["Keep it open, about a minute"], "LABEL")
     elseif stage == "loading" then
-        say(string.format(L["Loading new items from the game, %s to go"], popNumber(left)),
-            string.format(L["%s of %s"], popNumber(done), ns.Thousands(total)), "LABEL")
+        say(string.format(L["Loading new items from the game, %s to go"], popNumber(left)), items(unique), "LABEL")
     elseif stage == "reading" then
-        say(L["Reading the Auction House..."], string.format(L["%s of %s"], popNumber(done), ns.Thousands(total)), "TEXT")
+        say(L["Reading the Auction House..."], items(unique), "TEXT")
     else
         say(L["Saving prices"], pop(math.floor(share * 100 + 0.5) .. "%"), "LABEL")
     end

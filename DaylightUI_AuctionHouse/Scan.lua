@@ -4,7 +4,7 @@
 --   ns.Scan.Full() -> true | false, why   -- why is a sentence for the player
 --   ns.Scan.Progress() -> done, total     -- rows of the running scan; nil when none
 --   ns.On("ScanStarted", function(rkey) end)        -- a scan started (any way)
---   ns.Scan.Now() -> stage, done, total, left, share    -- for the scan band; nil when none
+--   ns.Scan.Now() -> stage, done, total, left, share, unique   -- for the scan band; nil when none
 --   ns.On("ScanEnded", function(ok, sentence, total, info) end)   -- the done or stopped line (when done: total rows,
 --                                                                   info = { priced, skipped, fresh })
 --
@@ -30,6 +30,7 @@ local running = false   -- from asking for the list until the last key is saved
 local saving            -- while the keys are saved: how many rows the list had
 local savedShare = 0    -- how much of the keys is saved (0 to 1)
 local reached = 0       -- the furthest the bar has been (it never runs back)
+local savingUnique = 0  -- different items the list held, kept for the saving stage
 
 function Scan.Running()
     return running
@@ -54,19 +55,22 @@ function Scan.Share(read, total, waiting, peak)
 end
 
 -- The running scan for the band: its stage ("asking", "reading", "loading",
--- "saving"), rows done of total, items the game is still loading, and how
--- far the bar is (0 to 1, never back). Nil when none.
+-- "saving"), rows done of total, items the game is still loading, how far
+-- the bar is (0 to 1, never back) and how many different items it found.
+-- Nil when none.
 function Scan.Now()
     if not running then return nil end
     if saving then
         reached = math.max(reached, Scan.READ_SHARE + (1 - Scan.READ_SHARE) * savedShare)
-        return "saving", saving, saving, 0, reached
+        return "saving", saving, saving, 0, reached, savingUnique
     end
-    local read, total, waiting, peak = ns.Replicate.Progress()
+    local read, total, waiting, peak, unique = ns.Replicate.Progress()
+    unique = unique or 0
+    savingUnique = unique
     read, total, waiting, peak = read or 0, total or 0, waiting or 0, peak or 0
     reached = math.max(reached, Scan.Share(read, total, waiting, peak))
     local stage = total <= 0 and "asking" or (waiting > 0 and "loading" or "reading")
-    return stage, read, total, waiting, reached
+    return stage, read, total, waiting, reached, unique
 end
 
 -- The sentence for a scan that stopped before saving anything.
@@ -178,7 +182,7 @@ function Scan.Full()
             return false, string.format(L["Full scan again in %d min."], minutes)
         end
     end
-    running, savedShare, reached = true, 0, 0
+    running, savedShare, reached, savingUnique = true, 0, 0, 0
     -- A start that fails at once (onDone runs inside Start) is answered by
     -- the return value, not also by a chat line.
     local starting, failedAtOnce = true, nil

@@ -9,7 +9,7 @@
 --     total: how many auctions the list had.
 --     onSent(): runs when ReplicateItems went out (the game's cooldown
 --     starts there, whatever happens next).
---   ns.Replicate.Progress() -> read, total, waiting, peak   (nil when none: the scan band)
+--   ns.Replicate.Progress() -> read, total, waiting, peak, unique   (nil when none: the scan band)
 --
 -- Only on request (ns.Scan.Full: the player asked). The list is asked through
 -- ns.AH.Request, then read SLICE rows a frame so a big AH stays smooth.
@@ -45,11 +45,11 @@ function Replicate.Running()
 end
 
 -- Rows read so far and the list's size (0, 0 until the list arrives), items
--- the game is still loading and the most it ever was; nil when no list is
--- being read.
+-- the game is still loading and the most it ever was, and how many different
+-- items the rows held; nil when no list is being read.
 function Replicate.Progress()
     if not job then return nil end
-    return job.nextIndex, job.total, job.numWaiting, job.peakWaiting
+    return job.nextIndex, job.total, job.numWaiting, job.peakWaiting, job.unique
 end
 
 -- Ends `j`: nothing of it keeps listening, and its timers do nothing.
@@ -114,6 +114,10 @@ local function read(j, index)
     if type(itemID) ~= "number" then
         j.blank[#j.blank + 1] = index   -- may only not be ready yet: settle reads it again
         return
+    end
+    if not j.seen[itemID] then
+        j.seen[itemID] = true
+        j.unique = j.unique + 1
     end
     if type(count) ~= "number" or count <= 0 or type(buyout) ~= "number" or buyout <= 0 then return end
     -- under a copper each can't be stored (copper integers): such a stack
@@ -274,7 +278,7 @@ function Replicate.Start(onDone, onSent)
         onDone = onDone, rows = ns.Rows.New(), total = 0, nextIndex = 0,
         ready = {}, readyHead = 1, readyTail = 0,
         waiting = {}, numWaiting = 0, peakWaiting = 0, asked = {}, failed = {}, gaveUp = {}, skipped = 0,
-        blank = {}, blanks = 0,
+        blank = {}, blanks = 0, seen = {}, unique = 0,
     }
     job = j
     ns.AH.Request({
