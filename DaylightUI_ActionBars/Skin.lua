@@ -189,6 +189,7 @@ Skin.SHADE = 0.55            -- inner shadow strength
 Skin.SWIPE_FILE = "Interface\\Buttons\\WHITE8X8"
 Skin.SWIPE = { 0, 0, 0, 0.7 }
 Skin.DIP = 1                 -- how far a pressed icon sinks in, each side
+Skin.FLASH_ALPHA = 0.45      -- the auto attack wash at the top of its breath
 Skin.HOTKEY = { size = 10, color = { 0.86, 0.82, 0.74 } }   -- warm, a touch brighter than INK.LABEL
 Skin.COUNT = 11
 Skin.COUNT_COLOR = { 1, 1, 1 }
@@ -979,12 +980,18 @@ local function paintWashes(btn, L, icon)
     end
     -- The template pins the auto attack flash by its top-left corner at its art's own
     -- size, so on a button shorter or taller than wide it hung past the edge.
+    -- Its art is a hard red square that ignored the button's shape, so it becomes a
+    -- soft red wash over the icon like the checked one, masked to the shape with the
+    -- other washes. Buttons.Tick breathes its alpha while auto attack is on.
     local flash = btn.Flash
     if icon and type(flash) == "table" and flash.SetAllPoints then
         flash:ClearAllPoints()
         flash:SetAllPoints(icon)
+        local c = Style.INK.DAMAGE
+        flash:SetColorTexture(c[1], c[2], c[3], Skin.FLASH_ALPHA)
+        flash:SetBlendMode("BLEND")
     end
-    return hl, pushed, checked
+    return hl, pushed, checked, flash
 end
 
 -- The game rewrote a controller button's art (PadSkin.lua), so put Daylight UI's back over it
@@ -1140,12 +1147,12 @@ applyLook = function(btn)
         local mc = L.macroColor
         if not Skin.Owned(btn, "macro") then btn.Name:SetTextColor(mc[1], mc[2], mc[3]) end
     end
-    local hl, pushed, checked = paintWashes(btn, L, icon)
+    local hl, pushed, checked, flash = paintWashes(btn, L, icon)
     local pc = L.pressed
     parts.press:SetColorTexture(pc[1], pc[2], pc[3], L.pressedAlpha)
     parts.press:ClearAllPoints()
     if icon then parts.press:SetAllPoints(icon) end
-    local overlays = { parts.shade, parts.press, hl, pushed, checked }
+    local overlays = { parts.shade, parts.press, hl, pushed, checked, type(flash) == "table" and flash or nil }
     local cds = {}
     for _, k in ipairs({ "cooldown", "chargeCooldown", "lossOfControlCooldown" }) do
         if type(btn[k]) == "table" and btn[k].SetSwipeTexture then cds[#cds + 1] = btn[k] end

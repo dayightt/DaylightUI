@@ -1820,6 +1820,22 @@ T.test("action bars: the free bag slots switch is the game's displayFreeBagSlots
     _G.GetCVar, _G.SetCVar = nil, nil
 end)
 
+T.test("action bars: the auto attack flash is a soft wash in the button's shape", function()
+    -- The game's art was a hard red square laid over the icon, corners and all.
+    local DUI = stub.Load({ actionbars = true, before = function()
+        world()
+        DaylightUIDB = { modules = { ActionBars = { look = { shape = "circle" } } } }
+    end })
+    local Skin = stub.actionbars.Skin
+    local b = _G.DaylightUIBar1Button1
+    local parts = Skin.GetParts(b)
+    local c, soft = b.Flash.__color, DUI.Style.INK.DAMAGE
+    T.truthy(c, "a color wash, not the game's red square")
+    T.eq(c[1], soft[1]); T.eq(c[2], soft[2]); T.eq(c[3], soft[3])
+    T.eq(c[4], Skin.FLASH_ALPHA)
+    T.truthy(parts.masked[b.Flash], "cut to the button's shape like the other washes")
+end)
+
 T.test("action bars: a button shape leaves the micro menu and bag bar framed", function()
     -- A shape is drawn only by the action buttons' own pieces, so these keep the
     -- square shell, background and all (a player saw them go see-through).
@@ -2371,11 +2387,24 @@ T.test("action bars: the blink and the key poll run only while something blinks 
     local b = _G.DaylightUIBar1Button2
     B.SetFlashing(b, true)
     T.truthy(B.frame:GetScript("OnUpdate"), "auto attack on: blinking")
-    stub.RunOnUpdate(B.frame, B.FLASH_EVERY + 0.01)
-    T.truthy(b.Flash:IsShown(), "it blinks")
+    T.eq(b.Flash:GetAlpha(), 0, "the wash starts from nothing")
+    stub.RunOnUpdate(B.frame, B.FLASH_EVERY / 2)
+    local mid = b.Flash:GetAlpha()
+    T.truthy(b.Flash:IsShown() and mid > 0.3 and mid < 0.7, "it breathes in, no jump: " .. mid)
+    stub.RunOnUpdate(B.frame, B.FLASH_EVERY / 2)
+    T.truthy(b.Flash:GetAlpha() > 0.99, "full at the top of the breath")
     B.SetFlashing(b, false)
-    T.falsy(b.Flash:IsShown())
     T.isnil(B.frame:GetScript("OnUpdate"), "and stops")
+    T.truthy(b.Flash:IsShown(), "it fades out rather than vanishing")
+    settle()
+    T.falsy(b.Flash:IsShown())
+    DaylightUI.DB.General().motion = false
+    B.SetFlashing(b, true)
+    stub.RunOnUpdate(B.frame, B.FLASH_EVERY + 0.01)
+    T.eq(b.Flash:GetAlpha(), 1, "motion off: the game's on and off blink")
+    B.SetFlashing(b, false)
+    T.falsy(b.Flash:IsShown(), "motion off: gone at once")
+    DaylightUI.DB.General().motion = true
     local hides = 0
     local real = b.Flash.Hide
     b.Flash.Hide = function(self) hides = hides + 1; return real(self) end

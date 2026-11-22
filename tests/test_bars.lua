@@ -327,7 +327,9 @@ T.test("buttons: a reload mid-swing leaves none of ours blinking or in the game'
         T.falsy(b.flashing == 1, b:GetName() .. " not blinking")
         T.isnil(ActionBarButtonUpdateFrame.frames[b], b:GetName() .. " off the game's update loop")
         T.isnil(ActionBarActionEventsFrame.frames[b], b:GetName() .. " off the game's per-action events")
-        T.falsy(b.Flash:IsShown(), b:GetName() .. " flash hidden")
+        -- Bar 1's first button really is Attack mid-swing: its own wash may be up,
+        -- breathing from nothing, but no button shows the game's blink.
+        T.falsy(b.Flash:IsShown() and b.Flash:GetAlpha() > 0, b:GetName() .. " flash hidden")
     end
 end)
 
@@ -1432,12 +1434,14 @@ T.test("paint: an active spell is checked; auto attack blinks", function()
     T.truthy(btn("main", 1):GetChecked()); T.falsy(btn("main", 2):GetChecked())
     local frame = AB().Buttons.frame
     stub.RunOnUpdate(frame, 0.5)
-    local first = btn("main", 1).Flash:IsShown()
+    local first = btn("main", 1).Flash:GetAlpha()
     stub.RunOnUpdate(frame, 0.5)
-    T.truthy(btn("main", 1).Flash:IsShown() ~= first, "it blinks")
+    T.truthy(btn("main", 1).Flash:IsShown(), "shown while it breathes")
+    T.truthy(math.abs(btn("main", 1).Flash:GetAlpha() - first) > 0.1, "it breathes")
     T.falsy(btn("main", 2).Flash:IsShown())
     stub.slots[1].current = false
     stub.FireEvent("ACTIONBAR_UPDATE_STATE"); stub.RunTimers()
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
     T.falsy(btn("main", 1):GetChecked()); T.falsy(btn("main", 1).Flash:IsShown(), "stopped")
 end)
 

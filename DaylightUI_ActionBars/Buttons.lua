@@ -260,32 +260,51 @@ Buttons.SpellOf = spellOf
 -- The blink runs on the events frame's OnUpdate only while something blinks,
 -- which is almost never (auto attack, auto shot).
 local flashing = {}
+local flashT, flashIn, flashOn = 0, 0, false
 local function blinking()
     local f = Buttons.frame
     if f then f:SetScript("OnUpdate", next(flashing) and Buttons.OnUpdate or nil) end
 end
 function Buttons.SetFlashing(btn, on)
+    local flash = type(btn.Flash) == "table" and btn.Flash or nil
     if on then
         if flashing[btn] then return end
+        -- The first one starts its breath from nothing, so the wash eases in.
+        if not next(flashing) then flashT, flashIn, flashOn = 0, 0, false end
         flashing[btn] = true
+        if flash then
+            DUI.Motion.AlphaTo(flash, 0, 0)        -- stop a fade out still running
+            flash:SetAlpha(0)
+            flash:Show()
+        end
         blinking()
         return
     end
     if not flashing[btn] then return end
     flashing[btn] = nil
-    if type(btn.Flash) == "table" then btn.Flash:Hide() end
+    if flash then DUI.Motion.AlphaTo(flash, 0, DUI.Motion.FAST, true) end
     blinking()
 end
 
-local flashIn, flashOn = 0, false
+-- With motion on the wash breathes in and out, one breath every two FLASH_EVERY
+-- like the game's on and off; with motion off it blinks the game's way.
 function Buttons.OnUpdate(_, dt) Buttons.Tick(dt) end
 function Buttons.Tick(dt)
+    local every = Buttons.FLASH_EVERY
+    if DUI.Motion.On() then
+        flashT = (flashT + (dt or 0)) % (2 * every)
+        local a = 0.5 - 0.5 * math.cos(math.pi * flashT / every)
+        for btn in pairs(flashing) do
+            if type(btn.Flash) == "table" then btn.Flash:SetAlpha(a) end
+        end
+        return
+    end
     flashIn = flashIn - (dt or 0)
     if flashIn > 0 then return end
-    flashIn = Buttons.FLASH_EVERY
+    flashIn = every
     flashOn = not flashOn
     for btn in pairs(flashing) do
-        if type(btn.Flash) == "table" then btn.Flash:SetShown(flashOn) end
+        if type(btn.Flash) == "table" then btn.Flash:SetAlpha(flashOn and 1 or 0) end
     end
 end
 
