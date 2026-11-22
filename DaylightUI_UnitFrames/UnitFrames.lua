@@ -948,6 +948,7 @@ local function relevel(frame)
         end
     end
 end
+UF.NoteLevels, UF.Relevel = noteLevels, relevel
 
 -- Puts the portrait, and the status icons that ride on it, on the frame or in
 -- its holder. Pieces inside the secure frame can't be anchored to a frame of

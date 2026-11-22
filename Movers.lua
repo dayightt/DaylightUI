@@ -1115,6 +1115,34 @@ function Movers.PaintLock(key, instant)
     if on then h:Lower() else h:Raise() end
 end
 
+-- Draw order for a handle's piece (Bring forward / Send back in its editor).
+-- hook.step(others, up) gets the overlapping frames and returns true, or false
+-- and why: "top", "bottom", "range" or "layer".
+function Movers.SetLayerHook(key, hook)
+    local e = entries[key]
+    if e then e.layer = hook end
+end
+
+-- Moves a handle's piece one step forward (up) or back past what it overlaps.
+function Movers.StepLayer(key, up)
+    local e = entries[key]
+    if not (e and e.layer) or InCombatLockdown() then return false end
+    local others = {}
+    for _, k in ipairs(Movers.Overlapping(key)) do
+        local o = entries[k]
+        if o and o.frame and not o.proxy then others[#others + 1] = o.frame end
+    end
+    local ok, why = e.layer.step(others, up)
+    if not ok then
+        local say = { top = L["It's already over everything it overlaps."], bottom = L["It's already under everything it overlaps."],
+                      range = L["It can't go any further on this layer."], layer = L["That frame is on another layer. Pick this one's layer in its options."] }
+        DUI.Print(say[why] or L["Nothing overlaps it."])
+    elseif DUI.Sound then
+        DUI.Sound.Play("toggle")
+    end
+    return ok
+end
+
 function Movers.SetLocked(key, on)
     pieceLocks()[key] = on and true or nil
     Movers.PaintLock(key)
@@ -1283,6 +1311,20 @@ local function buildEditor()
         GameTooltip:Show()
     end)
     editor.lock.switch:HookScript("OnLeave", W.HideTooltip)
+    -- Draw order: two half-width buttons on one row.
+    editor.layer = CreateFrame("Frame", nil, editor)
+    editor.layer:SetHeight(R)
+    editor.forward = W.Button(editor.layer, L["Bring forward"], R)
+    editor.back = W.Button(editor.layer, L["Send back"], R)
+    editor.back:SetPoint("TOPLEFT", editor.layer, "TOPLEFT", 0, 0)
+    editor.back:SetPoint("BOTTOMRIGHT", editor.layer, "BOTTOM", -G / 2, 0)
+    editor.forward:SetPoint("TOPLEFT", editor.layer, "TOP", G / 2, 0)
+    editor.forward:SetPoint("BOTTOMRIGHT", editor.layer, "BOTTOMRIGHT", 0, 0)
+    for _, pair in ipairs({ { editor.forward, true }, { editor.back, false } }) do
+        pair[1]:SetScript("OnClick", function()
+            if editor.key then Movers.StepLayer(editor.key, pair[2]) end
+        end)
+    end
     -- Handles hidden under this one: pick one to bring it up and edit it.
     editor.under = W.MenuButton(editor, "", R)
     editor.under:SetScript("OnClick", function(self)
@@ -1350,12 +1392,15 @@ function Movers.OpenEditor(key)
     local hasOptions, corner = Movers.OptionsOf(key) ~= nil, Movers.Cornerable(key)
     editor.options:SetShown(hasOptions)
     editor.corner:SetShown(corner)
+    local layered = e.layer ~= nil
+    editor.layer:SetShown(layered)
     local below = #Movers.Overlapping(key)
     editor.under:SetShown(below > 0)
     if below > 0 then editor.under.SetLabel(string.format(L["Frames under this (%d)"], below)) end
     -- From the bottom up: Done, Options, Anchor, Group, Lock, Under, however many there are.
     local G, under, rows = Movers.EDITOR_GAP, hasOptions and editor.options or editor.close, 0
-    for _, b in ipairs({ corner and editor.corner or false, editor.group, editor.lock, below > 0 and editor.under or false }) do
+    for _, b in ipairs({ corner and editor.corner or false, editor.group, editor.lock, layered and editor.layer or false,
+                         below > 0 and editor.under or false }) do
         if b then
             b:ClearAllPoints()
             b:SetPoint("BOTTOMLEFT", under, "TOPLEFT", 0, G)

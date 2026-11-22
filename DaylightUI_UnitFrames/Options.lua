@@ -2419,6 +2419,10 @@ local function framePage(id, label, desc, opts)
         end
     end
     groups[#groups + 1] = barFxCard(id, (opts.power or opts.powerToggle) and powerOff or nil, shown, opts.pets)
+    if ns.Layers.PARTS[id] then
+        groups[#groups + 1] = { label = "Layers", items = ns.Layers.Rows(id, shown),
+            desc = "Which part draws on top where this frame's parts overlap. A higher order draws over a lower one. A part standing on its own can also take a layer of its own." }
+    end
     groups[#groups + 1] = copyCard(id)
     return { id = id, label = label, desc = desc, groups = tabbed(groups), preview = preview,
              sample = function(parent) return ns.PageSample.New(id, parent) end }
