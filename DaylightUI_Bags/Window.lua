@@ -1504,7 +1504,14 @@ local function bagWindow()
             -- Last, next to the search. Each only shown to characters who know its
             -- spell (Disenchant.lua puts a secure button over it on hover).
             { key = "disenchantButton", icon = ns.Disenchant.ICON, title = ns.Disenchant.Title,
-              desc = L["Click, then click an item to disenchant it. Not during a fight."], onClick = function() end },
+              desc = function()
+                  if ns.Disenchant.on then return L["On: every item you click is disenchanted. Click to stop."] end
+                  return L["Click, then click an item to disenchant it. Not during a fight."]
+              end,
+              hint = function()
+                  if not ns.Disenchant.on then return L["Shift-click: keep it on for every item you click"] end
+              end,
+              onClick = function() ns.Disenchant.Clicked() end },
             { key = "comprehendButton", icon = ns.Comprehend.ICON, title = ns.Comprehend.Title,
               desc = L["Click, then click a scroll to comprehend it. Not during a fight."], onClick = function() end },
             { key = "pickLockButton", icon = ns.PickLock.ICON, title = ns.PickLock.Title,

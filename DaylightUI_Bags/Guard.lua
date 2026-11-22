@@ -15,7 +15,9 @@ ns.Guard = Guard
 Guard.vendor = false
 Guard.disenchanting = false
 
-function Guard.Active() return Guard.vendor or Guard.disenchanting end
+-- Disenchant staying on counts too: a locked item there must not reach the
+-- slot's own click either.
+function Guard.Active() return Guard.vendor or Guard.disenchanting or ns.Disenchant.on == true end
 
 -- Updates one slot. Only called when its state changes.
 function Guard.Apply(btn, info)

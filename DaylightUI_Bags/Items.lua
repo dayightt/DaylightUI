@@ -579,12 +579,16 @@ function Items.Dress(btn)
         -- the pointer never left this slot, so the rest already ran.
         if enteringFromUseButton then return end
         Items.UseOver(self)
+        -- Disenchant staying on: its cast button goes over this slot.
+        if ns.Disenchant and ns.window and windowOf(self) == ns.window then ns.Disenchant.SlotOver(self) end
         if ns.Window then ns.Window.SortTouched(windowOf(self)) end
         if self.dluiNew then Items.SeeNew(self) end
     end)
     btn:HookScript("OnLeave", function(self)
         -- The pointer just went onto the secure use button over this slot: still here.
         if useSlot == self and useButton and useButton:IsShown() and useButton:IsMouseOver() then return end
+        -- The same for Disenchant's cast button (staying on).
+        if ns.Disenchant and ns.Disenchant.Covers(self) then return end
         Items.Hover(self, false)
         if cursorSlot == self then cursorSlot = nil end
         if useSlot == self then Items.UseOff() end
@@ -594,6 +598,7 @@ function Items.Dress(btn)
         Items.Hover(self, false, true)
         if cursorSlot == self then cursorSlot = nil end
         if useSlot == self then Items.UseOff() end
+        if ns.Disenchant and not Items.InCombat() then ns.Disenchant.SlotOff(self) end
     end)
     btn:HookScript("PreClick", function(self)
         if ns.Window then ns.Window.SortTouched(windowOf(self)) end
@@ -1352,6 +1357,10 @@ function Items.Fits(bag, slot, info, w, quest)
     local fits = ns.Search.Matches(bag, slot, info, w and w.match, quest)
     if fits and info and w and w.chip and not ns.Layout.Grouped(w.Setting("view")) then
         fits = ns.Window.ItemInChip(w, ns.Categories.Facts(bag, slot, info))
+    end
+    -- Disenchant staying on: what it can't take dims, so the rest stands out.
+    if fits and w and w == ns.window and ns.Disenchant and ns.Disenchant.on then
+        fits = ns.Disenchant.Takes(bag, slot, info)
     end
     return fits
 end

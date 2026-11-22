@@ -1852,6 +1852,119 @@ T.test("bags: the secure Disenchant button goes where ours is, each time the mou
     _G.IsPlayerSpell = nil
 end)
 
+-- Shift-click keeps Disenchant on: a cast button follows the pointer over each
+-- item that can take it and names the slot (target-bag, target-slot), so every
+-- click disenchants until the button is clicked again, the bag closes or a
+-- fight starts.
+T.test("bags: Shift-click keeps Disenchant on for every item clicked until the button, a close or a fight ends it", function()
+    local ns = login()
+    local DE = ns.Disenchant
+    _G.IsPlayerSpell = function(id) return id == DE.SPELL end
+    stub.FireEvent("SPELLS_CHANGED")
+    -- Items 4 and 7 are green armor; the rest of the bag isn't gear.
+    local armor = { [4] = true, [7] = true }
+    local getInstant = C_Item.GetItemInfoInstant
+    C_Item.GetItemInfoInstant = function(id)
+        local n = type(id) == "number" and id or tonumber(string.match(tostring(id), "item:(%d+)"))
+        return n, "", "", "", 0, armor[n] and 4 or 0, 0
+    end
+    -- The spell's hand: up after the cast, gone once an item is handed to it.
+    local hand, casts, used = false, 0, {}
+    stub.CastSpell = function(spell) if tonumber(spell) == DE.SPELL then casts = casts + 1; hand = true end end
+    _G.SpellCanTargetItem = function() return hand end
+    C_Container.UseContainerItem = function(bag, slot)
+        if hand then used[#used + 1] = bag .. ":" .. slot; hand = false end
+    end
+    local f = open(ns)
+    stub.secure = true
+    local b = f.disenchantButton
+    b.GetLeft, b.GetBottom = function() return 400 end, function() return 300 end
+    b:SetSize(28, 28)
+    local function place(slotButton, x)
+        slotButton.GetLeft, slotButton.GetBottom = function() return x end, function() return 200 end
+        slotButton:SetSize(37, 37)
+    end
+    local green, green2, gray = ns.Bags.buttons[0][4], ns.Bags.buttons[0][6], ns.Bags.buttons[0][2]
+    place(green, 100); place(green2, 140); place(gray, 180)
+    local function shiftClick()
+        b:GetScript("OnEnter")(b)
+        stub.shift = true
+        stub.SecureClick(DE.caster.button, "LeftButton")
+        stub.shift = nil
+    end
+
+    -- Shift-click: nothing cast, it stays on, held in the accent.
+    shiftClick()
+    T.eq(casts, 0, "Shift-click casts nothing: type1 is the plain click only")
+    T.truthy(DE.on, "Shift-click turns it on")
+    T.falsy(DE.caster.button:IsShown(), "on, the button casts nothing: its plain click turns it off")
+    local Driver = DaylightUI.Motion.Driver()
+    if Driver then stub.RunOnUpdate(Driver, 1) end
+    T.near((b.icon:GetVertexColor()), (DaylightUI.Style.Accent()), 0.01, "held in the accent while on")
+    T.truthy(ns.Items.Fits(0, 4, C_Container.GetContainerItemInfo(0, 4), f), "green armor stands out")
+    T.falsy(ns.Items.Fits(0, 2, C_Container.GetContainerItemInfo(0, 2), f), "what it can't take dims")
+
+    -- The first item.
+    green:GetScript("OnEnter")(green)
+    local o = DE.slotCaster.button
+    T.truthy(o and o:IsShown(), "a cast button over the item")
+    T.eq(o:GetParent(), UIParent, "never inside the bag")
+    T.eq(o:GetAttribute("type1"), "spell"); T.eq(o:GetAttribute("spell"), DE.SPELL)
+    T.eq(o:GetAttribute("target-bag"), 0); T.eq(o:GetAttribute("target-slot"), 4)
+    stub.SecureClick(o, "LeftButton")
+    T.deq(used, { "0:4" }, "the click disenchants that item")
+    o:GetScript("OnLeave")(o)
+    T.falsy(o:IsShown(), "the pointer left: it goes")
+
+    -- The second, with no new Shift-click.
+    green2:GetScript("OnEnter")(green2)
+    T.truthy(o:IsShown())
+    T.eq(o:GetAttribute("target-slot"), 6)
+    stub.SecureClick(o, "LeftButton")
+    T.deq(used, { "0:4", "0:6" }, "the next click disenchants the next item")
+    T.truthy(DE.on, "still on")
+    o:GetScript("OnLeave")(o)
+
+    -- An item it can't take keeps its own click.
+    gray:GetScript("OnEnter")(gray)
+    T.falsy(o:IsShown(), "a gray item: no cast button")
+    gray:GetScript("OnLeave")(gray)
+
+    -- A plain click on the button turns it off.
+    green:GetScript("OnEnter")(green)
+    T.truthy(o:IsShown())
+    b:GetScript("OnClick")(b, "LeftButton")
+    T.falsy(DE.on, "a plain click turns it off")
+    T.falsy(o:IsShown(), "and the cast button over the item goes")
+    T.truthy(ns.Items.Fits(0, 2, C_Container.GetContainerItemInfo(0, 2), f), "nothing dims any more")
+    green:GetScript("OnEnter")(green)
+    T.falsy(o:IsShown(), "off: the item's own click again")
+
+    -- Closing the bag turns it off.
+    shiftClick()
+    T.truthy(DE.on)
+    f:Hide()
+    T.falsy(DE.on, "closing the bag turns it off")
+
+    -- So does a fight, and none starts in one.
+    f = open(ns)
+    shiftClick()
+    T.truthy(DE.on)
+    green:GetScript("OnEnter")(green)
+    T.truthy(o:IsShown())
+    stub.EnterCombat()
+    T.falsy(DE.on, "a fight turns it off")
+    T.falsy(o:IsShown(), "and the cast button goes before the lockdown")
+    DE.Clicked()
+    stub.shift = true; DE.Clicked(); stub.shift = nil
+    T.falsy(DE.on, "never turned on in a fight")
+    stub.LeaveCombat()
+
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    stub.secure, stub.CastSpell, _G.SpellCanTargetItem, _G.IsPlayerSpell = false, nil, nil, nil
+    C_Item.GetItemInfoInstant = getInstant
+end)
+
 T.test("bags: the Pick Lock button: shown to rogues who know it, last beside the search, casting Pick Lock", function()
     local ns = login()
     local PL = ns.PickLock
