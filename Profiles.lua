@@ -256,38 +256,65 @@ end
 -- screen's height over that one's), so a UI made at another UI scale keeps
 -- its share of the screen, and at the same UI scale nothing changes size.
 -- Up and down, a piece stays the same share of the height from the middle.
--- Across, a piece in the middle half of the screen it was made on stays that
--- far from the middle (times k), and one further out keeps its distance from
--- its own side's edge, so the room a wider or narrower screen adds or takes
--- goes between the middle and the sides. Only spots and sizes change.
+-- Across, on a wider screen a piece in the middle half of the old one stays
+-- that far from the middle (times k), and one further out keeps its distance
+-- from its own side's edge, so the room the wider screen adds goes between
+-- the middle and the sides. On a narrower screen the middle (FIT_MIDDLE of
+-- the new screen's half width) keeps its distances from the middle and the
+-- edges (FIT_EDGE of it) their gaps, and what's between them is squeezed
+-- evenly into the room left, so nothing jumps and the order across stays.
+-- Only spots and sizes change.
 Profiles.FIT_NEAR = 0.01 -- screens this close in height and shape count as the same one
 Profiles.FIT_SHRINK = 0.5 -- the smallest a side shrinks to make room on a narrower screen
 Profiles.FIT_STEPS = 12 -- halvings in the search for how far it shrinks
+Profiles.FIT_MIDDLE = 0.5 -- on a narrower screen, the share of its half width kept as it was in the middle
+Profiles.FIT_EDGE = 0.25 -- and at each edge
 
 local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
 
 -- Both screens and k, or nil when they're the same one (or either isn't known).
+-- On a narrower screen also, in the old screen's units: half its width (half),
+-- the new one's (room), and how far out the middle reaches (mid) and how far
+-- in the edges do (edge).
 local function screens(s)
     local w, h = UIParent:GetWidth(), UIParent:GetHeight()
     if not (type(s) == "table" and w and h and w > 0 and h > 0) then return nil end
     local k, near = h / s[2], Profiles.FIT_NEAR
     if math.abs(k - 1) <= near and math.abs(w / h - s[1] / s[2]) <= near * w / h then return nil end
-    return { sw = s[1], sh = s[2], w = w, h = h, k = k }
+    local fs = { sw = s[1], sh = s[2], w = w, h = h, k = k }
+    local half, room = s[1] / 2, w / 2 / k
+    if room < half * (1 - near) then
+        fs.narrow, fs.half, fs.room = true, half, room
+        fs.mid, fs.edge = room * Profiles.FIT_MIDDLE, room * Profiles.FIT_EDGE
+    end
+    return fs
 end
 
--- The part of the screen it was made on that x (from the middle) is in: -1
--- the left side, 0 the middle half, 1 the right side.
+-- The part of the old screen that x (from the middle) is in: -1 the left
+-- side, 0 the middle, 1 the right side.
 local function sideOf(fs, x)
-    if math.abs(x) <= fs.sw / 4 then return 0 end
+    if math.abs(x) <= (fs.narrow and fs.mid or fs.sw / 4) then return 0 end
     return x < 0 and -1 or 1
 end
 
--- x on this screen, for a spot on `side`: its distance from the middle, or
--- from that side's edge, times k and times shrink (1 when not given).
+-- x on this screen, for a spot on `side`. shrink (1 when not given) brings a
+-- side's spot toward its edge, or the middle's toward the middle.
 local function fitX(fs, side, x, shrink)
-    local f = fs.k * (shrink or 1)
-    if side == 0 then return x * f end
-    return side * fs.w / 2 + (x - side * fs.sw / 2) * f
+    local s = shrink or 1
+    if side == 0 then return x * fs.k * s end
+    local nx
+    if fs.narrow then
+        local u, away = math.abs(x), 0
+        if fs.half - u <= fs.edge then
+            away = fs.room - (fs.half - u)
+        else
+            away = fs.mid + (u - fs.mid) * (fs.room - fs.edge - fs.mid) / (fs.half - fs.edge - fs.mid)
+        end
+        nx = side * away * fs.k
+    else
+        nx = side * fs.w / 2 + (x - side * fs.sw / 2) * fs.k
+    end
+    return side * fs.w / 2 + (nx - side * fs.w / 2) * s
 end
 
 local function box(x, y, w, h) return { l = x - w / 2, r = x + w / 2, b = y - h / 2, t = y + h / 2 } end

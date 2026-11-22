@@ -98,45 +98,50 @@ T.test("screen fit: from 16:9 to 32:9, the middle stays and a side piece keeps i
     T.truthy(string.find(stub.chat[#stub.chat] or "", "16:9 screen to your 32:9", 1, true), "says so")
 end)
 
-T.test("screen fit: from 32:9 to 16:9, side pieces keep their gaps, and one that would cover the middle shrinks to its edge", function()
+T.test("screen fit: from 32:9 to 16:9, the middle and the edges keep their spots, what's between is squeezed, and a side piece in the way shrinks", function()
     local DUI = login(5120, 1440)
     local P, M = DUI.Profiles, DUI.Movers
     DUI:Set("general", "borderPx", 3) -- so Appearance comes along, and with it the pieces' sizes
     local w0 = UIParent:GetWidth()
-    DUI.DB.Positions()["unitframes.player"] = { -300, -200 }
-    -- 32:9's left side, as far from the left edge as the player is from 16:9's.
-    DUI.DB.Positions()["unitframes.focus"] = { -300 - (w0 / 2 - 1920 / 1080 * 768 / 2), -200 }
-    DUI.DB.Positions()["unitframes.target"] = { 1100, -100 }
-    -- Near the right edge: a piece of the middle right where it lands at any
-    -- size, and another just inside it that only its full size reaches.
-    DUI.DB.Positions()["unitframes.pet"] = { 1300, 300 }
-    DUI.DB.Positions()["unitframes.targettarget"] = { 650, 300 }
-    DUI.DB.Positions()["combattext.hits"] = { 500, 300 }
+    local at = DUI.DB.Positions()
+    at["unitframes.player"] = { -300, -200 } -- the middle
+    at["unitframes.target"] = { 1250, -100 } -- by the right edge
+    at["unitframes.focus"] = { -980, 300 } -- between
+    -- Either side of where the middle ends: they stay in order, close together.
+    at["combattext.hits"] = { 335, -450 }
+    at["combattext.heals"] = { 350, -450 }
+    -- By the right edge, a big piece; in the middle, one it only reaches at full
+    -- size and one in its way at any size.
+    at["unitframes.pet"] = { 1300, 300 }
+    at["infopanel"] = { 300, 300 }
+    at["chat.side"] = { 340, 300 }
+    M.SetPieceScale("unitframes.pet", 2)
+    M.SetPieceScale("infopanel", 2)
+    M.SetPieceScale("chat.side", 1.5)
     local text = P.Encode(P.Snapshot())
 
     stub.SetScreen(1920, 1080, 1)
     local w = UIParent:GetWidth()
     local made = import(DUI, text, "Narrow")
     local pos, scales = made.positions, made.general.frameScales or {}
+    local room, half = w / 2, w0 / 2
+    local mid, edge = room * P.FIT_MIDDLE, room * P.FIT_EDGE
     T.deq(pos["unitframes.player"], { -300, -200 }, "the middle stays")
-    T.near(pos["unitframes.target"][1], w / 2 - (w0 / 2 - 1100), 1e-6, "room to spare: the same gap from the edge")
+    T.near(pos["unitframes.target"][1], room - (half - 1250), 1e-6, "by the edge: the same gap from it")
     T.isnil(scales["unitframes.target"], "and the same size")
-    local ps = scales["unitframes.pet"]
-    local pet = box(DUI, "unitframes.pet", pos["unitframes.pet"], ps)
-    local hits = box(DUI, "combattext.hits", pos["combattext.hits"])
-    T.near(ps, (w / 2 - hits.r) / (w0 / 2 - 1300 + M.SizeOf("unitframes.pet") / 2), 0.005,
+    T.near(pos["unitframes.focus"][1], -(mid + (980 - mid) * (room - edge - mid) / (half - edge - mid)), 1e-6,
+        "between: squeezed evenly into the room between the middle and the edge")
+    T.eq(pos["unitframes.focus"][2], 300)
+    local a, b = pos["combattext.hits"][1], pos["combattext.heals"][1]
+    T.truthy(a < b and b - a < 15, "across where the middle ends: still in order, still close: " .. a .. ", " .. b)
+
+    local s = scales["unitframes.pet"] / 2
+    local pet = box(DUI, "unitframes.pet", pos["unitframes.pet"], s)
+    local panel = box(DUI, "infopanel", pos.infopanel)
+    T.near(s, (room - panel.r) / ((half - 1300) + M.SizeOf("unitframes.pet") / 2), 0.005,
         "shrinks just clear of what it can clear: not on to half size for the piece in the way at any size")
-    T.truthy(apart(pet, hits), "clear of the piece only its full size reached")
-    T.falsy(apart(pet, box(DUI, "unitframes.targettarget", pos["unitframes.targettarget"])),
-        "(the other really is in the way at any size)")
-    local s = scales["unitframes.focus"]
-    T.truthy(s and s < 1 and s >= P.FIT_SHRINK, "the left side shrinks rather than land on the player: " .. tostring(s))
-    T.near(s, 0.63, 0.005, "only as far as clears it")
-    local focus = box(DUI, "unitframes.focus", pos["unitframes.focus"], s)
-    T.truthy(apart(focus, box(DUI, "unitframes.player", pos["unitframes.player"])), "beside the player, not over it")
-    T.truthy(focus.l >= -w / 2 - 1e-6, "on the screen")
-    local gap = w / 2 - 300 - M.SizeOf("unitframes.focus") / 2 -- its gap from 32:9's left edge
-    T.near(focus.l + w / 2, gap * s, 1e-6, "its gap from the edge shrinks with it")
+    T.truthy(apart(pet, panel), "clear of the piece only its full size reached")
+    T.falsy(apart(pet, box(DUI, "chat.side", pos["chat.side"])), "(the other really is in the way at any size)")
     T.eq(made.general.scale, 1, "the Scale is the same: same height")
 end)
 
