@@ -76,7 +76,7 @@ end
 -- Own.Track says what it shows. The player's pick wins. Left unset:
 --   no buff or debuff                           nil, a plain cooldown
 --   a buff row spell                            "both" with a real cooldown, else "buff"
---   a cooldown whose icon shows its buff        "both" (Rend, Thunder Clap, Bloodrage)
+--   a cooldown whose icon shows its buff        "both" (Rend, Death Wish, Bloodrage)
 --   a cooldown whose icon never shows its buff  "cooldown" (Mortal Strike), or "both" when
 --                                               the buff holds a count or there is no
 --                                               real cooldown to show (Slice and Dice)

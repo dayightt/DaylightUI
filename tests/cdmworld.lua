@@ -3,7 +3,7 @@
 -- tools/fetch_blizzard.py), so a test sees the game's real rules: when an item
 -- is active, when it shows, when it marks its aura, what a layout pass does to
 -- the pool. The catalogue (which spells a class has rows for) comes from the
--- game's data in tests/blizzard/CooldownSets.lua.
+-- game's data in tests/cooldown_sets.lua.
 --
 --     local CW = require("cdmworld")
 --     stub.Load({ actionbars = true, before = function()
@@ -86,11 +86,7 @@ end
 local catalogue
 local function rows()
     if not catalogue then
-        local chunk = loadfile(Blizz.DIR .. "CooldownSets.lua")
-        if not chunk then
-            error("tests/blizzard/CooldownSets.lua is missing: run `py tools/fetch_blizzard.py` once on this PC", 3)
-        end
-        catalogue = chunk()
+        catalogue = dofile("tests/cooldown_sets.lua")
     end
     return catalogue
 end

@@ -235,7 +235,7 @@ local function linkedAura(info)
     return false
 end
 
--- Cooldowns the game shows by their aura while it's up (Rend, Thunder Clap,
+-- Cooldowns the game shows by their aura while it's up (Rend, Death Wish,
 -- Bloodrage). The game's icon takes any aura of yours whose spell is the row's
 -- own or one of its linked spells (CooldownViewerItemDataMixin's
 -- GetAssociatedAuraSpellPriority), unless the row is flagged HideAura

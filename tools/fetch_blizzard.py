@@ -8,16 +8,26 @@ run this, then run the whole test suite.
 
     py tools/fetch_blizzard.py
 
-It also writes tests/blizzard/CooldownSets.lua: the game's Cooldown Manager
-catalogue (which spells each class's rows hold), from wago.tools' tables for
-WoW: Forever. The tables are kept in tools/bin/wago/ (git-ignored) and only
-downloaded when missing; delete that folder after a game patch.
+The game's Cooldown Manager catalogue (which spells each class's rows hold)
+is committed as tests/cooldown_sets.lua, so every PC and GitHub test the same
+data. Blizzard changes it with patches and hotfixes; to take the new data, run
+
+    py tools/fetch_blizzard.py --cdm
+
+which downloads wago.tools' tables for WoW: Forever fresh into tools/bin/wago/
+and rewrites that file. Then run the Cooldown Manager tests and commit it.
+wago.tools has no way to ask for one build, and its plain table address can
+hand back a cached copy days old, so each download adds a query that misses
+the cache.
 """
 import csv
 import json
 import os
+import shutil
 import subprocess
+import sys
 import tempfile
+import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -46,8 +56,9 @@ FILES += [VIEWER + name for name in (
     "CooldownViewerSettingsConstants.lua", "CooldownViewerUtil.lua", "CooldownViewerSecure.lua",
     "CooldownViewerVisualAlertTarget.lua", "CooldownViewerAlert.lua", "CooldownViewerItemData.lua",
     "CooldownViewer.lua", "CooldownViewer.xml")]
-# wago.tools tables (product wowf) behind tests/blizzard/CooldownSets.lua.
-WAGO_URL = "https://wago.tools/db2/%s/csv?product=wowf"
+# wago.tools tables (product wowf) behind tests/cooldown_sets.lua.
+WAGO_URL = "https://wago.tools/db2/%s/csv?product=wowf&fresh=%d"
+CATALOGUE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "tests", "cooldown_sets.lua")
 WAGO_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "bin", "wago")
 WAGO = ["CooldownSetSpell", "CooldownSetLinkedSpell", "SpellEffect", "SpellName"]
 # SpellEffect.Effect values that make something which casts for you: a summon
@@ -102,18 +113,25 @@ def tree_paths():
 
 
 def wago(name):
-    """One wago.tools table as rows, downloaded once into tools/bin/wago/."""
+    """One wago.tools table as rows, from tools/bin/wago/ (refresh_wago fills it)."""
     path = os.path.join(WAGO_DIR, name + ".csv")
-    if not os.path.exists(path):
-        os.makedirs(WAGO_DIR, exist_ok=True)
-        with open(path, "wb") as f:
-            f.write(get(WAGO_URL % name))
     with open(path, encoding="utf-8", newline="") as f:
         return list(csv.DictReader(f))
 
 
-def cooldown_sets(out):
-    """tests/blizzard/CooldownSets.lua: every row of the Cooldown Manager catalogue
+def refresh_wago():
+    """Every table cooldown_sets reads, downloaded fresh. The same moment for all
+    of them, so they never come from two versions of the game's data."""
+    shutil.rmtree(WAGO_DIR, ignore_errors=True)
+    os.makedirs(WAGO_DIR)
+    stamp = int(time.time())
+    for name in WAGO:
+        with open(os.path.join(WAGO_DIR, name + ".csv"), "wb") as f:
+            f.write(get(WAGO_URL % (name, stamp)))
+
+
+def cooldown_sets():
+    """tests/cooldown_sets.lua: every row of the Cooldown Manager catalogue
     with its linked spells, the spell's name, whether the spell itself puts an
     aura on something (aura) and only ever on the caster (selfAura), which of
     its linked spells do (linkAuras), and whether it makes a totem, trap or
@@ -132,7 +150,7 @@ def cooldown_sets(out):
         if int(r["Effect"]) in (36, 64) and int(r["EffectTriggerSpell"]) > 0:
             leads.setdefault(r["SpellID"], []).append(r["EffectTriggerSpell"])
     rows = sorted(wago("CooldownSetSpell"), key=lambda r: int(r["ID"]))
-    lines = ["-- Made by tools/fetch_blizzard.py from wago.tools (product wowf). Not committed.", "return {"]
+    lines = ["-- The game's Cooldown Manager catalogue, made by `py tools/fetch_blizzard.py --cdm`", "-- from wago.tools (product wowf). Kept fixed so the tests don't change under you.", "return {"]
     for r in rows:
         targets = auras.get(r["SpellID"])
         name = names.get(r["SpellID"], "").replace("\\", "\\\\").replace('"', '\\"')
@@ -150,12 +168,17 @@ def cooldown_sets(out):
         ]
         lines.append("    { " + ", ".join(fields) + " },")
     lines.append("}")
-    with open(os.path.join(out, "CooldownSets.lua"), "w", encoding="utf-8", newline=chr(10)) as f:
+    with open(CATALOGUE, "w", encoding="utf-8", newline=chr(10)) as f:
         f.write(chr(10).join(lines) + chr(10))
     return len(rows)
 
 
 def main():
+    if "--cdm" in sys.argv[1:]:
+        refresh_wago()
+        print(f"tests/cooldown_sets.lua: {cooldown_sets()} rows of the Cooldown Manager catalogue, "
+              "fresh from wago.tools. Run the Cooldown Manager tests, then commit it.")
+        return
     paths, api = list(FILES), []
     for p in tree_paths():
         name = os.path.basename(p)
@@ -168,7 +191,6 @@ def main():
     with open(os.path.join(OUT, "SOURCE.txt"), "w") as f:
         f.write(f"{REPO}@{COMMIT}\n")
     print(f"tests/blizzard: {len(names)} files, api/: {len(api_names)} files, from {REPO}@{COMMIT[:7]}")
-    print(f"tests/blizzard/CooldownSets.lua: {cooldown_sets(OUT)} rows of the Cooldown Manager catalogue")
 
 
 if __name__ == "__main__":

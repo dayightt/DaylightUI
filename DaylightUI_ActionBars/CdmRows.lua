@@ -485,7 +485,7 @@ local function claim(item)
     -- The game's item doesn't show what the spell is set to show (CdmOwn.GameDraws
     -- has the whole rule): a buff item tracked as its cooldown or both (Shield
     -- Block, Charge; it hides while the buff is down), or a cooldown icon set to
-    -- Cooldown or Buff only (Rend, Thunder Clap). Daylight UI draws it below and the
+    -- Cooldown or Buff only (Rend, Death Wish). Daylight UI draws it below and the
     -- game's stays hidden. Only the spell's facts and the player's What it shows
     -- pick decide this. Hide (Buff up), the glows and the sounds never do: they
     -- work on whichever draws the spell.
@@ -645,7 +645,7 @@ local function drawOurs(id, p, block, f, always, aura, track)
         local Bars = ns.CdmBars
         if not Bars then return nil end
         -- A cooldown the game shows by its aura while up (Rend): the aura's bar,
-        -- over the cooldown when it has a real one (Thunder Clap), like the
+        -- over the cooldown when it has a real one (Death Wish), like the
         -- game's icon.
         local under = false
         if track == "both" then

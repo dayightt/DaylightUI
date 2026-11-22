@@ -399,18 +399,32 @@ end
 -- Rend's debuff as a bar. 1.9.6 drew an option on it (Hide, a buff sound, Glow to
 -- recast) or a remembered cooldown with Daylight UI's bar showing the debuff and,
 -- while it's down, a cooldown bar under it (a full one: Rend has no cooldown).
+-- Beside it, an icon whose game icon shows its own aura looked the same either way.
+-- Which warrior spell that is moves with the game's data (Thunder Clap's icon
+-- stopped showing its debuff in a hotfix), so it's picked from the catalogue.
+local function showsOwnAura()
+    local set = CW.SetWith(REND)
+    for _, r in ipairs(CW.Catalogue()) do
+        if r.set == set and r.category == ESSENTIAL and r.aura and r.spell ~= REND and r.flags % 2 == 0 then
+            return r.spell
+        end
+    end
+end
+
 for _, case in ipairs({ { "hideActive", true }, { "buffSound", "dui:done" }, { "buffEndSound", "dui:done" },
                          { "clipGlow", true }, { "remembered cooldown" } }) do
 T.test("cdm game: an older Rend bar with " .. case[1] .. " keeps the cooldown bar under its debuff", function()
-    local DUI, AB, D, R = world()
-    local icon, bar = CW.ID(REND, ESSENTIAL), CW.ID(REND, BUFFS)
+    local other = showsOwnAura()
+    T.truthy(other ~= nil, "a warrior cooldown whose icon shows its own aura")
+    local DUI, AB, D, R = world({ known = { SHOUT, REND, BLOCK, RAGE, CLAP, WALL, other } })
+    local icon, bar, beside = CW.ID(REND, ESSENTIAL), CW.ID(REND, BUFFS), CW.ID(other, ESSENTIAL)
     local opts = case[2] ~= nil and { [case[1]] = case[2] } or nil
     if not opts then DUI.DB.Character().cdmCooldowns = { [REND] = true } end
-    local set = oldLayout(D, { { id = icon, shape = "bar", opts = opts }, { id = CW.ID(CLAP, ESSENTIAL), shape = "icon", opts = opts } })
+    local set = oldLayout(D, { { id = icon, shape = "bar", opts = opts }, { id = beside, shape = "icon", opts = opts } })
     pass(AB)
     T.eq(set.pieces[icon].track, "both", "the old reading is kept as its pick")
     T.eq(R.DrawnBy(icon), "aura and cooldown bar", "the debuff's bar over a cooldown bar, as before")
-    T.isnil(set.pieces[CW.ID(CLAP, ESSENTIAL)].track, "an icon looked the same either way: left alone")
+    T.isnil(set.pieces[beside].track, "an icon looked the same either way: left alone")
     T.truthy(bar ~= nil)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

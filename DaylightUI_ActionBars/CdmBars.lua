@@ -810,7 +810,7 @@ local function fitAura(h, w, hh, block, button)
     DUI.AfterRestrictions(function() relayout(h) end, "cdm:aurabar:" .. tostring(h.id))
 end
 
--- An aura bar with the spell's cooldown running underneath (Thunder Clap). Daylight UI's bar
+-- An aura bar with the spell's cooldown running underneath (Death Wish). Daylight UI's bar
 -- shows the cooldown (full when ready) and the client's aura bar covers it while
 -- the aura is up. Without it Daylight UI's bar stays empty with a dim icon.
 local function setUnder(h, under)
