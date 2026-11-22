@@ -1812,6 +1812,53 @@ T.test("rich tooltip: your own name under a quest is left out, a party member's 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("a party member's name under a quest is in their class color, rich and simple", function()
+    for _, style in ipairs({ "rich", "simple" }) do
+        local _, Panel = login(style)
+        stub.units.player.name = "Daylight"
+        stub.units.player.class = "PRIEST"
+        stub.units.party1 = { name = "Relio", lastName = "Lightsong", class = "PALADIN", isPlayer = true }
+        stub.units.mouseover = { name = "Barbed Lasher", isPlayer = false, reaction = 2, level = 45, health = 50, maxHealth = 100 }
+        local data = { type = Enum.TooltipDataType.Unit, lines = { {}, { type = 17 },
+            { type = 18, leftText = "Daylight" }, { type = 8 },
+            { type = 18, leftText = "Relio Lightsong" }, { type = 8 },
+            { type = 18, leftText = "Stranger" }, { type = 8 } } }
+        local tip = GameTooltip
+        tip:SetOwner(UIParent, "ANCHOR_NONE")
+        tip.__unit = "mouseover"
+        tip:AddLine("Barbed Lasher")
+        tip:AddLine("Twisted Evils", 1, 0.82, 0)
+        tip:AddLine("Daylight", 1, 0.82, 0)
+        tip:AddLine(" - 2/25 Theradric Crystal Carving")
+        tip:AddLine("Relio Lightsong", 1, 0.82, 0)
+        tip:AddLine(" - 3/25 Theradric Crystal Carving")
+        tip:AddLine("Stranger", 1, 0.82, 0)
+        tip:AddLine(" - 1/25 Theradric Crystal Carving")
+        for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+        for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+        tip:Show()
+        local Style = DaylightUI.Style
+        local paladin = { Style.ClassTextColor("PALADIN") }
+        if style == "rich" then
+            local p = Panel.Get(tip)
+            local colors = {}
+            for i = 1, p.count do
+                local it = p.items[i]
+                if it.kind == "text" then colors[stub.Text(it.fs)] = { it.fs:GetTextColor() } end
+            end
+            T.rgb(colors["Relio Lightsong"], paladin, "rich: the paladin's name in paladin color")
+            T.rgb(colors["Stranger"], Style.INK.LABEL, "rich: someone not in the group stays tan")
+        else
+            T.rgb({ _G.GameTooltipTextLeft3:GetTextColor() }, { Style.ClassTextColor("PRIEST") }, "simple: your own name in your class color")
+            T.rgb({ _G.GameTooltipTextLeft5:GetTextColor() }, paladin, "simple: the paladin's name")
+            T.rgb({ _G.GameTooltipTextLeft7:GetTextColor() }, { 1, 0.82, 0 }, "simple: a stranger keeps the game's color")
+        end
+        tip:Hide()
+        stub.units.party1 = nil
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: a quest reward's card showed coins at the foot with no word
 -- beside them (it has no durability to sit on the left).
 T.test("rich tooltip: a sell price with no durability beside it says what it is", function()

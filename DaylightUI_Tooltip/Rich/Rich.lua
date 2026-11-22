@@ -319,6 +319,48 @@ function Rich.OwnName(line)
     return Rich.Bare(line.left) == me
 end
 
+local function plainString(v) return not isSecret(v) and type(v) == "string" and v ~= "" end
+
+-- "player", then each party or raid unit, written into one reused list.
+local units = {}
+local function groupUnits()
+    local raid = IsInRaid and IsInRaid() == true
+    local n = raid and GetNumGroupMembers and GetNumGroupMembers() or 4
+    if isSecret(n) or type(n) ~= "number" then n = 0 end
+    for k in pairs(units) do units[k] = nil end
+    units[1] = "player"
+    for i = 1, n do units[#units + 1] = (raid and "raid" or "party") .. i end
+    return units
+end
+
+-- The class of the group member a QuestPlayer line names ("Name" or "First
+-- Last"), for coloring the name. Nil for anyone not in the group or when a
+-- name can't be read.
+function Rich.QuestPlayerClass(text)
+    if not plainString(text) then return nil end
+    local name = Rich.Bare(text)
+    for _, unit in ipairs(groupUnits()) do
+        local here = UnitExists(unit)
+        if not isSecret(here) and here then
+            local first, last = UnitFullName(unit)
+            local match = plainString(first) and (first == name or (plainString(last) and first .. " " .. last == name))
+            if match then
+                local _, token = UnitClass(unit)
+                if plainString(token) then return token end
+                return nil
+            end
+        end
+    end
+    return nil
+end
+
+-- A QuestPlayer line's color: the member's class, else the label tan.
+function Rich.QuestPlayerInk(text)
+    local token = Rich.QuestPlayerClass(text)
+    if token then return { Style.ClassTextColor(token) } end
+    return Style.INK.LABEL
+end
+
 -- A line's words alone: no color codes, icons, leading spaces or dash.
 function Rich.Bare(t)
     t = t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", ""):gsub("|A.-|a", "")
@@ -426,7 +468,7 @@ function Rich.Lines(p, n, lines, from, skip)
             -- Drawn elsewhere.
         elseif who then
             -- Under a quest's title: a party member's name, small; yours, nothing.
-            if not Rich.OwnName(line) then Panel.Text(p, Rich.Bare(line.left), Style.INK.LABEL, Style.SIZE.small) end
+            if not Rich.OwnName(line) then Panel.Text(p, Rich.Bare(line.left), Rich.QuestPlayerInk(line.left), Style.SIZE.small) end
         elseif title or name then
             if not inQuest and p.count > 0 and p.items[p.count].kind ~= "rule" then Panel.Rule(p) end
             inQuest = true

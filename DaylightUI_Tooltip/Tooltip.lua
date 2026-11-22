@@ -548,6 +548,22 @@ function Tip.OnUnit(tip)
     if type(first) == "table" and first.SetTextColor then first:SetTextColor(r, g, b) end
 end
 
+-- Under a quest on a mob, the game names whose progress each block is: those
+-- names go in their class colors. Only plain lines can be matched to a member.
+function Tip.PaintQuestPlayers(tip, data)
+    if not skinned[tip] or ns.Rich.On(tip) then return end
+    local lines = type(data) == "table" and plain(data.lines) or nil
+    if type(lines) ~= "table" then return end
+    for i, line in ipairs(lines) do
+        local kind = type(line) == "table" and plain(line.type) or nil
+        if kind == ns.Rich.QUEST_PLAYER then
+            local token = ns.Rich.QuestPlayerClass(plain(line.leftText))
+            local fs = token and Tip.Line(tip, plain(line.lineIndex) or i)
+            if type(fs) == "table" then fs:SetTextColor(Style.ClassTextColor(token)) end
+        end
+    end
+end
+
 -- With Last names on, appends the last name to a player's first line (the game
 -- only gives the first name). Only when the line is exactly that first name, so
 -- nothing else on it is lost.
@@ -1956,6 +1972,7 @@ function Tip.Build(mod)
             if types and types.Unit then
                 TDP.AddTooltipPostCall(types.Unit, function(tip, data)
                     DUI.SafeCall(Tip.OnUnit, tip)
+                    DUI.SafeCall(Tip.PaintQuestPlayers, tip, data)
                     DUI.SafeCall(Tip.Plugins, "unit", tip, Tip.PluginData("unit", tip, data))
                     Tip.Settle(tip)
                 end)
