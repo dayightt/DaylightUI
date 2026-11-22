@@ -28,7 +28,10 @@ local function rollsPage()
       groups = {
         { label = "Loot rolls", tab = "Basics", items = {
             row({ type = "toggle", key = "rolls.enabled", since = "2.2", label = "Daylight UI loot rolls", reload = true,
-              desc = "Loot rolls in Daylight UI's own roll window, with who picked what, every roll and who won. When off, the game's own roll popups show in Daylight UI style, with how many players picked Need, Greed and Pass on each button." }),
+              desc = "Loot rolls in Daylight UI's own roll window, with who picked what, every roll and who won. When off, the game's own roll popups show instead." }),
+            row({ type = "toggle", key = "rolls.popups", since = "2.3", label = "Restyle the game's roll popups", reload = true,
+              disabled = function(get) return get("rolls.enabled") ~= false end,
+              desc = "With Daylight UI loot rolls off, the game's roll popups wear Daylight UI style, with how many players picked Need, Greed and Pass on each button. When off, they look the way the game draws them." }),
             row({ type = "dropdown", key = "rolls.list", label = "Group list",
               values = { auto = "With one roll", always = "Always", hover = "On mouseover", off = "Never" },
               order = { "auto", "always", "hover", "off" },

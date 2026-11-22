@@ -21,7 +21,8 @@ ns.DEFAULTS = {
     windowScales = {}, -- [game window name] = scale set with Ctrl + mouse wheel (WindowScale.lua)
     windowSpots = {}, -- [game window name] = dragged position (WindowMove.lua)
     rolls = {
-        enabled = true,       -- Daylight UI's own roll window; off = the game's popups in Daylight UI style (Rolls/)
+        enabled = true,       -- Daylight UI's own roll window; off = the game's popups (Rolls/)
+        popups = true,        -- with the window off, the game's popups in Daylight UI style; off = as the game draws them
         list = "auto",        -- auto | always | hover | off: when a roll shows who picked what
         compact = true,       -- several rolls up: compact cards
         fightCompact = true,  -- in a fight: compact, lists only under the mouse

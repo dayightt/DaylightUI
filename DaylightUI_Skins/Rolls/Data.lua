@@ -14,6 +14,9 @@ local RollData = {
     -- Enum.EncounterLootDropRollState: NeedMainSpec, NeedOffSpec, Transmog, Greed, NoRoll, Pass.
     STATE = { [0] = "need", [1] = "need", [2] = "transmog", [3] = "greed", [4] = "choosing", [5] = "pass" },
     drops = {},
+    -- Rolls that ended or were put away this session, so a zone change doesn't
+    -- bring them back: game roll ids, and "encounter:key" for the Loot History.
+    ended = {},
 }
 ns.RollData = RollData
 
@@ -24,6 +27,13 @@ local function plain(v, kind)
     if issecretvalue and issecretvalue(v) then return nil end
     if type(v) == kind then return v end
 end
+
+-- Rolls only happen in a group; out of one, nothing more comes for any roll.
+local function grouped()
+    return type(IsInGroup) ~= "function" or IsInGroup() == true
+end
+
+local function historyKey(encounterID, key) return encounterID .. ":" .. key end
 
 local function itemID(link) return type(link) == "string" and tonumber(link:match("item:(%d+)")) or nil end
 local function itemName(link) return type(link) == "string" and link:match("%[(.-)%]") or nil end
@@ -377,13 +387,28 @@ function RollData.AllCancel(now)
     end
 end
 
+-- You left the group: no pick or winner will come for any roll, so each one
+-- ends now instead of waiting out its timer.
+function RollData.LeftGroup(now)
+    if grouped() then return end
+    for id, drop in pairs(RollData.drops) do
+        if not drop.done then
+            drop.leftGroup = true
+            finish(drop, now)
+            fire(id, "done")
+        end
+    end
+end
+
 -- After a reload: every roll the game still has open, with the time it has left.
+-- Out of a group none is yours any more, even if the game still lists it.
 function RollData.Rebuild(now)
     now = now or GetTime()
+    if not grouped() then return end
     local ids = GetActiveLootRollIDs and GetActiveLootRollIDs()
     if type(ids) ~= "table" then return end
     for _, rollID in ipairs(ids) do
-        if not RollData.drops[rollID] then
+        if not RollData.drops[rollID] and not RollData.ended[rollID] then
             local ms = C_Loot and C_Loot.GetLootRollDuration and C_Loot.GetLootRollDuration(rollID)
             local drop = RollData.Start(rollID, ms, now)
             local left = GetLootRollTimeLeft and GetLootRollTimeLeft(rollID)
@@ -411,7 +436,8 @@ function RollData.RebuildPicked(now)
             local left = clock and started and length and (length - (clock - started)) / 1000
             local held = key and oldest(function(x) return x.encounterID == encounterID and x.lootListKey == key end)
             local id = key and -(encounterID * 100000 + key)
-            if key and not held and not RollData.drops[id] and type(info.winner) == "nil"
+            if key and not held and not RollData.drops[id] and not RollData.ended[historyKey(encounterID, key)]
+                and type(info.winner) == "nil"
                 and plain(info.allPassed, "boolean") ~= true and state and state ~= 4
                 and left and left > 0 then
                 local link = plain(info.itemHyperlink, "string")
@@ -450,7 +476,12 @@ end
 
 -- Forgets a finished roll once its card has left.
 function RollData.Remove(rollID)
-    if RollData.drops[rollID] then
+    local drop = RollData.drops[rollID]
+    if drop then
+        if type(rollID) == "number" and rollID > 0 then RollData.ended[rollID] = true end
+        if drop.encounterID and drop.lootListKey then
+            RollData.ended[historyKey(drop.encounterID, drop.lootListKey)] = true
+        end
         RollData.drops[rollID] = nil
         fire(rollID, "gone")
     end
@@ -530,6 +561,7 @@ function RollData.Wire()
         if rollID then RollData.Cancel(rollID) end
     end)
     DUI.RegisterEvent("CANCEL_ALL_LOOT_ROLLS", function() RollData.AllCancel(GetTime()) end)
+    DUI.RegisterEvent("GROUP_LEFT", function() RollData.LeftGroup(GetTime()) end)
     DUI.RegisterEvent("MAIN_SPEC_NEED_ROLL", function(_, rollID, roll)
         rollID = num(rollID)
         if rollID then RollData.NeedRoll(rollID, num(roll)) end

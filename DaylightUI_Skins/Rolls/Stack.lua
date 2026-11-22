@@ -233,6 +233,9 @@ local function cardFor(drop)
     card:EnableMouse(true)
     card:SetScript("OnEnter", function() RollStack.Layout() end)
     card:SetScript("OnLeave", function() RollStack.Layout() end)
+    card:SetScript("OnMouseUp", function(self, button)
+        if button == "RightButton" then RollStack.PutAway(self) end
+    end)
     card.onHeight = function() RollStack.Place() end
     Motion.AlphaTo(card, 1, 0)
     card:SetAlpha(1)
@@ -255,6 +258,15 @@ local function leave(rollID)
     card:EnableMouse(false)
     Motion.AlphaTo(card, 0, Motion.NORMAL, true)
     spare[#spare + 1] = card
+end
+
+-- A right-click puts a card away once nothing is asked of you on it: you've
+-- picked, it's only watched, or it's over. One still waiting on your pick keeps
+-- its place, since putting it away would pass for you unseen.
+function RollStack.PutAway(card)
+    local drop = card and card.drop
+    if not drop or card.leaving or not (drop.mine or drop.watch or drop.done) then return end
+    Data.Remove(drop.rollID)
 end
 
 -- Where the stack hangs: the first roll slot, the one the Loot Rolls handle

@@ -116,6 +116,8 @@ function RW.Install()
     for k, v in pairs(STATE) do Enum.EncounterLootDropRollState[k] = v end
     RW.drops, RW.order, RW.rolled = {}, {}, {}
     RW.nextRoll, RW.nextHistory, RW.history = 100, 40, true
+    -- Rolls only happen in a group.
+    stub.SetGroup(true, false, 7)
 
     _G.GetLootRollItemInfo = function(rollID)
         local d = RW.drops[rollID]
@@ -404,6 +406,15 @@ function RW.CancelAll()
         local f = _G["GroupLootFrame" .. i]
         if f and f:IsShown() then _G.GroupLootFrame_Remove(f, true) end
     end
+end
+
+-- You leave the group with rolls up. What the server sends then isn't in the
+-- game's docs or UI code, so this is the worst case: only GROUP_LEFT, while the
+-- client keeps listing the rolls until their time runs out and the Loot History
+-- keeps their records, with no winner ever coming.
+function RW.LeaveGroup()
+    stub.SetGroup(false)
+    stub.FireEvent("GROUP_LEFT", 1, "Party-1")
 end
 
 -- off = the world where C_LootHistory answers nothing (chat only).

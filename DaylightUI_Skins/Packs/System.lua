@@ -595,8 +595,11 @@ end
 function LootRoll.Of(f) return rolls[f] end
 
 -- With Daylight UI's own roll window on (Rolls/Stack.lua) the popups are only
--- kept running, unseen, so this skin stays off.
-Engine.Register({ key = "lootroll", pack = "system", skip = function() return ns.RollStack ~= nil and ns.RollStack.On() end,
+-- kept running, unseen, so this skin stays off. The player can also keep the
+-- game's own look on its popups.
+local function plainPopups() return DUI:Get("Skins", "rolls.popups") == false end
+Engine.Register({ key = "lootroll", pack = "system",
+    skip = function() return (ns.RollStack ~= nil and ns.RollStack.On()) or plainPopups() end,
     apply = function(Kit)
     local function all()
         for i = 1, 8 do skinRoll(Kit, _G["GroupLootFrame" .. i]) end

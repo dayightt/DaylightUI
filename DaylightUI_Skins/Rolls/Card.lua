@@ -58,6 +58,7 @@ local RollCard = {
         allPassed = L["Everyone passed."],
         tied = L["Tied: the game rolls again."],
         noResult = L["No result seen."],
+        leftGroup = L["You left the group."],
         choosing = L["choosing"],
         you = L["you"],
         hasOne = L["has one"],
@@ -480,6 +481,7 @@ local function summary(drop)
             return text
         end
         if drop.allPassed then return T.allPassed end
+        if drop.leftGroup then return T.leftGroup end
         if drop.expired then return T.noResult end
         return T.noResult
     end
@@ -583,7 +585,7 @@ local function layButtons(card, drop, settings)
     fitWords(shown, each, size - 8, settings.buttonWords ~= false)
 end
 
--- The line saying where the roll stands, whole: a long one ("Naharian ganó con Codicia 85.
+-- The line saying where the roll stands, whole: a long one ("Naharian ganÃ³ con Codicia 85.
 -- Sacaste 40.") shrinks (to SUM_MIN of its size), and one still too long takes a second
 -- row, its box growing by what that needs (card.sumExtra).
 local function fitSum(card, ticks)
