@@ -15,6 +15,7 @@ DUI.PatchNotes = {
         { "Nameplates", "With the Does It Die addon installed, your nameplates and target frame can show its DoT numbers" },
         { "Bags", "With the ItemTree addon installed, your bags show what it says to keep, sell or use now, selling junk never sells what it keeps, and its tooltip advice gets a tidy section" },
     }, fixed = {
+        { "Auction House", "Hovering the item you're selling on the Sell page shows its tooltip" },
         { "Unit frames", "Rip and Rupture no longer vanish from the DoT shade when an auto attack misses at the same moment" },
         { "Unit frames", "Rake and other bleeds no longer show a DoT shade on mobs that are immune to bleeds" },
         { "Nameplates", "DoT shades now show on nameplates in dungeons, and dotting a second mob no longer clears the first" },

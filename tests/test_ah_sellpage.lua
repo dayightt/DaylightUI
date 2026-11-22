@@ -707,3 +707,21 @@ T.test("sell: on a controller the D-pad steps the amount and price, and X posts"
     _G.GamepadMode, _G.InputUtil = nil, nil
     quiet()
 end)
+
+T.test("sell: hovering the picked item's name shows its tooltip", function()
+    local A = load()
+    local page = open(A)
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    _G.GameTooltip = tip
+    function tip:SetOwner(o) self.__owner = o end
+    function tip:IsOwned(o) return self.__owner == o end
+    local head = page.right.head
+    head:GetScript("OnEnter")(head)
+    T.truthy(tip:IsShown(), "the item's tooltip")
+    T.truthy(tip:IsOwned(head))
+    head:GetScript("OnLeave")(head)
+    T.falsy(tip:IsShown(), "gone when the mouse leaves")
+    quiet()
+end)

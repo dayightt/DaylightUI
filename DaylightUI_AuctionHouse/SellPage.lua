@@ -1350,6 +1350,23 @@ function P.Build(p)
     right.meta:SetPoint("TOPLEFT", right.title, "BOTTOMLEFT", 0, -4)
     right.meta:SetPoint("RIGHT", right, "RIGHT", -(P.BOX_W + 2 * Parts.EDGE), 0)
     right.meta:SetWordWrap(false)
+    -- Hovering the picked item's icon or name shows its tooltip, like its row on the left.
+    local head = CreateFrame("Frame", nil, sale)
+    head:SetPoint("TOPLEFT", right.icon, "TOPLEFT", 0, 0)
+    head:SetPoint("BOTTOMLEFT", right.icon, "BOTTOMLEFT", 0, 0)
+    head:SetPoint("RIGHT", right.title, "RIGHT", 0, 0)
+    head:EnableMouse(true)
+    head:SetScript("OnEnter", function(self)
+        local r = P.picked and byKey[P.picked]
+        if not (r and r.itemID and GameTooltip) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        ns.Items.SetTip(GameTooltip, r.key, r.itemID)
+        GameTooltip:Show()
+    end)
+    head:SetScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
+    right.head = head
     buildForm(right, sale)
     buildBox(right)
     right.said = Style.Text(right, Style.SIZE.small, "LEFT")
