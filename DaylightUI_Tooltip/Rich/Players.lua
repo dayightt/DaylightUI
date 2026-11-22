@@ -176,8 +176,7 @@ function Players.Card(p, tip, unit, data, n, lines)
     -- Other addons' lines mixed in with the rows, when set so (Rich/Foreign.lua).
     ns.RichForeign.Place(p, "mixed")
     Panel.Gap(p, Players.BEFORE_BARS)
-    Panel.Bar(p, { unit = unit, health = true, h = 7, caption = HEALTH or L["Health"],
-        pct = function(fs) DUI.Health.Write(fs, "percent", unit, true) end })
+    Panel.Bar(p, { unit = unit, health = true, h = 7 })
     local _, power = UnitPowerType(unit)
     power = plain(power)
     if type(power) == "string" then
