@@ -104,40 +104,46 @@ local function castbar(unit, field)
         { free = function() return castFree(unit) end, ownLayer = true,
           mover = function() return "unitframes." .. unit .. "Castbar" end })
 end
-local function extraTexts(out)
+local function extraTexts(out, after)
     for i in ipairs(ns.TEXT_SLOTS or {}) do
         out[#out + 1] = part("text" .. i, "Extra text " .. i, function(f) return f.extraTexts and f.extraTexts[i] end,
             { region = true, slot = ns.TEXT_SLOTS[i] })
     end
+    for _, p in ipairs(after or {}) do out[#out + 1] = p end
     return out
 end
 
+local function swing()
+    -- The swing timer and its bars standing on their own; its own page picks its layer.
+    return part("swing", "Swing timer", function(f)
+        if f.layerPreview or not ns.swing then return nil end
+        local out = { ns.swing }
+        for _, pod in pairs(ns.swing.pods or {}) do out[#out + 1] = pod end
+        return out
+    end, { ownLayer = true, free = function() return true end, mover = function() return "unitframes.swing" end })
+end
+local function druid()
+    return part("druid", "Druid bars", function(f) if not f.layerPreview then return _G.DaylightUIDruidBars end end,
+        { free = function() return true end, mover = function() return ns.DruidBars.KEY end })
+end
+local THREAT = part("threat", "Threat %", function(f) return f.threatHolder end,
+    { free = function(f) return f.threatTag ~= nil and f.threatTag:GetParent() == f.threatHolder end,
+      mover = function() return ns.UF.THREAT_KEY end })
+local COMBO = part("combo", "Combo points", function(f) if not f.layerPreview then return ns.combo and ns.combo.holder end end,
+    { free = function() local d = db(); return d and d.combo and d.combo.anchor == "free" end,
+      mover = function() return ns.Combo.KEY end })
+
+-- Each frame's parts, bottom to top as Daylight UI draws them on a fresh
+-- install. A part's place in its list is its default order.
 Layers.PARTS = {
-    player = extraTexts({ HEALTH, power("player"), PORTRAIT, NAME, HEALTH_TEXT, POWER_TEXT, LEVEL, LEADER, PVP, REST,
-        debuffs("player"), buffs("player"),
-        part("druid", "Druid bars", function(f) if not f.layerPreview then return _G.DaylightUIDruidBars end end,
-            { free = function() return true end, mover = function() return ns.DruidBars.KEY end }),
-        castbar("player", "playerCastbar"),
-        -- The swing timer and its bars standing on their own; its own page picks its layer.
-        part("swing", "Swing timer", function(f)
-            if f.layerPreview or not ns.swing then return nil end
-            local out = { ns.swing }
-            for _, pod in pairs(ns.swing.pods or {}) do out[#out + 1] = pod end
-            return out
-        end, { ownLayer = true, free = function() return true end, mover = function() return "unitframes.swing" end }) }),
-    target = extraTexts({ HEALTH, power("target"), PORTRAIT, NAME, HEALTH_TEXT, POWER_TEXT, MARKER, CREST, LEVEL, LEADER, PVP,
-        debuffs("target"), buffs("target"),
-        part("threat", "Threat %", function(f) return f.threatHolder end,
-            { free = function(f) return f.threatTag ~= nil and f.threatTag:GetParent() == f.threatHolder end,
-              mover = function() return ns.UF.THREAT_KEY end }),
-        part("combo", "Combo points", function(f) if not f.layerPreview then return ns.combo and ns.combo.holder end end,
-            { free = function() local d = db(); return d and d.combo and d.combo.anchor == "free" end,
-              mover = function() return ns.Combo.KEY end }),
-        castbar("target", "targetCastbarFree") }),
-    focus = extraTexts({ HEALTH, power("focus"), PORTRAIT, NAME, HEALTH_TEXT, POWER_TEXT, MARKER, LEVEL, LEADER, PVP,
-        debuffs("focus"), buffs("focus"), castbar("focus", "focusCastbarFree") }),
-    pet = extraTexts({ HEALTH, power("pet"), NAME, HEALTH_TEXT, POWER_TEXT, debuffs("pet"), buffs("pet"),
-        part("happiness", "Pet happiness", function(f) return f.happiness end) }),
+    player = extraTexts({ druid(), castbar("player", "playerCastbar"), swing(), HEALTH, power("player"),
+        debuffs("player"), buffs("player"), NAME, HEALTH_TEXT, POWER_TEXT }, { PORTRAIT, LEVEL, LEADER, PVP, REST }),
+    target = extraTexts({ castbar("target", "targetCastbarFree"), HEALTH, power("target"), debuffs("target"),
+        buffs("target"), NAME, HEALTH_TEXT, POWER_TEXT }, { PORTRAIT, MARKER, CREST, LEVEL, LEADER, PVP, THREAT, COMBO }),
+    focus = extraTexts({ castbar("focus", "focusCastbarFree"), HEALTH, power("focus"), debuffs("focus"), buffs("focus"),
+        NAME, HEALTH_TEXT, POWER_TEXT }, { PORTRAIT, MARKER, LEVEL, LEADER, PVP }),
+    pet = extraTexts({ HEALTH, power("pet"), debuffs("pet"), buffs("pet"), HEALTH_TEXT, POWER_TEXT },
+        { NAME, part("happiness", "Pet happiness", function(f) return f.happiness end) }),
     personal = { debuffs("personal"), buffs("personal") },
 }
 
@@ -220,7 +226,7 @@ function Layers.OrderOf(unit, key)
     if s and tonumber(s.order) then return tonumber(s.order) end
     local f = frameOf(unit)
     if not f then return Layers.MIN end
-    return (f.layerDefaults or Layers.DefaultOrders(f, unit))[key] or Layers.MIN
+    return Layers.DefaultOrders(f, unit)[key] or Layers.MIN
 end
 
 -- Sets one frame's level and keeps everything inside it at its offset (the
@@ -287,20 +293,10 @@ local function homeLevel(x)
     return x.layerHome or x:GetFrameLevel()
 end
 
--- Each part's rank among its frame's parts, lowest first, by where its own
--- code draws it (equal levels in list order). An unset part's Order shows this.
-function Layers.DefaultOrders(f, unit)
-    local rows = {}
-    for i, part in ipairs(Layers.PARTS[unit] or {}) do
-        local first = list(part.get(f))[1]
-        if first then rows[#rows + 1] = { key = part.key, i = i, level = homeLevel(first) } end
-    end
-    table.sort(rows, function(a, b)
-        if a.level ~= b.level then return a.level < b.level end
-        return a.i < b.i
-    end)
+-- An unset part's order: its place in its frame's list.
+function Layers.DefaultOrders(_, unit)
     local out = {}
-    for n, r in ipairs(rows) do out[r.key] = math.min(Layers.MaxFor(unit), n) end
+    for i, part in ipairs(Layers.PARTS[unit] or {}) do out[part.key] = i end
     return out
 end
 
@@ -328,22 +324,7 @@ function Layers.ApplyTo(f, unit)
     if not (f and parts) then return end
     local touched = not Layers.Untouched(unit)
     local base = f:GetFrameLevel()
-    -- The unset parts' ranks, taken once from where their own code drew them
-    -- when the frame was first given an order, and kept until it's reset.
-    local defaults = {}
-    if touched then
-        if not f.layerDefaults then f.layerDefaults = Layers.DefaultOrders(f, unit) end
-        defaults = f.layerDefaults
-        local fresh
-        for _, part in ipairs(parts) do
-            if defaults[part.key] == nil then
-                fresh = fresh or Layers.DefaultOrders(f, unit)
-                defaults[part.key] = fresh[part.key]
-            end
-        end
-    else
-        f.layerDefaults = nil
-    end
+    local defaults = touched and Layers.DefaultOrders(f, unit) or {}
     local placed = {}
     for i, part in ipairs(parts) do
         local s = Layers.Saved(unit, part.key)
