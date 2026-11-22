@@ -7,12 +7,16 @@ local REND = 772     -- Rend: Physical bleed, 25 over 15 sec, 3 sec ticks
 local AGONY = 980    -- Bane of Agony: 96 over 24 sec, 2 sec ticks, back-loaded
 local RIP = 1079
 local CLAW = 1082
+local RAKE = 1822    -- Rake: a Physical hit, then a bleed
+local SIPHON = 18265 -- Siphon Life: a second Shadow DoT, 15 every 3 sec for 30
 
 local SPELLS = {
     [COR] = { name = "Corruption", desc = "Corrupts the target, causing 40 Shadow damage over 12 sec." },
     [REND] = { name = "Rend", desc = "Wounds the target causing them to bleed for 25 damage over 15 sec." },
     [AGONY] = { name = "Bane of Agony", desc = "Curses the target with agony, causing 96 Shadow damage over 24 sec." },
     [RIP] = { name = "Rip", desc = "Finishing move that causes damage over time.  Damage increases per combo point:\n   1 point : 42 damage over 12 sec.\n   2 points: 66 damage over 12 sec.\n   3 points: 90 damage over 12 sec.\n   4 points: 114 damage over 12 sec.\n   5 points: 138 damage over 12 sec." },
+    [RAKE] = { name = "Rake", desc = "Rake the target for 19 damage and an additional 39 damage over 9 sec.  Awards 1 combo point." },
+    [SIPHON] = { name = "Siphon Life", desc = "Transfers 15 health from the target to the caster every 3 sec.  Lasts 30 sec." },
     [CLAW] = { name = "Claw", desc = "Claw the enemy, causing 27 additional damage.  Awards 1 combo point." },
     [686] = { name = "Shadow Bolt", desc = "Sends a shadowy bolt at the enemy, causing 13 to 18 Shadow damage." },
     [139] = { name = "Renew", desc = "Heals the target of 45 damage over 15 sec." },
@@ -364,6 +368,129 @@ T.test("dots: a dodge right after the cast takes the DoT back", function()
     cast(REND)
     stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, PHYSICAL)
     T.isnil(Dots.Left("target"))
+end)
+
+-- A cat's white swing can miss in the same instant Rip lands. A finisher that
+-- lands spends its combo points (the game sends a power event for them); one
+-- that misses keeps them.
+local function comboMoved() stub.FireEvent("UNIT_POWER_FREQUENT", "player", "COMBO_POINTS") end
+
+T.test("dots: a swing missing as Rip lands doesn't take Rip back", function()
+    local _, Dots = world()
+    cast(CLAW); hit(27, PHYSICAL)
+    tick(1)
+    cast(RIP); comboMoved()
+    stub.FireEvent("UNIT_COMBAT", "target", "MISS", "", 0, PHYSICAL)
+    T.eq(Dots.Left("target"), 42, "its points were spent: it landed")
+end)
+
+T.test("dots: Rip comes back when its points are spent after the swing's miss", function()
+    local _, Dots = world()
+    cast(CLAW); hit(27, PHYSICAL)
+    tick(1)
+    cast(RIP)
+    stub.FireEvent("UNIT_COMBAT", "target", "MISS", "", 0, PHYSICAL)
+    T.isnil(Dots.Left("target"), "dropped until it's known")
+    comboMoved()
+    T.eq(Dots.Left("target"), 42, "restored")
+end)
+
+T.test("dots: a Rip that really misses stays gone", function()
+    local _, Dots = world()
+    cast(CLAW); hit(27, PHYSICAL)
+    tick(1)
+    cast(RIP)
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, PHYSICAL)
+    tick(1)
+    comboMoved() -- a later change (a new builder) says nothing about Rip
+    T.isnil(Dots.Left("target"))
+end)
+
+T.test("dots: Rake on a mob immune to bleeds leaves no DoT", function()
+    local _, Dots = world()
+    cast(RAKE)
+    hit(19, PHYSICAL) -- the upfront hit lands
+    stub.FireEvent("UNIT_COMBAT", "target", "IMMUNE", "", 0, PHYSICAL)
+    T.isnil(Dots.Left("target"))
+end)
+
+T.test("dots: an immune bleed reported before the cast event leaves no DoT", function()
+    local _, Dots = world()
+    n = n + 1
+    local guid = "Cast-" .. n
+    stub.FireEvent("UNIT_SPELLCAST_SENT", "player", "", guid, RAKE)
+    stub.FireEvent("UNIT_COMBAT", "target", "IMMUNE", "", 0, PHYSICAL)
+    hit(19, PHYSICAL)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", guid, RAKE)
+    T.isnil(Dots.Left("target"))
+end)
+
+T.test("dots: after Rake's hit lands, a swing's dodge is someone else's", function()
+    local _, Dots = world()
+    cast(RAKE)
+    hit(19, PHYSICAL)
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, PHYSICAL)
+    T.eq(Dots.Left("target"), 39)
+end)
+
+T.test("dots: two Shadow DoTs ticking the same amount at once both count", function()
+    local _, Dots = world()
+    cast(COR); cast(SIPHON)
+    tick(3)
+    hit(10, SHADOW); hit(10, SHADOW)
+    T.eq(Dots.Left("target"), 30 + 9 * 10, "each took one tick (Siphon Life's seen at 10)")
+end)
+
+T.test("dots: one secret hit reported for target and plate feeds only one DoT", function()
+    local _, Dots = world()
+    stub.units.nameplate1 = stub.units.target
+    cast(COR)
+    tick(0.2); cast(SIPHON)
+    tick(2.8)
+    stub.FireEvent("UNIT_COMBAT", "target", "WOUND", "", stub.Secret(9), SHADOW)
+    stub.FireEvent("UNIT_COMBAT", "nameplate1", "WOUND", "", stub.Secret(9), SHADOW)
+    T.eq(Dots.Left("target"), 30 + 150, "Siphon Life's own tick is still to come")
+end)
+
+-- Where the client hides mobs' GUIDs (a restricted map), each mob is told
+-- apart by its nameplate: the game's plate frame keeps its unit token.
+local function hiddenGUIDs()
+    stub.SetRestriction("Map", true)
+    _G.C_NamePlate = { GetNamePlateForUnit = function(unit)
+        for i = 1, 3 do
+            local token = "nameplate" .. i
+            if stub.units[token] and stub.units[token] == stub.units[unit] then return { unitToken = token } end
+        end
+    end }
+end
+
+T.test("dots: with GUIDs hidden, DoTs follow each mob's nameplate", function()
+    local _, Dots = world()
+    hiddenGUIDs()
+    stub.units.nameplate1 = stub.units.target
+    stub.units.nameplate2 = { name = "Gnoll", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
+    cast(COR)
+    T.eq(Dots.Left("nameplate1"), 40, "the plate shows it")
+    stub.units.target = stub.units.nameplate2
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    cast(COR)
+    T.eq(Dots.Left("nameplate1"), 40, "tab-dotting keeps the first mob's")
+    T.eq(Dots.Left("target"), 40)
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    T.isnil(Dots.Left("nameplate1"), "the token can go to another mob now")
+    stub.SetRestriction("Map", false)
+    _G.C_NamePlate = nil
+end)
+
+T.test("dots: with GUIDs hidden and no plate, only the target is tracked", function()
+    local _, Dots = world()
+    hiddenGUIDs()
+    cast(COR)
+    T.eq(Dots.Left("target"), 40)
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    T.isnil(Dots.Left("target"))
+    stub.SetRestriction("Map", false)
+    _G.C_NamePlate = nil
 end)
 
 T.test("dots: a recast that misses keeps the one still running", function()

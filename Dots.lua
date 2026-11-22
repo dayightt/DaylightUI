@@ -44,6 +44,9 @@ local CRIT_MIN, CRIT_MAX = 1.3, 2.3
 -- A cast's own outcome arrives almost at once: the first avoid or hit on the
 -- mob right after it decides. It can also arrive just before the cast event.
 local OUTCOME_WINDOW, OUTCOME_LOOKBACK = 0.4, 0.25
+-- A finisher that lands spends its combo points, one that misses keeps them.
+-- Points spent this close to the cast were the finisher's.
+local SPENT_WINDOW = 0.5
 local SENT_SECONDS = 10
 local SAME_SLOT = 0.2 -- two hits in one tick slot: the one closer in size was the tick
 local COMBO_CAP = 5
@@ -366,9 +369,12 @@ local counted = 0             -- combo points counted from builders
 local comboAtSend             -- combo points read when a finisher was sent
 local lastFinisher            -- { id, points, at }: the last finisher cast and the points it used
 local pendingBuilder -- { key, points, at }: a builder whose outcome isn't known yet
-local pendingCast -- { key, name, dot, previous, at }: a DoT cast whose outcome isn't known yet
+-- { key, name, dot, previous, at, finisher, landedAt }: a DoT cast whose outcome isn't known yet.
+-- landedAt: its upfront hit landed (Rake, Immolate), so only an IMMUNE can still take its DoT back.
+local pendingCast
 local lastOutcome             -- { key, avoided, action, school, at }
-local lastHit, lastAmount, lastSchool, lastAt -- the last hit, since target and plate tokens both report it
+local comboMovedAt            -- when your combo points last changed
+local spentCheck              -- { cast, dot, replaced }: a finisher dropped for an avoid, until its points say
 local ticker
 local events = CreateFrame("Frame")
 local hearing = false -- UNIT_COMBAT is registered only while a cast or DoT needs the hits
@@ -383,7 +389,13 @@ end
 local function hear(on)
     if on == hearing then return end
     hearing = on
-    if on then events:RegisterEvent("UNIT_COMBAT") else events:UnregisterEvent("UNIT_COMBAT") end
+    if on then
+        events:RegisterEvent("UNIT_COMBAT")
+        events:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player") -- combo points spent: a finisher landed
+    else
+        events:UnregisterEvent("UNIT_COMBAT")
+        events:UnregisterEvent("UNIT_POWER_FREQUENT")
+    end
 end
 
 -- The learned tick sizes, looked up on every hit. The table reference is
@@ -405,13 +417,31 @@ end
 -- nothing to redraw); nil means any number of them.
 local function changed(key) DUI.Fire("DotsChanged", key) end
 
--- The mob behind a unit token: its GUID, or "target" when the target's GUID
--- is secret (a battleground), else nil (that token can't be told apart).
+-- The nameplate token ("nameplate3") showing the mob behind unit, or nil. A
+-- mob keeps its token from NAME_PLATE_UNIT_ADDED to NAME_PLATE_UNIT_REMOVED,
+-- and the game's plate frame keeps the token it was given (SetUnit).
+local function plateToken(unit)
+    if string.find(unit, "^nameplate%d+$") then return unit end
+    local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
+    if type(get) ~= "function" then return nil end
+    local plate = get(unit, false)
+    local token = type(plate) == "table" and plate.unitToken
+    if type(token) == "string" and not isSecret(token) and string.find(token, "^nameplate%d+$") then return token end
+    return nil
+end
+
+-- The mob behind a unit token: its GUID. Where the client hides GUIDs (a
+-- restricted map, a battleground) it's the mob's nameplate while it has one,
+-- else "target" for the target alone, else nil (that token can't be told apart).
 function Dots.KeyOf(unit)
     if type(unit) ~= "string" then return nil end
     local ok, guid = pcall(UnitGUID, unit)
     if not ok then return nil end
-    if isSecret(guid) then return unit == "target" and "target" or nil end
+    if isSecret(guid) then
+        local token = plateToken(unit)
+        if token then return "plate:" .. token end
+        return unit == "target" and "target" or nil
+    end
     if type(guid) == "string" then return guid end
     return nil
 end
@@ -425,7 +455,7 @@ end
 function Dots.Forget()
     byMob, sent = {}, {}
     counted, comboAtSend, lastFinisher = 0, nil, nil
-    pendingBuilder, pendingCast, lastOutcome, lastHit = nil, nil, nil, nil
+    pendingBuilder, pendingCast, lastOutcome, spentCheck = nil, nil, nil, nil
     stopTicker()
     changed()
 end
@@ -543,6 +573,7 @@ local function upkeep()
         if now - s.at > SENT_SECONDS then sent[guid] = nil end
     end
     if pendingBuilder and now - pendingBuilder.at > OUTCOME_WINDOW then pendingBuilder = nil end
+    if spentCheck and now - spentCheck.cast.at > SPENT_WINDOW then spentCheck = nil end
     if pendingCast and now - pendingCast.at > OUTCOME_WINDOW then pendingCast = nil end
     if not needHits() then stopTicker() end
     if dropped then changed() end
@@ -620,9 +651,20 @@ local function onStopped(castGUID)
     if type(castGUID) == "string" then sent[castGUID] = nil end
 end
 
-local function avoidJustBefore(key)
+-- An avoid on the mob that arrived just before the cast event, or nil. With
+-- immune, also an IMMUNE followed by a hit: the cast's upfront part landed
+-- and its DoT didn't (a bleed on a mob immune to bleeds).
+local function avoidJustBefore(key, immune)
     local o = lastOutcome
-    if o and o.avoided and o.key == key and GetTime() - o.at <= OUTCOME_LOOKBACK then return o end
+    if not o or o.key ~= key then return nil end
+    local now = GetTime()
+    if o.avoided and now - o.at <= OUTCOME_LOOKBACK then return o end
+    if immune and o.immuneAt and now - o.immuneAt <= OUTCOME_LOOKBACK then return o.immune end
+end
+
+-- Whether the combo points were spent around a finisher's cast.
+local function spent(cast)
+    return comboMovedAt ~= nil and comboMovedAt >= cast.at - OUTCOME_LOOKBACK and comboMovedAt - cast.at <= SPENT_WINDOW
 end
 
 -- An avoided DoT cast isn't on the mob: drop it, or restore the one it
@@ -633,6 +675,9 @@ local function takeBack(cast, action, school)
     local dot = cast.dot
     local dots = byMob[cast.key]
     if not dots or dots[cast.name] ~= dot then return true end
+    -- A swing missing in the same instant looks just like the finisher
+    -- missing. Its points tell: spent means it landed.
+    if cast.finisher and spent(cast) then return false end
     local own = not isSecret(school) and school == dot.school
     if dot.school ~= PHYSICAL and not own then
         if MELEE_ONLY[action] then return false end
@@ -643,8 +688,26 @@ local function takeBack(cast, action, school)
         end
     end
     dots[cast.name] = cast.previous
+    if cast.finisher then spentCheck = { cast = cast, dot = dot, replaced = cast.previous } end
     changed(cast.key)
     return true
+end
+
+-- Your combo points changed. Spent right after a finisher that an avoid took
+-- back means that avoid was a swing's: the finisher goes back on.
+local function onComboMoved()
+    local now = GetTime()
+    comboMovedAt = now
+    local check = spentCheck
+    if not check or not spent(check.cast) then return end
+    spentCheck = nil
+    local cast = check.cast
+    local dots = byMob[cast.key]
+    if (dots and dots[cast.name]) ~= check.replaced or now > check.dot.expiresAt then return end
+    byMob[cast.key] = dots or {}
+    byMob[cast.key][cast.name] = check.dot
+    startTicker()
+    changed(cast.key)
 end
 
 local function onCast(castGUID, id)
@@ -693,9 +756,9 @@ local function onCast(castGUID, id)
         tickSum = 0, normalTicks = 0, ticksSeen = 0, missed = 0,
     }
     byMob[key][name] = dot
-    pendingCast = { key = key, name = name, dot = dot, previous = previous, at = now }
+    pendingCast = { key = key, name = name, dot = dot, previous = previous, at = now, finisher = finisher }
     startTicker()
-    local avoided = avoidJustBefore(key)
+    local avoided = avoidJustBefore(key, true)
     if avoided and takeBack(pendingCast, avoided.action, avoided.school) then
         pendingCast = nil
     end
@@ -718,8 +781,14 @@ local function onAvoided(key, action, school)
         end
         pendingBuilder = nil
     end
-    if pendingCast and pendingCast.key == key then
-        if now - pendingCast.at > OUTCOME_WINDOW or takeBack(pendingCast, action, school) then
+    local c = pendingCast
+    if c and c.key == key then
+        if now - c.at > OUTCOME_WINDOW then
+            pendingCast = nil
+        elseif c.landedAt then
+            -- Its upfront hit landed: other avoids are someone else's, but the DoT itself may be immune.
+            if action == "IMMUNE" and takeBack(c, action, school) then pendingCast = nil end
+        elseif takeBack(c, action, school) then
             pendingCast = nil
         end
     end
@@ -727,13 +796,25 @@ end
 
 -- A hit on the mob means the casts on it landed (a later avoid is someone
 -- else's). A spell DoT's cast only counts by a hit in its own school.
+-- A hit keeps an IMMUNE just before it on the same mob: an upfront part
+-- landing while the DoT itself was refused (avoidJustBefore).
 local hitOutcome = { avoided = false }
+local immuneOutcome = { avoided = true, action = "IMMUNE" }
 local function onHit(key, school)
-    hitOutcome.key, hitOutcome.at = key, GetTime()
+    local now, prior = GetTime(), lastOutcome
+    if prior and prior.avoided and prior.key == key and prior.action == "IMMUNE" and now - prior.at <= OUTCOME_LOOKBACK then
+        immuneOutcome.key, immuneOutcome.school, immuneOutcome.at = key, prior.school, prior.at
+        hitOutcome.immune, hitOutcome.immuneAt = immuneOutcome, prior.at
+    elseif prior ~= hitOutcome or hitOutcome.key ~= key then
+        hitOutcome.immune, hitOutcome.immuneAt = nil, nil
+    end
+    hitOutcome.key, hitOutcome.at = key, now
     lastOutcome = hitOutcome
     if pendingBuilder and pendingBuilder.key == key then pendingBuilder = nil end
     local c = pendingCast
-    if c and c.key == key and (c.dot.school == PHYSICAL or c.dot.school == school) then pendingCast = nil end
+    if c and c.key == key and not c.landedAt and (c.dot.school == PHYSICAL or c.dot.school == school) then
+        c.landedAt = now -- it landed; only an IMMUNE for its DoT can still come
+    end
 end
 
 -- Seconds from now to the nearest expected tick, and its number. Counted
@@ -837,16 +918,38 @@ local function relearn(dot, amount, crit, index, dist, now)
     return true
 end
 
-local function onWound(key, amount, school, crit)
+-- One hit arrives once per token showing the mob (target, its plate, focus)
+-- and must count once. Two DoTs of one school can also tick for the same
+-- amount in the same instant: those come twice from the same token. So within
+-- an instant each hit's signature remembers its token and the DoTs it fed: a
+-- repeat from that token feeds another DoT, one from another token is a copy.
+local instantAt
+local instant = {} -- signature -> { unit, fed = { [dot] = true } }
+local function hitRecord(signature, unit, now)
+    if instantAt ~= now then
+        for k in pairs(instant) do instant[k] = nil end
+        instantAt = now
+    end
+    local h = instant[signature]
+    if h then
+        if h.unit ~= unit then return nil end
+    else
+        h = { unit = unit, fed = {} }
+        instant[signature] = h
+    end
+    return h
+end
+
+local function onWound(key, unit, amount, school, crit)
     local dots = byMob[key]
     if not dots then return end
     local now = GetTime()
-    if key == lastHit and amount == lastAmount and school == lastSchool and now == lastAt then return end
-    lastHit, lastAmount, lastSchool, lastAt = key, amount, school, now
+    local h = hitRecord(key .. ":" .. amount .. ":" .. school, unit, now)
+    if not h then return end
 
     local best, bestDist, bestIndex
     for _, dot in pairs(dots) do
-        if dot.school == school and plausible(dot, amount, crit, tickNumberAt(dot, now)) then
+        if not h.fed[dot] and dot.school == school and plausible(dot, amount, crit, tickNumberAt(dot, now)) then
             local dist, index = distance(dot, now)
             local window = dot.firstTickAt and TICK_WINDOW_ANCHORED or TICK_WINDOW
             if lastSlot(dot) then window = dot.interval / 2 end
@@ -858,9 +961,10 @@ local function onWound(key, amount, school, crit)
     end
     if not best then
         for _, dot in pairs(dots) do
-            if dot.school == school then
+            if not h.fed[dot] and dot.school == school then
                 local dist, index = distance(dot, now)
                 if swapSameSlot(dot, amount, crit, now) or relearn(dot, amount, crit, index, dist, now) then
+                    h.fed[dot] = true
                     changed(key)
                     return
                 end
@@ -868,6 +972,7 @@ local function onWound(key, amount, school, crit)
         end
         return
     end
+    h.fed[best] = true
     local factor = shapeOf(best, tickNumberAt(best, now))
     best.ticksSeen = best.ticksSeen + 1
     best.lastTickAmount, best.lastTickShape, best.lastTickCrit = amount, factor, crit
@@ -885,14 +990,16 @@ end
 -- The rhythm stays the cast's (each slot takes one hit), so a swing landing
 -- near a tick in its place changes nothing. A flag means a swing, since
 -- bleeds aren't blocked.
-local function onBeat(key, school, flag)
+local function onBeat(key, unit, school, flag)
     local dots = byMob[key]
     if not dots then return end
     if school == PHYSICAL and not isSecret(flag) and flag ~= "" then return end
     local now = GetTime()
+    local h = hitRecord(key .. ":?:" .. school, unit, now)
+    if not h then return end
     local best, bestDist, bestIndex
     for _, dot in pairs(dots) do
-        if dot.school == school then
+        if not h.fed[dot] and dot.school == school then
             local dist, index = distance(dot, now)
             local fresh = not dot.lastTickIndex or index > dot.lastTickIndex
             if fresh and dist <= TICK_WINDOW and (not bestDist or dist < bestDist) then
@@ -901,6 +1008,7 @@ local function onBeat(key, school, flag)
         end
     end
     if not best then return end
+    h.fed[best] = true
     if best.travel then -- was in flight until now, so its ticks and end count from here
         best.appliedAt = now - bestIndex * best.interval
         best.expiresAt = best.appliedAt + best.duration
@@ -929,8 +1037,8 @@ local function onCombat(unit, action, flag, amount, school)
     if AVOIDS[action] then return onAvoided(key, action, school) end
     onHit(key, school)
     if not school then return end
-    if isSecret(amount) or type(amount) ~= "number" then return onBeat(key, school, flag) end
-    onWound(key, amount, school, not isSecret(flag) and flag == "CRITICAL")
+    if isSecret(amount) or type(amount) ~= "number" then return onBeat(key, unit, school, flag) end
+    onWound(key, unit, amount, school, not isSecret(flag) and flag == "CRITICAL")
 end
 
 -- Who wants it
@@ -940,14 +1048,26 @@ events:SetScript("OnEvent", function(_, event, unit, a, b, c, d)
         onCombat(unit, a, b, c, d)
     elseif event == "PLAYER_TARGET_CHANGED" then
         counted, pendingBuilder = 0, nil
-        -- DoTs stored under "target" (a secret GUID, an enemy player in a
-        -- battleground) belong to the target you just left.
+        -- DoTs stored under "target" (a secret GUID and no plate) belong to
+        -- the target you just left.
         if byMob.target then
             byMob.target = nil
             if pendingCast and pendingCast.key == "target" then pendingCast = nil end
             changed()
         end
+    elseif event == "NAME_PLATE_UNIT_ADDED" or event == "NAME_PLATE_UNIT_REMOVED" then
+        -- A plate token goes to the next mob that gets a plate, so DoTs kept
+        -- under it (GUIDs hidden) were the mob it showed before.
+        local key = type(unit) == "string" and not isSecret(unit) and byMob["plate:" .. unit] and "plate:" .. unit
+        if key then
+            byMob[key] = nil
+            if pendingCast and pendingCast.key == key then pendingCast = nil end
+            changed()
+        end
     elseif isSecret(unit) or unit ~= "player" then
+        return
+    elseif event == "UNIT_POWER_FREQUENT" then
+        if not isSecret(a) and a == "COMBO_POINTS" then onComboMoved() end
         return
     elseif event == "UNIT_SPELLCAST_SENT" then
         -- (unit, target name, cast GUID, spell id)
@@ -1016,12 +1136,16 @@ local function apply()
         events:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
         events:RegisterEvent("PLAYER_TARGET_CHANGED")
+        events:RegisterEvent("NAME_PLATE_UNIT_ADDED")
+        events:RegisterEvent("NAME_PLATE_UNIT_REMOVED")
     else
         events:UnregisterEvent("UNIT_SPELLCAST_SENT")
         events:UnregisterEvent("UNIT_SPELLCAST_SUCCEEDED")
         events:UnregisterEvent("UNIT_SPELLCAST_FAILED")
         events:UnregisterEvent("UNIT_SPELLCAST_INTERRUPTED")
         events:UnregisterEvent("PLAYER_TARGET_CHANGED")
+        events:UnregisterEvent("NAME_PLATE_UNIT_ADDED")
+        events:UnregisterEvent("NAME_PLATE_UNIT_REMOVED")
         Dots.Forget()
     end
 end

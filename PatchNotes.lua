@@ -13,6 +13,11 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Nameplates", "With the Does It Die addon installed, your nameplates and target frame can show its DoT numbers" },
+    }, fixed = {
+        { "Unit frames", "Rip and Rupture no longer vanish from the DoT shade when an auto attack misses at the same moment" },
+        { "Unit frames", "Rake and other bleeds no longer show a DoT shade on mobs that are immune to bleeds" },
+        { "Nameplates", "DoT shades now show on nameplates in dungeons, and dotting a second mob no longer clears the first" },
+        { "Unit frames", "Two DoTs of the same school ticking at the same moment are both counted" },
     } },
     { version = "2.2.2", date = "2026-11-22", summary = "Channel ticks on your cast bar, an equipment set data text and Disenchant that stays on in your bags. Plus fixes for vanishing nameplates.", new = {
         { "Cast bars", "Your cast bar can mark each tick of a channel like Drain Life or Mind Flay, so you don't cut one short" },
