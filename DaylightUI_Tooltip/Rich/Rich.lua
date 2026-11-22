@@ -596,6 +596,9 @@ function Rich.Build(tip)
     if not secret then
         local f = ns.RichForeign.Read(p, tip, n, lines, Rich.Own(s.data, n), s.pieces)
         p.extraTags = #f.tags > 0 and f.tags or nil
+        -- The item itself, for an addon read through its own API (ItemTree).
+        local id = type(s.data) == "table" and s.data.id or nil
+        f.itemID = not isSecret(id) and type(id) == "number" and id or nil
     end
     -- Something new while the card shows (not a refill of the same thing):
     -- its words fade in.

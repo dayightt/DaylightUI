@@ -404,6 +404,21 @@ end
 Foreign.QuestKey = questKey
 
 Foreign.ADAPTERS = {
+    -- ItemTree's block: its verdict tag as a picture with "ItemTree" on the
+    -- right, then its status, reasons and uses, ending in its key hint. A
+    -- section of its own, the verdict read from its API (ItemTreeAPI) as
+    -- colored tags, its status a tag too; without the API its picture stays.
+    {
+        key = "itemtree",
+        match = function(lines, i, n)
+            if not Foreign.ItemTreeLine(lines[i]) then return nil end
+            for j = i + 1, n do
+                if Foreign.ItemTreeHint(lines[j]) then return j end
+            end
+            return n
+        end,
+        draw = function(p, lines, from, to, money) Foreign.ItemTree(p, lines, from, to, money) end,
+    },
     -- Questie's quest rows (any addon writing "Quest name", then "   3/10
     -- Thing [37%]" rows): a heading in the quest's difficulty color and an
     -- accent bar per objective, as the game's own quest lines.
@@ -479,6 +494,112 @@ Foreign.ADAPTERS = {
         end,
     },
 }
+
+-- ---------------------------------------------------------------------
+-- ItemTree
+-- ---------------------------------------------------------------------
+
+
+-- One of ItemTree's own lines: its art at the start (the verdict tag, a status
+-- badge), or its name alone on the right.
+function Foreign.ItemTreeLine(line)
+    if type(line) ~= "table" or type(line.left) ~= "string" then return false end
+    if line.left:find("^%s*|T[^|]*ItemTree") then return true end
+    return type(line.right) == "string" and trim(strip(line.right)) == "ItemTree"
+end
+
+-- Its closing hint, "Ctrl + right click or ALT-I for the full tree" (the key
+-- comes from the player's own bindings, so only the end is fixed).
+function Foreign.ItemTreeHint(line)
+    return type(line) == "table" and type(line.left) == "string" and Foreign.Blank(line.right)
+        and strip(line.left):find("full tree%s*$") ~= nil
+end
+
+-- Its verdict words, by the tags its API gives, each in the color of what to do.
+Foreign.ITEMTREE_TAGS = {
+    keep = { L["Keep"], "GOOD" },
+    vendor = { L["Vendor"], "MONEY" },
+    auction = { L["Auction"], "MONEY" },
+    disenchant = { L["Disenchant"], "pop" },
+    worthless = { L["Worthless"], "OFF" },
+}
+Foreign.ITEMTREE_ACTIONS = { open = L["Open it"], use = L["Use it"], quest = L["Start its quest"] }
+
+local function inkOf(key)
+    if key == "pop" then return { Style.Pop() } end
+    return Style.INK[key]
+end
+
+-- The tags for an item from ItemTree's API, or nil when there's no answer.
+function Foreign.ItemTreeTags(id)
+    local api = rawget(_G, "ItemTreeAPI")
+    if type(id) ~= "number" or isSecret(id) or type(api) ~= "table" or api.version ~= 1
+        or type(api.GetItemFacts) ~= "function" then return nil end
+    -- Its API catches its own errors and answers nil instead.
+    local facts = api.GetItemFacts(id)
+    local k = type(facts) == "table" and facts.keep or nil
+    if type(k) ~= "table" then return nil end
+    local out = {}
+    local a = k.action
+    if type(a) == "table" and a.now == true and Foreign.ITEMTREE_ACTIONS[a.kind] then
+        out[#out + 1] = ns.RichItems.Tag(Foreign.ITEMTREE_ACTIONS[a.kind], { Style.Pop() })
+    end
+    for _, tag in ipairs(type(k.tags) == "table" and k.tags or {}) do
+        local t = Foreign.ITEMTREE_TAGS[tag]
+        if t then out[#out + 1] = ns.RichItems.Tag(t[1], inkOf(t[2])) end
+    end
+    return out
+end
+
+-- A status line ("Changed in Forever" after its badge): its words alone.
+local function statusWords(line)
+    if Foreign.Blank(line.right) and line.left:find("^%s*|T[^|]*ItemTree[^|]*|t") then
+        local words = trim(strip(line.left:gsub("|T[^|]*|t", "")))
+        if words ~= "" then return words end
+    end
+    return nil
+end
+
+function Foreign.ItemTree(p, lines, from, to, money)
+    local Panel = ns.RichPanel
+    Panel.Section(p, "ItemTree")
+    local f = p.foreign
+    local tags = Foreign.ItemTreeTags(f and f.itemID)
+    local i = from
+    -- Its verdict picture: the API's tags in its place.
+    if tags and Foreign.ItemTreeLine(lines[i]) and trim(strip(lines[i].right or "")) == "ItemTree" then i = i + 1 end
+    -- The blank lines and status right under it join the tags.
+    while tags and i <= to do
+        local line = lines[i]
+        if Foreign.Blank(line.left) and Foreign.Blank(line.right) and not money[i] then
+            i = i + 1
+        else
+            local words = statusWords(line)
+            if not words then break end
+            tags[#tags + 1] = ns.RichItems.Tag(words, { Style.Pop() })
+            i = i + 1
+        end
+    end
+    if tags and #tags > 0 then Panel.Tags(p, tags) end
+    local gap = false
+    for k = i, to do
+        local line = lines[k]
+        if not money[k] and Foreign.Blank(line.left) and Foreign.Blank(line.right) then
+            gap = true
+        else
+            if gap then Panel.Gap(p, Foreign.GAP) end
+            gap = false
+            if k == to and Foreign.ItemTreeHint(line) then
+                Foreign.Hint(p, line)
+            elseif trim(strip(line.right or "")) == "ItemTree" then
+                -- Its picture with no API to read: the picture alone.
+                Panel.Text(p, Foreign.Words(line.left), sideColor(line))
+            else
+                Foreign.Line(p, line, money[k])
+            end
+        end
+    end
+end
 
 -- ---------------------------------------------------------------------
 -- Reading and placing

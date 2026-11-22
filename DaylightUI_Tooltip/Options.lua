@@ -49,6 +49,11 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "addonAdapters.score", label = "Scores from other addons", since = "2.0",
               desc = "A score another addon adds (Raider.IO) as a row with the number in your accent color.",
               hidden = function(get) return get("style") ~= "rich" or get("addonLines") == "hidden" end },
+            { type = "toggle", key = "addonAdapters.itemtree", label = "ItemTree's advice",
+              desc = "ItemTree's lines under a heading of their own, with what it says to do (keep, sell, open) as colored tags.",
+              hidden = function(get)
+                  return get("style") ~= "rich" or get("addonLines") == "hidden" or rawget(_G, "ItemTreeAPI") == nil
+              end },
         } },
         { label = "Placement", items = {
             { type = "dropdown", key = "anchor", label = "Tooltip position",

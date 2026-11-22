@@ -27,7 +27,7 @@ ns.DEFAULTS = {
     addonLines = "own",
     -- Which kinds of other addons' lines get a look of their own; off, they're
     -- repainted like any other line.
-    addonAdapters = { questie = true, prices = true, score = true },
+    addonAdapters = { questie = true, prices = true, score = true, itemtree = true },
     anchor = "game", -- "game": at Daylight UI's unlock handle (near the game's spot); "cursor": follows the mouse
     cursorX = 12, -- offset of the cursor tooltip's bottom-left corner from the cursor
     cursorY = 12,

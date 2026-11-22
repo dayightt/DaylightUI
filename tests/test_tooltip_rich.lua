@@ -2619,10 +2619,10 @@ local foreignPanel
 
 -- A tooltip with the data's own lines, then another addon's added after
 -- every post-call (addon(tip)), shown and laid out. Returns its card.
-local function withAddon(own, addon, kind)
+local function withAddon(own, addon, kind, id)
     local tip = GameTooltip
     tip:SetOwner(UIParent, "ANCHOR_NONE")
-    local data = { type = kind or 99, lines = {} }
+    local data = { type = kind or 99, lines = {}, id = id }
     for i, t in ipairs(own) do
         if type(t) == "table" then tip:AddDoubleLine(unpack(t)) else tip:AddLine(t) end
         data.lines[i] = {}
@@ -3368,5 +3368,65 @@ T.test("rich tooltip: an item card widens to keep a long price label beside its 
     T.truthy(stub.Text(row.value):find(W.Money(968), 1, true), "the price beside it")
     T.truthy(p.wantW > Panel.WIDTH.item, "the card wider than usual: " .. tostring(p.wantW))
     T.truthy(p.wantW <= math.floor(Panel.WIDTH.item * Panel.GROW), "never past its most")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- ItemTree's block, as it writes it (captured in game): a blank line, its
+-- verdict tag drawn as a picture with "ItemTree" on the right, a blank, an
+-- optional "Changed in Forever" status with its badge, a blank, its reasons and
+-- uses, then a key hint. The card reads the verdict from ItemTree's API and
+-- draws the block as a section of its own with colored tags.
+local ITEMTREE_LINES = {
+    { "|TInterface\\AddOns\\ItemTree\\Art\\keep-tags:17:63:0:0:512:512:278:404:84:118:150:153:161|t", "ItemTree" },
+    " ",
+    "|TInterface\\AddOns\\ItemTree\\Art\\badge-changed:14:14|t Changed in Forever",
+    " ",
+    "Too weak for your level",
+    "|TInterface\\Icons\\Trade_Mining:14:14|t Smelt Mithril",
+    "Ctrl + right click or ALT-I for the full tree",
+}
+
+T.test("other addons: ItemTree's block is a section with its verdict as tags", function()
+    foreignLogin()
+    local Style = DaylightUI.Style
+    _G.ItemTreeAPI = { version = 1, IsReady = function() return true end,
+        GetItemFacts = function(id)
+            if id == 4601 then return { keep = { tags = { "vendor", "auction" }, marked = false } } end
+        end }
+    local p = withAddon({ "Soft Banana Bread", "Use: Restores 1,338 health." }, function(t)
+        t:AddLine(" ")
+        for _, l in ipairs(ITEMTREE_LINES) do
+            if type(l) == "table" then t:AddDoubleLine(l[1], l[2]) else t:AddLine(l) end
+        end
+    end, nil, 4601)
+    local area = afterRule(p)
+    T.eq(area[1].kind, "section", "a heading of its own")
+    T.eq(stub.Text(area[1].fs), Style.Upper("ItemTree"))
+    T.eq(area[2].kind, "tags", "the verdict as tags, not its picture")
+    local tags = area[2].list
+    T.eq(#tags, 3, "vendor, auction, and the status")
+    T.eq(stub.Text(tags[1].text), Style.Upper("Vendor"))
+    T.rgb(tags[1].text.__textColor, Style.INK.MONEY, "in gold")
+    T.eq(stub.Text(tags[3].text), Style.Upper("Changed in Forever"), "its status")
+    for _, item in ipairs(area) do
+        local fs = item.fs or item.label
+        local text = fs and stub.Text(fs) or ""
+        T.falsy(text:find("keep-tags", 1, true), "ItemTree's tag picture is gone: " .. text)
+        T.falsy(text:find("Changed in Forever", 1, true), "the status became a tag: " .. text)
+    end
+    local last = area[#area]
+    T.truthy(stub.Text(last.fs):find("full tree", 1, true), "the hint is last")
+    T.truthy(stub.Text(last.fs):find(DaylightUI.Win.Parts.Hex({ Style.Accent() }), 1, true), "its key in the accent")
+    -- Without its API (an older ItemTree), its picture stays, still under the heading.
+    _G.ItemTreeAPI = nil
+    p = withAddon({ "Soft Banana Bread" }, function(t)
+        t:AddLine(" ")
+        for _, l in ipairs(ITEMTREE_LINES) do
+            if type(l) == "table" then t:AddDoubleLine(l[1], l[2]) else t:AddLine(l) end
+        end
+    end, nil, 4601)
+    area = afterRule(p)
+    T.eq(area[1].kind, "section")
+    T.truthy(stub.Text(area[2].fs or area[2].label):find("keep-tags", 1, true), "its own picture kept")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
