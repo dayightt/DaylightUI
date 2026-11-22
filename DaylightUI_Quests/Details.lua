@@ -37,6 +37,8 @@ local function plain(v) return type(v) == "string" and not isSecret(v) and v ~= 
 -- counted, because the game reads those from its selected quest, which addon
 -- code shouldn't change.
 function Details.Rewards(id)
+    -- Not loaded yet (a quest picked up far away): ask, so the next look has them.
+    DUI.Npc.Data.LoadQuest(id)
     local out = {}
     local money = call(GetQuestLogRewardMoney, id)
     if type(money) == "number" and money > 0 then out[#out + 1] = DUI.MoneyString(money) end

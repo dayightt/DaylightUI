@@ -24,6 +24,7 @@ DUI.PatchNotes = {
         { "Unit frames", "The DoT shade now counts your spell power and attack power, learned from the game's damage meter after each fight, so it no longer runs short" },
         { "Mailbox", "Filters, the ledger and the letter box no longer get cut off in longer languages, and the lists follow when you resize the window" },
         { "Tooltip", "Questie's drop chances show again on mobs for quests the game already lists" },
+        { "Quests", "The quest log shows item rewards and experience for dungeon quests right away, without a /reload" },
         { "Languages", "Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel" },
     }, changed = {
         { "Profiles", "A profile made on another screen, ultrawide, 16:10 or a higher resolution, now fits yours: frames keep their size for the screen and their place near the edges" },

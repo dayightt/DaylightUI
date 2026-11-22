@@ -512,6 +512,9 @@ local function rewardTiles(q, kind)
     local tiles = {}
     for i = 1, (type(count) == "number" and count or 0) do
         local name, texture, qty, quality, _, itemID = call(read, i, q.id)
+        -- An item not in the client's cache yet has no name; the page fills it in
+        -- when GET_ITEM_INFO_RECEIVED brings it.
+        if not plain(name) and type(itemID) == "number" then Journal.waitItems[itemID] = true end
         if plain(name) then
             tiles[#tiles + 1] = {
                 name = name, texture = texture, count = qty, quality = quality,
@@ -594,6 +597,11 @@ function Journal.FillQuest(lift)
         s:Text(steps, { size = Style.SIZE.body })
     end
     paintTime(s, q, lk)
+    -- A quest picked up far away (a dungeon's) may not be loaded in the client:
+    -- its rewards and experience read empty until the server sends them, and
+    -- QUEST_DATA_LOAD_RESULT fills the page again.
+    DUI.Npc.Data.LoadQuest(q.id)
+    Journal.waitItems = {}
     local money = call(GetQuestLogRewardMoney, q.id)
     local xp = call(GetQuestLogRewardXP, q.id)
     local given, choices = rewardTiles(q, "reward"), rewardTiles(q, "choice")
@@ -1163,7 +1171,19 @@ function Journal.Soon()
     if C_Timer and C_Timer.After then C_Timer.After(0, run) else run() end
 end
 
-Journal.EVENTS = { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_REMOVED",
+-- Item and quest data arrive for anything any addon asked about, often many
+-- in a row, so only the ones the open page waits for refill it.
+Journal.waitItems = {}
+function Journal.OnEvent(event, id)
+    if event == "GET_ITEM_INFO_RECEIVED" then
+        if not (S.page == "quest" and Journal.waitItems[id]) then return end
+    elseif event == "QUEST_DATA_LOAD_RESULT" then
+        if not (S.page == "quest" and S.quest == id) then return end
+    end
+    Journal.Soon()
+end
+
+Journal.EVENTS = { "QUEST_DATA_LOAD_RESULT", "GET_ITEM_INFO_RECEIVED", "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_REMOVED",
                    "QUEST_TURNED_IN", "GROUP_ROSTER_UPDATE", "UNIT_QUEST_LOG_CHANGED", "ZONE_CHANGED_NEW_AREA", "SUPER_TRACKING_CHANGED",
                    "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED" }
 
@@ -1289,7 +1309,7 @@ function Journal.Build()
     Journal.warn = warn
 
     f.events = CreateFrame("Frame")
-    f.events:SetScript("OnEvent", function() Journal.Soon() end)
+    f.events:SetScript("OnEvent", function(_, event, id) Journal.OnEvent(event, id) end)
     f:SetScript("OnShow", function()
         -- The game sets the panel's strata when the map takes it (HIGH).
         if qm.GetFrameStrata then f:SetFrameStrata(qm:GetFrameStrata()) end

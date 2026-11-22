@@ -146,6 +146,41 @@ T.test("journal: rewards are tiles, with the game's quest log tooltip", function
     T.deq(QW.Calls("questItemTip"), { "choice:1:1" })
 end)
 
+-- A dungeon quest picked up far away isn't loaded in the client yet: its page
+-- showed no item rewards and no experience until a /reload. The page asks the
+-- server for it and fills in when it arrives, and so does an item that wasn't
+-- in the item cache yet.
+local function pageTexts(f)
+    local names, text = {}, {}
+    for _, p in ipairs(f.quest.stack.pieces) do
+        if p.spec and p.spec.name then names[#names + 1] = p.spec.name end
+        local fs = p.label or p.text
+        if type(fs) == "table" and fs.GetText and fs:GetText() then text[#text + 1] = fs:GetText() end
+    end
+    return names, table.concat(text, " | ")
+end
+
+T.test("journal: a quest the client hasn't loaded fills in its rewards when it arrives", function()
+    local quests = {
+        QW.quest(1, "The Deadmines", { zone = "Westfall", level = 18, unloaded = true, xp = 2950,
+            rewards = { { name = "Chausses of Westfall", icon = 1, count = 1, quality = 2, itemID = 201 } },
+            choices = { { name = "Tunic of Westfall", icon = 2, count = 1, quality = 2, itemID = 202, uncached = true } } }),
+    }
+    local J = load({ quests = quests, zone = "Westfall" })
+    local f = open(J)
+    row(f, 1):Click()
+    T.deq(QW.Calls("loadQuest"), { 1 })
+    stub.RunTimers()
+    local names, text = pageTexts(f)
+    T.deq(names, { "Chausses of Westfall" })
+    T.eq(text:find("2950 experience", 1, true) ~= nil, true)
+    QW.state.quests[1].choices[1].uncached = nil
+    stub.FireEvent("GET_ITEM_INFO_RECEIVED", 202, true)
+    stub.RunTimers()
+    names = pageTexts(f)
+    T.deq(names, { "Chausses of Westfall", "Tunic of Westfall" })
+end)
+
 -- Ctrl-click a reward tries it on, Shift-click links it. Both used to do nothing:
 -- the game's link call reads the log's selected quest, which the journal never
 -- sets, so the link is built from the item instead.

@@ -209,10 +209,24 @@ function QW.world(spec)
         -- The game's quest popup. The addon's clicks must never call it (it taints the quest map).
         _G.QuestLogPopupDetailFrame = { ShowQuest = function(_, id) record("popup", id) end }
         _G.GetQuestLogQuestText = function(i) local q = atIndex(i); return q and q.text, q and q.logText end
-        _G.GetQuestLogRewardXP = function(id) local q = find(id); return q and q.xp or 0 end
+        -- A quest the client hasn't loaded yet (`unloaded`, a dungeon quest picked up
+        -- far away) answers with no XP and no item names until RequestLoadQuestByID
+        -- brings it in and QUEST_DATA_LOAD_RESULT fires. An item not in the item
+        -- cache yet (`uncached`) has no name until GET_ITEM_INFO_RECEIVED.
+        _G.HaveQuestData = function(id) local q = find(id); return q ~= nil and not q.unloaded end
+        _G.HaveQuestRewardData = _G.HaveQuestData
+        C_QuestLog.RequestLoadQuestByID = function(id)
+            record("loadQuest", id)
+            local q = find(id)
+            if not (q and q.unloaded) then return end
+            C_Timer.After(0, function() q.unloaded = nil; stub.FireEvent("QUEST_DATA_LOAD_RESULT", id, true) end)
+        end
+        _G.GetQuestLogRewardXP = function(id) local q = find(id); return q and not q.unloaded and q.xp or 0 end
         _G.GetNumQuestLogRewards = function(id) local q = find(id); return q and q.rewards and #q.rewards or 0 end
         _G.GetQuestLogRewardInfo = function(i, id)
-            local r = find(id).rewards[i]
+            local q = find(id)
+            local r = q.rewards[i]
+            if q.unloaded or r.uncached then return nil, r.icon, r.count, r.quality, true, r.itemID end
             return r.name, r.icon, r.count, r.quality, true, r.itemID
         end
         -- The game's own reward click (QuestInfoRewardItemMixin:OnClick) asks with only the
@@ -230,9 +244,11 @@ function QW.world(spec)
             return type(c) == "table" and #c or c or 0
         end
         _G.GetQuestLogChoiceInfo = function(i, id)
-            local c = find(id).choices
-            local r = type(c) == "table" and c[i]
-            if r then return r.name, r.icon, r.count, r.quality, true, r.itemID end
+            local q = find(id)
+            local r = type(q.choices) == "table" and q.choices[i]
+            if not r then return end
+            if q.unloaded or r.uncached then return nil, r.icon, r.count, r.quality, true, r.itemID end
+            return r.name, r.icon, r.count, r.quality, true, r.itemID
         end
         -- Blocked for addons in a fight: "the game blocked QuestLogPushQuest()"
         -- (ADDON_ACTION_BLOCKED in game, with combat lockdown on).
