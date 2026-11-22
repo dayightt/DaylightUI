@@ -14,6 +14,10 @@ local Layers = {}
 ns.Layers = Layers
 
 Layers.MIN, Layers.MAX = 1, 60
+-- Frame levels between two orders: more than any part's own art spans (a
+-- portrait with its ring, icons and skull reaches about 9), so parts on
+-- different orders never interleave.
+Layers.STEP = 12
 Layers.STRATA_RANK = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6,
                        FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
 
@@ -186,7 +190,11 @@ end
 function Layers.Untouched(unit)
     local d = db()
     local p = d and d[unit] and d[unit].parts
-    return type(p) ~= "table" or next(p) == nil
+    if type(p) ~= "table" then return true end
+    for _, v in pairs(p) do
+        if type(v) == "table" and (v.order ~= nil or v.layer ~= nil) then return false end
+    end
+    return true
 end
 
 -- The saved choice for a part, or nil.
@@ -200,12 +208,9 @@ end
 function Layers.OrderOf(unit, key)
     local s = Layers.Saved(unit, key)
     if s and tonumber(s.order) then return tonumber(s.order) end
-    local f, part = frameOf(unit), Layers.Find(unit, key)
-    local first = part and f and list(part.get(f))[1]
-    if not first then return Layers.MIN end
-    if not first.GetFrameLevel then first = first:GetParent() end
-    local home = first.layerHome or first:GetFrameLevel()
-    return math.max(Layers.MIN, math.min(Layers.MAX, home - f:GetFrameLevel()))
+    local f = frameOf(unit)
+    if not f then return Layers.MIN end
+    return (f.layerDefaults or Layers.DefaultOrders(f, unit))[key] or Layers.MIN
 end
 
 -- Sets one frame's level and keeps everything inside it at its offset (the
@@ -240,13 +245,18 @@ end
 local function topOf(frame)
     local top = frame:GetFrameLevel()
     if gameOwned(frame) then return top + 2 end
-    for _, c in ipairs({ frame:GetChildren() }) do top = math.max(top, topOf(c)) end
+    -- A frame inside it that Layers placed is a part of its own.
+    for _, c in ipairs({ frame:GetChildren() }) do
+        if not c.layerOwn then top = math.max(top, topOf(c)) end
+    end
     return top
 end
 local function lowOf(frame)
     local low = frame:GetFrameLevel()
     if gameOwned(frame) then return low end
-    for _, c in ipairs({ frame:GetChildren() }) do low = math.min(low, lowOf(c)) end
+    for _, c in ipairs({ frame:GetChildren() }) do
+        if not c.layerOwn then low = math.min(low, lowOf(c)) end
+    end
     return low
 end
 Layers.TopOf, Layers.LowOf = topOf, lowOf
@@ -257,6 +267,33 @@ Layers.TopOf, Layers.LowOf = topOf, lowOf
 -- A part moves as one: its frames, everything inside them and its glue. Parts
 -- given an order are stacked from the lowest order up, each wholly over the
 -- one before, so two parts never interleave; equal orders go in list order.
+-- Where a part draws before any order is set: its frame's own level, or a
+-- text's or icon's frame's.
+local function homeLevel(x)
+    if not x.GetFrameLevel then
+        local c = x:GetParent()
+        x = (c and c.home and c.layerOwn and c.home) or c
+    end
+    return x.layerHome or x:GetFrameLevel()
+end
+
+-- Each part's rank among its frame's parts, lowest first, by where its own
+-- code draws it (equal levels in list order). An unset part's Order shows this.
+function Layers.DefaultOrders(f, unit)
+    local rows = {}
+    for i, part in ipairs(Layers.PARTS[unit] or {}) do
+        local first = list(part.get(f))[1]
+        if first then rows[#rows + 1] = { key = part.key, i = i, level = homeLevel(first) } end
+    end
+    table.sort(rows, function(a, b)
+        if a.level ~= b.level then return a.level < b.level end
+        return a.i < b.i
+    end)
+    local out = {}
+    for n, r in ipairs(rows) do out[r.key] = math.min(Layers.MAX, n) end
+    return out
+end
+
 local function partFrames(f, part, order)
     local found = list(part.get(f))
     if #found == 0 then return {} end
@@ -279,16 +316,33 @@ end
 function Layers.ApplyTo(f, unit)
     local parts = Layers.PARTS[unit]
     if not (f and parts) then return end
+    local touched = not Layers.Untouched(unit)
     local base = f:GetFrameLevel()
+    -- The unset parts' ranks, taken once from where their own code drew them
+    -- when the frame was first given an order, and kept until it's reset.
+    local defaults = {}
+    if touched then
+        if not f.layerDefaults then f.layerDefaults = Layers.DefaultOrders(f, unit) end
+        defaults = f.layerDefaults
+        local fresh
+        for _, part in ipairs(parts) do
+            if defaults[part.key] == nil then
+                fresh = fresh or Layers.DefaultOrders(f, unit)
+                defaults[part.key] = fresh[part.key]
+            end
+        end
+    else
+        f.layerDefaults = nil
+    end
     local placed = {}
     for i, part in ipairs(parts) do
         local s = Layers.Saved(unit, part.key)
-        local order = s and tonumber(s.order)
+        local order = touched and ((s and tonumber(s.order)) or defaults[part.key]) or nil
         local frames = partFrames(f, part, order)
         local glue = glueOf(f, part)
         if #frames > 0 and order then
-            placed[#placed + 1] = { part = part, i = i, frames = frames, glue = glue, s = s,
-                                    want = base + math.max(Layers.MIN, math.min(Layers.MAX, order)) }
+            placed[#placed + 1] = { part = part, i = i, frames = frames, glue = glue,
+                                    order = math.max(Layers.MIN, math.min(Layers.MAX, order)) }
         else
             for _, frame in ipairs(frames) do restore(frame) end
             for _, g in ipairs(glue) do restore(g) end
@@ -302,7 +356,7 @@ function Layers.ApplyTo(f, unit)
         end
     end
     table.sort(placed, function(a, b)
-        if a.want ~= b.want then return a.want < b.want end
+        if a.order ~= b.order then return a.order < b.order end
         return a.i < b.i
     end)
     local prevTop
@@ -317,7 +371,8 @@ function Layers.ApplyTo(f, unit)
         local reach = 0
         for _, frame in ipairs(e.frames) do reach = math.min(reach, lowOf(frame) - frame:GetFrameLevel()) end
         for _, g in ipairs(e.glue) do reach = math.min(reach, g.layerGap + lowOf(g) - g:GetFrameLevel()) end
-        local level = e.want
+        local level = base + e.order * Layers.STEP - reach
+        -- Two parts on one order: the later one goes wholly over the first.
         if prevTop then level = math.max(level, prevTop + 1 - reach) end
         local top = level
         for _, frame in ipairs(e.frames) do
@@ -376,8 +431,27 @@ function Layers.Step(unit, key, others, up)
         layer = pick:GetFrameStrata()
         if layer == f:GetFrameStrata() then layer = "FRAME" end
     end
-    local want = up and (pickLevel + 1) or (pickLevel - 1 - (myTop - myLow))
-    local order = want - f:GetFrameLevel()
+    -- Another part of the same frame: one order over (or under) its order.
+    for _, other in ipairs(Layers.PARTS[unit] or {}) do
+        if other.key ~= key then
+            for _, x in ipairs(list(other.get(f))) do
+                local fr = x.GetFrameLevel and x or x:GetParent()
+                if fr == pick then
+                    local order = Layers.OrderOf(unit, other.key) + (up and 1 or -1)
+                    if order > Layers.MAX or order < Layers.MIN then return nil, "range" end
+                    return order, layer
+                end
+            end
+        end
+    end
+    -- The order that puts all of it just over (or under) that frame.
+    local base, step, span = f:GetFrameLevel(), Layers.STEP, myTop - myLow
+    local order
+    if up then
+        order = math.floor((pickLevel - base) / step) + 1
+    else
+        order = math.floor((pickLevel - 1 - span - base) / step)
+    end
     if order > Layers.MAX or order < Layers.MIN then return nil, "range" end
     return order, layer
 end
