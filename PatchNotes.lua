@@ -11,9 +11,7 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
-        { "Auction House", "Gear with a random bonus like \"of the Defender\" no longer shows the auction price of the same item with a different bonus" },
-    } },
+    { version = "Unreleased" },
     { version = "2.2.2", date = "2026-11-22", summary = "Channel ticks on your cast bar, an equipment set data text and Disenchant that stays on in your bags. Plus fixes for vanishing nameplates.", new = {
         { "Cast bars", "Your cast bar can mark each tick of a channel like Drain Life or Mind Flay, so you don't cut one short" },
         { "Combo points", "Combo points can stand on their own anywhere on your screen" },
@@ -25,6 +23,7 @@ DUI.PatchNotes = {
         { "Nameplates", "Nameplates and speech bubbles no longer vanish after dragging a spell or a chat tab, and /dui platefix brings them back if they ever do" },
         { "Nameplates", "With names off, guild names and NPC jobs go too, instead of floating over the bar" },
         { "Auction House", "Buying an item picks its cheapest auction, not sometimes the most expensive one" },
+        { "Auction House", "Gear with a random bonus like \"of the Defender\" no longer shows the auction price of the same item with a different bonus" },
         { "DoT damage", "The damage left on your DoTs no longer shrinks to almost nothing as you level, and now works on Spanish, Portuguese, German, Russian, Chinese and Korean clients" },
         { "Tooltips", "Rich tooltips no longer flicker, and sit right with price addons, upgrade arrows and every UI scale" },
         { "NPC window", "With Immersion on, talking to an NPC opens only Immersion. Vendors and trainers still open in the NPC window" },

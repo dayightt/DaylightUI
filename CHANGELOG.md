@@ -14,6 +14,7 @@ Channel ticks on your cast bar, an equipment set data text and Disenchant that s
 - Nameplates: Nameplates and speech bubbles no longer vanish after dragging a spell or a chat tab, and /dui platefix brings them back if they ever do
 - Nameplates: With names off, guild names and NPC jobs go too, instead of floating over the bar
 - Auction House: Buying an item picks its cheapest auction, not sometimes the most expensive one
+- Auction House: Gear with a random bonus like "of the Defender" no longer shows the auction price of the same item with a different bonus
 - DoT damage: The damage left on your DoTs no longer shrinks to almost nothing as you level, and now works on Spanish, Portuguese, German, Russian, Chinese and Korean clients
 - Tooltips: Rich tooltips no longer flicker, and sit right with price addons, upgrade arrows and every UI scale
 - NPC window: With Immersion on, talking to an NPC opens only Immersion. Vendors and trainers still open in the NPC window
