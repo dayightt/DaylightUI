@@ -389,7 +389,7 @@ T.test("platefix: step 5 puts the plates back without the stacking frame", funct
     local np = C_NamePlate.GetNamePlateForUnit("nameplate1")
     local before = np.stackSet
     local said = runTo(NP, 1)
-    T.truthy(said:find("5/8", 1, true), said)
+    T.truthy(said:find("5/" .. NP.Manager.FIX_STEPS, 1, true), said)
     local p = NP.Manager.byUnit.nameplate1
     T.truthy(p, "the plate is back on")
     T.truthy(np.stackSet > before, "the game's plate was pointed somewhere new")
@@ -671,17 +671,17 @@ T.test("platefix: the report counts speech bubbles", function()
     T.truthy(line:find("never set this session", 1, true), line)
 end)
 
-T.test("platefix: the last step brings the switch for plates and bubbles back", function()
+T.test("platefix: step 8 brings the switch for plates and bubbles back", function()
     local NP = login()
     SetInWorldUIVisibility(false)
     T.falsy(stub.inWorldUI, "the UI is up, plates and bubbles aren't")
     local said
-    for _ = 1, NP.Manager.FIX_STEPS do
+    for _ = 1, 8 do
         said = NP.Manager.Fix()
         stub.RunTimers()
         stub.RunTimers()
     end
-    T.truthy(said:find("8/8", 1, true) and said:find("off and back on", 1, true), said)
+    T.truthy(said:find("8/" .. NP.Manager.FIX_STEPS, 1, true) and said:find("off and back on", 1, true), said)
     T.truthy(stub.inWorldUI, "plates and bubbles back")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -689,11 +689,11 @@ end)
 -- Caught live once: the plates and a fresh bubble were there and "visible" to
 -- Lua, the switch was never touched, and nothing drew. Setting it on when it's
 -- already on may do nothing, so the step switches it off and then back on.
-T.test("platefix: the last step switches plates and bubbles off, then back on", function()
+T.test("platefix: step 8 switches plates and bubbles off, then back on", function()
     local NP = login()
     local calls, was = {}, _G.SetInWorldUIVisibility
     _G.SetInWorldUIVisibility = function(v) calls[#calls + 1] = v; was(v) end
-    for _ = 1, NP.Manager.FIX_STEPS - 1 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
+    for _ = 1, 7 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
     local said = NP.Manager.Fix()
     T.eq(calls[1], false, "off first")
     T.eq(#calls, 1, "on only after a moment")
@@ -704,6 +704,76 @@ T.test("platefix: the last step switches plates and bubbles off, then back on", 
     T.truthy(said:find("off and back on", 1, true), said)
     T.truthy(DaylightUI.PlateReport.WorldUI():find("last set on by /dui platefix", 1, true))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Caught live on two PCs: a square made on WorldFrame didn't draw while one on
+-- UIParent did, and every Lua read of WorldFrame matched a healthy session.
+-- Steps 9 on each change one thing on WorldFrame for a moment and put it back.
+local function worldFrame()
+    _G.WorldFrame = CreateFrame("Frame", "WorldFrame")
+    WorldFrame:SetFrameLevel(1)
+    WorldFrame:SetClipsChildren(true)
+    return WorldFrame
+end
+
+T.test("platefix: steps 9 on change the plates' layer for a moment, then put it back as it was", function()
+    local NP = login()
+    local wf = worldFrame()
+    for _ = 1, 8 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
+    T.eq(NP.Manager.FIX_STEPS, 8 + #DaylightUI.PlateReport.WORLD_STEPS)
+    local seen = {}
+    for n = 9, NP.Manager.FIX_STEPS do
+        local said = NP.Manager.Fix()
+        T.truthy(said:find(n .. "/" .. NP.Manager.FIX_STEPS, 1, true), said)
+        T.truthy(said:find("drawn on", 1, true), said)
+        seen[n] = { alpha = wf:GetAlpha(), level = wf:GetFrameLevel(), clips = wf:DoesClipChildren(), shown = wf:IsShown() }
+        T.truthy(DaylightUI.PlateReport.FixBusy(), "the next step waits until it's put back")
+        stub.RunTimers()
+        stub.RunTimers()
+        T.eq(wf:GetAlpha(), 1, "alpha back after step " .. n)
+        T.eq(wf:GetFrameLevel(), 1, "level back after step " .. n)
+        T.eq(wf:DoesClipChildren(), true, "clipping back after step " .. n)
+        T.truthy(wf:IsShown(), "shown after step " .. n)
+    end
+    T.truthy(seen[9].alpha < 1, "9 fades it a hair")
+    T.eq(seen[10].level, 2, "10 moves it up a level")
+    T.eq(seen[11].clips, false, "11 switches the edge cut")
+    T.falsy(seen[12].shown, "12 hides it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    _G.WorldFrame = nil
+end)
+
+T.test("platefix: a fight starting mid-step puts the plates' layer back once it's over", function()
+    local NP = login()
+    local wf = worldFrame()
+    for _ = 1, 11 do NP.Manager.Fix(); stub.RunTimers(); stub.RunTimers() end
+    NP.Manager.Fix() -- step 12 hides it
+    T.falsy(wf:IsShown())
+    stub.EnterCombat()
+    stub.RunTimers()
+    T.falsy(wf:IsShown(), "left alone in the fight")
+    T.falsy(DaylightUI.PlateReport.FixBusy(), "the run isn't stuck waiting on the fight")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.truthy(wf:IsShown(), "shown again after the fight")
+    _G.WorldFrame = nil
+end)
+
+T.test("platefix: with the Nameplates module off, the plates' layer steps run too", function()
+    stub.Load({ before = function()
+        _G.C_NamePlate = { GetNamePlateForUnit = function() end }
+        stub.units = { player = { name = "Me", class = "PRIEST", isPlayer = true } }
+    end })
+    _G.SetCVar = function() end
+    _G.GetCVar = function() end
+    local wf = worldFrame()
+    local R = DaylightUI.PlateReport
+    T.eq(#R.FIX, 3 + #R.WORLD_STEPS)
+    local said
+    for _ = 1, 4 do said = R.Fix(); stub.RunTimers(); stub.RunTimers() end
+    T.truthy(said:find("4/" .. #R.FIX, 1, true) and said:find("drawn on", 1, true), said)
+    T.eq(wf:GetAlpha(), 1)
+    _G.WorldFrame = nil
 end)
 
 T.test("platefix: with the Nameplates module off, the last step turns the switch back on too", function()

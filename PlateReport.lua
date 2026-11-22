@@ -485,6 +485,70 @@ function R.InWorldBack()
     return "the game refused to turn nameplates and speech bubbles on (" .. R.Printable(tostring(why), R.MARK_WHY) .. ")"
 end
 
+-- Platefix steps on WorldFrame itself, the frame plates and speech bubbles
+-- hang on. Caught live on two PCs: a plain square made on WorldFrame didn't
+-- draw while one on UIParent did, and every Lua read of WorldFrame matched a
+-- healthy session. So the client stopped drawing that whole layer, and the
+-- step that wakes it says what it lost. Each one changes a single thing for
+-- R.FIX_GAP seconds, then puts back what was there. Putting back waits for the
+-- end of a fight if one starts in between, as WorldFrame may be protected.
+local function worldStep(change, undo, said)
+    local wf = WorldFrame
+    if type(wf) ~= "table" then return "this client has no WorldFrame, nothing changed" end
+    local ok, was = DUI.SafeReturn(change, wf)
+    if not ok then return "the game refused it, nothing changed" end
+    local done = R.FixHold()
+    C_Timer.After(R.FIX_GAP, function()
+        local function back()
+            DUI.SafeCall(undo, wf, was)
+            C_Timer.After(R.FIX_SETTLE, done)
+        end
+        if InCombatLockdown() then
+            DUI.AfterCombat(back, "platefixWorld")
+            done()
+        else
+            back()
+        end
+    end)
+    return said
+end
+
+-- Each change returns what it found, for the undo to put back.
+R.WORLD_STEPS = {
+    function()
+        return worldStep(function(wf)
+            local a = wf:GetAlpha()
+            wf:SetAlpha(0.99)
+            return a
+        end, function(wf, a) wf:SetAlpha(a) end,
+            "the layer nameplates and speech bubbles are drawn on faded a hair and back (wait a second)")
+    end,
+    function()
+        return worldStep(function(wf)
+            local level = wf:GetFrameLevel()
+            wf:SetFrameLevel(level + 1)
+            return level
+        end, function(wf, level) wf:SetFrameLevel(level) end,
+            "the layer nameplates and speech bubbles are drawn on moved up a level and back (wait a second)")
+    end,
+    function()
+        return worldStep(function(wf)
+            local clips = wf:DoesClipChildren()
+            wf:SetClipsChildren(not clips)
+            return clips
+        end, function(wf, clips) wf:SetClipsChildren(clips) end,
+            "the layer nameplates and speech bubbles are drawn on: its edge cut switched and back (wait a second)")
+    end,
+    function()
+        return worldStep(function(wf)
+            wf:Hide()
+            return true
+        end, function(wf) wf:Show() end,
+            "the layer nameplates and speech bubbles are drawn on hidden for half a second and shown again "
+            .. "(the world may blink; wait a second)")
+    end,
+}
+
 -- One folded line in words, and how many times to count it.
 local function foldedLine(e)
     if e.fold == "npc" then
@@ -1014,6 +1078,8 @@ R.FIX = {
     -- 3. The game's own switch for nameplates and speech bubbles back on.
     function() return R.InWorldBack() end,
 }
+-- 4 on: the layer plates are drawn on.
+for _, step in ipairs(R.WORLD_STEPS) do R.FIX[#R.FIX + 1] = step end
 
 -- Keep the plate as it was when the player saw the problem, then the outcome of
 -- every step. A busy event log or a long addon list can fill the copy box.

@@ -257,10 +257,10 @@ function W.FrameLine(name, f)
         if ask(c, "IsShown") == "true" then shown = shown + 1 end
     end
     return string.format("%s: shown %s, visible %s, alpha %s, effective %s, scale %s, strata %s, level %s, "
-        .. "clips %s, flattens %s, buffer %s, children %d (%d shown)", name, ask(f, "IsShown"), ask(f, "IsVisible"),
-        ask(f, "GetAlpha"), ask(f, "GetEffectiveAlpha"), ask(f, "GetScale"), ask(f, "GetFrameStrata"),
-        ask(f, "GetFrameLevel"), ask(f, "DoesClipChildren"), ask(f, "GetFlattensRenderLayers"),
-        ask(f, "IsFrameBuffer"), kids, shown)
+        .. "clips %s, flattens %s, buffer %s, rect valid %s at %s, children %d (%d shown)", name, ask(f, "IsShown"),
+        ask(f, "IsVisible"), ask(f, "GetAlpha"), ask(f, "GetEffectiveAlpha"), ask(f, "GetScale"),
+        ask(f, "GetFrameStrata"), ask(f, "GetFrameLevel"), ask(f, "DoesClipChildren"),
+        ask(f, "GetFlattensRenderLayers"), ask(f, "IsFrameBuffer"), ask(f, "IsRectValid"), R.Where(f), kids, shown)
 end
 
 -- WorldFrame's shown children that aren't nameplates: anything else hung there
@@ -289,7 +289,8 @@ local function readouts(title, out)
     out[#out + 1] = "  " .. W.WorldChildren()
     local seen = {}
     for i, sq in ipairs(made.squares) do
-        seen[#seen + 1] = string.format("%d %s/%s", i, ask(sq, "IsVisible"), ask(sq, "GetEffectiveAlpha"))
+        seen[#seen + 1] = string.format("%d %s/%s at %s", i, ask(sq, "IsVisible"), ask(sq, "GetEffectiveAlpha"),
+            R.Where(sq))
     end
     out[#out + 1] = "  Squares visible/alpha: " .. table.concat(seen, ", ")
 end

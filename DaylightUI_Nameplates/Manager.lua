@@ -1290,7 +1290,6 @@ end, L["/dui plateprobe - run after /dui platecheck while nameplates are missing
 -- names the cause and fixes it without a reload. Out of combat only (the game
 -- refuses these settings in combat). Chat output stays in English since players
 -- send it in with bug reports.
-Manager.FIX_STEPS = 8
 Manager.FIX_GAP = 0.5 -- seconds the game's plates stay off in step 3
 Manager.FIX_BACK = 1 -- seconds until the Daylight UI plates go back on after step 3
 Manager.FIX_SHOW_CVARS = Report.FIX_SHOW_CVARS
@@ -1405,10 +1404,13 @@ Manager.FIX = {
         backWithout("pool")
         return "the game's plates rebuilt, Daylight UI's back on with newly built plates (wait two seconds)"
     end,
-    -- 8. The game's own switch for nameplates and speech bubbles back on. Last,
-    -- so the earlier steps keep the numbers older reports used.
+    -- 8. The game's own switch for nameplates and speech bubbles back on. New
+    -- steps go after it, so the earlier ones keep the numbers older reports used.
     function() return Report.InWorldBack() end,
 }
+-- 9 on: the layer plates are drawn on, the same steps as with this module off.
+for _, step in ipairs(Report.WORLD_STEPS) do Manager.FIX[#Manager.FIX + 1] = step end
+Manager.FIX_STEPS = #Manager.FIX
 
 -- The report once a step brought them back (or none did): which step, where and
 -- how long into the session, other loaded addons, the game's plate settings, and
