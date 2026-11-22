@@ -2455,6 +2455,51 @@ T.test("rich tooltip: the card fades out with the ghost, then goes home", functi
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game: after one fade out, the card came home stretched over the
+-- tooltip and never pinned again, so every refill that changed the tooltip's
+-- size showed on the card as a flicker, several times a second.
+T.test("rich tooltip: after the ghost hands the card back it's pinned at its own size again", function()
+    local _, Panel = login("rich")
+    local M = DaylightUI.Motion
+    local function tick(dt)
+        local d = M.Driver()
+        if d then stub.RunOnUpdate(d, dt) end
+    end
+    local tip = GameTooltip
+    local function up()
+        tip:Hide()
+        stub.Advance(1)
+        fill(99, { "Mailbox", "Your mail." })
+        function tip:GetRect() return 400, 240, 160, 60 end
+        stub.Advance(0.02)
+        update()
+        tick(M.NORMAL * 2)
+    end
+    local function pinned(p, why)
+        -- The fake game keeps SetAllPoints as one "ALL" point.
+        T.eq(p:GetNumPoints(), 1, why .. ": one point")
+        T.eq(p.__points[1][1], "TOPLEFT", why .. ": held by one corner, not stretched over the tooltip")
+        T.eq(p.__points[1][2], tip, why .. ": on its tooltip")
+        T.eq(p:GetWidth(), p.wantW, why .. ": at the card's own width")
+    end
+    up()
+    local p = Panel.Get(tip)
+    pinned(p, "first show")
+    -- Faded out in full, then shown again.
+    tip:Hide()
+    tick(M.NORMAL * 2)
+    up()
+    pinned(p, "after a whole fade")
+    -- Shown again while the ghost still holds it.
+    tip:Hide()
+    tick(M.NORMAL / 2)
+    stub.Advance(0.1)
+    fill(99, { "Mailbox", "Your mail." })
+    update()
+    pinned(p, "back in the middle of a fade")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: the mail icon's tooltip is one line, the game putting each
 -- sender after a line break (FormatUnreadMailTooltip), and the card's title
 -- showed "Unread mail from:..." with the senders cut off.
@@ -3154,4 +3199,49 @@ T.test("rich tooltip: the fight pill is off unless picked, so a fight shows the 
     T.falsy(pill and pill:IsShown(), "no pill")
     T.isnil(stub.tooltip.Tooltip.Muted(GameTooltip))
     stub.LeaveCombat()
+end)
+
+-- EXPERIMENT
+T.test("XEXP compare refresh keeps the game's lines muted", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local shop = ShoppingTooltip1
+    compare(shop, CHANGES)
+    update()
+    local p = Panel.Get(shop)
+    local function check(what)
+        local bad = {}
+        for i = 1, shop:NumLines() do
+            local fs = _G["ShoppingTooltip1TextLeft" .. i]
+            if fs:GetAlpha() ~= 0 then bad[#bad + 1] = i .. ":" .. tostring(fs:GetText()) end
+        end
+        T.eq(table.concat(bad, ","), "", what .. " lines muted")
+        local ks = {} for i = 1, p.count do ks[#ks + 1] = p.items[i].kind end
+        print(what, p:IsShown(), table.concat(ks, " "))
+        T.eq(#kinds(p, "tags"), 2, what .. " chips")
+    end
+    check("first")
+    -- The game's refresh: ClearLines, the item appended (post-calls), the changes, SetShown.
+    local function refresh(hideFirst)
+        if hideFirst then shop:Hide() end
+        shop:ClearLines()
+        shop:GetScript("OnTooltipCleared")(shop)
+        for _, t in ipairs(LEGPLATES) do
+            if type(t) == "table" then shop:AddDoubleLine(t[1], t[2]) else shop:AddLine(t) end
+        end
+        local data = { type = Enum.TooltipDataType.Item, hyperlink = "legplates", lines = { {}, {}, {}, {} } }
+        for _, fn in ipairs(post[data.type] or {}) do fn(shop, data) end
+        shop:AddLine(" ")
+        shop:AddLine(ITEM_DELTA_DESCRIPTION, 1, 0.82, 0)
+        for _, c in ipairs(CHANGES) do shop:AddLine(c) end
+        shop:SetShown(true)
+        update()
+        shop:GetScript("OnUpdate")(shop, 0.02)
+    end
+    refresh(false)
+    check("refresh")
+    refresh(true)
+    check("hidden and shown")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

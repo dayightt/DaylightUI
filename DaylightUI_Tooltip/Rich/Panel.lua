@@ -1203,6 +1203,16 @@ function Panel.Pin(p)
     p:SetSize(p.wantW, p.wantH)
 end
 
+-- The card laid over a whole frame (its tooltip, or the ghost carrying it).
+-- It forgets its pin, so the next Panel.Pin holds it by its corner again:
+-- left stretched over the tooltip, every refill that resized the tooltip
+-- showed on the card as a flicker.
+function Panel.Stretch(p, over)
+    p:ClearAllPoints()
+    p:SetAllPoints(over)
+    p.pinned = nil
+end
+
 -- New content in a card that's already showing (another bag slot, another
 -- enemy): its words fade in over FAST, the frame stays. Not in a fight: what
 -- a fight needs shows at once.
@@ -1221,11 +1231,7 @@ function Panel.Chrome(p)
     Panel.Begin(p, p.kind, p.lightPair, p.lightFade)
     p.chrome = true
     p.wantW, p.wantH = nil, nil
-    if p.pinned then
-        p:ClearAllPoints()
-        p:SetAllPoints(p.tip)
-        p.pinned = nil
-    end
+    if p.pinned then Panel.Stretch(p, p.tip) end
     Panel.PaintLight(p)
     Panel.PaintWash(p)
     p:Show()

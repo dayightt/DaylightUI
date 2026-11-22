@@ -241,8 +241,7 @@ local function lend(g, p)
     lent[p] = g.tip
     g.card = p
     p:SetParent(g)
-    p:ClearAllPoints()
-    p:SetAllPoints(g)
+    ns.RichPanel.Stretch(p, g)
     ns.RichPanel.Level(p)
     p:Show()
 end
@@ -255,8 +254,7 @@ local function giveBack(g)
     local released = lent[p] == false
     lent[p] = nil
     p:SetParent(g.tip)
-    p:ClearAllPoints()
-    p:SetAllPoints(g.tip)
+    ns.RichPanel.Stretch(p, g.tip)
     ns.RichPanel.Level(p)
     if released or not g.tip:IsShown() then p:Hide() end
 end
