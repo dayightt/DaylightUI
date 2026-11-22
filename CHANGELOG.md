@@ -1,3 +1,28 @@
+# DaylightUI 2.2.2
+
+Channel ticks on your cast bar, an equipment set data text and Disenchant that stays on in your bags. Plus fixes for vanishing nameplates.
+
+## New
+- Cast bars: Your cast bar can mark each tick of a channel like Drain Life or Mind Flay, so you don't cut one short
+- Combo points: Combo points can stand on their own anywhere on your screen
+- Buffs: Buffs and debuffs can be ordered longest first
+- Data texts: An equipment set data text: see which set you wear and switch sets from it
+- Bags: Disenchant can stay on in your bags, so a pile of greens is one click each
+- Loot rolls: The game's roll popups can now skip Daylight UI style and look the way the game draws them
+
+## Fixed
+- Nameplates: Nameplates and speech bubbles no longer vanish after dragging a spell or a chat tab, and /dui platefix brings them back if they ever do
+- Nameplates: With names off, guild names and NPC jobs go too, instead of floating over the bar
+- Auction House: Buying an item picks its cheapest auction, not sometimes the most expensive one
+- DoT damage: The damage left on your DoTs no longer shrinks to almost nothing as you level, and now works on Spanish, Portuguese, German, Russian, Chinese and Korean clients
+- Tooltips: Rich tooltips no longer flicker, and sit right with price addons, upgrade arrows and every UI scale
+- NPC window: With Immersion on, talking to an NPC opens only Immersion. Vendors and trainers still open in the NPC window
+- Bags: Items from the mail or a trade no longer turn invisible, and you can choose again which bags Clean Up skips
+- Loot rolls: A loot roll no longer stays stuck on screen after you leave the group
+- Cooldown Manager: Cooldown bars no longer empty and refill with every wand shot
+- Controller: Oils, armor kits and enchants work with a controller, and opening a clam hands the controller back to your bag
+- Little touches: A soft red Attack button glow, a tidy Beast Training window, no colored patch where a faded XP bar was, and deleted characters gone from every list
+
 # DaylightUI 2.2.1
 
 Poisons, oils and weapon imbues in the Cooldown Manager, a UI that fades away on flight paths, and a big batch of fixes.
