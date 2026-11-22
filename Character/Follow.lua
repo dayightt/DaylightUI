@@ -88,7 +88,8 @@ function Follow.Close()
         DUI.AfterCombat(Follow.Sync, "characterSync")
         return
     end
-    if g:IsShown() then ToggleCharacter(g.activeSubframe or "PaperDollFrame") end
+    if g:IsShown() then ToggleCharacter(g.activeSubframe or "PaperDollFrame")
+    elseif Follow.override == true then Follow.override = nil end   -- opened alone (Follow.OpenAlone)
 end
 
 -- After combat, bring the game's window in line with this one.
@@ -146,6 +147,24 @@ function Follow.ToggleInFight()
 end
 
 local wasOpen, wasPage = false, nil
+
+-- Opens this window on a page by itself, with the game's window left shut. For
+-- what the game opens its own window for but Daylight UI can't ask it to: with
+-- the controller UI on, opening the game's window from addon code taints the
+-- controller. The game's slot buttons are lent to this window, so they work
+-- without it. Closing goes through Follow.Close, which lets go of it.
+function Follow.OpenAlone(page)
+    local g = Follow.Game()
+    if not Follow.Ready() or InCombatLockdown() then return false end
+    if Follow.Want() then
+        if page and ns.window and ns.window.current ~= page then ns.Window.ShowPage(page) end
+        return true
+    end
+    Follow.override = true
+    wasOpen, wasPage = true, g.activeSubframe
+    ns.Window.Open(page or "character")
+    return true
+end
 -- What the last full look saw. Most frames nothing moved, so the look stops
 -- after one IsShown.
 local seenShown, seenPage, seenParked, seenOverride, seen = nil, nil, nil, nil, false

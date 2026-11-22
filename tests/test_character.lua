@@ -3060,8 +3060,9 @@ T.test("character on a controller: Y is the slot's more actions, as the game's; 
     local F, ns = following()
     local f = ns.window
     T.truthy(f.padKeys, "the window has its own buttons")
-    local y = f.padKeys[1]
-    T.eq(y.key, "Y")
+    local y
+    for _, e in ipairs(f.padKeys) do if e.key == "Y" then y = e end end
+    T.truthy(y, "Y is one of them")
     T.falsy(y.when(nil), "nothing picked")
     T.falsy(y.when(CreateFrame("Button")), "not a gear slot")
 end)
@@ -3097,14 +3098,34 @@ T.test("character list: on a controller the D-pad reaching the last row in view 
     _G.SmartNavigation, _G.InputUtil, _G.GamepadMode = was, nil, nil
 end)
 
-T.test("character on a controller: A puts a waiting scroll, enchant or repair on the slot's piece, as the game's slots do", function()
+-- Putting a spell on an item is protected: the client blocks PickupInventoryItem
+-- from addon code while a spell waits for an item (the ticket's "the game blocked
+-- PickupInventoryItem() (DaylightUI)"), and only a secure click of the game's
+-- own slot button runs it.
+local function blockedPickup(picked)
+    stub.errors = stub.errors or {}
+    return function(id)
+        if ((SpellCanTargetItem and SpellCanTargetItem()) or (InRepairMode and InRepairMode())) and (stub.inSecure or 0) == 0 then
+            stub.errors[#stub.errors + 1] = "ADDON_ACTION_BLOCKED: PickupInventoryItem()"
+            return
+        end
+        picked[#picked + 1] = id
+    end
+end
+
+local function padEntry(f, key)
+    for _, e in ipairs(f.padKeys) do if e.key == key then return e end end
+end
+
+T.test("character on a controller: A puts a waiting scroll, enchant or repair on the slot's piece through the game's own slot button", function()
     local CP, ns = charPage({ items = { MainHand = CW.item("Sword", { weapon = 1 }) } })
     local page = openChar(ns)
     stub.RunTimers()
     _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
     _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
     local picked, popped = {}, 0
-    _G.PickupInventoryItem = function(id) picked[#picked + 1] = id end
+    _G.PickupInventoryItem = blockedPickup(picked)
+    local errors = #stub.errors
     local hand, head = page.slots.MainHand, page.slots.Head
     CW.state.items[CW.SLOT_IDS.Head] = nil
     T.truthy(hand.button, "the game's button is lent")
@@ -3113,28 +3134,73 @@ T.test("character on a controller: A puts a waiting scroll, enchant or repair on
     hand.button.popoutButton = pop
     local A = hand:GetScript("OnMouseUp")
     local f = ns.window
+    local apply = padEntry(f, "A")
+    T.truthy(apply and apply.secure, "A has a secure action of its own")
     T.isnil(f.padSelect(hand), "nothing waiting: A says Select")
+    T.isnil(apply.secure(hand), "nothing waiting: A stays the game's")
     A(hand)
     T.eq(popped, 1, "nothing waiting: A opens the swap menu")
-    T.deq(picked, {})
     CW.state.aim = { kind = "condition", fits = { [CW.SLOT_IDS.MainHand] = true } }
+    local attrs = apply.secure(hand)
+    T.eq(attrs and attrs.type, "click", "a scroll waiting: A clicks")
+    T.eq(attrs and attrs.clickbutton, hand.button, "the game's own slot button, which picks the piece up securely")
     A(hand)
-    T.deq(picked, { CW.SLOT_IDS.MainHand }, "the scroll goes on the weapon")
+    T.deq(picked, {}, "the slot's own click puts nothing on it from addon code")
+    T.eq(#stub.errors, errors, "so nothing is blocked")
     T.eq(popped, 1, "and no swap menu")
     T.isnil(f.padSelect(hand), "a scroll: Select, as the game's")
     T.eq(f.padSelect(head), false, "an empty slot: A does nothing")
-    head:GetScript("OnMouseUp")(head)
-    T.deq(picked, { CW.SLOT_IDS.MainHand }, "nothing to put it on")
+    T.isnil(apply.secure(head), "nothing to put it on")
     CW.state.aim = { kind = "enchant", fits = { [CW.SLOT_IDS.MainHand] = true } }
     T.eq(f.padSelect(hand), CONTEXT_ACTION_LABEL_APPLY or DaylightUI.L["Apply"], "an enchant: Apply")
+    T.eq(apply.label(hand), CONTEXT_ACTION_LABEL_APPLY or DaylightUI.L["Apply"], "the hint says it too")
     CW.state.aim, CW.state.repair = nil, true
     T.eq(f.padSelect(hand), CONTEXT_ACTION_LABEL_REPAIR or DaylightUI.L["Repair"])
-    A(hand)
-    T.deq(picked, { CW.SLOT_IDS.MainHand, CW.SLOT_IDS.MainHand }, "the repair cursor fixes it")
+    T.eq(apply.secure(hand).clickbutton, hand.button, "the repair cursor clicks the game's slot too")
     CW.state.repair = nil
     _G.InputUtil, _G.GamepadMode = nil, nil
     A(hand)
-    T.eq(#picked, 2, "with the mouse it's the game's own button that gets the click")
+    T.eq(#picked, 0, "with the mouse it's the game's own button that gets the click")
+    T.eq(#stub.errors, errors)
+end)
+
+-- The game opens its character window for an enchant picked from a bag; the
+-- Daylight UI bag can't ask it to (opening it from addon code taints the
+-- controller), so this window opens by itself on the piece it goes on.
+T.test("character on a controller: an enchant picked from the bag opens this window alone, on the piece, and B closes it", function()
+    local CP, ns = charPage({ items = { MainHand = CW.item("Staff", { weapon = 1 }) } })
+    stub.RunTimers()
+    local F = ns.Follow
+    local aimed
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    local m = {}
+    function m:FrameShown(frame) if frame.FocusGamepad then frame:FocusGamepad() end end
+    function m:FrameHidden(frame) if frame.UnfocusGamepad then frame:UnfocusGamepad() end end
+    function m:GetActiveFrame() end
+    _G.GamepadMode = { FrameControlsManager = m }
+    local was = _G.SmartNavigation
+    _G.SmartNavigation = { RefreshButtonGroups = function() end, GetCurrentButton = function() end,
+        SetTargetButtonForFrame = function(_, _, b) aimed = b end, SelectTopLeftButton = function() end }
+    T.falsy(CP.OpenForEnchant(), "nothing waiting: it stays shut")
+    CW.state.aim = { kind = "enchant", fits = { [CW.SLOT_IDS.MainHand] = true } }
+    T.truthy(CP.OpenForEnchant(), "an oil that takes the staff")
+    F.Tick()
+    for _ = 1, 3 do stub.RunTimers() end
+    local f = ns.window
+    T.truthy(f:IsShown(), "the window is open")
+    T.eq(f.current, "character", "on the gear")
+    T.falsy(CharacterFrame:IsShown(), "the game's window stays shut")
+    T.eq(aimed, f.pages.character.slots.MainHand, "the D-pad starts on the staff")
+    F.Tick()
+    T.truthy(f:IsShown(), "it stays open")
+    F.Close()
+    F.Tick()
+    for _ = 1, 30 do stub.RunTimers() end
+    T.falsy(ns.Window.IsOpen(), "the X or B closes it")
+    CW.state.aim = { kind = "enchant", fits = {} }
+    T.falsy(CP.OpenForEnchant(), "nothing worn takes it: shut, as the game's")
+    CW.state.aim = nil
+    _G.InputUtil, _G.GamepadMode, _G.SmartNavigation = nil, nil, was
 end)
 
 T.test("character on a controller: place in bags puts a piece in the first plain bag with room, or leaves it on", function()

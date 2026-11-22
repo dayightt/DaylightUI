@@ -59,6 +59,8 @@
 --                            button. For what addon code can't do itself: casting
 --                            a spell, using a bag item. Rebound as the D-pad
 --                            moves. The only kind of entry A can have
+--   entry.after(stop)        a secure entry's follow-up, run right after its
+--                            secure action (what the game's own click does next)
 --   entry.key "B"            only as a follow entry: B does it instead of Back
 --                            while it acts (a page's own way back)
 --   frame.padHints()         a list of { keys, label } shown instead (the bind
@@ -272,7 +274,9 @@ local function buildKeys()
         local s = CreateFrame("Button", Pad.SECURE_BUTTON .. name, UIParent, "SecureActionButtonTemplate")
         s:RegisterForClicks("AnyUp")
         s:SetAttribute("useOnKeyDown", false)
-        s:HookScript("OnClick", function()
+        s:HookScript("OnClick", function(self)
+            local e, at = self.padEntry, self.padStop
+            if e and e.after then DUI.SafeCall(e.after, at) end
             C_Timer.After(0, function() if Pad.focused then Pad.ShowHints(Pad.focused) end end)
         end)
     end
@@ -280,10 +284,11 @@ end
 
 Pad.SECURE_BUTTON = "DaylightUIPadSecure" -- plus the key
 -- Sets a key's secure twin to these attributes only, clearing the last ones.
-local function arm(name, attrs)
+-- The entry and stop are kept for entry.after.
+local function arm(name, attrs, e, at)
     local s = _G[Pad.SECURE_BUTTON .. name]
     for k in pairs(s.padAttrs or {}) do s:SetAttribute(k, nil) end
-    s.padAttrs = attrs
+    s.padAttrs, s.padEntry, s.padStop = attrs, e, at
     for k, v in pairs(attrs) do s:SetAttribute(k, v) end
 end
 
@@ -386,7 +391,7 @@ local function bind(f)
                 local attrs = (not e.when or e.when(at)) and e.secure(at) or nil
                 if attrs then
                     done[e.key] = true
-                    arm(e.key, attrs)
+                    arm(e.key, attrs, e, at)
                     SetOverrideBindingClick(keys, true, keyOf(e.key), Pad.SECURE_BUTTON .. e.key, e.button or "LeftButton")
                 end
             elseif e.key == "A" or e.key == "B" then
@@ -1021,9 +1026,12 @@ function Pad.Release(f)
     end
 end
 
+local lost, lostAt -- the last Daylight UI window to lose the focus, and when
+
 local function focusLost(self)
     if Pad.focused ~= self then return end
     Pad.focused = nil
+    lost, lostAt = self, GetTime()
     if Pad.prompt then Pad.EndBind() end
     if not InCombatLockdown() then unbind() end
     local t = Pad.taken
@@ -1206,6 +1214,45 @@ function Pad.Popup(frame, close)
         m:HandlePopupHide(self)
     end)
 end
+
+-- The loot window of an item opened from a bag (a clam). The game keeps the
+-- controller on the windows when it closes (LootFrameMixin:OnShow turns off
+-- ReturnToPlayerControl for loot from an item) but lists it without saying where
+-- the focus goes back to (FrameShown, not HandlePopupShown), so it focuses the
+-- first window listed by screen spot, not the bag the clam came from. The window
+-- that had the focus as the loot opened is listed again as it closes, which gives
+-- it the focus back. Only while another window stays listed: emptying the list
+-- from addon code is refused. Loot from a corpse hands the controller back to the
+-- player, so it's left alone.
+local beforeLoot
+
+function Pad.LootOpened(fromItem)
+    beforeLoot = nil
+    if not fromItem then return end
+    local w = Pad.focused
+    if not w and lost and lostAt == GetTime() then w = lost end   -- the loot window took it just now
+    beforeLoot = w
+end
+
+function Pad.LootClosed()
+    local w = beforeLoot
+    beforeLoot = nil
+    local m = manager()
+    if not w or not m or fight or InCombatLockdown() or not told[w] or not w:IsShown() then return end
+    local list = m.shownFrames
+    if type(list) ~= "table" or m.focusedFrame == w then return end
+    local listed, other = false, false
+    for _, f in ipairs(list) do
+        if f == w then listed = true
+        elseif type(f) == "table" and f.IsShown and f:IsShown() then other = true end
+    end
+    if not (listed and other) then return end
+    m:FrameHidden(w)
+    m:FrameShown(w)
+end
+
+DUI.RegisterEvent("LOOT_OPENED", function(_, _, fromItem) Pad.LootOpened(fromItem == true) end)
+DUI.RegisterEvent("LOOT_CLOSED", function() Pad.LootClosed() end)
 
 -- Combat
 

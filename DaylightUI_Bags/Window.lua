@@ -595,10 +595,45 @@ function Window.PadUseSecure(window, slotButton)
     return { type = "click", clickbutton = slotButton }
 end
 
+-- An enchant, oil or armor kit picked with X goes on to the character window,
+-- as from the game's own bag: its click marks the pick as from a bag
+-- (ItemButtonUtil.MarkItemSelectionFromBag) and the game then opens its
+-- character window on ENCHANT_SPELL_SELECTED. X here uses the item by bag and
+-- slot, which the game doesn't count as a bag pick. The event fires inside the
+-- use, before X's follow-up, but either may come first, so each waits up to
+-- Window.ENCHANT_WAIT seconds for the other.
+Window.ENCHANT_WAIT = 0.5
+local enchantAt, usedAt
+
+local function openForEnchant()
+    enchantAt, usedAt = nil, nil
+    C_Timer.After(0, function()
+        local CP = DUI.Char and DUI.Char.CharacterPage
+        if CP and CP.OpenForEnchant then DUI.SafeCall(CP.OpenForEnchant) end
+    end)
+end
+
+local function near(t) return t ~= nil and GetTime() - t <= Window.ENCHANT_WAIT end
+
+function Window.PadUsed()
+    if near(enchantAt) then return openForEnchant() end
+    usedAt = GetTime()
+end
+
+function Window.EnchantPicked()
+    if near(usedAt) then return openForEnchant() end
+    enchantAt = GetTime()
+end
+
 function Window.PadSetup(f)
+    if not Window.enchantWatched then
+        Window.enchantWatched = true
+        DUI.RegisterEvent("ENCHANT_SPELL_SELECTED", Window.EnchantPicked)
+    end
     f.padKeys = {
         { key = "X", label = function(b) return Window.PadUseLabel(f, b) end, button = "RightButton",
-          secure = function(slotButton) return Window.PadUseSecure(f, slotButton) end },
+          secure = function(slotButton) return Window.PadUseSecure(f, slotButton) end,
+          after = Window.PadUsed },
         { key = "Y", label = CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"],
           when = function(b) return padItem(b) ~= nil end, run = Window.PadMore },
     }

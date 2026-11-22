@@ -456,20 +456,26 @@ function CharacterPage.Aiming()
     if type(InRepairMode) == "function" and InRepairMode() then return "repair" end
 end
 
--- A on a Daylight UI slot works the game's own way. With a spell or the repair
--- cursor waiting, the game's A clicks the slot, and picking up the slot's item
--- is what puts the spell on it. Otherwise A opens the swap menu
--- (OpenEquipmentFlyoutForFocusedButton). The mouse never gets here: it clicks
--- the game's own button lent on top of the slot.
+-- A on a Daylight UI slot opens the swap menu, as the game's A does
+-- (OpenEquipmentFlyoutForFocusedButton). With a spell or the repair cursor
+-- waiting, A is CharacterPage.PadApply instead, so nothing happens here. The
+-- mouse never gets here: it clicks the game's own button lent on top of the slot.
 local function swapMenu(h)
-    if not DUI.Pad.On() then return end
-    if CharacterPage.Aiming() then
-        local item, id = slotItem(h)
-        if item then PickupInventoryItem(id) end
-        return
-    end
+    if not DUI.Pad.On() or CharacterPage.Aiming() then return end
     local pop = h.button and h.button.popoutButton
     if pop and pop:IsShown() then pop:Click() end
+end
+
+-- A with an enchant, a scroll or the repair cursor waiting clicks the game's own
+-- slot button through a secure binding, as the game's footer does. Putting a
+-- spell on an item is protected: PickupInventoryItem called from addon code is
+-- blocked, even inside the player's press.
+function CharacterPage.PadApply(f, b)
+    if f.current ~= "character" or type(b) ~= "table" or not b.key or ns.Slots.frames[b.key] ~= b then return nil end
+    if not CharacterPage.Aiming() or slotItem(b) == nil then return nil end
+    local button = b.button
+    if type(button) ~= "table" then return nil end
+    return { type = "click", clickbutton = button }
 end
 
 -- What A says on a slot, as the game's footer: Apply for an enchant, Repair,
@@ -482,6 +488,34 @@ function CharacterPage.PadSelect(f, b)
     if aim == "repair" then return CONTEXT_ACTION_LABEL_REPAIR or L["Repair"] end
     if ns.Slots.Aimed() == C_Item.DoesItemMatchTargetEnchantingSpell then return CONTEXT_ACTION_LABEL_APPLY or L["Apply"] end
     return nil
+end
+
+-- The first slot whose piece the waiting spell can go on: down the left column,
+-- then the right, then the weapons.
+function CharacterPage.AimedSlot()
+    local test = ns.Slots.Aimed()
+    if not test then return nil end
+    local G = ns.Gear
+    for _, list in ipairs({ G.LEFT, G.RIGHT, G.BOTTOM }) do
+        for _, key in ipairs(list) do
+            local h, id = ns.Slots.frames[key], G.SlotId(key)
+            if h and h:IsShown() and id and ns.Slots.Fits(test, id) then return h end
+        end
+    end
+end
+
+-- An enchant picked from the Daylight UI bag on a controller. The game's own bag
+-- opens its character window for one (GameEvent.HandleEnchantSpellSelected,
+-- when the pick came from a bag and some worn piece takes it), with the D-pad on
+-- the gear. The Daylight UI bag uses items by bag and slot, which the game
+-- doesn't count as a bag pick, so this window opens itself, on the piece.
+function CharacterPage.OpenForEnchant()
+    if not DUI.Pad.On() or InCombatLockdown() or not ns.Follow then return false end
+    local h = CharacterPage.AimedSlot()
+    if not h then return false end
+    if not ns.Follow.OpenAlone("character") then return false end
+    DUI.Pad.Settle(h)
+    return true
 end
 
 -- Through Daylight UI's own prompt: the game's bind screen taints the
@@ -538,9 +572,13 @@ function CharacterPage.More(h)
 end
 
 function CharacterPage.PadSetup(f)
-    f.padKeys = { { key = "Y", label = CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"],
-        when = function(b) return f.current == "character" and slotItem(b) ~= nil end,
-        run = function(b) CharacterPage.More(b) end } }
+    f.padKeys = {
+        { key = "A", label = function(b) return CharacterPage.PadSelect(f, b) or ACTION_LABEL_SELECT or L["Select"] end,
+          secure = function(b) return CharacterPage.PadApply(f, b) end },
+        { key = "Y", label = CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"],
+          when = function(b) return f.current == "character" and slotItem(b) ~= nil end,
+          run = function(b) CharacterPage.More(b) end },
+    }
     f.padSelect = function(b) return CharacterPage.PadSelect(f, b) end
 end
 

@@ -548,7 +548,8 @@ function Slots.Aimed()
     if yes(C_Spell.TargetSpellChecksItemCondition) then return C_Item.DoesItemMatchSpellItemCondition end
 end
 
-local function aimFits(test, id)
+-- Whether the worn piece in slot id takes the waiting spell (test from Slots.Aimed).
+function Slots.Fits(test, id)
     local loc = ItemLocation:CreateFromEquipmentSlot(id)
     return yes(C_Item.DoesItemExist, loc) and yes(test, loc)
 end
@@ -571,7 +572,7 @@ function Slots.Holding()
     local test = not holding and Slots.Aimed() or nil
     for key, h in pairs(Slots.frames) do
         local id = ns.Gear.SlotId(key)
-        local fits = id ~= nil and ((holding and can ~= nil and can(id) == true) or (test ~= nil and aimFits(test, id)))
+        local fits = id ~= nil and ((holding and can ~= nil and can(id) == true) or (test ~= nil and Slots.Fits(test, id)))
         h.glow:Ease(fits)
         dim(h, (holding or test ~= nil) and not fits)
     end

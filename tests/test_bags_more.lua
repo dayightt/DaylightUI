@@ -3015,6 +3015,52 @@ T.test("bags on a controller: X does an item's right click through a secure key,
     _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
 end)
 
+-- The game's own bag marks an X pick as from a bag, and the game then opens its
+-- character window for an enchant some worn piece takes
+-- (GameEvent.HandleEnchantSpellSelected). X here uses by bag and slot, so the
+-- character window opens itself: ENCHANT_SPELL_SELECTED fires inside the use.
+T.test("bags on a controller: an oil or armor kit picked with X goes on to the character window", function()
+    local ns = login()
+    world.items[0][1].itemID = 1
+    C_Item.GetItemSpell = function(id) if id == 1 then return "Wizard Oil", 25123 end end
+    C_Item.IsEquippableItem = function() return false end
+    padOn()
+    local at = ns.Bags.buttons[0][1]
+    _G.SmartNavigation = { GetCurrentButton = function() return at end }
+    local f = open(ns)
+    stub.RunTimers()
+    local o = stub.overrides.PAD3
+    T.truthy(o, "X is bound")
+    local s = _G[o.click]
+    local CP = DaylightUI.Char.CharacterPage
+    local was, opened = CP.OpenForEnchant, 0
+    CP.OpenForEnchant = function() opened = opened + 1; return true end
+    -- The use fires the event inside the secure click, before X's follow-up.
+    stub.SecureClick(s, "RightButton", false)
+    T.eq(opened, 0, "a drink: nothing more")
+    s:SetScript("PreClick", function() stub.FireEvent("ENCHANT_SPELL_SELECTED") end)
+    stub.SecureClick(s, "RightButton", false)
+    stub.RunTimers()
+    T.eq(opened, 1, "an enchant picked with X: the character window opens")
+    s:SetScript("PreClick", nil)
+    -- The other way round: the event a moment after the press.
+    stub.Advance(2)
+    stub.SecureClick(s, "RightButton", false)
+    stub.FireEvent("ENCHANT_SPELL_SELECTED")
+    stub.RunTimers()
+    T.eq(opened, 2, "the event after the press works too")
+    -- An enchant from the action bars: no X press near it.
+    stub.Advance(2)
+    stub.FireEvent("ENCHANT_SPELL_SELECTED")
+    stub.RunTimers()
+    stub.Advance(2)
+    stub.SecureClick(s, "RightButton", false)
+    stub.RunTimers()
+    T.eq(opened, 2, "an enchant from elsewhere, then a later X: the bag leaves it to the game")
+    CP.OpenForEnchant = was
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
 -- With the mailbox open a right click attaches a usable item instead of using it,
 -- so X keeps the item button's own right click there.
 T.test("bags on a controller: X attaches a usable item at the mailbox", function()

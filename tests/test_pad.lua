@@ -319,6 +319,49 @@ T.test("pad: a second window opening with another keeps the focus on the first",
     clearAll()
 end)
 
+-- The loot window of a clam opened from the bag. The game lists it without a
+-- way back (LootFrameMixin:OnShow calls FrameShown, not HandlePopupShown), keeps
+-- the controller on the windows for loot from an item, and on its close focuses
+-- the first window listed by screen spot (FrameHidden, FocusFrame(self, 1)).
+local function lootTry(fromItem)
+    local DUI = stub.Load()
+    local m = strict(true)
+    fresh(m)
+    local focus = m.Focus
+    function m:Focus(frame) self.focusedFrame = frame; return focus(self, frame) end
+    local left = CreateFrame("Frame", nil, UIParent)   -- a window listed left of the bag
+    local bag = CreateFrame("Frame", nil, UIParent); bag:Hide()
+    local loot = CreateFrame("Frame", "LootFrame", UIParent); loot:Hide()
+    bag.padSecond = true
+    DUI.Pad.Follow(bag)
+    bag:Show()
+    stub.RunTimers()
+    table.insert(m.shown, 1, left)
+    T.eq(m.focused, bag, "the bag has the D-pad")
+    -- X opens the clam: the loot window shows and takes the focus.
+    stub.FireEvent("LOOT_OPENED", false, fromItem)
+    loot:Show()
+    m:FrameShown(loot, true)
+    T.eq(m.focused, loot)
+    -- Everything looted: LOOT_CLOSED, then the window fades and hides.
+    stub.FireEvent("LOOT_CLOSED")
+    loot:Hide()
+    m:FrameHidden(loot)
+    stub.RunTimers()
+    local got, emptied = m.focused, m.toCore
+    _G.LootFrame = nil
+    clearAll()
+    return got, bag, left, emptied
+end
+
+T.test("pad: a clam opened from the bag gives the D-pad back to the bag when its loot window closes", function()
+    local got, bag, _, emptied = lootTry(true)
+    T.eq(got, bag, "the bag has the D-pad again")
+    T.eq(emptied, 0, "and the list never went empty")
+    local got2, _, left = lootTry(false)
+    T.eq(got2, left, "loot from a corpse is left to the game")
+end)
+
 T.test("pad: a second window alone takes the focus", function()
     local DUI = stub.Load()
     local m = strict(true)
