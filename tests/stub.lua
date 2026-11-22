@@ -1228,11 +1228,23 @@ local function newAuraContainer(name, parent, template)
             assert(cand[f] == nil or type(cand[f]) == "boolean", f .. " must be a boolean or nil.")
         end
     end
+    -- The game's ValidateSortOptions: both must be values of their enums.
+    local function validSort(method, dir)
+        local okMethod, okDir = false, false
+        for _, v in pairs(AuraContainerSortMethod) do if v == method then okMethod = true end end
+        for _, v in pairs(AuraContainerSortDirection) do if v == dir then okDir = true end end
+        assert(okMethod, "sortMethod must be a valid AuraContainerSortMethod.")
+        assert(okDir, "sortDirection must be a valid AuraContainerSortDirection.")
+    end
     function c:AddAuraGroup(key, filter, opts)
         if stub.refuseAuraFilters and stub.refuseAuraFilters[filter] then error("Invalid aura filter: " .. filter) end
         assert(not self.__groups[key], "duplicate group " .. key)
         validCandidates(opts and opts.candidateFilters)
-        local g = { filter = filter, opts = opts, max = opts and opts.maxFrameCount, layout = opts and opts.layout }
+        -- Left out, the game's defaults fill in (CustomAuraContainerGroupDefaultOptions).
+        local method, dir = opts and opts.sortMethod or 0, opts and opts.sortDirection or 0
+        validSort(method, dir)
+        local g = { filter = filter, opts = opts, max = opts and opts.maxFrameCount, layout = opts and opts.layout,
+                    sort = { method, dir } }
         self.__groups[key] = g
         self.__groupOrder[#self.__groupOrder + 1] = key
         self.__untrusted = true
@@ -1286,6 +1298,14 @@ local function newAuraContainer(name, parent, template)
         g.opts.candidateFilters = cand
         self.__candidateSets = (self.__candidateSets or 0) + 1
         self.__refreshes = (self.__refreshes or 0) + 1
+    end
+    -- SetAuraGroupSortMethod: a new order for a group already added; the client
+    -- re-sorts its buttons on the next refresh.
+    function c:SetAuraGroupSortMethod(key, method, dir)
+        assert(self.__groups[key], "aura group was not found with this key.")
+        validSort(method, dir)
+        self.__groups[key].sort = { method, dir }
+        self.__sortSets = (self.__sortSets or 0) + 1
     end
     function c:SetAuraGroupLayout(key, l) assert(self.__groups[key], key); self.__groups[key].layout = l end
     function c:SetFlowLayoutAnchorPoint(p) self.__anchorPoint = p end
@@ -1917,7 +1937,7 @@ _G.C_DurationUtil = {
 _G.UnitChannelInfo = function(u)
     local x = U(u); local c = x and x.channel
     if not c then return end   -- no cast: the client returns nothing at all, not a nil
-    return c.name, c.name, c.texture, 0, 0, false, c.notInterruptible, 1
+    return c.name, c.name, c.texture, 0, 0, false, c.notInterruptible, c.spellID or 1
 end
 _G.UnitCastingDuration = function(u) local x = U(u); return x and x.cast and x.cast.duration end
 _G.UnitChannelDuration = function(u) local x = U(u); return x and x.channel and x.channel.duration end
@@ -1934,7 +1954,8 @@ _G.Enum = {
     CustomAuraButtonDispelTypeTextureStyle = { Border = 0, BorderWithIcon = 1, CustomAsset = 2, PreserveAsset = 3 },
     CustomAuraButtonDispelTypeStealableFilter = { Stealable = 0, NotStealable = 1 },
 }
-_G.AuraContainerSortMethod = { Default = 0, ExpirationOnly = 5 }
+_G.AuraContainerSortMethod = { Default = 0, BigDefensive = 1, UnitFrameDebuff = 2, ImportantOnly = 3, Expiration = 4,
+    ExpirationOnly = 5, Name = 6, NameOnly = 7, AuraInstanceIDOnly = 8 }
 _G.AuraContainerSortDirection = { Normal = 0, Reverse = 1 }
 -- Blizzard_AuraContainerShared.lua
 _G.AuraContainerItemEnchantmentSlot = { MainHand = 0, OffHand = 1, Ranged = 2 }
@@ -2230,9 +2251,22 @@ function stub.SecureClick(b, button, down)
     stub.inSecure = (stub.inSecure or 0) + 1
     local ok, err = pcall(function()
         local suffix = button == "RightButton" and "2" or "1"
+        -- SecureButton_GetModifiedAttribute: the keys held make a prefix
+        -- (SecureButton_GetModifierPrefix: alt-ctrl-shift-), and the client looks
+        -- up prefix..name..suffix, *name..suffix, prefix..name*, *name*, then name.
+        -- So "type1" is an unmodified left click only: Shift-click finds nothing.
+        -- ATTRIBUTE_NOOP ("") reads as nil.
+        local prefix = ""
+        if IsShiftKeyDown() then prefix = "shift-" .. prefix end
+        if IsControlKeyDown and IsControlKeyDown() then prefix = "ctrl-" .. prefix end
+        if IsAltKeyDown and IsAltKeyDown() then prefix = "alt-" .. prefix end
         local function attr(name)
-            local v = b:GetAttribute(name .. suffix)
-            if v == nil then v = b:GetAttribute(name) end
+            local v
+            for _, key in ipairs({ prefix .. name .. suffix, "*" .. name .. suffix, prefix .. name .. "*", "*" .. name .. "*", name }) do
+                v = b:GetAttribute(key)
+                if v ~= nil then break end
+            end
+            if v == "" then v = nil end
             return v
         end
         if acts and attr("type") == "macro" then
@@ -2242,6 +2276,14 @@ function stub.SecureClick(b, button, down)
         end
         -- Type "spell": a test world that cares what a cast does sets stub.CastSpell.
         if acts and attr("type") == "spell" and stub.CastSpell then stub.CastSpell(attr("spell")) end
+        -- OnActionButtonClick: a spell that just put the hand up for an item gets
+        -- the button's target-bag and target-slot item (UseContainerItem).
+        local canTarget = (type(SpellCanTargetItem) == "function" and SpellCanTargetItem())
+            or (type(SpellCanTargetItemID) == "function" and SpellCanTargetItemID())
+        if acts and canTarget then
+            local bag, slot = attr("target-bag"), attr("target-slot")
+            if slot and bag and C_Container and C_Container.UseContainerItem then C_Container.UseContainerItem(bag, slot) end
+        end
         if acts and b:GetAttribute("type") == "attribute" then
             local frame = b:GetAttribute("attribute-frame") or b
             local name = b:GetAttribute("attribute-name")
@@ -3786,6 +3828,58 @@ function stub.DamageMeter()
         GetRecapMaxHealth = function(id) local r = recap(id); return r and r.maxHealth or 0 end,
         GetRecapLink = function() return "" end,
     }
+end
+
+-- The game's equipment sets (C_EquipmentSet, EquipmentSetDocumentation), for a
+-- test that asks for them: stub.EquipmentSets{ { id, name, icon, worn, lost } }.
+-- EquipmentManager_EquipSet is the game's own (Mainline/EquipmentManager.lua).
+-- The game won't swap gear in a fight: a swap asked for then is counted in
+-- stub.equipSets.refused and nothing changes. Out of a fight the set goes on
+-- (only it worn) and the game's events follow. stub.equipSets.used lists each.
+function stub.EquipmentSets(sets)
+    local state = { sets = sets or {}, used = {}, refused = 0 }
+    stub.equipSets = state
+    stub.onReset = stub.onReset or {}
+    stub.onReset[#stub.onReset + 1] = function()
+        _G.C_EquipmentSet, _G.EquipmentManager_EquipSet, stub.equipSets = nil, nil, nil
+    end
+    local function find(id)
+        for _, s in ipairs(state.sets) do if s.id == id then return s end end
+    end
+    _G.C_EquipmentSet = {
+        GetEquipmentSetIDs = function()
+            local ids = {}
+            for i, s in ipairs(state.sets) do ids[i] = s.id end
+            return ids
+        end,
+        GetNumEquipmentSets = function() return #state.sets end,
+        GetEquipmentSetInfo = function(id)
+            local s = find(id)
+            if s then return s.name, s.icon or 134400, s.id, s.worn == true, 10, s.worn and 10 or 0, 0, s.lost or 0, 0 end
+        end,
+        EquipmentSetContainsLockedItems = function() return false end,
+        UseEquipmentSet = function(id)
+            local s = find(id)
+            if not s then return false end
+            if stub.combat then
+                state.refused = state.refused + 1
+                return false
+            end
+            for _, o in ipairs(state.sets) do o.worn = (o == s) end
+            state.used[#state.used + 1] = id
+            stub.FireEvent("PLAYER_EQUIPMENT_CHANGED", 5, false)
+            stub.FireEvent("EQUIPMENT_SWAP_FINISHED", true, id)
+            return true
+        end,
+    }
+    _G.EquipmentManager_EquipSet = function(setID)
+        if C_EquipmentSet.EquipmentSetContainsLockedItems(setID) or UnitCastingInfo("player") then
+            if UIErrorsFrame and UIErrorsFrame.AddMessage then UIErrorsFrame:AddMessage(ERR_CLIENT_LOCKED_OUT, 1.0, 0.1, 0.1, 1.0) end
+            return
+        end
+        C_EquipmentSet.UseEquipmentSet(setID)
+    end
+    return state
 end
 
 -- Every faked client function the game's docs mark secret (tests/secret_api.lua)
