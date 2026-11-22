@@ -19,14 +19,6 @@ Layers.STRATA_RANK = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5
 
 local function frameOf(unit) return unit == "personal" and ns.Personal.frame or (ns.frames and ns.frames[unit]) end
 
-local function auraRows(set)
-    if type(set) ~= "table" then return nil end
-    local out = {}
-    if set.debuffs then out[#out + 1] = set.debuffs end
-    if set.buffs then out[#out + 1] = set.buffs end
-    return out
-end
-
 local function db() return ns.module and ns.module.db end
 
 -- Whether a piece stands on its own (on UIParent), so it can take a Layer.
@@ -36,53 +28,138 @@ local function castFree(unit)
     return d and ns.CastBar.At(unit, d[unit .. "Castbar"]) ~= "power"
 end
 
--- The parts each frame has. get(f) returns the part's frame or a list of them.
--- free(f) is true while it stands on its own; mover names its unlock handle.
-local NAME = { key = "name", label = "Name tab", get = function(f) return f.tabClip end }
-local PORTRAIT = { key = "portrait", label = "Portrait",
-    get = function(f) return f.portraitFree and f.portraitHolder or f.portrait end,
-    free = function(f) return f.portraitFree == true end,
-    mover = function(f) return f.portraitHolder and f.portraitHolder.key end }
--- The icons ride 6 levels over the portrait (UF.HomePortrait) unless given an
--- order of their own.
-local ICONS = { key = "icons", label = "Portrait icons and level", get = function(f) return f.status end,
-    follows = "portrait", over = 6 }
-local function auras(field)
-    return { key = "auras", label = "Aura rows", get = function() return auraRows(ns[field]) end }
+-- A frame's aura rows: an options preview's stand-ins, else the live set.
+local LIVE_AURAS = { target = "auras", player = "playerAuras", focus = "focusAuras", pet = "petAuras" }
+local function auraRow(unit, kind)
+    return function(f)
+        local set = f.sampleAuras
+        if not set then set = unit == "personal" and ns.Personal.auras or ns[LIVE_AURAS[unit]] end
+        return set and set[kind]
+    end
 end
+
+-- The parts each frame has, as in Design mode. get(f) returns a frame, a list
+-- of frames, or (region = true) a texture or text, which moves into a small
+-- frame of its own once it's given an order. free(f): it stands on its own;
+-- mover(f): its unlock handle. f is the live frame or an options preview.
+local function part(key, label, get, extra)
+    local p = { key = key, label = label, get = get }
+    for k, v in pairs(extra or {}) do p[k] = v end
+    return p
+end
+
+local HEALTH = part("health", "Health bar", function(f) return f.health end)
 local function power(unit)
-    return { key = "power", label = "Power bar", get = function(f) return f.freePower end,
-             free = function() return powerFree(unit) end,
-             mover = function() return ns.PowerBar.KeyFor(unit) end }
+    return part("power", "Power bar", function(f) return f.freePower and powerFree(unit) and f.freePower or f.power end,
+        { free = function(f) return f.freePower ~= nil and powerFree(unit) end,
+          mover = function() return ns.PowerBar.KeyFor(unit) end })
 end
+local PORTRAIT = part("portrait", "Portrait", function(f) return f.portraitFree and f.portraitHolder or f.portrait end,
+    { free = function(f) return f.portraitFree == true end,
+      mover = function(f) return f.portraitHolder and f.portraitHolder.key end })
+local function inTab(f) return f.tab ~= nil and f.tab:IsShown() and f.tabClip ~= nil end
+local NAME = part("name", "Name", function(f) if inTab(f) then return f.tabClip end return f.nameText end,
+    { regionIf = function(f) return not inTab(f) end })
+local HEALTH_TEXT = part("healthText", "Health text", function(f) return f.percentText end, { region = true })
+local POWER_TEXT = part("powerText", "Power text", function(f) return f.powerText end, { region = true })
+local MARKER = part("marker", "Raid marker", function(f) return f.marker end, { region = true })
+local CREST = part("crest", "Elite crest", function(f) return f.crest end)
+-- The portrait's icons ride 6 levels over it (UF.HomePortrait), each moving to
+-- a frame of its own once given an order.
+local function statusIcon(key, label, name, more)
+    return part(key, label, function(f)
+        local st = f.status
+        if not (st and st.icons[name]) then return nil end
+        if more then return { st.icons[name], st.levelText, st.skull } end
+        return st.icons[name]
+    end, { region = true })
+end
+local LEVEL = statusIcon("level", "Level", "level", true)
+local LEADER = statusIcon("leader", "Leader crown", "leader")
+local PVP = statusIcon("pvp", "PvP flag", "pvp")
+local REST = statusIcon("rest", "Resting", "rest")
+local function debuffs(unit) return part("debuffs", "Debuffs", auraRow(unit, "debuffs")) end
+local function buffs(unit) return part("buffs", "Buffs", auraRow(unit, "buffs")) end
 local function castbar(unit, field)
-    return { key = "castbar", label = "Cast bar", get = function() return ns[field] end,
-             free = function() return castFree(unit) end, ownLayer = true,
-             mover = function() return "unitframes." .. unit .. "Castbar" end }
+    return part("castbar", "Cast bar", function(f) if not f.layerPreview then return ns[field] end end,
+        { free = function() return castFree(unit) end, ownLayer = true,
+          mover = function() return "unitframes." .. unit .. "Castbar" end })
+end
+local function extraTexts(out)
+    for i in ipairs(ns.TEXT_SLOTS or {}) do
+        out[#out + 1] = part("text" .. i, "Extra text " .. i, function(f) return f.extraTexts and f.extraTexts[i] end,
+            { region = true })
+    end
+    return out
 end
 
 Layers.PARTS = {
-    player = { NAME, PORTRAIT, ICONS, auras("playerAuras"), power("player"),
-               { key = "druid", label = "Druid bars", get = function() return _G.DaylightUIDruidBars end,
-                 free = function() return true end, mover = function() return ns.DruidBars.KEY end },
-               castbar("player", "playerCastbar") },
-    target = { NAME, PORTRAIT, ICONS, auras("auras"), power("target"),
-               { key = "threat", label = "Threat %", get = function(f) return f.threatHolder end,
-                 free = function(f) return f.threatTag ~= nil and f.threatTag:GetParent() == f.threatHolder end,
-                 mover = function() return ns.UF.THREAT_KEY end },
-               { key = "combo", label = "Combo points", get = function() return ns.combo and ns.combo.holder end,
-                 free = function() local d = db(); return d and d.combo and d.combo.anchor == "free" end,
-                 mover = function() return ns.Combo.KEY end },
-               castbar("target", "targetCastbarFree") },
-    focus = { NAME, PORTRAIT, ICONS, auras("focusAuras"), power("focus"), castbar("focus", "focusCastbarFree") },
-    pet = { NAME, auras("petAuras") },
-    personal = { { key = "auras", label = "Aura rows", get = function() return auraRows(ns.Personal.auras) end } },
+    player = extraTexts({ HEALTH, power("player"), PORTRAIT, NAME, HEALTH_TEXT, POWER_TEXT, LEVEL, LEADER, PVP, REST,
+        debuffs("player"), buffs("player"),
+        part("druid", "Druid bars", function(f) if not f.layerPreview then return _G.DaylightUIDruidBars end end,
+            { free = function() return true end, mover = function() return ns.DruidBars.KEY end }),
+        castbar("player", "playerCastbar") }),
+    target = extraTexts({ HEALTH, power("target"), PORTRAIT, NAME, HEALTH_TEXT, POWER_TEXT, MARKER, CREST, LEVEL, LEADER, PVP,
+        debuffs("target"), buffs("target"),
+        part("threat", "Threat %", function(f) return f.threatHolder end,
+            { free = function(f) return f.threatTag ~= nil and f.threatTag:GetParent() == f.threatHolder end,
+              mover = function() return ns.UF.THREAT_KEY end }),
+        part("combo", "Combo points", function(f) if not f.layerPreview then return ns.combo and ns.combo.holder end end,
+            { free = function() local d = db(); return d and d.combo and d.combo.anchor == "free" end,
+              mover = function() return ns.Combo.KEY end }),
+        castbar("target", "targetCastbarFree") }),
+    focus = extraTexts({ HEALTH, power("focus"), PORTRAIT, NAME, HEALTH_TEXT, POWER_TEXT, MARKER, LEVEL, LEADER, PVP,
+        debuffs("focus"), buffs("focus"), castbar("focus", "focusCastbarFree") }),
+    pet = extraTexts({ HEALTH, power("pet"), NAME, HEALTH_TEXT, POWER_TEXT, debuffs("pet"), buffs("pet"),
+        part("happiness", "Pet happiness", function(f) return f.happiness end) }),
+    personal = { debuffs("personal"), buffs("personal") },
 }
 
 local function list(v)
     if type(v) ~= "table" then return {} end
-    if v.GetFrameLevel then return { v } end
-    return v
+    if v.GetObjectType then return { v } end
+    local out = {}
+    for _, x in pairs(v) do if type(x) == "table" and x.GetObjectType then out[#out + 1] = x end end
+    return out
+end
+
+local function isRegion(part, f)
+    if part.regionIf then return part.regionIf(f) end
+    return part.region == true
+end
+
+-- A texture or text given an order draws from a small frame of its own (one per
+-- part) filling the frame its own code put it in. That code may move it to
+-- another parent later; the next pass moves it back in.
+local function carrierFor(f, part, regions)
+    f.layerCarriers = f.layerCarriers or {}
+    local c = f.layerCarriers[part.key]
+    local home = regions[1]:GetParent()
+    if c and home == c then home = c.home end
+    if not c then
+        c = CreateFrame("Frame", nil, home)
+        f.layerCarriers[part.key] = c
+    end
+    if c.home ~= home then
+        c:SetParent(home)
+        c:ClearAllPoints()
+        c:SetAllPoints(home)
+        c.home = home
+    end
+    c:Show()
+    for _, r in ipairs(regions) do
+        if r:GetParent() ~= c then r:SetParent(c) end
+    end
+    return c
+end
+
+local function dropCarrier(f, part, regions)
+    local c = f.layerCarriers and f.layerCarriers[part.key]
+    if not c then return end
+    for _, r in ipairs(regions) do
+        if r:GetParent() == c then r:SetParent(c.home) end
+    end
+    c:Hide()
 end
 
 function Layers.Find(unit, key)
@@ -112,6 +189,7 @@ function Layers.OrderOf(unit, key)
     local f, part = frameOf(unit), Layers.Find(unit, key)
     local first = part and f and list(part.get(f))[1]
     if not first then return Layers.MIN end
+    if not first.GetFrameLevel then first = first:GetParent() end
     local home = first.layerHome or first:GetFrameLevel()
     return math.max(Layers.MIN, math.min(Layers.MAX, home - f:GetFrameLevel()))
 end
@@ -133,34 +211,51 @@ local function restore(frame)
     frame.layerHome = nil
 end
 
--- Applies every saved Order and Layer. Runs at the end of each refresh, after
--- the frames' own code has placed their parts. Protected parents: out of combat.
-function Layers.Apply()
-    for unit, parts in pairs(Layers.PARTS) do
-        local f = frameOf(unit)
-        if f then
-            for _, part in ipairs(parts) do
-                local s = Layers.Saved(unit, part.key)
-                local order = s and tonumber(s.order)
-                local lead = not order and part.follows and Layers.Saved(unit, part.follows)
-                local leadFrame = lead and tonumber(lead.order) and list(Layers.Find(unit, part.follows).get(f))[1]
-                for _, frame in ipairs(list(part.get(f))) do
-                    if order then
-                        setLevel(frame, f:GetFrameLevel() + math.max(Layers.MIN, math.min(Layers.MAX, order)))
-                    elseif leadFrame then
-                        setLevel(frame, leadFrame:GetFrameLevel() + part.over)
-                    else
-                        restore(frame)
-                    end
-                    local layer = s and s.layer
-                    if part.free and not part.ownLayer and part.free(f) and type(layer) == "string" and layer ~= "FRAME"
-                        and ns.STRATA_LABELS[layer] then
-                        frame:SetFrameStrata(layer)
-                    end
+-- Applies a frame's saved Orders and Layers: a live frame, or an options
+-- preview (f.layerPreview) of the same unit. Runs after the frame's own code has
+-- placed its parts. Protected parents: out of combat.
+function Layers.ApplyTo(f, unit)
+    local parts = Layers.PARTS[unit]
+    if not (f and parts) then return end
+    local base = f:GetFrameLevel()
+    -- A moved portrait takes its icons with it.
+    local portrait = Layers.Saved(unit, "portrait")
+    local portraitFrame = portrait and tonumber(portrait.order) and list(PORTRAIT.get(f))[1]
+    if f.status then
+        if portraitFrame then setLevel(f.status, portraitFrame:GetFrameLevel() + 6) else restore(f.status) end
+    end
+    for _, part in ipairs(parts) do
+        local s = Layers.Saved(unit, part.key)
+        local order = s and tonumber(s.order)
+        local found = list(part.get(f))
+        if #found > 0 then
+            local frames = found
+            if isRegion(part, f) then
+                if order then
+                    frames = { carrierFor(f, part, found) }
+                else
+                    dropCarrier(f, part, found)
+                    frames = {}
+                end
+            end
+            for _, frame in ipairs(frames) do
+                if order then
+                    setLevel(frame, base + math.max(Layers.MIN, math.min(Layers.MAX, order)))
+                else
+                    restore(frame)
+                end
+                local layer = s and s.layer
+                if not f.layerPreview and part.free and not part.ownLayer and part.free(f) and type(layer) == "string"
+                    and layer ~= "FRAME" and ns.STRATA_LABELS[layer] then
+                    frame:SetFrameStrata(layer)
                 end
             end
         end
     end
+end
+
+function Layers.Apply()
+    for unit in pairs(Layers.PARTS) do Layers.ApplyTo(frameOf(unit), unit) end
 end
 
 -- Saves a part's Order and Layer and redraws. nil clears one.
