@@ -91,6 +91,13 @@ function Layers.Find(unit, key)
     end
 end
 
+-- Whether no part of a frame has a saved order or layer.
+function Layers.Untouched(unit)
+    local d = db()
+    local p = d and d[unit] and d[unit].parts
+    return type(p) ~= "table" or next(p) == nil
+end
+
 -- The saved choice for a part, or nil.
 function Layers.Saved(unit, key)
     local d = db()
@@ -212,10 +219,19 @@ function Layers.Step(unit, key, others, up)
     return order, layer
 end
 
--- The settings rows for one frame's page: an Order slider per part, and a
--- Layer pick for each part that can stand on its own.
+-- Puts every part of a frame (or one part) back on its own code's level and layer.
+function Layers.Reset(unit, key)
+    DUI:Set("UnitFrames", unit .. ".parts" .. (key and ("." .. key) or ""), nil)
+end
+
+-- The settings rows for one frame's page: a reset, an Order slider per part,
+-- and a Layer pick for each part that can stand on its own.
 function Layers.Rows(unit, off)
-    local rows = {}
+    local rows = {
+        { type = "button", label = "Reset layers", func = function() Layers.Reset(unit) end,
+          desc = "Puts every part of this frame back where it drew before you changed its order or layer.",
+          disabled = function(get) return (off and off(get)) or Layers.Untouched(unit) end },
+    }
     for _, part in ipairs(Layers.PARTS[unit] or {}) do
         local key = part.key
         local f = frameOf(unit)
@@ -249,6 +265,7 @@ function Layers.MoverHook(unit, key)
             Layers.Set(unit, key, order, layer or false)
             return true
         end,
+        reset = function() Layers.Reset(unit, key) end,
     }
 end
 

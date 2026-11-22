@@ -1314,6 +1314,14 @@ local function buildEditor()
     -- Draw order: Bring forward and Send back, a row each.
     editor.forward = W.Button(editor, L["Bring forward"], R)
     editor.back = W.Button(editor, L["Send back"], R)
+    editor.layerReset = W.Button(editor, L["Reset layer"], R)
+    editor.layerReset:SetScript("OnClick", function()
+        local e = editor.key and entries[editor.key]
+        if e and e.layer and e.layer.reset and not InCombatLockdown() then
+            e.layer.reset()
+            if DUI.Sound then DUI.Sound.Play("toggle") end
+        end
+    end)
     for _, pair in ipairs({ { editor.forward, true }, { editor.back, false } }) do
         pair[1]:SetScript("OnClick", function()
             if editor.key then Movers.StepLayer(editor.key, pair[2]) end
@@ -1389,12 +1397,13 @@ function Movers.OpenEditor(key)
     local layered = e.layer ~= nil
     editor.forward:SetShown(layered)
     editor.back:SetShown(layered)
+    editor.layerReset:SetShown(layered)
     local below = #Movers.Overlapping(key)
     editor.under:SetShown(below > 0)
     if below > 0 then editor.under.SetLabel(string.format(L["Frames under this (%d)"], below)) end
     -- From the bottom up: Done, Options, Anchor, Group, Lock, Under, however many there are.
     local G, under, rows = Movers.EDITOR_GAP, hasOptions and editor.options or editor.close, 0
-    for _, b in ipairs({ corner and editor.corner or false, editor.group, editor.lock, layered and editor.back or false,
+    for _, b in ipairs({ corner and editor.corner or false, editor.group, editor.lock, layered and editor.layerReset or false, layered and editor.back or false,
                          layered and editor.forward or false,
                          below > 0 and editor.under or false }) do
         if b then

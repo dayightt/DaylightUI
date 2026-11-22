@@ -101,3 +101,28 @@ T.test("layers: each covered frame's page has a Layers card that validates", fun
         T.eq(#DUI.Options.ValidatePage(page), 0, id)
     end
 end)
+
+T.test("layers: Reset layers puts every part back", function()
+    local _, ns, f = freeTarget()
+    local was = f.freePower:GetFrameLevel()
+    T.truthy(ns.Layers.Untouched("target"))
+    set("target.parts.power.order", 25)
+    set("target.parts.power.layer", "HIGH")
+    T.falsy(ns.Layers.Untouched("target"))
+    ns.Layers.Reset("target")
+    stub.RunTimers()
+    T.eq(f.freePower:GetFrameLevel(), was)
+    T.eq(f.freePower:GetFrameStrata(), f:GetFrameStrata())
+    T.truthy(ns.Layers.Untouched("target"))
+end)
+
+T.test("layers: the target page has a Layers tab", function()
+    local DUI = login()
+    local P = DUI.OptionsPanel
+    P.Show("UnitFrames.target")
+    local tabs = P.PageFrame().tabs
+    T.eq(tabs[#tabs], "Layers")
+    P.Show("UnitFrames.party")
+    tabs = P.PageFrame().tabs
+    T.truthy(tabs[#tabs] ~= "Layers", "not on party")
+end)
