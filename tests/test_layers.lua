@@ -77,6 +77,17 @@ T.test("layers: Bring forward and Send back step past what a part overlaps", fun
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("layers: stepping past aura rows doesn't look inside the game's containers", function()
+    local _, ns, f = freeTarget()
+    local rows = ns.auras.debuffs
+    local btn = CreateFrame("Button", nil, rows)
+    btn:SetFrameLevel(rows:GetFrameLevel() + 40)
+    btn.__shown = stub.Secret(true)
+    T.eq(ns.Layers.TopOf(rows), rows:GetFrameLevel(), "the container's own level")
+    ns.Layers.Step("target", "power", { rows, f.portraitHolder }, true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("layers: each covered frame's page has a Layers card that validates", function()
     local DUI = login()
     for _, id in ipairs({ "player", "target", "focus", "pet" }) do

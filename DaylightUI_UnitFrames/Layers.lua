@@ -163,13 +163,13 @@ function Layers.Set(unit, key, order, layer)
     if layer ~= false then DUI:Set("UnitFrames", path .. ".layer", layer) end
 end
 
--- The frame level and strata rank a frame really draws at: its own, or the
--- highest frame inside it.
+-- The highest frame level a frame draws at: its own, or the highest frame
+-- inside it, shown or not. The game's aura containers aren't looked into:
+-- their buttons answer with secret values.
 local function topOf(frame)
     local top = frame:GetFrameLevel()
-    for _, c in ipairs({ frame:GetChildren() }) do
-        if c:IsShown() then top = math.max(top, topOf(c)) end
-    end
+    if frame.GetObjectType and frame:GetObjectType() == "AuraContainer" then return top end
+    for _, c in ipairs({ frame:GetChildren() }) do top = math.max(top, topOf(c)) end
     return top
 end
 Layers.TopOf = topOf

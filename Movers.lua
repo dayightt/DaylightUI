@@ -1311,15 +1311,9 @@ local function buildEditor()
         GameTooltip:Show()
     end)
     editor.lock.switch:HookScript("OnLeave", W.HideTooltip)
-    -- Draw order: two half-width buttons on one row.
-    editor.layer = CreateFrame("Frame", nil, editor)
-    editor.layer:SetHeight(R)
-    editor.forward = W.Button(editor.layer, L["Bring forward"], R)
-    editor.back = W.Button(editor.layer, L["Send back"], R)
-    editor.back:SetPoint("TOPLEFT", editor.layer, "TOPLEFT", 0, 0)
-    editor.back:SetPoint("BOTTOMRIGHT", editor.layer, "BOTTOM", -G / 2, 0)
-    editor.forward:SetPoint("TOPLEFT", editor.layer, "TOP", G / 2, 0)
-    editor.forward:SetPoint("BOTTOMRIGHT", editor.layer, "BOTTOMRIGHT", 0, 0)
+    -- Draw order: Bring forward and Send back, a row each.
+    editor.forward = W.Button(editor, L["Bring forward"], R)
+    editor.back = W.Button(editor, L["Send back"], R)
     for _, pair in ipairs({ { editor.forward, true }, { editor.back, false } }) do
         pair[1]:SetScript("OnClick", function()
             if editor.key then Movers.StepLayer(editor.key, pair[2]) end
@@ -1393,13 +1387,15 @@ function Movers.OpenEditor(key)
     editor.options:SetShown(hasOptions)
     editor.corner:SetShown(corner)
     local layered = e.layer ~= nil
-    editor.layer:SetShown(layered)
+    editor.forward:SetShown(layered)
+    editor.back:SetShown(layered)
     local below = #Movers.Overlapping(key)
     editor.under:SetShown(below > 0)
     if below > 0 then editor.under.SetLabel(string.format(L["Frames under this (%d)"], below)) end
     -- From the bottom up: Done, Options, Anchor, Group, Lock, Under, however many there are.
     local G, under, rows = Movers.EDITOR_GAP, hasOptions and editor.options or editor.close, 0
-    for _, b in ipairs({ corner and editor.corner or false, editor.group, editor.lock, layered and editor.layer or false,
+    for _, b in ipairs({ corner and editor.corner or false, editor.group, editor.lock, layered and editor.back or false,
+                         layered and editor.forward or false,
                          below > 0 and editor.under or false }) do
         if b then
             b:ClearAllPoints()
