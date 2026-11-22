@@ -26,6 +26,7 @@ DUI.PatchNotes = {
         { "Tooltip", "Questie's drop chances show again on mobs for quests the game already lists" },
         { "Languages", "Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel" },
     }, changed = {
+        { "Profiles", "A profile made on another screen, ultrawide, 16:10 or a higher resolution, now fits yours: frames keep their size for the screen and their place near the edges" },
         { "Loot rolls", "After you pick, your roll card shrinks while the others roll. Hover it to see the whole group" },
         { "Tooltip", "An item's sell price is now labeled Vendor" },
         { "Tooltip", "Elites and rares stand out at a glance: a gold or silver glow on their portrait, a + or R after their level, and their tag comes first" },
