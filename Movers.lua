@@ -82,13 +82,6 @@ function Movers.Labels()
     for _, key in ipairs(order) do out[#out + 1] = entries[key].label end
     return out
 end
-
--- A copy, in registration order.
-function Movers.Keys()
-    local keys = {}
-    for index, key in ipairs(order) do keys[index] = key end
-    return keys
-end
 function Movers.Handle(key) return handles[key] end
 
 -- Room along the screen's bottom edge. A bar along it (the data bar) reports
