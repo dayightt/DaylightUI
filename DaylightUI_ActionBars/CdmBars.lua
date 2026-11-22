@@ -160,6 +160,18 @@ local function whole(f)
     if f.lines then for _, t in ipairs(f.lines) do t:Hide() end end
 end
 
+-- A wand shot puts every spell on a cooldown as long as the wand's speed, and the
+-- game doesn't flag it as the global one, so every bar filled on every shot. In a
+-- fight its times are secret, so the effects' word (what it knew before the shot,
+-- or a cast of this spell since) decides there.
+local function shotLockout(f, info)
+    local Ping, Fx = ns.Ping, ns.CdmEffects
+    if not Ping then return false end
+    if Ping.IsShotCooldown(info) then return true end
+    if Ping.ShotBlind(info) and Fx and Fx.OnCooldown then return Fx.OnCooldown(f) ~= true end
+    return false
+end
+
 -- Drives the bar from the spell's cooldown, or with charges the next charge's
 -- recharge. The client fills it; it stays full while ready. The global cooldown is
 -- ignored (isOnGCD and isActive are never secret). With charge lines on (the
@@ -204,6 +216,7 @@ function B.UpdateCooldown(f)
         if cd then ok, info = pcall(cd, sid) end
         if ok and type(info) == "table" then
             active = plainBool(info.isActive) == true and plainBool(info.isOnGCD) ~= true
+                and not shotLockout(f, info)
         end
         local get = active and spellAPI("GetSpellCooldownDuration")
         if get then

@@ -1338,6 +1338,68 @@ T.test("cdm effects: our own icons and cooldown bars follow On cooldown, While r
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A priest wanding: every shot puts every spell on a cooldown the length of the
+-- wand's speed, not flagged as the global one. Each cooldown hidden while ready
+-- came up on every shot, the bars filling with the shot's lockout.
+for _, fight in ipairs({ false, true }) do
+T.test("cdm effects: a wand shot doesn't bring up our icons and cooldown bars (" .. (fight and "in a fight" or "out of one") .. ")", function()
+    local DUI, AB, set, w = barsWorld()
+    local D, R = AB.CdmData, AB.CdmRows
+    withCategories({ [0] = { 14 } }, { [0] = { 14 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id) return { spellID = 100 + id } end
+    C_Spell.IsAutoRepeatSpell = function(id) return id == 5019 end
+    _G.UnitRangedDamage = function() return 1.5 end
+    D.AddPiece(set, 14, "icon", 0, 0)
+    D.AddPiece(set, 11, "bar", 0, -48)
+    set.pieces[14].onReady = "hide"
+    set.pieces[11].onReady = "hide"
+    w.cds[114] = { duration = 0, isActive = false }
+    w.cds[111] = { duration = 0, isActive = false }
+    stub.Advance(10)
+    R.Refresh(); stub.RunTimers(); eased(DUI)
+    local own, bar = AB.CdmOwn.Frame(14), AB.CdmBars.CooldownFrame(11)
+    T.eq(own:GetAlpha(), 0, "icon ready: hidden")
+    T.eq(bar:GetAlpha(), 0, "bar ready: hidden")
+    if fight then
+        stub.combat = true
+        stub.FireEvent("PLAYER_REGEN_DISABLED"); stub.RunTimers()
+    end
+    local function value(v) return fight and stub.Secret(v) or v end
+    for shot = 1, 3 do
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "shot" .. shot, 5019)
+        local lock = { startTime = value(GetTime()), duration = value(1.5), isActive = true }
+        w.cds[114], w.cds[111] = lock, lock
+        w.durs[114], w.durs[111] = stub.Duration(value(1.5)), stub.Duration(value(1.5))
+        bar.Bar.__timer = nil
+        stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers(); eased(DUI)
+        T.eq(own:GetAlpha(), 0, "shot " .. shot .. ": the icon stays hidden")
+        T.eq(bar:GetAlpha(), 0, "shot " .. shot .. ": the bar stays hidden")
+        T.isnil(bar.Bar.__timer, "shot " .. shot .. ": the bar isn't timed by the shot")
+        T.eq(bar.Bar:GetValue(), 1, "shot " .. shot .. ": full, ready")
+        stub.Advance(1.5)
+        w.cds[114] = { duration = value(0), isActive = false }
+        w.cds[111] = { duration = value(0), isActive = false }
+        w.durs[114], w.durs[111] = nil, nil
+        stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers(); eased(DUI)
+    end
+    -- A real cooldown cast between shots still shows.
+    local base = _G.GetSpellBaseCooldown
+    _G.GetSpellBaseCooldown = function(sid) return sid == 111 and 8000 or 0 end
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "shot4", 5019)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 111)
+    w.cds[111] = { startTime = value(GetTime()), duration = value(8), isActive = true }
+    w.durs[111] = stub.Duration(value(8))
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers(); eased(DUI)
+    T.eq(bar:GetAlpha(), 1, "cast between shots: its real cooldown shows")
+    T.truthy(bar.Bar.__timer, "and fills the bar")
+    stub.combat = false
+    AB.Ping.lockUntil, AB.Ping.shotAt = 0, nil
+    C_Spell.IsAutoRepeatSpell, _G.UnitRangedDamage, _G.GetSpellBaseCooldown = nil, nil, base
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
 T.test("cdm effects: our own icon eases in and out of Only when usable (FAST)", function()
     local DUI, AB, set, w = barsWorld()
     local D, R = AB.CdmData, AB.CdmRows
