@@ -1562,6 +1562,27 @@ function W.TextArea(parent, opts)
     area.bg:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT", 6, -6)
     W.Tint(area.bg, C.control)
     local edit = CreateFrame("EditBox", nil, area)
+    -- opts.outline: the look of a W.Input (rounded, outline half on hover and full when
+    -- focused, text 10 px in), for a text area that sits among inputs. The area clips what
+    -- is drawn on it, and the look reaches 6 px past it, so it lives on a frame behind the
+    -- area (area.box) that follows it. The box reports the edit box's focus.
+    if opts.outline then
+        local box = CreateFrame("Frame", nil, parent)
+        area.box = box
+        box:SetPoint("TOPLEFT", area, "TOPLEFT", -6, 6)
+        box:SetPoint("BOTTOMRIGHT", area, "BOTTOMRIGHT", 6, -6)
+        box:SetFrameLevel(math.max(0, (area:GetFrameLevel() or 1) - 1))
+        function box.HasFocus() return edit:HasFocus() end
+        area.bg:Hide()
+        W.InputLook(box, area)
+        area:SetScript("OnEnter", area.Ease)
+        area:SetScript("OnLeave", area.Ease)
+        area:HookScript("OnShow", function() box:Show() end)
+        area:HookScript("OnHide", function() box:Hide(); area.Rest() end)
+        edit:SetScript("OnEditFocusGained", area.Ease)
+        edit:SetScript("OnEditFocusLost", area.Ease)
+        edit:SetTextInsets(4, 4, 0, 0)
+    end
     edit:SetMultiLine(true)
     edit:SetAutoFocus(false)
     edit:SetFont(W.BODY, SIZE.body, "")
@@ -1575,7 +1596,7 @@ function W.TextArea(parent, opts)
     end
     if opts.hint then
         area.hint = W.Font(area, W.BODY, SIZE.body, C.faint, "LEFT")
-        area.hint:SetPoint("TOPLEFT", area, "TOPLEFT", 0, 0)
+        area.hint:SetPoint("TOPLEFT", area, "TOPLEFT", opts.outline and 4 or 0, 0)
         area.hint:SetText(opts.hint)
         edit:SetScript("OnTextChanged", changed)
     end

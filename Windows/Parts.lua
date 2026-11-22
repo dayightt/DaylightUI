@@ -134,6 +134,9 @@ end
 -- The width the window is resizing toward. Fills run before the resize
 -- finishes, and using the current width laid pages out too narrow.
 function Stack:Width()
+    -- A page that watches its own size (OnSizeChanged) says the width it was given, which
+    -- is truer than a scroll frame the client has not laid out yet.
+    if self.wide and self.wide > 0 then return self.wide end
     local w = self.scroll:GetWidth()
     if type(w) ~= "number" or w <= 0 then
         local pw = self.page:GetWidth()
