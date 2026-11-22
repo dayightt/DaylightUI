@@ -1013,6 +1013,14 @@ function ns.Build(mod)
         end
         ns.PartyTargets.RegisterFade()
         ns.auras = Auras.Create(ns.frames.target, "left", nil, mod.db.targetAuras)
+        -- Parts that fade with the target without being its pieces: its aura
+        -- rows (the game's containers don't pass alpha on) and its cast bar.
+        local kids = {}
+        for _, part in ipairs({ ns.auras and ns.auras.debuffs or false, ns.auras and ns.auras.buffs or false,
+                                  ns.targetCastbar or false, ns.targetCastbarFree or false }) do
+            if part then part.fadeOf = ns.frames.target; kids[#kids + 1] = part end
+        end
+        ns.frames.target.fadeKids = kids
         ns.combo = ns.Combo.Create(ns.frames.target)
         if ns.combo then
             -- Its row on its own, when used (fades with the target frame).

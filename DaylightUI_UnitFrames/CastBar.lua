@@ -484,6 +484,7 @@ function CB.Layout(h, cfg, parentCfg)
         if hang then s = h.under:GetFrameStrata()
         elseif middle then s = pf:GetFrameStrata()
         elseif at == "personal" and ns.Personal.frame then s = ns.Personal.frame:GetFrameStrata()
+        elseif cfg.strata == "FRAME" and ns.frames and ns.frames[h.unit] then s = ns.frames[h.unit]:GetFrameStrata()
         elseif type(cfg.strata) == "string" then s = ns.StrataOf(cfg) end
         if s then h:SetFrameStrata(s) end
     end

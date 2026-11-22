@@ -396,6 +396,49 @@ T.test("a picked range spell fades an enemy target out of its reach", function()
     T.eq(stub.Plain(f:GetAlpha()), 1, "a pick this character doesn't know does nothing")
 end)
 
+T.test("the target's free pieces, aura rows and cast bar dim out of range with it", function()
+    local DUI, ns = login()
+    local f = ns.frames.target
+    DUI:Set("UnitFrames", "target.powerAt", "free")
+    DUI:Set("UnitFrames", "target.portraitAt", "free")
+    stub.RunTimers()
+    stub.units.player = { name = "Me", isPlayer = true, class = "MAGE", friend = true }
+    stub.units.target = { name = "Boar", friend = false, spellRange = false }
+    stub.knownSpells[116] = true
+    DUI:Set("UnitFrames", "range.spell", "116")
+    stub.Advance(3)
+    DUI.Fade.Step()
+    for _ = 1, 120 do stub.RunOnUpdate(DUI.Fade.driver, 1 / 60) end
+    ns.UF.UpdateRange(f)
+    T.eq(stub.Plain(f:GetAlpha()), 0.45, "the frame")
+    local parts = { power = f.pieces[2], portrait = f.portraitHolder, debuffs = ns.auras.debuffs,
+                    buffs = ns.auras.buffs, castbar = ns.targetCastbarFree }
+    for what, part in pairs(parts) do
+        T.truthy(part, what .. " exists")
+        T.eq(stub.Plain(part:GetAlpha()), 0.45, what .. " dims with it")
+    end
+    T.eq(stub.Plain(ns.targetCastbar:GetAlpha()), 1, "the bar inside the frame takes the frame's own dim")
+    stub.units.target.spellRange = true
+    ns.UF.UpdateRange(f)
+    for what, part in pairs(parts) do T.eq(stub.Plain(part:GetAlpha()), 1, what .. " back in reach") end
+    stub.units.target.spellRange = stub.Secret(false)
+    ns.UF.UpdateRange(f)
+    T.eq(parts.power.__alphaFromBoolean and parts.power.__alphaFromBoolean[3], 0.45, "a secret answer goes to each piece's setter")
+    stub.knownSpells[116] = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("the target's cast bar draws with the target by default, or in its own pick", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "target.strata", "HIGH")
+    DUI:Set("UnitFrames", "targetCastbar.at", "free")
+    stub.RunTimers()
+    T.eq(ns.targetCastbarFree:GetFrameStrata(), "HIGH", "same as the target")
+    DUI:Set("UnitFrames", "targetCastbar.strata", "LOW")
+    stub.RunTimers()
+    T.eq(ns.targetCastbarFree:GetFrameStrata(), "LOW", "its own pick")
+end)
+
 T.test("a healer's range follows their heal, not the game's fixed check", function()
     local DUI, ns = login()
     local f = ns.frames.target
