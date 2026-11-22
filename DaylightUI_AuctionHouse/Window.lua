@@ -39,8 +39,8 @@ Main.TABS = {
     { id = "sell", text = L["Sell"] },
     { id = "auctions", text = L["My auctions"] },
 }
-Main.MONEY_STRIP = 22       -- a strip along the bottom edge holding your gold
-Main.MONEY_RIGHT = 22       -- clear of the resize grip in the corner
+Main.MONEY_X = -6           -- lines up with the X's icon, not its wider click box
+Main.MONEY_Y = 1            -- up from the X's bottom onto the sub line's row
 Main.AGE_TICK = 60          -- seconds between repaints of the sub line's age while open
 Main.SEP = "  \194\183  "   -- "  ·  " between the sub line's parts
 Main.LINK_BUSY = 0.35       -- the Full scan link while a scan runs
@@ -121,7 +121,7 @@ function Main.Header()
 end
 
 
--- Your gold in the bottom right corner, as the game's window shows it.
+-- Your gold on the header's second line, under the X.
 -- A change counts to the new amount.
 local moneyKey = {}
 function Main.PaintMoney(instant)
@@ -528,10 +528,9 @@ function Main.Build(mod)
     link:Hide()
     Main.scanLink = link
     f.money = Style.Text(f, Style.SIZE.small, "RIGHT")
-    -- Your gold sits in its own strip in the bottom right corner, out of the way of the tabs
-    -- and of each page's footer buttons.
-    f.host:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, Main.MONEY_STRIP)
-    f.money:SetPoint("RIGHT", f, "BOTTOMRIGHT", -Main.MONEY_RIGHT, Main.MONEY_STRIP / 2)
+    -- Your gold sits under the X, beside the sub line: the tabs fill the row above
+    -- and each page's footer buttons fill the bottom edge.
+    f.money:SetPoint("TOPRIGHT", f.close, "BOTTOMRIGHT", Main.MONEY_X, Main.MONEY_Y)
     f.money:SetWordWrap(false)
     Main.PaintMoney(true)
     if ns.ScanBand then ns.ScanBand.Build(f) end
