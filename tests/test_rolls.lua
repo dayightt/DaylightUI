@@ -699,6 +699,35 @@ T.test("rolls stack: one roll shows in full with its list", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("rolls stack: a click on the card folds or opens its list", function()
+    local S, RW = rollsLogin()
+    local St = S.RollStack
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local card = St.Cards()[1]
+    local function click() card:GetScript("OnMouseUp")(card, "LeftButton") end
+    click()
+    T.isnil(St.Open(), "nothing to open before your pick")
+    card.buttons.need:Click()
+    T.eq(St.Open(), S.RollData.drops[id], "open after your roll")
+    click()
+    T.isnil(St.Open(), "a click folds it")
+    stub.MouseEnter(card)
+    T.isnil(St.Open(), "and the mouse over it doesn't undo that")
+    click()
+    T.eq(St.Open(), S.RollData.drops[id], "another click opens it")
+    stub.MouseLeave(card)
+
+    -- Compact, a click opens a list besides the one the stack picked.
+    local ids = {}
+    for i = 1, 3 do ids[i] = RW.Drop({ name = "Item " .. i, link = "|cffa335ee|Hitem:" .. (950 + i) .. "|h[Item " .. i .. "]|h|r", players = SEVEN }) end
+    T.eq(St.Mode(), "compact")
+    local c2 = cardFor(S, ids[2])
+    c2.buttons.greed:Click()
+    c2:GetScript("OnMouseUp")(c2, "LeftButton")
+    T.truthy(c2.look.open, "opened by the click, the mouse elsewhere")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rolls stack: four drops go compact with one list open at a time", function()
     local S, RW = rollsLogin()
     local St = S.RollStack

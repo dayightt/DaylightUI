@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Nameplates", "With the Does It Die addon installed, your nameplates and target frame can show its DoT numbers" },
         { "Bags", "With the ItemTree addon installed, your bags show what it says to keep, sell or use now, selling junk never sells what it keeps, and its tooltip advice gets a tidy section" },
+        { "Loot rolls", "Click a loot roll card to fold or open its list of who picked and rolled what" },
         { "Profiles", "Importing a profile can go straight into the one you use: pick only the parts you like, such as someone's frames, and keep everything else" },
     }, fixed = {
         { "Inspect", "The inspect window has room for the bigger item icons again, so slots no longer run into each other and item names aren't cut off" },

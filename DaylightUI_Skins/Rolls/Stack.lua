@@ -104,6 +104,7 @@ local fit
 local cards = {}     -- rollID -> its card
 local spare = {}     -- cards that left, ready for the next roll
 local order = {}     -- the cards in the order Shown() gives
+local chosen = {}    -- rollID -> true/false: its list opened or folded by a click
 RollStack.brackets = {}
 
 local function now() return GetTime() end
@@ -197,6 +198,8 @@ local function listOpen(drop, mode)
     local s = RollStack.Settings()
     -- Until you've picked, a roll stays small: the list comes after your roll.
     if s.list == "off" or not (drop.mine or drop.done or drop.watch) then return false end
+    -- A click on the card has the last word, until the roll leaves.
+    if chosen[drop.rollID] ~= nil then return chosen[drop.rollID] end
     if hoverOnly(s) then return hovered(drop) end
     if mode == "full" then return true end
     return openCompact() == drop
@@ -234,7 +237,8 @@ local function cardFor(drop)
     card:SetScript("OnEnter", function() RollStack.Layout() end)
     card:SetScript("OnLeave", function() RollStack.Layout() end)
     card:SetScript("OnMouseUp", function(self, button)
-        if button == "RightButton" then RollStack.PutAway(self) end
+        if button == "RightButton" then RollStack.PutAway(self)
+        elseif button == "LeftButton" then RollStack.Toggle(self) end
     end)
     card.onHeight = function() RollStack.Place() end
     Motion.AlphaTo(card, 1, 0)
@@ -248,6 +252,7 @@ local function leave(rollID)
     local card = cards[rollID]
     if not card then return end
     cards[rollID] = nil
+    chosen[rollID] = nil
     card.leaving = true
     card.drop = nil
     local R = DUI.APIReport
@@ -258,6 +263,17 @@ local function leave(rollID)
     card:EnableMouse(false)
     Motion.AlphaTo(card, 0, Motion.NORMAL, true)
     spare[#spare + 1] = card
+end
+
+-- A click opens or folds a card's list. Before your pick there is no list yet,
+-- only your buttons, so the click does nothing then.
+function RollStack.Toggle(card)
+    local drop = card and card.drop
+    if not drop or card.leaving or RollStack.Settings().list == "off" then return end
+    if not (drop.mine or drop.watch or drop.done) then return end
+    chosen[drop.rollID] = not (card.look and card.look.open)
+    if DUI.Sound then DUI.Sound.Play("click") end
+    RollStack.Layout()
 end
 
 -- A right-click puts a card away once nothing is asked of you on it: you've
