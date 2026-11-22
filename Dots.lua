@@ -11,7 +11,9 @@
 --     while action, flag and school stay plain. A hit is matched to one of
 --     your DoTs by school and rhythm alone (onBeat), and the damage left is
 --     the description's share, or a size learned where amounts are plain.
---     Those hits (onWound) also match on size and learn the real ticks.
+--     Those hits (onWound) also match on size and learn the real ticks,
+--     kept as a factor of the description's share: a spell keeps one id at
+--     every level, so a size seen at level 10 says nothing about level 47.
 -- Everything here is a plain number. Health is never read: DotsDraw.lua hands
 -- these numbers to the client's bars next to the unit's secret health, and
 -- the bars do the comparing.
@@ -21,7 +23,7 @@ local _, DUI = ...
 local Dots = {}
 DUI.Dots = Dots
 
-local VERSION = 1 -- bumping this drops learned tick sizes that older code got wrong
+local VERSION = 2 -- bumping this drops learned tick sizes that older code got wrong
 local DEFAULT_INTERVAL = 3
 -- Seconds either side of an expected tick. On Forever the first tick lands
 -- within about 0.1 s of one interval after the cast, later ones within about
@@ -74,7 +76,94 @@ Dots.LOCALES = {
         lasts = "[Dd]ure (%d+%.?%d*) sec",
         awards = "gagnez (%d+) points? de combo",
     },
+    -- Spanish puts the school after the damage: "causando 40 p. de daño de
+    -- las Sombras durante 12 s.", "15 p. de salud ... cada 3 segundo durante 30 s."
+    esES = {
+        finisher = "[Rr]emate",
+        perPoint = "(%d+) puntos?[^:%d]*:%s*(%d+)[^%d]-daño durante (%d+%.?%d*) s",
+        weapon = "[Cc]ubre un arma",
+        heal = "^Cura",
+        over = "(%d+) p%. de daño([^%d]-) durante (%d+%.?%d*) s",
+        drain = "(%d+) p%. de salud.-cada (%d+%.?%d*) s",
+        lasts = "durante (%d+%.?%d*) s",
+        awards = "[Oo]torga (%d+) p[^%s]* de combo",
+    },
+    -- Brazilian Portuguese: "causando 40 de dano de Sombra ao longo de 12 s."
+    ptBR = {
+        finisher = "Golpe final",
+        perPoint = "(%d+) pontos?[^:%d]*:%s*(%d+) de dano ao longo de (%d+%.?%d*) s",
+        weapon = "[Cc]obre a arma",
+        heal = "^Cura",
+        over = "(%d+) de dano([^%d]-) ao longo de (%d+%.?%d*) s",
+        drain = "(%d+) pontos de vida.-a cada (%d+%.?%d*) s",
+        lasts = "[Dd]ura (%d+%.?%d*) s",
+        awards = "[Cc]oncede (%d+) pontos? de combo",
+    },
+    -- German, Korean and Chinese name the duration before the damage, so
+    -- those patterns say the order of their captures (see Dots.Parse).
+    -- "verursacht 12 Sek. lang 40 Punkt(e) Schattenschaden", Rake's "39
+    -- Punkt(e) zusätzlichen Schaden im Verlauf von 9 Sek."
+    deDE = {
+        finisher = "Finishing%-Move",
+        perPoint = "(%d+) Punkte?:%s*(%d+) Schaden[^%d]-(%d+%.?%d*) Sek",
+        weapon = "[Üü]berzieht eine Waffe",
+        heal = "^Heilt",
+        over = {
+            { "(%d+%.?%d*) Sek%.[^%d]-(%d+)([^%d]-[Ss]chaden)", order = "saw" },
+            { "(%d+)([^%d]-[Ss]chaden) im Verlauf von (%d+%.?%d*) Sek" },
+        },
+        drain = { "alle (%d+%.?%d*) Sek%.%s*(%d+) Punkt%(e%) Gesundheit", order = "ea" },
+        lasts = "Hält (%d+%.?%d*) Sek%. lang an",
+        awards = "Gewährt (%d+) Combopunkt",
+    },
+    -- "40 ед. урона от темной магии за 12 сек.", "12 дополнительного урона от
+    -- тайной магии в течение 9 сек.", Curse of Agony's "в течение 24 сек. ...
+    -- Общая величина урона - 84."
+    ruRU = {
+        finisher = "Завершающий прием",
+        perPoint = "(%d+) прием[^:%d]*:%s*(%d+) ед%. урона за (%d+%.?%d*) сек",
+        weapon = "Смазать оружие",
+        heal = "^Излечение",
+        over = {
+            { "(%d+) ед%.([^%d]-) за (%d+%.?%d*) сек" },
+            { "(%d+)([^%d]-урона[^%d]-) в течение (%d+%.?%d*) сек" },
+            { "(%d+)( здоровья) за (%d+%.?%d*) сек" },
+            { "в течение (%d+%.?%d*) сек%.[^%d]-урона %- (%d+)", order = "sa" },
+        },
+        drain = "(%d+) ед%. здоровья.-раз в (%d+%.?%d*) сек",
+        lasts = "Время действия[^%d]*(%d+%.?%d*) сек",
+        awards = "Длина серии приемов увеличивается на (%d+)",
+    },
+    -- "在12秒内造成累计40点伤害" (Corruption names no school here: the spell's
+    -- own school comes from SCHOOL_BY_NAME). Rip and Rupture list their
+    -- points two ways: "1点：12秒内42点伤害", "1点：40伤害，持续8秒".
+    zhCN = {
+        finisher = "终结技",
+        perPoint = {
+            { "(%d+)点：(%d+%.?%d*)秒内(%d+)点伤害", order = "psa" },
+            { "(%d+)点：(%d+)伤害，持续(%d+%.?%d*)秒" },
+        },
+        weapon = "武器浸毒",
+        heal = "^治疗",
+        over = { "在(%d+%.?%d*)秒内[^%d]-(%d+)点([^%d]-)伤害", order = "saw" },
+        drain = { "每(%d+%.?%d*)秒将目标的(%d+)点生命值", order = "ea" },
+        lasts = "持续(%d+%.?%d*)秒",
+        awards = "奖励(%d+)个连击点数",
+    },
+    -- "12초에 걸쳐 총 40의 암흑 피해를 입힙니다."
+    koKR = {
+        finisher = "마무리 일격",
+        perPoint = { "(%d+)[^%d:]*:%s*(%d+%.?%d*)초에 걸쳐 (%d+)의 피해", order = "psa" },
+        weapon = "독을 바릅니다",
+        heal = "회복시킵니다",
+        over = { "(%d+%.?%d*)초에 걸쳐[^%d]-(%d+)의([^%d]-)피해", order = "saw" },
+        drain = { "매 (%d+%.?%d*)초마다 (%d+)의 생명력", order = "ea" },
+        lasts = "(%d+%.?%d*)초 동안 지속",
+        awards = "(%d+)의 연계 포인트가 주어집니다",
+    },
 }
+-- The Latin American client words its tooltips like the Spanish one.
+Dots.LOCALES.esMX = Dots.LOCALES.esES
 local ENGLISH = Dots.PATTERNS
 function Dots.UseLocale(locale)
     local own = Dots.LOCALES[locale]
@@ -87,6 +176,12 @@ Dots.SCHOOLS = {
     Frostfire = 4 + 16,       -- combined schools report as the OR of their masks
     -- French
     ["Sacré"] = 2, Feu = 4, feu = 4, Givre = 16, givre = 16, Ombre = 32, ombre = 32, Arcanes = 64,
+    -- Spanish
+    Sagrado = 2, Fuego = 4, Naturaleza = 8, Escarcha = 16, Sombras = 32, Arcano = 64,
+    -- Portuguese (Sagrado and Arcano as in Spanish)
+    Fogo = 4, Natureza = 8, Gelo = 16, Sombra = 32,
+    -- Russian: "от темной магии", "от огня", "от сил природы", "от магии льда"
+    ["светлой"] = 2, ["огня"] = 4, ["природы"] = 8, ["льда"] = 16, ["темной"] = 32, ["тайной"] = 64,
 }
 local PHYSICAL = 1
 
@@ -99,7 +194,9 @@ local INTERVALS = {
 -- to 1). Agony is back-loaded on Forever: 3,3,3,3, then 6..., then 9.
 local AGONY = { 0.5, 0.5, 0.5, 0.5, 1, 1, 1, 1, 1.5, 1.5, 1.5, 1.5 }
 local SHAPES = { ["Curse of Agony"] = AGONY, ["Bane of Agony"] = AGONY }
-local SCHOOL_BY_NAME = { ["Siphon Life"] = 32 }
+-- Spells whose description names no school in some language (Siphon Life
+-- in English, Corruption, Curse of Agony and Fireball's burn in Chinese).
+local SCHOOL_BY_NAME = { ["Siphon Life"] = 32, ["Corruption"] = 32, ["Curse of Agony"] = 32, ["Fireball"] = 4 }
 -- Read like DoTs but aren't one on the mob: areas, channels, traps and
 -- delayed damage (Wyvern Sting starts after the sleep).
 local SKIP = {
@@ -121,6 +218,7 @@ local SPELL_IDS = {
     ["Drain Mana"] = 5138, ["Health Funnel"] = 755, ["Mind Flay"] = 15407, ["Arcane Missiles"] = 5143,
     ["Starshards"] = 10797, ["Immolation Trap"] = 13795, ["Explosive Trap"] = 13813,
     ["Wyvern Sting"] = 19386, ["Serpent Sting"] = 1978, ["Pyroblast"] = 11366,
+    ["Corruption"] = 172,
 }
 
 local AVOIDS = {
@@ -149,23 +247,80 @@ end
 
 -- Reading a description
 
+-- German joins the school to the word for damage (Schattenschaden), and
+-- Chinese and Korean don't split words with spaces, so these are looked for
+-- inside the words. The game's own names for the schools are tried too.
+Dots.SCHOOL_PARTS = {
+    Heilig = 2, Feuer = 4, Natur = 8, Frost = 16, Schatten = 32, Arkan = 64,
+    ["神圣"] = 2, ["火焰"] = 4, ["自然"] = 8, ["冰霜"] = 16, ["暗影"] = 32, ["奥术"] = 64,
+    ["신성"] = 2, ["화염"] = 4, ["자연"] = 8, ["냉기"] = 16, ["암흑"] = 32, ["비전"] = 64,
+}
+local GAME_SCHOOLS = {
+    STRING_SCHOOL_HOLY = 2, STRING_SCHOOL_FIRE = 4, STRING_SCHOOL_NATURE = 8,
+    STRING_SCHOOL_FROST = 16, STRING_SCHOOL_SHADOW = 32, STRING_SCHOOL_ARCANE = 64,
+}
+local function schoolParts()
+    local parts = {}
+    for global, mask in pairs(GAME_SCHOOLS) do
+        local word = _G[global]
+        if type(word) == "string" and word ~= "" then parts[word] = mask end
+    end
+    for part, mask in pairs(Dots.SCHOOL_PARTS) do parts[part] = parts[part] or mask end
+    return parts
+end
+
 local function schoolOf(words)
-    local school = PHYSICAL
+    local school
     -- Words split on spaces and punctuation, so "d'Ombre" gives "Ombre" and an
     -- accented word stays whole. French tooltips use both apostrophes.
     words = string.gsub(words or "", "\226\128\153", "'")
     for word in string.gmatch(words, "[^%s%p%d]+") do
         if Dots.SCHOOLS[word] then school = Dots.SCHOOLS[word] end
     end
-    return school
+    if school then return school end
+    -- The last school named inside a longer word, as above.
+    local at = 0
+    for part, mask in pairs(schoolParts()) do
+        local from = string.find(words, part, 1, true)
+        if from and from > at then school, at = mask, from end
+    end
+    return school or PHYSICAL
+end
+
+-- A pattern is a string whose captures come in the English order, or
+-- { pattern, order = "saw" } for a language that puts them another way, or a
+-- list of those. Each letter of order names a capture: a the damage, w the
+-- words naming its school, s the seconds, p combo points, e seconds a tick.
+local function shapes(spec)
+    if type(spec) == "string" then return { { spec } } end
+    if type(spec[1]) == "string" then return { spec } end
+    return spec
+end
+
+-- Every match of every shape, by role, in the order they sit in the text.
+local function scan(desc, spec, order)
+    local found = {}
+    for _, shape in ipairs(shapes(spec)) do
+        local roles, from = shape.order or order, 1
+        while true do
+            local r = { string.find(desc, shape[1], from) }
+            if not r[1] then break end
+            local m = { at = r[1] }
+            for i = 1, #roles do m[string.sub(roles, i, i)] = r[i + 2] end
+            found[#found + 1] = m
+            from = r[2] + 1
+        end
+    end
+    table.sort(found, function(x, y) return x.at < y.at end)
+    return found
 end
 
 -- Finishers list their DoT per combo point; points past the list use the top one.
 local function parseFinisher(desc, points)
     local byPoints, top = {}, 0
-    for p, amount, secs in string.gmatch(desc, Dots.PATTERNS.perPoint) do
-        p = tonumber(p)
-        byPoints[p] = { total = tonumber(amount), duration = tonumber(secs) }
+    for _, m in ipairs(scan(desc, Dots.PATTERNS.perPoint, "pas")) do
+        local p = tonumber(m.p)
+        byPoints[p] = { total = tonumber(m.a), duration = tonumber(m.s) }
         if p > top then top = p end
     end
     if top == 0 then return nil end
@@ -181,15 +336,17 @@ function Dots.Parse(desc, combo)
     if string.find(desc, P.finisher) then return parseFinisher(desc, combo or 1) end
     if string.find(desc, P.weapon) or string.find(desc, P.heal) then return nil end
     -- The last "... damage over N sec", so Immolate's periodic part, not its hit.
-    local total, school, duration
-    for amount, words, secs in string.gmatch(desc, P.over) do
-        total, school, duration = tonumber(amount), schoolOf(words), tonumber(secs)
+    local over = scan(desc, P.over, "aws")
+    local last = over[#over]
+    if last then
+        local total, duration = tonumber(last.a), tonumber(last.s)
+        if total and duration and duration > 0 then return total, schoolOf(last.w), duration end
     end
-    if total and duration and duration > 0 then return total, school, duration end
-    local amount, words, every = string.match(desc, P.every)
+    local found = scan(desc, P.every, "aws")[1]
+    local amount, words, every = found and found.a, found and found.w, found and found.s
     if not amount then
-        amount, every = string.match(desc, P.drain)
-        words = ""
+        found = scan(desc, P.drain, "ae")[1]
+        amount, every, words = found and found.a, found and found.e, ""
     end
     local lasts = string.match(desc, P.lasts)
     if amount and every and lasts then
@@ -275,11 +432,21 @@ end
 
 -- One DoT's sums
 
+-- The description's share of one tick.
+local function share(dot) return dot.total / dot.totalTicks end
+
+-- The learned size for this cast: the saved factor times today's share, since
+-- the description grows with level and spell power. nil if none is saved.
+local function learned(dot)
+    local factor = dot.tickKey and saved()[dot.tickKey]
+    if type(factor) == "number" then return share(dot) * factor end
+end
+
 -- Best known average tick: the ones seen (crits excluded), else the learned
 -- size, else the description's share.
 local function expected(dot)
     if dot.normalTicks > 0 then return dot.tickSum / dot.normalTicks end
-    return (dot.tickKey and saved()[dot.tickKey]) or (dot.total / dot.totalTicks)
+    return learned(dot) or share(dot)
 end
 
 local function tickNumberAt(dot, when)
@@ -577,11 +744,11 @@ local function plausible(dot, amount, crit, number)
     if dot.normalTicks > 0 then
         known, tolerance = dot.tickSum / dot.normalTicks, SIZE_TOLERANCE
     else
-        known, tolerance = dot.tickKey and saved()[dot.tickKey], FIRST_SIZE_TOLERANCE
+        known, tolerance = learned(dot), FIRST_SIZE_TOLERANCE
     end
     if not known then
         if dot.school ~= PHYSICAL then return true end
-        return amount <= (dot.total / dot.totalTicks) * shapeOf(dot, number) * BLEED_CEILING + 1
+        return amount <= share(dot) * shapeOf(dot, number) * BLEED_CEILING + 1
     end
     known = known * shapeOf(dot, number)
     if crit then return amount >= known * CRIT_MIN - 1 and amount <= known * CRIT_MAX + 1 end
@@ -589,10 +756,12 @@ local function plausible(dot, amount, crit, number)
 end
 
 -- Saved for the next cast only once two normal ticks agree, since a single
--- one may have been someone else's hit slipping through.
+-- one may have been someone else's hit slipping through. What's kept is the
+-- real tick next to the description's share, so it still fits after a level.
 local function learn(dot)
     if dot.tickKey and dot.normalTicks > 1 then
-        saved()[dot.tickKey] = math.floor(dot.tickSum / dot.normalTicks * 10 + 0.5) / 10
+        local factor = dot.tickSum / dot.normalTicks / share(dot)
+        saved()[dot.tickKey] = math.floor(factor * 1000 + 0.5) / 1000
     end
 end
 
@@ -621,7 +790,7 @@ local function swapSameSlot(dot, amount, crit, now)
     if dot.normalTicks > 1 then
         reference = (dot.tickSum - dot.lastTickAmount / factor) / (dot.normalTicks - 1)
     else
-        reference = dot.total / dot.totalTicks
+        reference = share(dot)
     end
     reference = reference * factor
     if math.abs(amount - reference) >= math.abs(dot.lastTickAmount - reference) then return false end

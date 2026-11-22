@@ -45,6 +45,8 @@ local function hit(amount, school, flag, unit)
 end
 
 local function tick(dt) stub.Advance(dt); stub.RunTickers() end
+-- A hit with a secret amount, as every hit on a mob is in a fight on Forever.
+local function secretHit(school) stub.FireEvent("UNIT_COMBAT", "target", "WOUND", "", stub.Secret(9), school) end
 
 T.test("dots: the description gives total, school, duration, interval", function()
     local _, Dots = world()
@@ -104,6 +106,190 @@ T.test("dots: a French client reads its own tooltips and spell names", function(
     stub.spells = SPELLS
 end)
 
+-- Spanish and Portuguese clients, worded as the classic tooltips on Wowhead
+-- (the Spanish Corruption line is also the one a player reported).
+local SPANISH = {
+    [COR] = { name = "Corrupción", desc = "Corrompe al objetivo, causando 40 p. de daño de las Sombras durante 12 s." },
+    [REND] = { name = "Desgarrar", desc = "Hiere al objetivo y lo hace sangrar con 25 p. de daño durante 15 s." },
+    [RIP] = { name = "Destripar", desc = "Remate que inflige daño en el tiempo. El daño aumenta por cada punto de combo y con el poder de ataque:\n   1 punto: 42 de daño durante 12 s.\n   3 puntos: 90 de daño durante 12 s.\n   5 puntos: 138 de daño durante 12 s." },
+    [CLAW] = { name = "Zarpa", desc = "Da un zarpazo al enemigo, causando 27 p. de daño extra. Otorga 1 p. de combo." },
+    [686] = { name = "Descarga de las Sombras", desc = "Lanza un golpe de Sombras al enemigo causándole 13 al 18 p. de daño de las Sombras." },
+    [139] = { name = "Renovar", desc = "Cura el objetivo en 45 p. de daño durante 15 s." },
+    [348] = { name = "Inmolar", desc = "Quema al enemigo, que recibe 11 p. de daño de Fuego y 20 p. de daño de Fuego más durante 15 s." },
+    [8921] = { name = "Fuegolunar", desc = "Quema al enemigo, causando 9 al 12 p. de daño Arcano y 12 p. de daño Arcano extra durante 9 s." },
+    [14914] = { name = "Fuego Sagrado", desc = "Envuelve al enemigo en llamas Sagradas que causan 84 al 104 p. de daño Sagrado y 30 p. de daño Sagrado extra durante 10 s." },
+    [1978] = { name = "Aguijón de serpiente", desc = "Aguijonea al enemigo causando 20 p. de daño de Naturaleza durante 15 s. Solo puede estar activo 1 aguijón por cazador." },
+    [2823] = { name = "Veneno mortal", desc = "Cubre un arma con veneno que dura 30 min.\nCada golpe tiene un 30% de probabilidad de envenenar al enemigo, infligiendo 36 p. de daño de Naturaleza durante 12 s." },
+    [18265] = { name = "Succionar vida", desc = "Transfiere 15 p. de salud del objetivo al taumaturgo cada 3 segundo durante 30 s." },
+    [1943] = { name = "Ruptura", desc = "Golpe de remate que causa daño durante cierto tiempo, aumentado por tu poder de ataque. El daño aumenta con cada punto de combo:\n 1 punto  : 40 p. de daño durante 8 s\n   2 puntos: 60 p. de daño durante 10 s" },
+}
+
+local PORTUGUESE = {
+    [COR] = { name = "Corrupção", desc = "Corrompe o alvo, causando 40 de dano de Sombra ao longo de 12 s." },
+    [REND] = { name = "Dilacerar", desc = "Fere o alvo, fazendo-o sangrar. O sangramento causa 25 de dano ao longo de 15 s." },
+    [RIP] = { name = "Rasgar", desc = "Golpe final que causa dano ao longo do tempo. O dano aumenta a cada ponto de combo e de acordo com o seu Poder de Ataque:\n   1 ponto: 42 de dano ao longo de 12 s.\n   3 pontos: 90 de dano ao longo de 12 s." },
+    [CLAW] = { name = "Garra", desc = "Ataca o inimigo com as garras, causando mais 27 de dano. Concede 1 ponto de combo." },
+    [139] = { name = "Renovar", desc = "Cura 45 pontos de vida do alvo ao longo de 15 s." },
+    [8921] = { name = "Fogo Lunar", desc = "Queima o inimigo causando 9 para 12 de dano Arcano e mais 12 de dano Arcano ao longo de 9 s." },
+    [348] = { name = "Imolação", desc = "Queima o inimigo, causando 11 de dano de Fogo e mais 20 de dano de Fogo ao longo de 15 s." },
+    [2823] = { name = "Veneno Mortal", desc = "Cobre a arma com um veneno que dura 30 minutos.\nCada acerto tem 30% de chance de envenenar o inimigo, causando 36 de dano de Natureza ao longo de 12 s." },
+    [18265] = { name = "Sifão de Vida", desc = "Transfere 15 pontos de vida do alvo para o lançador a cada 3 s. Dura 30 s." },
+}
+
+-- corruptionSchool: what the description alone says (Chinese names none; the
+-- cast still gets Shadow from the spell itself).
+local function readsItsOwn(locale, spells, corruptionSchool)
+    local _, Dots = world()
+    stub.spells = spells
+    Dots.UseLocale(locale)
+    local total, school, dur = Dots.Parse(spells[COR].desc)
+    T.eq(total, 40, locale); T.eq(school, corruptionSchool or SHADOW, locale); T.eq(dur, 12, locale)
+    total, school, dur = Dots.Parse(spells[REND].desc)
+    T.eq(total, 25, locale); T.eq(school, PHYSICAL, "a bleed is physical"); T.eq(dur, 15, locale)
+    T.eq((Dots.Parse(spells[RIP].desc, 3)), 90, "a finisher by combo points")
+    T.isnil(Dots.Parse(spells[139].desc), "a heal over time is no DoT")
+    T.isnil(Dots.Parse(spells[2823].desc), "a poison on the weapon is no DoT")
+    T.eq((Dots.Parse(spells[8921].desc)), 12, "the periodic part, not the hit")
+    T.eq(select(2, Dots.Parse(spells[8921].desc)), 64, "Arcane")
+    T.eq((Dots.Parse(spells[348].desc)), 20)
+    T.eq(select(2, Dots.Parse(spells[348].desc)), 4, "Fire")
+    T.eq((Dots.Parse(spells[18265].desc)), 150, "a drain by its ticks")
+    cast(COR)
+    T.eq(Dots.Left("target"), 40, "the cast shows")
+    tick(3); hit(10, SHADOW)
+    T.eq(Dots.Left("target"), 30, "a Shadow tick takes its share off")
+    Dots.Forget()
+    cast(CLAW)
+    cast(RIP)
+    T.eq(Dots.Left("target"), 42, "the builder gave a point, the finisher spends it")
+    Dots.UseLocale("enUS")
+    stub.spells = SPELLS
+end
+
+T.test("dots: a Spanish client reads its own tooltips", function()
+    readsItsOwn("esES", SPANISH)
+    readsItsOwn("esMX", SPANISH)
+    local _, Dots = world()
+    Dots.UseLocale("esES")
+    T.isnil(Dots.Parse(SPANISH[686].desc), "a direct hit is no DoT")
+    T.eq(select(2, Dots.Parse(SPANISH[14914].desc)), 2, "Holy")
+    T.eq(select(2, Dots.Parse(SPANISH[1978].desc)), 8, "Nature")
+    T.eq((Dots.Parse(SPANISH[1943].desc, 2)), 60, "Rupture's own wording")
+    T.eq((Dots.Parse("Corrompe al objetivo, causando 324 p. de daño de las Sombras durante 18 s.")), 324)
+    Dots.UseLocale("enUS")
+end)
+
+T.test("dots: a Brazilian Portuguese client reads its own tooltips", function()
+    readsItsOwn("ptBR", PORTUGUESE)
+end)
+
+-- German, Russian, Chinese and Korean, from the same classic tooltips (Rend,
+-- Rip and Corruption's numbers set to the ones above). German, Chinese and
+-- Korean name the duration before the damage.
+local GERMAN = {
+    [COR] = { name = "Verderbnis", desc = "Verdirbt das Ziel und verursacht 12 Sek. lang 40 Punkt(e) Schattenschaden." },
+    [REND] = { name = "Verwunden", desc = "Verwundet das Ziel, lässt es 15 Sek. lang bluten und fügt damit 25 Punkt(e) Schaden zu." },
+    [RIP] = { name = "Zerfetzen", desc = "Finishing-Move, der Schaden im Lauf der Zeit verursacht. Der Schaden erhöht sich pro Combopunkt sowie durch Eure Angriffskraft:\n   1 Punkt: 42 Schaden im Verlauf von 12 Sek.\n   3 Punkte: 90 Schaden im Verlauf von 12 Sek." },
+    [CLAW] = { name = "Klaue", desc = "Den Feind mit Klauen beharken und ihm so zusätzlich 27 Punkt(e) Schaden zufügen. Gewährt 1 Combopunkt." },
+    [139] = { name = "Erneuerung", desc = "Heilt das Ziel 15 Sek. lang um 45 Schadenspunkt(e)." },
+    [2823] = { name = "Tödliches Gift", desc = "Überzieht eine Waffe mit Gift, das 30 Minuten lang wirkt.\nBei jedem Schlag besteht eine Chance von 30%, den Gegner 12 Sek. lang für 36 Punkt(e) Naturschaden zu vergiften." },
+    [8921] = { name = "Mondfeuer", desc = "Verbrennt den Feind und fügt ihm 9 bis 12 Punkt(e) Arkanschaden sowie 9 Sek. lang 12 Punkt(e) zusätzlichen Arkanschaden zu." },
+    [348] = { name = "Feuerbrand", desc = "Verbrennt den Gegner und fügt ihm 11 Feuerschaden sowie im Verlauf von 15 Sek. insgesamt 20 zusätzlichen Feuerschaden zu." },
+    [18265] = { name = "Lebensentzug", desc = "Überträgt alle 3 Sek. 15 Punkt(e) Gesundheit vom Ziel auf den Zaubernden. Hält 30 Sek. lang an." },
+    [1822] = { name = "Krallenhieb", desc = "Attackiert das Ziel mit Krallen, fügt 19 Punkt(e) Schaden sowie 39 Punkt(e) zusätzlichen Schaden im Verlauf von 9 Sek. zu. Gewährt 1 Combopunkt." },
+    [116] = { name = "Frostblitz", desc = "Schleudert einen Frostblitz auf den Gegner, der 18 bis 20 Frostschaden verursacht und 5 Sek. lang das Bewegungstempo um 40% verringert." },
+    [1943] = { name = "Blutung", desc = "Finishing-Move, der Schaden im Lauf der Zeit verursacht, erhöht durch Angriffskraft. Hält pro Combopunkt länger an:\n   1 Punkt: 40 Schaden über 8 Sekunden.\n   2 Punkte: 60 Schaden über 10 Sekunden." },
+}
+
+local RUSSIAN = {
+    [COR] = { name = "Порча", desc = "Порча цели с нанесением ей 40 ед. урона от темной магии за 12 сек." },
+    [REND] = { name = "Кровопускание", desc = "Наносит цели кровоточащую рану, из-за которой она теряет 25 ед. здоровья за 15 сек." },
+    [RIP] = { name = "Разорвать", desc = "Завершающий прием, наносящий урон в течение некоторого времени. Урон увеличивается за счет длины серии и силы атаки:\n  1 прием: 42 ед. урона за 12 сек.\n  3 приема: 90 ед. урона за 12 сек." },
+    [CLAW] = { name = "Когти", desc = "Наносит противнику дополнительно 27 ед. урона. Длина серии приемов увеличивается на 1." },
+    [139] = { name = "Обновление", desc = "Излечение цели на 45 ед. в течение 15 сек." },
+    [2823] = { name = "Смертельный яд", desc = "Смазать оружие ядом, действующим в течение 30 мин.\nКаждый удар с вероятностью 30% отравляет противника ядом, наносящим 36 ед. урона от сил природы в течение 12 сек." },
+    [8921] = { name = "Лунный огонь", desc = "Обжигает противника, нанося ему 9 в 12 ед. урона от тайной магии и 12 дополнительного урона от тайной магии в течение 9 сек." },
+    [348] = { name = "Жертвенный огонь", desc = "Наносит противнику 11 ед. урона от огня сразу и еще 20 ед. урона от огня за 15 сек." },
+    [18265] = { name = "Вытягивание жизни", desc = "Передача 15 ед. здоровья от цели к заклинателю раз в 3 сек. Время действия – 30 сек." },
+    [AGONY] = { name = "Проклятие агонии", desc = "Проклинает цель, вводит ее в состояние агонии и наносит ей в течение 24 сек. постепенно нарастающий урон. Общая величина урона - 84. Каждый чернокнижник может наложить только одно заклинание проклятия на каждую цель." },
+    [1822] = { name = "Глубокая рана", desc = "Наносит противнику глубокую рану. Противник теряет 19 и дополнительно 39 здоровья за 9 сек. в результате кровотечения. Длина серии приемов увеличивается на 1." },
+    [14914] = { name = "Священный огонь", desc = "Навлечение на противника священного пламени, которое наносит 84 в 104 ед. урона от светлой магии и дополнительно 30 ед. урона от светлой магии в течение 10 сек." },
+}
+
+local CHINESE = {
+    [COR] = { name = "腐蚀术", desc = "腐蚀目标，在12秒内造成累计40点伤害。" },
+    [REND] = { name = "撕裂", desc = "使目标的伤口不断流血，在15秒内造成累计25点伤害。" },
+    [RIP] = { name = "撕扯", desc = "终结技，使目标在一段时间内受到持续伤害。伤害将根据连击点数和攻击强度决定：\n1点：12秒内42点伤害。\n3点：12秒内90点伤害。" },
+    [CLAW] = { name = "爪击", desc = "用爪攻击敌人，对其造成27点额外伤害。奖励1个连击点数。" },
+    [139] = { name = "恢复", desc = "治疗目标，在15秒内恢复总计45点生命值。" },
+    [2823] = { name = "致命毒药", desc = "给一件武器浸毒，效果持续30分钟。\n每次攻击都有30%的几率令敌人中毒，在12秒内对其造成36点自然伤害，对单一目标最多可以叠加5次。" },
+    [8921] = { name = "月火术", desc = "灼烧敌人，对其造成9至12点伤害，并在9秒内造成额外的12点奥术伤害。" },
+    [348] = { name = "献祭", desc = "灼烧敌人，对其造成11点火焰伤害，并在15秒内造成额外的20点火焰伤害。" },
+    [18265] = { name = "生命虹吸", desc = "每3秒将目标的15点生命值转移给施法者，持续30秒。" },
+    [14914] = { name = "神圣之火", desc = "神圣的烈焰吞噬敌人，对其造成84至104点神圣伤害，并在10秒内造成30点额外的神圣伤害。" },
+    [1943] = { name = "割裂", desc = "终结技，使目标在一段时间内受到持续的伤害。根据连击点数决定持续时间，该伤害会受到攻击强度的加成影响：\n 1点：40伤害，持续8秒\n 2点：60伤害，持续10秒" },
+}
+
+local KOREAN = {
+    [COR] = { name = "부패", desc = "대상을 부패시켜 12초에 걸쳐 총 40의 암흑 피해를 입힙니다." },
+    [REND] = { name = "분쇄", desc = "적에게 깊은 상처를 입혀 출혈을 일으킵니다. 15초에 걸쳐 총 25의 피해를 입힙니다." },
+    [RIP] = { name = "도려내기", desc = "마무리 일격을 시도하여 적에게 지속적인 피해를 입힙니다. 연계 점수와 전투력에 따라 피해가 증가합니다:\n  연계 점수 1점: 12초에 걸쳐 42의 피해\n  연계 점수 3점: 12초에 걸쳐 90의 피해" },
+    [CLAW] = { name = "할퀴기", desc = "적을 발톱으로 할퀴어 27의 추가 피해를 입힙니다. 1의 연계 포인트가 주어집니다." },
+    [139] = { name = "소생", desc = "15초에 걸쳐 대상의 생명력을 총 45만큼 회복시킵니다." },
+    [2823] = { name = "맹독", desc = "무기에 30분 동안 유지되는 독을 바릅니다.\n매 공격 시 30%의 확률로 적을 중독시켜 12초에 걸쳐 36의 자연 피해를 입힙니다." },
+    [8921] = { name = "달빛 섬광", desc = "적을 불태워 9 에서 12의 비전 피해를 입히고 9초에 걸쳐 총 12의 비전 피해를 입힙니다." },
+    [348] = { name = "제물", desc = "적을 불태워 11의 화염 피해를 입히고 추가로 15초에 걸쳐 총 20의 화염 피해를 입힙니다." },
+    [18265] = { name = "생명력 착취", desc = "대상으로부터 매 3초마다 15의 생명력을 흡수합니다. 30초 동안 지속됩니다." },
+    [1943] = { name = "파열", desc = "마무리 일격을 시도하여 적에게 지속적인 피해를 입힙니다. 입히는 피해는 전투력에 따라 증가하며 연계 포인트 당 지속 시간이 달라집니다:\n  1 포인트: 8초에 걸쳐 40의 피해\n  2 포인트: 10초에 걸쳐 60의 피해" },
+}
+
+T.test("dots: a German client reads its own tooltips", function()
+    readsItsOwn("deDE", GERMAN)
+    local _, Dots = world()
+    Dots.UseLocale("deDE")
+    T.eq((Dots.Parse(GERMAN[1822].desc)), 39, "Rake's bleed, worded the other way round")
+    T.isnil(Dots.Parse(GERMAN[116].desc), "a slow after a hit is no DoT")
+    T.eq((Dots.Parse(GERMAN[1943].desc, 2)), 60, "Rupture's own wording")
+    Dots.UseLocale("enUS")
+end)
+
+T.test("dots: a Russian client reads its own tooltips", function()
+    readsItsOwn("ruRU", RUSSIAN)
+    local _, Dots = world()
+    Dots.UseLocale("ruRU")
+    T.eq((Dots.Parse(RUSSIAN[AGONY].desc)), 84, "Curse of Agony names its total last")
+    T.eq((Dots.Parse(RUSSIAN[1822].desc)), 39, "Rake's bleed")
+    T.eq(select(2, Dots.Parse(RUSSIAN[14914].desc)), 2, "Holy")
+    Dots.UseLocale("enUS")
+end)
+
+T.test("dots: a Chinese client reads its own tooltips", function()
+    readsItsOwn("zhCN", CHINESE, PHYSICAL)
+    local _, Dots = world()
+    Dots.UseLocale("zhCN")
+    T.eq(select(2, Dots.Parse(CHINESE[14914].desc)), 2, "Holy, inside the words")
+    T.eq((Dots.Parse(CHINESE[1943].desc, 2)), 60, "Rupture lists its points the other way")
+    Dots.UseLocale("enUS")
+end)
+
+T.test("dots: a Korean client reads its own tooltips", function()
+    readsItsOwn("koKR", KOREAN)
+    local _, Dots = world()
+    Dots.UseLocale("koKR")
+    T.eq((Dots.Parse(KOREAN[1943].desc, 2)), 60, "Rupture's own wording")
+    Dots.UseLocale("enUS")
+end)
+
+-- The game's own name for a school counts too, so a language with none of
+-- the hand-made words still finds it.
+T.test("dots: the game's own school names count", function()
+    local _, Dots = world()
+    local was = _G.STRING_SCHOOL_SHADOW
+    _G.STRING_SCHOOL_SHADOW = "Ombra"
+    T.eq(select(2, Dots.Parse("Causes 40 Ombra damage over 12 sec.")), SHADOW)
+    _G.STRING_SCHOOL_SHADOW = was
+end)
+
 T.test("dots: a cast shows its whole damage, each tick takes its share off", function()
     local _, Dots = world()
     T.isnil(Dots.Left("target"))
@@ -122,10 +308,29 @@ T.test("dots: real tick sizes replace the description's and are kept per charact
     T.eq(Dots.Left("target"), 42, "3 ticks left at the 14 seen")
     T.isnil(DUI.DB.Character().dots.ticks[COR], "one tick alone isn't kept: it may have been a white hit")
     tick(3); hit(14, SHADOW)
-    T.eq(DUI.DB.Character().dots.ticks[COR], 14, "two that agree are")
+    T.eq(DUI.DB.Character().dots.ticks[COR], 1.4, "two that agree are, as their size next to the description's")
     Dots.Forget()
     cast(COR)
     T.eq(Dots.Left("target"), 56, "the next cast starts from the learned 14 x 4")
+end)
+
+-- On Forever a spell keeps one id at every level, and its description grows
+-- with level and spell power. A tick size learned at level 10 must not shrink
+-- the same spell at level 47 (Shadow Word: Pain, 5 a tick then, 151 now).
+T.test("dots: a size learned at a lower level doesn't shrink the spell once it grows", function()
+    local DUI, Dots = world()
+    stub.spells[589] = { name = "Shadow Word: Pain", desc = "A word of darkness that causes 30 Shadow damage over 18 sec." }
+    cast(589)                        -- 6 ticks of 5
+    tick(3); hit(5, SHADOW)
+    tick(3); hit(5, SHADOW)
+    T.truthy(DUI.DB.Character().dots.ticks[589], "learned from two that agree")
+    Dots.Forget()
+    stub.spells[589].desc = "A word of darkness that causes 1214 Shadow damage over 24 sec."
+    cast(589)                        -- 8 ticks of about 151
+    T.eq(Dots.Left("target"), 1214, "the whole new damage shows")
+    tick(3); secretHit(SHADOW)
+    T.eq(Dots.Left("target"), 1062, "a tick in a fight takes one share off, not the rest")
+    stub.spells[589] = nil
 end)
 
 T.test("dots: a white hit off the rhythm is not a tick", function()
@@ -151,7 +356,7 @@ T.test("dots: a crit tick isn't learned as the normal size", function()
     tick(3); hit(10, SHADOW)
     tick(3); hit(19, SHADOW, "CRITICAL")
     T.eq(Dots.Left("target"), 10)
-    T.eq(DUI.DB.Character().dots.ticks[COR], 10)
+    T.eq(DUI.DB.Character().dots.ticks[COR], 1, "the description's own size")
 end)
 
 T.test("dots: a dodge right after the cast takes the DoT back", function()
