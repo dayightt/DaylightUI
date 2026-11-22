@@ -20,6 +20,19 @@ function ns.MogulVendor()
     return ok and owns == true
 end
 
+-- Addons that replace the game's gossip and quest windows with their own. With one
+-- loaded, gossip and quests are left to it (two talk windows at once otherwise), and
+-- vendors and trainers still open here. Returns the first one loaded, or nil.
+ns.TALK_ADDONS = { "Immersion", "DialogueUI" }
+function ns.TalkAddon()
+    local loaded = C_AddOns and C_AddOns.IsAddOnLoaded
+    if type(loaded) ~= "function" then return nil end
+    for _, name in ipairs(ns.TALK_ADDONS) do
+        if loaded(name) == true then return name end
+    end
+    return nil
+end
+
 DUI:RegisterModule("NPC", {
     label = "NPC window",
     order = 125,
@@ -31,6 +44,7 @@ DUI:RegisterModule("NPC", {
     OnEnable = function(mod)
         ns.module = mod
         DUI.vendorMogul = ns.MogulVendor()
+        DUI.npcTalkAddon = ns.TalkAddon()
         DUI.npcOwnWindow = mod.db.enabled ~= false
         ns.Window.InitSwap()
         if DUI.npcOwnWindow then ns.Window.Build(mod) else ns.Window.TrainerAsItself() end

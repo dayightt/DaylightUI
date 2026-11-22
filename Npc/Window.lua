@@ -1107,12 +1107,14 @@ function Npc.Build(mod)
     padSetup(f)
     padSetup(Npc.scene)
     -- Game windows this one replaces. Vendor and trainer only with their settings on (read
-    -- at login), and the vendor never while DaylightMogul's is in use (DUI.vendorMogul,
-    -- Module.lua).
+    -- at login), the vendor never while DaylightMogul's is in use (DUI.vendorMogul,
+    -- Module.lua), and gossip and quests never while another talk addon such as
+    -- Immersion has taken them (DUI.npcTalkAddon): it hides the game's windows itself.
     Npc.frames = {}
     for kind, get in pairs(Npc.FRAMES) do
         if (kind ~= "merchant" or (ns.Setting("vendor") ~= false and not DUI.vendorMogul))
-            and (kind ~= "trainer" or ns.Setting("trainer") ~= false) then
+            and (kind ~= "trainer" or ns.Setting("trainer") ~= false)
+            and not ((kind == "gossip" or kind == "quest") and DUI.npcTalkAddon) then
             Npc.frames[kind] = get
         end
     end
