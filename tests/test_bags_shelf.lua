@@ -162,3 +162,179 @@ T.test("bags: Shelf open, items only leaving still hold every slot in place", fu
     everyItemShows(ns, "sold")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Seen in game: an item taken from the mail (or traded) as the bag closed with
+-- the mailbox went to Recent, and Recent's heading (and a slot) stayed
+-- see-through: only a piece's own fade-in ever brought it back up, so no later
+-- layout did. Whatever cut that fade short, a piece a layout shows is whole
+-- unless it's fading in right now, and an opening shows everything whole.
+local function bigBag()
+    stub.Load({ bags = true, before = function()
+        setup()
+        world.sizes[2], world.sizes[3] = 36, 36
+        world.items[2], world.items[3] = {}, {}
+        for i = 1, 70 do
+            world.items[i <= 35 and 2 or 3][i <= 35 and i or i - 35] = { iconFileID = 200 + i, stackCount = 1, quality = 1,
+                hyperlink = "|Hitem:" .. (200 + i) .. "|h", itemID = 200 + i, itemName = "Thing " .. i }
+            world.class[200 + i] = i % 5
+        end
+    end })
+    stub.RunTimers()
+    DaylightUI:Set("Bags", "view", "categories")
+    stub.RunTimers()
+    local ns = stub.bags
+    OpenAllBags()
+    stub.RunTimers()
+    return ns, ns.window
+end
+
+local function drive(dt)
+    stub.Advance(dt)
+    local Motion, Feel = DaylightUI.Motion, DaylightUI.Win.Feel
+    if Motion.Driver() then stub.RunOnUpdate(Motion.Driver(), dt) end
+    if Feel.Driver() then stub.RunOnUpdate(Feel.Driver(), dt) end
+end
+
+local function recentHeading(f)
+    for _, h in ipairs(f.headings or {}) do
+        if h:IsShown() and h.key == "recent" then return h end
+    end
+end
+
+local function everythingWhole(ns, f, why)
+    for _, h in ipairs(f.headings or {}) do
+        if h:IsShown() then T.near(h:GetAlpha(), 1, 0.01, why .. ": heading " .. tostring(h.key)) end
+    end
+    for _, s in ipairs(f.set.Slots()) do
+        local b = s.button
+        if b:IsShown() then T.near(ns.Items.Fader(b):GetAlpha(), 1, 0.01, why .. ": slot " .. s.bag .. ":" .. b:GetID()) end
+    end
+end
+
+-- A fade cut short, as seen: the piece is see-through and its fade believes
+-- it's still on its way in.
+local function cutShort(ns, r)
+    local fader = ns.Items.Fader(r)
+    fader:SetAlpha(0)
+    fader.__duiAlphaKey = fader.__duiAlphaKey or {}
+    fader.__duiAlphaKey.goal = 1
+end
+
+T.test("bags: mail landing as the bag closes: every piece shows whole on the next open", function()
+    local newSlots = {}
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return newSlots[bag .. ":" .. slot] == true end }
+    local ns, f = bigBag()
+    drive(2)
+    stub.FireEvent("MAIL_SHOW")
+    stub.RunTimers()
+    drive(2)
+    world.items[1][5] = { iconFileID = 150, stackCount = 1, quality = 2, hyperlink = "|Hitem:50|h", itemID = 50, itemName = "Letter" }
+    newSlots["1:5"] = true
+    stub.FireEvent("BAG_UPDATE", 1)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    stub.FireEvent("MAIL_CLOSED")
+    CloseAllBags()
+    stub.RunTimers()
+    T.truthy(f:IsShown() and f.__duiVanishing, "the bag is fading out")
+    local h = recentHeading(f)
+    T.truthy(h, "Recent came in")
+    cutShort(ns, h)
+    cutShort(ns, ns.Bags.buttons[1][5])
+    stub.FinishFade(f)
+    T.falsy(f:IsShown(), "closed")
+    OpenAllBags()
+    stub.RunTimers()
+    everythingWhole(ns, f, "opened")
+    _G.C_NewItems = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bags: a piece left see-through shows whole after the next layout, one fading in carries on", function()
+    local newSlots = {}
+    _G.C_NewItems = { IsNewItem = function(bag, slot) return newSlots[bag .. ":" .. slot] == true end }
+    local ns, f = bigBag()
+    drive(2)
+    world.items[1][5] = { iconFileID = 150, stackCount = 1, quality = 2, hyperlink = "|Hitem:50|h", itemID = 50, itemName = "Letter" }
+    newSlots["1:5"] = true
+    stub.FireEvent("BAG_UPDATE", 1)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    drive(2)
+    local h = recentHeading(f)
+    T.truthy(h, "Recent came in")
+    cutShort(ns, h)
+    -- Loot while open: an eased layout. The stuck heading comes back; the new
+    -- item starts its own fade-in, which that layout leaves alone.
+    world.items[1][6] = { iconFileID = 151, stackCount = 1, quality = 2, hyperlink = "|Hitem:51|h", itemID = 51, itemName = "Ring" }
+    newSlots["1:6"] = true
+    stub.FireEvent("BAG_UPDATE", 1)
+    stub.FireEvent("BAG_UPDATE_DELAYED")
+    stub.RunTimers()
+    T.near(h:GetAlpha(), 1, 0.01, "the heading left see-through is whole")
+    local ring = ns.Bags.buttons[1][6]
+    T.truthy(ns.Items.Fader(ring):GetAlpha() < 1, "the new item is still fading in")
+    drive(2)
+    everythingWhole(ns, f, "settled")
+    _G.C_NewItems = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: Clean Up left gaps in the backpack and its items unsorted. The
+-- backpack was set to be skipped by clean up, and with the game's bag windows
+-- parked nothing showed it or could change it: a right-click on the bag slots
+-- strip did nothing.
+T.test("bags: a right-click on a strip bag lists the bags Clean Up skips, the backpack too", function()
+    local ns = shelf()
+    local flags, backpack = {}, false
+    C_Container.GetBackpackAutosortDisabled = function() return backpack end
+    C_Container.SetBackpackAutosortDisabled = function(on) backpack = on end
+    C_Container.GetBagSlotFlag = function(bag, flag) return flags[bag .. ":" .. flag] == true end
+    C_Container.SetBagSlotFlag = function(bag, flag, on) flags[bag .. ":" .. flag] = on end
+    _G.Enum = _G.Enum or {}
+    Enum.BagSlotFlags = Enum.BagSlotFlags or { DisableAutoSort = 1 }
+    local menu
+    local openMenu = DaylightUI.Widgets.OpenMenu
+    DaylightUI.Widgets.OpenMenu = function(owner, keys, values, current, onPick, width, opts)
+        menu = { owner = owner, keys = keys, values = values, pick = onPick, opts = opts }
+    end
+    local bag1 = ns.Slots.strip.slots[1]
+    T.eq(bag1.bag, 1)
+    bag1:GetScript("OnClick")(bag1, "RightButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.truthy(menu, "a menu opens")
+    T.deq(menu.keys, { "head", "bag0", "bag1" }, "a heading, the backpack, then each equipped bag")
+    T.truthy(menu.opts.titles.head and menu.opts.keepOpen, "a menu of switches under a heading")
+    T.falsy(menu.opts.checked("bag0"))
+    menu.pick("bag0")
+    T.truthy(backpack, "the backpack is skipped now")
+    T.truthy(menu.opts.checked("bag0"))
+    T.truthy(ns.Keep.Skipped(0))
+    menu.pick("bag1")
+    T.truthy(flags["1:1"], "a bag uses the game's own flag")
+    menu.pick("bag0")
+    T.falsy(backpack, "and back")
+    -- Its tooltip says so too (bag 1 is still skipped).
+    local lines = {}
+    local tip = GameTooltip
+    _G.GameTooltip = { Hide = function() end, SetOwner = function() end, Show = function() end,
+        SetInventoryItem = function() return false end, SetText = function(_, t) lines[#lines + 1] = t end,
+        AddLine = function(_, t) lines[#lines + 1] = t end, AddDoubleLine = function(_, t) lines[#lines + 1] = t end,
+        GetOwner = function() end, IsShown = function() return false end }
+    bag1:GetScript("OnEnter")(bag1)
+    bag1:GetScript("OnLeave")(bag1)
+    _G.GameTooltip = tip
+    local said = table.concat(lines, " / ")
+    T.truthy(said:find("Clean Up skips this bag.", 1, true), said)
+    T.truthy(said:find("Right-click", 1, true), "and where to change it")
+    -- The Clean Up button names what it skips and opens the same menu, so the
+    -- backpack is reachable with the strip hidden too.
+    T.eq(ns.Keep.SkippedText(), "Skips Bag 1.")
+    local sort = ns.window.sort
+    DaylightUI.Widgets.OpenMenu = function(owner, keys) menu = { owner = owner, keys = keys } end
+    sort:GetScript("OnClick")(sort, "RightButton")
+    DaylightUI.Widgets.OpenMenu = openMenu
+    T.eq(menu.owner, sort)
+    T.deq(menu.keys, { "head", "bag0", "bag1" })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

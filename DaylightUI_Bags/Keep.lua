@@ -61,14 +61,77 @@ function Keep.Toggle(bag, slot, itemID)
     if ns.FillAll then ns.FillAll() end
 end
 
--- The player's own "ignore this bag" from the game's bag menu.
-local function skipped(bag)
+-- The player's own "ignore this bag" for clean up, the same flag the game's bag
+-- menu sets (saved by the game). The game's sort skips such a bag whole, so its
+-- items stay where they are, gaps and all.
+function Keep.Skipped(bag)
     local C = C_Container
     if bag == 0 then
         return type(C.GetBackpackAutosortDisabled) == "function" and C.GetBackpackAutosortDisabled() == true
     end
     local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.DisableAutoSort
     return flag ~= nil and type(C.GetBagSlotFlag) == "function" and C.GetBagSlotFlag(bag, flag) == true
+end
+local skipped = Keep.Skipped
+
+function Keep.SetSkipped(bag, on)
+    local C = C_Container
+    on = on == true
+    if bag == 0 then
+        if type(C.SetBackpackAutosortDisabled) == "function" then DUI.SafeCall(C.SetBackpackAutosortDisabled, on) end
+        return
+    end
+    local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.DisableAutoSort
+    if flag ~= nil and type(C.SetBagSlotFlag) == "function" then DUI.SafeCall(C.SetBagSlotFlag, bag, flag, on) end
+end
+
+-- The bags a clean up can skip, in order: the backpack, then each equipped bag.
+function Keep.CleanupBags()
+    local out = { 0 }
+    local Bags = ns.Bags
+    for bag = 1, Bags.NumBags() + Bags.NumProfession() do
+        if Bags.NumSlots(bag) > 0 then out[#out + 1] = bag end
+    end
+    return out
+end
+
+function Keep.BagName(bag)
+    if bag == 0 then return BAG_NAME_BACKPACK or L["Backpack"] end
+    local get = C_Container and C_Container.GetBagName
+    local name = type(get) == "function" and get(bag)
+    if type(name) == "string" and name ~= "" then return name end
+    return string.format(L["Bag %d"], bag)
+end
+
+-- "Skips Backpack, Large Knapsack.", or nil when every bag is sorted. Said
+-- under the Clean Up button, since a skipped bag keeps its gaps.
+function Keep.SkippedText()
+    local names = {}
+    for _, bag in ipairs(Keep.CleanupBags()) do
+        if skipped(bag) then names[#names + 1] = Keep.BagName(bag) end
+    end
+    if #names == 0 then return nil end
+    return string.format(L["Skips %s."], table.concat(names, ", "))
+end
+
+-- The game's bag windows hold this switch, and they stay parked, so this menu
+-- is the only way to see or change it: one row a bag, ticked when Clean Up
+-- leaves that bag alone (a right-click on the bag slots strip).
+function Keep.CleanupMenu(owner)
+    local keys, values, titles = { "head" }, { head = L["Clean Up skips"] }, { head = true }
+    for _, bag in ipairs(Keep.CleanupBags()) do
+        local k = "bag" .. bag
+        keys[#keys + 1] = k
+        values[k] = Keep.BagName(bag)
+    end
+    local function bagOf(k) return tonumber(string.match(k, "^bag(%d+)$")) end
+    DUI.Widgets.OpenMenu(owner, keys, values, nil, function(k)
+        local bag = bagOf(k)
+        if bag then Keep.SetSkipped(bag, not skipped(bag)) end
+    end, nil, { titles = titles, keepOpen = true, checked = function(k)
+        local bag = bagOf(k)
+        return bag ~= nil and skipped(bag)
+    end })
 end
 
 -- Sort identity for a slot. Same link and count never move.

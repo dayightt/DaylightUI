@@ -1375,6 +1375,8 @@ function Layout.Ease(window, was)
             local fade = ns.Items.Fader(r)
             fade:SetAlpha(0)
             Motion.AlphaTo(fade, 1, Motion.NORMAL)
+            window.arriving = window.arriving or {}
+            window.arriving[r] = GetTime() + Motion.NORMAL
             Feel.Glide(r, 0, Layout.FOLD_DROP, Motion.NORMAL)
             window.gliding[r] = "new"
         end
@@ -1487,6 +1489,34 @@ function Layout.Settle(window)
     settleMoves(window, true)
 end
 
+-- Every piece a layout shows is whole unless it's fading in right now. Only a
+-- piece's own fade-in ever brought it back up, so one left see-through (the new
+-- Recent heading or its item, seen in game as the bag closed with the mailbox
+-- or a trade) stayed that way through every later layout until it left.
+-- window.arriving: piece -> when its fade-in ends (Layout.Ease).
+local function makeWhole(window, r, now)
+    if not r:IsShown() then return end
+    local due = window.arriving and window.arriving[r]
+    if due and now and now < due then return end
+    local fader = ns.Items.Fader(r)
+    if fader:GetAlpha() < 1 then DUI.Motion.AlphaTo(fader, 1, 0) end
+end
+
+-- During a layout (now = GetTime()) pieces still fading in carry on; without
+-- it everything lands whole at once (the window opening).
+function Layout.Whole(window, now)
+    if not now then Layout.Settle(window) end
+    for _, s in ipairs(window.set.Slots()) do makeWhole(window, s.button, now) end
+    for _, b in ipairs(window.set.Twins and window.set.Twins() or {}) do makeWhole(window, b, now) end
+    for _, h in ipairs(window.headings or {}) do makeWhole(window, h, now) end
+    for _, l in ipairs(window.lines or {}) do makeWhole(window, l, now) end
+    local arriving = window.arriving
+    if not arriving then return end
+    for r, due in pairs(arriving) do
+        if not now or now >= due then arriving[r] = nil end
+    end
+end
+
 -- Places every shown slot. Returns the grid's width and height.
 function Layout.Apply(window, cfg)
     restoreFading(window)
@@ -1507,7 +1537,13 @@ function Layout.Apply(window, cfg)
             w, h = Layout.Grid(window, cfg)
         end
     end
+    Layout.Whole(window, GetTime())
     if was then Layout.Ease(window, was) end
+    -- An opening shows everything whole, laid out now or not.
+    if not window.wholeOnShow then
+        window.wholeOnShow = true
+        window:HookScript("OnShow", function(self) Layout.Whole(self) end)
+    end
     return w, h
 end
 

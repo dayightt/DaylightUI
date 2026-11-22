@@ -1489,7 +1489,10 @@ local function bagWindow()
             end,
         },
         tools = {
-            { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end },
+            { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end,
+              desc = function() return ns.Keep.SkippedText() end,
+              hint = L["Right-click: choose bags Clean Up skips"],
+              onRightClick = function(w) ns.Keep.CleanupMenu(w.sort) end },
             { key = "slotsButton", icon = Window.SLOTS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
               onClick = function(w)
                   Window.SortTouched(w)

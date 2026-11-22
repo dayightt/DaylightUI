@@ -60,7 +60,7 @@ end
 
 -- One bag button in the item slot look. o: pick(), put() (item dropped on it),
 -- tip(self) fills GameTooltip, lit() returns the bag to light, slots() returns
--- the window's slots.
+-- the window's slots, menu(self) (optional) opens on a right-click.
 function Slots.NewButton(strip, o)
     local b = CreateFrame("Button", nil, strip)
     b.shell = ns.Items.Frame(b)
@@ -69,9 +69,13 @@ function Slots.NewButton(strip, o)
     local hl = b:CreateTexture(nil, "HIGHLIGHT")
     hl:SetColorTexture(1, 1, 1, 0.12)
     hl:SetAllPoints(b.icon)
-    b:RegisterForClicks("LeftButtonUp")
+    if o.menu then b:RegisterForClicks("LeftButtonUp", "RightButtonUp") else b:RegisterForClicks("LeftButtonUp") end
     b:RegisterForDrag("LeftButton")
-    b:SetScript("OnClick", function()
+    b:SetScript("OnClick", function(self, button)
+        if button == "RightButton" and o.menu then
+            if not (CursorHasItem and CursorHasItem()) then o.menu(self) end
+            return
+        end
         if CursorHasItem and CursorHasItem() then o.put() else o.pick() end
     end)
     b:SetScript("OnDragStart", o.pick)
@@ -143,14 +147,27 @@ local function slotButton(strip, bag, profession)
     end
     local b = Slots.NewButton(strip, { pick = pick, put = put, slots = function() return ns.Bags.Slots() end,
         lit = function() return bag end,
+        menu = function(self) ns.Keep.CleanupMenu(self) end,
         tip = function()
             local inv = invSlot(bag)
             if not (inv and GameTooltip:SetInventoryItem("player", inv)) then
                 GameTooltip:SetText((profession and EQUIP_CONTAINER_REAGENT or EQUIP_CONTAINER) or L["Bag"], 1, 1, 1)
             end
+            Slots.CleanupTip(bag)
         end })
     b.bag, b.apart = bag, profession
     return b
+end
+
+-- Under a bag's tooltip: whether Clean Up skips it, or skips the backpack
+-- (which has no button here), and where to change that.
+function Slots.CleanupTip(bag)
+    local Tips, Keep = DUI.Tips, ns.Keep
+    Tips.Clear()
+    if bag and Keep.Skipped(bag) then Tips.Text(L["Clean Up skips this bag."], Style.INK.WARN) end
+    if bag ~= 0 and Keep.Skipped(0) then Tips.Text(L["Clean Up skips your backpack."], Style.INK.WARN) end
+    Tips.Hint(L["Right-click: choose bags Clean Up skips"])
+    Tips.Flush(GameTooltip)
 end
 
 -- Keyring key. Click shows or hides the keyring section (showKeyring setting);
