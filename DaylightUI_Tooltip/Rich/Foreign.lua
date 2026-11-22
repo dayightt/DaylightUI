@@ -510,7 +510,35 @@ function Foreign.Read(p, tip, n, lines, own, pieces)
     for i = 2, math.min(own, n) do
         if ns.Rich.QuestLine(lines, i, own) == "title" then f.shown[questKey(lines[i].left)] = true end
     end
+    -- Questie's rows for one of those quests are left out as a repeat, but
+    -- their drop chances aren't in the game's lines: keep them, by quest and
+    -- objective, for the game's rows to show (Foreign.Chance).
+    f.chances = f.chances or {}
+    for k in pairs(f.chances) do f.chances[k] = nil end
+    local quest
+    for i = f.from, n do
+        local kind = ns.Rich.QuestLine(lines, i, n)
+        if kind == "title" then
+            quest = f.shown[questKey(lines[i].left)] and questKey(lines[i].left) or nil
+        elseif kind == "objective" then
+            local name, _, _, chance = ns.Rich.Objective(lines[i])
+            if quest and chance then
+                f.chances[quest] = f.chances[quest] or {}
+                f.chances[quest][name:lower()] = chance
+            end
+        elseif kind ~= "player" then
+            quest = nil
+        end
+    end
     return f
+end
+
+-- Another addon's drop chance for an objective of a quest the game's own
+-- lines show. quest: the title's QuestKey.
+function Foreign.Chance(p, quest, name)
+    local f = p.foreign
+    local list = f and f.chances and quest and f.chances[quest]
+    return list and name and list[name:lower()] or nil
 end
 
 local function block(f, kind, from, to, extra)

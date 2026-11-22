@@ -602,6 +602,38 @@ T.test("rich tooltip: quest lines as headings in their difficulty color, objecti
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game: on a mob the game already lists a quest for, Questie's copy is
+-- left out as a repeat, and its drop chance went with it.
+T.test("rich tooltip: Questie's drop chance lands on the game's own row for the same quest", function()
+    local _, Panel = login("rich")
+    DaylightUI.Npc.Data.QuestColor = function() return { 0.9, 0.5, 0.1 } end
+    stub.units.mouseover = { name = "Dark Iron Lookout", isPlayer = false, reaction = 2, level = 47, health = 50, maxHealth = 100 }
+    local data = { type = Enum.TooltipDataType.Unit, lines = { {}, {}, { type = 17, id = 77 }, { type = 8 } } }
+    local tip = GameTooltip
+    tip:SetOwner(UIParent, "ANCHOR_NONE")
+    tip.__unit = "mouseover"
+    tip:AddLine("Dark Iron Lookout")
+    tip:AddLine("Level 47")
+    tip:AddLine("Stolen: Smithing Tuyere and Lookout's Spyglass")  -- the game's title (typed)
+    tip:AddLine(" - Lookout's Spyglass: 0/1")                      -- the game's objective (typed)
+    tip:AddLine("[47] Stolen: Smithing Tuyere and Lookout's Spyglass") -- Questie's, the same quest
+    tip:AddLine("   |cffffffffLookout's Spyglass: 0/1|r |cff999999[23.5%]|r")
+    for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
+    for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
+    tip:Show()
+    local p = Panel.Get(tip)
+    local sections, rows = 0, {}
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "section" then sections = sections + 1 end
+        if it.kind == "row" then rows[#rows + 1] = it end
+    end
+    T.eq(sections, 1, "the quest once")
+    T.eq(#rows, 1, "its objective once")
+    T.truthy(stub.Text(rows[1].label):find("23.5%%"), "with Questie's drop chance")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: a full health bar's angled end showed a black corner.
 T.test("rich tooltip: a bar's track is cut at the same angle as its fill", function()
     login("rich")

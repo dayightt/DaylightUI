@@ -411,13 +411,17 @@ end
 -- to pass over (a card that draws them its own way).
 function Rich.Lines(p, n, lines, from, skip)
     local Tips = DUI.Tips
-    local inQuest = false
+    local inQuest, quest = false, nil
     for i = from, n do
         local line = lines[i]
         local kind = not (skip and skip[i]) and Rich.QuestLine(lines, i, n) or nil
         local who, title = kind == "player", kind == "title"
         local name, have, need, chance, done
-        if kind == "objective" then name, have, need, chance, done = Rich.Objective(line) end
+        if kind == "objective" then
+            name, have, need, chance, done = Rich.Objective(line)
+            if not chance then chance = ns.RichForeign.Chance(p, quest, name) end
+        end
+        if title then quest = ns.RichForeign.QuestKey(line.left) end
         if skip and skip[i] then
             -- Drawn elsewhere.
         elseif who then
