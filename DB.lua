@@ -892,7 +892,12 @@ function DB.OnLogin()
     -- A setup guide cut short by a crash or reload gets its preview undone
     -- (InstallerDraft.lua) before anything is built from the settings.
     if DUI.InstallerDraft and DB.CharKey() then DUI.InstallerDraft.RestoreSaved() end
-    if DB.CharKey() then DB.Character().lastSpec = DB.SpecGroup() end
+    if DB.CharKey() then
+        local c = DB.Character()
+        c.lastSpec = DB.SpecGroup()
+        -- Removed from the lists by hand (DUI.Alts.Forget), and here after all.
+        c.forgotten = nil
+    end
     local name = DB.Pick()
     if name ~= DB.activeName then
         DB.activeName = name

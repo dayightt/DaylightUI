@@ -983,6 +983,47 @@ T.test("characters: two with the same first name each keep their own bags; setti
     _G.GetRealmName = nil
 end)
 
+-- A player's report: deleted characters stayed in the gold list and "a few
+-- other random places". Removing one takes it out of every list at once.
+T.test("characters: removing one takes it off every list until it logs in again", function()
+    talents(1, 1)
+    local function as(first, last)
+        local saved = DaylightUIDB
+        local DUI = stub.Load({ module = true, before = function()
+            fakeEncoding()
+            _G.GetRealmName = function() return "Forever" end
+            stub.units.player = { name = first, lastName = last, isPlayer = true, class = "MAGE", guid = "Player-1-" .. first }
+            DaylightUIDB = saved
+        end })
+        stub.RunTimers()
+        return DUI
+    end
+    DaylightUIDB = { version = 2, profileData = { Default = {}, Healer = {} }, characters = {
+        ["Bolb Gone-Forever"] = { profile = "Healer", install = "installed", money = 0, class = "PRIEST",
+            mailName = "Bolb Gone", inventory = { class = "PRIEST", money = 0, bags = {} } },
+        ["Kept Alt-Forever"] = { profile = "Healer", money = 50, class = "MAGE", mailRecent = { "Bolb Gone", "Someone Else" } },
+    } }
+    local DUI = as("Main", "Char")
+    T.deq(DUI.Profiles.UsersOf("Healer"), { "Bolb Gone-Forever", "Kept Alt-Forever" })
+    T.truthy(DUI.Alts.Forget("Bolb Gone-Forever"))
+    local chars = DaylightUIDB.characters
+    local gone = chars["Bolb Gone-Forever"]
+    T.isnil(gone.money, "off the gold list")
+    T.isnil(gone.inventory, "off the bag chest and item counts")
+    T.isnil(gone.mailName, "off the mail window's own names")
+    T.deq(chars["Kept Alt-Forever"].mailRecent, { "Someone Else" }, "and off the recent mail names")
+    T.deq(DUI.Profiles.UsersOf("Healer"), { "Kept Alt-Forever" }, "the profiles page no longer counts it")
+    for _, c in ipairs(DUI.Alts.List()) do T.truthy(c.name ~= "Bolb Gone", "nor in Remove a character") end
+    T.eq(gone.profile, "Healer", "its profile pick stays, in case it still exists")
+    T.eq(gone.install, "installed", "and its setup")
+    stub.FireEvent("PLAYER_LOGOUT")
+
+    DUI = as("Bolb", "Gone")
+    T.isnil(chars["Bolb Gone-Forever"].forgotten, "logging in on it brings it back")
+    T.eq(DUI.DB.ActiveName(), "Healer", "on its own profile")
+    _G.GetRealmName = nil
+end)
+
 T.test("characters: while the game doesn't know the name, nothing is saved under it", function()
     local DUI = login()
     local before = 0

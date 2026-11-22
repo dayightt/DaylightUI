@@ -4,9 +4,11 @@ local L = DUI.L
 -- Other characters on this account: their gold (gold data text), their bags
 -- and bank (the bag viewer) and their names for the mail window. A deleted,
 -- renamed or moved character would linger in those lists forever, so the gold
--- text and the bag chest both open Alts.Menu to remove one. Only the list
--- entries go. A character who still exists keeps their profile and is added
--- back on their next login.
+-- text and the bag chest both open Alts.Menu to remove one. Its gold, bags and
+-- mail name go, and it's marked `forgotten` so the lists that only know it by
+-- its profile choice (the profiles page, the setup guide) leave it out too. A
+-- character who still exists keeps their profile and setup, and is added back
+-- on their next login.
 local Alts = {}
 DUI.Alts = Alts
 
@@ -65,14 +67,33 @@ function Alts.List()
     return out
 end
 
--- Never yourself, since you'd be re-added right away. Fires CharacterForgotten.
+-- Never yourself, since you'd be re-added right away. Its name also leaves
+-- every character's recent mail names. Fires CharacterForgotten.
 function Alts.Forget(key)
     local chars = DUI.DB.Root().characters
     local c = type(chars) == "table" and chars[key]
     if key == DUI.DB.CharKey() or type(c) ~= "table" then return false end
+    local mailName = c.mailName
     c.money, c.inventory, c.mailName = nil, nil, nil
+    c.forgotten = true
+    if type(mailName) == "string" then
+        for _, other in pairs(chars) do
+            local recent = type(other) == "table" and other.mailRecent
+            if type(recent) == "table" then
+                for i = #recent, 1, -1 do
+                    if recent[i] == mailName then table.remove(recent, i) end
+                end
+            end
+        end
+    end
     DUI.Fire("CharacterForgotten", key)
     return true
+end
+
+-- Removed but still there: is a saved character one the player took out of
+-- the lists? Logging in on it brings it back (DB.OnLogin).
+function Alts.Forgotten(c)
+    return type(c) == "table" and c.forgotten == true
 end
 
 -- Each character in class color with their gold. A click asks to confirm, and

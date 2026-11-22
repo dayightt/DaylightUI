@@ -402,11 +402,12 @@ function Profiles.Build(shared, from, keep)
     return DB.Fill(p)
 end
 
--- The characters ("Name-Realm") whose choices name a profile.
+-- The characters ("Name-Realm") whose choices name a profile. One the player
+-- removed (DUI.Alts) is left out until it logs in again.
 function Profiles.UsersOf(name)
     local out = {}
     for key, c in pairs(DUI.DB.Root().characters) do
-        if type(c) == "table" and (c.profile == name or c.padProfile == name or (type(c.specProfiles) == "table"
+        if type(c) == "table" and not DUI.Alts.Forgotten(c) and (c.profile == name or c.padProfile == name or (type(c.specProfiles) == "table"
                 and (c.specProfiles[1] == name or c.specProfiles[2] == name))) then
             out[#out + 1] = key
         end
