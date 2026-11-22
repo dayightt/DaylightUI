@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         { "Unit frames", "Rake and other bleeds no longer show a DoT shade on mobs that are immune to bleeds" },
         { "Nameplates", "DoT shades now show on nameplates in dungeons, and dotting a second mob no longer clears the first" },
         { "Unit frames", "Two DoTs of the same school ticking at the same moment are both counted" },
+        { "Unit frames", "The DoT shade now counts your spell power and attack power, learned from the game's damage meter after each fight, so it no longer runs short" },
         { "Mailbox", "Filters, the ledger and the letter box no longer get cut off in longer languages, and the lists follow when you resize the window" },
         { "Languages", "Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel" },
     }, changed = {

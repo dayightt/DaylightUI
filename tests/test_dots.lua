@@ -9,6 +9,7 @@ local RIP = 1079
 local CLAW = 1082
 local RAKE = 1822    -- Rake: a Physical hit, then a bleed
 local SIPHON = 18265 -- Siphon Life: a second Shadow DoT, 15 every 3 sec for 30
+local IMMOLATE = 348 -- an 11 Fire hit, then 20 Fire over 15 sec (5 ticks of 4)
 
 local SPELLS = {
     [COR] = { name = "Corruption", desc = "Corrupts the target, causing 40 Shadow damage over 12 sec." },
@@ -17,6 +18,7 @@ local SPELLS = {
     [RIP] = { name = "Rip", desc = "Finishing move that causes damage over time.  Damage increases per combo point:\n   1 point : 42 damage over 12 sec.\n   2 points: 66 damage over 12 sec.\n   3 points: 90 damage over 12 sec.\n   4 points: 114 damage over 12 sec.\n   5 points: 138 damage over 12 sec." },
     [RAKE] = { name = "Rake", desc = "Rake the target for 19 damage and an additional 39 damage over 9 sec.  Awards 1 combo point." },
     [SIPHON] = { name = "Siphon Life", desc = "Transfers 15 health from the target to the caster every 3 sec.  Lasts 30 sec." },
+    [IMMOLATE] = { name = "Immolate", desc = "Burns the enemy for 11 Fire damage and then an additional 20 Fire damage over 15 sec." },
     [CLAW] = { name = "Claw", desc = "Claw the enemy, causing 27 additional damage.  Awards 1 combo point." },
     [686] = { name = "Shadow Bolt", desc = "Sends a shadowy bolt at the enemy, causing 13 to 18 Shadow damage." },
     [139] = { name = "Renew", desc = "Heals the target of 45 damage over 15 sec." },
@@ -795,6 +797,123 @@ T.test("dots: the Cooldown Manager keeps its combo count while Does It Die count
     _G.DoesItDie = nil
     stub.FireEvent("ADDON_LOADED", "DoesItDie")
     Dots.Want("cdm", false)
+end)
+
+-- ---------------------------------------------------------------------
+-- Learning real tick sizes from the game's damage meter after a fight
+-- ---------------------------------------------------------------------
+
+-- A fight in which spell is cast and its next `ticks` ticks land (their
+-- amounts secret, as in every fight), then the fight ends and the meter says
+-- what the spell really dealt.
+local FIRE = 4
+-- The saved factor for Corruption, nil while none was learned.
+local function learnedCor(DUI)
+    local d = DUI.DB.Character().dots
+    return d and d.ticks and d.ticks[COR]
+end
+local function fight(Dots, id, school, interval, ticks, meterTotal)
+    stub.EnterCombat()
+    cast(id)
+    for _ = 1, ticks do
+        tick(interval)
+        stub.FireEvent("UNIT_COMBAT", "target", "WOUND", "", stub.Secret(9), school)
+    end
+    stub.meter.spells = { { spellID = id, totalAmount = meterTotal } }
+    stub.LeaveCombat()
+    stub.RunTimers()
+    Dots.Forget()
+end
+
+T.test("dots: after a fight the meter teaches a DoT's real size", function()
+    local _, Dots = world()
+    fight(Dots, COR, SHADOW, 3, 4, 80) -- the meter says 80 where the tooltip said 40
+    cast(COR)
+    T.eq(Dots.Left("target"), 80, "the next cast starts from twice the tooltip")
+end)
+
+T.test("dots: the upfront hit is split off before learning", function()
+    local _, Dots = world()
+    -- 11 upfront + 5 ticks of 4 = 31 by the tooltip; the meter's 62 is twice that.
+    fight(Dots, IMMOLATE, FIRE, 3, 5, 62)
+    cast(IMMOLATE)
+    T.eq(Dots.Left("target"), 40, "ticks of 8, not the hit folded into them")
+end)
+
+T.test("dots: what was learned is kept per character and grows with the spell", function()
+    local DUI, Dots = world()
+    fight(Dots, COR, SHADOW, 3, 4, 80)
+    T.eq(learnedCor(DUI), 2, "kept as a factor of the tooltip's share")
+end)
+
+T.test("dots: a second fight blends in, a fight with one tick teaches nothing", function()
+    local _, Dots = world()
+    fight(Dots, COR, SHADOW, 3, 4, 80)  -- factor 2 over 4 ticks
+    fight(Dots, COR, SHADOW, 3, 4, 40)  -- factor 1 over 4 ticks
+    cast(COR)
+    T.eq(Dots.Left("target"), 60, "halfway, by ticks seen")
+    Dots.Forget()
+    fight(Dots, COR, SHADOW, 3, 1, 500)
+    cast(COR)
+    T.eq(Dots.Left("target"), 60, "one tick is too little to judge")
+end)
+
+T.test("dots: the meter is skipped when it can't match what was counted", function()
+    local DUI, Dots = world()
+    fight(Dots, COR, SHADOW, 3, 4, 1000) -- 25 times the tooltip: someone else's damage got in
+    T.isnil(learnedCor(DUI), "far off the tooltip")
+    -- A cast that never ticked here (out of sight, or the mob died first).
+    stub.EnterCombat()
+    cast(COR); tick(3); secretHit(SHADOW); tick(3); secretHit(SHADOW)
+    stub.units.target = { name = "Gnoll", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
+    cast(COR)
+    stub.meter.spells = { { spellID = COR, totalAmount = 60 } }
+    stub.LeaveCombat(); stub.RunTimers()
+    T.isnil(learnedCor(DUI), "a cast whose ticks weren't seen")
+    -- A cast at nothing that can be told apart.
+    Dots.Forget()
+    stub.EnterCombat()
+    cast(COR); tick(3); secretHit(SHADOW); tick(3); secretHit(SHADOW)
+    stub.units.target = nil
+    cast(COR)
+    stub.meter.spells = { { spellID = COR, totalAmount = 40 } }
+    stub.LeaveCombat(); stub.RunTimers()
+    T.isnil(learnedCor(DUI), "a cast the meter counted but nothing here did")
+end)
+
+T.test("dots: a mob that dies takes its DoTs with it", function()
+    local _, Dots = world()
+    stub.units.nameplate1 = stub.units.target
+    cast(COR)
+    stub.units.target.dead = true
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    T.isnil(Dots.Left("target"))
+end)
+
+T.test("dots: a DoT that ticks on out of sight isn't learned from", function()
+    local DUI, Dots = world()
+    stub.EnterCombat()
+    cast(COR)
+    tick(3); secretHit(SHADOW); tick(3); secretHit(SHADOW)
+    stub.units.target = nil -- tabbed away, no plate: its last ticks land unseen
+    tick(3); tick(3); tick(1)
+    stub.meter.spells = { { spellID = COR, totalAmount = 80 } }
+    stub.LeaveCombat(); stub.RunTimers()
+    T.isnil(learnedCor(DUI))
+end)
+
+T.test("dots: the meter is read once it's no longer secret", function()
+    local DUI, Dots = world()
+    stub.EnterCombat()
+    cast(COR)
+    for _ = 1, 4 do tick(3); secretHit(SHADOW) end
+    stub.meter.spells = { { spellID = COR, totalAmount = stub.Secret(80) } } -- still secret for a moment
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.isnil(learnedCor(DUI))
+    stub.meter.spells = { { spellID = COR, totalAmount = 80 } }
+    stub.RunTimers()
+    T.eq(learnedCor(DUI), 2)
 end)
 
 -- ---------------------------------------------------------------------
