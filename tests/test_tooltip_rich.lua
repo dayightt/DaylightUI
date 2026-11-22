@@ -3201,8 +3201,9 @@ T.test("rich tooltip: the fight pill is off unless picked, so a fight shows the 
     stub.LeaveCombat()
 end)
 
--- EXPERIMENT
-T.test("XEXP compare refresh keeps the game's lines muted", function()
+-- The game refreshes a compare tooltip by clearing it and filling it again
+-- (TooltipComparisonManager:SetItemTooltip), the changes after the post-calls.
+T.test("rich tooltip: a refreshed compare tooltip keeps its lines muted and its changes", function()
     local _, Panel = login("rich")
     items()
     fillItem(GameTooltip, "greaves", GREAVES)
@@ -3217,8 +3218,6 @@ T.test("XEXP compare refresh keeps the game's lines muted", function()
             if fs:GetAlpha() ~= 0 then bad[#bad + 1] = i .. ":" .. tostring(fs:GetText()) end
         end
         T.eq(table.concat(bad, ","), "", what .. " lines muted")
-        local ks = {} for i = 1, p.count do ks[#ks + 1] = p.items[i].kind end
-        print(what, p:IsShown(), table.concat(ks, " "))
         T.eq(#kinds(p, "tags"), 2, what .. " chips")
     end
     check("first")
@@ -3231,6 +3230,7 @@ T.test("XEXP compare refresh keeps the game's lines muted", function()
             if type(t) == "table" then shop:AddDoubleLine(t[1], t[2]) else shop:AddLine(t) end
         end
         local data = { type = Enum.TooltipDataType.Item, hyperlink = "legplates", lines = { {}, {}, {}, {} } }
+        for _, fn in ipairs(post.ALL or {}) do fn(shop, data) end
         for _, fn in ipairs(post[data.type] or {}) do fn(shop, data) end
         shop:AddLine(" ")
         shop:AddLine(ITEM_DELTA_DESCRIPTION, 1, 0.82, 0)
@@ -3243,5 +3243,87 @@ T.test("XEXP compare refresh keeps the game's lines muted", function()
     check("refresh")
     refresh(true)
     check("hidden and shown")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Forever Leveling BiS draws its upgrade arrow on a frame of its own laid over
+-- the tooltip (a child frame, not a texture of the tooltip), pinned to one of
+-- the game's lines. On the card that line sits elsewhere, so the arrow showed
+-- in the middle of other rows (seen in game, next to an Auction price).
+T.test("rich tooltip: another addon's frame over the tooltip is hidden under the card, one beside it stays", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "legplates", LEGPLATES)
+    local p = Panel.Get(GameTooltip)
+    T.truthy(p and p:IsShown(), "the card")
+    local arrow = CreateFrame("Frame", nil, GameTooltip)
+    arrow:SetAllPoints()
+    arrow:CreateTexture(nil, "OVERLAY")
+    local beside = CreateFrame("Frame", nil, GameTooltip)
+    beside:SetSize(40, 40)
+    beside:SetPoint("TOPLEFT", GameTooltip, "TOPRIGHT", 4, 0)
+    -- Where the game would put them (the fake game lays nothing out).
+    function GameTooltip:GetRect() return 100, 100, 200, 150 end
+    function arrow:GetRect() return 100, 100, 200, 150 end
+    function beside:GetRect() return 304, 210, 40, 40 end
+    update()
+    T.eq(arrow:GetAlpha(), 0, "the addon's arrow frame")
+    T.eq(beside:GetAlpha(), 1, "a frame beside the tooltip is left")
+    T.eq(GameTooltipStatusBar:GetAlpha(), 1, "the game's health bar is left to the card")
+    GameTooltip:Hide()
+    T.eq(arrow:GetAlpha(), 1, "back with the tooltip's own look")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A tag's outline is one pixel thick: between screen pixels its top or bottom
+-- line is lost. The card moves with its tooltip after it's laid out (with the
+-- cursor, as a padding grows it), so the tags go back on the pixel grid each
+-- time it has moved (seen in game with tags missing an edge).
+T.test("rich tooltip: header tags go back on whole pixels when the card moves", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local p = Panel.Get(GameTooltip)
+    local tag = p.tagSpots[1] and p.tagSpots[1][1]
+    T.truthy(tag, "a header tag")
+    local snap = DaylightUI.Pixel.Snap
+    local left, top = 100, 500
+    function p:GetLeft() return left end
+    function p:GetTop() return top end
+    local function onGrid(what)
+        local _, _, _, x, y = tag:GetPoint(1)
+        T.near(snap(p, left + x), left + x, 1e-6, what .. " left edge on a pixel")
+        T.near(snap(p, top + y), top + y, 1e-6, what .. " top edge on a pixel")
+    end
+    update()
+    onGrid("laid out")
+    left, top = 211.37, 433.81
+    update()
+    onGrid("moved")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A price addon's long label (TSM's "Region Market Value Avg") put its price
+-- on a second line under it. An item's card widens, as far as it may, to keep
+-- the two side by side; a line too long even then still wraps.
+T.test("rich tooltip: an item card widens to keep a long price label beside its price", function()
+    local _, Panel = login("rich")
+    items()
+    local W = DaylightUI.Widgets
+    fillItem(GameTooltip, "legplates", LEGPLATES, function(t)
+        t:AddLine("TSM AuctionDB", 1, 0.82, 0)
+        t:AddDoubleLine("  Region Market Value Avg", "[|cffff0000-3%|r] 9|cffc7c7cfs|r 68|cffeda55fc|r")
+    end)
+    update()
+    local p = Panel.Get(GameTooltip)
+    local row
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "row" and stub.Text(it.label):find("Region Market", 1, true) then row = it end
+    end
+    T.truthy(row, "label and price on one row")
+    T.truthy(stub.Text(row.value):find(W.Money(968), 1, true), "the price beside it")
+    T.truthy(p.wantW > Panel.WIDTH.item, "the card wider than usual: " .. tostring(p.wantW))
+    T.truthy(p.wantW <= math.floor(Panel.WIDTH.item * Panel.GROW), "never past its most")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

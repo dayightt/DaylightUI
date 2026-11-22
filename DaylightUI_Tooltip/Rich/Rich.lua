@@ -163,7 +163,10 @@ function Rich.Step(tip)
     if not (p and p:IsShown()) then return Rich.Build(tip) end
     local n = tip.NumLines and tip:NumLines()
     if not isSecret(n) and n ~= s.lines then return Rich.Build(tip) end
-    if not p.chrome then Panel.MuteNew(p) end
+    if not p.chrome then
+        Panel.MuteNew(p)
+        Panel.KeepTags(p)
+    end
     local sp = s.spell
     if sp and not p.chrome then
         if sp.ends and ns.RichSpells.Tick(p, sp) then return Rich.Build(tip) end

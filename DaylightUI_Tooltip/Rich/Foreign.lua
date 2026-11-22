@@ -263,6 +263,9 @@ end
 -- A row whose two sides don't fit the card side by side: its words wrap on a
 -- line of their own and the right side goes under them, at the right edge.
 -- Cut to fit, the left side lost its end ("-55.1..." beside a long "vs ...").
+-- A card of a fixed width first widens as far as it may (Panel.GROW) to keep
+-- the two on one line: a price under a long label ("Region Market Value Avg")
+-- reads best beside it.
 local function row(p, left, right, rightColor, leftColor)
     local Panel = ns.RichPanel
     Panel.Row(p, left, right, rightColor, leftColor)
@@ -270,8 +273,14 @@ local function row(p, left, right, rightColor, leftColor)
     if not (item and item.kind == "row" and item.value) then return end
     local lw, rw = item.label:GetStringWidth(), item.value:GetStringWidth()
     if type(lw) ~= "number" or type(rw) ~= "number" or isSecret(lw) or isSecret(rw) then return end
-    local inner = (Panel.WIDTH[p.kind] or Panel.WIDTH.other) - 2 * (p.padX or Panel.PAD_X)
-    if lw + Panel.ROW_GAP_X + rw <= inner then return end
+    local most = Panel.WIDTH[p.kind] or Panel.WIDTH.other
+    if Panel.FIXED[p.kind] then most = math.floor(most * Panel.GROW) end
+    local inner = most - 2 * (p.padX or Panel.PAD_X)
+    local need = lw + Panel.ROW_GAP_X + rw
+    if need <= inner then
+        item.need = need
+        return
+    end
     -- Undo the row: its two texts were the last taken from the pool.
     item.label:Hide()
     item.value:Hide()
@@ -284,6 +293,7 @@ local function row(p, left, right, rightColor, leftColor)
         Panel.Text(p, right, rightColor)
     else
         Panel.Row(p, "", right, rightColor)
+        p.items[p.count].need = rw
     end
 end
 Foreign.Row = row

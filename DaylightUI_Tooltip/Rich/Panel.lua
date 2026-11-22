@@ -678,11 +678,13 @@ local function natural(item)
     return 0
 end
 
--- What a fixed-width card makes room for beyond its board's width: its
--- widest tag, its sub line, and its tiles side by side. Nothing else (a title and a sentence
--- wrap).
+-- What a fixed-width card makes room for beyond its board's width: its tiles
+-- side by side, and another addon's row that keeps its two sides on one line
+-- that way (its `need`, set by Foreign's row). Nothing else (a title and a
+-- sentence wrap).
 local function needed(item)
     local k, w = item.kind, 0
+    if k == "row" and item.need then return item.need end
     if k == "tiles" then
         w = (#item.list - 1) * Panel.TILE_GAP
         for _, t in ipairs(item.list) do w = w + tileWidth(t) end
@@ -718,6 +720,21 @@ end
 
 local function alignTags(p)
     for _, spot in ipairs(p.tagSpots) do alignTag(p, spot) end
+    p.tagsAt = { p:GetLeft(), p:GetTop() }
+end
+
+-- The card moves with its tooltip (with the cursor, a padding that grows it
+-- from its bottom corner, a mirrored side), and each move can leave the tags
+-- between screen pixels, their outline's top or bottom line gone (seen in
+-- game at UI scale 0.71). From the tooltip's update: the tags are put back on
+-- the grid whenever the card has moved since they last were.
+function Panel.KeepTags(p)
+    local spots, at = p.tagSpots, p.tagsAt
+    if not (spots and spots[1]) then return end
+    local l, t = p:GetLeft(), p:GetTop()
+    if isSecret(l) or isSecret(t) or type(l) ~= "number" or type(t) ~= "number" then return end
+    if at and at[1] == l and at[2] == t then return end
+    alignTags(p)
 end
 
 local function snapTag(p, tag, x, y)
@@ -1279,13 +1296,56 @@ local function muteRegions(muted, ...)
     end
 end
 
--- Every text and texture of the tooltip itself (its lines, their icons) and
--- its money frames go to alpha 0. Frames other addons hang on it stay.
+-- Whether frame f draws anywhere over the tooltip. Frames are compared in
+-- screen units, as an addon's frame may carry a scale of its own.
+local function overTip(f, tip)
+    local l, b, w, h = f:GetRect()
+    local tl, tb, tw, th = tip:GetRect()
+    if isSecret(l) or isSecret(b) or isSecret(w) or isSecret(h) or isSecret(tl) or isSecret(tb)
+        or isSecret(tw) or isSecret(th) or type(l) ~= "number" or type(tl) ~= "number" then
+        -- Unplaced or unreadable: it can't be shown to sit clear of the card.
+        return true
+    end
+    local k, tk = f:GetEffectiveScale(), tip:GetEffectiveScale()
+    l, b, w, h = l * k, b * k, w * k, h * k
+    tl, tb, tw, th = tl * tk, tb * tk, tw * tk, th * tk
+    return l < tl + tw and l + w > tl and b < tb + th and b + h > tb
+end
+
+-- The tooltip's own frames, and Daylight UI's on it, which the card handles
+-- itself (the health bar, a clicked item's X) or which are already hidden.
+local function ownChild(p, f)
+    local tip = p.tip
+    return f == p or f == ns.Tooltip.Shell(tip) or f == tip.NineSlice or f == tip.StatusBar
+        or f == rawget(_G, "GameTooltipStatusBar") or f == tip.CloseButton or f == tip.ItemTooltip
+        or f == tip.CompareHeader
+end
+
+-- Frames another addon lays over the tooltip (Forever Leveling BiS's upgrade
+-- arrow, pinned to one of the game's lines) would draw on the card's rows, so
+-- they go to alpha 0 too. One hanging beside the tooltip stays. Their own
+-- alpha is kept for when the card goes.
+local function muteChildren(p, ...)
+    local muted = p.muted
+    for i = 1, select("#", ...) do
+        local f = select(i, ...)
+        if type(f) == "table" and f.SetAlpha and muted[f] == nil and not ownChild(p, f) and overTip(f, p.tip) then
+            local a = f:GetAlpha()
+            muted[f] = (type(a) == "number" and not isSecret(a)) and a or true
+            f:SetAlpha(0)
+        end
+    end
+end
+
+-- Every text and texture of the tooltip itself (its lines, their icons), its
+-- money frames and other addons' frames laid over it go to alpha 0.
 function Panel.Mute(p)
     local tip = p.tip
     p.muted = p.muted or setmetatable({}, { __mode = "k" })
     muteRegions(p.muted, tip:GetRegions())
     p.regions = tip:GetNumRegions()
+    muteChildren(p, tip:GetChildren())
+    p.children = tip:GetNumChildren()
     -- The game keeps a count of them (SetTooltipMoney), each named
     -- <tooltip>MoneyFrame<n>.
     local money, name = tip.shownMoneyFrames, tip:GetName()
@@ -1296,18 +1356,20 @@ function Panel.Mute(p)
     if type(tip.CompareHeader) == "table" then muteRegions(p.muted, tip.CompareHeader) end
 end
 
--- Another addon can make textures and texts on the tooltip after the card is
--- built (Forever Leveling BiS draws boxes and an arrow on its lines). Those
--- would draw over the card, so new ones are hidden as they turn up.
+-- Another addon can make textures, texts and frames on the tooltip after the
+-- card is built (Forever Leveling BiS draws boxes and an arrow on its lines).
+-- Those would draw over the card, so new ones are hidden as they turn up.
 function Panel.MuteNew(p)
-    if p and p.muted and p.tip:GetNumRegions() ~= p.regions then Panel.Mute(p) end
+    if not (p and p.muted) then return end
+    local tip = p.tip
+    if tip:GetNumRegions() ~= p.regions or tip:GetNumChildren() ~= p.children then Panel.Mute(p) end
 end
 
 function Panel.Unmute(p)
     if not (p and p.muted) then return end
-    for r in pairs(p.muted) do
+    for r, was in pairs(p.muted) do
         p.muted[r] = nil
-        r:SetAlpha(1)
+        r:SetAlpha(type(was) == "number" and was or 1)
     end
 end
 
