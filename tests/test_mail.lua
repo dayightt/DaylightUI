@@ -135,7 +135,7 @@ T.test("mail: the tabs show their pages; Send is narrower", function()
     T.near(f:GetWidth(), ns.Window.SEND_W, 1)
     ns.Window.ShowTab("ledger")
     frame(20)
-    T.near(f:GetWidth(), ns.Window.W, 1)
+    T.near(f:GetWidth(), ns.Window.LEDGER_W, 1)
 end)
 
 T.test("mail: switched off, the game's mailbox is the game's and the ledger still counts", function()
@@ -1069,4 +1069,136 @@ T.test("inbox: of identical letters only the ticked one is taken", function()
     tick(lines(ns)[1])
     tick(lines(ns)[1])
     T.eq(#ns.Inbox.state.ticked, 0, "a second click unticks")
+end)
+
+-- Longer words (Spanish, German): each letter 14 px instead of the stub's 7 (per = 5 for short ones).
+local function wide(spec, per)
+    local keep = stub.measure
+    stub.measure = function(fs) return #(fs.__text or "") * (per or 14) end
+    local ns = load(spec)
+    stub.measure = keep
+    return ns
+end
+
+local function chipsOf(map)
+    local out = {}
+    for _, b in pairs(map) do out[#out + 1] = b end
+    return out
+end
+
+local function rowsOf(chips)
+    local ys = {}
+    for _, b in ipairs(chips) do ys[select(5, b:GetPoint(1))] = true end
+    local n = 0
+    for _ in pairs(ys) do n = n + 1 end
+    return n
+end
+
+T.test("inbox: filter chips that do not fit the list take a second row, and the list starts below them", function()
+    local ns = wide()
+    MW.Open()
+    frame(20)
+    local list = ns.Inbox.list
+    local chips = chipsOf(list.chips)
+    T.eq(#chips, 4)
+    T.eq(rowsOf(chips), 2, "two rows")
+    for _, b in ipairs(chips) do
+        local _, _, _, x = b:GetPoint(1)
+        T.truthy(x + b:GetWidth() <= ns.Inbox.LIST_W - ns.Inbox.EDGE, "a chip runs past the list")
+    end
+    local _, _, _, _, y = list.stack.scroll:GetPoint(1)
+    T.truthy(-y >= ns.Inbox.CHIPS_Y + 2 * DaylightUI.Widgets.CHIP_HEIGHT, "the list starts under the chips")
+end)
+
+T.test("inbox: chips that fit stay on one row", function()
+    local ns = wide(nil, 5)
+    MW.Open()
+    frame(20)
+    T.eq(rowsOf(chipsOf(ns.Inbox.list.chips)), 1)
+end)
+
+T.test("ledger page: range chips wrap inside the left column and the rows move down with them", function()
+    local ns = wide({ letters = {} })
+    MW.Open()
+    local page = ledgerPage(ns)
+    local chips = chipsOf(page.chips)
+    T.eq(rowsOf(chips), 2)
+    for _, b in ipairs(chips) do
+        local _, _, _, x = b:GetPoint(1)
+        T.truthy(x + b:GetWidth() <= ns.LedgerPage.LEFT_W - ns.LedgerPage.EDGE, "a chip runs past the column")
+    end
+    local _, _, _, _, labelY = page.rangeLabel:GetPoint(1)
+    T.truthy(-labelY >= ns.LedgerPage.CHIPS_Y + 2 * DaylightUI.Widgets.CHIP_HEIGHT, "the label is under the second row")
+end)
+
+T.test("ledger page: a row's name ends where its amount starts", function()
+    local ns = load({ letters = {} })
+    MW.Open()
+    local page = ledgerPage(ns)
+    for _, row in ipairs(page.outRows) do
+        local _, rel = row.label:GetPoint(2)
+        T.eq(rel, row.value, "the name is bounded by the amount")
+    end
+end)
+
+T.test("mail: the ledger is wide enough for its left column and the grip's resize reaches the lists", function()
+    local ns = load({ letters = {} })
+    MW.Open()
+    frame(20)
+    ns.Window.ShowTab("ledger")
+    frame(20)
+    T.near(ns.Window.frame:GetWidth(), ns.Window.LEDGER_W, 1)
+    local page = ns.LedgerPage.page
+    local called = 0
+    local stretch = page.right.stack.Stretch
+    page.right.stack.Stretch = function(...) called = called + 1; return stretch(...) end
+    ns.Window.Resized(900, 560, true)
+    T.eq(called, 1, "live: the right list stretches")
+    local renders = 0
+    local render = ns.LedgerPage.Render
+    ns.LedgerPage.Render = function(...) renders = renders + 1; return render(...) end
+    ns.Window.Resized(900, 560, false)
+    ns.LedgerPage.Render = render
+    T.eq(renders, 1, "end: the page fills again")
+end)
+
+T.test("send: the letter's text area has the outline an input has, lit by hover and focus", function()
+    local ns = load({ letters = {} })
+    MW.Open()
+    local page = sendPage(ns)
+    local area = page.letter
+    T.truthy(area.edge and area.lit, "the same outline as W.Input")
+    T.eq(area.glow, 0)
+    area.box.IsMouseOver = function() return true end
+    area:GetScript("OnEnter")(area)
+    frame(20)
+    T.truthy(area.glow > 0.3, "hover lights it")
+    area.box.IsMouseOver = function() return false end
+    area:GetScript("OnLeave")(area)
+    frame(20)
+    T.eq(area.glow, 0)
+    page.body.HasFocus = function() return true end
+    area.Ease()
+    frame(20)
+    T.near(area.glow, 1, 0.01)
+end)
+
+T.test("ledger page: when the right side gets wider the lists fill again at that width", function()
+    local ns = load({ letters = {} })
+    MW.Open()
+    frame(20)
+    local page = ledgerPage(ns)
+    page.right:GetScript("OnSizeChanged")(page.right, 900, 500)
+    frame(5)
+    T.eq(page.right.stack.wide, 900 - 2 * DaylightUI.Win.Parts.EDGE)
+    T.near(page.right.stack.child:GetWidth(), 900 - 2 * DaylightUI.Win.Parts.EDGE, 1, "the list is as wide as the side")
+end)
+
+T.test("inbox: the letter's side keeps the width it is given too", function()
+    local ns = load()
+    MW.Open()
+    frame(20)
+    local letter = ns.Inbox.letter
+    letter:GetScript("OnSizeChanged")(letter, 800, 500)
+    T.eq(letter.stack.wide, 800 - 2 * DaylightUI.Win.Parts.EDGE)
 end)
