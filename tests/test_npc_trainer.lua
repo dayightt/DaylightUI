@@ -342,6 +342,27 @@ T.test("trainer: Beast Training (no NPC) stays the game's window", function()
     T.eq(ClassTrainerFrame:GetParent(), DaylightUI.Win.Followers.aside, "held aside again once closed")
 end)
 
+-- The game fills its window as it shows, while it still sits shrunk under the
+-- aside holder, where text measures far too wide. Lent back, it must be sized
+-- again: seen in game, the filter button ran off across the screen and names
+-- beside a TP cost were cut to nothing until the first click.
+T.test("trainer: Beast Training's filter button and names fit on the first open", function()
+    load()
+    for _ = 1, 2 do
+        NW.Trainer({ type = 3 })
+        frame()
+        T.eq(ClassTrainerFrame:GetParent(), UIParent, "lent back")
+        local drop = ClassTrainerFrame.FilterDropdown
+        T.eq(drop:GetWidth(), #"Filter" * 7 + 60, "the filter button fits its word")
+        for _, row in ipairs(ClassTrainerFrame.ScrollBox.rows) do
+            T.eq(row.name:GetWidth(), #row.name:GetText() * 7, row.name:GetText() .. " keeps its name")
+        end
+        HideUIPanel(ClassTrainerFrame)
+        frame(2)
+        T.eq(ClassTrainerFrame:GetParent(), DaylightUI.Win.Followers.aside, "held aside again once closed")
+    end
+end)
+
 -- The game's trainer window has no skin of its own while Daylight UI's trainer
 -- page replaces it, but Beast Training still shows the game's window.
 T.test("trainer: Beast Training's game window wears the Daylight UI look, a class trainer's stays bare", function()

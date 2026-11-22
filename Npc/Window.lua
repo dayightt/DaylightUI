@@ -705,6 +705,7 @@ function Npc.OnEvent(_, event, ...)
         if T and C_Trainer and C_Trainer.GetTrainerType and C_Trainer.GetTrainerType() == T.Pet then
             local function lend()
                 if not Win.Followers.Lend(Npc.follow, "trainer") then return false end
+                Npc.TrainerFit(_G.ClassTrainerFrame)
                 ns.trainerLent = true
                 DUI.Fire("TrainerLent")
                 return true
@@ -1002,6 +1003,26 @@ function Npc.TrainerAsItself()
     DUI.Fire("TrainerLent")
 end
 
+-- The game fills its trainer window as it shows, while it still waits shrunk
+-- under the aside holder. Text there measures far wider than it draws, so the
+-- filter button stretched across the screen and names beside a TP cost were cut
+-- to nothing. Once lent back at its real size, the window's own functions size
+-- them again.
+function Npc.TrainerFit(f)
+    if type(f) ~= "table" then return end
+    local drop = f.FilterDropdown
+    if type(drop) == "table" and type(drop.UpdateText) == "function" then DUI.SafeCall(drop.UpdateText, drop) end
+    local box = f.ScrollBox
+    -- ForEachFrame asks the list's view without checking, and an unfilled list has none.
+    if type(box) ~= "table" or type(box.ForEachFrame) ~= "function"
+        or (type(box.GetView) == "function" and not box:GetView()) then return end
+    DUI.SafeCall(box.ForEachFrame, box, function(row)
+        if type(row) == "table" and type(row.UpdateNameWidth) == "function" then
+            DUI.SafeCall(row.UpdateNameWidth, row)
+        end
+    end)
+end
+
 local function beastTraining()
     local T = Enum and Enum.TrainerType
     return T ~= nil and C_Trainer ~= nil and C_Trainer.GetTrainerType ~= nil and C_Trainer.GetTrainerType() == T.Pet
@@ -1012,7 +1033,12 @@ end
 function Npc.GiveAway()
     if not Npc.follow then return end
     Npc.Close()
-    for kind in pairs(Npc.frames) do Win.Followers.Release(Npc.follow, kind) end
+    for kind in pairs(Npc.frames) do
+        local open = Win.Followers.Parked(Npc.follow, kind)
+        if Win.Followers.Release(Npc.follow, kind) and open and kind == "trainer" then
+            Npc.TrainerFit(_G.ClassTrainerFrame)
+        end
+    end
 end
 
 -- Switched back: an open vendor or trainer is held aside again and this window

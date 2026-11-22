@@ -136,13 +136,73 @@ end
 -- isn't visible, CloseTrainer() at once. TRAINER_SHOW fires too. The frame's
 -- OnHide calls CloseTrainer (Mainline/Blizzard_TrainerUI.lua), and the server
 -- answers TRAINER_CLOSED.
+-- The client draws text no smaller than a few pixels, so a text in a frame
+-- shrunk far down measures much wider in that frame's own units. Tests use 7 px
+-- a letter at a normal size.
+NW.TINY_TEXT = 0.01
+local function measured(fs)
+    local text = fs:GetText()
+    if type(text) ~= "string" then return 0 end
+    local scale = fs:GetEffectiveScale()
+    local w = #text * 7
+    if scale < NW.TINY_TEXT then w = w * NW.TINY_TEXT / scale end
+    return w
+end
+
+-- What the game's OnShow sizes from its text (ClassTrainerFrame_OnShow ->
+-- ClassTrainerFrame_Update): the filter button fits its words
+-- (DropdownTextMixin:UpdateText, resizeToText with 60 padding), and each row's
+-- name fits beside its TP cost (Blizzard_TrainerUI_Camelot.lua UpdateNameWidth).
+local function trainerParts(f)
+    local drop = CreateFrame("Button", nil, f)
+    drop.Text = drop:CreateFontString(nil, "OVERLAY")
+    drop:SetSize(100, 18)
+    function drop:UpdateText()
+        self.Text:SetText(self.text)
+        self:SetWidth(measured(self.Text) + 60)
+    end
+    function drop:SetText(text) self.text = text; self:UpdateText() end
+    f.FilterDropdown = drop
+    local box = CreateFrame("Frame", nil, f)
+    box.rows = {}
+    box.view = { ForEachFrame = function(_, fn) for _, r in ipairs(box.rows) do fn(r) end end }
+    function box:GetView() return self.view end
+    function box:ForEachFrame(fn) return self:GetView():ForEachFrame(fn) end
+    f.ScrollBox = box
+    for i = 1, 3 do
+        local row = CreateFrame("Button", nil, box)
+        row:SetSize(300, 46)
+        row.name = row:CreateFontString(nil, "OVERLAY")
+        row.alternateCost = row:CreateFontString(nil, "OVERLAY")
+        function row:UpdateNameWidth()
+            local price = self.alternateCost:IsShown() and measured(self.alternateCost) + 15 or 0
+            local room = self:GetWidth() + 5 - price - 48 - 5
+            self.name:SetWidth(math.max(1, math.min(measured(self.name), room)))
+        end
+        box.rows[i] = row
+    end
+end
+
+local function trainerFill(f)
+    f.FilterDropdown:SetText("Filter")
+    for i, row in ipairs(f.ScrollBox.rows) do
+        row.name:SetText(({ "Bite", "Dash", "Dive" })[i])
+        row.alternateCost:SetText(i .. " TP")
+        row:UpdateNameWidth()
+    end
+end
+
 local function trainerFrame()
     local f = _G.ClassTrainerFrame
     if f then return f end
     f = CreateFrame("Frame", "ClassTrainerFrame", UIParent)
     f:Hide()
     f:SetSize(338, 424)
-    f:SetScript("OnShow", function() S().trainerOnShow = (S().trainerOnShow or 0) + 1 end)
+    trainerParts(f)
+    f:SetScript("OnShow", function(self)
+        S().trainerOnShow = (S().trainerOnShow or 0) + 1
+        trainerFill(self)
+    end)
     f:SetScript("OnHide", function() CloseTrainer() end)
     record("LoadAddOn", "Blizzard_TrainerUI")
     stub.FireEvent("ADDON_LOADED", "Blizzard_TrainerUI")   -- inside the load, before the show
