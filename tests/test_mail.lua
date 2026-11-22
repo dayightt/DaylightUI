@@ -1202,3 +1202,51 @@ T.test("inbox: the letter's side keeps the width it is given too", function()
     letter:GetScript("OnSizeChanged")(letter, 800, 500)
     T.eq(letter.stack.wide, 800 - 2 * DaylightUI.Win.Parts.EDGE)
 end)
+
+-- The game's own words: the mailbox's globals win over ours, in the client's language.
+local function game(words, fn)
+    local keep = {}
+    for k, v in pairs(words) do keep[k] = _G[k]; _G[k] = v end
+    local ok, err = pcall(fn)
+    for k in pairs(words) do _G[k] = keep[k] end
+    if not ok then error(err, 0) end
+end
+
+T.test("mail: ns.Game takes the game's word, drops its colon, and falls back to ours", function()
+    local ns = load()
+    game({ MAIL_TO_LABEL = "Para:", MAIL_SUBJECT_LABEL = "Asunto :", SALE_PRICE_COLON = "Precio de venta:" }, function()
+        T.eq(ns.Game("MAIL_TO_LABEL", "To"), "Para")
+        T.eq(ns.Game("MAIL_SUBJECT_LABEL", "Subject"), "Asunto", "French puts a space before the colon")
+        T.eq(ns.Game("SALE_PRICE_COLON", "Sold for"), "Precio de venta", "a row label has no colon either")
+    end)
+    T.eq(ns.Game("NOT_A_GAME_STRING", "Subject"), "Subject")
+end)
+
+T.test("mail: the Send tab says what the game's tab says", function()
+    game({ SENDMAIL = "Enviar correo" }, function()
+        local ns = load()
+        MW.Open()
+        frame(20)
+        local text
+        for _, b in ipairs(ns.Window.frame.tabs) do if b.id == "send" then text = stub.Text(b.text) end end
+        T.eq(text, "Enviar correo")
+    end)
+end)
+
+T.test("inbox: a receipt uses the game's invoice words, and a COD letter says COD the game's way", function()
+    game({ PURCHASED_BY_COLON = "Comprador:", SALE_PRICE_COLON = "Precio de venta:", AMOUNT_RECEIVED_COLON = "Cantidad recibida:",
+           COD = "Contra reembolso" }, function()
+        local ns = load({ money = 0, letters = { LETTERS[1],
+            { sender = "Ysella Brightwind", subject = "Runecloth", cod = 60000, days = 2, items = { { name = "Runecloth", itemID = 14047, count = 20 } } } } })
+        MW.Open()
+        frame(20)
+        T.eq(stub.Text(lines(ns)[2].value), "Contra reembolso")
+        lines(ns)[1].lineSpec.onClick()
+        frame(5)
+        local text = {}
+        for _, b in ipairs(ns.Inbox.letter.stack.used) do if b:IsShown() and b.text and not b.lineSpec then text[#text + 1] = stub.Text(b.text) end end
+        local all = table.concat(text, "\n")
+        T.truthy(all:find("Comprador", 1, true) and all:find("Precio de venta", 1, true) and all:find("Cantidad recibida", 1, true) and not all:find(":", 1, true), all)
+        T.falsy(all:find("Sold for", 1, true), "ours is only the fallback")
+    end)
+end)

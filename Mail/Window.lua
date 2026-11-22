@@ -29,6 +29,17 @@ Mail.PAGES = { "inbox", "send", "ledger" }
 Mail.page = "inbox"   -- every mailbox visit opens on the inbox, like the game
 Mail.replyTo = nil    -- { name, subject, id = Inbox.Id }: the inbox's Reply, for the Send page
 
+-- The game's own word for something, by its global name (the mailbox says "Send Mail",
+-- "Subject:", "Cash on Delivery"), so the window speaks like the game in every language.
+-- The game's labels end in a colon, which no label here wants (every row list in Daylight UI
+-- has none), so it is cut. fallback is ours, for a client that lacks the global.
+function ns.Game(key, fallback)
+    local s = _G[key]
+    if type(s) ~= "string" or s == "" then return fallback end
+    s = s:gsub("%s*[:：]%s*$", "")
+    return s
+end
+
 function ns.Setting(key) return ns.module and ns.module.db and ns.module.db[key] end
 
 function Mail.Game()
@@ -260,7 +271,7 @@ function Mail.Build(mod)
     -- Left of the X, before the tabs line up from it: the game's own mailbox instead,
     -- for addons that build on it.
     if Mail.swap then Mail.swap.Icon(f) end
-    Win.Tabs(f, { { id = "inbox", text = INBOX or L["Inbox"] }, { id = "send", text = L["Send"] },
+    Win.Tabs(f, { { id = "inbox", text = INBOX or L["Inbox"] }, { id = "send", text = ns.Game("SENDMAIL", L["Send"]) },
         { id = "ledger", text = L["Ledger"] } }, function(id) Mail.ShowTab(id) end)
     -- Controller, matching the game's mail buttons (MailFrame.lua footers): X opens all,
     -- replies to the open letter, or sends; Y opens the letter's options.
@@ -268,7 +279,7 @@ function Mail.Build(mod)
     f.padKeys = {
         { key = "X", label = REPLY_MESSAGE or L["Reply"], run = function() ns.Inbox.Reply() end,
           when = function() local l = picked(); return l ~= nil and l.canReply end },
-        { key = "X", label = OPEN_ALL_MAIL_BUTTON or L["Collect all"], run = function() ns.Inbox.Collect() end,
+        { key = "X", label = ns.Game("OPEN_ALL_MAIL_BUTTON", L["Collect all"]), run = function() ns.Inbox.Collect() end,
           when = function() return f.current == "inbox" and picked() == nil end },
         { key = "X", label = SEND_LABEL or L["Send"], run = function() ns.Send.Send() end,
           when = function() return f.current == "send" end },

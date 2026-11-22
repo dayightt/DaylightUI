@@ -124,7 +124,7 @@ local function money(c) return DUI.MoneyString(math.abs(c)) end
 function Page.KindName(kind)
     local names = { sales = L["Auction sales"], players = L["From players"], buys = L["Auction buys"],
         cuts = L["Auction house cuts"], deposits = L["Deposits"], postage = L["Postage"], sent = L["Gold you sent"],
-        cod = L["Cash on delivery"] }
+        cod = ns.Game("CASH_ON_DELIVERY", L["Cash on delivery"]) }
     return names[kind] or kind
 end
 
