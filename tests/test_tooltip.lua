@@ -1358,8 +1358,9 @@ T.test("tooltip: item stats keep their colors in other languages", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("tooltip: the game's money lines wear Daylight UI's coins, digits in the money color", function()
+T.test("tooltip: the game's money lines wear Daylight UI's coins, and Sell Price reads Vendor", function()
     login(itemWorld)
+    _G.SELL_PRICE = "Sell Price"
     local at = withLines(GameTooltip)
     local coin = function(n, what) return n .. "|A:coin-" .. what .. ":14:14:2:0|a" end   -- the game's FormatMoney
     fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1001, hyperlink = "paw" }, {
@@ -1370,7 +1371,7 @@ T.test("tooltip: the game's money lines wear Daylight UI's coins, digits in the 
         "Sells for 2 coins",
     })
     local W = DaylightUI.Widgets
-    T.eq(at(2):GetText(), "Sell Price: " .. W.Money(200) .. " " .. W.Money(76))
+    T.eq(at(2):GetText(), "Vendor: " .. W.Money(200) .. " " .. W.Money(76))
     T.eq(at(3):GetText(), W.Money(12340000) .. " " .. W.Money(500), "a thousands separator")
     T.eq(at(4):GetText(), W.Money(12340000), "a locale's separator")
     T.falsy(at(2):GetText():find("|A:", 1, true), "none of the game's coins left")
@@ -1380,7 +1381,7 @@ T.test("tooltip: the game's money lines wear Daylight UI's coins, digits in the 
     fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1001, hyperlink = "paw" }, {
         "Small Furry Paw", "Sell Price: " .. coin(76, "copper"),
     })
-    T.eq(at(2):GetText(), "Sell Price: " .. W.Money(76), "whatever the other switches")
+    T.eq(at(2):GetText(), "Vendor: " .. W.Money(76), "whatever the other switches")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1406,11 +1407,11 @@ T.test("tooltip: quest rewards show their sell price, the whole stack, once", fu
     asked("GetQuestLogItem", "choice", 1, 99)
     fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1001, hyperlink = "sword" }, { "Sword" })
     T.eq(GameTooltip:NumLines(), 2, "the price added")
-    T.eq(at(2):GetText(), "Sell Price: " .. W.Money(1554), "in the quest log")
+    T.eq(at(2):GetText(), "Vendor: " .. W.Money(1554), "in the quest log")
 
     asked("GetQuestItem", "reward", 1)
     fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1003, hyperlink = "potion" }, { "Potion" })
-    T.eq(at(2):GetText(), "Sell Price: " .. W.Money(125), "at the NPC, five potions")
+    T.eq(at(2):GetText(), "Vendor: " .. W.Money(125), "at the NPC, five potions")
 
     local coin = function(n, what) return n .. "|A:coin-" .. what .. ":14:14:2:0|a" end
     fill(GameTooltip, Enum.TooltipDataType.Item, { id = 1003, hyperlink = "potion",

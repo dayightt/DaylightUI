@@ -371,6 +371,8 @@ local function sort(n, lines, own, info, groups)
         quote = groups.made, taken = groups.taken }
     local sellWord = type(SELL_PRICE) == "string" and SELL_PRICE or "Sell Price"
     local sellType = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SellPrice or 11
+    -- The simple look renames the game's line to "Vendor" before the card reads it.
+    local vendorWord = L["Vendor"]
     for i = 2, n do
         local line = lines[i]
         -- The crafted item's lines go to its own part, in the game's order.
@@ -383,16 +385,21 @@ local function sort(n, lines, own, info, groups)
         if not t or t == "" then
             -- A blank line ends a set's piece list.
             inSet = false
-        elseif line.type == sellType or t:sub(1, #sellWord) == sellWord then
+        elseif line.type == sellType or t:sub(1, #sellWord) == sellWord or t:sub(1, #vendorWord) == vendorWord then
             -- The sell price (the game's or a quest reward's, added after).
             -- Another addon may have rewritten it with the coins on the right
             -- ("Vendor price"), so they're taken from there when it has them.
-            local at = left:find(sellWord, 1, true)
+            local word = sellWord
+            local at = left:find(word, 1, true)
+            if not at then
+                word = vendorWord
+                at = left:find(word, 1, true)
+            end
             if not mine then g.taken[i] = true end
             if right then
                 foot.money = right
             elseif at then
-                foot.money = (left:sub(at + #sellWord):gsub("^%s*:%s*", ""))
+                foot.money = (left:sub(at + #word):gsub("^%s*:%s*", ""))
             end
         elseif not mine then
             -- Another addon's: drawn by Rich/Foreign.lua.
@@ -601,7 +608,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     if Foreign.Has(p, "own", taken) then other[1] = function() Foreign.Place(p, "own", taken) end end
     if foot.durability or foot.money then
         -- A sell price alone (a quest reward has no durability) says what it is.
-        local label = foot.durability or (type(SELL_PRICE) == "string" and SELL_PRICE or L["Sell price"])
+        local label = foot.durability or L["Vendor"]
         -- A list of its own: a small gap keeps it from reading as the last
         -- addon's line.
         wear[1] = function()

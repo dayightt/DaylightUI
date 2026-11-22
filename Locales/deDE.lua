@@ -474,6 +474,7 @@ L["Shows the game's small gold coin on gray items, like the default bags."] = "Z
 L["Mark the cheapest junk"] = "Billigsten Plunder markieren"
 L["A small dot on the bottom left corner of the gray item worth the least, so when your bag is full you know what to throw away. Its tooltip says what it sells for."] = "Ein kleiner Punkt unten links auf dem grauen Gegenstand mit dem geringsten Wert. So weißt du bei voller Tasche, was du wegwerfen kannst. Sein Tooltip nennt den Verkaufspreis."
 L["Vendors"] = "Händler"
+L["Vendor"] = "Händler"
 L["Sell junk automatically"] = "Plunder automatisch verkaufen"
 L["Opening a vendor sells everything in the Junk group: gray items, and anything you've moved to Junk yourself. Chat shows how much you got."] = "Beim Öffnen eines Händlers wird alles aus der Gruppe „Plunder“ verkauft: graue Gegenstände und alles, was du selbst dorthin verschoben hast. Der Chat zeigt den Erlös."
 L["Repair automatically"] = "Automatisch reparieren"

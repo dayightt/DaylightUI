@@ -23,6 +23,7 @@ DUI.PatchNotes = {
         { "Languages", "Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel" },
     }, changed = {
         { "Loot rolls", "After you pick, your roll card shrinks while the others roll. Hover it to see the whole group" },
+        { "Tooltip", "An item's sell price is now labeled Vendor" },
     } },
     { version = "2.2.2", date = "2026-11-22", summary = "Channel ticks on your cast bar, an equipment set data text and Disenchant that stays on in your bags. Plus fixes for vanishing nameplates.", new = {
         { "Cast bars", "Your cast bar can mark each tick of a channel like Drain Life or Mind Flay, so you don't cut one short" },

@@ -74,7 +74,7 @@ local function buildSimple(parent)
     add(Style.SIZE.body, string.format(ARMOR_TEMPLATE or L["%s Armor"], item.armor))
     for _, s in ipairs(item.stats) do add(Style.SIZE.body, statText(s[1], s[2])) end
     add(Style.SIZE.body, string.format(L["Equip: %s"], "+" .. item.equip[1] .. " " .. L[item.equip[2]]), "GOOD")
-    add(Style.SIZE.body, (SELL_PRICE or L["Sell Price"]) .. ": " .. DUI.Widgets.Money(item.money))
+    add(Style.SIZE.body, L["Vendor"] .. ": " .. DUI.Widgets.Money(item.money))
     function f.Layout()
         local c = qualityColor()
         f.title:SetTextColor(c[1], c[2], c[3], 1)
@@ -117,7 +117,7 @@ local function buildRich(parent)
         for _, s in ipairs(item.stats) do Panel.Line(p, statText(s[1], s[2])) end
         Panel.Line(p, statText(item.equip[1], item.equip[2]))
         Panel.Rule(p)
-        Panel.Row(p, SELL_PRICE or L["Sell price"], DUI.Widgets.Money(item.money), Style.INK.VALUE, Style.INK.LABEL,
+        Panel.Row(p, L["Vendor"], DUI.Widgets.Money(item.money), Style.INK.VALUE, Style.INK.LABEL,
             Style.SIZE.small, Style.SIZE.body)
         local w, h = Panel.Finish(p)
         local k = p:GetScale()

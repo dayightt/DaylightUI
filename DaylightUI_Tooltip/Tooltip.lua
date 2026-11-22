@@ -1007,13 +1007,22 @@ function Tip.OwnCoins(text)
     return (text:gsub("(%d[%d,%. \194\160]*)|A:coin%-(%a+):[^|]*|a", ownCoin))
 end
 
+-- The game's "Sell Price:" line reads "Vendor:", shorter and the word players use.
+function Tip.VendorText(text)
+    local word = SELL_PRICE
+    if type(word) == "string" and word ~= "" and text:sub(1, #word) == word then
+        return L["Vendor"] .. text:sub(#word + 1)
+    end
+    return text
+end
+
 function Tip.PaintCoins(tip)
     local n = tip.NumLines and plain(tip:NumLines())
     if type(n) ~= "number" then return end
     for i = 2, n do
         local line = Tip.Line(tip, i)
         local coins = Tip.OwnCoins(line and line.GetText and plain(line:GetText()))
-        if coins then line:SetText(coins) end
+        if coins then line:SetText(Tip.VendorText(coins)) end
     end
 end
 
@@ -1086,8 +1095,8 @@ end
 
 function Tip.AddQuestPrice(tip, data)
     local price = Tip.QuestPrice(tip, data)
-    if not (price and type(SELL_PRICE) == "string") then return end
-    local text = ("%s: %s"):format(SELL_PRICE, DUI.Widgets.Money(price))
+    if not price then return end
+    local text = ("%s: %s"):format(L["Vendor"], DUI.Widgets.Money(price))
     if Tip.HasLine(tip, text) then return end
     local c = Style.INK.VALUE
     tip:AddLine(text, c[1], c[2], c[3])
