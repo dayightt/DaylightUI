@@ -64,7 +64,7 @@ P.CUT = 0.05
 P.CLASS_ORDER = { 2, 4, 1, 0, 7, 6, 9, 15 }   -- Weapon, Armor, Container, Consumable, Trade Goods, Projectile, Recipe, Misc
 P.AH_COLS = {
     { id = "unit", text = L["Price each"], width = 110, sort = false },
-    { id = "qty", text = L["How many"], width = 70, justify = "RIGHT", sort = false },
+    { id = "qty", text = L["How many"], width = 96, justify = "RIGHT", sort = false },
     { id = "mine", text = "", fill = true },
 }
 
