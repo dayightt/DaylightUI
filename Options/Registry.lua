@@ -1518,7 +1518,7 @@ local fadePage = Options.RegisterPage({
               desc = "After a login or /reload the UI starts invisible and glides in. Anything set to fade ends faded." },
             { type = "toggle", key = "fadeOpenWorldOnly", label = "Fade only in the open world",
               desc = "In dungeons, raids, battlegrounds and arenas, everything set to fade stays shown, as if its fade were Never. It fades again once you're back outside." },
-            { type = "toggle", key = "fadeOnFlight", since = "2.3", label = "Fade everything on a flight path",
+            { type = "toggle", key = "fadeOnFlight", since = "2.2.1", label = "Fade everything on a flight path",
               desc = "While a flight master flies you somewhere, the whole UI slowly fades away so you can watch the world go by. Point at a part to see it. It all comes back as you land; the flight timer stays." },
         } },
     },

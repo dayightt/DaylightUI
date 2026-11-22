@@ -21,7 +21,7 @@ end
 -- The data texts' own fade, the same way: off, they fade with the panel.
 local function dataFadeCard()
     local card = DaylightUI.Fade.Card("data.fade.", nil, function(get) return get("data.enabled") ~= true end, "Data texts", { own =
-        { type = "toggle", key = "data.ownFade", label = "Data texts have their own fade", since = "2.3",
+        { type = "toggle", key = "data.ownFade", label = "Data texts have their own fade", since = "2.2.1",
           desc = "When off, the data texts fade with the panel. When on, they follow the settings here, so they can rest dimmer than the minimap or fade away on their own." } })
     card.label = "Data texts fade"
     return card
