@@ -3,6 +3,9 @@
 local _, ns = ...
 
 local function off(key) return function(get) return get(key) ~= true end end
+-- The guild and job lines sit under the name, so they go with it on enemy plates.
+local function namesOff(get) return get("showName") == false end
+local function lineOff(key) return function(get) return get(key) ~= true or namesOff(get) end end
 
 -- Friendly plates take the power bar's look from the enemy rows.
 local function noPower(get) return get("power") ~= true and get("friendly.power") ~= true end
@@ -275,35 +278,35 @@ ns.OPTIONS = { pages = {
         })), since("1.5.2", spotItems("Level", { spot = "levelPos", x = "levelX", y = "levelY" }, false, off("level")))) },
         { label = "Guild names", items = with({
             { type = "toggle", key = "guild", label = "Guild names",
-              desc = "A player's <guild> under their name, smaller." },
+              desc = "A player's <guild> under their name, smaller.", disabled = namesOff },
         }, since("1.6.2", {
             { type = "dropdown", key = "guildColor", label = "Guild color",
               values = { class = "Class color", white = "White", custom = "One color" },
               order = { "class", "white", "custom" },
               desc = "Guild names in the player's class color, plain white, or one color.",
-              disabled = off("guild") },
+              disabled = lineOff("guild") },
             { type = "color", key = "guildCustom", label = "Custom guild color",
               desc = "The guild name's color when Guild color is One color.",
-              disabled = function(get) return not get("guild") or get("guildColor") ~= "custom" end },
+              disabled = function(get) return lineOff("guild")(get) or get("guildColor") ~= "custom" end },
             { type = "slider", key = "guildSize", label = "Guild size", min = 0, max = 24, step = 1,
               desc = "How big the guild line is. Set to 0 to follow the name size.",
-              disabled = off("guild") },
+              disabled = lineOff("guild") },
         })) },
         { label = "NPC jobs", items = with({
             { type = "toggle", key = "role", label = "NPC jobs",
-              desc = "What an NPC does (Skinner, Flight Master...) under its name, smaller. Not inside instances." },
+              desc = "What an NPC does (Skinner, Flight Master...) under its name, smaller. Not inside instances.", disabled = namesOff },
         }, since("1.6.2", {
             { type = "dropdown", key = "roleColor", label = "Job color",
               values = { tan = "Tan", white = "White", custom = "One color" },
               order = { "tan", "white", "custom" },
               desc = "NPC jobs in soft tan, plain white, or one color.",
-              disabled = off("role") },
+              disabled = lineOff("role") },
             { type = "color", key = "roleCustom", label = "Custom job color",
               desc = "The NPC job's color when Job color is One color.",
-              disabled = function(get) return not get("role") or get("roleColor") ~= "custom" end },
+              disabled = function(get) return lineOff("role")(get) or get("roleColor") ~= "custom" end },
             { type = "slider", key = "roleSize", label = "Job size", min = 0, max = 24, step = 1,
               desc = "How big the NPC job line is. Set to 0 to follow the name size.",
-              disabled = off("role") },
+              disabled = lineOff("role") },
         })) },
         { label = "Quest mark", tab = "Marks", items = with({
             { type = "toggle", key = "quest", label = "Quest mark",

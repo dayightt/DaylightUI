@@ -2733,7 +2733,9 @@ function Plate.UpdateSub(p, noClassText)
             shown = true
         end
     end
-    p.sub:SetShown(shown and not (p.minion or p.minionBar))
+    -- The line belongs to the name: with names off it goes too, or a player's guild
+    -- would float over a bar with no name above it.
+    p.sub:SetShown(shown and not (p.minion or p.minionBar) and Plate.NameShown(p, c))
     Plate.PlaceSpots(p)
     if not noClassText then Plate.UpdateClassText(p) end
     Plate.Painted(p)

@@ -861,6 +861,35 @@ T.test("nameplates: names can be hidden on enemy and friendly plates separately"
     T.truthy(f.name:IsShown(), "a name-only plate keeps its name")
 end)
 
+T.test("nameplates: with names off, the guild or job line under them goes too", function()
+    login(function()
+        _G.GetGuildInfo = function(u) if u == "nameplate4" or u == "nameplate2" then return "Something Else" end end
+        stub.units.nameplate4 = { name = "Tommy Ashbringer", isPlayer = true, hostile = true, class = "PALADIN",
+                                  reaction = 2, health = 70, maxHealth = 100 }
+        stub.units.nameplate5 = { name = "Rand Rhobart", hostile = true, reaction = 2, health = 70, maxHealth = 100 }
+        stub.tooltips = { nameplate5 = { lines = { { leftText = "Rand Rhobart" }, { leftText = "Skinner" }, { leftText = "Level 13" } } } }
+    end)
+    local set = function(k, v) DaylightUI:Set("Nameplates", k, v); stub.RunTimers() end
+    set("friendly.enabled", true)
+    local enemy, mob, friend = added("nameplate4"), added("nameplate5"), added("nameplate2")
+    T.truthy(enemy.sub:IsShown(), "an enemy player's guild under the name")
+    T.truthy(mob.sub:IsShown(), "a mob's job under the name")
+    set("showName", false)
+    T.falsy(enemy.name:IsShown(), "the enemy player's name hidden")
+    T.falsy(enemy.sub:IsShown(), "and the guild line with it, as on a mob")
+    T.falsy(mob.sub:IsShown(), "a mob's job line goes too")
+    T.truthy(friend.sub:IsShown(), "friendly plates keep theirs")
+    set("friendly.showName", false)
+    T.falsy(friend.sub:IsShown(), "a friendly plate's guild goes with its name")
+    set("friendly.enabled", false)
+    T.truthy(friend.name:IsShown(), "a name-only plate keeps its name")
+    T.truthy(friend.sub:IsShown(), "and its guild line")
+    set("showName", true)
+    T.truthy(enemy.sub:IsShown(), "back on: the guild line returns")
+    stub.tooltips = nil
+    _G.GetGuildInfo = nil
+end)
+
 T.test("nameplates: alone with a pet, threat colors the bar as in a group", function()
     login(function() stub.role = "DAMAGER" end)
     local p = added("nameplate1")

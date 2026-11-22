@@ -446,7 +446,7 @@ local function paintNames(p, c, u)
         p.sub:SetText(L[u.job])
         if not Plate.PaintSub(p, c.roleColor, c.roleCustom) then Style.InkText(p.sub, "LABEL") end
     end
-    p.sub:SetShown(guild or job)
+    p.sub:SetShown((guild or job) and Plate.NameShown(p, c))
     Plate.PlaceSpots(p)
 end
 
