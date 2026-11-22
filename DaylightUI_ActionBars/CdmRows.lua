@@ -1363,13 +1363,23 @@ for _, e in ipairs({ "PLAYER_TARGET_CHANGED", "GROUP_ROSTER_UPDATE", "PLAYER_MOU
     "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA" }) do
     DUI.RegisterEvent(e, function() Rows.Away() end)
 end
--- A group at its saved spot may follow the moved frame now.
-DUI.On("MoverApplied", function()
-    Tether.Stale()
-    Rows.Refresh()
+local function isFollowed(key)
+    for _, chain in pairs(attachedChains) do
+        if chain.key == key then return true end
+    end
+    return false
+end
+
+-- A group at its saved spot may follow the placed frame now. Settings place every
+-- frame again, so only a followed one or a lead that changed asks for a pass.
+DUI.On("MoverApplied", function(key)
+    local leadChanged = Tether.Restate()
+    if leadChanged or isFollowed(key) then Rows.Refresh() end
 end)
--- Any setting may switch, show or hide a lead.
-DUI.On("SettingChanged", function()
-    Tether.Stale()
-    Rows.Refresh()
+-- Any setting may switch a lead on or off, or make it loop. Only that needs a pass:
+-- the follower keeps up with where a lead is.
+DUI.On("SettingChanged", function(scope, path)
+    local leadChanged = Tether.Restate()
+    local isCdmSetting = scope == "ActionBars" and type(path) == "string" and path:sub(1, 3) == "cdm"
+    if leadChanged or isCdmSetting then Rows.Refresh() end
 end)

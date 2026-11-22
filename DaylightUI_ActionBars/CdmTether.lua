@@ -119,6 +119,19 @@ function Tether.Stale()
     wipe(stateCache)
 end
 
+-- Works the cached lead states out again. True when any of them changed.
+function Tether.Restate()
+    local changed = false
+    for key, state in pairs(stateCache) do
+        local now = workOutState(key)
+        if now ~= state then
+            stateCache[key] = now
+            changed = true
+        end
+    end
+    return changed
+end
+
 -- Its single readable point, else CENTER.
 local function hangPointOf(frame)
     if isRestricted(frame) or pointCount(frame) ~= 1 then return "CENTER" end

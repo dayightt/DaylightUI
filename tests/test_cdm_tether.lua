@@ -658,7 +658,7 @@ test("cdm tether: a kept lead answer is worked out again after a setting changes
     end
 end)
 
-test("cdm tether: placing a frame, even one not there yet, or an outside setting asks for a pass", function()
+test("cdm tether: placing a frame, even one not there yet, asks for a pass", function()
     local world = tetherWorld({ lead = false, attached = "test.later" })
     local DUI = world.DUI
     local refreshes = countCalls(world.AB.CdmRows, "Refresh")
@@ -667,9 +667,25 @@ test("cdm tether: placing a frame, even one not there yet, or an outside setting
         fire()
         T.eq(refreshes.calls, before + 1, context)
     end
-    expectAsks(function() DUI.Fire("SettingChanged", "UnitFrames", "personal.enabled") end, "an outside setting")
     expectAsks(function() lead("test.later", 400, 300, 100, 60) end, "the followed lead turning up")
     expectAsks(function() DUI.Fire("MoverApplied", "test.later") end, "the followed lead placed")
+end)
+
+test("cdm tether: a setting elsewhere runs no layout pass unless it switches a followed frame on or off, which its name then shows", function()
+    local world = tetherWorld({ unitFrames = true, personal = "on", attached = "unitframes.personal" })
+    local DUI, AB = world.DUI, world.AB
+    local passes = countCalls(AB.CdmRows, "Update")
+    DUI:Set("UnitFrames", "party.width", DUI:Get("UnitFrames", "party.width") + 20)
+    DUI:Set("Chat", "fontSize", 14)
+    stub.RunTimers()
+    T.eq(passes.calls, 0, "another frame's settings, every frame placed again: no pass")
+    T.eq(world.Tether.Name("unitframes.personal"), world.Tether.Label("unitframes.personal"), "the followed frame on")
+    DUI:Set("UnitFrames", "personal.enabled", false)
+    stub.RunTimers()
+    T.eq(passes.calls, 1, "the followed frame switched off: one pass")
+    T.eq(world.Tether.Name("unitframes.personal"), DUI.L["%s (off)"]:format(world.Tether.Label("unitframes.personal")),
+        "named as off")
+    passes.restore()
 end)
 
 test("cdm tether: a group follows a switched-off Personal Display, and keeps its saved point when it's switched on", function()
