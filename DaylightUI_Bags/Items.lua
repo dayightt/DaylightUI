@@ -1294,6 +1294,7 @@ function Items.Fill(btn, tooltipOwner)
     tintSlot(btn, bag, slot, info, shown)
     local pending = Items.Details(btn, info, bag, slot)
     ns.Plugins.Paint(btn, info, bag, slot)   -- other addons' marks (Plugins.lua)
+    ns.ItemTree.Paint(btn, info, bag)        -- ItemTree's keep, sell or use-now dot
     Items.Report(btn, bag, slot, info)
     Items.NoteNew(btn, bag, slot, info)
     if w and w:IsShown() and not w.opening then Items.MaybeShine(btn) end

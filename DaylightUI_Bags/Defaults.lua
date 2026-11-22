@@ -24,6 +24,9 @@ ns.DEFAULTS = {
     showLevel = false,      -- item level on gear, bottom left
     showJunk = false,       -- the game's gold coin on gray items
     markCheapJunk = false,  -- a dot on the gray stack worth least (Junk.MarkCheapest)
+    -- With the ItemTree addon installed (ItemTree.lua)
+    itemTreeMarks = true,   -- its keep / sell / use-now verdict as a dot, top right
+    itemTreeKeep = true,    -- never sell what it says to keep
     -- Categories view (Categories.lua)
     sellJunk = true,        -- sell the Junk group when a vendor opens
     autoRepair = true,      -- repair all when a repair vendor opens

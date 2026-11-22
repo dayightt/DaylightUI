@@ -32,7 +32,7 @@ function Junk.Items()
             if info and not info.hasNoValue then
                 local f = ns.Categories.Facts(s.bag, slot, info)
                 f.recent = false        -- freshly looted junk is still junk
-                if not f.locked and ns.Categories.Assign(f, s.section) == "junk" then
+                if not f.locked and ns.Categories.Assign(f, s.section) == "junk" and not ns.ItemTree.Keeps(info, s.bag) then
                     local price = priceOf(info)
                     if price > 0 then
                         out[#out + 1] = { bag = s.bag, slot = slot, value = price * (info.stackCount or 1),
@@ -54,7 +54,7 @@ function Junk.Grays()
             local slot = s.button:GetID()
             local info = ns.Items.InfoAt(s.bag, slot)
             if info and info.quality == 0 and not info.hasNoValue then
-                if ns.Categories.Guarded(s.bag, slot, info) then kept = true
+                if ns.Categories.Guarded(s.bag, slot, info) or ns.ItemTree.Keeps(info, s.bag) then kept = true
                 else
                     out[#out + 1] = { bag = s.bag, slot = slot, link = info.hyperlink,
                                       value = priceOf(info) * (info.stackCount or 1) }
@@ -74,7 +74,8 @@ function Junk.Cheapest()
         local btn = s.button
         if s.section ~= "keyring" and btn:IsShown() then
             local info = ns.Items.InfoAt(s.bag, btn:GetID())
-            if info and info.quality == 0 and not info.hasNoValue and not ns.Categories.Guarded(s.bag, btn:GetID(), info) then
+            if info and info.quality == 0 and not info.hasNoValue and not ns.Categories.Guarded(s.bag, btn:GetID(), info)
+                and not ns.ItemTree.Keeps(info, s.bag) then
                 local value = priceOf(info) * (btn.dluiCount or info.stackCount or 1)
                 if value > 0 and (not best or value < best.value) then
                     best = { button = btn, value = value }
@@ -281,6 +282,7 @@ Junk.TIP_ICON = "|A:bags-junkcoin:14:14|a "
 function Junk.TipText(itemID)
     if type(itemID) ~= "number" or isSecret(itemID) then return nil end
     if not ns.Categories.IsMarkedJunk(itemID) then return nil end
+    if ns.ItemTree.Keeps({ itemID = itemID }) then return Junk.TIP_ICON .. L["Junk, but ItemTree says to keep it, so it isn't sold"] end
     return Junk.TIP_ICON .. (ns.Setting("sellJunk") == true and L["Junk, sold at the next vendor"] or L["Junk"])
 end
 

@@ -61,7 +61,10 @@ Cat.TESTS = {
     recent = function(f) return f.recent == true end,
     hearthstone = function(f) return f.itemID == Cat.HEARTHSTONE end,
     -- Never a set or quest item, even if those groups were deleted (Cat.Delete).
-    junk = function(f) return f.quality == 0 and not f.locked and not f.inSet and not K.quest(f) end,
+    junk = function(f)
+        return f.quality == 0 and not f.locked and not f.inSet and not K.quest(f)
+            and not ns.ItemTree.Keeps({ itemID = f.itemID, hyperlink = f.link }, f.bag)
+    end,
     sets = function(f) return f.inSet == true end,
     quest = K.quest,
     key = K.key,

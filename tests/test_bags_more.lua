@@ -3585,3 +3585,147 @@ T.test("bags: the chip row wraps when the grid is narrower than the chips", func
     _, _, _, _, y2 = last:GetPoint(1)
     T.eq(y2, y1, "one line when the grid is wide")
 end)
+
+-- ItemTree (another addon) judges items through its public API, ItemTreeAPI:
+-- keep it, sell it, use it now. Its own marks never find these bags, so the
+-- bags draw its answer: a dot top right, search words, and junk selling that
+-- leaves its keeps alone. A stand-in with the API's real shape (version 1).
+local function fakeItemTree(facts, ready)
+    local api = { version = 1, demo = { on = false }, ready = ready ~= false, readyFns = {}, changeFns = {}, asked = 0 }
+    api.IsReady = function() return api.ready end
+    api.RequestData = function() return api.ready end
+    api.RegisterReadyCallback = function(fn)
+        if api.ready then fn() else api.readyFns[#api.readyFns + 1] = fn end
+        return true
+    end
+    api.RegisterChangeCallback = function(fn) api.changeFns[#api.changeFns + 1] = fn; return true end
+    api.GetItemFacts = function(id)
+        api.asked = api.asked + 1
+        if not api.ready then return nil end
+        return facts[id]
+    end
+    api.GetHeldCounts = function() return 0, 0, 0 end
+    api.BecomeReady = function()
+        api.ready = true
+        for _, fn in ipairs(api.readyFns) do fn() end
+    end
+    return api
+end
+
+local function verdict(tags, extra)
+    local keep = { marked = tags[1] == "keep", tags = tags }
+    for k, v in pairs(extra or {}) do keep[k] = v end
+    return { keep = keep, quests = { needs = {} } }
+end
+
+local function slotAt(ns, bag, slot)
+    for _, s in ipairs(ns.Bags.Slots()) do
+        if s.bag == bag and s.button:GetID() == slot then return s.button end
+    end
+end
+
+local function itDot(ns, bag, slot)
+    local p = ns.Items.Parts(slotAt(ns, bag, slot))
+    return p.itDot ~= nil and p.itDot:IsShown() and p.itDot or nil
+end
+
+T.test("bags: ItemTree's verdicts show as a dot on each slot, in the color of what to do", function()
+    _G.ItemTreeAPI = fakeItemTree({
+        [4] = verdict({ "keep" }),
+        [6] = verdict({ "auction" }),
+        [7] = verdict({}, { action = { kind = "open", words = "Open it", now = true } }),
+        [2] = verdict({ "vendor" }),
+    })
+    local ns = login()
+    world.items[0][4].itemID, world.items[0][5].itemID, world.items[0][6].itemID, world.items[0][2].itemID = 4, 6, 7, 2
+    open(ns)
+    ns.FillAll(); stub.RunTimers()
+    local INK = DaylightUI.Style.INK
+    T.truthy(itDot(ns, 0, 4), "a keep")
+    T.rgb(itDot(ns, 0, 4).__vertexColor or { itDot(ns, 0, 4):GetVertexColor() }, INK.GOOD, "keep is green")
+    T.rgb(itDot(ns, 0, 5).__vertexColor or { itDot(ns, 0, 5):GetVertexColor() }, INK.MONEY, "auction is gold")
+    T.rgb(itDot(ns, 0, 6).__vertexColor or { itDot(ns, 0, 6):GetVertexColor() }, { DaylightUI.Style.Accent() }, "open it now: the accent")
+    T.isnil(itDot(ns, 0, 2), "a gray item to vendor is already dimmed as junk")
+    T.isnil(itDot(ns, 0, 1), "nothing said about it")
+    -- The switch takes them away.
+    DaylightUI:Set("Bags", "itemTreeMarks", false)
+    stub.Advance(1); stub.RunTimers()
+    T.isnil(itDot(ns, 0, 4), "off: no dots")
+    DaylightUI:Set("Bags", "itemTreeMarks", true)
+    stub.Advance(1); stub.RunTimers()
+    -- Its answer moves (a setting of ItemTree's): every slot asks again.
+    ItemTreeAPI.GetItemFacts = function(id) if id == 4 then return verdict({ "vendor" }) end end
+    for _, fn in ipairs(ItemTreeAPI.changeFns) do fn("setting") end
+    stub.RunTimers()
+    T.rgb(itDot(ns, 0, 4).__vertexColor or { itDot(ns, 0, 4):GetVertexColor() }, INK.MONEY, "now a sell")
+    T.isnil(itDot(ns, 0, 6), "no longer said")
+    _G.ItemTreeAPI = nil
+end)
+
+T.test("bags: ItemTree's dots wait for its data, and never judge another character's saved bags", function()
+    local api = fakeItemTree({ [4] = verdict({ "keep" }) }, false)
+    _G.ItemTreeAPI = api
+    local ns = login()
+    world.items[0][4].itemID = 4
+    open(ns)
+    ns.FillAll(); stub.RunTimers()
+    T.isnil(itDot(ns, 0, 4), "data not in yet")
+    T.eq(#api.readyFns, 1, "waits for it")
+    api.BecomeReady()
+    stub.RunTimers()
+    T.truthy(itDot(ns, 0, 4), "drawn once it's in")
+    T.isnil(ns.ItemTree.Facts(4, nil, ns.Saved.BASE), "a saved copy is never asked")
+    _G.ItemTreeAPI = nil
+end)
+
+T.test("bags: ItemTree's search words, only with ItemTree there", function()
+    local ns = login()
+    T.isnil(ns.Search.KEYWORDS.keep, "no ItemTree: keep is a name search")
+    T.falsy(ns.ItemTree.Installed())
+    _G.ItemTreeAPI = fakeItemTree({ [4] = verdict({ "keep" }), [6] = verdict({ "disenchant" }),
+        [1] = { keep = { tags = {} }, quests = { needs = { 101 } } } })
+    ns.ItemTree.Hook()
+    world.items[0][4].itemID, world.items[0][5].itemID, world.items[0][1].itemID = 4, 6, 1
+    local function finds(text, slot)
+        return ns.Search.Parse(text)(ns.Search.Facts(0, slot, C_Container.GetContainerItemInfo(0, slot))) == true
+    end
+    T.truthy(finds("keep", 4)); T.falsy(finds("keep", 5))
+    T.truthy(finds("sell", 5)); T.truthy(finds("disenchant", 5)); T.falsy(finds("vendor", 5))
+    T.truthy(finds("needed", 1)); T.falsy(finds("needed", 4))
+    T.truthy(finds("!keep", 5), "negated too")
+    _G.ItemTreeAPI = nil
+end)
+
+T.test("bags: Sell junk leaves a gray item ItemTree keeps, and its tooltip says why", function()
+    _G.ItemTreeAPI = fakeItemTree({ [2] = verdict({ "keep" }), [21] = verdict({ "vendor" }) })
+    local ns = catLogin()
+    local sold = {}
+    C_Container.UseContainerItem = function(bag, slot) sold[#sold + 1] = bag .. ":" .. slot end
+    local getInfo = C_Item.GetItemInfo
+    C_Item.GetItemInfo = function(link)
+        if link == "|Hitem:2|h" or link == "|Hitem:21|h" then return "name", link, 0, 1, 1, "", "", 20, "", 1, 5, 0, 0, 0 end
+        return getInfo(link)
+    end
+    world.items[0][2].itemID = 2
+    world.items[0][7] = { iconFileID = 107, stackCount = 1, quality = 0, hyperlink = "|Hitem:21|h", itemID = 21 }
+    stub.FireEvent("BAG_UPDATE", 0); stub.FireEvent("BAG_UPDATE_DELAYED"); stub.RunTimers()
+    local junk = {}
+    for _, j in ipairs(ns.Junk.Items()) do junk[#junk + 1] = j.bag .. ":" .. j.slot end
+    T.eq(table.concat(junk, ","), "0:7", "the kept one isn't junk")
+    DaylightUI:Set("Bags", "sellJunk", false)
+    stub.FireEvent("MERCHANT_SHOW")
+    T.truthy(DaylightUI.SellJunkAroundLocks(), "sells around it, not the game's sell-all")
+    for _ = 1, 5 do stub.RunTimers() end
+    T.eq(table.concat(sold, ","), "0:7")
+    stub.FireEvent("MERCHANT_CLOSED")
+    -- Moved to Junk by hand: still kept, and the tooltip says so.
+    ns.Categories.ToggleJunk(2)
+    T.eq(#ns.Junk.Items(), 1, "still not sold")
+    T.truthy(string.find(ns.Junk.TipText(2), "ItemTree", 1, true))
+    -- The switch off: it sells like any junk.
+    DaylightUI:Set("Bags", "itemTreeKeep", false)
+    stub.RunTimers()
+    T.eq(#ns.Junk.Items(), 2, "off: sold with the rest")
+    C_Item.GetItemInfo = getInfo
+    _G.ItemTreeAPI = nil
+end)

@@ -276,6 +276,7 @@ local shareGroups = {
 
 -- The Soul Shard rows are for warlocks only.
 local function notWarlock() return not ns.Junk.IsWarlock() end
+local function noItemTree() return not ns.ItemTree.Installed() end
 
 ns.OPTIONS = { pages = {
     { id = "bags", label = "Bags",
@@ -348,6 +349,8 @@ ns.OPTIONS = { pages = {
               desc = "Shows the game's small gold coin on gray items, like the default bags." },
             { type = "toggle", key = "markCheapJunk", label = "Mark the cheapest junk", disabled = off,
               desc = "A small dot on the bottom left corner of the gray item worth the least, so when your bag is full you know what to throw away. Its tooltip says what it sells for." },
+            { type = "toggle", key = "itemTreeMarks", label = "Show ItemTree's marks", disabled = off, hidden = noItemTree,
+              desc = "A small dot on the top right corner from ItemTree: green to keep, gold to sell, the accent to open or use now. Search keep, sell, usenow or needed to find them." },
         } },
         { label = "Vendors", items = {
             { type = "toggle", key = "sellJunk", label = "Sell junk automatically", disabled = off,
@@ -356,6 +359,8 @@ ns.OPTIONS = { pages = {
               desc = "Opening a vendor that repairs fixes all your gear, and chat shows the cost. Not in combat." },
             { type = "toggle", key = "lockSets", label = "Lock equipment set items", disabled = off,
               desc = "Gear in one of your equipment sets can't be sold to a vendor or disenchanted by accident. Clicking it there tells you why." },
+            { type = "toggle", key = "itemTreeKeep", label = "Never sell what ItemTree keeps", disabled = off, hidden = noItemTree,
+              desc = "Selling junk, by hand or when a vendor opens, leaves alone anything ItemTree says to keep, even gray items and items you moved to Junk." },
             { type = "toggle", key = "repairGuild", label = "Use guild money first",
               disabled = function(get) return get("enabled") ~= true or get("autoRepair") ~= true end,
               desc = "Pays for repairs from the guild bank when your guild allows it. Otherwise you pay." },

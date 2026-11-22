@@ -444,7 +444,7 @@ end
 -- quest info if the caller already has it.
 function Search.Facts(bag, slot, info, quest)
     local f = { quality = info.quality, name = info.itemName, bound = info.isBound == true, link = info.hyperlink,
-                openable = info.hasLoot == true }
+                openable = info.hasLoot == true, itemID = info.itemID, bag = bag }
     f.locked = ns.Categories ~= nil and ns.Categories.IsLocked(info.itemID)
     local id = info.itemID or info.hyperlink
     if id and C_Item and C_Item.GetItemInfoInstant then
