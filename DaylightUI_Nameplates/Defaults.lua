@@ -93,6 +93,7 @@ ns.DEFAULTS = {
     predictAbsorbs = true,  -- shields, on the health bar
     dotTint = true, -- your DoTs' remaining damage, shaded on the health bar
     dotSkull = true, -- ...plus a skull past the bar end when they'll kill it
+    dotsDoesItDie = true, -- with the Does It Die addon installed, its numbers drive the shade and skull (target frame too)
     execute = "off", -- execute range on enemy bars: "auto" (classes with an execute), "on", "off"
     executePct = 0.2, -- ...up to this fraction of health
     executeStyle = "band", -- ...style: "band" (lights up in range), "line" (marker only), "bar" (whole fill lights), "pulse" (band, pulsing), "icon" (your finisher's icon by the bar)

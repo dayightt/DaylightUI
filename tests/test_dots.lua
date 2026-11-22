@@ -617,6 +617,59 @@ T.test("dots: nothing tracked while nobody wants it", function()
     T.eq(Dots.Left("target"), 40)
 end)
 
+-- The Does It Die addon's public API (DoesItDie.GetRemainingDamage and its
+-- callback), standing in for the counting here when installed.
+local function doesItDie(left)
+    local api = { API_VERSION = 1, owners = {} }
+    function api.GetRemainingDamage(unit) return left[unit] or 0, left[unit] and 1 or 0 end
+    function api.RegisterCallback(owner, fn) api.owners[owner] = fn end
+    function api.UnregisterCallback(owner) api.owners[owner] = nil end
+    return api
+end
+
+T.test("dots: with Does It Die installed its numbers are shown and the tracker here rests", function()
+    -- The switch lives on the Nameplates page, so that module is loaded.
+    local DUI = stub.Load{ nameplates = true, before = function()
+        stub.units.player = { name = "Me", isPlayer = true, class = "WARLOCK", guid = "Player-1" }
+        stub.units.target = { name = "Kobold", reaction = 2, guid = "Creature-1", health = 300, maxHealth = 300 }
+        stub.spells = SPELLS
+    end }
+    local Dots = DUI.Dots
+    Dots.Want("unitframes", true)
+    Dots.Forget()
+    local api = doesItDie({ target = 77 })
+    _G.DoesItDie = api
+    stub.FireEvent("ADDON_LOADED", "DoesItDie")
+    T.truthy(api.owners.DaylightUI, "it calls back when its numbers change")
+    T.eq(Dots.Left("target"), 77)
+    cast(COR)
+    T.eq(Dots.Left("target"), 77, "a cast here counts nothing")
+    local got = {}
+    DUI.On("DotsChanged", function(key) got[#got + 1] = key or "all" end)
+    api.owners.DaylightUI("DOTS_CHANGED", "target")
+    T.eq(got[1], stub.units.target.guid, "its callback redraws that mob")
+    T.eq(DUI:Get("Nameplates", "dotsDoesItDie"), true, "on by default")
+    DUI:Set("Nameplates", "dotsDoesItDie", false)
+    T.isnil(api.owners.DaylightUI, "switched off: let go of it")
+    cast(COR)
+    T.eq(Dots.Left("target"), 40, "Daylight UI counts again")
+    _G.DoesItDie = nil
+end)
+
+T.test("dots: the Cooldown Manager keeps its combo count while Does It Die counts DoTs", function()
+    local DUI, Dots = world()
+    _G.DoesItDie = doesItDie({})
+    stub.FireEvent("ADDON_LOADED", "DoesItDie")
+    Dots.Want("cdm", true)
+    cast(CLAW)
+    cast(RIP)
+    T.eq(Dots.Combo(RIP), 1, "the builder's point is still counted")
+    T.isnil(Dots.Left("target"), "the DoT numbers are Does It Die's")
+    _G.DoesItDie = nil
+    stub.FireEvent("ADDON_LOADED", "DoesItDie")
+    Dots.Want("cdm", false)
+end)
+
 -- ---------------------------------------------------------------------
 -- Drawing (DotsDraw.lua)
 -- ---------------------------------------------------------------------

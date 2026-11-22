@@ -344,6 +344,10 @@ ns.OPTIONS = { pages = {
               desc = "A pale sliver on the health bar for an absorb shield, as the unit frames show them." },
             { type = "toggle", key = "dotTint", label = "DoT damage left",
               desc = "Your damage over time spells: the end of the health they will still take is shaded darker. The color is on Unit Frames > Look." },
+            { type = "toggle", key = "dotsDoesItDie", label = "Use Does It Die's numbers",
+              desc = "With the Does It Die addon installed, it counts your DoTs' damage left for the shade and the skull, here and on the target frame.",
+              since = "2.2.3", hidden = function() return not DaylightUI.Dots.Borrowable() end,
+              disabled = function(get) return get("dotTint") == false and get("dotSkull") == false end },
         })) },
         { label = "Special mobs", items = with(since("1.6.5", {
             { type = "toggle", key = "bossBar", label = "Bosses in their own color",

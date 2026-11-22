@@ -477,8 +477,17 @@ local function remaining(dot)
     return total
 end
 
+-- Does It Die's API while it does the counting (see Dots.Borrowable).
+local borrowed
+local function borrowedLeft(unit)
+    local ok, total = DUI.SafeReturn(borrowed.GetRemainingDamage, unit)
+    if not ok or type(total) ~= "number" or isSecret(total) or total <= 0 then return nil end
+    return round(total)
+end
+
 -- What your DoTs on unit will still deal, as a plain whole number, or nil.
 function Dots.Left(unit)
+    if borrowed then return borrowedLeft(unit) end
     local dots = byMob[Dots.KeyOf(unit)]
     if not dots then return nil end
     local total = 0
@@ -961,17 +970,47 @@ function Dots.Combo(id)
     return readCombo() or comboAtSend or (counted > 0 and counted or nil)
 end
 
+-- The Does It Die addon, when installed, can do the counting instead: its
+-- public API hands out the same number (damage left on the mob behind a unit
+-- token) and calls back when it changes. Players who trust its numbers can
+-- keep them on Daylight UI's own bars and skull.
+local SHOWS = { unitframes = true, nameplates = true } -- only these read Dots.Left
+
+function Dots.Borrowable()
+    local api = _G.DoesItDie
+    return type(api) == "table" and type(api.GetRemainingDamage) == "function"
+        and type(api.RegisterCallback) == "function" and type(api.UnregisterCallback) == "function"
+end
+
+local function useBorrowed()
+    return Dots.Borrowable() and DUI:Get("Nameplates", "dotsDoesItDie") ~= false
+end
+
+local function onBorrowed(_, unit)
+    changed(Dots.KeyOf(unit)) -- a plate whose mob can't be told apart gets nil: every one redraws
+end
+
 local wanted = {}
 local listening = false
 
--- who ("unitframes", "nameplates") starts or stops showing DoTs. The tracker
--- only listens while someone shows them.
-function Dots.Want(who, on)
-    wanted[who] = on and true or nil
+-- Decides who counts: Does It Die while it's wanted and allowed, else this
+-- file. The Cooldown Manager still needs this file's combo point count.
+local function apply()
     local any = next(wanted) ~= nil
-    if any == listening then return end
-    listening = any
-    if any then
+    local api = any and useBorrowed() and _G.DoesItDie or nil
+    if api ~= borrowed then
+        if borrowed then DUI.SafeCall(borrowed.UnregisterCallback, "DaylightUI") end
+        borrowed = api
+        if api then DUI.SafeCall(api.RegisterCallback, "DaylightUI", onBorrowed) end
+        changed()
+    end
+    local own = false
+    for who in pairs(wanted) do
+        if not (api and SHOWS[who]) then own = true end
+    end
+    if own == listening then return end
+    listening = own
+    if own then
         events:RegisterUnitEvent("UNIT_SPELLCAST_SENT", "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
         events:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
@@ -986,3 +1025,18 @@ function Dots.Want(who, on)
         Dots.Forget()
     end
 end
+
+-- who ("unitframes", "nameplates", "cdm") starts or stops needing DoTs. The
+-- tracker only listens while someone does.
+function Dots.Want(who, on)
+    wanted[who] = on and true or nil
+    apply()
+end
+
+-- Does It Die may load after the modules ask, and the switch can flip any time.
+DUI.RegisterEvent("ADDON_LOADED", function(_, name)
+    if name == "DoesItDie" then apply() end
+end)
+DUI.On("SettingChanged", function(scope, path)
+    if scope == "Nameplates" and path == "dotsDoesItDie" then apply() end
+end)
