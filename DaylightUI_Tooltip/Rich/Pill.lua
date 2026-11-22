@@ -155,7 +155,7 @@ end
 -- creature card's colors).
 local function fillLevel(f, unit)
     local text, ink = ns.RichWorld.Level(unit)
-    f.level:SetText(text or "")
+    f.level:SetText(ns.RichWorld.LevelText(unit, text) or "")
     if ink then f.level:SetTextColor(ink[1], ink[2], ink[3]) end
     Pill.PlaceName(f, text ~= nil)
 end

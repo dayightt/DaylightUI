@@ -231,12 +231,36 @@ end
 -- A creature
 -- ---------------------------------------------------------------------
 
+-- What kind of foe it is ("boss", "elite", "rare", "rareelite" or nil) and
+-- the color that marks it: gold for an elite and silver for a rare, as the
+-- game's own dragon frames are.
+function World.Rank(unit)
+    local class = plain(UnitClassification(unit))
+    if class == "worldboss" then return "boss", Style.INK.BAD end
+    if class == "elite" then return "elite", Style.INK.MONEY end
+    if class == "rare" or class == "rareelite" then return class, World.RARE_COLOR end
+    return nil
+end
+
+World.LEVEL_MARKS = { elite = "+", rare = "R", rareelite = "R+" }
+
 -- Its level as the card shows it, and the color: how hard it is for you.
 function World.Level(unit)
     local level = plain(UnitLevel(unit))
     if type(level) ~= "number" then return nil end
     if level <= 0 then return "??", Style.INK.BAD end
     return tostring(level), World.Ink(DUI.LevelColor(unit, level))
+end
+
+-- The level as drawn: an elite's carries a gold "+", a rare's a silver "R"
+-- ("R+" for a rare elite), so the pill in a fight tells it at a glance too.
+-- Only for showing; the plain level finds the game's level line.
+function World.LevelText(unit, text)
+    if not text or text == "??" then return text end
+    local rank, c = World.Rank(unit)
+    local mark = rank and World.LEVEL_MARKS[rank]
+    if mark then return text .. hex(c) .. mark .. "|r" end
+    return text
 end
 
 -- Sorts a creature's own lines (2 to own): the level line is the header's,
@@ -301,6 +325,11 @@ World.RARE_COLOR = { 0.80, 0.88, 1.00 }
 function World.Tags(unit, r)
     local W, INK, Tag = World.Words(), Style.INK, ns.RichItems.Tag
     local tags = {}
+    -- Boss, elite and rare first: the tag a glance looks for.
+    local class = plain(UnitClassification(unit))
+    if class == "worldboss" then tags[#tags + 1] = Tag(W.boss, INK.BAD) end
+    if class == "elite" or class == "rareelite" then tags[#tags + 1] = Tag(W.elite, INK.MONEY) end
+    if class == "rare" or class == "rareelite" then tags[#tags + 1] = Tag(W.rare, World.RARE_COLOR) end
     local reaction = plain(UnitReaction(unit, "player"))
     if type(reaction) == "number" then
         local name = reaction <= 3 and W.hostile or reaction == 4 and W.neutral or W.friendly
@@ -312,10 +341,6 @@ function World.Tags(unit, r)
         tags[#tags + 1] = Tag(kind, World.KIND_COLORS[kindID] or INK.TEXT)
     end
     for _, t in ipairs(r.tags) do tags[#tags + 1] = Tag(t[1], t[2]) end
-    local class = plain(UnitClassification(unit))
-    if class == "rare" or class == "rareelite" then tags[#tags + 1] = Tag(W.rare, World.RARE_COLOR) end
-    if class == "elite" or class == "rareelite" then tags[#tags + 1] = Tag(W.elite, INK.MONEY) end
-    if class == "worldboss" then tags[#tags + 1] = Tag(W.boss, INK.BAD) end
     return tags
 end
 
@@ -359,8 +384,12 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     World.DropShown(r, tags)
     local cfg = ns.Tooltip.Config()
     local face = not (cfg and cfg.portraits == false) and unit or nil
+    -- An elite's, rare's or boss's face wears its color's edge and glow, as
+    -- an item's icon wears its quality.
+    local _, rankColor = World.Rank(unit)
     Panel.Header(p, { portrait = face, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = face and pair or nil,
-        title = r.title, titleSize = World.TITLE, sub = r.sub, right = level, rightColor = levelColor, rightSize = Style.SIZE.title,
+        iconEdge = face and rankColor or nil,
+        title = r.title, titleSize = World.TITLE, sub = r.sub, right = World.LevelText(unit, level), rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
     local barLow = cfg and cfg.mobBar == "bottom"
     if not barLow then

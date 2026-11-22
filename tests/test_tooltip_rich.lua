@@ -1789,7 +1789,7 @@ T.test("rich tooltip: a sell price with no durability beside it says what it is"
         "Sell Price: 48|A:coin-silver:0:0|a 12|A:coin-copper:0:0|a" })
     local rows = kinds(Panel.Get(GameTooltip), "row")
     local foot = rows[#rows]
-    T.eq(stub.Text(foot.label), "Sell Price")
+    T.eq(stub.Text(foot.label), "Vendor")
     T.truthy(stub.Text(foot.value):find("48", 1, true))
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -1925,6 +1925,7 @@ T.test("rich tooltip: a mob's card, as the board lays it out", function()
     T.eq(stub.Text(head.right), "23", "the level on the right")
     T.rgb({ head.right:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "the level in its reaction's color")
     T.eq(tagWords(head), "HOSTILE,BEAST,SKINNABLE")
+    T.falsy(head.icon and head.icon.edge:IsShown(), "a plain mob's face has no edge")
     T.rgb({ head.tags[1].text:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "hostile in its color")
     T.rgb({ head.tags[2].text:GetTextColor() }, stub.tooltip.RichWorld.KIND_COLORS[1], "a beast in its color")
     T.rgb({ head.tags[3].text:GetTextColor() }, DaylightUI.Style.INK.WARN, "skinnable in the game's skill-up color")
@@ -1953,9 +1954,17 @@ T.test("rich tooltip: a mob's rare and elite tags, a skull level, a friendly NPC
     boar({ classification = "rareelite", level = -1 })
     local p = Panel.Get(hoverBoar())
     local head = p.items[1]
-    T.eq(tagWords(head), "HOSTILE,BEAST,SKINNABLE,RARE,ELITE")
-    T.eq(stub.Text(head.right), "??")
+    T.eq(tagWords(head), "ELITE,RARE,HOSTILE,BEAST,SKINNABLE", "elite and rare first, where a glance looks")
+    T.eq(stub.Text(head.right), "??", "no + after a skull level")
     T.rgb({ head.right:GetTextColor() }, DaylightUI.Style.INK.BAD)
+    T.truthy(head.icon and head.icon.edge:IsShown(), "a rare elite's face wears an edge")
+    T.rgb({ head.icon.edge:GetVertexColor() }, stub.tooltip.RichWorld.RARE_COLOR, "in silver, as the game's rare elite dragon")
+    -- A rare at a known level: a silver R after it.
+    boar({ classification = "rare", level = 20 })
+    hoverBoar()
+    head = p.items[1]
+    T.truthy(stub.Text(head.right):find("^20|c%x+R|r$"), "a rare's level carries an R")
+    T.eq(tagWords(head), "RARE,HOSTILE,BEAST,SKINNABLE")
     -- An innkeeper: its title under its name, no quest, no skinning.
     stub.units.mouseover = { name = "Innkeeper Farley", isPlayer = false, reaction = 5, level = 30, health = 100,
         maxHealth = 100, creatureType = "Humanoid" }
@@ -2403,7 +2412,9 @@ T.test("rich tooltip: a creature's lines that repeat what the header shows are l
     stub.units.mouseovertarget = nil
     hover("mouseover", { "Jumbo Crawfish", "Level 40", "Humanoid", "NEUTRAL", "Elite", "Jumbo Crawfish", "Coastal" })
     local p = Panel.Get(GameTooltip)
-    T.eq(tagWords(p.items[1]), "NEUTRAL,HUMANOID,ELITE")
+    T.eq(tagWords(p.items[1]), "ELITE,NEUTRAL,HUMANOID")
+    T.truthy(stub.Text(p.items[1].right):find("^40|c%x+%+|r$"), "an elite's level carries a gold +")
+    T.rgb({ p.items[1].icon.edge:GetVertexColor() }, DaylightUI.Style.INK.MONEY, "an elite's face edged in gold")
     local said = {}
     for _, it in ipairs(itemsOf(p, "text")) do said[#said + 1] = stub.Text(it.fs) end
     T.eq(table.concat(said, ","), "Coastal", "only what the header doesn't say")
