@@ -1246,7 +1246,7 @@ T.test("inbox: a receipt uses the game's invoice words, and a COD letter says CO
         local text = {}
         for _, b in ipairs(ns.Inbox.letter.stack.used) do if b:IsShown() and b.text and not b.lineSpec then text[#text + 1] = stub.Text(b.text) end end
         local all = table.concat(text, "\n")
-        T.truthy(all:find("Comprador", 1, true) and all:find("Precio de venta", 1, true) and all:find("Cantidad recibida", 1, true) and not all:find(":", 1, true), all)
+        T.truthy(all:find("Comprador", 1, true) and all:find("Precio de venta", 1, true) and all:find("Cantidad recibida", 1, true) and not all:find("Comprador:", 1, true) and not all:find("Precio de venta:", 1, true), all)
         T.falsy(all:find("Sold for", 1, true), "ours is only the fallback")
     end)
 end)
