@@ -305,7 +305,7 @@ function EditMode.Export(profile)
 end
 
 -- Parses a layout from share text, or nil.
-local function fromText(str)
+function EditMode.FromText(str)
     local convert = C_EditMode and C_EditMode.ConvertStringToLayoutInfo
     if type(str) ~= "string" or type(convert) ~= "function" then return nil end
     local ok, layout = pcall(convert, str)
@@ -321,7 +321,7 @@ function EditMode.UseProfile(profile)
     profileChecked = true
     if EditMode.Exists(profile) then return EditMode.Install(nil, profile) end
     local data = DUI.DB.Root().profileData[profile]
-    local base = fromText(type(data) == "table" and data.pendingLayout)
+    local base = EditMode.FromText(type(data) == "table" and data.pendingLayout)
     if not base then
         local current = activeSaved()
         if isAnyOurs(current) then base = CopyTable(current) end
@@ -339,7 +339,7 @@ end
 function EditMode.Replace(text, profile)
     local why = notReady()
     if why then return false, why end
-    local layout = fromText(text)
+    local layout = EditMode.FromText(text)
     if not layout then return false, L["its Edit Mode layout can't be read"] end
     local info = C_EditMode.GetLayouts()
     if not (info and type(info.layouts) == "table") then return false, L["the game hasn't given its layouts yet"] end

@@ -231,11 +231,8 @@ function Profiles.Only(p, take)
     return out
 end
 
--- Fitting a shared profile's frames to another screen shape
+-- Fitting a shared profile's frames to another screen
 
--- A string from before the screen was saved with it is taken as made on 16:9,
--- the shape most players have.
-Profiles.SHAPE_DEFAULT = 16 / 9
 -- Shapes named in the import message, and how close a screen must be to one
 -- to be called it (3440x1440 is 2.39, sold as 21:9).
 Profiles.SHAPES = { { 4 / 3, "4:3" }, { 5 / 4, "5:4" }, { 16 / 10, "16:10" }, { 16 / 9, "16:9" },
@@ -253,46 +250,347 @@ function Profiles.ShapeName(aspect)
     return string.format("%.2f:1", aspect)
 end
 
--- The shared profile p with its frame positions fitted to this screen's
--- shape. Spots are offsets from the screen's middle, so they stay put on any
--- width; what changes is the edges. On a narrower screen the spots are pulled
--- in with the width, so nothing ends up past an edge. On a wider one the
--- spots stay, and the pieces that start at a screen edge (chat, info panel,
--- raid, loot feed) and were never moved start that far in, at the edges the
--- profile was made with, so the whole layout stays together in the middle.
--- Returns a copy and the shapes (from, to), or p itself when the shapes match.
-function Profiles.Fit(p)
-    if type(p.positions) ~= "table" then return p end
+-- A profile made on another screen (p.screen, UIParent's size there) is
+-- fitted to this one so it looks as it did there: the same arrangement, each
+-- piece the same size for the screen. Sizes follow the height (k, this
+-- screen's height over that one's), so a UI made at another UI scale keeps
+-- its share of the screen, and at the same UI scale nothing changes size.
+-- Up and down, a piece stays the same share of the height from the middle.
+-- Across, on a wider screen a piece in the middle half of the old one stays
+-- that far from the middle (times k), and one further out keeps its distance
+-- from its own side's edge, so the room the wider screen adds goes between
+-- the middle and the sides. On a narrower screen the middle (FIT_MIDDLE of
+-- the new screen's half width) keeps its distances from the middle and the
+-- edges (FIT_EDGE of it) their gaps, and what's between them is squeezed
+-- evenly into the room left, so nothing jumps and the order across stays.
+-- Only spots and sizes change.
+Profiles.FIT_NEAR = 0.01 -- screens this close in height and shape count as the same one
+Profiles.FIT_SHRINK = 0.5 -- the smallest a side shrinks to make room on a narrower screen
+Profiles.FIT_STEPS = 12 -- halvings in the search for how far it shrinks
+Profiles.FIT_MIDDLE = 0.5 -- on a narrower screen, the share of its half width kept as it was in the middle
+Profiles.FIT_EDGE = 0.25 -- and at each edge
+
+local function clamp(v, lo, hi) return math.max(lo, math.min(hi, v)) end
+
+-- Both screens and k, or nil when they're the same one (or either isn't known).
+-- On a narrower screen also, in the old screen's units: half its width (half),
+-- the new one's (room), and how far out the middle reaches (mid) and how far
+-- in the edges do (edge).
+local function screens(s)
     local w, h = UIParent:GetWidth(), UIParent:GetHeight()
-    if not (w and h and w > 0 and h > 0) then return p end
-    local s = p.screen
-    local aspect = s and s[1] / s[2] or Profiles.SHAPE_DEFAULT
-    local band = h * aspect -- the width the profile was made with, in this screen's units
-    if math.abs(w - band) <= w * 0.01 then return p end
-    local out = copy(p)
-    local at = out.positions
-    if w < band then
-        local k = w / band
-        for _, v in pairs(at) do
-            local x = v[1] * k
-            if type(v.ax) == "number" then v.ax = v.ax + x - v[1] end
-            v[1] = x
+    if not (type(s) == "table" and w and h and w > 0 and h > 0) then return nil end
+    local k, near = h / s[2], Profiles.FIT_NEAR
+    if math.abs(k - 1) <= near and math.abs(w / h - s[1] / s[2]) <= near * w / h then return nil end
+    local fs = { sw = s[1], sh = s[2], w = w, h = h, k = k }
+    local half, room = s[1] / 2, w / 2 / k
+    if room < half * (1 - near) then
+        fs.narrow, fs.half, fs.room = true, half, room
+        fs.mid, fs.edge = room * Profiles.FIT_MIDDLE, room * Profiles.FIT_EDGE
+    end
+    return fs
+end
+
+-- The part of the old screen that x (from the middle) is in: -1 the left
+-- side, 0 the middle, 1 the right side.
+local function sideOf(fs, x)
+    if math.abs(x) <= (fs.narrow and fs.mid or fs.sw / 4) then return 0 end
+    return x < 0 and -1 or 1
+end
+
+-- x on this screen, for a spot on `side`. shrink (1 when not given) brings a
+-- side's spot toward its edge, or the middle's toward the middle.
+local function fitX(fs, side, x, shrink)
+    local s = shrink or 1
+    if side == 0 then return x * fs.k * s end
+    local nx
+    if fs.narrow then
+        local u, away = math.abs(x), 0
+        if fs.half - u <= fs.edge then
+            away = fs.room - (fs.half - u)
+        else
+            away = fs.mid + (u - fs.mid) * (fs.room - fs.edge - fs.mid) / (fs.half - fs.edge - fs.mid)
         end
+        nx = side * away * fs.k
     else
-        local extra = (w - band) / 2
-        for _, key in ipairs(DUI.Movers.Keys()) do
-            if not at[key] then
-                local point, ax, ay, x, y, side = DUI.Movers.DefaultSpot(key)
-                if point and side ~= 0 then
-                    local shift = -side * extra
-                    local spot = { x + shift, y }
-                    if point ~= "CENTER" then spot.at, spot.ax, spot.ay = point, ax + shift, ay end
-                    at[key] = spot
+        nx = side * fs.w / 2 + (x - side * fs.sw / 2) * fs.k
+    end
+    return side * fs.w / 2 + (nx - side * fs.w / 2) * s
+end
+
+local function box(x, y, w, h) return { l = x - w / 2, r = x + w / 2, b = y - h / 2, t = y + h / 2 } end
+local function overlap(a, b) return a.l < b.r and b.l < a.r and a.b < b.t and b.b < a.t end
+
+-- Fits the spots in `at` (changed in place). size(key): how much bigger the
+-- profile draws a piece than it's drawn here now. grow: how much every piece
+-- grows on this screen (k, or less where the Scale reached its end, or 1
+-- when the profile's Scale isn't taken). general: the profile's General
+-- settings when taken, where a piece shrunk to make room is made smaller.
+--
+-- When sizes change, the pieces never moved get a spot too, worked out on
+-- the screen the profile was made on, since a start spot doesn't grow with
+-- them. Otherwise they stay at their start spots and are only in the way.
+-- On a narrower screen a piece at a side that now runs into another (where
+-- it didn't before) shrinks toward its edge, its gap and itself together, as
+-- little as clears it. Pieces nearest their edge go first. A piece it would
+-- still run into at FIT_SHRINK is in the way at any size and isn't counted:
+-- small and still covered helps no one. The middle shrinks if it's wider
+-- than the screen. Last, each piece is
+-- kept on the screen, as far off it as it was on the old one. Sizes are the
+-- frames' here, so a piece whose own settings the import changes is measured
+-- as it is now.
+local function fitPositions(fs, at, size, grow, general)
+    local M = DUI.Movers
+    local resize = math.abs(fs.k - 1) > Profiles.FIT_NEAR
+    local list = {}
+    local function add(key, x, y, point, ax, ay)
+        local w, h = M.SizeOf(key)
+        local s = size(key)
+        local it = { key = key, at = point, ax = ax, ay = ay, w = (w or 0) * s, h = (h or 0) * s }
+        local sg = point and M.ANCHOR_SIGN[point]
+        if not x then x, y = ax - sg[1] * it.w / 2, ay - sg[2] * it.h / 2 end
+        it.x, it.y, it.side, it.from = x, y, sideOf(fs, x), box(x, y, it.w, it.h)
+        list[#list + 1] = it
+        return it, sg
+    end
+    for key, v in pairs(at) do add(key, v[1], v[2], v.at, v.ax, v.ay).saved = v end
+    for _, key in ipairs(M.Keys()) do
+        if not at[key] then
+            local point, ax, ay = M.DefaultSpot(key, fs.sw, fs.sh)
+            if point then
+                local it, sg = add(key, nil, nil, point, ax, ay)
+                if not resize then
+                    local _, bx, by = M.DefaultSpot(key)
+                    local w, h = it.w * grow, it.h * grow
+                    it.fixed = box(bx - sg[1] * w / 2, by - sg[2] * h / 2, w, h)
                 end
             end
         end
     end
-    return out, Profiles.ShapeName(aspect), Profiles.ShapeName(w / h)
+    local function place(it)
+        if it.fixed then return it.fixed end
+        local s = it.shrink or 1
+        local x, y, g = fitX(fs, it.side, it.x, s), it.y * fs.k, grow * s
+        return box(x, y, it.w * g, it.h * g), x, y, g
+    end
+    -- Whether a, where it would go now, runs into a piece it was clear of
+    -- before, other than those in skip.
+    local function clash(a, skip)
+        local ra = place(a)
+        for _, b in ipairs(list) do
+            if b ~= a and b.w > 0 and not (skip and skip[b]) and overlap(ra, place(b))
+                    and not overlap(a.from, b.from) then
+                return true
+            end
+        end
+        return false
+    end
+    local l, r
+    for _, it in ipairs(list) do
+        if it.side == 0 and not it.fixed and it.w > 0 then
+            local b = place(it)
+            l, r = math.min(l or b.l, b.l), math.max(r or b.r, b.r)
+        end
+    end
+    if l and r - l > fs.w then
+        local s = math.max(Profiles.FIT_SHRINK, fs.w / (r - l))
+        for _, it in ipairs(list) do
+            if it.side == 0 and not it.fixed then it.shrink = s end
+        end
+    end
+    -- Each side piece's gap from its own edge on the old screen.
+    local outer = {}
+    for _, it in ipairs(list) do
+        if it.side ~= 0 and not it.fixed and it.w > 0 then
+            it.gap = fs.sw / 2 - it.side * it.x - it.w / 2
+            outer[#outer + 1] = it
+        end
+    end
+    table.sort(outer, function(a, b)
+        if a.gap ~= b.gap then return a.gap < b.gap end
+        return a.key < b.key
+    end)
+    for _, it in ipairs(outer) do
+        if clash(it) then
+            -- What it still runs into at its smallest is in the way at any
+            -- size: shrinking for that only makes it small and still covered.
+            it.shrink = Profiles.FIT_SHRINK
+            local stuck, ra = {}, place(it)
+            for _, b in ipairs(list) do
+                if b ~= it and b.w > 0 and overlap(ra, place(b)) then stuck[b] = true end
+            end
+            it.shrink = nil
+            if clash(it, stuck) then
+                local lo, hi = Profiles.FIT_SHRINK, 1
+                for _ = 1, Profiles.FIT_STEPS do
+                    it.shrink = (lo + hi) / 2
+                    if clash(it, stuck) then hi = it.shrink else lo = it.shrink end
+                end
+                it.shrink = lo
+            end
+        end
+    end
+    for _, it in ipairs(list) do
+        if not it.fixed and (it.saved or resize) then
+            local b, x, y, g = place(it)
+            -- On the screen, or as far off it as it was on the old one.
+            local f = it.from
+            local offL, offR = math.max(0, -fs.sw / 2 - f.l) * g, math.max(0, f.r - fs.sw / 2) * g
+            local offB, offT = math.max(0, -fs.sh / 2 - f.b) * g, math.max(0, f.t - fs.sh / 2) * g
+            x = x + math.max(0, -fs.w / 2 - offL - b.l) - math.max(0, b.r - fs.w / 2 - offR)
+            y = y + math.max(0, -fs.h / 2 - offB - b.b) - math.max(0, b.t - fs.h / 2 - offT)
+            local v = copy(it.saved) or {}
+            v[1], v[2] = x, y
+            if it.at and it.at ~= "CENTER" and type(it.ax) == "number" and type(it.ay) == "number" then
+                v.at, v.ax, v.ay = it.at, x + (it.ax - it.x) * g, y + (it.ay - it.y) * g
+            end
+            at[it.key] = v
+            local s = it.shrink or 1
+            if general and s < 1 and M.Scalable(it.key) then
+                if type(general.frameScales) ~= "table" then general.frameScales = {} end
+                general.frameScales[it.key] = clamp((tonumber(general.frameScales[it.key]) or 1) * s, M.MIN, M.MAX)
+            end
+        end
+    end
+end
+
+-- Edit Mode settings that size a piece, by system: the system's setting enum
+-- and its size sliders (in percent). They're scaled through the game's own
+-- slider ranges, so a size lands on the slider's nearest step, inside its range.
+Profiles.LAYOUT_SIZES = {
+    ActionBar = { "EditModeActionBarSetting", "IconSize" },
+    ArchaeologyBar = { "EditModeArchaeologyBarSetting", "Size" },
+    AuraFrame = { "EditModeAuraFrameSetting", "IconSize" },
+    Bags = { "EditModeBagsSetting", "Size" },
+    CastBar = { "EditModeCastBarSetting", "BarSize" },
+    CooldownViewer = { "EditModeCooldownViewerSetting", "IconSize" },
+    DurabilityFrame = { "EditModeDurabilityFrameSetting", "Size" },
+    EncounterEvents = { "EditModeEncounterEventsSetting", "IconSize", "OverallSize" },
+    GroupFinder = { "EditModeGroupFinderSetting", "Size" },
+    LossOfControl = { "EditModeLossOfControlSetting", "Size" },
+    MicroMenu = { "EditModeMicroMenuSetting", "Size" },
+    Minimap = { "EditModeMinimapSetting", "Size", "IconScale" },
+    PersonalResourceDisplay = { "EditModePersonalResourceDisplaySetting", "Size" },
+    StatusTrackingBar = { "EditModeStatusTrackingBarSetting", "Size" },
+    SwingTimer = { "EditModeSwingTimerSetting", "Scale" },
+    TimerBars = { "EditModeTimerBarsSetting", "Size" },
+    UnitFrame = { "EditModeUnitFrameSetting", "FrameSize", "BuffIconSize", "DebuffIconSize", "BigDefensiveIconSize" },
+    VehicleSeatIndicator = { "EditModeVehicleSeatIndicatorSetting", "Size" },
+}
+
+-- LAYOUT_SIZES by the game's numbers: system -> { [setting] = true }.
+local function layoutSizes()
+    local out = {}
+    for sys, t in pairs(Profiles.LAYOUT_SIZES) do
+        local id, enum = Enum.EditModeSystem and Enum.EditModeSystem[sys], Enum[t[1]]
+        if id ~= nil and type(enum) == "table" then
+            out[id] = {}
+            for i = 2, #t do
+                if enum[t[i]] ~= nil then out[id][enum[t[i]]] = true end
+            end
+        end
+    end
+    return out
+end
+
+-- One size setting times k, stored the way the game's slider stores it.
+local function fitSetting(system, row, k)
+    local D = EditModeSettingDisplayInfoManager
+    local map = D and D.GetSystemSettingDisplayInfoMap and D:GetSystemSettingDisplayInfoMap(system)
+    local info = map and map[row.setting]
+    local slider = Enum.EditModeSettingDisplayType and Enum.EditModeSettingDisplayType.Slider
+    if not (info and info.type == slider and type(row.value) == "number" and type(info.minValue) == "number"
+            and type(info.maxValue) == "number" and type(info.stepSize) == "number" and info.stepSize > 0) then
+        return
+    end
+    local shown = info.ConvertValueForDisplay and info:ConvertValueForDisplay(row.value) or row.value
+    local v = clamp(shown * k, info.minValue, info.maxValue)
+    v = math.min(info.maxValue, info.minValue + math.floor((v - info.minValue) / info.stepSize + 0.5) * info.stepSize)
+    row.value = info.ConvertValue and info:ConvertValue(v, false) or v
+end
+
+-- An Edit Mode anchor fitted like a piece's spot. One held by another frame
+-- (snapped to it) only has its gap times k; it follows that frame.
+local function fitAnchor(fs, a)
+    if type(a) ~= "table" or type(a.offsetX) ~= "number" or type(a.offsetY) ~= "number" then return end
+    if a.relativeTo ~= nil and a.relativeTo ~= "UIParent" then
+        a.offsetX, a.offsetY = a.offsetX * fs.k, a.offsetY * fs.k
+        return
+    end
+    local sg = DUI.Movers.ANCHOR_SIGN[a.relativePoint]
+    if not sg then return end
+    -- Edit Mode keeps each piece from the nearer half's edge, so the spot
+    -- is taken from the middle first and given its side like ours.
+    -- A point placed off the old screen on purpose (a bar tucked under the
+    -- bottom edge) keeps its overhang, times k.
+    local x, y = sg[1] * fs.sw / 2 + a.offsetX, sg[2] * fs.sh / 2 + a.offsetY
+    local nx, ny = fitX(fs, sideOf(fs, x), x), y * fs.k
+    if math.abs(x) <= fs.sw / 2 then nx = clamp(nx, -fs.w / 2, fs.w / 2) end
+    if math.abs(y) <= fs.sh / 2 then ny = clamp(ny, -fs.h / 2, fs.h / 2) end
+    x, y = nx, ny
+    a.offsetX, a.offsetY = x - sg[1] * fs.w / 2, y - sg[2] * fs.h / 2
+end
+
+-- The Edit Mode layout text fitted to this screen: the spots of pieces moved
+-- off their default (the game places the rest from the edges) and the size
+-- sliders. Read and written back by the game itself; text it can't read
+-- comes back as it is.
+local function fitLayout(text, fs)
+    local E = C_EditMode
+    local layout = type(E and E.ConvertLayoutInfoToString) == "function" and EditMode.FromText(text)
+    if not layout then return text end
+    local sizes = layoutSizes()
+    for _, entry in ipairs(layout.systems) do
+        if type(entry) == "table" then
+            if not entry.isInDefaultPosition then
+                fitAnchor(fs, entry.anchorInfo)
+                fitAnchor(fs, entry.anchorInfo2)
+            end
+            local own = sizes[entry.system]
+            if own and type(entry.settings) == "table" then
+                for _, row in ipairs(entry.settings) do
+                    if type(row) == "table" and own[row.setting] then fitSetting(entry.system, row, fs.k) end
+                end
+            end
+        end
+    end
+    local done, s = DUI.SafeReturn(E.ConvertLayoutInfoToString, layout)
+    return done and type(s) == "string" and s or text
+end
+
+-- The shared profile p fitted to this screen, for the parts in take (a set
+-- of Parts keys; every part when not given): its frame spots, its Scale
+-- (with Appearance) and its Edit Mode layout. Returns a copy and the shapes
+-- (from, to), or p itself when it was made on this screen or doesn't say
+-- which (a string from before screens were saved).
+function Profiles.Fit(p, take)
+    local fs = screens(p.screen)
+    if not fs then return p end
+    local M = DUI.Movers
+    local function taken(key) return not take or take[key] end
+    local spots = holds(p.positions) and taken(Profiles.POSITIONS)
+    local layout = type(p.layout) == "string" and taken(Profiles.LAYOUT)
+    local out = copy(p)
+    local general = holds(out.general) and taken(Profiles.GENERAL) and out.general or nil
+    if not (general or spots or layout) then return p end
+    local master, grow = 1, 1
+    if general then
+        -- The same range as the Scale slider.
+        master = tonumber(general.scale) or 1
+        if master <= 0 then master = 1 end
+        local scale = clamp(master * fs.k, M.MIN, M.MAX)
+        grow = scale / master
+        general.scale = math.abs(scale - 1) >= 0.001 and scale or nil
+    end
+    if spots then
+        local function size(key)
+            if not (general and M.Scalable(key)) then return 1 end
+            local own = type(general.frameScales) == "table" and tonumber(general.frameScales[key]) or 1
+            return master * own / M.Scale(key)
+        end
+        fitPositions(fs, out.positions, size, grow, general)
+    end
+    if layout then out.layout = fitLayout(out.layout, fs) end
+    return out, Profiles.ShapeName(fs.sw / fs.sh), Profiles.ShapeName(fs.w / fs.h)
 end
 
 -- The profiles
@@ -621,11 +919,9 @@ Profiles.PRESET_OVER = {
                keys = { "unitframes.player", "unitframes.target", "unitframes.pet", "unitframes.targettarget" } },
 }
 
--- screen: the UIParent size the spots were set up on (a pack's own; ours when
--- not given).
-local function fitToScreen(key, at, screen)
+local function fitToScreen(key, at)
     local w, h = UIParent:GetWidth(), UIParent:GetHeight()
-    local refW, refH = (screen or Profiles.PRESET_SCREEN)[1], (screen or Profiles.PRESET_SCREEN)[2]
+    local refW, refH = Profiles.PRESET_SCREEN[1], Profiles.PRESET_SCREEN[2]
     -- The game returns sizes slightly off; treat the screen it was made on as equal.
     local narrower = w < refW - 1
     local function fit(v)
@@ -695,7 +991,7 @@ end
 -- DaylightUI.RegisterPack("MyPack", {
 --     label = "My UI", author = "Me", version = "1.2", website = "...",
 --     desc = "One line on what it is.",
---     screen = { 1920, 1080 },     -- UIParent size it was made on; positions are pulled in on smaller screens
+--     screen = { 1920, 1080 },     -- UIParent size it was made on, for strings that don't say (Profiles.Fit)
 --     updates = "offer",           -- "never" (default): once created, a profile belongs to the player
 --     profiles = { { name = "My UI Healer", text = "!DUI1_...", sub = "One line.", role = "Healer" } },
 --     extras = { { addon = "Details", label = "Details!", apply = function() ... end } },
@@ -826,12 +1122,14 @@ function Profiles.ReadyNames()
     return out
 end
 
--- The positions a pack profile brings, fitted to this screen when the pack
--- says which one it was made on.
-local function packPositions(entry, p)
-    local at = p.positions or {}
-    if entry.pack.screen then return fitToScreen(nil, at, entry.pack.screen) end
-    return copy(at)
+-- A pack profile fitted to this screen (Profiles.Fit), by the screen its
+-- string was made on, else the one the pack says.
+local function packFitted(entry, p)
+    if not p.screen and entry.pack.screen then
+        p = copy(p)
+        p.screen = { entry.pack.screen[1], entry.pack.screen[2] }
+    end
+    return (Profiles.Fit(p))
 end
 
 -- A ready-made profile's table (ours or a pack's), not saved anywhere yet.
@@ -845,8 +1143,7 @@ function Profiles.ReadyData(key, keep)
     if entry then
         local p, why = Profiles.PackProfile(entry)
         if not p then return nil, why end
-        local t = Profiles.Build(p, nil, keep)
-        t.positions = packPositions(entry, p)
+        local t = Profiles.Build(packFitted(entry, p), nil, keep)
         t.fromPack = { id = entry.pack.id, name = entry.name, version = entry.pack.version }
         return t
     end
@@ -885,7 +1182,7 @@ function Profiles.ImportInto(shared, take)
     local name = Profiles.Current()
     local old = DUI.DB.Fill(data()[name])
     local from, to
-    if take[Profiles.POSITIONS] then shared, from, to = Profiles.Fit(shared) end
+    shared, from, to = Profiles.Fit(shared, take)
     local new = Profiles.Build(Profiles.Take(shared, take), nil, old)
     -- What the profile carries besides its settings stays: the pack it came
     -- from, the upgrades it already had.
@@ -949,8 +1246,7 @@ function Profiles.UpdateFromPack(name)
     if not entry then return false, L["there's nothing newer to bring in"] end
     local p = Profiles.PackProfile(entry)
     local t = data()[name]
-    local new = Profiles.Build(p, nil, DUI.DB.Fill(t))
-    new.positions = packPositions(entry, p)
+    local new = Profiles.Build(packFitted(entry, p), nil, DUI.DB.Fill(t))
     new.pendingLayout = t.pendingLayout
     new.fromPack = { id = entry.pack.id, name = entry.name, version = entry.pack.version }
     -- In place, since the active profile is this very table.
@@ -1529,8 +1825,7 @@ function Profiles.ShowImport()
             b.name:SetFocus()
             return
         end
-        local shared, from, to = pending
-        if take[Profiles.POSITIONS] then shared, from, to = Profiles.Fit(pending) end
+        local shared, from, to = Profiles.Fit(pending, take)
         -- Always through Take: a string shared with parts left out gets yours for those.
         shared = Profiles.Take(shared, take)
         local made, why = Profiles.Create(named(), shared)

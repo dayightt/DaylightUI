@@ -689,6 +689,25 @@ T.test("profiles: importing into the profile in use changes only the parts picke
     T.eq(stub.Asked(), "profileReload", "asked to reload")
 end)
 
+T.test("profiles: importing into the profile in use fits it to this screen too", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    local P = DUI.Profiles
+    stub.SetScreen(1920, 1080, 768 / 1080)
+    DUI:Set("general", "borderPx", 3)
+    DUI.DB.Positions()["unitframes.player"] = { -300, -200 }
+    local text = P.Encode(P.Snapshot())
+    stub.SetScreen(2560, 1440, 768 / 1440)
+    local made = P.ImportInto(P.Decode(text), { general = true, positions = true })
+    local p = DaylightUIDB.profileData[made]
+    T.near(p.general.scale, 4 / 3, 1e-6, "the Scale grown with the height")
+    T.near(p.positions["unitframes.player"][1], -400, 1e-6, "as far from the middle, for the screen")
+    T.near(p.positions["unitframes.player"][2], -800 / 3, 1e-6)
+    made = P.ImportInto(P.Decode(text), { general = true })
+    T.near(DaylightUIDB.profileData[made].general.scale, 4 / 3, 1e-6, "Appearance alone is fitted too")
+end)
+
 T.test("profiles: a character on its stand-in can only import as a new profile", function()
     local DUI = login()
     T.truthy(DUI.DB.Unsaved(), "no profile of its own yet")
@@ -1377,8 +1396,8 @@ T.test("packs: spots fit a smaller screen when the pack says which screen it was
         profiles = { { name = "Wide", data = { positions = { ["unitframes.player"] = { -600, -300 } } } } } })
     P.AddPreset("Wide")
     local pos = DaylightUIDB.profileData.Wide.positions["unitframes.player"]
-    T.near(pos[1], -300, 1e-6, "half as wide: half as far out")
-    T.near(pos[2], -300 + h / 2, 1e-6, "the same height above the bottom")
+    T.near(pos[1], -300, 1e-6, "half as tall: half as far out")
+    T.near(pos[2], -150, 1e-6, "and half as far down")
 end)
 
 T.test("packs: one that can't be read is left out with a line in chat; a mistake in the call is an error", function()
