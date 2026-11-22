@@ -693,7 +693,17 @@ T.test("rolls stack: one roll shows in full with its list", function()
     T.eq(St.Mode(), "full"); T.isnil(St.Open(), "small until you've picked")
     T.truthy(St.frame:IsShown())
     St.Cards()[1].buttons.need:Click()
-    T.eq(St.Open(), S.RollData.drops[id], "the list opens after your roll")
+    T.isnil(St.Open(), "folded after your roll, while the others have yet to roll")
+    local card = St.Cards()[1]
+    T.truthy(card.ticks:IsShown(), "the small card with its ticks")
+    card.IsMouseOver = function() return true end
+    St.Layout()
+    T.eq(St.Open(), S.RollData.drops[id], "the mouse over it unfolds the list")
+    card.IsMouseOver = nil
+    St.Layout()
+    T.isnil(St.Open(), "and off it folds again")
+    RW.Pick(id, "Bram Holloway", "need"); RW.Roll(id, "Bram Holloway", 91); RW.Win(id, "Bram Holloway")
+    T.eq(St.Open(), S.RollData.drops[id], "the list opens when the roll is over")
     T.eq(#St.Cards(), 1)
     T.truthy(St.Cards()[1]:IsShown())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -837,6 +847,7 @@ T.test("rolls options: every setting changes the window", function()
     local S, RW = rollsLogin()
     local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
     RW.Pick(id, "Doran Ashby", "pass"); RW.Pick(id, "Bram Holloway", "need"); RW.Pick(id, "Mira Calloway", "need")
+    RW.Roll(id, "Bram Holloway", 91); RW.Roll(id, "Mira Calloway", 40); RW.Win(id, "Bram Holloway")
     local St = S.RollStack
     local card = St.Cards()[1]
     local function set(key, v) DaylightUI:Set("Skins", "rolls." .. key, v); stub.RunTimers() end

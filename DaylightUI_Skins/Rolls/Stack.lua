@@ -192,11 +192,19 @@ local function openCompact()
     return nil
 end
 
+-- You have picked and the roll is not over: nothing for you to do but wait.
+local function waitingOthers(drop)
+    return drop.mine ~= nil and not drop.done and not drop.watch
+end
+
 -- Whether a roll's group list shows.
 local function listOpen(drop, mode)
     local s = RollStack.Settings()
     -- Until you've picked, a roll stays small: the list comes after your roll.
     if s.list == "off" or not (drop.mine or drop.done or drop.watch) then return false end
+    -- Picked, the rest still rolling: the card folds to its ticks so it stays out
+    -- of the way; the mouse over it unfolds the list to look.
+    if waitingOthers(drop) then return hovered(drop) end
     if hoverOnly(s) then return hovered(drop) end
     if mode == "full" then return true end
     return openCompact() == drop
@@ -419,7 +427,10 @@ layout = function()
         local card, new = cardFor(d)
         order[i] = card
         card:SetWidth(s.width or 300)
-        Card.Fill(card, d, { mode = mode, open = listOpen(d, mode), settings = s })
+        local open = listOpen(d, mode)
+        -- Folded while you wait: the small card with its ticks, not a big one with no list.
+        local cardMode = (waitingOthers(d) and not open) and "compact" or mode
+        Card.Fill(card, d, { mode = cardMode, open = open, settings = s })
         card.isNew = new
     end
     shown = fit(shown, s, keep)

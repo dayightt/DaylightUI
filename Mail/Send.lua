@@ -385,7 +385,7 @@ function Send.Build(page)
     -- extends 6 px past the area, so the area is inset 6 px to line up with the boxes
     -- above.
     label(page, L["Letter"], y)
-    local letter = W().TextArea(page, { hint = L["Write a letter..."], maxLetters = 500, step = 32 })
+    local letter = W().TextArea(page, { hint = L["Write a letter..."], maxLetters = 500, step = 32, outline = true })
     letter:SetPoint("TOPLEFT", page, "TOPLEFT", Send.EDGE + Send.LABEL_W + 6, -y - 6)
     letter:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Send.EDGE - 6, -y - 6)
     letter:SetHeight(Send.LETTER_H - 12)

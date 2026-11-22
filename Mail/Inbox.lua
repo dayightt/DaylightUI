@@ -673,14 +673,18 @@ end
 
 -- Page layout: list on the left, letter on the right
 
-local function chip(pane, id, text, x)
-    local b = DUI.Widgets.Chip(pane, text)
+-- Chips run along the row; one that would pass the list's edge starts the next row
+-- (x, row go in and come back out), so a longer language is never cut off.
+local function chip(pane, id, text, x, row)
+    local W = DUI.Widgets
+    local b = W.Chip(pane, text)
     b.FitWidth()
-    b:SetPoint("TOPLEFT", pane, "TOPLEFT", x, -Inbox.CHIPS_Y)
+    if x > Inbox.EDGE and x + b:GetWidth() > Inbox.LIST_W - Inbox.EDGE then x, row = Inbox.EDGE, row + 1 end
+    b:SetPoint("TOPLEFT", pane, "TOPLEFT", x, -(Inbox.CHIPS_Y + row * (W.CHIP_HEIGHT + W.CHIP_GAP)))
     b:SetScript("OnClick", function() Inbox.Filter(id) end)
     b.SetOn(S.filter == id)
     pane.chips[id] = b
-    return x + b:GetWidth() + DUI.Widgets.CHIP_GAP
+    return x + b:GetWidth() + W.CHIP_GAP, row
 end
 
 local function note(pane, text)
@@ -711,12 +715,14 @@ function Inbox.Build(page)
     box:SetPoint("TOPRIGHT", list, "TOPRIGHT", -Inbox.EDGE, -10)
     list.search = box
     list.chips = {}
-    local x = Inbox.EDGE
-    x = chip(list, "all", ALL or L["All"], x)
-    x = chip(list, "ah", L["Auction house"], x)
-    x = chip(list, "players", L["Players"], x)
-    chip(list, "gold", L["Gold"], x)
-    list.stack = Win.Parts.Stack(list, { top = Inbox.TOP, bottom = Inbox.FOOT })
+    local x, row = Inbox.EDGE, 0
+    x, row = chip(list, "all", ALL or L["All"], x, row)
+    x, row = chip(list, "ah", L["Auction house"], x, row)
+    x, row = chip(list, "players", L["Players"], x, row)
+    x, row = chip(list, "gold", L["Gold"], x, row)
+    -- the list starts under the last row of chips
+    local top = Inbox.TOP + row * (DUI.Widgets.CHIP_HEIGHT + DUI.Widgets.CHIP_GAP)
+    list.stack = Win.Parts.Stack(list, { top = top, bottom = Inbox.FOOT })
     list.foot = Win.Parts.Footer(list, { edge = Inbox.EDGE, equal = true })
     list.foot.frame:ClearAllPoints()
     list.foot.frame:SetPoint("BOTTOMLEFT", list, "BOTTOMLEFT", Inbox.EDGE, 12)
@@ -735,7 +741,15 @@ function Inbox.Build(page)
     end
     fitFoot(ns.Window.W - Inbox.LIST_W - 1)
     letter:SetScript("OnSizeChanged", function(_, w)
-        if type(w) == "number" and w > 0 then fitFoot(w); Inbox.PaintFooter() end
+        if type(w) ~= "number" or w <= 0 then return end
+        fitFoot(w)
+        Inbox.PaintFooter()
+        local wide = w - 2 * Win.Parts.EDGE
+        if letter.stack.wide ~= wide then
+            letter.stack.wide = wide
+            local f = ns.Window.frame
+            if f and f.grip and f.grip.grab then letter.stack:Stretch() else Inbox.Soon() end
+        end
     end)
     letter.note = note(letter, L["Pick a letter."])
     letter.full = Style.Text(letter, Style.SIZE.small, "LEFT")

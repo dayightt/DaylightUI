@@ -20,6 +20,7 @@ ns.Window = Mail
 
 Mail.NAME = "DaylightUIMail"
 Mail.W, Mail.H = 640, 560
+Mail.LEDGER_W = 680          -- the ledger's left column is 340 wide, which leaves the lists the room they had
 Mail.SEND_W = 460            -- the Send page is a narrow form; the window glides to this width
 Mail.MIN_H = 420
 Mail.ICON = "Interface\\Icons\\INV_Letter_15"
@@ -221,6 +222,29 @@ local function page(id, w)
     return { Build = P and P.Build or function() end, Fill = P and P.Fill, pieces = P and P.Pieces, w = w, h = Mail.H }
 end
 
+-- Resizing: while the grip drags (live) the rows only stretch to the new width; when it
+-- lets go the page fills again, so text wraps to what it now has.
+function Mail.Resized(_, _, live)
+    local f = Mail.frame
+    if not (f and Win.IsOpen(f)) then return end
+    if f.current == "inbox" then
+        local I = ns.Inbox
+        if live then
+            if I.list and I.list.stack then I.list.stack:Stretch() end
+            if I.letter and I.letter.stack then I.letter.stack:Stretch() end
+        else
+            I.Render()
+        end
+    elseif f.current == "ledger" then
+        local P = ns.LedgerPage
+        if live then
+            if P.page and P.page.right then P.page.right.stack:Stretch() end
+        else
+            P.Render()
+        end
+    end
+end
+
 function Mail.Build(mod)
     ns.module = mod
     if Mail.frame then return Mail.frame end
@@ -231,7 +255,7 @@ function Mail.Build(mod)
     Win.SetIcon(f, Mail.ICON)
     Win.AddPage(f, "inbox", page("inbox", Mail.W))
     Win.AddPage(f, "send", page("send", Mail.SEND_W))
-    Win.AddPage(f, "ledger", page("ledger", Mail.W))
+    Win.AddPage(f, "ledger", page("ledger", Mail.LEDGER_W))
     for _, id in ipairs(Mail.PAGES) do Win.Build(f, id) end
     -- Left of the X, before the tabs line up from it: the game's own mailbox instead,
     -- for addons that build on it.
@@ -254,8 +278,8 @@ function Mail.Build(mod)
     Win.Drag(f, { save = Mail.SaveSpot, reset = Mail.ResetSpot })
     Win.WheelScale(f, function() return ns.Setting("scale") end, function(v) DUI:Set("Mailbox", "scale", v) end)
     Mail.sizer = Win.Resizable(f, { db = function() return ns.module and ns.module.db end,
-        base = function(id) return id == "send" and Mail.SEND_W or Mail.W, Mail.H end, minH = Mail.MIN_H,
-        save = Mail.SaveSpot, follow = function() return Mail.follow end })
+        base = function(id) return id == "send" and Mail.SEND_W or id == "ledger" and Mail.LEDGER_W or Mail.W, Mail.H end,
+        minH = Mail.MIN_H, resized = Mail.Resized, save = Mail.SaveSpot, follow = function() return Mail.follow end })
     DUI.Movers.onResetAll[#DUI.Movers.onResetAll + 1] = Mail.ResetSpot   -- /dui reset
     -- Inbox updates come in bursts: count for the header once, next frame.
     DUI.RegisterEvent("MAIL_INBOX_UPDATE", function()

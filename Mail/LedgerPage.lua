@@ -17,7 +17,7 @@ local Win = DUI.Win
 local Page = {}
 ns.LedgerPage = Page
 
-Page.LEFT_W = 300
+Page.LEFT_W = 340       -- room for "Comisiones de la casa de subastas" beside its amount
 Page.EDGE = 16
 Page.CHIPS_Y = 12
 Page.ROW = 24            -- came-in / went-out row: label, value, thin bar
@@ -237,6 +237,8 @@ function Page.Render(page)
     page.right.pieces = s:End()
 end
 
+Page.Soon = Win.Soon(function() return Page.page end, function() Page.Render() end)
+
 function Page.Pick(id)
     Page.range = id
     Page.Render()
@@ -257,6 +259,9 @@ local function rows(left, kinds, y)
         row.label:SetText(Page.KindName(kind))
         row.value = Style.Text(row, Style.SIZE.body, "RIGHT")
         row.value:SetPoint("TOPRIGHT", row, "TOPRIGHT", 0, 0)
+        -- the name never runs under the amount: it ends where the amount starts
+        row.label:SetPoint("TOPRIGHT", row.value, "TOPLEFT", -8, 0)
+        row.label:SetWordWrap(false)
         row.bar = W().Bar(row, W().BAR_H)
         row.bar:SetPoint("BOTTOMLEFT", row, "BOTTOMLEFT", 0, 2)
         row.bar:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", 0, 2)
@@ -289,18 +294,32 @@ function Page.Build(page)
     right:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", 0, 0)
     page.right = right
     right.stack = Win.Parts.Stack(right, { top = 4, bottom = 12 })
+    -- The lists take the width the right side really has: a window opened or dragged wide
+    -- fills them again at it (while the grip drags they only stretch).
+    right:SetScript("OnSizeChanged", function(_, w)
+        if type(w) ~= "number" or w <= 0 then return end
+        local wide = w - 2 * Win.Parts.EDGE
+        if right.stack.wide == wide then return end
+        right.stack.wide = wide
+        local f = ns.Window.frame
+        if f and f.grip and f.grip.grab then right.stack:Stretch() else Page.Soon() end
+    end)
 
     page.chips = {}
-    local x = Page.EDGE
+    -- Chips run along the row and a chip that would pass the panel's edge starts the next
+    -- row, so a longer language never reaches over the rule.
+    local x, row = Page.EDGE, 0
+    local room = Page.LEFT_W - Page.EDGE
     for _, id in ipairs(Page.RANGES) do
         local b = W().Chip(left, rangeName(id))
         b.FitWidth()
-        b:SetPoint("TOPLEFT", left, "TOPLEFT", x, -Page.CHIPS_Y)
+        if x > Page.EDGE and x + b:GetWidth() > room then x, row = Page.EDGE, row + 1 end
+        b:SetPoint("TOPLEFT", left, "TOPLEFT", x, -(Page.CHIPS_Y + row * (W().CHIP_HEIGHT + W().CHIP_GAP)))
         b:SetScript("OnClick", function() Page.Pick(id) end)
         page.chips[id] = b
         x = x + b:GetWidth() + W().CHIP_GAP
     end
-    local y = Page.CHIPS_Y + W().CHIP_HEIGHT + 14
+    local y = Page.CHIPS_Y + (row + 1) * W().CHIP_HEIGHT + row * W().CHIP_GAP + 14
     page.rangeLabel = Style.Text(left, Style.SIZE.small, "LEFT")
     page.rangeLabel:SetPoint("TOPLEFT", left, "TOPLEFT", Page.EDGE, -y)
     Style.InkText(page.rangeLabel, "LABEL")
