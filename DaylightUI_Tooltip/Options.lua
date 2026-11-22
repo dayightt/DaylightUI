@@ -151,6 +151,8 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "stackSize", label = "Stack size line",
               desc = "How many of an item fit in one bag slot (\"Stacks to 20\"), on items that stack.",
               hidden = function(get) return get("style") == "rich" end },
+            { type = "toggle", key = "compareItems", label = "Compare with what you wear", since = "2.2.3",
+              desc = "Pointing at an item shows what you have on beside it, as the game's own compare setting says. When off, it shows only while Shift is held." },
             { type = "toggle", key = "showIDs", label = "Spell and item IDs",
               desc = "A small line at the bottom of spell and item tooltips with its ID, the word in your accent color: handy for macros, other addons and bug reports. Buff and debuff icons use the game's own tooltip, which can't show it." },
         } },

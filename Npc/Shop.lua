@@ -541,7 +541,6 @@ local function tooltip(it)
             if GameTooltip.SetBuybackItem then GameTooltip:SetBuybackItem(it.index) end
         elseif GameTooltip.SetMerchantItem then
             GameTooltip:SetMerchantItem(it.index)
-            if fn(GameTooltip_ShowCompareItem) then GameTooltip_ShowCompareItem(GameTooltip) end
         end
         GameTooltip:Show()
         b.UpdateTooltip = tooltip(it)

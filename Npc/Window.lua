@@ -259,7 +259,6 @@ local function tooltipFor(it)
             if GameTooltip.SetQuestCurrency then GameTooltip:SetQuestCurrency(it.kind, it.index) end
         elseif GameTooltip.SetQuestItem then
             GameTooltip:SetQuestItem(it.kind, it.index, false)
-            if type(GameTooltip_ShowCompareItem) == "function" then GameTooltip_ShowCompareItem(GameTooltip) end
         end
         GameTooltip:Show()
         b.UpdateTooltip = tooltipFor(it)   -- the game's tooltip timer calls this, so Shift compares mid-hover

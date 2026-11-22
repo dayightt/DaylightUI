@@ -525,6 +525,15 @@ function Tip.Line(tip, i, side)
     return _G[key]
 end
 
+-- The game puts what you wear beside an item whenever its "always compare"
+-- setting is on. With compareItems off only Shift brings it up, everywhere.
+function Tip.NoAutoCompare(tip)
+    if not (cfg and cfg.compareItems == false) then return end
+    if type(GameTooltip_SuppressAutomaticCompareItem) == "function" then
+        GameTooltip_SuppressAutomaticCompareItem(tip)
+    end
+end
+
 -- With the option on, unit tooltips only show in combat while Shift is held.
 function Tip.HideNow(tip)
     return cfg and cfg.hideInCombat and tip == GameTooltip and InCombatLockdown() and not IsShiftKeyDown()
@@ -1976,6 +1985,11 @@ function Tip.Build(mod)
                     DUI.SafeCall(Tip.Plugins, "unit", tip, Tip.PluginData("unit", tip, data))
                     Tip.Settle(tip)
                 end)
+            end
+            -- Before the game's item rules run, so its own flag keeps the
+            -- automatic compare away (its OnHide clears the flag again).
+            if types and types.Item and TDP.AddTooltipPreCall then
+                TDP.AddTooltipPreCall(types.Item, function(tip) DUI.SafeCall(Tip.NoAutoCompare, tip) end)
             end
             if types and types.Item then
                 TDP.AddTooltipPostCall(types.Item, function(tip, data)

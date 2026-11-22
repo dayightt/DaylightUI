@@ -3,13 +3,17 @@ local stub = require("stub")
 -- The tooltips: our look over the game's frame, class and quality colors,
 -- the health bar, and the cursor option.
 
-local post = {}
+local post, pre = {}, {}
 
 local function world()
-    post = {}
+    post, pre = {}, {}
     Enum.TooltipDataType = { Item = 0, Spell = 1, Unit = 2 }
     _G.TooltipDataProcessor = {
         AllTypes = "ALL",
+        AddTooltipPreCall = function(kind, fn)
+            pre[kind] = pre[kind] or {}
+            table.insert(pre[kind], fn)
+        end,
         AddTooltipPostCall = function(kind, fn)
             post[kind] = post[kind] or {}
             table.insert(post[kind], fn)
@@ -2210,4 +2214,34 @@ T.test("tooltip: the card's own lines end at the last one the game drew, not at 
     T.eq(Own({ lines = { {}, {}, {} } }, 5), 3, "no line indexes: the data's count, as before")
     T.eq(Own({ lines = {} }, 5), 5, "no lines of its own: all are the card's")
     T.eq(Own({ lines = { { lineIndex = stub.Secret(1) }, {} } }, 4), 2, "a secret index is skipped")
+end)
+
+-- The game compares an item with what you wear when its alwaysCompareItems
+-- setting is on or Shift is held, unless the tooltip's flag says no
+-- (TooltipUtil.ShouldDoItemComparison, GameTooltip_SuppressAutomaticCompareItem;
+-- its OnHide clears the flag).
+T.test("tooltip: an item compares with what you wear only while Shift is held, unless switched back on", function()
+    local cvar, shift = true, false
+    local Tip = login(function()
+        _G.GetCVarBool = function(name) return name == "alwaysCompareItems" and cvar end
+        _G.IsModifiedClick = function(what) return what == "COMPAREITEMS" and shift end
+        _G.GameTooltip_SuppressAutomaticCompareItem = function(tip) tip.suppressAutomaticCompareItem = true end
+    end)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local function compares()
+        GameTooltip.suppressAutomaticCompareItem = false
+        for _, fn in ipairs(pre[Enum.TooltipDataType.Item] or {}) do fn(GameTooltip, { type = 0 }) end
+        local auto = not GameTooltip.suppressAutomaticCompareItem and GetCVarBool("alwaysCompareItems")
+        return (auto or IsModifiedClick("COMPAREITEMS")) and true or false
+    end
+    T.eq(compares(), false, "the game's always compare is on, but no Shift: the item stands alone")
+    shift = true
+    T.eq(compares(), true, "Shift shows what you wear")
+    shift = false
+    DaylightUI:Set("Tooltip", "compareItems", true)
+    stub.Advance(0.1)
+    T.eq(compares(), true, "switched on: the game's setting decides again")
+    cvar = false
+    T.eq(compares(), false, "and with it off, nothing compares")
+    T.truthy(type(Tip.NoAutoCompare) == "function")
 end)

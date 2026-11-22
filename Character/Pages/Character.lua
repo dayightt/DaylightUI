@@ -559,16 +559,31 @@ function CharacterPage.More(h)
         if k == "unequip" then
             CharacterPage.Unequip(id)
         elseif k == "compare" then
+            local on = not CharacterPage.AutoCompare()
+            -- The Tooltip module's own switch holds the compare back without Shift.
+            if CharacterPage.TipsCompare() then DUI:Set("Tooltip", "compareItems", on) end
             -- A game setting, so it's written out of a fight only.
-            local on = not C_CVar.GetCVarBool("alwaysCompareItems")
-            DUI.AfterCombat(function() DUI.SafeCall(C_CVar.SetCVar, "alwaysCompareItems", on and "1" or "0") end, "character:compare")
+            if on or not CharacterPage.TipsCompare() then
+                DUI.AfterCombat(function() DUI.SafeCall(C_CVar.SetCVar, "alwaysCompareItems", on and "1" or "0") end, "character:compare")
+            end
         elseif k == "bind" then
             CharacterPage.Bind(item, id)
         else
             local link = GetInventoryItemLink("player", id)
             if link then DUI.Pad.Share(link, h) end
         end
-    end, nil, { checked = function(k) return k == "compare" and C_CVar.GetCVarBool("alwaysCompareItems") end })
+    end, nil, { checked = function(k) return k == "compare" and CharacterPage.AutoCompare() end })
+end
+
+-- Whether the Tooltip module decides the automatic compare (PrettyTooltip off).
+function CharacterPage.TipsCompare()
+    return DUI:GetModule("Tooltip") ~= nil and not DUI.PrettyAside.Draws()
+end
+
+-- Whether an item's tooltip shows what you wear without Shift.
+function CharacterPage.AutoCompare()
+    if CharacterPage.TipsCompare() and DUI:Get("Tooltip", "compareItems") ~= true then return false end
+    return C_CVar.GetCVarBool("alwaysCompareItems") == true
 end
 
 function CharacterPage.PadSetup(f)

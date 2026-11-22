@@ -49,6 +49,7 @@ ns.DEFAULTS = {
     itemLevel = false,      -- an "Item Level" line on weapons and armor
     stackSize = false,      -- "Stacks to 20" on items that stack
     showIDs = false,        -- an "Item ID" / "Spell ID" line on items, spells and auras
+    compareItems = false,   -- what you wear beside an item without Shift, when the game's compare setting is on
     qualityBorder = true, -- item border in its quality color
     healthBar = true,
     barGradient = "frames", -- health bar color: "frames" (a gradient when unit frame health uses one), "gradient", "flat", "customGradient"
