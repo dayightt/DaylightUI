@@ -124,6 +124,29 @@ T.test("a raid key reveals its own size: Raid 10's holder stays on its spot, and
     end
 end)
 
+-- { group, its real frames showing: the group joined }
+local REAL_GROUPS = {
+    { "a party", "Party", function() stub.SetGroup(true, false, 3) end },
+    { "a raid", "Raid", function() stub.SetGroup(true, true, 15) end },
+}
+
+T.test("in a party or raid whose own frames show, a reveal leaves the real frames up and shows no samples", function()
+    for _, group in ipairs(REAL_GROUPS) do
+        local unit = group[2]
+        local DUI, ns = stub.Load({ module = true, before = group[3] })
+        stub.FireEvent("GROUP_ROSTER_UPDATE")
+        stub.RunTimers()
+        local key = "unitframes." .. unit:lower()
+        local before = outwardGroupState(DUI, ns, unit)
+        T.eq(before.look.headerAlpha, 1, group[1] .. ": the real frames shown")
+        reveal(DUI, key, true)
+        T.falsy(ns[unit].group.revealed, group[1] .. ": not revealed")
+        T.deq(groupLook(ns, unit), before.look, group[1] .. ": the header's alpha and the samples untouched")
+        reveal(DUI, key, false)
+        T.deq(outwardGroupState(DUI, ns, unit), before, group[1] .. ": ended, as before")
+    end
+end)
+
 local function revealedLooks(ns, shownFor)
     local personal = ns.Personal.frame
     return { personal = { revealed = shownFor[ns.Personal.FADE], shown = personal:IsShown(), alpha = personal:GetAlpha() },

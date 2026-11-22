@@ -417,15 +417,22 @@ local function previewForTestMode(testModeOn)
 end
 DUI.On("TestModeChanged", previewForTestMode)
 
+-- In a raid, or in a party with "Use raid frames in a party" on.
+local function realRaidShows()
+    return IsInRaid() or (IsInGroup() and Raid.InParty(base()))
+end
+
 -- The layout editor reveals the raid while a group it edits follows it, at the
--- size whose spot the key names.
+-- size whose spot the key names. Real raid frames already show, so they aren't
+-- swapped for samples.
 local REVEALED_SIZES = { ["unitframes.raid"] = 10, [Raid.SpotKey(20)] = 20, [Raid.SpotKey(40)] = 40 }
 DUI.On("RevealFrame", function(key, on)
     local size = REVEALED_SIZES[key]
     if not size then return end
-    Raid.group.revealed = on or nil
-    Raid.revealedSize = on and size or nil
-    preview(on or DUI.testMode)
+    local revealed = on and not realRaidShows()
+    Raid.group.revealed = revealed or nil
+    Raid.revealedSize = revealed and size or nil
+    preview(revealed or DUI.testMode)
 end)
 
 -- The raid grew or shrank past 10 or 20. Switch to its size's setup, room and

@@ -171,11 +171,18 @@ local function previewForTestMode(testModeOn)
 end
 DUI.On("TestModeChanged", previewForTestMode)
 
--- The layout editor reveals the party while a group it edits follows it.
+-- In a party, unless the raid frames stand in for it, as its visibility decides.
+local function realPartyShows()
+    local d = db()
+    return IsInGroup() and not IsInRaid() and not (d and ns.Raid.InParty(d.raid))
+end
+
+-- The layout editor reveals the party while a group it edits follows it. Real
+-- party frames already show, so they aren't swapped for samples.
 DUI.On("RevealFrame", function(key, on)
     if key ~= "unitframes.party" then return end
-    Party.group.revealed = on or nil
-    preview(on or DUI.testMode)
+    Party.group.revealed = (on and not realPartyShows()) or nil
+    preview(Party.group.revealed or DUI.testMode)
 end)
 
 DUI.RegisterTestPart("party", "Party", 60, function()
