@@ -34,7 +34,12 @@ local function auraRow(unit, kind)
     return function(f)
         local set = f.sampleAuras
         if not set then set = unit == "personal" and ns.Personal.auras or ns[LIVE_AURAS[unit]] end
-        return set and set[kind]
+        local row = set and set[kind]
+        if not row then return nil end
+        -- Sample icons (the options preview, test mode) draw on a holder beside the row.
+        local holder = ns.Auras.HolderFor(row)
+        if holder then return { row, holder } end
+        return row
     end
 end
 
@@ -48,7 +53,9 @@ local function part(key, label, get, extra)
     return p
 end
 
-local HEALTH = part("health", "Health bar", function(f) return f.health end)
+-- The frame's border goes round its health bar, so it moves with the bar.
+local HEALTH = part("health", "Health bar", function(f) return f.health end,
+    { border = function(f) return DUI.Style.GetShell(f) end })
 local function power(unit)
     return part("power", "Power bar", function(f) return f.freePower and powerFree(unit) and f.freePower or f.power end,
         { free = function(f) return f.freePower ~= nil and powerFree(unit) end,
@@ -249,6 +256,12 @@ function Layers.ApplyTo(f, unit)
                     setLevel(frame, base + math.max(Layers.MIN, math.min(Layers.MAX, order)))
                 else
                     restore(frame)
+                end
+                -- A border that isn't inside the part keeps its place under it.
+                local edge = part.border and part.border(f)
+                if edge then
+                    if edge.layerGap == nil then edge.layerGap = edge:GetFrameLevel() - (frame.layerHome or frame:GetFrameLevel()) end
+                    if order then setLevel(edge, frame:GetFrameLevel() + edge.layerGap) else restore(edge) end
                 end
                 local layer = s and s.layer
                 if not f.layerPreview and part.free and not part.ownLayer and part.free(f) and type(layer) == "string"
