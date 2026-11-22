@@ -850,6 +850,21 @@ T.test("windows: a caster stays shown while its spell is dragged away", function
     T.truthy(c.Over(row, { type1 = "spell", spell = 1 }), "and the next hover has it back")
 end)
 
+-- The client's rule behind vanishing nameplates, as the fake game knows it.
+T.test("windows: the fake game refuses a frame hiding itself in its own drag stop", function()
+    stub.Load()
+    local b = CreateFrame("Button", nil, UIParent)
+    b:SetScript("OnDragStop", function(self) self:Hide() end)
+    T.errors(function() b:GetScript("OnDragStop")(b) end, "inside its own OnDragStop")
+    local holder = CreateFrame("Frame", nil, UIParent)
+    local c = CreateFrame("Button", nil, holder)
+    c:SetScript("OnDragStop", function() holder:Hide() end)
+    T.noerror(function() c:GetScript("OnDragStop")(c) end, "its parent may go")
+    local fn = c:GetScript("OnDragStop")
+    c:SetScript("OnDragStop", fn)
+    T.eq(c:GetScript("OnDragStop"), fn, "read back and set again, it is the same script")
+end)
+
 -- A window dragged or resized aside used to leave the windows it had pushed
 -- where they were, or cover them. Only a page change laid them out again.
 T.test("windows: a drag or a resize let go makes room again", function()

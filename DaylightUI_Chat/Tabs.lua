@@ -233,11 +233,17 @@ end
 
 -- Moves tab i to the second panel (on) or back to the corner panel. False if it's
 -- already there or it's the corner panel's last tab.
+-- Whether tab i can move to the side panel (on) or back to the main one.
+function Tabs.CanSetSide(i, on)
+    local tab = editable()[i]
+    return tab ~= nil and tab.side ~= (on and true or nil) and not lastMain(i)
+end
+
 function Tabs.SetSide(i, on)
     local tabs = editable()
     local tab = tabs[i]
     on = on and true or nil
-    if not tab or tab.side == on or lastMain(i) then return false end
+    if not Tabs.CanSetSide(i, on) then return false end
     local B = ns.Box
     local left = B.PaneOf(tab)
     tab.side = on

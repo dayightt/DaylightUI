@@ -955,9 +955,14 @@ function Box.DragStop()
         seen[k] = o.seen or o.x or 0
         o.seen = nil
     end
-    -- Dropped over the other panel: move the tab there.
+    -- Dropped over the other panel: move the tab there. A frame later, since the
+    -- move hides this button, and a frame hidden inside its own OnDragStop stops
+    -- the client drawing nameplates until a reload.
     local other = P == main and side or main
-    if Box.SideOn() and other.holder:IsMouseOver() and ns.Tabs.SetSide(d.i, other == side) then return end
+    if Box.SideOn() and other.holder:IsMouseOver() and ns.Tabs.CanSetSide(d.i, other == side) then
+        C_Timer.After(0, function() ns.Tabs.SetSide(d.i, other == side) end)
+        return
+    end
     -- Each button glides from where its new tab was drawn.
     local to = d.list[d.j]
     local n = #Box.Tabs()

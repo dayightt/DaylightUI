@@ -5753,11 +5753,15 @@ T.test("chat second panel: dragging a tab along its row and onto the other panel
     Box.DragStart(3)
     Box.DragStop()
     T.truthy(Box.Tabs()[3].side, "let go on its own row: it stays")
+    -- Through the tab's own scripts: moving it hides its button on this panel,
+    -- which must not happen inside that button's OnDragStop.
     local over = Box.main.holder.IsMouseOver
     Box.main.holder.IsMouseOver = function() return true end
-    Box.DragStart(3)
-    Box.DragStop()
+    local b = side.buttons[3]
+    b:GetScript("OnDragStart")(b, "LeftButton")
+    b:GetScript("OnDragStop")(b)
     Box.main.holder.IsMouseOver = over
+    stub.RunTimers()
     T.falsy(Box.Tabs()[3].side, "let go over the main panel: it moves there")
     T.eq(Box.Picked(), 3, "picked there")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))

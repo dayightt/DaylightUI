@@ -397,6 +397,9 @@ end
 function Widget:Hide()
     guard(self, "Hide")
     local was = self.__shown
+    if was and (rawget(self, "__inDragStop") or 0) > 0 then
+        error("a frame hid itself inside its own OnDragStop: in game that stops WorldFrame drawing (nameplates vanish)", 2)
+    end
     self.__shown = false
     if was and parentsShown(self) then
         if self.__scripts.OnHide then self.__scripts.OnHide(self) end
@@ -432,8 +435,38 @@ local function refuseSecretAspect(self, h, how)
             how, SECRET_ASPECT_SCRIPTS[h]), 3)
     end
 end
-function Widget:SetScript(h, fn) refuseSecretAspect(self, h, "SetScript"); self.__scripts[h] = fn end
-function Widget:GetScript(h) return self.__scripts[h] end
+-- A frame that hides itself inside its own OnDragStop makes the client stop
+-- drawing every region and frame sitting straight on a top-level frame
+-- (WorldFrame: nameplates, speech bubbles) until that frame is hidden and shown.
+-- Seen in game: any frame, secure or not, with or without anything on the
+-- cursor, wherever it's dropped, from the second time on. Hiding its parent, or
+-- hiding it a frame later, is fine. The client gives no error, so the fake game
+-- raises one: OnDragStop handed out by GetScript marks the frame while it runs.
+local function dragStopOf(self, fn)
+    local w = rawget(self, "__dragStop")
+    if w and w.fn == fn then return w.call end
+    local call = function(f, ...)
+        local depth = rawget(f, "__inDragStop") or 0
+        rawset(f, "__inDragStop", depth + 1)
+        local ok, err = pcall(fn, f, ...)
+        rawset(f, "__inDragStop", depth)
+        if not ok then error(err, 0) end
+    end
+    rawset(self, "__dragStop", { fn = fn, call = call })
+    return call
+end
+function Widget:SetScript(h, fn)
+    refuseSecretAspect(self, h, "SetScript")
+    -- A drag stop read back with GetScript and set again keeps its own function.
+    local w = h == "OnDragStop" and rawget(self, "__dragStop")
+    if w and fn == w.call then fn = w.fn end
+    self.__scripts[h] = fn
+end
+function Widget:GetScript(h)
+    local fn = self.__scripts[h]
+    if h == "OnDragStop" and type(fn) == "function" then return dragStopOf(self, fn) end
+    return fn
+end
 function Widget:HookScript(h, fn)
     -- The game: "Usage: local success = self:HookScript(scriptTypeName, script [, bindingType])"
     if type(fn) ~= "function" then
