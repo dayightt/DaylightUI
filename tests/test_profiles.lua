@@ -1377,8 +1377,8 @@ T.test("packs: spots fit a smaller screen when the pack says which screen it was
         profiles = { { name = "Wide", data = { positions = { ["unitframes.player"] = { -600, -300 } } } } } })
     P.AddPreset("Wide")
     local pos = DaylightUIDB.profileData.Wide.positions["unitframes.player"]
-    T.near(pos[1], -300, 1e-6, "half as wide: half as far out")
-    T.near(pos[2], -300 + h / 2, 1e-6, "the same height above the bottom")
+    T.near(pos[1], -300, 1e-6, "half as tall: half as far out")
+    T.near(pos[2], -150, 1e-6, "and half as far down")
 end)
 
 T.test("packs: one that can't be read is left out with a line in chat; a mistake in the call is an error", function()

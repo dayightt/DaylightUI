@@ -230,8 +230,10 @@ end
 -- the point that holds it (at, ax, ay), its center (x, y), and which screen
 -- side the default hangs from (-1 left, 1 right, 0 neither). nil for a piece
 -- the game places, one attached to another frame, or one whose default hangs
--- off another frame (it follows that frame anyway).
-function Movers.DefaultSpot(key)
+-- off another frame (it follows that frame anyway). sw, sh: the screen to
+-- work it out on (UIParent's size when not given), for a profile made on
+-- another screen.
+function Movers.DefaultSpot(key, sw, sh)
     local e = entries[key]
     if not e or e.proxy or e.suspended then return nil end
     local fixed = Movers.DEFAULTS[key]
@@ -245,12 +247,28 @@ function Movers.DefaultSpot(key)
     local at, on = Movers.ANCHOR_SIGN[d[1]] and d[1], Movers.ANCHOR_SIGN[d[3] or d[1]]
     if not at or not on then return nil end
     local r = ratio(e.frame)
-    local ax = on[1] * UIParent:GetWidth() / 2 + (d[4] or 0)
-    local ay = on[2] * UIParent:GetHeight() / 2 + (d[5] or 0)
+    local ax = on[1] * (sw or UIParent:GetWidth()) / 2 + (d[4] or 0)
+    local ay = on[2] * (sh or UIParent:GetHeight()) / 2 + (d[5] or 0)
     local s = Movers.ANCHOR_SIGN[at]
     local x = ax - s[1] * (e.frame:GetWidth() or 0) * r / 2
     local y = ay - s[2] * (e.frame:GetHeight() or 0) * r / 2
     return at, ax, ay, x, y, on[1]
+end
+
+-- A piece's size as drawn now, in UIParent units (a proxy's as its handle
+-- shows it), or nil for a key nothing registered.
+function Movers.SizeOf(key)
+    local e = entries[key]
+    if not e then return nil end
+    local w, h
+    if e.size then w, h = e.size() end
+    if not (w and h) then
+        local r = ratio(e.frame)
+        local s = Movers.Scalable(key) and Movers.Scale(key) or 1
+        w = math.max((e.frame:GetWidth() or 0) * r, (e.minW or 0) * s)
+        h = math.max((e.frame:GetHeight() or 0) * r, (e.minH or 0) * s)
+    end
+    return w, h
 end
 
 -- Every piece's key, in the order they were registered.
