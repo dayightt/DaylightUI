@@ -98,7 +98,9 @@ ns.DEFAULTS = {
               -- "Kicked by <name>" to the right of the bar or "below" it.
               -- kickMark: a thin line on an enemy's cast where your
               -- interrupt comes off cooldown (DUI.Interrupt).
-              kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false },
+              kickStyle = "blade", kickedBy = true, kickedByPos = "right", kickMark = false,
+              -- channelTicks: lines on your own bar where each tick of a channel lands.
+              channelTicks = false },
     -- The focus cast bar: inside its frame over the power bar, or its own.
     focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false },
     -- Each party member's cast bar (PartyCasts.lua): inside the frame over the

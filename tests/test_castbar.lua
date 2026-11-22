@@ -34,6 +34,39 @@ T.test("a channel drains", function()
     T.eq(h.bar.__timer[3], Enum.StatusBarTimerDirection.RemainingTime)
 end)
 
+T.test("channel ticks: lines between a channel's ticks on your own bar only", function()
+    local h, ns = setup()
+    local CB = ns.CastBar
+    local function shown(bar)
+        local n = 0
+        for _, t in ipairs(bar.tickLines or {}) do if t:IsShown() then n = n + 1 end end
+        return n
+    end
+    h.bar:SetSize(200, 20)   -- the fake game doesn't size a bar from its anchors
+    stub.units.player = { channel = { name = "Drain Life", spellID = 11700, duration = stub.Duration(5) } }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+    T.eq(shown(h), 0, "off by default")
+    CB.cfg.channelTicks = true
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+    T.eq(shown(h), 4, "five ticks, four lines between them")
+    stub.units.player = { cast = { name = "Shadow Bolt", duration = stub.Duration(3) } }
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    T.eq(shown(h), 0, "a plain cast has none")
+    stub.units.player = { channel = { name = "Unknown", spellID = 999999, duration = stub.Duration(3) } }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+    T.eq(shown(h), 0, "a channel not on the list has none")
+    local t = CB.Create("target")
+    CB.Layout(t, ns.DEFAULTS.targetCastbar)
+    t.bar:SetSize(200, 20)
+    stub.units.target = { name = "Foe", reaction = 2, channel = { name = "Mind Flay", spellID = 15407, duration = stub.Duration(3) } }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "target")
+    T.eq(shown(t), 0, "only your own bar")
+    CB.ShowSample(h, ns.Test.CASTS.player)
+    T.eq(shown(h), 4, "the sample turns into a channel to show them")
+    T.eq(h.text.__text, "Drain Life")
+    CB.cfg.channelTicks = false
+end)
+
 T.test("a secret interruptible flag lays the locked color over the fill, the client picks", function()
     local h, ns = setup()
     local lc = ns.CastBar.cfg.locked

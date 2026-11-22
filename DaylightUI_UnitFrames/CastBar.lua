@@ -1023,8 +1023,11 @@ end
 -- Test mode: a frozen bar partway through a sample cast { text, value, icon }.
 function CB.ShowSample(h, cast)
     if not h then return end
+    -- With channel ticks on, your bar's sample is a channel, to show them.
+    if h.kind == "player" and CB.cfg.channelTicks == true and cast.channel then cast = cast.channel end
     h.test = true
     h.duration = nil
+    CB.PlaceTicks(h, cast.ticks or 0)
     h.bar:SetMinMaxValues(0, 1)
     h.bar:SetValue(cast.value)
     h.text:SetText(showsName(h) and cast.text or "")
@@ -1144,6 +1147,75 @@ function CB.BatchMade(h, spell)
     end
 end
 
+-- How many times each channel hits, every rank, so the bar can mark where the
+-- next tick lands and the player stops a channel without losing one. Penance's
+-- count is not yet seen in game.
+CB.CHANNEL_TICKS = {}
+for n, ids in pairs({
+    [3] = { 15407, 17311, 17312, 17313, 17314, 18807,       -- Mind Flay
+            5143,                                            -- Arcane Missiles, rank 1
+            402174, 1240720, 1240721, 1316995 },             -- Penance
+    [4] = { 5144,                                            -- Arcane Missiles, rank 2
+            12051,                                           -- Evocation
+            5740, 6219, 11677, 11678 },                      -- Rain of Fire
+    [5] = { 5145, 8416, 8417, 10211, 10212, 25345,           -- Arcane Missiles
+            689, 699, 709, 7651, 11699, 11700,               -- Drain Life
+            5138, 6226, 11703, 11704,                        -- Drain Mana
+            1120, 8288, 8289, 11675,                         -- Drain Soul
+            740, 8918, 9862, 9863 },                         -- Tranquility
+    [6] = { 1510, 14294, 14295 },                            -- Volley
+    [8] = { 10, 6141, 8427, 10185, 10186, 10187 },           -- Blizzard
+    [10] = { 755, 3698, 3699, 3700, 11693, 11694, 11695,     -- Health Funnel
+             16914, 17401, 17402 },                          -- Hurricane
+    [15] = { 1949, 11683, 11684 },                           -- Hellfire
+}) do
+    for _, id in ipairs(ids) do CB.CHANNEL_TICKS[id] = n end
+end
+
+-- Only your own bar: your casts stay plain under every restriction, while
+-- other units' spell ids can be secret.
+local function ticksOf(h, spell, channel)
+    if not channel or h.kind ~= "player" or CB.cfg.channelTicks ~= true then return 0 end
+    if isSecret(spell) or type(spell) ~= "number" then return 0 end
+    return CB.CHANNEL_TICKS[spell] or 0
+end
+
+-- n ticks = n - 1 lines between them; the last tick is the bar's end.
+function CB.PlaceTicks(h, n)
+    local lines = h.tickLines
+    if n <= 1 and not lines then return end
+    if not lines then
+        h.tickFrame = CreateFrame("Frame", nil, h)
+        h.tickFrame:SetAllPoints(h.bar)
+        h.tickFrame:SetFrameLevel(h.bar:GetFrameLevel() + 1)
+        -- A new width (a layout mid-channel) moves the lines with it.
+        h.tickFrame:SetScript("OnSizeChanged", function() CB.PlaceTicks(h, h.tickCount or 0) end)
+        lines = {}
+        h.tickLines = lines
+    end
+    h.tickCount = n
+    local w = h.bar:GetWidth() or 0
+    local px = DUI.Pixel.Px(h.bar, 2)
+    local ink = Style.INK.VALUE
+    for i = 1, math.max(n - 1, #lines) do
+        local t = lines[i]
+        if i < n and w > 0 then
+            if not t then
+                t = h.tickFrame:CreateTexture(nil, "OVERLAY")
+                lines[i] = t
+            end
+            t:SetColorTexture(ink[1], ink[2], ink[3], 0.7)
+            t:ClearAllPoints()
+            t:SetPoint("TOP", h.bar, "TOPLEFT", w * i / n, 0)
+            t:SetPoint("BOTTOM", h.bar, "BOTTOMLEFT", w * i / n, 0)
+            t:SetWidth(px)
+            t:Show()
+        elseif t then
+            t:Hide()
+        end
+    end
+end
+
 function CB.Refresh(h, glide)
     if not glide then                    -- not a cast event: a new unit or a setting
         CB.Unkick(h)
@@ -1189,6 +1261,7 @@ function CB.Refresh(h, glide)
     h.notInterruptible = notInterruptible
     h.channel = channel
     h.spellID = spell
+    CB.PlaceTicks(h, ticksOf(h, spell, channel))
     CB.UpdateKickMark(h)
     -- With the name off, a batch still shows its progress.
     if showsName(h) then h.text:SetText(name) else h.text:SetText(count or "") end

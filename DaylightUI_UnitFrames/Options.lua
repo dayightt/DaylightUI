@@ -2383,6 +2383,11 @@ end
 -- sentences ("your target's"). inside: the rows for the text inside the frame.
 local TEXT_SPOTS = { left = "Left", center = "Center", right = "Right" }
 local TEXT_SPOT_ORDER = { "left", "center", "right" }
+-- Rows that place the pips on a frame: off while they're off or on their own.
+local function comboAttached(get)
+    return get("combo.enabled") ~= true or get("combo.anchor") == "free"
+end
+
 local function castTextCard(unit, who, whose, inside)
     local bar = unit .. "Castbar"
     local function rows(kind, name, items)
@@ -2926,6 +2931,8 @@ ns.OPTIONS = { pages = {
               desc = "How every cast bar (yours, target's, focus's and party's) is filled: one color each, the Daylight gradient (the logo's blue to orange), a two-color gradient per kind of cast (set on the Gradients page), or a gradient in colors you pick." },
             { type = "toggle", key = "casts.flash", label = "Show interrupts",
               desc = "When a cast is interrupted, the bar stays full for a moment and says Interrupted." },
+            { type = "toggle", key = "casts.channelTicks", label = "Channel ticks", since = "2.3",
+              desc = "Thin lines on your cast bar where each tick of a channel lands (Drain Life, Mind Flay, Arcane Missiles, Penance...), so you can stop it right after one." },
             { type = "button", label = "Cast bar gradients", text = "Edit",
               desc = "Opens the Gradients page, where the Casts pairs are.",
               hidden = fillIsNot("casts.fill", "pair"),
@@ -3170,22 +3177,22 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "combo.enabled", label = "Show combo points",
               desc = "Replaces the game's own combo points." },
             { type = "dropdown", key = "combo.anchor", label = "Attach to",
-              values = { target = "Target frame", player = "Player frame" }, order = { "target", "player" },
-              desc = "Which frame the pips sit on.", disabled = off("combo.enabled") },
+              values = { target = "Target frame", player = "Player frame", free = "On its own" }, order = { "target", "player", "free" },
+              desc = "Which frame the pips sit on. On its own, they show with your target and you move them anywhere with /dui unlock.", disabled = off("combo.enabled") },
             { type = "dropdown", key = "combo.side", label = "Combo points side",
               values = { below = "Below the frame", above = "Above the frame" }, order = { "below", "above" },
               desc = "Under the frame, or over it, clear of the name. The target's buffs or debuffs on that side move out of the way.",
-              disabled = off("combo.enabled") },
+              disabled = comboAttached },
             { type = "dropdown", key = "combo.align", label = "Combo points alignment",
               values = { inner = "Inner end", center = "Centered", outer = "Outer end" }, order = { "inner", "center", "outer" },
               desc = "Where along the frame the row starts: the angled end facing the middle of your screen, the middle, or the far end.",
-              disabled = function(get) return get("combo.enabled") ~= true or get("combo.stretch") == true end },
+              disabled = function(get) return comboAttached(get) or get("combo.stretch") == true end },
             { type = "slider", key = "combo.x", label = "Combo points left / right", min = -50, max = 50, step = 1, unit = "px",
-              desc = "Nudges the row of pips sideways.", disabled = off("combo.enabled") },
+              desc = "Nudges the row of pips sideways.", disabled = comboAttached },
             { type = "slider", key = "combo.y", label = "Combo points up / down", min = -50, max = 50, step = 1, unit = "px",
-              desc = "Nudges the row of pips up or down.", disabled = off("combo.enabled") },
+              desc = "Nudges the row of pips up or down.", disabled = comboAttached },
             { type = "toggle", key = "combo.stretch", label = "Match frame width",
-              desc = "The pips widen to span the whole frame, so the row reads like a bar.",
+              desc = "The pips widen to span the whole frame, so the row reads like a bar. On its own, the row takes the target frame's width.",
               disabled = off("combo.enabled") },
             { type = "slider", key = "combo.size", label = "Pip width", min = 8, max = 40, step = 1, unit = "px",
               desc = "How wide each combo point pip is. Not while the pips match the frame's width.", disabled = function(get) return get("combo.enabled") ~= true or get("combo.stretch") == true end },

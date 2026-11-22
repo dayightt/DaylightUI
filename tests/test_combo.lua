@@ -147,6 +147,34 @@ T.test("above the target: over its name tab, and the debuffs rise past the pips"
     T.eq(liftedY, debuffY + ns.Combo.Lift(DUI:Get("UnitFrames", "combo")), "the debuffs above the pips")
 end)
 
+T.test("on its own: its own handle, shown and faded with the target, no room kept on the frame", function()
+    local DUI, ns = login("ROGUE")
+    local t, c = ns.frames.target, ns.combo
+    local Movers = DUI.Movers
+    T.truthy(Movers.Get(ns.Combo.KEY).suspended, "no handle while on the frame")
+    DUI:Set("UnitFrames", "combo.anchor", "free")
+    stub.RunTimers()
+    local h = c.holder
+    T.eq(c:GetParent(), h, "the row lives in its holder")
+    local _, rel = c:GetPoint(1)
+    T.eq(rel, h)
+    T.falsy(Movers.Get(ns.Combo.KEY).suspended, "the handle places it")
+    T.truthy(ns.Combo.Height(DUI:Get("UnitFrames", "combo")) > 0)
+    T.eq(ns.auras.buffDrop, 0, "the target's rows don't wait for pips that aren't there")
+    local found
+    for _, piece in ipairs(t.pieces) do if piece == h then found = true end end
+    T.truthy(found, "fades with the target frame")
+    t:Hide()
+    T.falsy(h:IsShown(), "goes with the target")
+    t:Show()
+    T.truthy(h:IsShown(), "back with the target")
+    DUI:Set("UnitFrames", "combo.anchor", "target")
+    stub.RunTimers()
+    T.eq(c:GetParent(), t, "back on the frame")
+    T.falsy(h:IsShown())
+    T.truthy(Movers.Get(ns.Combo.KEY).suspended)
+end)
+
 T.test("centered, outer end, and stretched across the frame", function()
     local DUI, ns = login("ROGUE")
     local t = ns.frames.target

@@ -65,6 +65,26 @@ function Combo.Create(target)
     return c
 end
 
+-- The row on its own (combo.anchor "free"): a holder on UIParent with its own
+-- unlock handle. It shows and hides with the target frame through its scripts
+-- and fades with it (the target's fade list, Units.lua), never anchored to the
+-- protected frame.
+Combo.KEY = "unitframes.combo"
+Combo.HOME = { "CENTER", nil, "CENTER", 0, -140 }
+
+function Combo.CreateHolder(c)
+    if not c then return nil end
+    local f = c.target
+    local h = CreateFrame("Frame", "DaylightUIComboPoints", UIParent)
+    ns.UF.LiftPiece(h, f)
+    h:SetSize(1, 1)
+    h:Hide()
+    f:HookScript("OnShow", function() if h.want then h:Show() end end)
+    f:HookScript("OnHide", function() h:Hide() end)
+    c.holder = h
+    return h
+end
+
 -- Pip height: the setting, or automatic (a little over half the width).
 function Combo.Height(cfg)
     local h = cfg.height or 0
@@ -89,8 +109,22 @@ end
 function Combo.Layout(c, cfg)
     if not c then return end
     c.enabled = cfg.enabled
-    local onPlayer = cfg.anchor == "player" and ns.frames and ns.frames.player
+    local free = cfg.anchor == "free" and c.holder ~= nil
+    local onPlayer = not free and cfg.anchor == "player" and ns.frames and ns.frames.player
     local f = onPlayer or c.target
+    c.at = free and "free" or onPlayer and "player" or "target"
+    if c.holder then
+        local h = c.holder
+        h.want = free and cfg.enabled and true or false
+        c:SetParent(free and h or c.target)
+        if free then
+            h:SetScale(DUI.Movers.Scale(Combo.KEY))
+            h:SetShown(h.want and c.target:IsShown())
+        else
+            h:Hide()
+        end
+        DUI.Movers.Suspend(Combo.KEY, not h.want)
+    end
     -- Whole screen pixels for every pip: a size between pixels blurs a 2 px
     -- border unevenly from one pip to the next.
     local px = Pixel.Px(c, 1)
@@ -126,8 +160,14 @@ function Combo.Layout(c, cfg)
     end
     local vert, rel = above and "BOTTOM" or "TOP", above and "TOP" or "BOTTOM"
     c:ClearAllPoints()
-    c:SetPoint(vert .. side, f, rel .. side, x + (cfg.x or 0), y + (cfg.y or 0))
     c:SetSize(Combo.MAX * (w + gap) - gap, h)
+    if free then
+        -- Placed by its handle: the holder is the row's size.
+        c:SetPoint("CENTER", c.holder, "CENTER", 0, 0)
+        c.holder:SetSize(c:GetWidth(), h)
+    else
+        c:SetPoint(vert .. side, f, rel .. side, x + (cfg.x or 0), y + (cfg.y or 0))
+    end
     for i, pip in ipairs(c.pips) do
         pip:ClearAllPoints()
         pip:SetPoint("TOPLEFT", c, "TOPLEFT", (i - 1) * (w + gap), 0)
@@ -156,7 +196,7 @@ end
 -- The personal display's row isn't under the target.
 local function tellCastBar(c)
     if c == ns.combo and ns.targetCastbarFree then
-        ns.CastBar.PipsUp(ns.targetCastbarFree, c:IsShown())
+        ns.CastBar.PipsUp(ns.targetCastbarFree, c:IsShown() and c.at == "target")
     end
 end
 

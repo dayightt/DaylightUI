@@ -240,7 +240,7 @@ end
 -- asks the same, so rows sit where they do in game.
 function ns.TargetAuraRoom(db)
     local cc, tc = db.combo, db.targetCastbar
-    local onTarget = ns.combo and cc.enabled and cc.anchor ~= "player"
+    local onTarget = ns.combo and cc.enabled and cc.anchor == "target"
     local above = cc.side == "above"
     local pips = (onTarget and not above) and (ns.Combo.Height(cc) + 4 - (cc.y or 0)) or 0
     local lift = (onTarget and above) and ns.Combo.Lift(cc) or 0
@@ -1014,6 +1014,14 @@ function ns.Build(mod)
         ns.PartyTargets.RegisterFade()
         ns.auras = Auras.Create(ns.frames.target, "left", nil, mod.db.targetAuras)
         ns.combo = ns.Combo.Create(ns.frames.target)
+        if ns.combo then
+            -- Its row on its own, when used (fades with the target frame).
+            local holder = ns.Combo.CreateHolder(ns.combo)
+            local pieces = ns.frames.target.pieces
+            pieces[#pieces + 1] = holder
+            holder.fadeOf = ns.frames.target
+            DUI.Movers.Register(holder, ns.Combo.KEY, "Combo Points", ns.Combo.HOME)
+        end
         ns.happiness = ns.Happiness.Create(ns.frames.pet)
         ns.RefitOnTab(ns.frames.target, function() return ns.auras end)
         registerEvents()

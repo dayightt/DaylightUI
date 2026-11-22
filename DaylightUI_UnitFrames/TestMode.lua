@@ -30,7 +30,8 @@ Test.SAMPLES = {
 }
 
 Test.CASTS = {
-    player = { text = DUI.L["Holy Light"], value = 0.6, icon = "Interface\\Icons\\Spell_Holy_HolyBolt" },
+    player = { text = DUI.L["Holy Light"], value = 0.6, icon = "Interface\\Icons\\Spell_Holy_HolyBolt",
+               channel = { text = DUI.L["Drain Life"], value = 0.6, icon = "Interface\\Icons\\Spell_Shadow_LifeDrain02", ticks = 5 } },
     target = { text = DUI.L["Shadow Bolt"], value = 0.35, kick = 0.8 },
 }
 
