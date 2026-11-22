@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Nameplates", "Nameplates and speech bubbles that vanished until a reload can be brought back with /dui platefix" },
+        { "Auction House", "Picking an item to buy now picks its cheapest auction, not sometimes the most expensive one" },
     } },
     { version = "2.2.1", date = "2026-11-21", summary = "Poisons, oils and weapon imbues in the Cooldown Manager, a UI that fades away on flight paths, and a big batch of fixes.", new = {
         { "Cooldown Manager", "Poisons, sharpening stones, oils and shaman weapon imbues can go in your Cooldown Manager, glowing when they wear off" },

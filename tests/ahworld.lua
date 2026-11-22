@@ -150,8 +150,10 @@
 --     A new query replaces the list.
 --   * Search result rows are fresh tables on each Get*SearchResultInfo call.
 --   * SendSearchQuery's sorts are logged (AHW.Log) but don't change the order:
---     the answer is always cheapest first. Enum.AuctionHouseSortOrder is the
---     docs' (Price = 0 ...).
+--     the answer is cheapest first. Enum.AuctionHouseSortOrder is the
+--     docs' (Price = 0 ...). spec.dearFirst answers gear dearest first: in game
+--     a sell search for bags came back with the 40g ones ahead of the 25s ones,
+--     sorts and all, so the order an item search arrives in can't be trusted.
 --
 --   * Purchases (from the game's Blizzard_AuctionHouseUI source and the API docs).
 --     StartCommoditiesPurchase(itemID, quantity[, unitPrice]) (the game's own dialog
@@ -650,7 +652,10 @@ local function itemRows(key, exact)
     end
     table.sort(rows, function(x, y)
         if (x.buyoutAmount ~= nil) ~= (y.buyoutAmount ~= nil) then return x.buyoutAmount ~= nil end
-        if x.buyoutAmount and x.buyoutAmount ~= y.buyoutAmount then return x.buyoutAmount < y.buyoutAmount end
+        if x.buyoutAmount and x.buyoutAmount ~= y.buyoutAmount then
+            if S().dearFirst then return x.buyoutAmount > y.buyoutAmount end
+            return x.buyoutAmount < y.buyoutAmount
+        end
         return x.auctionID < y.auctionID
     end)
     return rows
@@ -1588,7 +1593,7 @@ function AHW.world(spec)
         AHW.GameWords()
         AHW.state = {
             calls = {}, queue = {}, timers = {}, seq = 0, frames = 0,
-            open = false, busy = false, throttled = spec.throttled == true,
+            open = false, busy = false, throttled = spec.throttled == true, dearFirst = spec.dearFirst == true,
             step = spec.step or AHW.STEP, itemDelay = spec.itemDelay or AHW.ITEM_DELAY, page = spec.page or AHW.PAGE,
             itemSpacing = spec.itemSpacing, replicateCooldown = spec.replicateCooldown,
             replicateLate = spec.replicateLate, replicateEarly = spec.replicateEarly, replicateBlank = spec.replicateBlank,

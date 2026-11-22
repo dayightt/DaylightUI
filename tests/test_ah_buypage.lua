@@ -893,3 +893,38 @@ T.test("ah buy page: on a controller the D-pad steps the amount, and Y opens a r
     _G.GamepadMode, _G.InputUtil = nil, nil
     quiet()
 end)
+
+-- Gear's auctions come a page at a time, dearest first as seen in game: the
+-- steps still read cheapest first, and the pick moves to the cheapest as
+-- cheaper pages come, however the list above is sorted.
+T.test("ah buy page: gear steps start at the cheapest, whatever came first", function()
+    local list = auctions()
+    local function sword(buyout, owner)
+        list[#list + 1] = { itemID = SWORD, name = "Short Sword", count = 1, buyout = buyout, quality = 2,
+            level = 10, classID = 2, subClassID = 7, owner = owner }
+    end
+    -- the dear ones first, as the server answered in game
+    table.remove(list, 7); table.remove(list, 6)
+    sword(402493, "Saronite"); sword(492244, "Aeai"); sword(2497, "Lilith"); sword(3000, "Jiayi")
+    sword(3597, "Inside"); sword(5097, "Nomo"); sword(6700, "Cashby")
+    local A, page = load({ auctions = list, spec = { page = 2, dearFirst = true } })
+    enter(page.box, "short sword")
+    AHW.Settle()
+    local t = page.table
+    t.head.cells.unit:Click()   -- price, dearest first
+    t:Row(1):Click()
+    AHW.Settle()
+    tween(A, 1)
+    local order = {}
+    for i = 2, 8 do order[#order + 1] = textOf(t:Row(i).name):match("^(%a+)") end
+    T.eq(table.concat(order, ","), "Lilith,Jiayi,Inside,Nomo,Cashby,Saronite,Aeai")
+    T.eq(textOf(page.foot.buttons[1].text), "Buy for 24 97")
+    -- one the player clicks stays picked when the auctions are searched again
+    t:Row(7):Click()
+    T.eq(textOf(page.foot.buttons[1].text), "Buy for 40 24 93")
+    A.BuyPage.OpenRow(t.rows[1], true)
+    AHW.Settle()
+    tween(A, 1)
+    T.eq(textOf(page.foot.buttons[1].text), "Buy for 40 24 93", "the clicked one kept")
+    quiet()
+end)

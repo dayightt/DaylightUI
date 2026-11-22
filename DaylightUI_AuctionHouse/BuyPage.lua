@@ -1170,11 +1170,18 @@ function BP.Opened(d)
     if S.open ~= d then d.steps, d.why = nil, nil; return end
     local first = not d.shown
     d.shown = true
-    if S.step then   -- searched again: the same auction kept, if it's still up
+    -- Only an auction the player clicked stays picked through later pages and a
+    -- search again. The auction house sends pages in its own order, often
+    -- dearest first, so a pick made from the first page alone could be the
+    -- most expensive one up.
+    if S.step and S.stepClicked then
         local still
         for _, s in ipairs(d.steps or {}) do if s.auctionID and s.auctionID == S.step.auctionID then still = s end end
         S.step = still
+    else
+        S.step = nil
     end
+    if not S.step then S.stepClicked = nil end
     if not S.step and d.steps and not d.commodity then
         for _, s in ipairs(d.steps) do if not s.mine then S.step = s; break end end
         S.step = S.step or d.steps[1]
@@ -1236,7 +1243,7 @@ function BP.OpenRow(d, refresh)
 end
 
 local function begin(d)
-    S.open, S.step = d, nil
+    S.open, S.step, S.stepClicked = d, nil, nil
     BP.Rebuild(true)
     BP.OpenRow(d)
     BP.PaintFooter()
@@ -1280,7 +1287,7 @@ end
 function BP.PickStep(s)
     if not s.auctionID then return BP.AmountThrough(s) end
     if S.step == s or s.mine then return end
-    S.step = s
+    S.step, S.stepClicked = s, true
     BP.FillBid()
     BP.PaintPick()
     BP.PaintFooter()
