@@ -268,3 +268,23 @@ T.test("layers: defaults follow Daylight UI's install order", function()
     T.truthy(d.health < d.power and d.power < d.debuffs and d.name < d.portrait and d.portrait < d.level, "bottom to top")
     T.eq(ns.Layers.OrderOf("target", "health"), d.health, "an untouched part shows its install order")
 end)
+
+T.test("layers: an Order slider shows its reset only off its default", function()
+    local DUI, ns = login()
+    local page = DUI.Options.GetPage("UnitFrames.target")
+    local row
+    for _, g in ipairs(page.groups) do
+        for _, it in ipairs(g.items or {}) do if it.key == "target.parts.power.order" then row = it end end
+    end
+    local d = ns.Layers.DefaultOrders(nil, "target").power
+    T.truthy(DUI.Options.IsDefault(page, row), "untouched")
+    DUI.Options.Set(page, row, d + 1)
+    stub.RunTimers()
+    T.falsy(DUI.Options.IsDefault(page, row), "moved off its default")
+    DUI.Options.ResetItem(page, row)
+    stub.RunTimers()
+    T.truthy(DUI.Options.IsDefault(page, row), "reset")
+    T.isnil((ns.Layers.Saved("target", "power") or {}).order, "reset clears the saved order")
+    T.truthy(ns.Layers.Untouched("target"), "the frame is untouched again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

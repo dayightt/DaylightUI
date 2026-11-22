@@ -470,8 +470,12 @@ function Layers.Rows(unit, off)
             desc = "Where it draws among this frame's parts: a higher number draws on top. "
                 .. (part.mover and "In unlock mode, click it for Bring forward and Send back." or "It has no handle in unlock mode, so it's set here."),
             get = function() return Layers.OrderOf(unit, key) end,
-            set = function(v) Layers.Set(unit, key, v, false) end,
-            default = function() return nil end,
+
+            -- The default order saves as nil, so a reset leaves the part untouched.
+            set = function(v)
+                Layers.Set(unit, key, v ~= Layers.DefaultOrders(f, unit)[key] and v or nil, false)
+            end,
+            default = function() return Layers.DefaultOrders(f, unit)[key] end,
             disabled = off, hidden = unused }
         if part.free and not part.ownLayer then
             rows[#rows + 1] = { type = "dropdown", key = unit .. ".parts." .. key .. ".layer", label = part.label .. " layer",
