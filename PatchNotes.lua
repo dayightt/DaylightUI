@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Buffs", "Buffs and debuffs can be ordered longest first, with forms and auras that never run out at the start" },
         { "Data texts", "A data text for your equipment set: see which set you're wearing and switch sets from it" },
         { "Bags", "Disenchant can stay on in your bags, so a pile of greens is one click each" },
+        { "Loot rolls", "With Daylight UI loot rolls turned off, the game's roll popups can keep the game's own look. Extras > Loot rolls" },
     }, fixed = {
         { "Nameplates", "Nameplates and speech bubbles no longer vanish after dragging a spell out of the spellbook or a chat tab to the other chat panel, and /dui platefix brings them back if they ever do" },
         { "Auction House", "Picking an item to buy now picks its cheapest auction, not sometimes the most expensive one" },
@@ -33,6 +34,12 @@ DUI.PatchNotes = {
         { "Beast Training", "Beast Training opens looking right: the filter button no longer runs off the window and every ability shows its name" },
         { "Bags", "An item taken from the mail or a trade no longer turns invisible in your bag, and neither does the Recent heading above it" },
         { "Bags", "You can choose again which bags Clean Up leaves alone: right-click a bag above your bags. A bag it skips says so, which is why Clean Up could leave gaps and unsorted items" },
+        { "Action bars", "The Attack button no longer flashes a hard red square while you auto attack: it glows a soft red in the button's own shape" },
+        { "Cooldown Manager", "Cooldown bars no longer all empty and fill up again with every wand shot" },
+        { "Loot rolls", "A loot roll no longer stays stuck on screen after you leave the group, even after a reload. A roll you've already picked can be put away with a right-click" },
+        { "Controller", "Putting an armor kit, oil or enchant on worn gear with a controller is no longer blocked by the game" },
+        { "Controller", "Using an oil, armor kit or enchant from your bag with a controller opens the character window on the gear it goes on, like the game's own bag does" },
+        { "Controller", "Opening a clam or other container from your bag with a controller gives the bag the controller back once the loot window closes" },
     } },
     { version = "2.2.1", date = "2026-11-21", summary = "Poisons, oils and weapon imbues in the Cooldown Manager, a UI that fades away on flight paths, and a big batch of fixes.", new = {
         { "Cooldown Manager", "Poisons, sharpening stones, oils and shaman weapon imbues can go in your Cooldown Manager, glowing when they wear off" },
