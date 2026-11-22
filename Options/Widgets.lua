@@ -1925,7 +1925,7 @@ function W.PaintBarTexture(bar)
     end
     if bar.grain then
         if fg then bar.grain:SetTexture(fg) end
-        bar.grain:SetShown(fg ~= nil)
+        Style.ShowModShading(bar.grain, bar, fg ~= nil)
     end
     if bar.trackGrain then
         if bg then

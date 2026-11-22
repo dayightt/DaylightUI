@@ -323,6 +323,16 @@ local function wholeNow()
     end
 end
 
+-- Bars drawn partly in MOD blend ignore alpha, so after a paint, and after the
+-- whole screen's alpha changes, their layers are brought to their frames'
+-- alpha (Style.FollowMods), once per step.
+local modsDue = false
+local function followMods()
+    modsDue = false
+    local Style = DUI.Style
+    if Style and Style.FollowMods then DUI.SafeCall(Style.FollowMods) end
+end
+
 -- Checks whether UIParent is faded and moves the buffers with it. Any change
 -- of its alpha is told once ("UIAlpha"), whoever made it: another addon fading
 -- the whole UI is seen on the next step, and a repeat of the same alpha is not
@@ -334,6 +344,7 @@ function Fade.CheckUIAway()
     if a ~= uiSeen then
         uiSeen = a
         DUI.Fire("UIAlpha", a)
+        followMods()
     end
     local away = a < 0.999
     if away == uiAway then return end
@@ -387,6 +398,7 @@ end
 local function paint(e)
     syncWhole(e)
     if e.held then return end
+    modsDue = true
     local seen = e.seen or {}
     e.seen = seen
     local n = 0
@@ -440,6 +452,7 @@ function Fade.Animate(dt)
             if e.now ~= e.to then moving = true end
         end
     end
+    if modsDue then followMods() end
     return moving
 end
 
@@ -493,6 +506,7 @@ function Fade.Step()
         -- Only areas currently needing whole-fading read their lists here.
         syncWhole(e)
     end
+    if modsDue then followMods() end
     if moving then driver:Show() end
 end
 

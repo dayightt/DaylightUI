@@ -2551,6 +2551,75 @@ end
 
 local gradGrain = setmetatable({}, { __mode = "k" }) -- bar -> the picked bar texture laid over its gradient
 
+-- The client draws a MOD texture at full strength whatever its own alpha or
+-- its parents': a bar that faded out with its frame left its gradient pieces,
+-- or a picked bar texture's shading, tinting the world where it was. So those
+-- layers follow their bar's alpha by hand (Style.FollowMods, after each fade
+-- step and screen dim). The pieces' colors ease toward white, which multiplies
+-- to nothing. The shading can't be eased that way, so it goes once the bar is
+-- mostly faded.
+Style.MOD_SHADING_MIN = 0.5
+local barStops = setmetatable({}, { __mode = "k" })  -- bar -> { pieces, halves, stops, on, vertical, ends }
+local modBars = setmetatable({}, { __mode = "k" })   -- bar -> the alpha its MOD layers were last given, false before
+local modShading = setmetatable({}, { __mode = "k" }) -- bar -> { [texture] = wanted }
+
+-- The bar's alpha on screen, or nil while the client keeps it secret (it
+-- then returns nothing).
+local function modStrength(bar)
+    local a = bar:GetEffectiveAlpha()
+    if type(a) ~= "number" or isSecret(a) then return nil end
+    return a
+end
+
+local function lift(v, k) return 1 - k * (1 - v) end
+
+local function paintPieces(e, k)
+    local ends = e.ends
+    if not ends then return end
+    local orientation = e.vertical and "VERTICAL" or "HORIZONTAL"
+    for i, t in ipairs(e.pieces) do
+        local c = ends[i]
+        if c then
+            Style.Gradient(t, orientation, lift(c[1], k), lift(c[2], k), lift(c[3], k), 1,
+                lift(c[4], k), lift(c[5], k), lift(c[6], k), 1)
+        end
+    end
+end
+
+local function applyMods(bar, k)
+    modBars[bar] = k
+    local e = barStops[bar]
+    if e then paintPieces(e, k) end
+    local list = modShading[bar]
+    if list then
+        for t, on in pairs(list) do t:SetShown(on and k >= Style.MOD_SHADING_MIN) end
+    end
+end
+
+-- A MOD texture carrying a bar texture's shading, shown or not by its painter:
+-- it stays hidden while its bar is mostly faded.
+function Style.ShowModShading(t, bar, on)
+    local list = modShading[bar]
+    if not list then
+        list = setmetatable({}, { __mode = "k" })
+        modShading[bar] = list
+    end
+    list[t] = on == true
+    if modBars[bar] == nil then modBars[bar] = false end
+    t:SetShown(on == true and (modStrength(bar) or 1) >= Style.MOD_SHADING_MIN)
+end
+
+-- Brings every shown bar's MOD layers to its alpha now. Only a bar whose alpha
+-- changed is repainted.
+function Style.FollowMods()
+    for bar, last in pairs(modBars) do
+        if bar:IsVisible() then
+            local k = modStrength(bar)
+            if k and k ~= last then applyMods(bar, k) end
+        end
+    end
+end
+
 -- The Daylight gradient keeps a shared bar texture the player picked, laid
 -- over the sweep and multiplied in (MOD) so its shading shows in the sweep's
 -- colors, the way a single-color bar shows it in that color. Daylight UI's own fill
@@ -2559,7 +2628,7 @@ local function paintGrain(bar)
     local shared = gradFills[bar] and Style.SharedBar(slotOf[bar])
     local t = gradGrain[bar]
     if not shared then
-        if t then t:Hide() end
+        if t then Style.ShowModShading(t, bar, false) end
         return
     end
     if not t then
@@ -2572,7 +2641,7 @@ local function paintGrain(bar)
         gradGrain[bar] = t
     end
     t:SetTexture(shared)
-    t:Show()
+    Style.ShowModShading(t, bar, true)
 end
 
 local function paintFill(obj, kind)
@@ -2782,7 +2851,6 @@ end
 -- middle of an invisible half. Three and five colors land exactly on the
 -- quarters; four are read at the quarters, close to their thirds.
 Style.STOP_PIECES = 4
-local barStops = setmetatable({}, { __mode = "k" }) -- bar -> { pieces, halves, stops, on, vertical }
 
 local function stopsLayer(bar)
     local fx = DUI.BarFx
@@ -2941,14 +3009,21 @@ function Style.PaintBarStops(bar, stops, paintBack, orientation, mirror)
     -- Power bars repaint on every power change: the same colors again need nothing more.
     if e.on and e.list == list then return true end
     local q = Style.STOP_PIECES
+    local ends = e.ends or {}
+    e.ends = ends
     for i, t in ipairs(e.pieces) do
         local a, b = (i - 1) / q, i / q
         if mirror then a, b = 1 - a, 1 - b end
-        local ar, ag, ab = Style.StopsAt(stops, a)
-        local br, bg, bb = Style.StopsAt(stops, b)
+        local c = ends[i] or {}
+        ends[i] = c
+        c[1], c[2], c[3] = Style.StopsAt(stops, a)
+        c[4], c[5], c[6] = Style.StopsAt(stops, b)
         t:SetVertexColor(1, 1, 1, 1)
-        Style.Gradient(t, vertical and "VERTICAL" or "HORIZONTAL", ar, ag, ab, 1, br, bg, bb, 1)
     end
+    -- Painted at the bar's alpha now (see Style.FollowMods).
+    local k = modStrength(bar) or 1
+    modBars[bar] = k
+    paintPieces(e, k)
     e.on, e.stops, e.list = true, stops, list
     Style.NoteFill(tex, first, last, list)
     Style.LayBarStops(bar)
