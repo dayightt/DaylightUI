@@ -1604,3 +1604,68 @@ T.test("data texts: a style repaint lays out again without asking for the roster
     stub.RunTimers()
     T.truthy(stub.rosterAsks > asks, "a new guild text asks for the roster")
 end)
+
+-- The equipment set text: the slot's words without the set's icon.
+local function noIcon(s) return (s:gsub("|T.-|t ?", "")) end
+
+T.test("data texts: the equipment set text shows the set you wear, a menu puts another on", function()
+    local DUI = login(nil, function()
+        stub.EquipmentSets({ { id = 3, name = "Tank", icon = 1001, worn = true },
+                             { id = 7, name = "Healing", icon = 1002 } })
+    end)
+    DUI:Set("InfoPanel", "data.slot4", "equipset")
+    stub.RunTimers()
+    measureLikeTheGame()
+    local s = DT().slots[4]
+    T.eq(noIcon(shown()[4]), "Tank")
+    T.truthy(s.text:GetText():find("|T1001:", 1, true), "the set's own icon in front")
+    hover(4)
+    local tip = noIcon(tipText())
+    T.truthy(tip:find("Tank | Wearing it", 1, true), tip)
+    T.truthy(tip:find("Healing | Ready", 1, true), tip)
+    T.truthy(tip:find("Click: pick a set", 1, true), tip)
+    -- A click opens the sets; picking one puts it on at once out of a fight.
+    s:GetScript("OnClick")(s, "LeftButton")
+    local W = DUI.Widgets
+    T.eq(W.menuOwner, s, "the menu hangs off the slot")
+    W.MenuRow(2):Click()
+    T.deq(stub.equipSets.used, { 7 })
+    T.eq(noIcon(shown()[4]), "Healing", "redrawn from the game's swap events")
+end)
+
+T.test("data texts: a set picked in a fight waits for it to end, and says so", function()
+    local DUI = login(nil, function()
+        stub.EquipmentSets({ { id = 3, name = "Tank", worn = true }, { id = 7, name = "Healing" } })
+    end)
+    DUI:Set("InfoPanel", "data.slot4", "equipset")
+    stub.RunTimers()
+    measureLikeTheGame()
+    local s = DT().slots[4]
+    stub.EnterCombat()
+    s:GetScript("OnClick")(s, "LeftButton")
+    DUI.Widgets.MenuRow(2):Click()
+    T.eq(stub.equipSets.refused, 0, "never asks the game to swap in a fight")
+    T.deq(stub.equipSets.used, {})
+    T.eq(noIcon(shown()[4]), "Healing", "the pick shows at once")
+    T.truthy(s.text:GetText():find(hexOf(stub.infopanel.DataTexts.WARN), 1, true), "in the warning color while it waits")
+    hover(4)
+    T.truthy(noIcon(tipText()):find("Healing | After combat", 1, true), tipText())
+    T.truthy(tipText():find("(after combat)", 1, true), "the hint says so")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.deq(stub.equipSets.used, { 7 }, "on as the fight ends")
+    T.eq(noIcon(shown()[4]), "Healing")
+    T.isnil(DT().setWaiting)
+end)
+
+T.test("data texts: with no equipment sets the text says so and a click does nothing", function()
+    local DUI = login(nil, function() stub.EquipmentSets({}) end)
+    DUI:Set("InfoPanel", "data.slot4", "equipset")
+    stub.RunTimers()
+    T.eq(shown()[4], "No set")
+    local s = DT().slots[4]
+    s:GetScript("OnClick")(s, "LeftButton")
+    T.isnil(DUI.Widgets.menuOwner, "no empty menu")
+    hover(4)
+    T.truthy(tipText():find("No equipment sets yet.", 1, true), tipText())
+end)

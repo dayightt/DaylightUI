@@ -999,6 +999,113 @@ function DT.ReadAmmo()
 end
 
 -- ---------------------------------------------------------------------
+-- Equipment set: the one you're wearing, and a menu to put another on. The
+-- game won't swap gear in a fight, so a set picked then goes on when it
+-- ends (the character window's Sets.Equip waits for it).
+-- ---------------------------------------------------------------------
+
+DT.SET_SAMPLE = { { id = 1, name = L["Questing"], icon = 132644, lost = 0 },
+                  { id = 2, name = L["Dungeon"], icon = 132627, worn = true, lost = 0 } }
+
+-- Every set as { id, name, icon, worn, lost }, and the one you're wearing.
+-- Two sets can both be fully on (one holds the other's items), so the last
+-- one put on wins, else the first.
+function DT.ReadSets()
+    if sample() then return DT.SET_SAMPLE, DT.SET_SAMPLE[2] end
+    local out, worn = {}, nil
+    local C = _G.C_EquipmentSet
+    if type(C) ~= "table" then return out end
+    local ids = call(C.GetEquipmentSetIDs)
+    for _, id in ipairs(type(ids) == "table" and ids or {}) do
+        local name, icon, _, on, _, _, _, lost = call(C.GetEquipmentSetInfo, id)
+        if type(known(name)) == "string" then
+            local s = { id = id, name = name, icon = known(icon), worn = on == true, lost = num(lost) }
+            out[#out + 1] = s
+            if s.worn and (not worn or id == DT.lastSet) then worn = s end
+        end
+    end
+    return out, worn
+end
+
+-- The set picked in a fight, still waiting for it to end.
+function DT.WaitingSet(sets)
+    if not DT.setWaiting then return nil end
+    for _, s in ipairs(sets) do
+        if s.id == DT.setWaiting and not s.worn then return s end
+    end
+end
+
+-- The set's own icon in front of its name, cropped like every icon of ours.
+function DT.SetIcon(icon)
+    if icon == nil then return "" end
+    local c = Style.ICON_CROP
+    local function px(v) return math.floor(v * 64 + 0.5) end
+    return string.format("|T%s:0:0:0:0:64:64:%d:%d:%d:%d|t ", tostring(icon), px(c[1]), px(c[2]), px(c[3]), px(c[4]))
+end
+
+-- Puts a set on, or once the fight ends. Picking the worn one in a fight
+-- calls off the one waiting.
+function DT.WearSet(id, worn)
+    local Sets = DUI.Char and DUI.Char.Sets
+    if not (Sets and Sets.Equip) then return end
+    local fight = InCombatLockdown()
+    if worn and not (fight and DT.setWaiting) then return end
+    DT.setWaiting = fight and not worn and id or nil
+    if not fight then DT.lastSet = id end
+    DUI.SafeCall(Sets.Equip, id)
+    DT.Redraw("equipset")
+end
+
+local function setsEvent(event, ok, id)
+    if event == "EQUIPMENT_SWAP_FINISHED" and ok == true and type(id) == "number" then DT.lastSet = id end
+    if event == "PLAYER_REGEN_ENABLED" then DT.setWaiting = nil end
+end
+
+local function setsTip()
+    tipTitle(L["Equipment sets"])
+    local sets = DT.ReadSets()
+    if #sets == 0 then
+        hint(L["No equipment sets yet."])
+        hint(L["Make one in the character window."])
+        return
+    end
+    local Sets = DUI.Char and DUI.Char.Sets
+    for _, s in ipairs(sets) do
+        local name, status, c = DT.SetIcon(s.icon) .. s.name, L["Ready"], nil
+        if s.worn then
+            name, status, c = DT.SetIcon(s.icon) .. colored(s.name, { Style.Accent() }), L["Wearing it"], DT.GOOD
+        elseif s.id == DT.setWaiting then
+            status, c = L["After combat"], DT.WARN
+        elseif s.lost > 0 then
+            status, c = Sets and Sets.Status and Sets.Status(false, s.lost) or status, DT.WARN
+        end
+        line(name, status, c)
+    end
+    gap()
+    hint(InCombatLockdown() and L["Click: pick a set (after combat)"] or L["Click: pick a set"])
+end
+
+local function setsClick(_, slot)
+    if sample() then return end
+    local sets, worn = DT.ReadSets()
+    if #sets == 0 then return end
+    local waiting = DT.WaitingSet(sets)
+    local fight = InCombatLockdown()
+    local keys, values = {}, {}
+    for _, s in ipairs(sets) do
+        local k = tostring(s.id)
+        keys[#keys + 1] = k
+        values[k] = DT.SetIcon(s.icon) .. s.name
+        if fight and not s.worn then values[k] = values[k] .. word("  ·  " .. L["After combat"]) end
+    end
+    local current = waiting or worn
+    DUI.Widgets.OpenMenu(slot, keys, values, current and tostring(current.id) or nil, function(k)
+        local id = tonumber(k)
+        DT.WearSet(id, worn ~= nil and worn.id == id)
+    end)
+end
+
+-- ---------------------------------------------------------------------
 -- The texts
 -- ---------------------------------------------------------------------
 
@@ -1379,10 +1486,27 @@ DT.TEXTS = {
             hint(InCombatLockdown() and L["Click: use (after combat)"] or L["Click: use"])
         end,
         over = DT.HearthOver },
+    equipset = { name = "Equipment set",
+        events = { "EQUIPMENT_SETS_CHANGED", "EQUIPMENT_SWAP_FINISHED", "PLAYER_EQUIPMENT_CHANGED", "PLAYER_REGEN_ENABLED" },
+        onEvent = setsEvent,
+        ownIcon = true,   -- the text starts with the set's own icon
+        text = function()
+            local sets, worn = DT.ReadSets()
+            local waiting = DT.WaitingSet(sets)
+            local s = waiting or worn
+            -- A set waiting for the fight to end shows at once, in the warning color.
+            if not s then
+                local none = value(L["No set"], DT.LABEL)
+                return none, none
+            end
+            local v = DT.SetIcon(s.icon) .. value(s.name, waiting and DT.WARN or nil)
+            return word(L["Set"] .. " ") .. v, v
+        end,
+        tip = setsTip, click = setsClick },
 }
 DT.ORDER = { "gold", "durability", "bags", "social", "friends", "guild", "system", "time", "xp", "location", "coords",
              "combat", "volume", "ilvl", "played", "professions", "hearth",
-             "crit", "ap", "sp", "hit", "shards", "ammo", "speed" }
+             "crit", "ap", "sp", "hit", "shards", "ammo", "speed", "equipset" }
 DT.NAMES = {}
 for key, t in pairs(DT.TEXTS) do DT.NAMES[key] = t.name end
 
