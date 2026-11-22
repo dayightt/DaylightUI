@@ -1143,9 +1143,9 @@ T.test("info panel: the minimap moves into the panel, square, cluster hidden", f
     DaylightUI:Set("InfoPanel", "map.buttons", true)
     stub.RunTimers()
     T.eq(GameTimeFrame:GetParent(), Minimap)
-    T.eq(Minimap.__blob.questScalar, 0, "no round rim on quest areas")
-    T.eq(Minimap.__blob.questAlpha, 0)
-    T.eq(Minimap.__blob.taskScalar, 0, "or bonus-objective areas")
+    T.eq(Minimap.__blob.questAlpha, 0, "no round rim on quest areas")
+    T.eq(Minimap.__blob.questScalar, 1, "but the area keeps its size: a scale of 0 hides the area too")
+    T.eq(Minimap.__blob.taskScalar, 1, "bonus-objective areas too")
     -- When Edit Mode's layout moves it back, that's undone a frame later.
     -- No hook on its SetPoint: the game's protected layout code calls it,
     -- and a hook makes that call fail.

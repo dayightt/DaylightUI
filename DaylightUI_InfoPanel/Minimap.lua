@@ -27,8 +27,8 @@ Map.TEXT_LIFT = 4       -- the map's texts sit this many levels over it: above t
 Map.DECOR = { "MinimapBackdrop", "MinimapCompassTexture" }
 -- Quest, bonus-objective and dig-site areas are drawn with a hatched ring
 -- where they meet the edge of a round map. On a square map that ring shows
--- as a big circle, so it is scaled and faded to nothing; the area itself
--- still fills the map.
+-- as a big circle, so it is faded to nothing. Its scale stays at 1: seen in
+-- game, a scale of 0 hides the whole area along with the ring.
 Map.BLOB_RINGS = { "QuestBlob", "TaskBlob", "ArchBlob" }
 Map.QUEUE_SCALE = 0.5         -- the game's LFG eye at the map's bottom-left
 Map.BUTTON_INSET = 4        -- the calendar and tracking buttons, from the map's top-right corner (as the drawer's, Drawer.PAD)
@@ -1048,9 +1048,9 @@ function Map.Apply(cfg)
     if not Map.blobsSet then
         Map.blobsSet = true
         for _, kind in ipairs(Map.BLOB_RINGS) do
-            for _, part in ipairs({ "RingScalar", "RingAlpha" }) do
+            for part, value in pairs({ RingScalar = 1, RingAlpha = 0 }) do
                 local set = mm["Set" .. kind .. part]
-                if type(set) == "function" then DUI.SafeCall(set, mm, 0) end
+                if type(set) == "function" then DUI.SafeCall(set, mm, value) end
             end
         end
     end
