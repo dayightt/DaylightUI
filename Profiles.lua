@@ -1182,7 +1182,7 @@ function Profiles.ImportInto(shared, take)
     local name = Profiles.Current()
     local old = DUI.DB.Fill(data()[name])
     local from, to
-    if take[Profiles.POSITIONS] then shared, from, to = Profiles.Fit(shared) end
+    shared, from, to = Profiles.Fit(shared, take)
     local new = Profiles.Build(Profiles.Take(shared, take), nil, old)
     -- What the profile carries besides its settings stays: the pack it came
     -- from, the upgrades it already had.
