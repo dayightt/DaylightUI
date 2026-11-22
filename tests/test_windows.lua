@@ -819,10 +819,23 @@ T.test("windows: a caster stays shown while its spell is dragged away", function
     -- A refill or the wheel mid-drag leaves it too.
     c.Hide()
     T.truthy(b:IsShown())
-    -- On release it hides, and the row gets no duplicate calls.
+    -- Hiding the drag's own button inside OnDragStop stopped the client drawing
+    -- nameplates and anything else on WorldFrame (seen in game, every second
+    -- drop onto the world). It goes a moment after the drop instead.
     b:GetScript("OnDragStop")(b)
+    T.truthy(b:IsShown(), "not hidden during the drop itself")
+    stub.RunTimers()
     T.falsy(b:IsShown(), "released: the button goes")
-    T.eq(#left, 1)
+    T.eq(#left, 1, "and the row gets no duplicate calls")
+    -- A new hover before then keeps it.
+    b = c.Over(row, { type1 = "spell", spell = 1 })
+    b:GetScript("OnDragStart")(b)
+    b:GetScript("OnLeave")(b)
+    b:GetScript("OnDragStop")(b)
+    T.truthy(c.Over(row, { type1 = "spell", spell = 1 }))
+    stub.RunTimers()
+    T.truthy(b:IsShown(), "hovered again: it stays")
+    c.Hide()
     -- Released back on the row, it stays, ready to click.
     b = c.Over(row, { type1 = "spell", spell = 1 })
     b:GetScript("OnDragStart")(b)

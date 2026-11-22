@@ -19,12 +19,14 @@
 -- Otherwise a half-hidden row's button could sit over the search box.
 --
 -- A drag keeps the button shown until it ends. Hiding it mid-drag drops the
--- release, so the spell stays on the cursor and needs a second click.
+-- release, so the spell stays on the cursor and needs a second click. After the
+-- drop it goes CAST_DROP_HIDE seconds later, never inside OnDragStop itself.
 
 local _, DUI = ...
 local Win = DUI.Win
 
 Win.CAST_KEYS = { "type1", "spell", "macrotext1", "type2", "macrotext2" }
+Win.CAST_DROP_HIDE = 1   -- seconds after a drop before the button hides
 Win.CAST_STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 
 local function above(frame)
@@ -86,7 +88,16 @@ function Win.Caster(spec)
         end)
         b:SetScript("OnDragStop", function(self)
             self.dragging = nil
-            if not self.row and not InCombatLockdown() then self:Hide() end
+            if self.row then return end
+            -- Never hide the drag's own button inside OnDragStop. Dropped onto
+            -- the world, that stops the client drawing everything on WorldFrame
+            -- (nameplates, speech bubbles) until WorldFrame is hidden and shown
+            -- again. Seen in game. It still sits over its row, so a click in the
+            -- meantime casts the right spell.
+            C_Timer.After(Win.CAST_DROP_HIDE, function()
+                if self.row or self.dragging or InCombatLockdown() or self:IsMouseOver() then return end
+                self:Hide()
+            end)
         end)
         -- Modified clicks (links etc.) are handled after the secure click.
         b:SetScript("PostClick", function(self, button)

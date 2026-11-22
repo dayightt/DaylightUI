@@ -12,7 +12,7 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
-        { "Nameplates", "Nameplates and speech bubbles that vanished until a reload can be brought back with /dui platefix" },
+        { "Nameplates", "Nameplates and speech bubbles no longer vanish after dragging a spell out of the spellbook, and /dui platefix brings them back if they ever do" },
         { "Auction House", "Picking an item to buy now picks its cheapest auction, not sometimes the most expensive one" },
     } },
     { version = "2.2.1", date = "2026-11-21", summary = "Poisons, oils and weapon imbues in the Cooldown Manager, a UI that fades away on flight paths, and a big batch of fixes.", new = {
