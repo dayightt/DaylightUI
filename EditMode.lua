@@ -331,6 +331,36 @@ function EditMode.UseProfile(profile)
     return ok, why
 end
 
+-- Swaps a profile's layout (the active profile's when not given) for a
+-- shared one, keeping its name and place in the list, and makes it active.
+-- A profile with no layout yet gets the shared one installed. Our parts are
+-- laid over it, so it matches the profile's settings. Returns true, or false
+-- and a reason.
+function EditMode.Replace(text, profile)
+    local why = notReady()
+    if why then return false, why end
+    local layout = fromText(text)
+    if not layout then return false, L["its Edit Mode layout can't be read"] end
+    local info = C_EditMode.GetLayouts()
+    if not (info and type(info.layouts) == "table") then return false, L["the game hasn't given its layouts yet"] end
+    local all = merged(info)
+    local index
+    for i, l in ipairs(all) do
+        if isOurs(l, profile) then index = i end
+    end
+    if not index then return EditMode.Install(layout, profile) end
+    for _, p in ipairs(parts) do DUI.SafeCall(p.fill, layout) end
+    layout.layoutIndex = nil
+    layout.layoutType = all[index].layoutType
+    layout.layoutName = all[index].layoutName
+    all[index] = layout
+    info.layouts = all
+    written = true
+    if not DUI.SafeCall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
+    C_EditMode.SetActiveLayout(index)
+    return true
+end
+
 -- Renames a profile's layout to match the profile's new name. Returns true
 -- (also when there's no layout yet), or false and a reason.
 function EditMode.RenameLayout(old, new)

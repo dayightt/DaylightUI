@@ -650,6 +650,54 @@ T.test("profiles: importing only some parts keeps yours for the rest", function(
     T.eq(made.general.softness, 0.1, "the part left out is yours")
 end)
 
+T.test("profiles: importing into the profile in use changes only the parts picked", function()
+    talents(1, 1)
+    me()
+    local DUI = login()
+    local P = DUI.Profiles
+    DUI:Set("UnitFrames", "swing.height", 30)
+    DUI:Set("general", "softness", 0.9)
+    DUI.DB.Positions()["unitframes.player"] = { 10, 20 }
+    local text = P.Encode(P.Snapshot())
+    DUI:Set("UnitFrames", "swing.height", 12)
+    DUI:Set("general", "softness", 0.1)
+    DUI.DB.Positions()["unitframes.player"] = { -50, -60 }
+    local mine = P.Current()
+    local before = #P.Names()
+    stub.Dismiss()
+    P.ShowImport()
+    local box = _G.DaylightUIProfileBox
+    T.truthy(box.mode:IsShown(), "asked where it goes")
+    T.truthy(box.mode.new.on, "a new profile to start")
+    box.edit:SetText(text)
+    local keys = {}
+    for i, part in ipairs(P.Parts(P.Decode(text))) do keys[part.key] = i end
+    box.parts.rows[keys.general]:GetScript("OnClick")()
+    box.mode.into:GetScript("OnClick")()
+    T.truthy(box.mode.into.on, "into the profile in use")
+    T.truthy(string.find(box.mode.into.text.__text, mine, 1, true), "named on its chip")
+    T.truthy(string.find(box.status.__text, "into " .. mine, 1, true), "the status says where")
+    box.go:GetScript("OnClick")()
+    T.falsy(box:IsShown(), "imported without a name")
+    T.eq(#P.Names(), before, "no new profile")
+    T.eq(P.Current(), mine, "still on the same profile")
+    T.eq(DUI:Get("UnitFrames", "swing.height"), 30, "the part taken is theirs")
+    T.eq(DUI:Get("general", "softness"), 0.1, "the part left out stays yours")
+    T.deq(DUI.DB.Positions()["unitframes.player"], { 10, 20 }, "their frame positions")
+    -- A brand-new character has the setup guide open, which holds the question until it closes.
+    DUI.Installer.Done()
+    T.eq(stub.Asked(), "profileReload", "asked to reload")
+end)
+
+T.test("profiles: a character on its stand-in can only import as a new profile", function()
+    local DUI = login()
+    T.truthy(DUI.DB.Unsaved(), "no profile of its own yet")
+    DUI.Profiles.ShowImport()
+    T.falsy(_G.DaylightUIProfileBox.mode:IsShown(), "no Into choice")
+    DUI.Profiles.ShowExport()
+    T.falsy(_G.DaylightUIProfileBox.mode:IsShown(), "and never on export")
+end)
+
 -- A shared profile carries every module table its maker had, add-ons that store
 -- their settings in Daylight UI's profile too, and an unchanged module still
 -- leaves an empty table. Those aren't parts anyone can choose.

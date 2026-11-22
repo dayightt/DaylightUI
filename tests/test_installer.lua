@@ -130,6 +130,28 @@ T.test("installer: a layout set up from the bundled one is up to date, so no sec
     T.isnil(stub.Asked(), "no second reload asked")
 end)
 
+T.test("installer: an import into the profile in use swaps its Edit Mode layout in place", function()
+    local DUI = login({ before = function()
+        C_EditMode.ConvertStringToLayoutInfo = function(s)
+            if s ~= "theirs" then return nil end
+            local systems = {}
+            for i = 1, 4 do systems[i] = { system = 0, systemIndex = i, settings = {}, anchorInfo = { offsetX = 77 } } end
+            return { layoutName = "Their layout", layoutType = 1, systems = systems }
+        end
+    end })
+    DUI.Installer.Install()
+    local count = #saved.layouts
+    local P = DUI.Profiles
+    local shared = P.Snapshot()
+    shared.layout = "theirs"
+    P.ImportInto(shared, { [P.LAYOUT] = true })
+    T.eq(#saved.layouts, count, "no layout added")
+    local l = layoutNamed("DaylightUI - DPS/Tank")
+    T.truthy(l, "kept under the profile's name")
+    T.eq(l.systems[1].anchorInfo.offsetX, 77, "their layout in it")
+    T.eq(saved.activeLayout, 3, "and in use")
+end)
+
 T.test("installer: the old debug log is cleared from the saved settings", function()
     login({ before = function() _G.DaylightUIDB = { guideDebug = { "--- session" } } end })
     T.isnil(DaylightUIDB.guideDebug)

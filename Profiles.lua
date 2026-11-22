@@ -875,6 +875,38 @@ function Profiles.Replace(name, new)
     if name == DUI.DB.ActiveName() then DUI.DB.Repoint() end
 end
 
+-- Brings the parts in take (a set of Parts keys) of a shared profile into the
+-- profile in use, in place. Parts switched off stay as they are, and so does
+-- what sharing leaves out. When the Edit Mode layout is taken it replaces the
+-- profile's own (after the fight, in one). Asks to reload. Returns the
+-- profile's name and, when its frames were fitted to this screen, the shapes
+-- from and to.
+function Profiles.ImportInto(shared, take)
+    local name = Profiles.Current()
+    local old = DUI.DB.Fill(data()[name])
+    local from, to
+    if take[Profiles.POSITIONS] then shared, from, to = Profiles.Fit(shared) end
+    local new = Profiles.Build(Profiles.Take(shared, take), nil, old)
+    -- What the profile carries besides its settings stays: the pack it came
+    -- from, the upgrades it already had.
+    for k, v in pairs(old) do
+        if new[k] == nil and k ~= "pendingLayout" then new[k] = v end
+    end
+    new.pendingLayout = old.pendingLayout
+    Profiles.Replace(name, new)
+    local layout = take[Profiles.LAYOUT] and shared.layout
+    if type(layout) == "string" then
+        DUI.AfterCombat(function()
+            local ok, why = EditMode.Replace(layout, name)
+            if not ok then
+                DUI.Print(string.format(L["Couldn't bring in its Edit Mode layout: %s."], tostring(why)))
+            end
+        end, "profile import layout")
+    end
+    Profiles.AskReload()
+    return name, from, to
+end
+
 -- Creates a pack's profile, like AddPreset does for ours (under its name, or
 -- `as`; an existing one is used as is). Returns its name, or nil and a reason.
 function Profiles.AddPackProfile(entry, as)
@@ -1109,6 +1141,17 @@ function Profiles.Wrap(s)
     return table.concat(out, "\n")
 end
 
+-- Puts the status line and the parts above the mode row while it shows.
+local function placeRows()
+    local E = DUI.Win.EDGE
+    box.status:ClearAllPoints()
+    box.status:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", E, 46 + box.lift)
+    box.status:SetPoint("RIGHT", box, "RIGHT", -E, 0)
+    box.parts:ClearAllPoints()
+    box.parts:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", E, 66 + box.lift)
+    box.parts:SetPoint("RIGHT", box, "RIGHT", -E, 0)
+end
+
 local function buildBox()
     local W = DUI.Widgets
     local C = W.COLORS
@@ -1137,7 +1180,6 @@ local function buildBox()
     -- The parts to take, between the text and the status line: no height and
     -- hidden until a profile is pasted (Profiles.ShowParts).
     local parts = CreateFrame("Frame", nil, box)
-    parts:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", E, 66)
     parts:SetPoint("RIGHT", box, "RIGHT", -E, 0)
     parts:SetHeight(1)
     parts:Hide()
@@ -1148,8 +1190,21 @@ local function buildBox()
     area:SetPoint("BOTTOM", parts, "TOP", 0, 0)
     box.area, box.edit = area, area.edit
     box.status = W.Font(box, W.BODY, SIZE.small, C.dim, "LEFT")
-    box.status:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", E, 46)
     box.status:SetPoint("RIGHT", box, "RIGHT", -E, 0)
+    -- Where an import goes: a new profile, or into the one in use. Only the
+    -- import shows it (Profiles.ShowMode).
+    local mode = CreateFrame("Frame", nil, box)
+    mode:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", E, 46)
+    mode:SetPoint("RIGHT", box, "RIGHT", -E, 0)
+    mode:SetHeight(W.CHIP_HEIGHT)
+    mode.new = W.Chip(mode, L["New profile"])
+    mode.new:SetPoint("LEFT", mode, "LEFT", 0, 0)
+    mode.into = W.Chip(mode, "")
+    mode.into:SetPoint("LEFT", mode.new, "RIGHT", W.CHIP_GAP, 0)
+    mode:Hide()
+    box.mode = mode
+    box.lift = 0
+    placeRows()
     box.close = W.Button(box, CLOSE or L["Close"], 26)
     box.close:SetWidth(100)
     box.close:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", -E, 12)
@@ -1193,6 +1248,33 @@ local function partRow(parts, i)
     return row
 end
 
+Profiles.MODE_ROW = 32 -- the import's New profile / Into row, over the buttons
+
+-- The box's height for the mode row and the parts as they are right now.
+local function sizeBox()
+    local v = box.parts.cur or 0
+    box:SetHeight(Profiles.BOX[2] + box.lift + v - math.min(v, Profiles.PART_GIVE))
+end
+
+-- Shows or hides the mode row, the status line and parts easing up over it.
+local function showMode(on)
+    local M = DUI.Motion
+    local goal = on and Profiles.MODE_ROW or 0
+    local function apply(v)
+        box.lift = v
+        placeRows()
+        sizeBox()
+    end
+    if box:IsShown() then
+        M.Tween(box.mode, box.lift, goal, M.NORMAL, apply)
+        M.AlphaTo(box.mode, on and 1 or 0, M.NORMAL, true)
+    else
+        M.Tween(box.mode, goal, goal, 0)
+        apply(goal)
+        M.AlphaTo(box.mode, on and 1 or 0, 0, true)
+    end
+end
+
 -- Grows (or shrinks) the box so the parts fit, easing its height.
 local function fitParts(h)
     local parts = box.parts
@@ -1200,7 +1282,8 @@ local function fitParts(h)
     parts.h = h
     DUI.Motion.Tween(parts, from, h, DUI.Motion.NORMAL, function(v)
         parts:SetHeight(math.max(1, v))
-        box:SetHeight(Profiles.BOX[2] + v - math.min(v, Profiles.PART_GIVE))
+        parts.cur = v
+        sizeBox()
     end)
     DUI.Motion.AlphaTo(parts, h > 0 and 1 or 0, DUI.Motion.NORMAL, true)
 end
@@ -1240,7 +1323,7 @@ function Profiles.ShowParts(list, onChange, head)
     onChange(take)
 end
 
-local function showBox(title, hint)
+local function showBox(title, hint, withMode)
     if not box then buildBox() end
     DUI.Win.Repaint(box) -- the accent line in the current accent
     box.title:SetText(title)
@@ -1250,12 +1333,13 @@ local function showBox(title, hint)
     if not box:IsShown() then
         -- Opened afresh: back to its own size, no parts.
         DUI.Motion.Tween(box.parts, 0, 0, 0)
-        box.parts.h = 0
+        box.parts.h, box.parts.cur = 0, 0
         box.parts:Hide()
         box:SetHeight(Profiles.BOX[2])
     else
         Profiles.ShowParts(nil)
     end
+    showMode(withMode == true)
     box:Show()
     box:Raise()
     return box
@@ -1324,14 +1408,21 @@ end
 local currentSlot = Profiles.CurrentSlot
 
 function Profiles.ShowImport()
-    local b = showBox(L["Import profile"], L["Paste a DaylightUI profile (Ctrl+V) and name it. It becomes a new profile, "
-        .. "chosen for this character (these talents, with dual spec); yours stay as they are."])
+    -- A character still on its stand-in has no profile of its own to bring parts into.
+    local canInto = not DUI.DB.Unsaved()
+    local b = showBox(L["Import profile"], canInto
+        and L["Paste a DaylightUI profile (Ctrl+V). Make it a new profile, or bring parts into the one in use."]
+        or L["Paste a DaylightUI profile (Ctrl+V) and name it. It becomes a new profile, "
+        .. "chosen for this character (these talents, with dual spec); yours stay as they are."], canInto)
     b.go:Show()
     b.go.text:SetText(L["Import"]) -- ShowPaste may have changed its label
     b.name:Show()
+    b.name:SetAlpha(1)
     b.name:SetText("")
     b.edit:SetText("")
     local pending, take, count, shown
+    local into = false
+    local current = Profiles.Current()
     local function named() return strtrim(b.name:GetText() or "") end
     local function picked()
         local n = 0
@@ -1340,7 +1431,7 @@ function Profiles.ShowImport()
     end
     -- A profile of only defaults lists no parts and imports whole.
     local function enough() return count == 0 or picked() > 0 end
-    local function ready() b.go:SetAlpha((pending and enough() and named() ~= "") and 1 or 0.4) end
+    local function ready() b.go:SetAlpha((pending and enough() and (into or named() ~= "")) and 1 or 0.4) end
     -- How many parts it takes, the number in the accent.
     local function said()
         local W = DUI.Widgets
@@ -1356,13 +1447,34 @@ function Profiles.ShowImport()
             return
         end
         local pop = DUI.Win.Parts.Hex({ Style.Pop() })
-        if n == count then
+        if into and n == count then
+            b.status:SetText(string.format(L["Takes all %s parts into %s."], pop .. n .. "|r", current))
+        elseif into then
+            b.status:SetText(string.format(L["Takes %s of %s parts into %s. The rest stay as they are."],
+                pop .. n .. "|r", count, current))
+        elseif n == count then
             b.status:SetText(string.format(L["Takes all %s parts."], pop .. n .. "|r"))
         else
             b.status:SetText(string.format(L["Takes %s of %s parts. The rest stay as yours."], pop .. n .. "|r", count))
         end
         W.TextColor(b.status, W.COLORS.text)
     end
+    -- New profile or into the one in use: the name box only matters for a new one.
+    local function pick(on)
+        into = on
+        b.mode.new.SetOn(not on)
+        b.mode.into.SetOn(on)
+        DUI.Motion.AlphaTo(b.name, on and 0 or 1, DUI.Motion.FAST, true)
+        if on then b.name:ClearFocus() end
+        if pending then said() end
+        ready()
+    end
+    b.mode.into.text:SetText(string.format(L["Into %s"], current))
+    b.mode.new.FitWidth()
+    b.mode.into.FitWidth()
+    b.mode.new:SetScript("OnClick", function() pick(false) end)
+    b.mode.into:SetScript("OnClick", function() pick(true) end)
+    pick(false)
     local function check(_, user)
         -- Pasted as one long line: shown in lines so it fits the box.
         local now = b.edit:GetText()
@@ -1401,6 +1513,17 @@ function Profiles.ShowImport()
     local function go()
         if not pending then return end
         if not enough() then return end
+        if into then
+            local made, from, to = Profiles.ImportInto(pending, take)
+            b:Hide()
+            if from and from ~= to then
+                DUI.Print(string.format(L["Brought the picked parts into %s, its frames fitted from a %s screen to your %s one."],
+                    made, from, to))
+            else
+                DUI.Print(string.format(L["Brought the picked parts into %s."], made))
+            end
+            return
+        end
         if named() == "" then
             warn(L["Give it a name first."])
             b.name:SetFocus()
