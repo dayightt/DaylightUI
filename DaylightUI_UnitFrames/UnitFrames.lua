@@ -940,9 +940,10 @@ local function noteLevels(frame)
         noteLevels(c)
     end
 end
+-- A frame a player placed in Layers keeps its level (c.layerOwn).
 local function relevel(frame)
     for _, c in ipairs({ frame:GetChildren() }) do
-        if c.levelOffset then
+        if c.levelOffset and not c.layerOwn then
             c:SetFrameLevel(frame:GetFrameLevel() + c.levelOffset)
             relevel(c)
         end

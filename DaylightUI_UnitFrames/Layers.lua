@@ -53,16 +53,23 @@ local function part(key, label, get, extra)
     return p
 end
 
--- The frame's border goes round its health bar, so it moves with the bar.
+-- glue(f): frames drawn as part of a part without being inside it. They move
+-- with it and keep their gap to it. The frame's border goes round its health bar.
 local HEALTH = part("health", "Health bar", function(f) return f.health end,
-    { border = function(f) return DUI.Style.GetShell(f) end })
+    { glue = function(f) return { DUI.Style.GetShell(f) } end })
 local function power(unit)
     return part("power", "Power bar", function(f) return f.freePower and powerFree(unit) and f.freePower or f.power end,
         { free = function(f) return f.freePower ~= nil and powerFree(unit) end,
           mover = function() return ns.PowerBar.KeyFor(unit) end })
 end
+-- On the frame, the portrait's socket ring (2.0 look), its icon set and the
+-- raid-target skull are frames beside it; standing on its own they're inside it.
 local PORTRAIT = part("portrait", "Portrait", function(f) return f.portraitFree and f.portraitHolder or f.portrait end,
-    { free = function(f) return f.portraitFree == true end,
+    { glue = function(f)
+          if f.portraitFree then return {} end
+          return { f.socket, f.status, f.dotSkull }
+      end,
+      free = function(f) return f.portraitFree == true end,
       mover = function(f) return f.portraitHolder and f.portraitHolder.key end })
 local function inTab(f) return f.tab ~= nil and f.tab:IsShown() and f.tabClip ~= nil end
 local NAME = part("name", "Name", function(f) if inTab(f) then return f.tabClip end return f.nameText end,
@@ -212,6 +219,7 @@ local function setLevel(frame, level)
     local inner = not gameOwned(frame)
     if inner then ns.UF.NoteLevels(frame) end
     frame:SetFrameLevel(math.max(0, level))
+    frame.layerOwn = true
     if inner then ns.UF.Relevel(frame) end
 end
 
@@ -220,56 +228,107 @@ local function restore(frame)
     local inner = not gameOwned(frame)
     if inner then ns.UF.NoteLevels(frame) end
     frame:SetFrameLevel(frame.layerHome)
+    frame.layerOwn = nil
     if inner then ns.UF.Relevel(frame) end
     frame.layerHome = nil
 end
 
+-- The highest and lowest frame levels a frame draws at: its own and every
+-- frame inside it, shown or not. The game's aura containers aren't looked
+-- into (their buttons answer with secret values): a button sits one over its
+-- container, with its border one under the button.
+local function topOf(frame)
+    local top = frame:GetFrameLevel()
+    if gameOwned(frame) then return top + 2 end
+    for _, c in ipairs({ frame:GetChildren() }) do top = math.max(top, topOf(c)) end
+    return top
+end
+local function lowOf(frame)
+    local low = frame:GetFrameLevel()
+    if gameOwned(frame) then return low end
+    for _, c in ipairs({ frame:GetChildren() }) do low = math.min(low, lowOf(c)) end
+    return low
+end
+Layers.TopOf, Layers.LowOf = topOf, lowOf
+
 -- Applies a frame's saved Orders and Layers: a live frame, or an options
 -- preview (f.layerPreview) of the same unit. Runs after the frame's own code has
 -- placed its parts. Protected parents: out of combat.
+-- A part moves as one: its frames, everything inside them and its glue. Parts
+-- given an order are stacked from the lowest order up, each wholly over the
+-- one before, so two parts never interleave; equal orders go in list order.
+local function partFrames(f, part, order)
+    local found = list(part.get(f))
+    if #found == 0 then return {} end
+    if isRegion(part, f) then
+        if order then return { carrierFor(f, part, found) } end
+        dropCarrier(f, part, found)
+        return {}
+    end
+    return found
+end
+
+local function glueOf(f, part)
+    local out = {}
+    for _, g in pairs(part.glue and part.glue(f) or {}) do
+        if type(g) == "table" and g.GetFrameLevel then out[#out + 1] = g end
+    end
+    return out
+end
+
 function Layers.ApplyTo(f, unit)
     local parts = Layers.PARTS[unit]
     if not (f and parts) then return end
     local base = f:GetFrameLevel()
-    -- A moved portrait takes its icons with it.
-    local portrait = Layers.Saved(unit, "portrait")
-    local portraitFrame = portrait and tonumber(portrait.order) and list(PORTRAIT.get(f))[1]
-    if f.status then
-        if portraitFrame then setLevel(f.status, portraitFrame:GetFrameLevel() + 6) else restore(f.status) end
-    end
-    for _, part in ipairs(parts) do
+    local placed = {}
+    for i, part in ipairs(parts) do
         local s = Layers.Saved(unit, part.key)
         local order = s and tonumber(s.order)
-        local found = list(part.get(f))
-        if #found > 0 then
-            local frames = found
-            if isRegion(part, f) then
-                if order then
-                    frames = { carrierFor(f, part, found) }
-                else
-                    dropCarrier(f, part, found)
-                    frames = {}
-                end
-            end
-            for _, frame in ipairs(frames) do
-                if order then
-                    setLevel(frame, base + math.max(Layers.MIN, math.min(Layers.MAX, order)))
-                else
-                    restore(frame)
-                end
-                -- A border that isn't inside the part keeps its place under it.
-                local edge = part.border and part.border(f)
-                if edge then
-                    if edge.layerGap == nil then edge.layerGap = edge:GetFrameLevel() - (frame.layerHome or frame:GetFrameLevel()) end
-                    if order then setLevel(edge, frame:GetFrameLevel() + edge.layerGap) else restore(edge) end
-                end
-                local layer = s and s.layer
-                if not f.layerPreview and part.free and not part.ownLayer and part.free(f) and type(layer) == "string"
-                    and layer ~= "FRAME" and ns.STRATA_LABELS[layer] then
-                    frame:SetFrameStrata(layer)
-                end
+        local frames = partFrames(f, part, order)
+        local glue = glueOf(f, part)
+        if #frames > 0 and order then
+            placed[#placed + 1] = { part = part, i = i, frames = frames, glue = glue, s = s,
+                                    want = base + math.max(Layers.MIN, math.min(Layers.MAX, order)) }
+        else
+            for _, frame in ipairs(frames) do restore(frame) end
+            for _, g in ipairs(glue) do restore(g) end
+        end
+        for _, frame in ipairs(frames) do
+            local layer = s and s.layer
+            if not f.layerPreview and part.free and not part.ownLayer and part.free(f) and type(layer) == "string"
+                and layer ~= "FRAME" and ns.STRATA_LABELS[layer] then
+                frame:SetFrameStrata(layer)
             end
         end
+    end
+    table.sort(placed, function(a, b)
+        if a.want ~= b.want then return a.want < b.want end
+        return a.i < b.i
+    end)
+    local prevTop
+    for _, e in ipairs(placed) do
+        local main = e.frames[1]
+        local home = main.layerHome or main:GetFrameLevel()
+        -- Each glued frame's gap to the part, as its own code placed them.
+        for _, g in ipairs(e.glue) do
+            if g.layerGap == nil then g.layerGap = (g.layerHome or g:GetFrameLevel()) - home end
+        end
+        -- How far below the part's own level its lowest piece reaches.
+        local reach = 0
+        for _, frame in ipairs(e.frames) do reach = math.min(reach, lowOf(frame) - frame:GetFrameLevel()) end
+        for _, g in ipairs(e.glue) do reach = math.min(reach, g.layerGap + lowOf(g) - g:GetFrameLevel()) end
+        local level = e.want
+        if prevTop then level = math.max(level, prevTop + 1 - reach) end
+        local top = level
+        for _, frame in ipairs(e.frames) do
+            setLevel(frame, level)
+            top = math.max(top, topOf(frame))
+        end
+        for _, g in ipairs(e.glue) do
+            setLevel(g, level + g.layerGap)
+            top = math.max(top, topOf(g))
+        end
+        prevTop = top
     end
 end
 
@@ -284,16 +343,6 @@ function Layers.Set(unit, key, order, layer)
     if layer ~= false then DUI:Set("UnitFrames", path .. ".layer", layer) end
 end
 
--- The highest frame level a frame draws at: its own, or the highest frame
--- inside it, shown or not. The game's aura containers aren't looked into:
--- their buttons answer with secret values.
-local function topOf(frame)
-    local top = frame:GetFrameLevel()
-    if frame.GetObjectType and frame:GetObjectType() == "AuraContainer" then return top end
-    for _, c in ipairs({ frame:GetChildren() }) do top = math.max(top, topOf(c)) end
-    return top
-end
-Layers.TopOf = topOf
 
 -- Unlock's Bring forward / Send back for a part with a handle. others is a
 -- list of overlapping frames. Returns the new Order and Layer, or nil and why.

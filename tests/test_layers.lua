@@ -46,8 +46,9 @@ end)
 
 T.test("layers: the portrait icons ride over a moved portrait unless given their own order", function()
     local _, ns, f = freeTarget()
+    local gap = f.status:GetFrameLevel() - f.portraitHolder:GetFrameLevel()
     set("target.parts.portrait.order", 30)
-    T.eq(f.status:GetFrameLevel(), f.portraitHolder:GetFrameLevel() + 6, "icons follow")
+    T.eq(f.status:GetFrameLevel() - f.portraitHolder:GetFrameLevel(), gap, "icons follow")
     set("target.parts.level.order", 10)
     local badge = f.status.icons.level
     T.truthy(badge:GetParent() ~= f.status, "the level badge has a frame of its own")
@@ -83,7 +84,7 @@ T.test("layers: the options preview draws the same order", function()
     local s = ns.PageSample.New("target", UIParent)
     s.Refresh(400, 200)
     local f = s.f
-    T.eq(f.health:GetFrameLevel(), f:GetFrameLevel() + 9, "the preview takes the order")
+    T.truthy(f.health:GetFrameLevel() > ns.Layers.TopOf(f.portrait), "the preview stacks the bar over the portrait")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -118,7 +119,7 @@ T.test("layers: stepping past aura rows doesn't look inside the game's container
     local btn = CreateFrame("Button", nil, rows)
     btn:SetFrameLevel(rows:GetFrameLevel() + 40)
     btn.__shown = stub.Secret(true)
-    T.eq(ns.Layers.TopOf(rows), rows:GetFrameLevel(), "the container's own level")
+    T.eq(ns.Layers.TopOf(rows), rows:GetFrameLevel() + 2, "its buttons counted, not looked into")
     ns.Layers.Step("target", "power", { rows, f.portraitHolder }, true)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -207,4 +208,25 @@ T.test("layers: the preview's stand-in aura rows take their order", function()
     local h = ns.Auras.HolderFor(s.f.sampleAuras.buffs)
     T.truthy(h, "a holder")
     T.eq(h:GetFrameLevel(), s.f:GetFrameLevel() + 50)
+end)
+
+T.test("layers: a portrait under the bar takes its ring and icons under too", function()
+    local DUI, ns = login()
+    local f = ns.frames.target
+    set("target.parts.portrait.order", 13)
+    set("target.parts.health.order", 17)
+    local top = ns.Layers.TopOf(f.portrait)
+    for _, g in ipairs({ f.socket, f.status, f.dotSkull }) do
+        if g then top = math.max(top, ns.Layers.TopOf(g)) end
+    end
+    T.truthy(ns.Layers.LowOf(f.health) > top, "the whole portrait under the whole bar")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("layers: two parts on the same order never interleave", function()
+    local _, ns, f = freeTarget()
+    set("target.parts.marker.order", 20)
+    set("target.parts.buffs.order", 20)
+    local marker = f.marker:GetParent()
+    T.truthy(ns.auras.buffs:GetFrameLevel() > ns.Layers.TopOf(marker), "the buffs, borders and all, over the marker")
 end)
