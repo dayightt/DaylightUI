@@ -12,6 +12,11 @@ end
 
 local function reveal(DUI, key, on) DUI.Fire("RevealFrame", key, on) end
 
+-- The raid size a raid key's reveal shows: Raid 10's holder, or a size's own spot.
+local function revealedRaidSize(ns, key)
+    return ({ ["unitframes.raid"] = 10, [ns.Raid.SpotKey(20)] = 20, [ns.Raid.SpotKey(40)] = 40 })[key]
+end
+
 local function groupLook(ns, unit)
     return { samples = shownSamples(ns[unit].preview), headerAlpha = ns[unit].header:GetAlpha() }
 end
@@ -37,14 +42,28 @@ local GROUP_STARTS = {
     { "switched off", false, function(DUI, unit) DUI:Set("UnitFrames", unit:lower() .. ".enabled", false) end },
 }
 
-T.test("revealed by any group key, even twice: test mode's preview (none while off); one end leaves the group exactly as before", function()
+-- Test mode's look, the raid shown at the size the key names.
+local function testModeLookFor(ns, key, unit)
+    local raidSize = revealedRaidSize(ns, key)
+    if raidSize then
+        ns.Raid.SetEditing(raidSize)
+        stub.RunTimers()
+        T.eq(groupLook(ns, "Raid").samples, raidSize, key .. ": test mode shows the raid at the edited size")
+    end
+    return groupLook(ns, unit)
+end
+
+T.test("revealed by any group key, even twice: test mode's preview at the key's raid size (none while off); one end leaves the group exactly as before", function()
     local testModeDUI, testModeNs = login()
     testModeDUI.SetTestMode(true)
     stub.RunTimers()
-    T.eq(groupLook(testModeNs, "Raid").samples, testModeNs.Raid.Editing(), "test mode shows the raid at the edited size")
+    local testModeLooks = {}
+    for _, keyAndUnit in ipairs(groupKeys(testModeNs)) do
+        testModeLooks[keyAndUnit[1]] = testModeLookFor(testModeNs, keyAndUnit[1], keyAndUnit[2])
+    end
     for _, keyAndUnit in ipairs(groupKeys(testModeNs)) do
         local key, unit = keyAndUnit[1], keyAndUnit[2]
-        local testModeLook = groupLook(testModeNs, unit)
+        local testModeLook = testModeLooks[key]
         T.truthy(testModeLook.samples > 0, unit .. ": test mode shows samples")
         for _, start in ipairs(GROUP_STARTS) do
             for reveals = 1, 2 do
@@ -80,6 +99,29 @@ T.test("revealed with Raid 40 on its own spot: the preview sits there, and ended
     T.truthy(DUI.Movers.Get("unitframes.raid").suspended, "the raid's own mover suspended meanwhile")
     reveal(DUI, ns.Raid.SpotKey(40), false)
     T.deq(outwardGroupState(DUI, ns, "Raid"), before)
+end)
+
+-- { the size with its own spot, the key revealed, where the preview sits }
+local OWN_SPOT_REVEALS = {
+    { 40, "unitframes.raid", nil },
+    { 20, 20, 20 },
+}
+
+T.test("a raid key reveals its own size: Raid 10's holder stays on its spot, and Raid 20's spot shows the twenty-player preview there", function()
+    for _, case in ipairs(OWN_SPOT_REVEALS) do
+        local ownSpotSize, placedAt = case[1], case[3]
+        local DUI, ns = login()
+        local key = type(case[2]) == "number" and ns.Raid.SpotKey(case[2]) or case[2]
+        local context = key .. " with Raid " .. ownSpotSize .. " on its own spot"
+        DUI:Set("UnitFrames", "raid" .. ownSpotSize .. ".ownSpot", true)
+        stub.RunTimers()
+        local before = outwardGroupState(DUI, ns, "Raid")
+        reveal(DUI, key, true)
+        T.eq(ns.Raid.placedAt, placedAt, context .. ": where the preview sits")
+        T.eq(groupLook(ns, "Raid").samples, revealedRaidSize(ns, key), context .. ": the key's raid size previewed")
+        reveal(DUI, key, false)
+        T.deq(outwardGroupState(DUI, ns, "Raid"), before, context .. ": ended, as before")
+    end
 end)
 
 local function revealedLooks(ns, shownFor)

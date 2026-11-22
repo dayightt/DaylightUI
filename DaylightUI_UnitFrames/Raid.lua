@@ -121,9 +121,15 @@ function Raid.Editing()
     return Raid.editing or 40
 end
 
--- The size shown now: the page's pick while previewing, otherwise the raid's.
+-- The size previews show: the one the layout editor revealed, else the page's
+-- pick. The reveal is the editor's request, so it wins over test mode while it lasts.
+function Raid.PreviewSize()
+    return Raid.revealedSize or Raid.Editing()
+end
+
+-- The size shown now: the preview's while previewing, otherwise the raid's.
 function Raid.ShownSize()
-    if Raid.group:Previewing() then return Raid.Editing() end
+    if Raid.group:Previewing() then return Raid.PreviewSize() end
     return Raid.SizeFor(Raid.Members())
 end
 
@@ -215,10 +221,10 @@ function Raid.Room(cfg, size)
     return math.min(size, ns.Group.GroupsShown(cfg, Raid.GROUPS) * Raid.PER_GROUP)
 end
 
--- Test mode's raid: the size the pages edit, or forty before any page opens.
+-- The preview's raid: the size revealed or the pages edit, or forty before any page opens.
 function Raid.PreviewCount(cfg)
-    if type(cfg) ~= "table" then return Raid.Editing() end
-    return Raid.Room(cfg, Raid.Editing())
+    if type(cfg) ~= "table" then return Raid.PreviewSize() end
+    return Raid.Room(cfg, Raid.PreviewSize())
 end
 
 -- The 10-player settings hold the raid's switches, shared by every size.
@@ -411,10 +417,14 @@ local function previewForTestMode(testModeOn)
 end
 DUI.On("TestModeChanged", previewForTestMode)
 
--- The layout editor reveals the raid while a group it edits follows it.
+-- The layout editor reveals the raid while a group it edits follows it, at the
+-- size whose spot the key names.
+local REVEALED_SIZES = { ["unitframes.raid"] = 10, [Raid.SpotKey(20)] = 20, [Raid.SpotKey(40)] = 40 }
 DUI.On("RevealFrame", function(key, on)
-    if key ~= "unitframes.raid" and key ~= Raid.SpotKey(20) and key ~= Raid.SpotKey(40) then return end
+    local size = REVEALED_SIZES[key]
+    if not size then return end
     Raid.group.revealed = on or nil
+    Raid.revealedSize = on and size or nil
     preview(on or DUI.testMode)
 end)
 
