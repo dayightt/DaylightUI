@@ -4895,7 +4895,7 @@ T.test("cdm card: every look setting is on Look (the spell's, then the whole gro
         T.truthy(look["cdm.card.chain." .. k], "Look has the group's " .. k)
         T.isnil(group["cdm.card.chain." .. k], "Group doesn't have " .. k)
     end
-    for _, k in ipairs({ "cdm.card.chain.spacing", "cdm.card.chain.grow", "cdm.card.chain.combat",
+    for _, k in ipairs({ "cdm.card.chain.tether", "cdm.card.chain.spacing", "cdm.card.chain.grow", "cdm.card.chain.combat",
                          "cdm.card.chain.collapse", "cdm.card.alignAcross", "cdm.card.alignDown", "cdm.card.gap", "cdm.card.unhook" }) do
         T.truthy(group[k], "Group has " .. k)
         T.isnil(look[k], "Look doesn't have " .. k)

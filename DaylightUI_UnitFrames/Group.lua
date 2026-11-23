@@ -440,7 +440,7 @@ function Group:PlaceGroupHeaders(cfg, w, ht, rows)
     end
 end
 
--- Sizes the holder to the group shown (in test mode, the preview's). Kept to
+-- Sizes the holder to the group shown (while previewing, the preview's). Kept to
 -- what's there so it never reaches past the screen edge, since it's clamped
 -- to it. Protected, out of combat only.
 function Group:Resize(cfg)
@@ -514,6 +514,7 @@ function Group:Layout(cfg, text, range)
     self:ApplyTestAlpha()
     self:SetEnabled(on, cfg)
     self:MakeAhead()
+    DUI.Fire("FrameLaidOut", "unitframes." .. tostring(self.key))
 end
 
 -- Creates every button bare before it's needed. The client never runs a
@@ -574,8 +575,7 @@ function Group:SetEnabled(on, cfg)
     end
 end
 
--- While test mode shows samples, the real buttons can step aside. Alpha works
--- in combat too (test mode ends when combat starts).
+-- While previewing, the real buttons can step aside. Alpha works in combat too.
 function Group:ApplyTestAlpha()
     if not self.header then return end
     local a = (self:Previewing() and self.opts.hideHeaderInTest) and 0 or 1
@@ -583,10 +583,9 @@ function Group:ApplyTestAlpha()
     for _, gh in ipairs(self.headers) do gh:SetAlpha(a) end
 end
 
--- Test mode is on and this group's samples are wanted. The test box can untick
--- them, but a sweep shows its group either way.
+-- A sweep shows its group even with the test box unticked.
 function Group:Previewing()
-    return DUI.testMode and (self.sweep ~= nil or DUI.TestPartShown(self.key))
+    return self.revealed == true or (DUI.testMode and (self.sweep ~= nil or DUI.TestPartShown(self.key)))
 end
 
 -- Samples: plain buttons filled with sample members. Test mode uses the
@@ -745,7 +744,8 @@ function Group:FillSamples(list, count, cfg)
 end
 
 function Group:ShowPreview(on)
-    on = on and self:Previewing() and not (self.opts.hideInTest and self.opts.hideInTest())
+    local hiddenByThisTestMode = DUI.testMode and self.opts.hideInTest and self.opts.hideInTest()
+    on = on and self:Previewing() and not hiddenByThisTestMode
     if on then self:EnsurePreview() end
     if not self.preview then return end
     local cfg = self:Config()

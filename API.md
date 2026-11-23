@@ -480,6 +480,24 @@ local me = API.For("MyAddon")
 | `me.AddOptionsGroup(pageId, group, after)` | Your settings on one of Daylight UI's pages (below). |
 | `me.On(event, fn)` | `API.On` with your name filled in. |
 
+### Cooldown groups that follow your mover
+
+A frame you register with `me.RegisterMover` can be picked as a Cooldown Manager group's
+**Attach to** frame, in the Cooldown Manager's layout editor (Edit layout on its page, or `/cdm`).
+The group is then placed beside your frame whenever the Cooldown Manager lays out (on aura changes)
+and when your frame is moved in Unlock Frames. If your own code moves the frame, the group catches
+up at the next layout. Your frame is listed in Attach to under **Other**, by the label you gave it.
+
+- It can be picked only while your frame has a size on screen (a width and a height above 0).
+  Picking it while it has none does nothing. A hidden frame that has a size can be picked, and
+  groups still follow it.
+- If you anchor your mover to a Cooldown Manager piece (a frame of kind `"cdmpiece"`), or to
+  anything that hangs from one, groups attached to your mover would make a loop. They sit at their
+  saved spot instead, and picking your frame for another group does nothing.
+- While a group attached to your mover is selected in the editor, your frame gets the editor's ring
+  and name tag. Daylight UI doesn't show your frame for you if it's hidden. Only the Personal
+  Display, party and raid frames are shown while they're edited.
+
 ### Skin another addon's window
 
 ```lua

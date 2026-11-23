@@ -132,6 +132,9 @@ return {
         ["DaylightUI_ActionBars/CdmImport.lua"] = 10,
         ["DaylightUI_ActionBars/CdmOwn.lua"] = 11,
         ["DaylightUI_ActionBars/CdmRows.lua"] = 2,
+        -- A group's lead can be a plugin's frame, and some refuse a read on purpose (a
+        -- nameplate's anchoring is restricted at login), so CdmTether's one read stays a pcall.
+        ["DaylightUI_ActionBars/CdmTether.lua"] = 1,
         ["DaylightUI_ActionBars/Cooldowns.lua"] = 11,
         ["DaylightUI_ActionBars/Diag.lua"] = 1,
         ["DaylightUI_ActionBars/Keys.lua"] = 2,
@@ -230,7 +233,7 @@ return {
         ["DaylightUI_UnitFrames/GroupParts.lua"] = 4,
         ["DaylightUI_UnitFrames/Indicators.lua"] = 2,
         ["DaylightUI_UnitFrames/Texts.lua"] = 1,
-        ["DaylightUI_UnitFrames/UnitFrames.lua"] = 4,
+        ["DaylightUI_UnitFrames/UnitFrames.lua"] = 3,
         ["Dots.lua"] = 6,
         ["DotsDraw.lua"] = 1,
         ["EditMode.lua"] = 5,

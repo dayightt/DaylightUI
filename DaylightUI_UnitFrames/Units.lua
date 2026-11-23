@@ -250,6 +250,19 @@ function ns.TargetAuraRoom(db)
     return lift, pips, pips
 end
 
+-- Parts that fade with frame f without being its pieces (f.fadeKids): aura
+-- rows, since the game's containers don't pass alpha on, and cast bars.
+function ns.FadeWith(f, ...)
+    f.fadeKids = f.fadeKids or {}
+    for i = 1, select("#", ...) do
+        local part = select(i, ...)
+        if part and part.fadeOf ~= f then
+            part.fadeOf = f
+            f.fadeKids[#f.fadeKids + 1] = part
+        end
+    end
+end
+
 -- The player frame's own buffs and debuffs (settings playerAuras, off by
 -- default). The client's containers are created the first time a row is turned
 -- on, so players who leave them off pay nothing. Rows sit exactly where the
@@ -260,7 +273,10 @@ function ns.PlacePlayerAuras(db)
     if not (a and f) then return end
     if not ns.playerAuras and (a.debuffs or a.buffs) then
         ns.playerAuras = Auras.Create(f, "right", "player", a)
-        if ns.playerAuras then ns.RefitOnTab(f, function() return ns.playerAuras end) end
+        if ns.playerAuras then
+            ns.RefitOnTab(f, function() return ns.playerAuras end)
+            ns.FadeWith(f, ns.playerAuras.debuffs, ns.playerAuras.buffs)
+        end
     end
     local set = ns.playerAuras
     if not set then return end
@@ -285,7 +301,10 @@ function ns.PlaceFocusAuras(db)
     if not (a and f) then return end
     if not ns.focusAuras and (a.debuffs or a.buffs) then
         ns.focusAuras = Auras.Create(f, "right", "focus", a)
-        if ns.focusAuras then ns.RefitOnTab(f, function() return ns.focusAuras end) end
+        if ns.focusAuras then
+            ns.RefitOnTab(f, function() return ns.focusAuras end)
+            ns.FadeWith(f, ns.focusAuras.debuffs, ns.focusAuras.buffs)
+        end
     end
     local set = ns.focusAuras
     if not set then return end
@@ -302,7 +321,10 @@ function ns.PlacePetAuras(db)
     if not (a and f) then return end
     if not ns.petAuras and (a.debuffs or a.buffs) then
         ns.petAuras = Auras.Create(f, "right", "pet", a)
-        if ns.petAuras then ns.RefitOnTab(f, function() return ns.petAuras end) end
+        if ns.petAuras then
+            ns.RefitOnTab(f, function() return ns.petAuras end)
+            ns.FadeWith(f, ns.petAuras.debuffs, ns.petAuras.buffs)
+        end
     end
     local set = ns.petAuras
     if not set then return end
@@ -947,6 +969,7 @@ function ns.Build(mod)
         ns.focusCastbarFree.near = focus
         ns.focusCastbarFree.under, ns.focusCastbarFree.hangAt = focus, "slide"
         ns.focusCastbarFree.moverKey = "unitframes.focusCastbar"
+        ns.FadeWith(focus, ns.focusCastbar, ns.focusCastbarFree)
         DUI.Movers.Register(ns.focusCastbarFree, "unitframes.focusCastbar", "Focus Cast Bar",
             { "TOP", "DaylightUIFrame_focus", "BOTTOM", 0, -40 })
         -- Or a bar of its own, when it's detached.
@@ -1013,6 +1036,8 @@ function ns.Build(mod)
         end
         ns.PartyTargets.RegisterFade()
         ns.auras = Auras.Create(ns.frames.target, "left", nil, mod.db.targetAuras)
+        ns.FadeWith(ns.frames.target, ns.auras and ns.auras.debuffs, ns.auras and ns.auras.buffs,
+                    ns.targetCastbar, ns.targetCastbarFree)
         ns.combo = ns.Combo.Create(ns.frames.target)
         if ns.combo then
             -- Its row on its own, when used (fades with the target frame).

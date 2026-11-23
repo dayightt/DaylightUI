@@ -121,9 +121,15 @@ function Raid.Editing()
     return Raid.editing or 40
 end
 
--- The size shown now: the page's pick in test mode, otherwise the raid's.
+-- The size previews show: the one the layout editor revealed, else the page's
+-- pick. The reveal is the editor's request, so it wins over test mode while it lasts.
+function Raid.PreviewSize()
+    return Raid.revealedSize or Raid.Editing()
+end
+
+-- The size shown now: the preview's while previewing, otherwise the raid's.
 function Raid.ShownSize()
-    if Raid.group:Previewing() then return Raid.Editing() end
+    if Raid.group:Previewing() then return Raid.PreviewSize() end
     return Raid.SizeFor(Raid.Members())
 end
 
@@ -215,10 +221,10 @@ function Raid.Room(cfg, size)
     return math.min(size, ns.Group.GroupsShown(cfg, Raid.GROUPS) * Raid.PER_GROUP)
 end
 
--- Test mode's raid: the size the pages edit, or forty before any page opens.
+-- The preview's raid: the size revealed or the pages edit, or forty before any page opens.
 function Raid.PreviewCount(cfg)
-    if type(cfg) ~= "table" then return Raid.Editing() end
-    return Raid.Room(cfg, Raid.Editing())
+    if type(cfg) ~= "table" then return Raid.PreviewSize() end
+    return Raid.Room(cfg, Raid.PreviewSize())
 end
 
 -- The 10-player settings hold the raid's switches, shared by every size.
@@ -391,6 +397,7 @@ function Raid.PlaceHolder(size)
     for _, n in ipairs(ns.RAID_SIZES) do
         if Movers.Get(Raid.SpotKey(n)) then Movers.Recheck(Raid.SpotKey(n)) end
     end
+    DUI.Fire("FrameLaidOut", "unitframes.raid")
 end
 
 -- A spot that was never moved starts where Raid 10's frames are now.
@@ -406,7 +413,28 @@ local function preview(on)
     if d then DUI.AfterCombat(function() Raid.LayoutNow(d) end, "raid:preview") end
     Raid.ShowPreview(on and d ~= nil and d.raid.enabled)
 end
-DUI.On("TestModeChanged", preview)
+local function previewForTestMode(testModeOn)
+    preview(testModeOn or Raid.group.revealed == true)
+end
+DUI.On("TestModeChanged", previewForTestMode)
+
+-- In a raid, or in a party with "Use raid frames in a party" on.
+local function realRaidShows()
+    return IsInRaid() or (IsInGroup() and Raid.InParty(base()))
+end
+
+-- The layout editor reveals the raid while a group it edits follows it, at the
+-- size whose spot the key names. Real raid frames already show, so they aren't
+-- swapped for samples.
+local REVEALED_SIZES = { ["unitframes.raid"] = 10, [Raid.SpotKey(20)] = 20, [Raid.SpotKey(40)] = 40 }
+DUI.On("RevealFrame", function(key, on)
+    local size = REVEALED_SIZES[key]
+    if not size then return end
+    local revealed = on and not realRaidShows()
+    Raid.group.revealed = revealed or nil
+    Raid.revealedSize = revealed and size or nil
+    preview(revealed or DUI.testMode)
+end)
 
 -- The raid grew or shrank past 10 or 20. Switch to its size's setup, room and
 -- spot after combat.
@@ -425,4 +453,4 @@ DUI.RegisterTestPart("raid", "Raid", 70, function()
     local d = db()
     return d ~= nil and d.raid.enabled == true
 end)
-DUI.On("TestPartChanged", function(key) if key == "raid" then preview(DUI.testMode) end end)
+DUI.On("TestPartChanged", function(key) if key == "raid" then previewForTestMode(DUI.testMode) end end)

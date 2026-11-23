@@ -517,6 +517,12 @@ ns.STRATA_FRAMES = { "player", "target", "targettarget", "pet", "focus", "focust
 for _, k in ipairs(ns.STRATA_FRAMES) do
     ns.DEFAULTS[k].strata = k == "personal" and "LOW" or "MEDIUM"
 end
+-- The target's and focus's cast bars draw with their frame by default, wherever
+-- they stand ("FRAME"); a strata of their own can still be picked.
+ns.CASTBAR_STRATA_LABELS = { FRAME = "Same as frame" }
+for k, v in pairs(ns.STRATA_LABELS) do ns.CASTBAR_STRATA_LABELS[k] = v end
+ns.CASTBAR_STRATA = { "FRAME", "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }
+ns.DEFAULTS.targetCastbar.strata, ns.DEFAULTS.focusCastbar.strata = "FRAME", "FRAME"
 
 -- Bar animation (the core's BarFx.lua) per bar, set on each page: a frame's
 -- health and power, each cast bar, the swing timers. Off here; a new setup
