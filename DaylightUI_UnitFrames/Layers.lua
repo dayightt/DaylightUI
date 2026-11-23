@@ -655,7 +655,7 @@ end
 -- Layer pick for each part that can stand on its own.
 function Layers.Rows(unit, off)
     local rows = {
-        { type = "button", label = "Reset layers", func = function() Layers.Reset(unit) end,
+        { type = "button", label = "Reset layers", text = "Reset", confirm = true, func = function() Layers.Reset(unit) end,
           desc = "Puts every part of this frame back where it drew before you changed its place or layer.",
           disabled = function(get) return (off and off(get)) or Layers.Untouched(unit) end },
         orderList(unit, off),
@@ -664,7 +664,7 @@ function Layers.Rows(unit, off)
         local key = part.key
         local f = frameOf(unit)
         if part.free and not part.ownLayer then
-            rows[#rows + 1] = { type = "dropdown", key = unit .. ".parts." .. key .. ".layer", label = part.label .. " layer",
+            rows[#rows + 1] = { type = "dropdown", key = unit .. ".parts." .. key .. ".layer", label = string.format(DUI.L["%s layer"], DUI.L[part.label]),
                 values = ns.CASTBAR_STRATA_LABELS, order = ns.CASTBAR_STRATA,
                 desc = "The layer it draws in while it stands on its own. Same as frame keeps it with the frame.",
                 get = function() local s = Layers.Saved(unit, key); return s and s.layer or "FRAME" end,
