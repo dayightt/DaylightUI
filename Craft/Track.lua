@@ -81,12 +81,12 @@ local function headTip(b)
     GameTooltip:Show()
 end
 
-local function matTip(b)
+local matTip = DUI.Win.Parts.ItemTip(function(b)
     if not (GameTooltip and b.itemID) then return end
     GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
     if type(GameTooltip.SetItemByID) == "function" then GameTooltip:SetItemByID(b.itemID) end
     GameTooltip:Show()
-end
+end)
 
 local function hideTip(b)
     if GameTooltip and GameTooltip:IsOwned(b) then GameTooltip:Hide() end

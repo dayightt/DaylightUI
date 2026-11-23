@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Tooltips", "Pressing Shift while you already hover an item shows the comparison, on loot rolls, vendors, mail, the Auction House, professions and more" },
+    } },
     { version = "2.2.3", date = "2026-11-22", summary = "ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.", new = {
         { "Bags", "With ItemTree installed, your bags show its keep, sell and use advice" },
         { "Loot rolls", "Your roll card folds after you pick while others roll. Click or hover it to see who rolled what" },

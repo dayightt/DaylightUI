@@ -261,7 +261,6 @@ local function tooltipFor(it)
             GameTooltip:SetQuestItem(it.kind, it.index, false)
         end
         GameTooltip:Show()
-        b.UpdateTooltip = tooltipFor(it)   -- the game's tooltip timer calls this, so Shift compares mid-hover
     end
 end
 

@@ -514,6 +514,37 @@ T.test("rolls card: a long summary line shrinks, then takes a second row", funct
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("rolls card: the item's tooltip redraws while hovered, so Shift compares", function()
+    local S, RW = rollsLogin()
+    local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
+    local icon = cardOf(S, id).icon
+    local drawn, compared, shift = 0, 0, false
+    local shop = { shown = false }
+    function shop:IsShown() return self.shown end
+    function shop:Hide() self.shown = false end
+    local realTip, realCompare, realMod, realUtil = _G.GameTooltip, _G.GameTooltip_ShowCompareItem, _G.IsModifiedClick, _G.TooltipUtil
+    _G.TooltipUtil = nil
+    _G.GameTooltip = { SetOwner = function() end, Show = function() end, Hide = function() end, IsOwned = function() return true end,
+        shoppingTooltips = { shop },
+        SetLootRollItem = function() drawn = drawn + 1 end, SetHyperlink = function() drawn = drawn + 1 end }
+    _G.GameTooltip_ShowCompareItem = function() compared = compared + 1; shop.shown = true end
+    _G.IsModifiedClick = function(what) return what == "COMPAREITEMS" and shift end
+    icon:GetScript("OnEnter")(icon)
+    T.eq(compared, 0, "no compare without Shift")
+    T.eq(type(icon.UpdateTooltip), "function", "the game's tooltip timer has something to call")
+    shift = true
+    icon:UpdateTooltip()
+    T.eq(drawn, 2, "it draws the item again")
+    T.eq(compared, 1, "Shift pressed mid-hover compares")
+    shift = false
+    icon:UpdateTooltip()
+    T.falsy(shop.shown, "letting go of Shift takes the compare away")
+    icon:GetScript("OnLeave")(icon)
+    T.isnil(icon.UpdateTooltip, "nothing left to redraw once the mouse leaves")
+    _G.GameTooltip, _G.GameTooltip_ShowCompareItem, _G.IsModifiedClick, _G.TooltipUtil = realTip, realCompare, realMod, realUtil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rolls card: a button's tooltip shows only when it adds something", function()
     local S, RW = rollsLogin()
     stub.measure = function(fs) return #(fs.__text or "") * 4, 14 end

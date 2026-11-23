@@ -338,9 +338,7 @@ local function borderGoal(row)
 end
 
 -- The item's own tooltip; money and the sample have no link: the name alone.
-local function enter(row)
-    hovered = row
-    backAt = nil
+local itemTip = DUI.Win.Parts.ItemTip(function(row)
     local e = row.entry
     if not (e and GameTooltip) or e.money or e.skill then return end
     GameTooltip:SetOwner(row, flipped() and "ANCHOR_RIGHT" or "ANCHOR_LEFT")
@@ -353,10 +351,17 @@ local function enter(row)
         DUI.Tips.Flush(GameTooltip)
     end
     GameTooltip:Show()
+end)
+
+local function enter(row)
+    hovered = row
+    backAt = nil
+    itemTip(row)
 end
 
 local function leaveMouse(row)
     if hovered == row then hovered = nil end
+    row.UpdateTooltip = nil
     if GameTooltip and GameTooltip:GetOwner() == row then GameTooltip:Hide() end
     local soon = GetTime() + Feed.GRACE
     for _, r in ipairs(rows) do

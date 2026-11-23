@@ -398,3 +398,79 @@ T.test("guards: every Media file named in the code is one players get", function
     end
     if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
 end)
+
+-- An item tooltip drawn by a hover of ours goes through Parts.ItemTip (or a
+-- kit list row's tooltip, which uses it). The game's tooltip asks its owner
+-- again every 0.2 s, and its own buttons answer, so Shift pressed mid-hover
+-- shows the compare. Hovers built by hand kept missing that.
+local ITEM_SETTERS = { "Hyperlink", "BagItem", "InventoryItem", "LootRollItem", "LootItem", "MerchantItem",
+    "BuybackItem", "QuestItem", "QuestLogItem", "QuestCurrency", "ItemByID", "ItemByGUID", "ItemKey",
+    "SendMailItem", "InboxItem", "RecipeResultItem", "RecipeReagentItem", "TradeSkillItem", "AuctionItem" }
+
+local function setsItem(c)
+    for _, m in ipairs(ITEM_SETTERS) do
+        if c:find("GameTooltip:Set" .. m .. "(", 1, true) then return true end
+    end
+    return c:find("SetTip(GameTooltip", 1, true) ~= nil
+end
+
+local function indentOf(l) return #(l:match("^%s*")) end
+
+-- The names a function header gives its function, if any.
+local function headerName(h)
+    return h:match("local%s+function%s+([%w_]+)") or h:match("^%s*function%s+([%w_.:]+)%s*%(")
+        or h:match("([%w_.]+)%s*=%s*[%w_.]*%(?%s*function") or h:match("local%s+([%w_]+)%s*=")
+end
+
+-- Routed: a header on the way out says so, or the function is handed to a
+-- list row (tooltip = name) or wrapped by name.
+local function routed(lines, n, text)
+    local at = indentOf(lines[n])
+    for i = n - 1, 1, -1 do
+        local l = lines[i]
+        if l:find("%f[%w_]function%f[^%w_]") and indentOf(l) < at then
+            at = indentOf(l)
+            if l:find("ItemTip(", 1, true) or l:find("tooltip%s*=") or l:find("onEnter%s*=") then return true end
+            local name = headerName(l)
+            if name then
+                local short = name:match("([%w_]+)$")
+                for _, pat in ipairs({ "tooltip%s*=%s*", "onEnter%s*=%s*", "ItemTip%(%s*" }) do
+                    if text:find(pat .. name:gsub("%p", "%%%0") .. "%f[^%w_]")
+                        or text:find(pat .. short .. "%f[^%w_.]") then return true end
+                end
+            end
+            if at == 0 then return false end
+        end
+    end
+    return false
+end
+
+T.test("guards: the item tooltip check tells a hand-built hover from a routed one", function()
+    local function check(src)
+        local lines = {}
+        for l in (src .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = l end
+        for n, l in ipairs(lines) do if setsItem(l) then return routed(lines, n, src) end end
+    end
+    T.falsy(check("b:SetScript(\"OnEnter\", function(self)\n    GameTooltip:SetHyperlink(self.link)\nend)"), "by hand")
+    T.truthy(check("b:SetScript(\"OnEnter\", Parts.ItemTip(function(self)\n    GameTooltip:SetHyperlink(self.link)\nend))"),
+        "wrapped")
+    T.truthy(check("local function tip(b)\n    GameTooltip:SetItemByID(b.id)\nend\ns:Line({ tooltip = tip })"), "a list row's")
+end)
+
+T.test("guards: every item tooltip of a hover redraws for the Shift compare (Parts.ItemTip)", function()
+    local bad = {}
+    for _, path in ipairs(shippedFiles()) do
+        local f = io.open(path, "rb")
+        local raw = f:read("*a")
+        f:close()
+        local text = codeOnly((raw:gsub("\r", "")))
+        local lines = {}
+        for l in (text .. "\n"):gmatch("([^\n]*)\n") do lines[#lines + 1] = l end
+        for n, l in ipairs(lines) do
+            if setsItem(l) and not routed(lines, n, text) and not ALLOW.itemTips[path] then
+                bad[#bad + 1] = string.format("%s:%d an item tooltip outside Parts.ItemTip", path, n)
+            end
+        end
+    end
+    if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
+end)

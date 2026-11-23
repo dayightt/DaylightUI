@@ -280,6 +280,11 @@ return {
         ["Windows/Keys.lua"] = 1,
         ["Windows/Parts.lua"] = 1,
     },
+    -- Item tooltips that don't go through Parts.ItemTip, each with why.
+    itemTips = {
+        ["Character/Pages/Character.lua"] = "the slots show gear already worn: the game's own slot tooltip (ItemUtil.DisplayEquipSlotTooltip) turns the compare off there too",
+        ["DaylightUI_Bags/Slots.lua"] = "the bag bar shows the bags already on: nothing to compare them with",
+    },
     rules = {
         ["Pad.lua|open-chat"] = "Pad.Whisper and Pad.Share, the one place: they open the game's chat box only with the controller UI off",
         ["DaylightUI_Bags/Bank.lua|static-popup"] = "the account bank's Withdraw and Deposit: the game's own gold boxes (BANK_MONEY_*), which hold its money entry; a click of the player's opens them",

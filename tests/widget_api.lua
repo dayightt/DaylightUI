@@ -11,6 +11,8 @@ local M = { names = {}, refusesSecrets = {} }
 local UNDOCUMENTED = {
     -- GameTooltip: ActionButton.lua:655 and :1125, and nearly every game tooltip.
     "GetOwner", "SetOwner", "SetAction", "AddLine", "AddDoubleLine", "NumLines",
+    -- GameTooltip: CooldownViewer.lua:278, GroupLootFrame.xml's item OnUpdate.
+    "IsOwned",
     -- GameTooltip: TooltipComparisonManager.lua:77 and :116.
     "GetAnchorType", "SetAnchorType",
     -- GameTooltip: Camelot PaperDollFrame.lua CharacterSpellBonusDamage_OnEnter (a school's icon).

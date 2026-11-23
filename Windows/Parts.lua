@@ -58,6 +58,41 @@ function Parts.ItemClick(link)
     return link ~= nil and HandleModifiedItemClick(link) == true
 end
 
+-- The item compare, the game's way: on with Shift (the COMPAREITEMS modifier)
+-- or the "always compare items" setting, off again once neither holds.
+function Parts.Compare(tip)
+    tip = tip or GameTooltip
+    if type(tip) ~= "table" then return end
+    local want
+    if type(TooltipUtil) == "table" and type(TooltipUtil.ShouldDoItemComparison) == "function" then
+        want = TooltipUtil.ShouldDoItemComparison(tip)
+    else
+        want = type(IsModifiedClick) == "function" and IsModifiedClick("COMPAREITEMS")
+    end
+    if want then
+        if type(GameTooltip_ShowCompareItem) == "function" then GameTooltip_ShowCompareItem(tip) end
+    elseif type(tip.shoppingTooltips) == "table" then
+        for _, shop in ipairs(tip.shoppingTooltips) do
+            if type(shop) == "table" and shop:IsShown() then shop:Hide() end
+        end
+    end
+end
+
+-- Wraps a hover's tooltip so it behaves like the game's own item buttons. The
+-- game's tooltip calls its owner's UpdateTooltip every 0.2 s while it's up, so
+-- the tooltip is drawn again then, and pressing or letting go of Shift
+-- mid-hover shows or hides the compare. draw(b) fills GameTooltip for b.
+function Parts.ItemTip(draw)
+    local function show(b)
+        draw(b)
+        if type(GameTooltip) == "table" and GameTooltip:IsOwned(b) then
+            Parts.Compare(GameTooltip)
+            b.UpdateTooltip = show
+        end
+    end
+    return show
+end
+
 -- Row hover highlight, eased in and out at FAST. instant skips the ease
 -- (used on refill). SetAlpha on a texture replaces its vertex alpha, so ease
 -- up to the original 0.06, not 1, or the row lights up solid white.
@@ -616,7 +651,7 @@ local function makeLine(parent)
             Parts.Light(self.hi, true)
             self.Lit(true)
         end
-        if self.lineSpec and self.lineSpec.tooltip then self.lineSpec.tooltip(self) end
+        if self.lineSpec and self.lineSpec.tooltip then Parts.ItemTip(self.lineSpec.tooltip)(self) end
     end)
     b:SetScript("OnLeave", function(self)
         Parts.Light(self.hi, false)
@@ -789,7 +824,7 @@ local function makeTile(parent)
     b.mark:Hide()
     b:SetScript("OnEnter", function(self)
         self.bg:SetVertexColor(1, 1, 1, 0.07)
-        if self.spec and self.spec.tooltip then self.spec.tooltip(self) end
+        if self.spec and self.spec.tooltip then Parts.ItemTip(self.spec.tooltip)(self) end
     end)
     b:SetScript("OnLeave", function(self)
         self.bg:SetVertexColor(1, 1, 1, 0.03)
@@ -982,10 +1017,11 @@ local function makeTableRow(t, kind)
     b:SetScript("OnEnter", function(self)
         local d = self.data
         if not (d and d.dim) then Parts.Light(self.hi, true) end
-        if d and t.opts.onEnter then t.opts.onEnter(self, d) end
+        if d and t.opts.onEnter then t.tip(self) end
     end)
     b:SetScript("OnLeave", function(self)
         Parts.Light(self.hi, false)
+        self.UpdateTooltip = nil
         if self.data and t.opts.onLeave then t.opts.onLeave(self, self.data) end
     end)
     b:SetScript("OnClick", function(self, button)
@@ -1022,6 +1058,9 @@ function Parts.Table(page, opts)
     view:SetPoint("BOTTOMRIGHT", page, "BOTTOMRIGHT", -Parts.EDGE, opts.bottom or 12)
     view:SetClipsChildren(true)
     t.view = view
+    t.tip = Parts.ItemTip(function(b)
+        if b.data and opts.onEnter then opts.onEnter(b, b.data) end
+    end)
     -- Hidden card used only to measure why-card heights at the row width.
     t.ruler = Parts.Why(view)
     t.ruler:Hide()
@@ -1216,7 +1255,7 @@ function Table:Draw()
             end
             local fill = self.opts.fill and self.opts.fill[b.kind]
             if fill then fill(b, d, self.cols) end
-            if over and self.opts.onEnter then self.opts.onEnter(b, d) end
+            if over and self.opts.onEnter then self.tip(b) end
         end
         b:SetHeight(math.max(0.01, h))
         b:SetAlpha(self.grow[i] or 1)

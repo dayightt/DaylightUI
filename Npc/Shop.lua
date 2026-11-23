@@ -543,7 +543,6 @@ local function tooltip(it)
             GameTooltip:SetMerchantItem(it.index)
         end
         GameTooltip:Show()
-        b.UpdateTooltip = tooltip(it)
     end
 end
 

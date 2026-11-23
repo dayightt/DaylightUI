@@ -207,7 +207,7 @@ function RollCard.New(parent)
     icon.icon = icon:CreateTexture(nil, "ARTWORK")
     icon.icon:SetAllPoints(icon)
     Kit.Item(icon)
-    icon:SetScript("OnEnter", function(self)
+    local itemTip = DUI.Win.Parts.ItemTip(function(self)
         local drop = card.drop
         if not (drop and GameTooltip) then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -220,7 +220,9 @@ function RollCard.New(parent)
         end
         GameTooltip:Show()
     end)
+    icon:SetScript("OnEnter", itemTip)
     icon:SetScript("OnLeave", function(self)
+        self.UpdateTooltip = nil
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
     icon:SetScript("OnClick", function() if card.drop then DUI.Win.Parts.ItemClick(card.drop.link) end end)

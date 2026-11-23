@@ -63,13 +63,13 @@ local function make(id)
     b.cooldown:SetAllPoints(b.icon)
     b.count = Style.Text(b, Style.SIZE.tiny, "RIGHT")
     b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
-    b:SetScript("OnEnter", function(self)
+    b:SetScript("OnEnter", DUI.Win.Parts.ItemTip(function(self)
         if GameTooltip and self.link then
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
             GameTooltip:SetHyperlink(self.link)
             GameTooltip:Show()
         end
-    end)
+    end))
     b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     return b
 end

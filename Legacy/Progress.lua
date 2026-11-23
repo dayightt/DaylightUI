@@ -126,10 +126,11 @@ local function makeCard(parent)
     b.shine:Hide()
     b:SetScript("OnEnter", function(self)
         Win.Parts.Light(self.hi, true)
-        Progress.Tip(self)
+        Win.Parts.ItemTip(Progress.Tip)(self)
     end)
     b:SetScript("OnLeave", function(self)
         Win.Parts.Light(self.hi, false)
+        self.UpdateTooltip = nil
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
     b:SetScript("OnClick", function(self)

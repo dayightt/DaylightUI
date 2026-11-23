@@ -34,18 +34,14 @@ local function each(fn)
 end
 
 -- The game's item tooltip for the slot, with the Shift compare like the game.
-function Page.Tip(h)
+Page.Tip = DUI.Win.Parts.ItemTip(function(h)
     local unit = ns.Window.unit
     local e = h.entry
     if not (unit and e and e.id and not e.empty and GameTooltip) then return end
     GameTooltip:SetOwner(h, "ANCHOR_RIGHT")
     GameTooltip:SetInventoryItem(unit, e.id)
-    if type(IsModifiedClick) == "function" and IsModifiedClick("COMPAREITEMS")
-        and type(GameTooltip_ShowCompareItem) == "function" then
-        GameTooltip_ShowCompareItem(GameTooltip)
-    end
     GameTooltip:Show()
-end
+end)
 
 local function leave(h)
     h.ring:Hide()
@@ -59,7 +55,6 @@ function Page.Build(page)
         local side = list == C().Gear.RIGHT and "right" or "left"
         local h = Slots.Make(page, key, side, nil, page.slots)
         h:EnableMouse(true)
-        h.UpdateTooltip = Page.Tip   -- the game's tooltip re-asks on Shift
         h:SetScript("OnEnter", function(self)
             self.ring:SetShown(self.entry ~= nil and not self.entry.empty)
             Page.Tip(self)

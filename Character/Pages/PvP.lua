@@ -211,7 +211,7 @@ function PvP.Build(page)
     W.name:SetPoint("LEFT", W.edge, "RIGHT", 10, 0)
     W.sub:SetPoint("BOTTOMLEFT", W.edge, "BOTTOMRIGHT", 10, -2)
     W.name:SetPoint("RIGHT", W, "RIGHT", 0, 0)
-    W:SetScript("OnEnter", function(self)
+    W:SetScript("OnEnter", DUI.Win.Parts.ItemTip(function(self)
         local r = self.data
         if not r or type(GameTooltip) ~= "table" then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -224,8 +224,11 @@ function PvP.Build(page)
             Tips.Flush(GameTooltip)
         end
         GameTooltip:Show()
+    end))
+    W:SetScript("OnLeave", function(self)
+        self.UpdateTooltip = nil
+        if type(GameTooltip) == "table" then GameTooltip:Hide() end
     end)
-    W:SetScript("OnLeave", function() if type(GameTooltip) == "table" then GameTooltip:Hide() end end)
     page.blocks = {}
     block(page, 1, R).label:SetText(L["NEXT RANK"])
     block(page, 2, page.cards.week).label:SetText(L["THIS WEEK"])

@@ -1356,14 +1356,15 @@ function P.Build(p)
     head:SetPoint("BOTTOMLEFT", right.icon, "BOTTOMLEFT", 0, 0)
     head:SetPoint("RIGHT", right.title, "RIGHT", 0, 0)
     head:EnableMouse(true)
-    head:SetScript("OnEnter", function(self)
+    head:SetScript("OnEnter", Parts.ItemTip(function(self)
         local r = P.picked and byKey[P.picked]
         if not (r and r.itemID and GameTooltip) then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
         ns.Items.SetTip(GameTooltip, r.key, r.itemID)
         GameTooltip:Show()
-    end)
+    end))
     head:SetScript("OnLeave", function(self)
+        self.UpdateTooltip = nil
         if GameTooltip and GameTooltip.IsOwned and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
     right.head = head
