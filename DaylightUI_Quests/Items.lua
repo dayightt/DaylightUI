@@ -162,6 +162,10 @@ function Items.InView(f, top, vt, vb)
         top, vt, vb = f:GetTop(), v and v:GetTop(), v and v:GetBottom()
     end
     if type(top) ~= "number" or type(vt) ~= "number" or type(vb) ~= "number" then return true end
+    -- The button sits by the title, so it leaves once the title slides under the
+    -- pinned header (the rest of the quest stays in view).
+    local S = ns.Scroll
+    if S and S.offset > 0 then vt = vt - S.topInset end
     return top <= vt + 1 and top - Items.SIZE >= vb - 1
 end
 

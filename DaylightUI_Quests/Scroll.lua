@@ -109,14 +109,10 @@ function Scroll.EdgeFor(y, h)
     h = type(h) == "number" and h or 0
     local inset = Scroll.offset > 0 and Scroll.topInset or 0
     if inset > 0 then
-        -- Under the pinned header: fully faded by the time the row's top reaches the
-        -- header's bottom (fading by its bottom let a tall block's first lines show
-        -- through the header text).
-        local a = Scroll.EdgeAlpha(y, h, Scroll.offset, visible, false, Scroll.offset + visible < total)
-        local room = y - (Scroll.offset + inset)
-        if room <= 0 then return 0 end
-        if room < Scroll.EDGE then return math.min(a, room / Scroll.EDGE) end
-        return a
+        -- Under the pinned header the rows are clipped at its bottom edge, so a block
+        -- only fades once its last lines reach it, like at any other edge.
+        return Scroll.EdgeAlpha(y, h, Scroll.offset + inset, visible - inset,
+            true, Scroll.offset + visible < total)
     end
     return Scroll.EdgeAlpha(y, h, Scroll.offset, visible,
         Scroll.offset > 0, Scroll.offset + visible < total)

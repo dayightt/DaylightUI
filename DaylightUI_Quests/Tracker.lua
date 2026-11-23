@@ -33,7 +33,7 @@ Tracker.FADE_PATHS = { filter = true, instances = true, zoneNames = true, hideDo
 Tracker.NEAR_EVERY = 5            -- seconds between nearest-first checks
 Tracker.DIM = 0.5                 -- other quests' alpha while one is hovered
 
-local db, holder, view, content, box
+local db, holder, view, content, box, rowsClip
 local frames, shown = {}, {}
 local queued, wantAnimate = false, nil
 Tracker.frames = frames
@@ -516,7 +516,7 @@ function Tracker.Render(animate, ifChanged)
                 if animate then ns.Animate.Glide(f, b.y) else ns.Animate.Jump(f, b.y) end
             end
         else
-            f = ns.Rows.Get(b.kind, content)
+            f = ns.Rows.Get(b.kind, b.key == Tracker.PIN and content or rowsClip)
             frames[b.key] = f
             if ns.Clicks then ns.Clicks.Attach(f) end
             ns.Rows.Paint(f, b, look, PAINT_NEW)
@@ -705,6 +705,7 @@ end
 -- (Scroll.EdgeFor's top inset).
 Tracker.PIN = "section:quests"
 Tracker.PIN_LEVEL = 5   -- above the rows in the content
+Tracker.CLIP_H = 10000  -- the rows' clip reaches well past any list
 
 local function pinned(f) return f ~= nil and f == frames[Tracker.PIN] end
 
@@ -738,8 +739,21 @@ end
 -- After a scroll, and every frame of a glide: only the edge fade follows. The view
 -- moved, not the rows, so nothing is re-anchored (that would lay out the whole
 -- list every frame).
+-- The rows' clip starts where the pinned header ends, so a quest sliding under it
+-- is cut at the header's edge instead of showing through its text.
+function Tracker.PlaceClip()
+    local top = 0
+    if ns.Scroll and ns.Scroll.offset > 0 then top = ns.Scroll.offset + ns.Scroll.topInset end
+    if Tracker.clipTop == top then return end
+    Tracker.clipTop = top
+    rowsClip:ClearAllPoints()
+    rowsClip:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -top)
+    rowsClip:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -top)
+end
+
 function Tracker.RefreshEdges()
     if ns.Scroll then ns.Scroll.topInset = Tracker.PinnedHeight() end
+    Tracker.PlaceClip()
     for _, f in pairs(frames) do
         local st = ns.Animate.State(f)
         softenBlock(f, st.y, st.a)
@@ -942,6 +956,13 @@ function Tracker.Build(mod)
     content = CreateFrame("Frame", nil, view)
     content:SetSize(Tracker.Width(), 1)
     view:SetScrollChild(content)
+    -- Every row but the pinned header lives in here. Its bottom is left far below
+    -- the list, since rows glide past the content's end while a shorter list settles.
+    rowsClip = CreateFrame("Frame", nil, content)
+    rowsClip:SetClipsChildren(true)
+    rowsClip:SetHeight(Tracker.CLIP_H)
+    Tracker.rowsClip = rowsClip
+    Tracker.PlaceClip()
     ns.Scroll.Build(view, content)
     Tracker.BuildControls()
     Tracker.holder, Tracker.view, Tracker.content, Tracker.box = holder, view, content, box

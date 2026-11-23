@@ -2103,6 +2103,29 @@ T.test("quests scroll: untracking at the bottom of the list: the rows under it s
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A quest whose title has slid under the pinned header still shows its lines below
+-- it (cut at the header's edge), or a whole quest's height reads as an empty gap.
+T.test("quests scroll: a quest half under the pinned header keeps the half below it", function()
+    local Tr, ns = tracker({ quests = many(20) })
+    DaylightUI:Set("Quests", "maxHeight", 200)
+    stub.RunTimers()
+    local q = Tr.frames["quest:5"]
+    local y, h = ns.Animate.State(q).y, q:GetHeight()
+    T.truthy(h > 10, "a quest of some height: " .. tostring(h))
+    local inset = Tr.frames["section:quests"]:GetHeight()
+    ns.Scroll.To(y - inset + 4)   -- its top 4 px under the header
+    ns.Tracker.RefreshEdges()
+    T.eq(q:GetAlpha(), 1, "most of it is still in view")
+    local clip = q:GetParent()
+    T.truthy(clip ~= Tr.content and clip.__clips, "the rows sit in a clip, so nothing shows through the header")
+    T.truthy(Tr.frames["section:quests"]:GetParent() == Tr.content, "the header stays outside it")
+    local _, _, _, _, top = clip:GetPoint(1)
+    T.near(-top, ns.Scroll.offset + inset, 1e-6, "the clip starts at the header's bottom")
+    ns.Scroll.To(y + h - inset)   -- now wholly under the header
+    ns.Tracker.RefreshEdges()
+    T.eq(q:GetAlpha(), 0, "gone once nothing of it is left")
+end)
+
 T.test("quests scroll: past the height limit the view stops and the wheel scrolls", function()
     local Tr, ns = tracker({ quests = many(20) })
     DaylightUI:Set("Quests", "maxHeight", 200)
