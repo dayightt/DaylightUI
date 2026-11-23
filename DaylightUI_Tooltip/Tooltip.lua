@@ -157,7 +157,21 @@ function Tip.Skin(tip)
     skinned[tip] = s
     -- A clicked item's close button (ItemRefTooltip.CloseButton). Done here,
     -- not in Skins, since this module can run without it.
-    if type(tip.CloseButton) == "table" then DUI.Widgets.DressClose(tip.CloseButton) end
+    if type(tip.CloseButton) == "table" then
+        local close = tip.CloseButton
+        DUI.Widgets.DressClose(close)
+        -- Same spot as every window's X (compact header: level with the first line).
+        local function place()
+            if close.IsProtected and close:IsProtected() and InCombatLockdown() then return end
+            close:ClearAllPoints()
+            -- The rich card is pinned to the tooltip's corner at its own size,
+            -- which can be smaller than the tooltip: the X goes on the card.
+            local card = ns.RichPanel and ns.RichPanel.Get and ns.RichPanel.Get(tip)
+            close:SetPoint("TOPRIGHT", card or tip, "TOPRIGHT", DUI.Win.CLOSE_X, DUI.Win.CloseY(true))
+        end
+        place()
+        tip:HookScript("OnShow", function() place(); C_Timer.After(0, place) end)
+    end
     -- First: a ghost still fading hands the rich card back before it's built.
     tip:HookScript("OnShow", function(self) Tip.ghostFrom[self] = ns.TipGhost.Cancel(self) end)
     tip:HookScript("OnShow", keepUnder)

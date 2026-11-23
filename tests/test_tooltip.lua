@@ -286,6 +286,19 @@ T.test("tooltip: a changed text size keeps its titles and small text where they 
     T.isnil(fresh.modules.Tooltip.titleSize, "a text size changed later leaves the titles alone")
 end)
 
+T.test("tooltip: a clicked link's X sits on the rich card's corner, not the tooltip's", function()
+    login()
+    local close = ItemRefTooltip.CloseButton
+    local card = stub.tooltip.RichPanel.For(ItemRefTooltip)
+    ItemRefTooltip:GetScript("OnShow")(ItemRefTooltip)
+    stub.RunTimers()
+    local point, rel, relPoint, x, y = close:GetPoint(1)
+    T.eq(point, "TOPRIGHT")
+    T.eq(rel, card, "anchored to the card")
+    T.eq(x, DaylightUI.Win.CLOSE_X, "the windows' X spot")
+    T.eq(y, DaylightUI.Win.CloseY(true))
+end)
+
 T.test("tooltip: a rich card's title and small lines take their own size and font", function()
     login()
     local Panel = stub.tooltip.RichPanel
