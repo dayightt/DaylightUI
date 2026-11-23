@@ -1188,7 +1188,7 @@ Data.SPELL_FIELDS = {
     noSwipe = { bool = true, icon = true }, noGcd = { bool = true, icon = true }, reverse = { bool = true, icon = true },
     activeGlow = { bool = true, icon = true }, noDurationSwipe = { bool = true, icon = true },
     activeColor = { color = true, alpha = true, icon = true },
-    glowColor = { color = true }, readyGlowColor = { color = true }, usableGlowColor = { color = true },
+    glowColor = { color = true, accent = true }, readyGlowColor = { color = true, accent = true }, usableGlowColor = { color = true, accent = true },
     desat = { values = { "game", "grey", "color" }, icon = true },
     onCd = { values = { "show", "fade", "hide" } },
     onReady = { values = { "show", "fade", "hide" } },
@@ -1213,9 +1213,9 @@ Data.SPELL_FIELDS = {
     fxStrength = { min = 0.1, max = 1, bar = true },
     fxColors = { values = { "group", "bar", "accent", "class", "custom" }, bar = true },
     fxColorA = { color = true, bar = true }, fxColorB = { color = true, bar = true },
-    missing = { bool = true }, missingGlow = { bool = true }, missingGlowColor = { color = true },
-    upGlow = { bool = true }, upGlowColor = { color = true },
-    clipGlow = { bool = true }, clipGlowColor = { color = true },
+    missing = { bool = true }, missingGlow = { bool = true }, missingGlowColor = { color = true, accent = true },
+    upGlow = { bool = true }, upGlowColor = { color = true, accent = true },
+    clipGlow = { bool = true }, clipGlowColor = { color = true, accent = true },
     hideActive = { bool = true }, hideMissing = { bool = true },
     readySound = { sound = true }, usableSound = { sound = true }, buffSound = { sound = true }, buffEndSound = { sound = true },
 }
@@ -1358,6 +1358,8 @@ function Data.SetSpellValue(set, id, key, value)
     elseif spec.gradient then
         if type(value) ~= "table" or not isRGB(value.lo) or not isRGB(value.hi) then return false end
         value = { lo = { value.lo[1], value.lo[2], value.lo[3] }, hi = { value.hi[1], value.hi[2], value.hi[3] } }
+    elseif spec.color and value == nil and spec.accent then
+        -- An accent color goes back to unset, which follows the accent.
     elseif spec.color then
         if not isRGB(value) then return false end
         if spec.alpha then

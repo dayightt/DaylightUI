@@ -712,6 +712,39 @@ T.test("cdm game: the card is drawn again once a just-placed buff has been looke
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm game: a set glow color shows the row's reset arrow, and the arrow puts it back on the accent", function()
+    local DUI, AB, D = classWorld("DRUID", THORNS, { THORNS }, true)
+    local id = CW.ID(THORNS, BUFFS)
+    local Ed, Card, O = AB.CdmEditor, AB.CdmCard, DUI.Options
+    Ed.Open(1); stub.RunTimers()
+    D.AddPiece(D.Current(), id, "icon", 0, 0)
+    D.Changed()
+    Ed.Select(id)
+    local item, row
+    for _, rows in pairs(Card.ROWS) do
+        for _, r in ipairs(rows) do
+            if r.item and r.item.key == "cdm.card.readyGlowColor" then item, row = r.item, r.frame end
+        end
+    end
+    T.truthy(item, "the ready glow color row")
+    T.truthy(row and row.reset, "the card row has a reset arrow")
+    T.truthy(O.IsDefault({}, item), "unset")
+    row.Refresh(); stub.RunTimers()
+    T.falsy(row.reset:IsShown(), "unset: no arrow")
+    item.set({ 0, 1, 0 })
+    row.Refresh(); stub.RunTimers()
+    T.falsy(O.IsDefault({}, item), "set")
+    T.truthy(row.reset:IsShown(), "set: the arrow shows")
+    row.reset:GetScript("OnClick")(row.reset)
+    stub.RunTimers()
+    T.isnil(D.Current().pieces[id].readyGlowColor, "the arrow clears it")
+    local r, g, b = DUI.Style.Accent()
+    T.rgb(item.get(), { r, g, b }, "so the row shows the accent")
+    T.truthy(O.IsDefault({}, item))
+    Ed.Close()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- With nothing to tell the buff, the card says why its up and missing options are
 -- gone. Without a word, a buff row hidden in Edit Mode looked like options that had
 -- vanished in an update.

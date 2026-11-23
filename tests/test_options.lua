@@ -282,6 +282,26 @@ end)
 -- The window
 -- ---------------------------------------------------------------------
 
+T.test("a row with its own get and a reset counts as changed only while set, and resets to unset", function()
+    local DUI = stub.Load({ module = true })
+    local O = DUI.Options
+    local page = O.GetPage("UnitFrames.player")
+    local stored
+    local item = { type = "color", key = "test.ownColor", label = "Own color",
+                   get = function() return stored or { 1, 1, 1 } end,
+                   set = function(v) stored = v end,
+                   reset = true, isSet = function() return stored ~= nil end }
+    T.truthy(O.IsDefault(page, item), "unset")
+    O.Set(page, item, { 0, 1, 0 })
+    T.falsy(O.IsDefault(page, item), "set")
+    O.ResetItem(page, item)
+    T.eq(stored, nil, "the reset clears it")
+    T.truthy(O.IsDefault(page, item))
+    local plain = { type = "color", key = "test.plain", label = "Plain", get = function() return { 0, 1, 0 } end,
+                    set = function() end }
+    T.truthy(O.IsDefault(page, plain), "a row with its own get and no reset still has no arrow")
+end)
+
 local function open(id)
     local DUI = stub.Load({ module = true })
     DUI.OptionsPanel.Show(id)

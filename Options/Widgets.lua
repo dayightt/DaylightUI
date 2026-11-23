@@ -3609,6 +3609,32 @@ W.COMPACT_CONTROL = 118
 local INLINE = { toggle = true, color = true }
 local SIZED = { slider = true, dropdown = true }
 
+-- The reset arrow left of a row's control, shown while the row is off its
+-- default. On click it spins back half a turn and resets the row.
+local function resetArrow(row, page, item, gap)
+    local r = CreateFrame("Button", nil, row)
+    r:SetSize(16, 16)
+    r:SetPoint("RIGHT", row.control, "LEFT", -gap, 0)
+    r.icon = W.Icon(r, "ui-reset.png", 14, C.faint)
+    r.icon:SetPoint("CENTER", r, "CENTER", 0, 0)
+    r:SetScript("OnEnter", function()
+        W.TintDaylight(r.icon)
+        W.Tooltip(r, RESET or L["Reset"], L["Put this back to its default."])
+    end)
+    r:SetScript("OnLeave", function()
+        W.Tint(r.icon, C.faint)
+        W.HideTooltip()
+        row.Leave()
+    end)
+    r:SetScript("OnClick", function()
+        local M = DUI.Motion
+        M.Tween(r.icon, 0, math.pi, M.FAST, function(a) r.icon:SetRotation(a) end,
+            function() r.icon:SetRotation(0) end)
+        Options.ResetItem(page, item)
+    end)
+    return r
+end
+
 function W.CompactRow(parent, page, item, width, opts)
     local all = opts ~= nil and opts.inline == true
     local inline = all or INLINE[item.type] == true
@@ -3634,6 +3660,11 @@ function W.CompactRow(parent, page, item, width, opts)
         c:SetPoint("RIGHT", row, "RIGHT", 0, 0)
         row.label:SetPoint("LEFT", row, "LEFT", 0, 0)
         row.label:SetPoint("RIGHT", c, "LEFT", -8, 0)
+        -- A row with its own reset (item.reset) shows the arrow while it's set.
+        if item.reset then
+            row.reset = resetArrow(row, page, item, 6)
+            row.label:SetPoint("RIGHT", row.reset, "LEFT", -4, 0)
+        end
     else
         row.height = W.COMPACT_STACKED
         row.label:SetPoint("TOPLEFT", row, "TOPLEFT", 0, 0)
@@ -3646,6 +3677,7 @@ function W.CompactRow(parent, page, item, width, opts)
         local disabled = Options.IsDisabled(page, item)
         row.disabled = disabled
         row:SetAlpha(disabled and 0.35 or 1)
+        if row.reset then row.reset:SetShown(not disabled and not Options.IsDefault(page, item)) end
         if c.Refresh then c.Refresh() end
     end
     W.PadRow(row)   -- one D-pad stop, as an options row
@@ -3780,28 +3812,7 @@ function W.Row(card, page, group, item)
     end
     if Options.VALUE[item.type] then
         -- Changed from default: show the reset arrow beside the control.
-        local r = CreateFrame("Button", nil, row)
-        r:SetSize(16, 16)
-        r:SetPoint("RIGHT", row.control, "LEFT", -10, 0)
-        r.icon = W.Icon(r, "ui-reset.png", 14, C.faint)
-        r.icon:SetPoint("CENTER", r, "CENTER", 0, 0)
-        r:SetScript("OnEnter", function()
-            W.TintDaylight(r.icon)
-            W.Tooltip(r, RESET or L["Reset"], L["Put this back to its default."])
-        end)
-        r:SetScript("OnLeave", function()
-            W.Tint(r.icon, C.faint)
-            W.HideTooltip()
-            row.Leave()
-        end)
-        -- On click the arrow spins back half a turn as it fades out.
-        r:SetScript("OnClick", function()
-            local M = DUI.Motion
-            M.Tween(r.icon, 0, math.pi, M.FAST, function(a) r.icon:SetRotation(a) end,
-                function() r.icon:SetRotation(0) end)
-            Options.ResetItem(page, item)
-        end)
-        row.reset = r
+        row.reset = resetArrow(row, page, item, 10)
     end
 
     function row.Refresh()

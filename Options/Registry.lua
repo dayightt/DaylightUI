@@ -365,8 +365,12 @@ end
 
 local function copyRGB(c) return { c[1], c[2], c[3] } end
 
+-- A row with its own get and item.reset (no default) is changed while
+-- item.isSet() says it holds a value. Its reset clears it to nil.
 function Options.IsDefault(page, item)
-    if not VALUE[item.type] or (item.get and not item.default) then return true end
+    if not VALUE[item.type] then return true end
+    if item.get and item.reset and item.isSet then return not item.isSet() end
+    if item.get and not item.default then return true end
     local v, d = Options.Get(page, item), Options.Default(page, item)
     if type(v) == "number" and type(d) == "number" then return math.abs(v - d) < 1e-6 end
     if item.type == "gradient" and type(v) == "table" and type(d) == "table" then
@@ -378,6 +382,10 @@ end
 
 function Options.ResetItem(page, item)
     if Options.Locked(page, item) or Options.IsDefault(page, item) then return end
+    if item.get and item.reset and not item.default then
+        Options.Set(page, item, nil)
+        return
+    end
     local d = Options.Default(page, item)
     -- Copy colors so the setting never shares the default's table.
     if item.type == "gradient" and type(d) == "table" then

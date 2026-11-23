@@ -2525,6 +2525,41 @@ T.test("cdm effects: the ready glow uses its own color", function()
     T.eq(green, 1)
 end)
 
+T.test("cdm data: a glow color goes back to the accent, other colors still need one", function()
+    local DUI, AB, set = fxWorld()
+    local D = AB.CdmData
+    for _, key in ipairs({ "glowColor", "readyGlowColor", "usableGlowColor", "missingGlowColor",
+                           "upGlowColor", "clipGlowColor" }) do
+        T.truthy(D.SetSpellValue(set, 11, key, { 0, 1, 0 }), key .. " takes a color")
+        T.deq(set.pieces[11][key], { 0, 1, 0 })
+        T.truthy(D.SetSpellValue(set, 11, key, nil), key .. " takes nil")
+        T.eq(set.pieces[11][key], nil, key .. " cleared")
+    end
+    T.eq(D.SetSpellValue(set, 11, "activeColor", nil), false, "not an accent color")
+    T.eq(D.SetSpellValue(set, 11, "readyGlowColor", "red"), false, "still checks colors")
+end)
+
+T.test("cdm effects: a cleared glow color paints the accent and follows it", function()
+    local DUI, AB, set, ess = fxWorld()
+    local cds = withCooldowns(ess)
+    local D = AB.CdmData
+    set.pieces[11].readyGlow = true
+    cds[111] = { duration = 0 }
+    D.SetSpellValue(set, 11, "readyGlowColor", { 0, 1, 0 })
+    pass(AB)
+    T.deq(glowRGB(AB.CdmEffects.GlowFrame(ess[1]).tex), { 0, 1, 0 }, "picked")
+    D.SetSpellValue(set, 11, "readyGlowColor", nil)
+    pass(AB)
+    local function accent() local r, g, b = DUI.Style.Accent(); return { r, g, b } end
+    local got = glowRGB(AB.CdmEffects.GlowFrame(ess[1]).tex)
+    for i = 1, 3 do T.near(got[i], accent()[i], 0.001, "the accent again") end
+    DUI:Set("General", "accent", "class")
+    pass(AB)
+    got = glowRGB(AB.CdmEffects.GlowFrame(ess[1]).tex)
+    for i = 1, 3 do T.near(got[i], accent()[i], 0.001, "follows a new accent") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm effects: cooldown end and combat end update the state", function()
     local DUI, AB, set, ess = fxWorld()
     local cds = withCooldowns(ess)
