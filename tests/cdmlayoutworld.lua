@@ -11,13 +11,13 @@ local M = {}
 local theFacts
 function M.loadWorld(opts)
     stub.neverSecretAuras = {}
-    local DUI = stub.Load(opts)
+    local DUI, unitFrames = stub.Load(opts)
     local S = stub.actionbars and stub.actionbars.CdmSpells
     if S then
         theFacts = S.FACTS
         S.FACTS = {}
     end
-    return DUI
+    return DUI, unitFrames
 end
 
 function M.realFacts()
@@ -254,16 +254,17 @@ end
 
 -- Essential: ids 11, 12, 13; BuffBar: 21, 22.
 -- buffIcons: ids for a Tracked Buffs icon viewer too (5th in the items).
-function M.rowsWorld(buffIcons)
+function M.rowsWorld(buffIcons, alsoLoad)
+    alsoLoad = alsoLoad or {}
     local ess, bars, icons
-    local DUI = M.loadWorld({ actionbars = true, before = function()
+    local DUI, unitFrames = M.loadWorld({ actionbars = true, module = alsoLoad.module, buffs = alsoLoad.buffs, before = function()
         M.fakeRegistry()
         _, ess = M.fakeViewer("EssentialCooldownViewer", { 11, 12, 13 })
         _, bars = M.fakeViewer("BuffBarCooldownViewer", { 21, 22 })
         if buffIcons then _, icons = M.fakeViewer("BuffIconCooldownViewer", buffIcons) end
     end })
     stub.RunTimers()
-    return DUI, stub.actionbars, ess, bars, icons
+    return DUI, stub.actionbars, ess, bars, icons, alsoLoad.module and unitFrames or nil
 end
 
 -- The addon's own icons and bars ease their alpha (CdmEffects setAlpha), so let it land.
@@ -272,13 +273,74 @@ function M.eased(DUI)
     if d then stub.RunOnUpdate(d, 1) end
 end
 
+function M.settledPass(AB)
+    AB.CdmRows.Refresh()
+    stub.RunTimers()
+    M.eased(DaylightUI)
+end
+
 function M.layoutFrame(g) return _G["DaylightUICdmLayout" .. g] end
 
 function M.pieceFrame(g, id) return _G["DaylightUICdmPiece" .. g .. "_" .. id] end
 
+function M.shownPieceIds(set, g)
+    local ids = {}
+    for id in pairs(set.pieces) do
+        local frame = M.pieceFrame(g, id)
+        if frame and frame:IsShown() then ids[id] = true end
+    end
+    return ids
+end
+
 function M.changeSpecTo(DUI, g)
     DUI.DB.SpecGroup = function() return g end
     stub.FireEvent("ACTIVE_TALENT_GROUP_CHANGED")
+end
+
+function M.pressEditorKey(key)
+    local overlay = _G.DaylightUICdmEditor
+    overlay:GetScript("OnKeyDown")(overlay, key)
+end
+
+function M.stepEditor(Ed) stub.RunOnUpdate(Ed.Overlay(), 0) end
+
+-- Drags group 11 to dx right of the screen's center.
+function M.dragGroup(Ed, dx, whileDragging)
+    local isMouseButtonDown = _G.IsMouseButtonDown
+    _G.IsMouseButtonDown = function() return true end
+    local ok, err = pcall(function()
+        stub.cursorPos = { 960 + dx, 540 }
+        Ed.StartDrag(11, 0, 0)
+        M.stepEditor(Ed)
+        if whileDragging then whileDragging(Ed.Dragging()) end
+        _G.IsMouseButtonDown = function() return false end
+        M.stepEditor(Ed)
+    end)
+    _G.IsMouseButtonDown = isMouseButtonDown
+    if not ok then error(err, 0) end
+end
+
+function M.selectAndSettle(Ed, id)
+    Ed.Select(id)
+    M.eased(DaylightUI)
+end
+
+-- UIParent units from the screen's bottom-left.
+function M.moveLead(frame, l, b, w, h)
+    frame:SetSize(w, h)
+    frame.__center = { l + w / 2, b + h / 2 }
+end
+
+function M.lead(key, l, b, w, h)
+    local frame = CreateFrame("Frame", nil, UIParent)
+    DaylightUI.Movers.Register(frame, key, key, { "TOP", nil, "CENTER", 0, 0 })
+    if l then M.moveLead(frame, l, b, w, h) end
+    return frame
+end
+
+function M.hangOff(frame, relative)
+    frame:ClearAllPoints()
+    frame:SetPoint("TOP", relative, "BOTTOM", 0, 0)
 end
 
 return M

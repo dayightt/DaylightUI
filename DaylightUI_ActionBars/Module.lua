@@ -7,7 +7,7 @@ DaylightUI:RegisterModule("ActionBars", {
     -- module off with one line in chat (tests/test_guards.lua keeps it right).
     ns = ns,
     parts = { "Shape", "Skin", "Hide", "Menus", "Totems", "Park", "Paging", "Buttons", "Ping", "RankUp",
-               "Keys", "Small", "PadSkin", "Bars", "Diag", "Cooldowns", "BuffBars", "CdmData", "CdmSpells", "CdmCustom", "CdmEffects", "CdmRows",
+               "Keys", "Small", "PadSkin", "Bars", "Diag", "Cooldowns", "BuffBars", "CdmData", "CdmTether", "CdmSpells", "CdmCustom", "CdmEffects", "CdmRows",
                "CdmOwn", "CdmAuras", "CdmBars", "CdmEditor", "CdmCard", "CdmImport", "CdmSwitch", "CdmGuide" },
     label = "Action Bars",
     order = 110,

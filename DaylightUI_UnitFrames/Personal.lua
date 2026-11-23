@@ -683,3 +683,10 @@ DUI.RegisterTestPart("personal", "Personal display", 45, function()
     local cfg = db()
     return cfg ~= nil and cfg.enabled == true
 end)
+
+-- The layout editor shows the display while a group it edits follows it. One switched off stays hidden.
+DUI.On("RevealFrame", function(key, on)
+    if key ~= PR.KEY then return end
+    local cfg = db()
+    DUI.Fade.Show(PR.FADE, "cdm", on and cfg ~= nil and cfg.enabled == true)
+end)

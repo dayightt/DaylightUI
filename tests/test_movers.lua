@@ -1,8 +1,8 @@
 local stub = require("stub")
 
-local function demo(DUI, default)
-    local f = CreateFrame("Frame", "DemoFrame", UIParent)
-    DUI.Movers.Register(f, "demo", "Demo", default or { "BOTTOM", nil, "BOTTOM", -200, 240 })
+local function demo(DUI, default, key)
+    local f = CreateFrame("Frame", key and ("DemoFrame_" .. key) or "DemoFrame", UIParent)
+    DUI.Movers.Register(f, key or "demo", "Demo", default or { "BOTTOM", nil, "BOTTOM", -200, 240 })
     return f
 end
 
@@ -988,5 +988,17 @@ T.test("a locked piece can't be nudged, typed or reset, and its handle goes unde
     T.falsy(h.lock:IsShown() and h.lock:GetAlpha() > 0.99, "the mark goes")
     h:GetScript("OnMouseUp")(h, "RightButton")
     T.isnil(DUI.DB.Positions().demo, "unlocked: right-click resets it again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("Keys lists every registered key in registration order, as a copy the caller can't change", function()
+    local DUI = stub.Load()
+    local expected = DUI.Movers.Keys()
+    demo(DUI, nil, "a"); demo(DUI, nil, "b")
+    expected[#expected + 1] = "a"; expected[#expected + 1] = "b"
+    local keys = DUI.Movers.Keys()
+    T.deq(keys, expected)
+    keys[1], keys[#keys + 1] = "overwritten", "intruder"
+    T.deq(DUI.Movers.Keys(), expected, "the caller's edits never reach the registry")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

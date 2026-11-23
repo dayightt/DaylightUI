@@ -869,3 +869,61 @@ T.test("preview: thin bars, so it starts zoomed in, never past its room", functi
     s.Refresh(200, 160)
     T.truthy(s.p:GetWidth() * s.p:GetScale() <= 200, "a narrow room shrinks it")
 end)
+
+-- Revealed for the layout editor, through the fade.
+
+local function reveal(DUI, PR, on) DUI.Fire("RevealFrame", PR.KEY, on) end
+
+local function stepFade(DUI, seconds)
+    for _ = 1, seconds * 4 do stub.Advance(0.25); DUI.Fade.Step(); DUI.Fade.Animate(0.25) end
+end
+
+T.test("revealed while on and faded: eases to its opacity where it stands, with your own health; ended, faded again", function()
+    local DUI, _, PR = login()
+    local h = PR.frame
+    local point = { h:GetPoint(1) }
+    stepFade(DUI, 10)
+    T.eq(h:GetAlpha(), 0, "out of a fight with no target: faded")
+    reveal(DUI, PR, true)
+    DUI.Fade.Animate(0.05)
+    local partway = h:GetAlpha()
+    T.truthy(partway > 0 and partway < 1, "eases in, not at once: " .. partway)
+    stepFade(DUI, 2)
+    local _, _, _, opacity = DUI.Fade.State(PR.FADE)
+    T.eq(h:GetAlpha(), opacity, "at its own opacity")
+    T.deq({ h:GetPoint(1) }, point, "where it stands")
+    T.falsy(h.test, "no sample")
+    T.eq(stub.Plain(h.healthBar.__value), 60, "your own health")
+    reveal(DUI, PR, false)
+    stepFade(DUI, 10)
+    T.eq(h:GetAlpha(), 0, "faded again")
+end)
+
+T.test("revealed while switched off or dead: stays hidden, and switched on later it fades as usual", function()
+    local DUI, _, PR = login(nil, nil, false)
+    local h = PR.frame
+    reveal(DUI, PR, true)
+    stepFade(DUI, 2)
+    T.falsy(h:IsShown(), "switched off: hidden")
+    reveal(DUI, PR, false)
+    DUI:Set("UnitFrames", "personal.enabled", true)
+    stepFade(DUI, 10)
+    T.truthy(h:IsShown(), "switched on: shown")
+    T.eq(h:GetAlpha(), 0, "and faded, nothing left of the reveal")
+    local deadDUI, _, deadPR = login()
+    stub.units.player.dead = true
+    stub.FireEvent("PLAYER_DEAD")
+    reveal(deadDUI, deadPR, true)
+    stepFade(deadDUI, 2)
+    T.falsy(deadPR.frame:IsShown(), "dead: hidden")
+end)
+
+T.test("a reveal, even sent twice, is ended by one end", function()
+    local DUI, _, PR = login()
+    stepFade(DUI, 10)
+    reveal(DUI, PR, true)
+    reveal(DUI, PR, true)
+    reveal(DUI, PR, false)
+    stepFade(DUI, 10)
+    T.eq(PR.frame:GetAlpha(), 0, "faded again")
+end)
