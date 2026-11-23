@@ -21,7 +21,7 @@ DUI.PatchNotes = {
         { "Party and raid", "Frames can grow from the middle, so a group that isn't full stays centered" },
         { "Unit frames", "Portraits for the target of target, focus target and pet frames, off until you pick one" },
         { "Unit frames", "The mana regen sweep can keep ticking with each regen tick until your mana is full" },
-        { "Character", "Enchants stand out, and gear that could take one but has none says so softly" },
+        { "Character", "Enchants stand out, and gear that could take one but has none can say so (Character and Inspect options)" },
         { "Controller", "The controller's action bars can fade like your other bars, and you can split a stack in your bags" },
         { "Fishing", "An option to hide the bobber's tooltip so nothing covers the bobber" },
         { "Plugins", "Other addons can tell when your Cooldown Manager spells are ready, usable or have their buff up" },

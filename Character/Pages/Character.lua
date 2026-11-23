@@ -665,7 +665,7 @@ function CharacterPage.Refresh(page)
     if ns.Gear.UsesAmmo() ~= page.usesAmmo then CharacterPage.Place(page) end
     local all = ns.Gear.All(cfg.repairAt)
     local opts = { itemLevel = cfg.itemLevel ~= false, levelInIcon = cfg.levelInIcon == true,
-                   missingEnchants = cfg.missingEnchants ~= false }
+                   missingEnchants = cfg.missingEnchants == true }
     for key, h in pairs(page.slots) do
         if all[key] then ns.Slots.Paint(h, all[key], opts) end
     end

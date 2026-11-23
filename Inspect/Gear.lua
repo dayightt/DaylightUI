@@ -117,7 +117,7 @@ end
 
 local function paint(h, key, e)
     local Slots = C().Slots
-    local missing = C().Gear.MissingEnchant(e)
+    local missing = ns.Setting("missingEnchants") == true and C().Gear.MissingEnchant(e)
     if missing then
         local copy = {}
         for k, v in pairs(e) do copy[k] = v end

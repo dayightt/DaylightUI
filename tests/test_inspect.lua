@@ -144,8 +144,16 @@ T.test("inspect gear: their slots, item level and enchants", function()
     T.falsy(page.note:IsShown(), "no waiting text with gear in")
 end)
 
+T.test("inspect gear: a missing enchant says nothing until it's switched on", function()
+    local ns = load({ gear = warriorGear() })
+    IW.Inspect("target")
+    frame(30)
+    T.falsy(ns.Window.frame.pages.gear.slots.Chest.enchant:IsShown(), "off by default")
+end)
+
 T.test("inspect gear: a missing enchant on an enchantable slot says so in the warn color", function()
     local ns = load({ gear = warriorGear() })
+    DaylightUI:Set("Inspect", "missingEnchants", true)
     IW.Inspect("target")
     frame(30)
     local slots = ns.Window.frame.pages.gear.slots
