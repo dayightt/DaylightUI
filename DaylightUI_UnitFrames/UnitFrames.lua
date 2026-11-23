@@ -837,8 +837,11 @@ end
 -- level 30), so one dragged over it drew underneath. It goes above the frame
 -- and everything on it, as on the player frame.
 UF.PIECE_LIFT = 15
-function UF.LiftPiece(h, f)
-    h:SetFrameLevel(f:GetFrameLevel() + UF.PIECE_LIFT)
+-- A free portrait sits over the other free pieces, as the ring sits over the
+-- frame's own bars, so its level badge stays on top of a free power bar.
+UF.PORTRAIT_LIFT = 5
+function UF.LiftPiece(h, f, over)
+    h:SetFrameLevel(f:GetFrameLevel() + UF.PIECE_LIFT + (over or 0))
 end
 
 -- The standalone tag (target.threatTagAt = "free"): a holder on UIParent with
@@ -868,7 +871,7 @@ UF.PORTRAIT_FREE = { player = "unitframes.playerPortrait", target = "unitframes.
 function UF.CreatePortraitHolder(f)
     local unit = f.spec.unit
     local h = CreateFrame("Frame", "DaylightUIPortrait_" .. unit, UIParent)
-    UF.LiftPiece(h, f)
+    UF.LiftPiece(h, f, UF.PORTRAIT_LIFT)
     h:SetSize(40, 40)
     h.key = UF.PORTRAIT_FREE[unit]
     h:Hide()
@@ -4340,8 +4343,11 @@ UF.fighting = false
 -- "UnitFrames.raid") hands its alpha to UF.PaintFade, and the range fade
 -- multiplies it (a secret range answer still goes to SetAlphaFromBoolean).
 function UF.CombatAlpha(f)
-    if f.test then return 1 end
-    return type(f.fadeNow) == "number" and f.fadeNow or 1
+    local o = f.fadeOf or f
+    if o.test then return 1 end
+    local n = f.fadeNow
+    if type(n) ~= "number" then n = o.fadeNow end
+    return type(n) == "number" and n or 1
 end
 
 -- While the fade engine eases (every frame, every tile) the range isn't asked
@@ -4562,6 +4568,8 @@ end
 -- full), or "read" with the answer in f.rangeIn (possibly secret, never
 -- compared here).
 local function readRange(f)
+    -- A piece shows its frame's answer (paintAlpha).
+    if f.fadeOf then return end
     if not f.rangeFade or f.test then
         f.rangeRead = "none"
         return
@@ -4595,19 +4603,42 @@ local function readRange(f)
     f.rangeRead, f.rangeIn = "read", inRange
 end
 
--- The fade's alpha times the kept range answer.
+-- Whether a part needs the alpha set on it: the game's aura containers don't
+-- pass their parent's alpha on, and a part outside the frame never gets it.
+local function ownAlpha(part, f)
+    if part.GetObjectType and part:GetObjectType() == "AuraContainer" then return true end
+    local p = part:GetParent()
+    for _ = 1, 6 do
+        if type(p) == "nil" then return true end
+        if p == f then return false end
+        p = p:GetParent()
+    end
+    return true
+end
+
+-- The fade's alpha times the kept range answer. A frame repaints its pieces
+-- (f.pieces past the first) and the parts that fade with it (f.fadeKids).
 local paintAlpha
 function paintRange(f)
     paintAlpha(f)
     UF.FollowModels(f.fadeOf or f)
+    if f.fadeOf then return end
+    local pieces = f.pieces
+    if pieces then for i = 2, #pieces do paintAlpha(pieces[i]) end end
+    for _, part in ipairs(f.fadeKids or {}) do
+        -- Never read its alpha back. It can be secret after a secret dim.
+        if ownAlpha(part, f) then paintAlpha(part) else part:SetAlpha(1) end
+    end
 end
 
 function paintAlpha(f)
     local m = UF.CombatAlpha(f)
-    local r = f.rangeRead
+    -- A piece reads its frame's range answer.
+    local o = f.fadeOf or f
+    local r = o.rangeRead
     -- A secret answer can't tell when it dims, so it's on for as long as it's asked.
-    DUI.Fade.Whole(f, "range", r == "read" and f.rangeFade == true and not f.test)
-    if r == "none" or not f.rangeFade or f.test then
+    if not f.fadeOf then DUI.Fade.Whole(f, "range", r == "read" and f.rangeFade == true and not f.test) end
+    if r == "none" or not o.rangeFade or o.test then
         setFaded(f, m)
         return
     end
@@ -4616,17 +4647,18 @@ function paintAlpha(f)
         f.paintHow, f.paintA = "plain", m
         return
     end
-    local inRange = f.rangeIn
+    local inRange, dim = o.rangeIn, o.rangeAlpha
     if isSecret(inRange) then
-        if f.SetAlphaFromBoolean and pcall(f.SetAlphaFromBoolean, f, inRange, m, m * f.rangeAlpha) then
-            f.paintHow, f.paintA, f.paintB, f.paintC = "bool", inRange, m, m * f.rangeAlpha
+        if f.SetAlphaFromBoolean then
+            f:SetAlphaFromBoolean(inRange, m, m * dim)
+            f.paintHow, f.paintA, f.paintB, f.paintC = "bool", inRange, m, m * dim
         else
             f:SetAlpha(m)
             f.paintHow, f.paintA = "plain", m
         end
         return
     end
-    local a = m * (inRange == true and 1 or f.rangeAlpha)
+    local a = m * (inRange == true and 1 or dim)
     f:SetAlpha(a)
     f.paintHow, f.paintA = "plain", a
 end

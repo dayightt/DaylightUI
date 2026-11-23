@@ -1153,8 +1153,10 @@ local function fontRow(key, label, what, dis)
 end
 -- Which frame strata a piece draws in (ns.STRATA), for frames that overlap.
 local STRATA_HOW = " Where two pieces overlap, the higher layer draws on top: Background, Low, Medium, High, then Dialogue."
-local function strataRow(key, label, what, dis, more)
-    return { type = "dropdown", key = key, label = label, values = ns.STRATA_LABELS, order = ns.STRATA,
+local function strataRow(key, label, what, dis, more, withFrame)
+    return { type = "dropdown", key = key, label = label,
+             values = withFrame and ns.CASTBAR_STRATA_LABELS or ns.STRATA_LABELS,
+             order = withFrame and ns.CASTBAR_STRATA or ns.STRATA,
              desc = what .. STRATA_HOW .. (more or ""), disabled = dis }
 end
 
@@ -2702,7 +2704,7 @@ local TARGET_CAST = {
           desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
         strataRow("targetCastbar.strata", "Target cast bar layer", "The layer your target's cast bar draws in.",
-            notOwnBar("target"), " Inside the frame or sliding out under it, it draws with the frame instead."),
+            notOwnBar("target"), " Inside the frame or sliding out under it, it draws with the frame instead. Same as frame keeps it with the frame wherever it stands.", true),
     } },
     castTextCard("target", "Target", "your target's", true),
 }
@@ -2740,7 +2742,7 @@ local FOCUS_CAST = {
           desc = "Your focus's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
         strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
-            notOwnBar("focus"), " Inside the frame or sliding out under it, it draws with the frame instead."),
+            notOwnBar("focus"), " Inside the frame or sliding out under it, it draws with the frame instead. Same as frame keeps it with the frame wherever it stands.", true),
     } },
     castTextCard("focus", "Focus", "your focus's"),
 }
