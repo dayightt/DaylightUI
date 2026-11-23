@@ -21,6 +21,9 @@ DUI.Media.RegisterSlot(Plate.MEDIA.fonts.threatPct, "Nameplates", "media.threatP
 -- Level font: "general" uses the health text's too.
 Plate.MEDIA.fonts.level = "plates.font.level"
 DUI.Media.RegisterSlot(Plate.MEDIA.fonts.level, "Nameplates", "media.levelFont", "font", Plate.MEDIA.fonts.health)
+-- The execute range's own bar texture (its "Bar texture" fill).
+Plate.MEDIA.bars.execute = "plates.execute"
+DUI.Media.RegisterSlot(Plate.MEDIA.bars.execute, "Nameplates", "media.execute", "bar")
 
 -- Never thicker than half the bar's own height, or a thin bar (friendly ones by
 -- default) is all border and no visible fill.
@@ -109,6 +112,14 @@ Plate.EXECUTE_LINE = 0.85 -- the line at its edge (executeLineSize px)
 -- "pulse": the lit band dims down to low, seconds per brighten or dim (the threat
 -- pulse's slow speed).
 Plate.EXECUTE_PULSE = { low = 0.35, time = 0.7 }
+-- Its own fills (tools/make_execute_textures.py). Stripes tile at their own pixel
+-- size so they keep their width on any bar; the neon tube stretches.
+Plate.EXECUTE_FILES = { stripes = DUI.MEDIA .. "exec-stripes.png", neon = DUI.MEDIA .. "exec-neon.png" }
+Plate.EXECUTE_TILED = { stripes = true }
+-- The spark on the line (executeSpark), in bar heights, and the glow round the
+-- bar (executeGlow), which takes the target glow's reach.
+Plate.EXECUTE_SPARK = { width = 1.4, height = 2.6 }
+Plate.EXECUTE_GLOW = 0.8
 
 local isSecret = DUI.IsSecret
 local NONE, WHITE = {}, { 1, 1, 1 } -- never written
@@ -1067,6 +1078,13 @@ function Plate.NewExecute(bar)
     e.line = e:CreateTexture(nil, "OVERLAY")
     for _, t in ipairs({ e.band, e.lit, e.line }) do t:SetTexture(Plate.LINE) end
     e.lit:SetAlpha(0)
+    -- The spark rides the line, over everything on the bar, and breathes with the
+    -- band (it sits on e.hot).
+    e.spark = e.hot:CreateTexture(nil, "OVERLAY", nil, 2)
+    e.spark:SetTexture(Plate.GLOW, "CLAMP", "CLAMP")
+    e.spark:SetBlendMode("ADD")
+    e.spark:SetAlpha(0)
+    e.spark:Hide()
     e.pulse = e.hot:CreateAnimationGroup()
     e.pulseAnim = e.pulse:CreateAnimation("Alpha")
     e.pulseAnim:SetFromAlpha(1)
@@ -1096,19 +1114,20 @@ end
 
 -- Execute color: the accent (its pair for a gradient accent, read at paint time)
 -- or the player's own. fade: from transparent at the bar's low end to full at the line.
-function Plate.PaintExecute(tex, alpha, c, fade)
-    local lo, hi
+function Plate.ExecuteColors(c)
     if c.executeAccent ~= false then
-        lo, hi = Style.AccentPair()
-        if not lo then
-            local r, g, b = Style.Accent()
-            lo = { r, g, b }
-            hi = lo
-        end
-    else
-        local own = type(c.executeColor) == "table" and c.executeColor or ns.DEFAULTS.executeColor
-        lo, hi = own, own
+        local lo, hi = Style.AccentPair()
+        if lo then return lo, hi end
+        local r, g, b = Style.Accent()
+        lo = { r, g, b }
+        return lo, lo
     end
+    local own = type(c.executeColor) == "table" and c.executeColor or ns.DEFAULTS.executeColor
+    return own, own
+end
+
+function Plate.PaintExecute(tex, alpha, c, fade)
+    local lo, hi = Plate.ExecuteColors(c)
     if (fade or lo ~= hi) and tex.SetGradient and CreateColor then
         tex:SetVertexColor(1, 1, 1, alpha)
         tex:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], fade and 0 or alpha), CreateColor(hi[1], hi[2], hi[3], alpha))
@@ -1271,14 +1290,14 @@ function Plate.LayoutExecute(p, show)
     local side, cut = Style.GetFillAngle(bar)
     local lean = side == "right" and cut or side == "left" and -cut or 0
     lean = math.min(lean, x)
-    local file = c.executeTexture == "bar" and Style.BarFile("fill") or Plate.LINE
+    local file, tiled = Plate.ExecuteFile(c)
     local fade = c.executeTexture == "fade"
     for _, t in ipairs({ e.band, e.lit }) do
         t:ClearAllPoints()
         t:SetPoint("TOPLEFT", bar, "TOPLEFT", 0, 0)
         t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
         t:SetWidth(math.max(x, 1))
-        t:SetTexture(file)
+        Plate.SetExecuteTexture(t, file, tiled)
         if t.SetVertexOffset then DUI.SafeCall(t.SetVertexOffset, t, 4, -lean, 0) end
     end
     local l = e.line
@@ -1301,7 +1320,7 @@ function Plate.LayoutExecute(p, show)
     local hot
     if style == "bar" then
         hot = Plate.ExecuteFill(p)
-        hot:SetTexture(file)
+        Plate.SetExecuteTexture(hot, file, tiled)
         e.lit:Hide()
     elseif not lined then
         hot = e.lit
@@ -1323,25 +1342,73 @@ function Plate.LayoutExecute(p, show)
     else
         e.pulse:Stop()
     end
+    -- The extras that light with it, in any style: a glow round the bar and a
+    -- spark on the line.
+    local h = bar:GetHeight()
+    local lights = e.lights or {}
+    e.lights = lights
+    for i = #lights, 1, -1 do lights[i] = nil end
+    if e.hotTex then lights[1] = e.hotTex end
+    local _, hi = Plate.ExecuteColors(c)
+    if c.executeGlow == true then
+        e.glow = e.glow or Plate.Ring(e.hot, p.hp, Plate.GLOW, "ADD", "BACKGROUND")
+        Plate.LayoutRing(e.glow, p.hp, Plate.GLOW_REACH, 0, p.cut or 0)
+        for _, t in pairs(e.glow.pieces) do t:SetVertexColor(hi[1], hi[2], hi[3], Plate.EXECUTE_GLOW) end
+        e.glow:Show()
+        lights[#lights + 1] = e.glow
+    elseif e.glow then
+        e.glow:Hide()
+    end
+    if c.executeSpark == true then
+        local S, sp = Plate.EXECUTE_SPARK, e.spark
+        sp:ClearAllPoints()
+        sp:SetSize(math.max(6, h * S.width), math.max(8, h * S.height))
+        sp:SetPoint("CENTER", bar, "LEFT", x - lean / 2, 0)
+        sp:SetVertexColor(hi[1], hi[2], hi[3], 1)
+        sp:Show()
+        lights[#lights + 1] = sp
+    else
+        e.spark:Hide()
+    end
     e.curve = Plate.ExecuteCurve(pct)
     e:Show()
     if p.unit then Plate.UpdateExecute(p) end
+end
+
+-- The execute range's fill: the picked bar texture ("bar", its own media slot),
+-- one of its own (Plate.EXECUTE_FILES), or plain. Returns the file and whether it tiles.
+function Plate.ExecuteFile(c)
+    local kind = c.executeTexture
+    if kind == "bar" then return Style.BarFile("fill", Plate.MEDIA.bars.execute), false end
+    local own = Plate.EXECUTE_FILES[kind]
+    if own then return own, Plate.EXECUTE_TILED[kind] == true end
+    return Plate.LINE, false
+end
+
+function Plate.SetExecuteTexture(t, file, tiled)
+    if tiled then
+        t:SetTexture(file, "REPEAT", "REPEAT")
+    else
+        t:SetTexture(file)
+    end
+    if t.SetHorizTile then
+        t:SetHorizTile(tiled)
+        t:SetVertTile(tiled)
+    end
 end
 
 -- Lights it while the unit is in range. The curve's result (maybe secret) goes
 -- straight to SetAlpha, never tested.
 function Plate.UpdateExecute(p)
     local e = p.exec
-    local hot = e.hotTex
-    if not hot then return end
+    local lights = e.lights
+    if not lights or not lights[1] then return end
+    local a = 0
     if e.curve and UnitHealthPercent then
-        local ok, a = pcall(UnitHealthPercent, p.unit, true, e.curve)
-        if ok then
-            hot:SetAlpha(a)
-            return
-        end
+        local ok, got = pcall(UnitHealthPercent, p.unit, true, e.curve)
+        if ok then a = got end
     end
-    hot:SetAlpha(0)
+    for i = 1, #lights do lights[i]:SetAlpha(a) end
 end
 
 -- Your DoTs on this plate's unit (DUI.Dots): enemies only, each piece by its switch.

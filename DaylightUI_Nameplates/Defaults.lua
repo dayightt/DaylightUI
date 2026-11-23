@@ -99,10 +99,12 @@ ns.DEFAULTS = {
     executeStyle = "band", -- ...style: "band" (lights up in range), "line" (marker only), "bar" (whole fill lights), "pulse" (band, pulsing), "icon" (your finisher's icon by the bar)
     executeAccent = true, -- ...in the accent color; off uses executeColor
     executeColor = { 0.9, 0.36, 0.26 },
-    executeTexture = "flat", -- ...fill: "flat", "bar" (shared bar texture), "fade" (faint at the low end, full at the line)
+    executeTexture = "flat", -- ...fill: "flat", "bar" (media.execute), "fade" (faint at the low end, full at the line), "stripes", "neon"
     executeStrength = 0.45, -- ...brightness once the enemy is in range
     executeLineSize = 2, -- ...edge line thickness in px (0 = none)
     executeRest = true, -- ...faint band before the enemy is in range
+    executeGlow = false, -- ...a soft glow round the health bar once in range
+    executeSpark = false, -- ...a bright spark on the line once in range
     debuffs = true,         -- your debuffs above the bar
     debuffSize = 24,
     maxDebuffs = 6,
@@ -211,6 +213,8 @@ ns.DEFAULTS = {
 ns.DEFAULTS.media.threatPctFont = "general"
 -- Level font, same rule.
 ns.DEFAULTS.media.levelFont = "general"
+-- The execute range's "Bar texture": "general" uses the one on General > Appearance.
+ns.DEFAULTS.media.execute = "general"
 -- Bar animation (the core's BarFx.lua) on every plate's health, power and
 -- cast bars, friendly plates too. Off: forty moving bars in a fight is busy.
 ns.DEFAULTS.barFx = { health = DaylightUI.BarFx.Defaults(), power = DaylightUI.BarFx.Defaults(),

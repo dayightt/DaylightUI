@@ -571,12 +571,14 @@ local function refresh(s, width, maxH)
     DUI.Dots.PaintSample(tint and p.dotVeil or nil, skull and p.dotSkull or nil, 100, u.dots or 0, true)
     if not tint then p.dotVeil:Hide() end
     if not skull then p.dotSkull:Hide() end
-    if exec and p.exec.hotTex then
-        local tex, to = p.exec.hotTex, pct / 100 <= exec and 1 or 0
-        if glide and DUI.Motion.On() then
-            DUI.Motion.Tween(tex, tex:GetAlpha(), to, DUI.Motion.FAST, function(v) tex:SetAlpha(v) end)
-        else
-            tex:SetAlpha(to)
+    if exec and p.exec.lights then
+        local to = pct / 100 <= exec and 1 or 0
+        for _, tex in ipairs(p.exec.lights) do
+            if glide and DUI.Motion.On() then
+                DUI.Motion.Tween(tex, tex:GetAlpha(), to, DUI.Motion.FAST, function(v) tex:SetAlpha(v) end)
+            else
+                tex:SetAlpha(to)
+            end
         end
     end
     if p.percent:IsShown() then DUI.Health.WriteSample(p.percent, pc.healthFormat or "percent", pct, value, pc.percentSign ~= false) end
