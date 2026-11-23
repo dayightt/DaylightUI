@@ -32,6 +32,25 @@ function Bridge.Item(itemID)
     return price, ns.Store.SeenAt(rkey, key)
 end
 
+-- The same sighting, with how many were for sale: price, seen at, quantity.
+-- Price sources outside Daylight UI read this one (a route planner needs the
+-- stock as well as the price); nil when the item was never seen.
+function Bridge.Offer(itemID)
+    local price, at = Bridge.Item(itemID)
+    if not price then return nil end
+    local rkey = ns.Ruleset.Key()
+    local key = rkey and ns.Items.Key(itemID)
+    local seen = key and ns.Store.Seen(rkey, key)
+    return price, at, seen and seen.q or nil
+end
+
+-- When anything was last seen at the Auction House: a price source has to say
+-- how old its numbers are. Nil before the first scan.
+function Bridge.ScannedAt()
+    local rkey = ns.Ruleset.Key()
+    return rkey and ns.Store.LastAt(rkey) or nil
+end
+
 -- What a vendor sells one for, as last seen at a merchant.
 function Bridge.Vendor(itemID) return ns.Vendor.Price(itemID) end
 
