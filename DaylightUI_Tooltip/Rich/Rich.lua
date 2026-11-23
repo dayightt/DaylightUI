@@ -98,10 +98,24 @@ end
 -- client.
 local hooked = setmetatable({}, { __mode = "k" })
 local holding = false
+-- Another addon adds its lines after the fill (often after the game's own
+-- Show) and then calls Show to fit them. The card takes them in at that Show:
+-- the loot window fills its tooltip again every frame after the tooltip's own
+-- update, so waiting for the next update left those lines drawn over the card.
+local function caughtUp(tip, s)
+    local p = Panel.Get(tip)
+    if s.pill or not (p and p:IsShown()) or p.chrome then return end
+    local n = tip.NumLines and tip:NumLines()
+    if isSecret(n) then return end
+    if n ~= s.lines then return Rich.Build(tip) end
+    Panel.Mute(p)
+end
 local function nativeShown(tip)
     if not Rich.On(tip) then return end
     local s = state[tip]
-    if s and s.dirty and tip:IsShown() then DUI.SafeCall(Rich.Build, tip) end
+    if s and tip:IsShown() then
+        if s.dirty then DUI.SafeCall(Rich.Build, tip) else DUI.SafeCall(caughtUp, tip, s) end
+    end
     if ns.Tooltip.Muted(tip) and not holding then
         holding = true
         tip:SetAlpha(0)

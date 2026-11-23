@@ -3477,3 +3477,44 @@ T.test("other addons: ItemTree's block is a section with its verdict as tags", f
     T.truthy(stub.Text(area[2].fs or area[2].label):find("keep-tags", 1, true), "its own picture kept")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The game's loot window fills its row's tooltip again every frame (SetOwner,
+-- then SetLootItem), after the tooltip's own update. Other addons add their
+-- lines after the game's and call Show to fit them: those lines were drawn
+-- over the card and never joined it (seen in game on loot and roll tooltips).
+T.test("rich tooltip: lines another addon adds after the show join the card at its Show", function()
+    local _, Panel = login("rich")
+    items()
+    local owner = CreateFrame("Button", nil, UIParent)
+    local function check(what, rows)
+        local bad = {}
+        for i = 1, GameTooltip:NumLines() do
+            for _, side in ipairs({ "Left", "Right" }) do
+                local fs = _G["GameTooltipText" .. side .. i]
+                if fs:GetText() and fs:GetAlpha() ~= 0 then bad[#bad + 1] = side .. i .. ":" .. tostring(fs:GetText()) end
+            end
+        end
+        T.eq(table.concat(bad, ","), "", what .. ": the game's lines muted")
+        T.eq(Panel.Get(GameTooltip).count, rows, what .. ": the card's rows")
+    end
+    local function lootFrame(hide, late)
+        update()
+        if hide and GameTooltip:IsShown() then GameTooltip:Hide() end
+        fillItem(GameTooltip, "legplates", LEGPLATES, function(t) t:AddDoubleLine("AH price", "2s 99c") end)
+        GameTooltip.__owner, GameTooltip.__anchor = owner, "ANCHOR_RIGHT"
+        if late then
+            GameTooltip:AddLine("Quest Drop Rate:")
+            GameTooltip:AddDoubleLine("  ForeverDB (Buzzard):", "14%")
+            GameTooltip:Show()
+        end
+    end
+    lootFrame(false, false)
+    local rows = Panel.Get(GameTooltip).count
+    for _, hide in ipairs({ false, true }) do
+        for k = 1, 3 do
+            lootFrame(hide, true)
+            check((hide and "hidden first, " or "") .. "frame " .. k, rows + 2)
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
