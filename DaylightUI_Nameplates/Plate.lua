@@ -223,7 +223,8 @@ function Plate.NameOnly(p, c)
 end
 
 -- What goes with the bar when "hurt" hides it: your target's outline (and its
--- light), its glow and the target arrows. All draw on the plate, not the bar.
+-- light), its glow, the target arrows and the group focus mark. All draw on
+-- the plate, not the bar.
 local function setHeldAlpha(p, a)
     DUI.SafeCall(p.hp.SetAlpha, p.hp, a)
     DUI.SafeCall(p.outline.SetAlpha, p.outline, a)
@@ -518,8 +519,8 @@ function Plate.Create(parent, sample)
     p.marker:SetTexture(Plate.MARKER_SHEET)
     p.marker:SetSize(Plate.MARKER, Plate.MARKER)
     p.marker:Hide()
-    -- The arrows sit on their own frame so a hidden friendly bar can take them
-    -- along (Plate.UpdateHurtBar) without fighting their own fades.
+    -- The arrows and the group focus mark sit on their own frame so a hidden
+    -- friendly bar can take them along (Plate.UpdateHurtBar) without fighting their own fades.
     p.arrowHost = CreateFrame("Frame", nil, p)
     p.arrowHost:SetAllPoints(p)
     p.arrows = {}
@@ -532,7 +533,7 @@ function Plate.Create(parent, sample)
     end
     p.focusMark = {}
     for i = 1, 2 do
-        local a = p:CreateTexture(nil, "OVERLAY")
+        local a = p.arrowHost:CreateTexture(nil, "OVERLAY")
         a:SetTexture(Plate.ARROW_ART)
         a:SetRotation(Plate.ARROW_TURN.top)
         a:SetAlpha(0)

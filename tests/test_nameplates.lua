@@ -4018,6 +4018,7 @@ T.test("nameplates: a hidden hurt bar takes your target's outline, glow and arro
         T.eq(alpha(p.hp), 0, "full health: bar hidden")
         T.eq(alpha(p.outline), 0, "no outline round a hidden bar")
         T.eq(alpha(p.arrows.left:GetParent()), 0, "no arrows pointing at nothing")
+        T.eq(p.focusMark[1]:GetParent(), p.arrows.left:GetParent(), "the group focus mark goes with them")
         DaylightUI:Set("Nameplates", "targetStyle", "glow")
         stub.RunTimers()
         T.eq(alpha(p.glow), 0, "no glow either")
