@@ -290,13 +290,22 @@ T.test("tooltip: a clicked link's X sits on the rich card's corner, not the tool
     login()
     local close = ItemRefTooltip.CloseButton
     local card = stub.tooltip.RichPanel.For(ItemRefTooltip)
+    ItemRefTooltip:Show()
     ItemRefTooltip:GetScript("OnShow")(ItemRefTooltip)
+    -- The card is filled and shown after the tooltip shows; the next frame sees it.
+    card:Show()
     stub.RunTimers()
     local point, rel, relPoint, x, y = close:GetPoint(1)
     T.eq(point, "TOPRIGHT")
     T.eq(rel, card, "anchored to the card")
     T.eq(x, DaylightUI.Win.CLOSE_X, "the windows' X spot")
     T.eq(y, DaylightUI.Win.CloseY(true))
+    -- Simple style, or a link the card doesn't draw: the card is hidden, with the
+    -- size of the last link, so the X stays on the tooltip.
+    card:Hide()
+    ItemRefTooltip:GetScript("OnShow")(ItemRefTooltip)
+    stub.RunTimers()
+    T.eq(select(2, close:GetPoint(1)), ItemRefTooltip, "a hidden card is left alone")
 end)
 
 T.test("tooltip: a rich card's title and small lines take their own size and font", function()

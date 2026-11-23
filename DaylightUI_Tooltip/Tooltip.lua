@@ -165,8 +165,10 @@ function Tip.Skin(tip)
             if close.IsProtected and close:IsProtected() and InCombatLockdown() then return end
             close:ClearAllPoints()
             -- The rich card is pinned to the tooltip's corner at its own size,
-            -- which can be smaller than the tooltip: the X goes on the card.
+            -- which can be smaller than the tooltip: the X goes on the card while
+            -- it shows. A hidden card keeps its last size, so then the tooltip it is.
             local card = ns.RichPanel and ns.RichPanel.Get and ns.RichPanel.Get(tip)
+            if not (card and card:IsShown()) then card = nil end
             close:SetPoint("TOPRIGHT", card or tip, "TOPRIGHT", DUI.Win.CLOSE_X, DUI.Win.CloseY(true))
         end
         place()
