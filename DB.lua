@@ -405,7 +405,14 @@ function DB.Pick(spec)
     local function real(n) return type(n) == "string" and type(sv.profileData[n]) == "table" and n or nil end
     local name
     if DB.PadUI() then name = real(c.padProfile) end
-    if not name and DB.DualSpec() and type(c.specProfiles) == "table" then name = real(c.specProfiles[spec or DB.SpecGroup()]) end
+    -- Profiles chosen per talent set are only made with two sets, and a character
+    -- never loses its second, so they count even while the game still says one
+    -- (early at login): the character's own choice would win, then the talents
+    -- would ask to switch on every login.
+    local perSet = type(c.specProfiles) == "table" and next(c.specProfiles) ~= nil
+    if not name and (DB.DualSpec() or perSet) and type(c.specProfiles) == "table" then
+        name = real(c.specProfiles[spec or DB.SpecGroup()])
+    end
     return name or real(c.profile) or DB.Fallback()
 end
 

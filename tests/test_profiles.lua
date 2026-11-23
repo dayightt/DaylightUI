@@ -1490,3 +1490,29 @@ T.test("packs: the Profiles page has a card per pack after Ready-made, and its b
     T.eq(DaylightUIDB.profileData["Card UI"].general.borderPx, 3)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- "Every time I login I get asked to switch to the profile COGWHEEL. I am
+-- using that profile." The talent sets each had COGWHEEL, the character's own
+-- choice was another. While the game still counts one talent set at login,
+-- the pick took the character's choice, then asked once both sets showed.
+T.test("profiles: talent sets with their own profile keep it while the game counts one set at login", function()
+    talents(2, 1)
+    me()
+    local DUI = login()
+    local P = DUI.Profiles
+    P.AddPreset("DPS/Tank")
+    P.Create("COGWHEEL")
+    DUI.DB.Character().profile = "DPS/Tank"
+    P.Choose(1, "COGWHEEL")
+    P.Choose(2, "COGWHEEL")
+    stub.Dismiss()
+    DUI = reload()
+    T.eq(DUI.DB.ActiveName(), "COGWHEEL")
+    -- The next login, the game says one talent set until it has loaded them.
+    _G.GetNumSpecGroups = function() return 1 end
+    DUI = reload()
+    T.eq(DUI.DB.ActiveName(), "COGWHEEL", "the talent sets' profile, not the character's old one")
+    _G.GetNumSpecGroups = function() return 2 end
+    stub.FireEvent("ACTIVE_TALENT_GROUP_CHANGED", 1, 1)
+    T.isnil(stub.Asked(), "nothing to ask: it's already in use")
+end)
