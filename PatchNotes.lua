@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "DoT shade", "No more error in dungeons when your target's target takes a hit" },
+        { "Professions", "Clicking someone's profession in chat opens their recipes every time, not your own or nothing" },
     } },
     { version = "2.2.3", date = "2026-11-22", summary = "ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.", new = {
         { "Bags", "With ItemTree installed, your bags show its keep, sell and use advice" },

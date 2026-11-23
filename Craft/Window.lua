@@ -613,15 +613,17 @@ function Craft.Changed(_, shown)
     end
     local g = Craft.Game()
     if not g then return end
+    -- A list still coming in can't say whose it is: a link may read as nothing, or
+    -- as the profession that was open before. Craft.Settled looks again once it's in,
+    -- the same wait the game's own frame does.
+    if ns.Data.Changing() and type(g.BookPage) == "table" and not g.BookPage:IsShown() then
+        Craft.waiting = "first"
+        return
+    end
     local page = Craft.PageFor(g)
     if page == "overview" then return Craft.Open(true) end
     if page == "view" then return ns.View.Open() end
-    if not page then
-        -- Someone's list hasn't arrived, so there's no way to tell whose it is yet. Craft.Settled
-        -- checks again.
-        if ns.Data.Changing() then Craft.waiting = true; return end
-        return lend()
-    end
+    if not page then return lend() end
     Craft.Open()
 end
 
@@ -637,6 +639,12 @@ function Craft.TradeSkillShown()
         return
     end
     if not Win.Followers.Shown(Craft.follow, "craft") then return end
+    -- Someone's link clicked over an open window reads as the old profession until
+    -- its list is in, so the pick waits for it (Craft.Settled).
+    if g and ns.Data.Changing() then
+        Craft.waiting = Craft.waiting or "shown"
+        return
+    end
     local page = g and Craft.PageFor(g)
     if page == "view" then
         if Win.IsOpen(Craft.frame) then shut(Craft.frame) end
@@ -657,8 +665,10 @@ function Craft.Settled()
         if Craft.Ours(g) and not kept() then Win.Followers.Reclaim(Craft.follow, "craft") end
         return
     end
-    if not Craft.waiting then return end
+    local waiting = Craft.waiting
+    if not waiting or ns.Data.Changing() then return end
     Craft.waiting = nil
+    if waiting == "shown" then return Craft.TradeSkillShown() end
     Craft.Changed("craft", true)
 end
 
