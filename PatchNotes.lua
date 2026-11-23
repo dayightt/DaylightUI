@@ -20,6 +20,8 @@ DUI.PatchNotes = {
         { "Unit frames", "The mana regen sweep can keep ticking after the five seconds, a soft light to each regen tick until your mana is full" },
         { "Unit frames", "Portraits for the target of target, focus target and pet frames, off until you pick one" },
         { "Party and raid", "Party and raid frames can grow from the middle, so a group that isn't full stays centered" },
+        { "Nameplates", "Friendly health bars can wait for a fight, or show when someone gets hurt, with just names the rest of the time" },
+        { "Nameplates", "Your group's totem badges can change size, show the totem's spell icon or its element, go square, or drop their border" },
     }, fixed = {
         { "Tooltip", "A hunter pet's attack speed shows as seconds, not gold, and Volley is tagged Arcane, not Fire" },
         { "Character", "A hunter's arrows no longer cover the ranged weapon's name after new ammo goes in" },

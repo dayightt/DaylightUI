@@ -195,9 +195,60 @@ function Plate.UpdateCorpse(p)
     if ns.Manager then ns.Manager.OwnClicks(p) end -- a corpse's plate can't be clicked, as in the game
 end
 
--- Name-only plates: game objects, and friendly plates while friendly bars are off.
+-- Friendly bars can wait for a reason to show (friendly.barWhen): "combat"
+-- keeps the plate name-only until you're in a fight; "hurt" keeps the bar laid
+-- out but see-through at full health out of a fight (Plate.UpdateHurtBar),
+-- since health is always secret and can't be compared.
+Plate.inFight = false
+
+local function waitsForFight(p, c)
+    local f = c.friendly
+    return p.friendly and f.enabled and f.barWhen == "combat" and not Plate.inFight and not p.isSample
+end
+
+-- Name-only plates: game objects, and friendly plates while friendly bars are off
+-- or waiting for a fight.
 function Plate.NameOnly(p, c)
-    return p.object or (p.friendly and not c.friendly.enabled) or false
+    return p.object or (p.friendly and not c.friendly.enabled) or waitsForFight(p, c) or false
+end
+
+-- "hurt": out of a fight the bar's alpha comes from the full-health curve,
+-- 1 below full and 0 at full, handed straight to SetAlpha.
+function Plate.UpdateHurtBar(p, c)
+    c = c or Plate.Cfg(p)
+    local f = c.friendly
+    local hold = p.friendly and f.enabled and f.barWhen == "hurt" and not Plate.inFight and not p.isSample and p.unit
+    if not hold then
+        if p.hurtHeld then
+            p.hurtHeld = nil
+            p.hp:SetAlpha(1)
+        end
+        return
+    end
+    p.hurtHeld = true
+    local a, curve = 1, DUI.Health.FullCurve()
+    if curve and UnitHealthPercent then
+        local ok, v = DUI.SafeReturn(UnitHealthPercent, p.unit, true, curve)
+        if ok and type(v) ~= "nil" then a = v end
+    end
+    DUI.SafeCall(p.hp.SetAlpha, p.hp, a)
+end
+
+-- A fight started or ended: friendly plates that wait for one change.
+function Plate.FightChanged(inFight)
+    Plate.inFight = inFight
+    if not (ns.Manager and ns.cfg.friendly and ns.cfg.friendly.enabled) then return end
+    local when = ns.cfg.friendly.barWhen
+    if when ~= "combat" and when ~= "hurt" then return end
+    ns.Manager.Each(function(p)
+        if not (p.unit and p.friendly) then return end
+        if when == "combat" then
+            Plate.Layout(p)
+            Plate.UpdateAll(p)
+        else
+            Plate.UpdateHurtBar(p)
+        end
+    end)
 end
 
 -- Whether the plate shows its name. A name-only plate keeps it, or it would be empty.
@@ -929,6 +980,7 @@ function Plate.UpdateHealth(p, instant)
     -- something of your DoTs shows (~1,000 health events a second in a fight).
     if p.dotVeil:IsShown() or p.dotSkull:IsShown() then Plate.UpdateDots(p) end
     if p.execOn then Plate.UpdateExecute(p) end
+    if p.friendly or p.hurtHeld then Plate.UpdateHurtBar(p, c) end
 end
 
 local function amount(fn, u)

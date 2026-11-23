@@ -39,7 +39,18 @@ Minion.TOTEMS = {
     air = { 8177, 10595, 8512, 8835, 15107, 25908, 6495 },
 }
 
+-- Each element's own picture, for friendly totems shown by element
+-- (friendly.totemIcon "element"): the game's elemental totem icons.
+Minion.ELEMENT_ICONS = {
+    fire = "Interface/Icons/Spell_Fire_Elemental_Totem",
+    earth = "Interface/Icons/Spell_Nature_EarthElemental_Totem",
+    water = "Interface/Icons/Spell_Frost_SummonWaterElemental_2",
+    air = "Interface/Icons/INV_Elemental_Primal_Air",
+}
+Minion.EDGE = 2 -- a square badge's border, in screen pixels
+
 local plain = ns.Plate.Plain -- a call's plain first return, or nil (Plate.lua loads first)
+local WHITE = "Interface\\Buttons\\WHITE8x8"
 
 local names
 local function totemNames()
@@ -49,20 +60,35 @@ local function totemNames()
     for element, ids in pairs(Minion.TOTEMS) do
         for _, id in ipairs(ids) do
             local n = plain(get, id)
-            if type(n) == "string" and n ~= "" then names[#names + 1] = { n, element } end
+            if type(n) == "string" and n ~= "" then names[#names + 1] = { n, element, id } end
         end
     end
     return names
 end
 
--- A totem's element from its name, or nil (not a totem, or a hidden name).
-function Minion.Element(unit)
+-- A totem's element and its first rank's spell id from its name, or nil (not a
+-- totem, or a hidden name).
+function Minion.Totem(unit)
     local name = plain(UnitName, unit)
     if type(name) ~= "string" then return nil end
     for _, t in ipairs(totemNames()) do
-        if name:sub(1, #t[1]) == t[1] then return t[2] end
+        if name:sub(1, #t[1]) == t[1] then return t[2], t[3] end
     end
     return nil
+end
+
+function Minion.Element(unit)
+    return (Minion.Totem(unit))
+end
+
+-- How a badge looks: a friendly totem's own settings (size 0 = the enemy
+-- badges' size), else the enemy badge as always.
+function Minion.Look(p, c)
+    local s = c.minionSize or 30
+    local f = p.friendly and ns.cfg.friendly
+    if type(f) ~= "table" then return s, "portrait", "round", true end
+    local own = tonumber(f.totemSize) or 0
+    return own > 0 and own or s, f.totemIcon or "portrait", f.totemShape or "round", f.totemBorder ~= false
 end
 
 -- Whether a plate is an enemy minion while the switch is on: "badge", "bar"
@@ -110,6 +136,19 @@ function Minion.Create(p)
     b.ring = b:CreateTexture(nil, "OVERLAY")
     b.ring:SetTexture(Minion.RING)
     b.ring:SetPoint("CENTER")
+    -- The square look: a dark backing and four edges in the element's color, no masks.
+    b.back = b:CreateTexture(nil, "BACKGROUND", nil, 1)
+    b.back:SetTexture(WHITE)
+    b.back:SetVertexColor(0.02, 0.02, 0.02, 1)
+    b.back:SetAllPoints(b)
+    b.back:Hide()
+    b.edges = {}
+    for i = 1, 4 do
+        local e = b:CreateTexture(nil, "OVERLAY")
+        e:SetTexture(WHITE)
+        e:Hide()
+        b.edges[i] = e
+    end
     p.badge = b
     -- Slim bar's portrait, just left of the bar.
     b.mini = p:CreateTexture(nil, "ARTWORK")
@@ -129,17 +168,63 @@ function Minion.Layout(p, c, kind, h)
     local on = kind == "badge"
     b:SetShown(on)
     if not on then return end
-    local s = c.minionSize or 30
+    local s, icon, shape, border = Minion.Look(p, c)
+    b.iconKind, b.square = icon, shape == "square"
     b:ClearAllPoints()
     b:SetPoint("CENTER", p.hp, "CENTER", 0, 0)
     b:SetSize(s, s)
-    local inner = s * Minion.RING_INNER
-    b.ring:SetSize(s / Minion.RING_OUTER, s / Minion.RING_OUTER)
     b.glow:SetSize(s * 2, s * 2)
     b.shadow:SetSize(s * 1.3, s * 1.3)
-    b.disc:SetSize(inner + 2, inner + 2)
-    b.icon:SetSize(inner, inner)
-    b.hover:SetSize(inner, inner)
+    b.disc:SetShown(not b.square)
+    b.ring:SetShown(not b.square and border)
+    b.back:SetShown(b.square)
+    for _, e in ipairs(b.edges) do e:SetShown(b.square and border) end
+    if b.square then
+        local t = border and DUI.Pixel.Px(b, Minion.EDGE) or 0
+        local inner = s - 2 * t
+        b.icon:SetSize(inner, inner)
+        b.hover:SetTexture(WHITE)
+        b.hover:SetSize(inner, inner)
+        local e = b.edges
+        e[1]:ClearAllPoints(); e[1]:SetPoint("TOPLEFT"); e[1]:SetPoint("TOPRIGHT"); e[1]:SetHeight(t)
+        e[2]:ClearAllPoints(); e[2]:SetPoint("BOTTOMLEFT"); e[2]:SetPoint("BOTTOMRIGHT"); e[2]:SetHeight(t)
+        e[3]:ClearAllPoints(); e[3]:SetPoint("TOPLEFT", 0, -t); e[3]:SetPoint("BOTTOMLEFT", 0, t); e[3]:SetWidth(t)
+        e[4]:ClearAllPoints(); e[4]:SetPoint("TOPRIGHT", 0, -t); e[4]:SetPoint("BOTTOMRIGHT", 0, t); e[4]:SetWidth(t)
+    else
+        -- Without its ring a round badge's picture takes the whole badge.
+        local inner = border and s * Minion.RING_INNER or s
+        b.ring:SetSize(s / Minion.RING_OUTER, s / Minion.RING_OUTER)
+        b.disc:SetSize(inner + 2, inner + 2)
+        b.icon:SetSize(inner, inner)
+        b.hover:SetTexture(Minion.DISC)
+        b.hover:SetSize(inner, inner)
+    end
+    -- A square spell icon in a round badge gets the disc as its one mask; the
+    -- game's portraits are round already.
+    local round = not b.square and icon ~= "portrait"
+    if round and not b.mask then
+        b.mask = b:CreateMaskTexture()
+        b.mask:SetTexture(Minion.DISC, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+        b.mask:SetAllPoints(b.icon)
+    end
+    if round ~= (b.masked or false) then
+        if round then b.icon:AddMaskTexture(b.mask) else b.icon:RemoveMaskTexture(b.mask) end
+        b.masked = round
+    end
+end
+
+-- The badge's picture: the unit's portrait, its totem's spell icon, or its
+-- element's. A hidden name falls back to the portrait.
+local function paintIcon(b, u, element, id)
+    local tex = b.iconKind == "spell" and id and plain(C_Spell and C_Spell.GetSpellTexture, id)
+        or b.iconKind == "element" and element and Minion.ELEMENT_ICONS[element]
+    if tex then
+        b.icon:SetTexture(tex)
+        Style.CropIcon(b.icon)
+    else
+        b.icon:SetTexCoord(0, 1, 0, 1)
+        DUI.SafeCall(SetPortraitTexture, b.icon, u)
+    end
 end
 
 -- Portrait and ring color. For the slim bar its portrait; the bar color comes from
@@ -149,13 +234,14 @@ function Minion.Update(p)
     if not u then return end
     if p.minionBar then DUI.SafeCall(SetPortraitTexture, b.mini, u) end
     if not p.minion then return end
-    DUI.SafeCall(SetPortraitTexture, b.icon, u)
-    local element = Minion.Element(u)
+    local element, id = Minion.Totem(u)
+    paintIcon(b, u, element, id)
     local col = element and Minion.COLORS[element]
     local r, g, bl
     if col then r, g, bl = col[1], col[2], col[3]
     else r, g, bl = Style.ReactionColor(plain(UnitReaction, u, "player")) end
     b.ring:SetVertexColor(r, g, bl, 1)
+    for _, e in ipairs(b.edges) do e:SetVertexColor(r, g, bl, 1) end
 end
 
 -- A slim totem bar in its element color, as a gradient. Pets (or hidden names)

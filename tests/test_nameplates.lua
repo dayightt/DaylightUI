@@ -3658,6 +3658,42 @@ T.test("nameplates: a friendly totem is a badge instead of its name, a friendly 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("nameplates: friendly totem badges: their own size, picture, shape and border", function()
+    login(function()
+        stub.spells = { [5394] = { name = "Healing Stream Totem" } }
+        C_Spell.GetSpellTexture = function(id) return 1000 + id end
+    end)
+    stub.units.nameplate3 = { name = "Healing Stream Totem III", minion = true, reaction = 5, health = 5, maxHealth = 5 }
+    local NP = stub.nameplates
+    local set = function(k, v) DaylightUI:Set("Nameplates", k, v); stub.RunTimers() end
+    local p = added("nameplate3")
+    local b = p.badge
+    T.eq(b:GetWidth(), DaylightUI:Get("Nameplates", "minionSize"), "0: the enemy badges' size, as before")
+    set("friendly.totemSize", 44)
+    T.eq(b:GetWidth(), 44, "its own size")
+    set("friendly.totemIcon", "spell")
+    T.eq(b.icon.__texture, 1000 + 5394, "the spell's own icon, every rank by its first")
+    T.truthy(b.masked, "cut round in a round badge")
+    set("friendly.totemIcon", "element")
+    T.eq(b.icon.__texture, NP.Minion.ELEMENT_ICONS.water, "its element's picture")
+    set("friendly.totemShape", "square")
+    T.falsy(b.ring:IsShown(), "no ring on a square")
+    T.falsy(b.masked, "a square icon needs no mask")
+    T.truthy(b.back:IsShown())
+    for _, e in ipairs(b.edges) do
+        T.truthy(e:IsShown(), "an edge on each side")
+        T.rgb(e.__vertex, NP.Minion.COLORS.water, "in the element's color")
+    end
+    set("friendly.totemBorder", false)
+    for _, e in ipairs(b.edges) do T.falsy(e:IsShown(), "border off") end
+    T.eq(b.icon:GetWidth(), 44, "the picture takes the whole badge")
+    set("friendly.totemShape", "round")
+    T.falsy(b.ring:IsShown(), "no ring with the border off")
+    set("friendly.totemIcon", "portrait")
+    T.falsy(b.masked, "the game's portrait is round already")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: a totem put down for the first time gets its picture once the game has it", function()
     login(function() stub.spells = { [5394] = { name = "Healing Stream Totem" } } end)
     stub.units.nameplate3 = { name = "Healing Stream Totem", minion = true, reaction = 5, health = 5, maxHealth = 5 }
@@ -3920,6 +3956,51 @@ local function withExecuteCurves(fn)
     _G.C_CurveUtil, _G.UnitHealthPercent = saved.curves, saved.pct
     if not ok then error(err, 0) end
 end
+
+T.test("nameplates: friendly bars can wait for a fight, and name only until then", function()
+    login()
+    DaylightUI:Set("Nameplates", "friendly.enabled", true)
+    DaylightUI:Set("Nameplates", "friendly.barWhen", "combat")
+    stub.RunTimers()
+    local p, mob = added("nameplate2"), added("nameplate1")
+    T.falsy(p.hp:IsShown(), "out of a fight: just the name")
+    T.truthy(mob.hp:IsShown(), "enemies keep their bar")
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    T.truthy(p.hp:IsShown(), "a fight: the bar shows at once")
+    T.eq(stub.Plain(p.health:GetValue()), stub.units.nameplate2.health, "with today's health")
+    stub.FireEvent("PLAYER_REGEN_ENABLED")
+    T.falsy(p.hp:IsShown(), "back to the name after it")
+    DaylightUI:Set("Nameplates", "friendly.barWhen", "always")
+    stub.RunTimers()
+    T.truthy(p.hp:IsShown(), "always: as before")
+end)
+
+T.test("nameplates: friendly bars can show when hurt, through the full-health curve", function()
+    withExecuteCurves(function(alpha)
+        login()
+        DaylightUI:Set("Nameplates", "friendly.enabled", true)
+        DaylightUI:Set("Nameplates", "friendly.barWhen", "hurt")
+        stub.RunTimers()
+        stub.units.nameplate2.health = 100
+        local p = added("nameplate2")
+        T.truthy(p.hp:IsShown(), "laid out, so it can show the moment they're hurt")
+        T.eq(alpha(p.hp), 0, "full health: see-through")
+        T.eq(type(p.hp:GetAlpha()), "table", "the curve's secret answer, handed on whole")
+        stub.units.nameplate2.health = 40
+        stub.FireEvent("UNIT_HEALTH", "nameplate2")
+        T.eq(alpha(p.hp), 1, "hurt: it shows")
+        stub.units.nameplate2.health = 100
+        stub.FireEvent("UNIT_HEALTH", "nameplate2")
+        stub.FireEvent("PLAYER_REGEN_DISABLED")
+        T.eq(alpha(p.hp), 1, "in a fight it always shows")
+        stub.FireEvent("PLAYER_REGEN_ENABLED")
+        T.eq(alpha(p.hp), 0)
+        DaylightUI:Set("Nameplates", "friendly.barWhen", "always")
+        stub.RunTimers()
+        T.eq(alpha(p.hp), 1, "always: back to full")
+    end)
+end)
+
 
 T.test("nameplates: the execute range lights up once an enemy is in it (health secret)", function()
     withExecuteCurves(function(alpha)

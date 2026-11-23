@@ -145,8 +145,13 @@ ns.DEFAULTS = {
     -- With enabled off, friendly plates show just the name.
     friendly = {
         enabled = false, height = 4, width = 170,
+        barWhen = "always", -- "always", "combat" (only in your fights), "hurt" (in a fight or below full health)
         hideInInstance = false, -- turn off the game's friendly plates in dungeons, raids and battlegrounds (Manager.ApplyInstanceFriends)
         totems = true, -- friendly totems as a round badge in their element's color instead of their name
+        totemSize = 0, -- their badge's size, 0 = the enemy badges' (minionSize)
+        totemIcon = "portrait", -- "portrait" (the totem itself), "spell" (its spell's icon) or "element"
+        totemShape = "round", -- "round" or "square"
+        totemBorder = true, -- the ring or edge in the element's color
         percent = false, healthFormat = "percent", percentSign = true, healthSize = 0,
         level = false,
         power = false, -- power bar under friendly health bars (who: shared powerShow)

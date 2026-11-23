@@ -1097,6 +1097,10 @@ function Manager.Start()
             C_Timer.After(0, recolor)
         end)
     end
+    -- Friendly bars that wait for a fight (friendly.barWhen).
+    ns.Plate.inFight = plain(UnitAffectingCombat, "player") == true
+    DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function() ns.Plate.FightChanged(true) end)
+    DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() ns.Plate.FightChanged(false) end)
     -- Someone joined or left: friendly names in the group color update
     -- (Plate.InGroupName), only on plates whose answer changed.
     DUI.RegisterEvent("GROUP_ROSTER_UPDATE", DUI.Soon(function()
