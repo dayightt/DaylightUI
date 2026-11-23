@@ -436,6 +436,13 @@ T.test("nameplates: the execute glow and spark light with the band, only in rang
         stub.RunTimers()
         T.eq(e.lit:GetTexture(), DaylightUI.Media.Fetch("statusbar", "glass"), "its own bar texture")
         T.falsy(e.lit.__wrap == "REPEAT", "stretched, not tiled")
+        -- The faint band's brightness, up to full.
+        local function bandAlpha() local _, _, _, a = e.band:GetVertexColor(); return a end
+        T.eq(bandAlpha(), 0.1, "faint by default")
+        DaylightUI:Set("Nameplates", "executeRestStrength", 1)
+        stub.RunTimers()
+        T.eq(bandAlpha(), 1, "full when turned all the way up")
+        T.truthy(e.band:IsShown(), "shown out of range too")
         DaylightUI:Set("Nameplates", "executeGlow", false)
         DaylightUI:Set("Nameplates", "executeSpark", false)
         stub.RunTimers()

@@ -103,6 +103,7 @@ ns.DEFAULTS = {
     executeStrength = 0.45, -- ...brightness once the enemy is in range
     executeLineSize = 2, -- ...edge line thickness in px (0 = none)
     executeRest = true, -- ...faint band before the enemy is in range
+    executeRestStrength = 0.1, -- ...its brightness (1 = as bright as the lit band can be)
     executeGlow = false, -- ...a soft glow round the health bar once in range
     executeSpark = false, -- ...a bright spark on the line once in range
     debuffs = true,         -- your debuffs above the bar

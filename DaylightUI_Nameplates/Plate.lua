@@ -107,7 +107,6 @@ Plate.EXECUTE_CLASSES = {
 }
 Plate.EXECUTE_ICON = 5308 -- the icon for "Always" on a class with no finisher (Execute's)
 Plate.EXECUTE_ICON_SIZE = 1.25 -- the icon, in bar heights
-Plate.EXECUTE_REST = 0.1 -- the band while the unit is above it (executeRest)
 Plate.EXECUTE_LINE = 0.85 -- the line at its edge (executeLineSize px)
 -- "pulse": the lit band dims down to low, seconds per brighten or dim (the threat
 -- pulse's slow speed).
@@ -1314,7 +1313,7 @@ function Plate.LayoutExecute(p, show)
     local strength = tonumber(c.executeStrength) or 0.45
     local lined = style == "line" or style == "icon"
     e.band:SetShown(not lined and c.executeRest ~= false)
-    Plate.PaintExecute(e.band, Plate.EXECUTE_REST, c, fade)
+    Plate.PaintExecute(e.band, tonumber(c.executeRestStrength) or ns.DEFAULTS.executeRestStrength, c, fade)
     Plate.PaintExecute(e.line, Plate.EXECUTE_LINE, c, false)
     -- The piece that lights: the band or the whole fill; none for "line".
     local hot
