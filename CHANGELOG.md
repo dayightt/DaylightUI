@@ -1,3 +1,28 @@
+# DaylightUI 2.2.3
+
+ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.
+
+## New
+- Bags: With ItemTree installed, your bags show its keep, sell and use advice
+- Loot rolls: Your roll card folds after you pick while others roll. Click or hover it to see who rolled what
+- Profiles: Import a profile into the one you use, taking only the parts you like, such as someone's frames
+
+## Changed
+- Profiles: A profile made on another screen, ultrawide, 16:10 or a higher resolution, now fits yours
+- Tooltip: Elites and rares stand out with a gold or silver glow and a + or R after their level, and party names under a mob's quests wear class colors
+- Little touches: Sell prices labeled Vendor, no health caption on player tooltips, and the Auction House gold sits by its header
+
+## Fixed
+- Professions: No more long dark bar across the screen after switching to the game's profession window
+- Inspect: Gear slots no longer run into each other and item names aren't cut off
+- Auction House: Hovering the item you're selling shows its tooltip
+- DoT shade: No longer runs short: it counts your spell and attack power and every tick
+- DoT shade: Shows on dungeon nameplates, skips bleed-immune mobs, and keeps Rip and Rupture when an attack misses
+- Mailbox: Nothing cut off in longer languages, and lists follow when you resize the window
+- Tooltip: Questie's drop chances show again on mobs for quests the game already lists
+- Quests: Dungeon quest rewards and experience show in the quest log right away, without a /reload
+- Languages: Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel
+
 # DaylightUI 2.2.2
 
 Channel ticks on your cast bar, an equipment set data text and Disenchant that stays on in your bags. Plus fixes for vanishing nameplates.

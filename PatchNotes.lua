@@ -11,31 +11,25 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", new = {
-        { "Nameplates", "With the Does It Die addon installed, your nameplates and target frame can show its DoT numbers" },
-        { "Bags", "With the ItemTree addon installed, your bags show what it says to keep, sell or use now, selling junk never sells what it keeps, and its tooltip advice gets a tidy section" },
-        { "Loot rolls", "Click a loot roll card to fold or open its list of who picked and rolled what" },
-        { "Profiles", "Importing a profile can go straight into the one you use: pick only the parts you like, such as someone's frames, and keep everything else" },
+    { version = "Unreleased" },
+    { version = "2.2.3", date = "2026-11-22", summary = "ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.", new = {
+        { "Bags", "With ItemTree installed, your bags show its keep, sell and use advice" },
+        { "Loot rolls", "Your roll card folds after you pick while others roll. Click or hover it to see who rolled what" },
+        { "Profiles", "Import a profile into the one you use, taking only the parts you like, such as someone's frames" },
     }, fixed = {
-        { "Professions", "The game's profession window no longer shows a long dark bar across the screen after you switch to it from the Daylight UI one" },
-        { "Inspect", "The inspect window has room for the bigger item icons again, so slots no longer run into each other and item names aren't cut off" },
-        { "Auction House", "Hovering the item you're selling on the Sell page shows its tooltip" },
-        { "Unit frames", "Rip and Rupture no longer vanish from the DoT shade when an auto attack misses at the same moment" },
-        { "Unit frames", "Rake and other bleeds no longer show a DoT shade on mobs that are immune to bleeds" },
-        { "Nameplates", "DoT shades now show on nameplates in dungeons, and dotting a second mob no longer clears the first" },
-        { "Unit frames", "Two DoTs of the same school ticking at the same moment are both counted" },
-        { "Unit frames", "The DoT shade now counts your spell power and attack power, learned from the game's damage meter after each fight, so it no longer runs short" },
-        { "Mailbox", "Filters, the ledger and the letter box no longer get cut off in longer languages, and the lists follow when you resize the window" },
+        { "Professions", "No more long dark bar across the screen after switching to the game's profession window" },
+        { "Inspect", "Gear slots no longer run into each other and item names aren't cut off" },
+        { "Auction House", "Hovering the item you're selling shows its tooltip" },
+        { "DoT shade", "No longer runs short: it counts your spell and attack power and every tick" },
+        { "DoT shade", "Shows on dungeon nameplates, skips bleed-immune mobs, and keeps Rip and Rupture when an attack misses" },
+        { "Mailbox", "Nothing cut off in longer languages, and lists follow when you resize the window" },
         { "Tooltip", "Questie's drop chances show again on mobs for quests the game already lists" },
-        { "Quests", "The quest log shows item rewards and experience for dungeon quests right away, without a /reload" },
+        { "Quests", "Dungeon quest rewards and experience show in the quest log right away, without a /reload" },
         { "Languages", "Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel" },
     }, changed = {
-        { "Profiles", "A profile made on another screen, ultrawide, 16:10 or a higher resolution, now fits yours: frames keep their size for the screen and their place near the edges" },
-        { "Loot rolls", "After you pick, your roll card shrinks while the others roll. Hover it to see the whole group" },
-        { "Tooltip", "An item's sell price is now labeled Vendor" },
-        { "Tooltip", "Elites and rares stand out at a glance: a gold or silver glow on their portrait, a + or R after their level, and their tag comes first" },
-        { "Tooltip", "In a group, the names under a mob's quests are in each player's class color" },
-        { "Tooltip", "Pointing at an item no longer pops up what you're wearing next to it unless you hold Shift. Tooltip options can turn the automatic compare back on" },
+        { "Profiles", "A profile made on another screen, ultrawide, 16:10 or a higher resolution, now fits yours" },
+        { "Tooltip", "Elites and rares stand out with a gold or silver glow and a + or R after their level, and party names under a mob's quests wear class colors" },
+        { "Little touches", "Sell prices labeled Vendor, no health caption on player tooltips, and the Auction House gold sits by its header" },
     } },
     { version = "2.2.2", date = "2026-11-22", summary = "Channel ticks on your cast bar, an equipment set data text and Disenchant that stays on in your bags. Plus fixes for vanishing nameplates.", new = {
         { "Cast bars", "Your cast bar can mark each tick of a channel like Drain Life or Mind Flay, so you don't cut one short" },
