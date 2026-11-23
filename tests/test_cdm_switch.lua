@@ -52,7 +52,8 @@ local function fakeGame(saved)
         end,
         GetCooldownViewerCooldownInfo = function(id)
             if not flags[id] then return nil end
-            return { cooldownID = id, spellID = 1000 + id, flags = flags[id], isKnown = id ~= 33 }
+            local cat = (id == 11 and 0) or (id == 41 and 3) or 2
+            return { cooldownID = id, spellID = 1000 + id, flags = flags[id], isKnown = id ~= 33, category = cat }
         end,
     }
     _G.C_SpecializationInfo = {
@@ -83,8 +84,9 @@ local NAMES = { "C_EncodingUtil", "C_CooldownViewer", "C_SpecializationInfo", "G
 -- Loads the addon as a warrior with the game faked. opts.saved(encode) gives the
 -- string saved before login, opts.off turns Daylight UI's Cooldown Manager off,
 -- opts.switchOff one of the layout's per-character switches,
--- opts.switched is what an earlier session recorded, opts.arrived = false leaves
--- the saved data "not here yet" at login.
+-- opts.switched is what an earlier session recorded (opts.unhid the buffs it took
+-- out of a hidden row), opts.placed the cooldown ids placed in a Daylight UI layout
+-- of the class, opts.arrived = false leaves the saved data "not here yet" at login.
 local function world(opts)
     opts = opts or {}
     for _, name in ipairs(NAMES) do keep[name] = { rawget(_G, name) } end
@@ -101,6 +103,12 @@ local function world(opts)
     if opts.switchOff then stub.actionbars.CdmData.SetSwitch(opts.switchOff, false) end
     if opts.arrived ~= false then stub.FireEvent("COOLDOWN_VIEWER_DATA_LOADED") end
     if opts.switched then DaylightUI.DB.Character().cdmSwitched = opts.switched end
+    if opts.unhid then DaylightUI.DB.Character().cdmUnhid = opts.unhid end
+    if opts.placed then
+        local pieces = {}
+        for _, id in ipairs(opts.placed) do pieces[id] = { x = 0, y = 0, shape = "icon" } end
+        stub.actionbars.CdmData.NewProfile("Mine", "WARRIOR", { pieces = pieces, chains = {} })
+    end
     stub.FireEvent("PLAYER_LOGIN")
     return stub.actionbars.CdmSwitch, encode
 end
@@ -164,6 +172,30 @@ T.test("cdm switch: a saved layout keeps everything the player set; only buffs w
     -- Nothing left to do: the next look writes nothing.
     T.eq(S.Run(), 0)
     T.eq(game.writes, 1, "written once")
+    done()
+end)
+
+T.test("cdm switch: a buff hidden in the game's layout but placed in Daylight UI's is switched back on", function()
+    -- 34 is shown by default and 32 hidden by default; the player hid both by hand
+    -- in the game's settings. Only 34 is placed, so only 34 comes back.
+    local S = world({ placed = { 34 }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32, 34 } } } } }, { [1] = "Mine" } })
+    end })
+    local rows = saved()[3][TAG][1][2]
+    T.deq(rows[-2], { 32 }, "a hidden buff nobody placed stays hidden")
+    T.deq(rows[2], { 34, 31, 33 }, "the placed one is back in its row, so the game makes its icon")
+    T.deq(DaylightUI.DB.Character().cdmUnhid, { [34] = -2 }, "where it was is kept, to put it back")
+    T.eq(DaylightUI.DB.Character().cdmSwitched[34], 2)
+    T.eq(S.Run(), 0, "nothing left to do")
+    done()
+    -- Daylight UI's Cooldown Manager switched off: it goes back where the player had it.
+    world({ off = true, switched = { [31] = 2, [33] = 2, [34] = 2 }, unhid = { [34] = -2 }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32 }, [2] = { 31, 33, 34 } } } } }, { [1] = "Mine" } })
+    end })
+    rows = saved()[3][TAG][1][2]
+    T.deq(rows[-2], { 32, 34 }, "hidden again, as the player left it")
+    T.eq(rows[2], nil)
+    T.eq(DaylightUI.DB.Character().cdmUnhid, nil)
     done()
 end)
 

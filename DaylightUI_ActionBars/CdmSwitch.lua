@@ -22,6 +22,11 @@
 -- [4] layout id -> name. A layout: [1] the order, [2] row -> ids moved there,
 -- [3] alerts. A buff the player hid by hand is an id under a hidden row in [2];
 -- one hidden only by default has no entry at all. Tag = class id * 10 + spec.
+--
+-- A buff hidden by hand is left alone, unless it is placed in a Daylight UI layout
+-- of the class: the game's icon is the only thing that can say in a fight whether
+-- it dropped, and Daylight UI keeps the game's icon out of sight anyway. Its old
+-- row is remembered, so it goes back there if Daylight UI stops laying things out.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -129,6 +134,51 @@ local function make(t, tag, name)
     return layout
 end
 
+-- The game's rows that hide a spell: Enum.CooldownViewerCategory HiddenSpell, HiddenAura.
+local HIDDEN_ROWS = { -1, -2 }
+
+-- Every game cooldown id placed in a Daylight UI layout of this class whose game row
+-- is a buff row: { [id] = that row }.
+function Switch.Placed()
+    local out = {}
+    for _, entry in ipairs(Data.Profiles()) do
+        local p = Data.Profile(entry.id)
+        for id in pairs(p and type(p.set.pieces) == "table" and p.set.pieces or {}) do
+            if type(id) == "number" then
+                local info = Data.Info(id)
+                local row = info and info.category
+                if row == Switch.ROWS[1] or row == Switch.ROWS[2] then out[id] = row end
+            end
+        end
+    end
+    return out
+end
+
+-- Takes each placed buff out of the hidden row the player put it in and back into
+-- its own row. unhid collects { [id] = the hidden row it came from }.
+local function unhide(layout, placed, added, unhid)
+    local rows, n = type(layout[2]) == "table" and layout[2] or nil, 0
+    if not rows then return 0 end
+    for _, from in ipairs(HIDDEN_ROWS) do
+        local ids = rows[from]
+        if type(ids) == "table" then
+            for i = #ids, 1, -1 do
+                local id = ids[i]
+                local row = placed[id]
+                if row then
+                    table.remove(ids, i)
+                    if type(rows[row]) ~= "table" then rows[row] = {} end
+                    table.insert(rows[row], id)
+                    added[id], unhid[id] = row, from
+                    n = n + 1
+                end
+            end
+            if next(ids) == nil then rows[from] = nil end
+        end
+    end
+    return n
+end
+
 -- Every id the layout already places somewhere, hidden rows included.
 local function placed(layout)
     local set = {}
@@ -163,35 +213,55 @@ local function switchOn(layout, hidden, added)
 end
 
 -- Switches the hidden buffs on in every layout of the tag in t, making and picking
--- a layout when the tag is on the game's default. added collects { [id] = row }.
+-- a layout when the tag is on the game's default, and brings placed buffs back out
+-- of a hidden row. added collects { [id] = row }, unhid { [id] = hidden row }.
 -- Returns how many entries were written.
-function Switch.Apply(t, tag, hidden, added, name)
-    if next(hidden) == nil then return 0 end
+function Switch.Apply(t, tag, hidden, added, name, placed, unhid)
+    placed, unhid = placed or {}, unhid or {}
+    if next(hidden) == nil and next(placed) == nil then return 0 end
     if not inUse(t, tag) and not make(t, tag, name) then return 0 end
     local n = 0
     for _, layout in pairs(t[3][tag]) do
-        if type(layout) == "table" then n = n + switchOn(layout, hidden, added) end
+        if type(layout) == "table" then
+            n = n + unhide(layout, placed, added, unhid) + switchOn(layout, hidden, added)
+        end
     end
     return n
 end
 
--- Takes back what Apply added: each id still in the row it was put in. One the
--- player has since moved stays where they put it. Returns how many were taken out.
-function Switch.Remove(t, tag, added)
+-- Takes back what Apply added: each id still in the row it was put in, and one it
+-- brought out of a hidden row goes back there. One the player has since moved
+-- stays where they put it. Returns how many were taken out.
+function Switch.Remove(t, tag, added, unhid)
+    unhid = unhid or {}
     local layouts = type(t[3]) == "table" and t[3][tag]
     if type(layouts) ~= "table" then return 0 end
     local n = 0
     for _, layout in pairs(layouts) do
         local rows = type(layout) == "table" and layout[2]
         if type(rows) == "table" then
-            local empty = {}
+            local back = {}
             for row, ids in pairs(rows) do
                 if type(ids) == "table" then
                     for i = #ids, 1, -1 do
-                        if added[ids[i]] == row then table.remove(ids, i); n = n + 1 end
+                        local id = ids[i]
+                        if added[id] == row then
+                            table.remove(ids, i)
+                            if unhid[id] then back[#back + 1] = id end
+                            n = n + 1
+                        end
                     end
-                    if next(ids) == nil then empty[#empty + 1] = row end
                 end
+            end
+            table.sort(back)
+            for _, id in ipairs(back) do
+                local from = unhid[id]
+                if type(rows[from]) ~= "table" then rows[from] = {} end
+                table.insert(rows[from], id)
+            end
+            local empty = {}
+            for row, ids in pairs(rows) do
+                if type(ids) == "table" and next(ids) == nil then empty[#empty + 1] = row end
             end
             for _, row in ipairs(empty) do rows[row] = nil end
         end
@@ -238,12 +308,16 @@ function Switch.Run()
     local n
     if Switch.Wanted() then
         local added = type(char.cdmSwitched) == "table" and char.cdmSwitched or {}
-        n = Switch.Apply(t, tag, Switch.Hidden(), added, layoutName(classID, spec))
-        if n > 0 then char.cdmSwitched = added end
+        local unhid = type(char.cdmUnhid) == "table" and char.cdmUnhid or {}
+        n = Switch.Apply(t, tag, Switch.Hidden(), added, layoutName(classID, spec), Switch.Placed(), unhid)
+        if n > 0 then
+            char.cdmSwitched = added
+            if next(unhid) ~= nil then char.cdmUnhid = unhid end
+        end
     else
         if type(char.cdmSwitched) ~= "table" then return 0 end
-        n = Switch.Remove(t, tag, char.cdmSwitched)
-        char.cdmSwitched = nil
+        n = Switch.Remove(t, tag, char.cdmSwitched, char.cdmUnhid)
+        char.cdmSwitched, char.cdmUnhid = nil, nil
     end
     if n == 0 then return 0 end
     local new = Switch.Encode(t)
