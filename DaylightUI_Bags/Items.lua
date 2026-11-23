@@ -1000,16 +1000,25 @@ local function notAboutUse(text)
     return prefix ~= nil and prefix ~= "" and text:sub(1, #prefix) == prefix
 end
 
+-- One of the game's format strings as an anchored pattern that reads its line
+-- back, each number captured. Other languages number the holes (%1$d) and
+-- write plurals as |4one:many;, so those are folded before escaping.
+function Items.Pattern(fmt)
+    if type(fmt) ~= "string" then return nil end
+    local f = fmt:gsub("|4[^;]*;", "\1")
+    f = f:gsub("%%%d*%$?([ds])", function(kind) return kind == "d" and "\2" or "\1" end)
+    f = f:gsub("%%%%", "%%")
+    f = f:gsub("([%%%^%$%(%)%.%[%]%*%+%-%?])", "%%%1")
+    f = f:gsub("\1", ".-"):gsub("\2", "(%%d+)")
+    return "^" .. f .. "$"
+end
+
 -- The game's "Requires Cooking (110)" line as a pattern, built once from its
 -- own words so it reads in every language.
 local skillLine
 local function skillPattern()
     if skillLine == nil then
-        skillLine = false
-        if type(ITEM_MIN_SKILL) == "string" then
-            local p = ITEM_MIN_SKILL:gsub("([%(%)%.%[%]%+%-%*%?%^%$])", "%%%1")
-            skillLine = "^" .. p:gsub("%%s", ".+"):gsub("%%d", "%%d+") .. "$"
-        end
+        skillLine = Items.Pattern(ITEM_MIN_SKILL) or false
     end
     return skillLine or nil
 end

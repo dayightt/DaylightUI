@@ -37,9 +37,7 @@ end
 -- How many slots the plain bag in bag/slot has, read from its tooltip's size line
 -- (CONTAINER_SLOTS, "%d Slot %s"), or nil when it can't be read.
 local function sizePattern()
-    local f = type(CONTAINER_SLOTS) == "string" and CONTAINER_SLOTS or "%d Slot %s"
-    f = f:gsub("([%^%$%(%)%.%[%]%*%+%-%?])", "%%%1"):gsub("%%d", "(%%d+)"):gsub("%%s", ".-")
-    return "^" .. f .. "$"
+    return ns.Items.Pattern(type(CONTAINER_SLOTS) == "string" and CONTAINER_SLOTS or "%d Slot %s")
 end
 local function bagSize(bag, slot)
     local tip = C_TooltipInfo and C_TooltipInfo.GetBagItem

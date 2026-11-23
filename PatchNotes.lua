@@ -14,6 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Plugins", "Other addons can tell when your Cooldown Manager spells are ready, usable or have their buff up" },
     }, fixed = {
+        { "Bags", "No more error opening your bags on a French client" },
         { "DoT shade", "No more error in dungeons when your target's target takes a hit" },
         { "Professions", "Clicking someone's profession in chat opens their recipes every time, not your own or nothing" },
         { "Controller", "Placing a character macro on your action bars with a controller works again" },

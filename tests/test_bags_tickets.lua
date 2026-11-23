@@ -99,3 +99,18 @@ T.test("bags: the Clean up toward the end switch is on when the game's right-to-
     T.eq(flag, true, "off puts the game's normal fill back")
     C_Container.GetSortBagsRightToLeft, C_Container.SetSortBagsRightToLeft = get, set
 end)
+
+-- Other languages number a format's holes (%1$d) and spell plurals as
+-- |4one:many; (seen on a French client). Reading a bag's size line built a
+-- broken pattern from that, and every bag size read errored.
+T.test("bags: a game format with numbered holes and plurals still reads back", function()
+    local Items = stub.bags.Items
+    local fr = Items.Pattern("%1$d |4emplacement:emplacements; %2$s")
+    T.eq(tonumber(("16 emplacements Sac"):match(fr)), 16, "French bag size line")
+    T.eq(tonumber(("1 emplacement Sac"):match(fr)), 1, "singular too")
+    local en = Items.Pattern("%d Slot %s")
+    T.eq(tonumber(("14 Slot Bag"):match(en)), 14, "English still reads")
+    local skill = Items.Pattern("Requiert %2$s (%1$d)")
+    T.eq(tonumber(("Requiert Cuisine (110)"):match(skill)), 110, "a numbered skill line")
+    T.eq(("50% off (3)"):match(Items.Pattern("50%% off (%d)")), "3", "a literal percent stays literal")
+end)
