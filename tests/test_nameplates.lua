@@ -4002,6 +4002,41 @@ T.test("nameplates: friendly bars can show when hurt, through the full-health cu
 end)
 
 
+T.test("nameplates: a hidden hurt bar takes your target's outline, glow and arrows with it", function()
+    withExecuteCurves(function(alpha)
+        login()
+        DaylightUI:Set("Nameplates", "friendly.enabled", true)
+        DaylightUI:Set("Nameplates", "friendly.barWhen", "hurt")
+        DaylightUI:Set("Nameplates", "targetArrows", "sides")
+        stub.RunTimers()
+        stub.units.nameplate2.health = 100
+        local p = added("nameplate2")
+        stub.units.target = stub.units.nameplate2
+        stub.FireEvent("PLAYER_TARGET_CHANGED")
+        stub.RunTimers()
+        T.truthy(p.outline:IsShown(), "your target is marked")
+        T.eq(alpha(p.hp), 0, "full health: bar hidden")
+        T.eq(alpha(p.outline), 0, "no outline round a hidden bar")
+        T.eq(alpha(p.arrows.left:GetParent()), 0, "no arrows pointing at nothing")
+        DaylightUI:Set("Nameplates", "targetStyle", "glow")
+        stub.RunTimers()
+        T.eq(alpha(p.glow), 0, "no glow either")
+        stub.units.nameplate2.health = 40
+        stub.FireEvent("UNIT_HEALTH", "nameplate2")
+        T.eq(alpha(p.glow), 1, "hurt: the mark comes back with the bar")
+        T.eq(alpha(p.outline), 1)
+        stub.units.nameplate2.health = 100
+        stub.FireEvent("UNIT_HEALTH", "nameplate2")
+        stub.FireEvent("PLAYER_REGEN_DISABLED")
+        T.eq(alpha(p.glow), 1, "in a fight it always shows")
+        stub.FireEvent("PLAYER_REGEN_ENABLED")
+        DaylightUI:Set("Nameplates", "friendly.barWhen", "always")
+        stub.RunTimers()
+        T.eq(alpha(p.glow), 1, "always: back to full")
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end)
+end)
+
 T.test("nameplates: the execute range lights up once an enemy is in it (health secret)", function()
     withExecuteCurves(function(alpha)
         local ns = login()

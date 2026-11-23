@@ -222,6 +222,15 @@ function Plate.NameOnly(p, c)
     return p.object or (p.friendly and not c.friendly.enabled) or waitsForFight(p, c) or false
 end
 
+-- What goes with the bar when "hurt" hides it: your target's outline (and its
+-- light), its glow and the target arrows. All draw on the plate, not the bar.
+local function setHeldAlpha(p, a)
+    DUI.SafeCall(p.hp.SetAlpha, p.hp, a)
+    DUI.SafeCall(p.outline.SetAlpha, p.outline, a)
+    DUI.SafeCall(p.glow.SetAlpha, p.glow, a)
+    if p.arrowHost then DUI.SafeCall(p.arrowHost.SetAlpha, p.arrowHost, a) end
+end
+
 -- "hurt": out of a fight the bar's alpha comes from the full-health curve,
 -- 1 below full and 0 at full, handed straight to SetAlpha.
 function Plate.UpdateHurtBar(p, c)
@@ -231,7 +240,7 @@ function Plate.UpdateHurtBar(p, c)
     if not hold then
         if p.hurtHeld then
             p.hurtHeld = nil
-            p.hp:SetAlpha(1)
+            setHeldAlpha(p, 1)
         end
         return
     end
@@ -241,7 +250,7 @@ function Plate.UpdateHurtBar(p, c)
         local ok, v = DUI.SafeReturn(UnitHealthPercent, p.unit, true, curve)
         if ok and type(v) ~= "nil" then a = v end
     end
-    DUI.SafeCall(p.hp.SetAlpha, p.hp, a)
+    setHeldAlpha(p, a)
 end
 
 -- A fight started or ended: friendly plates that wait for one change.
@@ -509,9 +518,13 @@ function Plate.Create(parent, sample)
     p.marker:SetTexture(Plate.MARKER_SHEET)
     p.marker:SetSize(Plate.MARKER, Plate.MARKER)
     p.marker:Hide()
+    -- The arrows sit on their own frame so a hidden friendly bar can take them
+    -- along (Plate.UpdateHurtBar) without fighting their own fades.
+    p.arrowHost = CreateFrame("Frame", nil, p)
+    p.arrowHost:SetAllPoints(p)
     p.arrows = {}
     for key, turn in pairs(Plate.ARROW_TURN) do
-        local a = p:CreateTexture(nil, "OVERLAY")
+        local a = p.arrowHost:CreateTexture(nil, "OVERLAY")
         a:SetTexture(Plate.ARROW_ART)
         a:SetRotation(turn)
         a:Hide()

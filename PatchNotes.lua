@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         { "Loot rolls", "When two of the same item drop, rolling on one no longer closes the other before you can roll on it" },
         { "Cooldown Manager", "Slide over now closes the gap for buffs like Flurry and Enrage that were hidden in the game's own Cooldown Manager settings" },
         { "Character", "Swapped to the game's own character window, your gear slots sit over your model again, so you can hover and click them" },
+        { "Nameplates", "Targeting a friend at full health no longer leaves an empty outline where their hidden health bar would be" },
     } },
     { version = "2.2.4", date = "2026-11-23", summary = "Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.", new = {
         { "Cooldown Manager", "A group can attach to another frame, like your cast bar or raid frames, and follow it" },
