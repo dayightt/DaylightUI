@@ -20,6 +20,7 @@ ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades 
 - DoT shade: Shows on dungeon nameplates, skips bleed-immune mobs, and keeps Rip and Rupture when an attack misses
 - Mailbox: Nothing cut off in longer languages, and lists follow when you resize the window
 - Tooltip: Questie's drop chances show again on mobs for quests the game already lists
+- Tooltips: Pressing Shift while you already hover an item shows the comparison, on loot rolls, vendors, mail, the Auction House, professions and more
 - Quests: Dungeon quest rewards and experience show in the quest log right away, without a /reload
 - Languages: Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel
 

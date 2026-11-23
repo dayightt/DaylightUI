@@ -11,9 +11,7 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
-        { "Tooltips", "Pressing Shift while you already hover an item shows the comparison, on loot rolls, vendors, mail, the Auction House, professions and more" },
-    } },
+    { version = "Unreleased" },
     { version = "2.2.3", date = "2026-11-22", summary = "ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.", new = {
         { "Bags", "With ItemTree installed, your bags show its keep, sell and use advice" },
         { "Loot rolls", "Your roll card folds after you pick while others roll. Click or hover it to see who rolled what" },
@@ -26,6 +24,7 @@ DUI.PatchNotes = {
         { "DoT shade", "Shows on dungeon nameplates, skips bleed-immune mobs, and keeps Rip and Rupture when an attack misses" },
         { "Mailbox", "Nothing cut off in longer languages, and lists follow when you resize the window" },
         { "Tooltip", "Questie's drop chances show again on mobs for quests the game already lists" },
+        { "Tooltips", "Pressing Shift while you already hover an item shows the comparison, on loot rolls, vendors, mail, the Auction House, professions and more" },
         { "Quests", "Dungeon quest rewards and experience show in the quest log right away, without a /reload" },
         { "Languages", "Better Simplified Chinese thanks to Levis, and every missing Spanish text translated thanks to Ángel" },
     }, changed = {
