@@ -151,11 +151,12 @@ end
 -- Plugins (DaylightUI.API, kind "cdmpiece"): each shown piece's frame (Daylight UI's,
 -- whatever draws the spell inside it), by its key, with what it shows. Two
 -- tables kept and swapped, so a pass makes no garbage.
-Rows.pieceInfo = setmetatable({}, weak)   -- piece frame -> { key, spellID, shape, drawnBy }
+Rows.pieceInfo = setmetatable({}, weak)   -- piece frame -> { key, spellID, shape, drawnBy, chain, item }
 local toldNow, toldLast, toldEver = {}, {}, setmetatable({}, weak)
 function Rows.ReportPieces(g, items, blocks)
     local R = DUI.APIReport
     for f in pairs(toldNow) do toldNow[f] = nil end
+    local set = Data.Get(g)
     for id, item in pairs(items) do
         local f = frames[g] and frames[g].pieces[id]
         if f then
@@ -164,6 +165,9 @@ function Rows.ReportPieces(g, items, blocks)
             if not info then info = {}; Rows.pieceInfo[f] = info end
             info.key, info.shape, info.drawnBy = key, blocks[id] and blocks[id].kind, drawn[id]
             info.spellID = (ns.CdmOwn and ns.CdmOwn.SpellOf(id)) or Fx.SpellOf(item)
+            info.item = item
+            local root = set.pieces[id] and Data.Root(set, id)
+            info.chain = root ~= nil and tostring(root) or key
             toldNow[f] = key
             if not toldEver[f] then
                 toldEver[f] = true
@@ -179,12 +183,37 @@ function Rows.ReportPieces(g, items, blocks)
     toldNow, toldLast = toldLast, toldNow
 end
 
--- The shown piece for a spell (any rank's key), or nil.
-function Rows.PieceOf(spellID)
+-- Whether a piece (its spell and key) is what a plugin asked for: a piece key
+-- ("11", "s100"), or a spell id of any rank.
+function Rows.Matches(want, spellID, key)
+    if type(want) == "string" then return key == want end
+    if type(want) ~= "number" then return false end
+    if spellID == want or key == tostring(want) then return true end
+    local C = ns.CdmCustom
+    local fam = C and C.KeyOfSpell(want)
+    if not fam then return false end
+    return key == fam or (type(spellID) == "number" and C.KeyOfSpell(spellID) == fam)
+end
+
+-- The shown piece for a spell (any rank) or a piece key, or nil.
+function Rows.PieceOf(want)
     for f, key in pairs(toldLast) do
         local info = Rows.pieceInfo[f]
-        if info and (info.spellID == spellID or key == tostring(spellID)) then return f end
+        if info and (info.spellID == want or key == tostring(want)) then return f end
     end
+    for f, key in pairs(toldLast) do
+        local info = Rows.pieceInfo[f]
+        if info and Rows.Matches(want, info.spellID, key) then return f end
+    end
+end
+
+-- What a shown piece reads now (Fx.State plus what it is), or nil.
+function Rows.StateOf(f)
+    local info = toldLast[f] and Rows.pieceInfo[f]
+    if not (info and info.item) then return nil end
+    local t = Fx.State(info.item)
+    t.key, t.spellID, t.shape, t.drawnBy, t.chain = info.key, info.spellID, info.shape, info.drawnBy, info.chain
+    return t
 end
 
 local function usable(item)
@@ -988,7 +1017,7 @@ function Rows.Update()
     end
     Fx.EndPass(told)
     -- Done here, not above, since a buff that's down may have closed up out of items.
-    for id, isDown in pairs(downs) do Fx.BuffMoment(set.pieces[id], items[id], isDown) end
+    for id, isDown in pairs(downs) do Fx.BuffMoment(set.pieces[id], items[id], isDown, id) end
 
     DUI.SafeCall(Rows.ReportPieces, g, items, blocks)
 

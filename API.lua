@@ -53,6 +53,8 @@ local OWN_EVENTS = { CraftShown = true, CraftHidden = true, CraftProfessionChang
     MeterFightStarted = true, MeterFightEnded = true, MeterReset = true,
     -- The Cooldown Manager's (1.7): spellID, piece key.
     CooldownReady = true, CooldownStarted = true,
+    -- 1.14: spellID, piece key (CooldownProc adds true or false).
+    CooldownUsable = true, CooldownProc = true, CooldownBuffUp = true, CooldownBuffDown = true,
     -- The tooltips' look switched (1.12): "rich" or "simple".
     TooltipStyleChanged = true }
 
@@ -145,6 +147,10 @@ function API.Off(handle)
     end
     if type(handle) == "table" and handle.painter == true then
         if stopPainterRef then stopPainterRef(handle) end
+        return
+    end
+    if type(handle) == "table" and handle.cooldownWatch == true then
+        for _, h in ipairs(handle.handles) do API.Off(h) end
         return
     end
     if type(handle) ~= "table" or handle.dead or not handle.event or not handle.fn then return end
@@ -776,12 +782,34 @@ function API.GetCooldownPiece(spellID)
     if not (Rows and type(spellID) == "number") then return nil end
     return Rows.PieceOf(spellID)
 end
--- What a piece shows: { key, spellID, shape ("icon" | "bar"), drawnBy }.
+-- What a piece shows: { key, spellID, shape ("icon" | "bar"), drawnBy, chain }.
 function API.CooldownPieceInfo(frame)
     local Rows = cdmRows()
     local info = Rows and type(frame) == "table" and Rows.pieceInfo[frame]
     if not info then return nil end
-    return { key = info.key, spellID = info.spellID, shape = info.shape, drawnBy = info.drawnBy }
+    return { key = info.key, spellID = info.spellID, shape = info.shape, drawnBy = info.drawnBy,
+        chain = info.chain }
+end
+
+-- What a shown piece reads now (1.14), by its frame, a spell id (any rank) or its
+-- key: a fresh table, every answer plain, nil where the game won't say.
+function API.CooldownState(what)
+    local Rows = cdmRows()
+    if not Rows then return nil end
+    local f = what
+    if type(what) ~= "table" then
+        if type(what) ~= "number" and type(what) ~= "string" then return nil end
+        f = Rows.PieceOf(what)
+    end
+    return f and Rows.StateOf(f) or nil
+end
+
+-- Opens the Cooldown Manager's layout editor (1.14). False in a fight or with it off.
+function API.OpenCooldownEditor()
+    local Rows = cdmRows()
+    local ns = Rows and barsNs()
+    if not (ns and ns.CdmEditor) or InCombatLockdown() then return false end
+    return ns.CdmEditor.Open() == true
 end
 
 -- Daylight UI's big frames by a fixed name (1.7), for a plugin to dock to or
@@ -1910,6 +1938,40 @@ function View.AttachCraftPane(v, width)
 end
 
 function View.On(v, event, fn) return API.On(event, fn, v.name) end
+
+-- One spell's Cooldown Manager moments (1.14). what = a spell id (any rank) or a
+-- piece key; handlers by moment, each (spellID, key), proc's with true or false,
+-- and changed(state) once now (when the piece shows) and after each of them.
+local WATCH = { ready = "CooldownReady", started = "CooldownStarted", usable = "CooldownUsable",
+    proc = "CooldownProc", buffUp = "CooldownBuffUp", buffDown = "CooldownBuffDown" }
+function View.WatchCooldown(v, what, handlers)
+    if not ((type(what) == "number" or str(what)) and type(handlers) == "table") then return nil end
+    if next(handlers) == nil then return nil end
+    for name, fn in pairs(handlers) do
+        if not (WATCH[name] or name == "changed") or type(fn) ~= "function" then
+            DUI.Print(string.format(L["%s: WatchCooldown has no moment called %s."], v.name, tostring(name)))
+            return nil
+        end
+    end
+    local changed = handlers.changed
+    local handle = { cooldownWatch = true, handles = {} }
+    for name, event in pairs(WATCH) do
+        local fn = handlers[name]
+        if fn or changed then
+            handle.handles[#handle.handles + 1] = API.On(event, function(sid, key, on)
+                local Rows = cdmRows()
+                if not (Rows and Rows.Matches(what, sid, key)) then return end
+                if fn then fn(sid, key, on) end
+                if changed then changed(API.CooldownState(key or sid)) end
+            end, v.name)
+        end
+    end
+    if changed then
+        local now = API.CooldownState(what)
+        if now then DUI.SafeCallAs(v.name, changed, now) end
+    end
+    return handle
+end
 
 function View.Paint(v, kind, fn, opts)
     local h = Report.StartPainter(v.name, kind, fn, opts)

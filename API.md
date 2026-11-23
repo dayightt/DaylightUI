@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 13
+print(API.major, API.minor)   -- 1, 14
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -839,23 +839,44 @@ that needs one). The tour is offered after them.
 - `me.ShowInstaller()` opens it again (from a command of yours, say). General > Plugins has a
   "Setup guide" button for it too. False when the window is busy or no page can show.
 
-## The Cooldown Manager (1.7)
+## The Cooldown Manager (1.7, 1.14)
 
 | Call | What it does |
 |---|---|
-| `API.GetCooldownPiece(spellID)` | The frame of the piece showing that spell, while it's placed and shown. |
-| `API.CooldownPieceInfo(frame)` | `{ key, spellID, shape ("icon" or "bar"), drawnBy }`. |
+| `API.GetCooldownPiece(spellID)` | The frame of the piece showing that spell, while it's placed and shown. Any rank of the spell finds it, and so does the piece's key. |
+| `API.CooldownPieceInfo(frame)` | `{ key, spellID, shape ("icon" or "bar"), drawnBy, chain }`. `chain` (1.14) is the key of the first piece of its group, so pieces with the same `chain` sit together. |
+| `API.CooldownState(what)` (1.14) | What a shown piece reads right now, by its frame, a spell id (any rank) or its key. A fresh table: `key`, `spellID`, `shape`, `drawnBy`, `chain`, `ready` and `onCooldown` (a real cooldown, never the global one), `usable` (castable now), `noPower` (only short of power), `proc` (the game's spell alert is on it), `buffUp` (its buff or debuff, as the game's own Cooldown Manager sees it), `glowing` (one of Daylight UI's glows is on). `nil` for a spell with no piece on show. |
+| `API.OpenCooldownEditor()` (1.14) | Opens the layout editor, as `/cdm` does. `false` in a fight or with Daylight UI's Cooldown Manager off. |
+| `me.WatchCooldown(what, handlers)` (1.14) | One spell's moments in one call. `what` is a spell id (any rank) or a piece key. `handlers` can hold `ready`, `started`, `usable`, `buffUp`, `buffDown` (each gets spellID, key), `proc` (spellID, key, on), and `changed(state)`, called once at once with `API.CooldownState`'s table (if the piece shows) and again after each moment. Returns a handle for `API.Off`, or `nil` for an unknown moment or nothing to watch. |
 
 Each placed piece is a frame of kind `"cdmpiece"` (its `unit` is the piece's key): `FrameMade`,
 `FrameUnitChanged`, `FrameRemoved` as pieces are placed and taken away, and `API.Attach` and
-`API.Glow` work on it. Events: `CooldownStarted` and `CooldownReady` (spellID, key), the moments
-Daylight UI's own light runs. Whatever draws inside the piece (often the game's own icon) is not
-yours to change.
+`API.Glow` work on it. Whatever draws inside the piece (often the game's own icon) is not yours to
+change: draw on the `API.Attach` holder.
+
+Events, each with the spell id and the piece's key: `CooldownStarted` and `CooldownReady` (1.7),
+the moments Daylight UI's own ready light runs; and since 1.14 `CooldownUsable` (it turns castable
+while off cooldown: a block for Revenge, a low target for Execute; not just rage coming back),
+`CooldownProc` (the game's spell alert came on or went off, with `true` or `false`; few spells
+have one on WoW: Forever), `CooldownBuffUp` and `CooldownBuffDown` (as the game's own item says,
+so a debuff on your target counts, and it follows a target swap).
+
+Every answer is a plain value, never a secret one, so you can compare them and use them in an `if`
+in a fight. Where the game won't say (it keeps some values secret), the answer is `nil`, never a
+guess. A buff-only piece hides while its buff is down (unless its group shows missing buffs), so
+it has no piece on show then: `CooldownState` is `nil`, and `CooldownBuffDown` came just before.
 
 ```lua
-me.On("CooldownReady", function(spellID)
-    if spellID == 12294 then API.Glow(API.GetCooldownPiece(12294), true) end
-end)
+local me = API.For("MyPlugin")
+me.WatchCooldown(12294, {   -- Mortal Strike, any rank
+    ready = function() API.Glow(API.GetCooldownPiece(12294), true) end,
+    started = function() API.Glow(API.GetCooldownPiece(12294), false) end,
+    changed = function(state)
+        if state and state.usable and not state.onCooldown then
+            -- castable right now
+        end
+    end,
+})
 ```
 
 ## The bags (1.7)

@@ -733,11 +733,26 @@ local function playSound(item, button, key)
     DUI.Sound.Alert(s)
 end
 
+-- Plugins hear the moments too (DaylightUI.API: CooldownReady, CooldownStarted,
+-- CooldownUsable, CooldownProc, CooldownBuffUp, CooldownBuffDown), by spell and
+-- the piece's key. id = the piece's key when the caller knows it better than the item.
+local function tell(event, item, id, on)
+    local R = DUI.APIReport
+    if not R.Wants(event) then return end
+    local key = id
+    if key == nil and item then key = item.cooldownID end
+    if secret(key) then key = nil end
+    local sid = id ~= nil and ns.CdmOwn and ns.CdmOwn.SpellOf(id) or nil
+    if sid == nil and item then sid = Fx.SpellOf(item) end
+    R.Event(event, sid, key ~= nil and tostring(key) or nil, on)
+end
+
 -- Called by CdmRows each pass for every piece whose buff state it can tell.
-function Fx.BuffMoment(piece, item, isDown)
+function Fx.BuffMoment(piece, item, isDown, id)
     if type(isDown) ~= "boolean" then return end
     local was = wasDown[piece]
     wasDown[piece] = isDown
+    if was ~= nil and was ~= isDown then tell(isDown and "CooldownBuffDown" or "CooldownBuffUp", item, id) end
     if was == true and not isDown then playSound(item, piece, "buffSound")
     elseif was == false and isDown then
         -- Really ended, not a new target's debuffs leaving view or a zone change
@@ -756,15 +771,6 @@ DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() targetAt = GetTime() end)
 -- cdState changed from was to now (both plain): ready or on cooldown. quiet = the
 -- light still runs but the sound waits (an aura's time ended over a cooldown that's
 -- still going).
--- Plugins hear it too (DaylightUI.API: CooldownReady, CooldownStarted), by spell.
-local function tell(event, item)
-    local R = DUI.APIReport
-    if not R.Wants(event) then return end
-    local key = item.cooldownID
-    if secret(key) then key = nil end
-    R.Event(event, Fx.SpellOf(item), key ~= nil and tostring(key) or nil)
-end
-
 local function moment(item, was, now, quiet)
     if was == true and now == false then
         Fx.Sweep(item)
@@ -1039,7 +1045,9 @@ local function readAlert(item)
     local m = _G.ActionButtonSpellAlertManager
     if type(m) ~= "table" or type(m.HasAlert) ~= "function" then return end
     local ok, up = pcall(m.HasAlert, m, item)
+    local was = alerts[item] == true
     alerts[item] = (ok and up == true) or nil
+    if was ~= (alerts[item] == true) then tell("CooldownProc", item, nil, not was) end
 end
 
 -- Castable now, per the game (plain in combat too). A secret or missing answer
@@ -1051,7 +1059,8 @@ local function readUsable(item)
     if not glow then usable[item] = nil end
     castable[item], short[item] = nil, nil
     if not (glow or kinds[item] == "icon" or Fx.Get(b, "onUnusable") ~= "show"
-        or Fx.Get(b, "onShort") ~= "show" or Fx.Get(b, "usableSound") ~= "none") then return end
+        or Fx.Get(b, "onShort") ~= "show" or Fx.Get(b, "usableSound") ~= "none"
+        or DUI.APIReport.Wants("CooldownUsable")) then return end
     local ok, can, noPower
     local C = ns.CdmCustom
     if C and C.ItemOf(item.cooldownID) then   -- an item with none left in your bags reads not usable
@@ -1091,7 +1100,10 @@ local function usableMoment(item)
     else return end
     local was = wasUsable[item]
     wasUsable[item] = now
-    if was == false and now then playSound(item, opts[item], "usableSound") end
+    if was == false and now then
+        playSound(item, opts[item], "usableSound")
+        tell("CooldownUsable", item)
+    end
 end
 
 -- Gray: true, false, or nil for the game's own. An element piece's cooldown totem,
@@ -1315,6 +1327,23 @@ local function refresh(item, read)
 end
 
 function Fx.Refresh(item) refresh(item, true) end
+
+-- What a held item reads now, every answer plain (nil = the game won't say). For
+-- plugins (DaylightUI.API.CooldownState): the same answers Daylight UI's own effects go by.
+function Fx.State(item, into)
+    local t = into or {}
+    local cd = cdState[item]
+    if buffOnly[item] then cd = nil end
+    t.onCooldown = cd
+    if cd ~= nil then t.ready = not cd else t.ready = nil end
+    local c = castable[item]
+    if type(c) == "boolean" then t.usable = c and not short[item]; t.noPower = short[item] == true
+    else t.usable, t.noPower = nil, nil end
+    t.proc = alerts[item] == true
+    if type(down[item]) == "boolean" then t.buffUp = not down[item] else t.buffUp = nil end
+    t.glowing = lit[item] == true
+    return t
+end
 refreshNow = function(item) refresh(item, false) end
 
 -- Whether a piece's buff is down (true), up (false) or unknown (nil), reported by

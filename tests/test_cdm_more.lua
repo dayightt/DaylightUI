@@ -5150,6 +5150,131 @@ T.test("cdm api: pieces are frames plugins find by spell, with ready and cooldow
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm api: a piece's state, its buff, usable and proc moments, and one watcher per spell (icon and bar)", function()
+    local DUI, AB, set, ess, bars = fxWorld()
+    DUI.DB.General().motion = false
+    withCategories({ [0] = { 11 }, [3] = { 21 } }, { [0] = { 11 }, [3] = { 21 } })
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        return { spellID = 100 + id, selfAura = false, hasAura = true }
+    end
+    _G.GetSpellBaseCooldown = function(sid) return sid == 111 and 6000 or 0 end
+    C_Spell.GetSpellInfo = function() return { castTime = 2000 } end
+    AB.CdmSpells.FACTS[111], AB.CdmSpells.FACTS[121] = { cd = 6, lasts = 18 }, { lasts = 18 }
+    AB.CdmOwn.Forget()
+    local cds = withCooldowns(ess)
+    cds[111] = { duration = 0 }
+    local can = {}
+    C_Spell.IsSpellUsable = function(sid) return can[sid] == true, false end
+    pass(AB)
+    local API = DUI.API
+    T.eq(API.major, 1); T.truthy(API.minor >= 14, "the CDM state calls are 1.14")
+    local log = {}
+    local function heard(what) for _, l in ipairs(log) do if l == what then return true end end return false end
+    for _, ev in ipairs({ "CooldownBuffUp", "CooldownBuffDown", "CooldownUsable", "CooldownProc" }) do
+        T.truthy(API.On(ev, function(sid, key, on)
+            log[#log + 1] = ev .. ":" .. tostring(sid) .. ":" .. tostring(key) .. (on ~= nil and (":" .. tostring(on)) or "")
+        end), ev .. " is an event")
+    end
+
+    local s = API.CooldownState(111)
+    T.eq(s.key, "11"); T.eq(s.spellID, 111); T.eq(s.shape, "icon")
+    T.eq(s.ready, true, "off cooldown"); T.eq(s.onCooldown, false)
+    T.eq(s.usable, false, "not castable yet"); T.eq(s.proc, false)
+    T.eq(API.CooldownState(API.GetCooldownPiece(111)).key, "11", "by its frame too")
+    T.isnil(API.CooldownState(999), "a spell with no piece")
+    T.isnil(API.CooldownState({}), "a frame that isn't a piece")
+
+    -- Usable: the condition coming true, off cooldown.
+    can[111] = true
+    stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers()
+    T.truthy(heard("CooldownUsable:111:11"), "usable")
+    T.eq(API.CooldownState(111).usable, true)
+
+    -- A proc: the game's spell alert on the item.
+    ActionButtonSpellAlertManager:ShowAlert(ess[1])
+    T.truthy(heard("CooldownProc:111:11:true"), "a proc")
+    T.eq(API.CooldownState(111).proc, true)
+    ActionButtonSpellAlertManager:HideAlert(ess[1])
+    T.truthy(heard("CooldownProc:111:11:false"), "and its end")
+
+    -- Buff up and down, as the game's own item says: icon and bar.
+    for _, case in ipairs({ { 111, "11", ess[1], "icon" }, { 121, "21", bars[1], "bar" } }) do
+        local sid, key, item, shape = case[1], case[2], case[3], case[4]
+        local function up(on)
+            if shape == "bar" then item:SetIsActive(on) else item:SetAura(on) end
+            stub.RunTimers()
+        end
+        up(false); pass(AB)
+        up(true); pass(AB)
+        T.truthy(heard("CooldownBuffUp:" .. sid .. ":" .. key), shape .. ": buff up")
+        T.eq(API.CooldownState(sid).buffUp, true, shape .. ": state says up")
+        T.eq(API.CooldownState(sid).shape, shape)
+        up(false); pass(AB)
+        T.truthy(heard("CooldownBuffDown:" .. sid .. ":" .. key), shape .. ": buff down")
+        if shape == "icon" then
+            T.eq(API.CooldownState(sid).buffUp, false, "icon: state says down, its cooldown still showing")
+        else
+            T.isnil(API.CooldownState(sid), "bar: a buff bar hides while down, so there's no piece to ask")
+        end
+    end
+
+    -- Should the usable answer go secret, the state says it can't tell (nil), never a secret.
+    stub.EnterCombat()
+    C_Spell.IsSpellUsable = function() return stub.Secret(true), stub.Secret(false) end
+    stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers()
+    for k, v in pairs(API.CooldownState(111)) do
+        T.falsy(DUI.IsSecret(v), k .. " is never secret")
+    end
+    T.isnil(API.CooldownState(111).usable, "can't tell")
+    stub.LeaveCombat()
+    C_Spell.IsSpellUsable = function(sid) return can[sid] == true, false end
+
+    -- One watcher, by any rank of the spell.
+    local Custom = AB.CdmCustom
+    local keyOf = Custom.KeyOfSpell
+    Custom.KeyOfSpell = function(sid) if sid == 111 or sid == 311 then return "s111" end return keyOf(sid) end
+    local me = API.For("CdmWatcher")
+    local seen = {}
+    local handle = me.WatchCooldown(311, {
+        started = function(sid, key) seen[#seen + 1] = "started:" .. sid .. ":" .. key end,
+        ready = function(sid, key) seen[#seen + 1] = "ready:" .. sid .. ":" .. key end,
+        changed = function(state) seen[#seen + 1] = "changed:" .. tostring(state and state.ready) end,
+    })
+    T.truthy(handle, "a handle")
+    T.eq(seen[1], "changed:true", "the state at once")
+    cds[111] = { duration = 8, isOnGCD = false }
+    cdEvent()
+    T.eq(seen[2], "started:111:11", "started, watched by another rank")
+    T.eq(seen[3], "changed:false")
+    ess[1].Cooldown:GetScript("OnCooldownDone")(ess[1].Cooldown)
+    T.eq(seen[4], "ready:111:11")
+    API.Off(handle)
+    local n = #seen
+    cds[111] = { duration = 8, isOnGCD = false }
+    cdEvent()
+    T.eq(#seen, n, "off stops every handler")
+    T.isnil(me.WatchCooldown(311, { nope = print }), "an unknown handler name")
+    T.isnil(me.WatchCooldown(311, {}), "no handlers")
+    T.isnil(me.WatchCooldown(nil, { ready = print }), "nothing to watch")
+    Custom.KeyOfSpell = keyOf
+
+    _G.GetSpellBaseCooldown = nil
+    noCategories()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cdm api: the editor opens for a plugin out of combat only", function()
+    local DUI, AB = fxWorld()
+    local API = DUI.API
+    T.eq(API.OpenCooldownEditor(), true, "opens")
+    T.truthy(AB.CdmEditor.IsOpen())
+    AB.CdmEditor.Close()
+    stub.EnterCombat()
+    T.eq(API.OpenCooldownEditor(), false, "not in a fight")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The first-time tour (CdmGuide.lua) runs on the main tour's card over the editor.
 local function edges(f, l, b, r, t)
     f.GetLeft = function() return l end

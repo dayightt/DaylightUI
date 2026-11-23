@@ -26,6 +26,8 @@ local PROMISED = {
     "TooltipStyle",
     -- 1.13
     "GetRollCard",
+    -- 1.14
+    "CooldownState", "OpenCooldownEditor",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",
@@ -38,7 +40,9 @@ local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "Regis
     -- 1.10
     "AddInstaller", "ShowInstaller",
     -- 1.11
-    "AddQuestMenu", "RemoveQuestMenu" }
+    "AddQuestMenu", "RemoveQuestMenu",
+    -- 1.14
+    "WatchCooldown" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
     "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories",
