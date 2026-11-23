@@ -539,6 +539,25 @@ function Tip.HideNow(tip)
     return cfg and cfg.hideInCombat and tip == GameTooltip and InCombatLockdown() and not IsShiftKeyDown()
 end
 
+-- Fishing is the one spell the game names Fishing in every rank, so the
+-- channel's name says whether the line is in.
+Tip.FISHING = 7620
+
+function Tip.Fishing()
+    local name = UnitChannelInfo("player")   -- your own channel stays plain
+    if type(name) ~= "string" or isSecret(name) then return false end
+    local fishing = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(Tip.FISHING)
+    return type(fishing) == "string" and name == fishing
+end
+
+-- While the line is in, the only thing in the world under the mouse is
+-- almost always the bobber. Muted, never hidden: the game keeps it shown, so
+-- a click on the bobber still reels in.
+function Tip.OnObject(tip)
+    if not (cfg and cfg.hideBobber and tip == GameTooltip) then return end
+    if Tip.Fishing() then Tip.Mute(tip, "bobber") end
+end
+
 function Tip.OnUnit(tip)
     if not skinned[tip] then return end
     -- Still dressed, so pressing Shift shows it as it is.
@@ -2006,6 +2025,7 @@ function Tip.Build(mod)
             for _, kind in ipairs({ "Object", "Corpse" }) do
                 if types and types[kind] then
                     TDP.AddTooltipPostCall(types[kind], function(tip, data)
+                        if kind == "Object" then DUI.SafeCall(Tip.OnObject, tip) end
                         DUI.SafeCall(Tip.PluginsShown, "world", tip, data)
                     end)
                 end

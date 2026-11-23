@@ -1082,6 +1082,17 @@ T.test("qol: fishing: pointing at a unit or a thing with a tooltip leaves the cl
     T.truthy(bound(), "a tooltip fading away has been left behind")
 end)
 
+T.test("qol: fishing: a bobber whose tooltip is muted still leaves the click to the game", function()
+    fishSetup(true)
+    _G.GameTooltip = { IsShown = function() return true end, GetAlpha = function() return 0 end }
+    local was = _G.C_TooltipInfo
+    _G.C_TooltipInfo = { GetWorldCursor = function() return { type = 33, lines = {} } end }
+    press()
+    T.eq(bound(), nil, "the world says something is under the mouse")
+    _G.C_TooltipInfo = was
+    _G.GameTooltip = nil
+end)
+
 T.test("qol: fishing: a fight starting takes the mouse back", function()
     fishSetup(true)
     press()

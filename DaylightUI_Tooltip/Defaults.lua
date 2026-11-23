@@ -56,6 +56,7 @@ ns.DEFAULTS = {
     barStops = DaylightUI.Style.DefaultStops(), -- ...the colors for "customGradient"
     barHeight = 5,
     hideInCombat = false, -- in combat, show unit tooltips only while Shift is held
+    hideBobber = false, -- no tooltip on the fishing bobber while the line is in
     fadeOut = false, -- world object tooltips fade out like the game's (off: hide at once)
 }
 

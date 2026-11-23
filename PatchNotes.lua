@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Plugins", "Other addons can tell when your Cooldown Manager spells are ready, usable or have their buff up" },
+        { "Fishing", "An option to hide the fishing bobber's tooltip while your line is in, so nothing covers the bobber" },
     }, fixed = {
         { "Bags", "No more error opening your bags on a French client" },
         { "DoT shade", "No more error in dungeons when your target's target takes a hit" },

@@ -681,6 +681,31 @@ T.test("tooltip: a world unit's tooltip whose owner reads secret stays hidden in
     stub.combat = false
 end)
 
+T.test("tooltip: the fishing bobber's tooltip is muted while the line is in, when set to", function()
+    local Tip = login(function() Enum.TooltipDataType.Object = 33 end)
+    stub.spells = stub.spells or {}
+    stub.spells[7620] = { name = "Fishing" }
+    local function bobber()
+        GameTooltip_SetDefaultAnchor(GameTooltip, UIParent)
+        show(GameTooltip, Enum.TooltipDataType.Object, function(t) t.__unit = nil end)
+        GameTooltip:GetScript("OnUpdate")(GameTooltip, 0.02)
+        return Tip.Muted(GameTooltip) == "bobber"
+    end
+    stub.units.player.channel = { name = "Fishing", spellID = 7620 }
+    T.eq(bobber(), false, "off by default: it shows")
+    DaylightUI:Set("Tooltip", "hideBobber", true)
+    stub.RunTimers()
+    T.eq(bobber(), true, "muted while fishing")
+    T.eq(GameTooltip:GetAlpha(), 0)
+    T.truthy(GameTooltip:IsShown(), "never hidden: the click still reaches the bobber")
+    stub.units.player.channel = nil
+    T.eq(bobber(), false, "a chest or a mailbox when not fishing shows")
+    stub.units.player.channel = { name = "Arcane Missiles", spellID = 5143 }
+    T.eq(bobber(), false, "another channel isn't fishing")
+    stub.units.player.channel = nil
+    GameTooltip:GetScript("OnHide")(GameTooltip)
+end)
+
 T.test("tooltip: hidden in combat when set to, unless Shift is held", function()
     login()
     DaylightUI:Set("Tooltip", "hideInCombat", true)

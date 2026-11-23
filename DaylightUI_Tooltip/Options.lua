@@ -161,6 +161,8 @@ ns.OPTIONS = { pages = {
               desc = "A tooltip for something in the world (a creature, a player, a mailbox) fades away slowly after the mouse leaves it, as the game does. When off, it's gone at once." },
             { type = "toggle", key = "hideInCombat", invert = true, label = "Show unit tooltips in combat",
               desc = "Players' and creatures' tooltips show while you're fighting. When off, they stay hidden in a fight; hold Shift to see one." },
+            { type = "toggle", key = "hideBobber", since = "2.2.4", label = "Hide the fishing bobber's tooltip",
+              desc = "While your line is in the water, pointing at the bobber shows no tooltip, so nothing covers it. Clicking the bobber still reels in." },
         } },
     } },
 } }

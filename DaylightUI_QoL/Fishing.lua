@@ -141,9 +141,12 @@ end
 
 -- The mouse points at something the click means: a unit, or a thing the game
 -- shows a tooltip for. A tooltip fading away has been left behind (the bobber
--- just looted), so the next click casts at once.
+-- just looted), so the next click casts at once. The world's own answer comes
+-- first, as the Tooltip module can mute the bobber's tooltip.
 local function pointingAtThing()
     if UnitExists("mouseover") then return true end
+    local info = C_TooltipInfo and C_TooltipInfo.GetWorldCursor
+    if type(info) == "function" and type(info()) ~= "nil" then return true end
     if not (GameTooltip and GameTooltip:IsShown()) then return false end
     local a = GameTooltip:GetAlpha()
     return type(a) ~= "number" or secret(a) or a > 0.9
