@@ -343,7 +343,10 @@ function Rich.QuestPlayerClass(text)
         local here = UnitExists(unit)
         if not isSecret(here) and here then
             local first, last = UnitFullName(unit)
-            local match = plainString(first) and (first == name or (plainString(last) and first .. " " .. last == name))
+            if isSecret(first) then first = nil end
+            if isSecret(last) then last = nil end
+            local match = type(first) == "string"
+                and (first == name or (type(last) == "string" and first .. " " .. last == name))
             if match then
                 local _, token = UnitClass(unit)
                 if plainString(token) then return token end
