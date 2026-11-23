@@ -8950,4 +8950,10 @@ L["Zone title font"] = "Fuente del título de zona"
 L["Zone title line color"] = "Color de la línea del título de zona"
 L["Zone title scale"] = "Escala del título de zona"
 L["its Edit Mode layout can't be read"] = "no se puede leer su diseño del Modo de edición"
+
+-- Mailbox: what happened to an auction house letter's item (machine draft, not yet checked by a native speaker;
+-- Canceled, Expired and Outbid follow the game's own words where it has one that fits).
+L["Expired"] = "Caducado"
+L["Canceled"] = "Cancelado"
+L["Won"] = "Ganado"
 end)

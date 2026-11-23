@@ -9330,4 +9330,9 @@ L["minimap buttons"] = "小地图按钮"
 L["party and raid frames"] = "小队和团队框体"
 L["whole UI"] = "整个界面"
 
+-- Mailbox: what happened to an auction house letter's item (machine draft, not yet checked by a native speaker;
+-- Canceled, Expired and Outbid follow the game's own words where it has one that fits).
+L["Expired"] = "已过期"
+L["Canceled"] = "已取消"
+L["Won"] = "已拍得"
 end)

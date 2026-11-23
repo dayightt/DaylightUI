@@ -197,6 +197,42 @@ local function daysText(d)
     return n == 1 and L["1 day"] or string.format(L["%d days"], n)
 end
 
+-- The house's letters all start the same ("Auction successful: Strange Dust"), which
+-- left the list only the part every line shares. Each of the client's subjects
+-- (GlobalStrings, so every language) as a pattern, with what the list says instead.
+Inbox.AH_SUBJECTS = {
+    { "AUCTION_SOLD_MAIL_SUBJECT", L["Sold"] },
+    { "AUCTION_EXPIRED_MAIL_SUBJECT", L["Expired"] },
+    { "AUCTION_REMOVED_MAIL_SUBJECT", L["Canceled"] },
+    { "AUCTION_WON_MAIL_SUBJECT", L["Won"] },
+    { "AUCTION_OUTBID_MAIL_SUBJECT", L["Outbid"] },
+}
+
+local subjectPatterns
+local function patterns()
+    if subjectPatterns then return subjectPatterns end
+    subjectPatterns = {}
+    for _, s in ipairs(Inbox.AH_SUBJECTS) do
+        local fmt = _G[s[1]]
+        if type(fmt) == "string" and fmt:find("%s", 1, true) then
+            local p = "^" .. fmt:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0"):gsub("%%%%s", "(.+)", 1) .. "$"
+            subjectPatterns[#subjectPatterns + 1] = { p, s[2] }
+        end
+    end
+    return subjectPatterns
+end
+
+-- An auction house letter's item (with its " (n)") and what happened to it, as the
+-- list shows them: "Strange Dust", "Sold". Nil for any other subject.
+function Inbox.AuctionSubject(subject)
+    if type(subject) ~= "string" or subject == "" then return nil end
+    for _, p in ipairs(patterns()) do
+        local item = subject:match(p[1])
+        if item and item ~= "" then return item, p[2] end
+    end
+    return nil
+end
+
 -- The list
 
 local function lineOf(l, picked, id)
@@ -204,11 +240,17 @@ local function lineOf(l, picked, id)
     if l.money > 0 then value, vc = money(l.money), Style.INK.MONEY
     elseif l.cod > 0 then value, vc = ns.Game("COD", L["COD"]), Style.INK.WARN
     elseif l.items > 0 then value, vc = l.items == 1 and L["1 item"] or string.format(L["%d items"], l.items), Style.INK.LABEL end
-    local days = daysText(l.days)
-    if l.days <= Inbox.LOW_DAYS then days = Win.Parts.Hex(Style.INK.WARN) .. days .. "|r" end
-    return { icon = l.icon or ns.Window.ICON, text = l.subject ~= "" and l.subject or l.sender,
+    -- Days left under the value, where the line has room, so a long sender never hides them.
+    local days, dc = daysText(l.days), l.days <= Inbox.LOW_DAYS and Style.INK.WARN or Style.INK.LABEL
+    local item, kind
+    if l.ah then item, kind = Inbox.AuctionSubject(l.subject) end
+    -- Some languages (koKR) give sold and won the same subject; the invoice says which
+    -- side of the sale the letter is.
+    if item and l.invoice then kind = l.invoice.type == "buyer" and L["Won"] or L["Sold"] end
+    return { icon = l.icon or ns.Window.ICON, text = item or (l.subject ~= "" and l.subject) or l.sender,
         color = l.read and Style.INK.LABEL or Style.INK.VALUE,
-        sub = l.sender .. "  ·  " .. days, value = value, valueColor = vc, picked = picked == l,
+        sub = kind or l.sender, value = value, valueColor = vc, subValue = days, subValueColor = dc,
+        picked = picked == l,
         id = id,
         key = Inbox.TicksOn() and "" or nil,   -- room on the left for the tick
         onClick = function()
