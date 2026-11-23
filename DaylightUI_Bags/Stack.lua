@@ -129,6 +129,40 @@ function Stack.FreeSlot(window)
     end
 end
 
+-- The amounts a controller can split off a stack of n: each one for a small
+-- stack, a few round numbers and half for a big one.
+Stack.SPLIT_ALL_UP_TO = 12
+Stack.SPLIT_STEPS = { 1, 2, 5, 10, 20, 50, 100 }
+
+function Stack.SplitAmounts(n)
+    local out = {}
+    if type(n) ~= "number" or n < 2 then return out end
+    if n <= Stack.SPLIT_ALL_UP_TO then
+        for i = 1, n - 1 do out[#out + 1] = i end
+        return out
+    end
+    local seen, half = {}, math.floor(n / 2)
+    for _, v in ipairs(Stack.SPLIT_STEPS) do
+        if v < n then out[#out + 1] = v; seen[v] = true end
+    end
+    if not seen[half] then out[#out + 1] = half end
+    table.sort(out)
+    return out
+end
+
+-- Splits amount off a bag slot's stack into a free bag slot, the way a mouse
+-- player would: the split lands on the cursor and is put down at once. False
+-- when the bags have no room, so nothing is left on the cursor.
+function Stack.SplitInto(bag, slot, amount)
+    if cursorBusy() then return false end
+    local at = Stack.FreeSlot()
+    if not at then return false end
+    C_Container.SplitContainerItem(bag, slot, amount)
+    if not cursorBusy() then return false end
+    C_Container.PickupContainerItem(at.bag, at.slot)
+    return true
+end
+
 function Stack.AfterSplit()
     if next(ns.Layout.apart) == nil or not cursorBusy() then return end
     local at = Stack.FreeSlot()

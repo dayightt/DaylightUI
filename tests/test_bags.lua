@@ -2256,6 +2256,30 @@ T.test("bags: a split while trading lands in a free slot and comes back on the c
     T.eq(world.items[0][3].stackCount, 3, "put down in the first free slot")
 end)
 
+T.test("bags on a controller: Split stack picks an amount from a menu and puts it in a free slot", function()
+    local ns = catLogin()
+    cursorWorld()
+    world.items[1][1].itemID = 7
+    local bread = ns.Bags.buttons[1][1]                -- 7 Bread
+    local W = DaylightUI.Widgets
+    local realOpen, seen = W.OpenMenu, nil
+    W.OpenMenu = function(_, keys, values, _, onPick) seen = { keys = keys, values = values, onPick = onPick } end
+    ns.Window.PadMore(bread)
+    T.truthy(seen and seen.values.split, "a Split stack row for a stack")
+    seen.onPick("split")
+    stub.RunTimers()
+    T.eq(table.concat(seen.keys, " "), "1 2 3 4 5 6", "every amount for a small stack")
+    T.eq(seen.values[3], "3 (half)")
+    seen.onPick(2)
+    W.OpenMenu = realOpen
+    T.eq(world.items[1][1].stackCount, 5, "5 left behind")
+    T.eq(world.items[0][3].stackCount, 2, "the 2 put down in the first free slot")
+    T.falsy(CursorHasItem(), "nothing left on the cursor")
+    T.eq(table.concat(ns.Stack.SplitAmounts(200), " "), "1 2 5 10 20 50 100", "a big stack: round numbers and half")
+    T.eq(table.concat(ns.Stack.SplitAmounts(30), " "), "1 2 5 10 15 20")
+    T.eq(#ns.Stack.SplitAmounts(1), 0, "a single item can't be split")
+end)
+
 T.test("bags: opening the bag merges part stacks of one item into as few slots as can be", function()
     local ns = catLogin()
     cursorWorld()

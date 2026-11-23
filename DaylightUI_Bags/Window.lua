@@ -490,10 +490,31 @@ function Window.PadDestroy(b)
     if guid then C_Item.DeleteItem(guid) end
 end
 
+-- How many to split off, picked from a second menu, as the mouse's split box
+-- needs typing.
+function Window.PadSplit(b)
+    local info, bag, slot = padItem(b)
+    if not info or info.isLocked then return end
+    local keys, values = {}, {}
+    local half = math.floor((info.stackCount or 0) / 2)
+    for _, n in ipairs(ns.Stack.SplitAmounts(info.stackCount)) do
+        keys[#keys + 1] = n
+        values[n] = n == half and string.format(L["%d (half)"], n) or tostring(n)
+    end
+    if #keys == 0 then return end
+    DUI.Widgets.OpenMenu(b, keys, values, nil, function(n)
+        if not ns.Stack.SplitInto(bag, slot, n) then DUI.ShowError(ERR_INV_FULL or L["Your bags are full."]) end
+    end)
+end
+
 function Window.PadMore(b)
     local info = padItem(b)
     if not info then return end
     local keys, values = {}, {}
+    if (info.stackCount or 0) > 1 and not info.isLocked then
+        keys[#keys + 1] = "split"
+        values.split = L["Split stack"]
+    end
     if C_Item.GetItemSpell and C_Item.GetItemSpell(info.itemID) then
         keys[#keys + 1] = "bind"
         values.bind = CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR or L["Put on a controller bar"]
@@ -513,6 +534,9 @@ function Window.PadMore(b)
             Window.PadDestroy(b)
         elseif k == "share" then
             DUI.Pad.Share(info.hyperlink, b)
+        elseif k == "split" then
+            -- A frame later: the first menu is still closing.
+            C_Timer.After(0, function() Window.PadSplit(b) end)
         end
     end, nil, { confirm = { destroy = true } })
 end
