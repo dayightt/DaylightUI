@@ -3703,3 +3703,31 @@ T.test("info panel: meter bars in a custom gradient, or its middle with Bar grad
     T.isnil(DUI.Style.FillStops(sb:GetStatusBarTexture()), "flat")
     T.rgb(sb.__barColor, { DUI.Gradients.StopsMid(cfg.barGradient) }, "at the middle")
 end)
+
+-- With the meter in its own window, the threat meter and its tab hang off that
+-- window, somewhere else on the screen. Hovering the panel (its gold text, say)
+-- woke that far-off tab, seen in game.
+T.test("info panel: the threat tab wakes near its own window, not over the panel", function()
+    local DUI = login()
+    local P, TM = stub.infopanel.Panel, stub.infopanel.ThreatMeter
+    DUI:Set("InfoPanel", "meter.detached", true)
+    settle()
+    DUI.SetTestMode(true)
+    stub.RunOnUpdate(TM.slider.driver, 1)
+    T.eq(TM.host, P.meterFrame, "the threat meter rides the separate meter window")
+    local function tick()
+        stub.RunOnUpdate(P.hoverDriver, P.HOVER_EVERY)
+        local d = DUI.Motion.Driver()
+        for _ = 1, 10 do stub.Advance(0.05); stub.RunOnUpdate(d, 0.05) end
+    end
+    function P.holder:IsMouseOver() return true end
+    tick()
+    T.eq(TM.tab:GetAlpha(), 0, "the mouse on the panel leaves the meter window's tab alone")
+    function P.holder:IsMouseOver() return false end
+    function P.meterFrame:IsMouseOver() return true end
+    tick()
+    T.eq(TM.tab:GetAlpha(), 1, "near its own window it shows")
+    P.meterFrame.IsMouseOver, P.holder.IsMouseOver = nil, nil
+    DUI.SetTestMode(false)
+    DUI:Set("InfoPanel", "meter.detached", false)
+end)

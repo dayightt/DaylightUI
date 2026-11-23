@@ -692,8 +692,11 @@ function TM.Build(mod)
         local h = TM.host
         local reach = TM.TAB[1] + 10
         local left = TM.side ~= "right"
+        -- The whole panel counts only while the tab hangs off it: off a separate
+        -- meter window it sits elsewhere, and the panel's gold text woke it.
+        local onPanel = h ~= nil and h == ns.Panel.panel
         local now = (h and h:IsMouseOver(0, 0, left and -reach or 0, left and 0 or reach))
-            or ns.Panel.holder:IsMouseOver() or TM.MouseNear() or false
+            or (onPanel and ns.Panel.holder:IsMouseOver()) or TM.MouseNear() or false
         now = now == true
         if now ~= near or snap then
             near = now
