@@ -1666,6 +1666,28 @@ T.test("craft: the header's swap button hands over to the game's window and it s
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- From a player's screenshot: the game's Create All button stretched across the
+-- screen. It fits itself to its label and never shrinks, and while held aside
+-- (scale 0.001) its label measured hundreds of times too wide.
+T.test("craft: the game's buttons sized while held aside come back their real size", function()
+    local ns = load()
+    PW.Load()
+    frame(3)
+    local f = open(ns)
+    T.eq(ProfessionsFrame:GetParent(), DaylightUI.Win.Followers.aside)
+    stub.FireEvent("TRADE_SKILL_LIST_UPDATE")   -- the game refits it while it's aside
+    frame(3)
+    f.swap:Click()
+    frame(10)
+    T.eq(ProfessionsFrame:GetParent(), UIParent, "the game's window is back")
+    local all = ProfessionsFrame.CraftingPage.CreateAllButton
+    local fits = #"Create All [3]" * 7 + 30   -- its label plus the game's padding
+    T.eq(all:GetWidth(), fits, "Create All fits its label, not the one measured aside")
+    stub.FireEvent("TRADE_SKILL_LIST_UPDATE")
+    T.eq(all:GetWidth(), fits, "and the game's next refit keeps it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("craft: the game's window's button switches back to Daylight UI's, no reload", function()
     local ns = load({ enabled = false })
     PW.Open(197)

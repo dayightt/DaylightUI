@@ -109,8 +109,31 @@ local function restoreWidth(def, kind, f)
     f:SetWidth(w)
 end
 
+-- The game's fit-to-text buttons (a profession's Create and Create All) size
+-- themselves to their label and never shrink. Under the aside holder's tiny
+-- scale a label measures hundreds of times wider than on screen, since text
+-- can't be drawn that small, so a button refitted there came back wider than
+-- the screen. Once the window is at its real scale again, each one is sized
+-- to its label as the game would.
+local function refit(frame, depth)
+    if depth > 8 or type(frame.GetChildren) ~= "function" then return end
+    for _, child in ipairs({ frame:GetChildren() }) do
+        if type(child.FitToText) == "function" and type(child.GetTextWidth) == "function" then
+            local w, pad, now = child:GetTextWidth(), child.fitTextWidthPadding or 0, child:GetWidth()
+            if plain(w) and plain(pad) and plain(now) and w > 0 and now > w + pad then child:SetWidth(w + pad) end
+        end
+        refit(child, depth + 1)
+    end
+end
+
 local function giveBack(def, kind, f)
     f:SetParent(UIParent)
+    if homeOf(def, kind) == Follow.aside then
+        refit(f, 1)
+        -- Again next frame, in case the client measures the labels at the new
+        -- scale only once it has laid the window out.
+        C_Timer.After(0, function() if f:GetParent() == UIParent then refit(f, 1) end end)
+    end
     def.parked[kind] = nil
     if DUI.Pad then DUI.Pad.Remember(f) end
     restoreWidth(def, kind, f)

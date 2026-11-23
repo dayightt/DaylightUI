@@ -1176,6 +1176,17 @@ function Widget:GetDebugName() return self.__name or ("<" .. tostring(self.__typ
 -- it (tools/snap.lua for screenshots). Tests use 7 px per letter and no height.
 -- A text showing a secret has secret anchoring, and its width comes back
 -- secret ("SecretWhenAnchoringSecret"), as the client's.
+-- Text can't be drawn smaller than a few pixels, so under a tiny scale (the
+-- window kit's aside holder, 0.001) a text measures far wider in its frame's
+-- own units than it does on screen. Seen in game: the profession window's
+-- Create All button, sized to its text while held aside, came back wider than
+-- the screen. The exact floor is a guess; stub.TEXT_MIN_SCALE models it.
+stub.TEXT_MIN_SCALE = 0.05
+local function tinyScale(w, self)
+    local e = type(self.GetEffectiveScale) == "function" and self:GetEffectiveScale()
+    if type(e) == "number" and e > 0 and e < stub.TEXT_MIN_SCALE then return w * stub.TEXT_MIN_SCALE / e end
+    return w
+end
 function Widget:GetStringWidth()
     if isSecret(self.__text) or self.__secretAspect or rawget(self, "__heldSecret") then return stub.Secret(56) end
     if type(self.__text) ~= "string" then return 0 end
@@ -1183,8 +1194,10 @@ function Widget:GetStringWidth()
     -- Color codes take no room; an inline icon (|T...|t, |A...|a) is one
     -- square about the text's height, as the client draws it.
     local shown = self.__text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""):gsub("|T.-|t", "ii"):gsub("|A.-|a", "ii")
-    return #shown * 7
+    return tinyScale(#shown * 7, self)
 end
+-- A button's label, measured like a text.
+function Widget:GetTextWidth() return self:GetStringWidth() end
 function Widget:GetUnboundedStringWidth()
     if stub.measure and type(self.__text) == "string" then return (stub.measure(self, true)) end
 end

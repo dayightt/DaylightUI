@@ -121,6 +121,24 @@ local function frame()
     local f = CreateFrame("Frame", "ProfessionsFrame", UIParent)
     f:Hide()
     f.CraftingPage = CreateFrame("Frame", nil, f)
+    -- The game's Create All button (SharedButtonSmallTemplate, Forever's crafting
+    -- page): sized to its label on every refresh, and it only ever grows
+    -- (UIButtonFitToTextBehaviorMixin:FitToText, fitTextCanWidthDecrease false,
+    -- padding 30).
+    local all = CreateFrame("Button", nil, f.CraftingPage)
+    all.fitTextWidthPadding = 30
+    all:SetWidth(80)
+    function all:SetTextToFit(text)
+        self:SetText(text)
+        self:FitToText()
+    end
+    function all:FitToText()
+        local minWidth = self.fitTextCanWidthDecrease and 0 or self:GetWidth()
+        self:SetWidth(math.max(minWidth, self:GetTextWidth() + (self.fitTextWidthPadding or 0)))
+    end
+    f.CraftingPage.CreateAllButton = all
+    f.CraftingPage:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
+    f.CraftingPage:SetScript("OnEvent", function(self) self.CreateAllButton:SetTextToFit("Create All [3]") end)
     f.BookPage = CreateFrame("Frame", nil, f)
     f.BookPage:Hide()
     f:SetScript("OnHide", function() C_TradeSkillUI.CloseTradeSkill() end)

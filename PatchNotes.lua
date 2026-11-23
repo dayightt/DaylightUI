@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Loot rolls", "Click a loot roll card to fold or open its list of who picked and rolled what" },
         { "Profiles", "Importing a profile can go straight into the one you use: pick only the parts you like, such as someone's frames, and keep everything else" },
     }, fixed = {
+        { "Professions", "The game's profession window no longer shows a long dark bar across the screen after you switch to it from the Daylight UI one" },
         { "Inspect", "The inspect window has room for the bigger item icons again, so slots no longer run into each other and item names aren't cut off" },
         { "Auction House", "Hovering the item you're selling on the Sell page shows its tooltip" },
         { "Unit frames", "Rip and Rupture no longer vanish from the DoT shade when an auto attack misses at the same moment" },
