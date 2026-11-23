@@ -3725,3 +3725,25 @@ T.test("character footer: the ammo you carry beside the durability, only with am
     T.eq(select(2, page.foot.ammo:GetPoint(1)), page.foot.dura, "right of the durability")
     T.truthy(x > 0)
 end)
+
+-- A hunter's ammo slot sits right beside the ranged icon. Its own name and
+-- count were drawn over the ranged weapon's name, seen in game.
+T.test("character slots: the ammo slot draws no words over the ranged weapon", function()
+    local S, ns = lentWorld({ usesAmmo = true, class = "HUNTER", items = {
+        Ranged = CW.item("Carapace Spine", { level = 58 }),
+        Ammo = CW.item("Jagged Arrow", { count = 3200, subType = "Arrow" }) } })
+    ns.Window.Open("character")
+    local ammo = S.frames.Ammo
+    T.eq(ammo:IsShown(), true)
+    print("PROBE", ammo.name:GetText(), ammo.name:IsShown(), ammo.line:GetText(), ammo.line:IsShown(), ammo.enchant:GetText(), ammo.enchant:IsShown(), ammo.mark and ammo.mark:IsShown(), S.frames.Ranged.name:GetText(), S.frames.Ranged.line:GetText())
+    T.falsy(ammo.line:IsVisible() and (ammo.line:GetText() or "") ~= "", "ammo count line hidden: " .. tostring(ammo.line:GetText()))
+    T.falsy(ammo.enchant:IsVisible() and (ammo.enchant:GetText() or "") ~= "", "no enchant line either")
+    -- New arrows while the window is open fade the slot's picture in, never its words.
+    CW.state.items[CW.SLOT_IDS.Ammo] = CW.item("Razor Arrow", { count = 200, subType = "Arrow" })
+    ns.Window.OnEvent(ns.window, "PLAYER_EQUIPMENT_CHANGED", 0)
+    stub.RunTimers()
+    stub.Advance(1)
+    T.eq(ammo.entry and ammo.entry.name, "Razor Arrow", "the new arrows were painted")
+    T.falsy(ammo.name:IsShown(), "ammo name stays hidden after a swap")
+    T.falsy(ammo.line:IsShown(), "ammo count stays hidden after a swap")
+end)
