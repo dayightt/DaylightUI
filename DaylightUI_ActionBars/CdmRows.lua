@@ -472,7 +472,7 @@ local function placeTether(f, chain)
     f.extentLeft, f.extentTop = chain.left, chain.top
     sizeTether(f, math.max(1, chain.right - chain.left), math.max(1, chain.top - chain.bottom))
     f:Show()
-    f.lead, f.leadAt, f.leadKey = Tether.Lead(chain.key), chain.at, chain.key
+    f.lead, f.leadAt = Tether.Lead(chain.key), chain.at
     f.fromLeadX = chain.offsetX + (chain.left - chain.rootX)
     f.fromLeadY = chain.offsetY + (chain.top - chain.rootY)
     local hung = f.lead ~= nil and hangsOff(f, chain.key)
