@@ -1615,9 +1615,11 @@ stub.IsAddonHandler = isAddonHandler
 -- before its OnShow, where the controller code stores the box's actions). An
 -- addon's script there leaves the rest of the game's call tainted. Lists each
 -- "piece.script" under frame (not frame itself) where addon code would run.
+-- scripts narrows it to a list, for a window whose pieces only the game's
+-- showing and enabling reach (a mouse press there starts with the player).
 stub.INSIDE_SCRIPTS = { "OnShow", "OnHide", "OnSizeChanged", "OnEnable", "OnDisable",
     "OnMouseDown", "OnMouseUp", "OnEditFocusGained", "OnEditFocusLost", "OnTextChanged" }
-function stub.AddonScriptsInside(frame)
+function stub.AddonScriptsInside(frame, scripts)
     local found = {}
     local function handlers(f, fn, out)
         local parts = rawget(f, "__hookParts")
@@ -1633,7 +1635,7 @@ function stub.AddonScriptsInside(frame)
     local function walk(f, path)
         for i, child in ipairs({ f:GetChildren() }) do
             local name = path .. "." .. (child:GetName() or tostring(i))
-            for _, script in ipairs(stub.INSIDE_SCRIPTS) do
+            for _, script in ipairs(scripts or stub.INSIDE_SCRIPTS) do
                 for _, fn in ipairs(handlers(child, child:GetScript(script), {})) do
                     if isAddonHandler(fn) then
                         local info = debug.getinfo(fn, "S")
@@ -2001,6 +2003,15 @@ _G.C_RestrictedActions = {
 -- This only sets it. The game announces it with PLAYER_ENTERING_WORLD (a loading
 -- screen) or ZONE_CHANGED_NEW_AREA, which a test fires itself.
 function stub.SetInstance(kind) stub.instance = kind end
+
+-- C_NamePlate.GetNamePlateForUnit takes a plain token only: a chained one
+-- ("targettarget", "focustarget", "nameplate2target") errors in the client.
+-- A test's own GetNamePlateForUnit calls this first.
+function stub.CheckPlateUnit(unit)
+    if type(unit) == "string" and #unit > 6 and unit:sub(-6) == "target" then
+        error("bad argument #1 to 'get' (Target-of-target unit tokens are not allowed for this call. - Usage: local nameplate = C_NamePlate.GetNamePlateForUnit(unitToken [, includeForbidden]))", 2)
+    end
+end
 
 function stub.SetRestriction(name, on)
     local t = assert(Enum.AddOnRestrictionType[name], name)

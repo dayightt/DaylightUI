@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "DoT shade", "No more error in dungeons when your target's target takes a hit" },
+    } },
     { version = "2.2.3", date = "2026-11-22", summary = "ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.", new = {
         { "Bags", "With ItemTree installed, your bags show its keep, sell and use advice" },
         { "Loot rolls", "Your roll card folds after you pick while others roll. Click or hover it to see who rolled what" },

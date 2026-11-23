@@ -459,6 +459,7 @@ end)
 local function hiddenGUIDs()
     stub.SetRestriction("Map", true)
     _G.C_NamePlate = { GetNamePlateForUnit = function(unit)
+        stub.CheckPlateUnit(unit)
         for i = 1, 3 do
             local token = "nameplate" .. i
             if stub.units[token] and stub.units[token] == stub.units[unit] then return { unitToken = token } end
@@ -491,6 +492,21 @@ T.test("dots: with GUIDs hidden and no plate, only the target is tracked", funct
     T.eq(Dots.Left("target"), 40)
     stub.FireEvent("PLAYER_TARGET_CHANGED")
     T.isnil(Dots.Left("target"))
+    stub.SetRestriction("Map", false)
+    _G.C_NamePlate = nil
+end)
+
+T.test("dots: with GUIDs hidden, a hit on your target's target asks no plate", function()
+    local _, Dots = world()
+    hiddenGUIDs()
+    stub.units.targettarget = { name = "Gnoll", reaction = 2, guid = "Creature-2", health = 300, maxHealth = 300 }
+    cast(COR)
+    tick(3)
+    T.noerror(function()
+        stub.FireEvent("UNIT_COMBAT", "targettarget", "WOUND", "", stub.Secret(9), SHADOW)
+    end)
+    T.isnil(Dots.KeyOf("targettarget"), "a chained token can't be told apart")
+    stub.units.targettarget = nil
     stub.SetRestriction("Map", false)
     _G.C_NamePlate = nil
 end)

@@ -430,6 +430,8 @@ local function changed(key) DUI.Fire("DotsChanged", key) end
 -- and the game's plate frame keeps the token it was given (SetUnit).
 local function plateToken(unit)
     if string.find(unit, "^nameplate%d+$") then return unit end
+    -- The client refuses chained tokens ("targettarget", "focustarget") here.
+    if #unit > 6 and string.sub(unit, -6) == "target" then return nil end
     local get = C_NamePlate and C_NamePlate.GetNamePlateForUnit
     if type(get) ~= "function" then return nil end
     local plate = get(unit, false)
