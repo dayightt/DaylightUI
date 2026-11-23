@@ -1543,6 +1543,32 @@ T.test("action bars: the bag bar and micro menu can be shown, faded, and hidden 
     T.eq(MicroMenuContainer:GetParent(), Hide.parent, "hidden again")
 end)
 
+T.test("action bars: the game's controller crossbar fades like the bars, and only in controller mode", function()
+    local DUI = login()
+    local Fade = DUI.Fade
+    local function settle() Fade.Step(); for _ = 1, 120 do stub.RunOnUpdate(Fade.driver, 1 / 60) end end
+    local bars = CreateFrame("Frame", "GamepadMainActionBarFrame", UIParent)
+    DUI:Set("ActionBars", "padBarsFade.mode", "always")
+    stub.now = (stub.now or 0) + 4
+    settle()
+    T.eq(bars:GetAlpha(), 1, "a mouse player's game keeps it as it is")
+    _G.GamepadMode = { FrameControlsManager = {} }
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    stub.now = stub.now + 4
+    settle()
+    T.eq(bars:GetAlpha(), 0, "faded with the controller UI on")
+    DUI:Set("ActionBars", "padBarsFade.mode", "never")
+    settle()
+    T.eq(bars:GetAlpha(), 1, "back with Never")
+    _G.GamepadMode, _G.InputUtil, _G.GamepadMainActionBarFrame = nil, nil, nil
+end)
+
+T.test("action bars: Immersive fades the controller crossbar out of fights", function()
+    local DUI = login()
+    local fade = DUI.Profiles.ReadyData("Immersive Preset").modules.ActionBars.padBarsFade
+    T.eq(fade.mode, "ooc")
+end)
+
 -- The game hands its micro menu to a full-screen window and back to UIParent
 -- (MicroMenuBar_SetFullScreenFrame and MicroMenuBar_ClearFullScreenFrame in
 -- Blizzard_MicroMenu/Mainline/MainMenuBarMicroButtons.lua), which took it out of the

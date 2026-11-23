@@ -228,6 +228,17 @@ function Bars.RegisterFades(db)
                 return list
             end }
     end
+    -- The game's crossbar with its controller UI on. Only its alpha is set, which
+    -- the client allows on its protected bars in a fight too.
+    local pad = {}
+    DUI.Fade.Register{ key = "ActionBars.padBars", scope = "ActionBars", path = "padBarsFade", page = "ActionBars.bars",
+        frames = function()
+            local main = _G.GamepadMainActionBarFrame
+            if not (type(main) == "table" and DUI.Pad.On()) then return NONE end
+            pad[1] = main
+            return pad
+        end,
+        wake = function() return GetCursorInfo() ~= nil end }
     -- The Cooldown Manager layout.
     if ns.CdmRows then
         DUI.Fade.Register{ key = "ActionBars.cdm", scope = "ActionBars", path = "cdmFade",

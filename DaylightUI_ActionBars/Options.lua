@@ -390,6 +390,17 @@ local look = {
       items = DaylightUI.Fade.Items("bagBarFade.", nil, unless("bagBar", "shown"), "Bag bar") },
     { label = "Micro menu fade", desc = "When the shown micro menu fades and how far.",
       items = DaylightUI.Fade.Items("microMenuFade.", nil, unless("microMenu", "shown"), "Micro menu") },
+    { label = "Controller bars fade", desc = "When the game's controller bars fade and how far, with its controller mode on.",
+      items = (function()
+          -- Off for a mouse player, so General's Fade page leaves it out too.
+          local function noPad() return not DaylightUI.Pad.On() end
+          local items = DaylightUI.Fade.Items("padBarsFade.", nil, noPad, "Controller bars")
+          for _, item in ipairs(items) do
+              item.since = "2.2.4"
+              item.hidden = noPad
+          end
+          return items
+      end)() },
 }
 -- A bar's single Visible row combines its fade choices (bars.<bar>.fade.mode) and its
 -- hiding ones (bars.<bar>.visible; a hidden bar can't be clicked, unlike a faded

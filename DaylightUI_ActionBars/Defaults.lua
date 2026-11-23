@@ -53,6 +53,7 @@ ns.DEFAULTS = {
     bagBar = "hidden", microMenu = "hidden", microMenuCorner = false,
     bagBarFade = DaylightUI.Fade.Defaults({ delay = 3 }),
     microMenuFade = DaylightUI.Fade.Defaults({ delay = 3 }),
+    padBarsFade = DaylightUI.Fade.Defaults({ delay = 3 }), -- the game's controller crossbar
     -- The totem timers above the player frame (Totems.lua): shown, and how they fade.
     totemTimers = true,
     totemTimersFade = DaylightUI.Fade.Defaults(),

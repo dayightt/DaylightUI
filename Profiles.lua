@@ -852,6 +852,7 @@ Profiles.PRESETS = {
     ["Immersive Preset"] = {
         ActionBars = {
             microMenuFade = { mode = "always", alpha = 0.2, delay = 2 },
+            padBarsFade = { mode = "ooc", alpha = 0.2, delay = 2 },
             bars = {
                 main = { fade = { mode = "ooc", alpha = 0.2, delay = 2 } },
                 bar2 = { fade = { mode = "ooc", alpha = 0.2, delay = 2 } },
