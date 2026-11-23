@@ -132,6 +132,17 @@ function Panel.Build(mod)
     Panel.mapArea = CreateFrame("Frame", nil, panel)
     -- The data texts' strip: under the minimap (or the meter, with no map).
     Panel.dataArea = CreateFrame("Frame", nil, panel)
+    -- With a round map and no square box (Panel.Bare), the meter and the data
+    -- texts get boxes of their own. The meter's sits beside its area, not in
+    -- it: the meter clips its own children.
+    Panel.meterBox = CreateFrame("Frame", nil, Panel.meterClip)
+    Panel.meterBox:SetFrameLevel(Panel.meterArea:GetFrameLevel())
+    Panel.meterArea:SetFrameLevel(Panel.meterBox:GetFrameLevel() + 2)
+    Style.Shell(Panel.meterBox)
+    Panel.meterBox:Hide()
+    Panel.dataBox = CreateFrame("Frame", nil, Panel.dataArea)
+    Style.Shell(Panel.dataBox)
+    Panel.dataBox:Hide()
     -- How far the meter is out of the panel (0 folded, 1 open).
     Panel.slide = DUI.Motion.Slider(function() Panel.ApplySlide() end, { dur = Panel.SLIDE })
 
@@ -409,6 +420,9 @@ function Panel.ApplyAlpha(db)
     local box = Panel.BoxLook(db)
     Panel.Look(Panel.panel, box)
     Panel.Look(Panel.arrow, box)
+    -- Without the square box, the meter's and the data texts' boxes wear its look.
+    Panel.Look(Panel.meterBox, box)
+    Panel.Look(Panel.dataBox, box)
     -- The meter's own window keeps its own look.
     Panel.Look(Panel.meterFrame, Panel.MeterLook("meter"))
 end
@@ -424,6 +438,57 @@ function Panel.Side(db)
     if not DUI.Movers.Valid(pos) then return "left" end
     local x = (pos.at and type(pos.ax) == "number") and pos.ax or pos[1]
     return x < 0 and "right" or "left"
+end
+
+-- A round map standing on its own (map.noBox): no square box round the map,
+-- the meter slides out in a box of its own from behind the map, and the
+-- data texts sit in a small box under it. A turning map is always round.
+function Panel.Bare(db)
+    local map = db.map
+    return map.enabled == true and map.noBox == true and ns.Minimap.Round(map) == true
+end
+
+-- Room past a box's edge for its shadow, so the clip the meter slides out
+-- of never cuts it.
+Panel.SHADOW_ROOM = 32
+Panel.DATA_PAD = 2           -- the data texts' box, above and below its texts
+Panel.MAP_LIFT = 20          -- the map's area, levels over the panel: above the meter's rows
+
+-- Fades between the square box and the separate boxes (t: 0 square, 1 bare).
+local function paintBare(t)
+    Panel.bareT = t
+    Style.GetShell(Panel.panel):SetAlpha(1 - t)
+    Style.GetShell(Panel.meterBox):SetAlpha(t)
+    Style.GetShell(Panel.dataBox):SetAlpha(t)
+end
+
+-- Shows the boxes that are in use or still fading. The meter's box shows with
+-- the meter, as the meter area's own fade can ignore the clip's alpha.
+function Panel.ShowBoxes()
+    local t, ma = Panel.bareT or 0, Panel.meterArea
+    local inPanel = ma:GetParent() == Panel.meterClip
+    Panel.meterBox:SetShown(t > 0 and inPanel and ma:IsShown())
+    Panel.dataBox:SetShown(t > 0)
+    Style.GetShell(Panel.panel):SetShown(t < 1)
+end
+
+-- glide: fade from one look to the other, else jump there.
+function Panel.SetBare(bare, glide)
+    local goal = bare and 1 or 0
+    if Panel.bareGoal == goal then return end
+    Panel.bareGoal = goal
+    -- A meter with its own fade takes its new box into that fade now.
+    if Panel.meterFadeOwner == "inside" then DUI.Fade.Hold("InfoPanel.meter", false) end
+    local from = Panel.bareT or 0
+    -- Shown for the fade, hidden again at its end.
+    Panel.bareT = math.max(from, 0.001)
+    Panel.ShowBoxes()
+    if not glide then
+        paintBare(goal)
+        Panel.ShowBoxes()
+        return
+    end
+    DUI.Motion.Tween("infopanel:bare", from, goal, DUI.Motion.NORMAL, paintBare, Panel.ShowBoxes)
 end
 
 -- The panel pinned by the map's outer top corner (the one away from the
@@ -466,6 +531,19 @@ function Panel.Layout(db)
     Panel.geo = { base = base, room = stripAlone and 0 or (m.width + (mapOn and (T + pad) or 0)), width = m.width }
     local panelH = 2 * (T + pad) + inner + room
     local meterH = mapOn and (inner + room) or inner
+    -- A round map on its own: the panel's edge on the meter's side is the
+    -- map's, and the meter's box (as tall as the panel) slides out a gap from it.
+    -- The data texts' box hangs under the map, as wide as it.
+    local bare = Panel.Bare(db)
+    Panel.bare = bare
+    local stripH = room - pad
+    local dataH = stripH + 2 * (T + Panel.DATA_PAD)
+    if bare then
+        Panel.geo.base = (T + pad) + map
+        Panel.geo.room = m.width + 2 * (T + pad) + pad
+        panelH = (T + pad) + map + (stripOn and (pad + dataH) or (T + pad))
+        meterH = panelH - 2 * (T + pad)
+    end
     local xpDetached = db.xp.detached
     -- Free to move, it's no longer part of the panel's own size.
     local xpH = (db.xp.enabled and not xpDetached) and (db.xp.height + 2 * xT) or 0
@@ -522,6 +600,10 @@ function Panel.Layout(db)
 
     local area = Panel.mapArea
     area:SetShown(mapOn)
+    -- Over the meter and everything in it: without the square box the meter
+    -- slides out from behind the round map.
+    local level = panel:GetFrameLevel() + Panel.MAP_LIFT
+    if area:GetFrameLevel() ~= level then area:SetFrameLevel(level) end
     area:ClearAllPoints()
     -- On the side away from the meter.
     if right then
@@ -534,12 +616,23 @@ function Panel.Layout(db)
     local strip = Panel.dataArea
     strip:SetShown(stripOn)
     strip:ClearAllPoints()
-    if mapOn then
+    if bare then
+        -- Inside its own box, which keeps the map's width.
+        strip:SetPoint("TOPLEFT", area, "BOTTOMLEFT", T + pad, -(pad + T + Panel.DATA_PAD))
+        strip:SetSize(map - 2 * (T + pad), math.max(1, stripH))
+    elseif mapOn then
         strip:SetPoint("TOPLEFT", area, "BOTTOMLEFT", 0, -pad)
+        strip:SetSize(map, math.max(1, stripH))
     else
         strip:SetPoint("BOTTOMLEFT", panel, "BOTTOMLEFT", T + pad, T + pad)
+        strip:SetSize(m.width, math.max(1, stripH))
     end
-    strip:SetSize(mapOn and map or m.width, math.max(1, room - pad))
+    local dataBox = Panel.dataBox
+    dataBox:ClearAllPoints()
+    dataBox:SetPoint("TOPLEFT", strip, "TOPLEFT", -(T + pad), T + Panel.DATA_PAD)
+    dataBox:SetPoint("BOTTOMRIGHT", strip, "BOTTOMRIGHT", T + pad, -(T + Panel.DATA_PAD))
+    dataBox:SetFrameLevel(math.max(1, strip:GetFrameLevel()))
+    Style.LayoutShell(Style.GetShell(dataBox))
 
     Panel.inset = T + pad     -- from the panel's edge to its contents
 
@@ -559,6 +652,28 @@ function Panel.Layout(db)
         ma:SetPoint("TOPLEFT", own, "TOPLEFT", T + pad, -(T + pad))
         ma:SetPoint("BOTTOMRIGHT", own, "BOTTOMRIGHT", -(T + pad), T + pad)
         ma:SetShown(wanted)
+    elseif bare then
+        own:Hide()
+        -- The clip reaches from past the panel's outer edge (room for the box's
+        -- shadow) to the map's middle: the box comes out from behind the map
+        -- and, all the way out, nothing of it is cut.
+        local clip = Panel.meterClip
+        local outer = right and "RIGHT" or "LEFT"
+        local inner = right and "LEFT" or "RIGHT"
+        local away = right and 1 or -1
+        local S = Panel.SHADOW_ROOM
+        clip:ClearAllPoints()
+        clip:SetPoint("TOP" .. outer, panel, "TOP" .. outer, away * S, S)
+        clip:SetPoint("TOP" .. inner, area, "TOP", 0, T + pad + S)
+        clip:SetHeight(panelH + 2 * S)
+        ma:SetParent(clip)
+        ma:SetPoint("TOP" .. outer, panel, "TOP" .. outer, -away * (T + pad), -(T + pad))
+        ma:SetSize(m.width, meterH)
+        local box = Panel.meterBox
+        box:ClearAllPoints()
+        box:SetPoint("TOPLEFT", ma, "TOPLEFT", -(T + pad), T + pad)
+        box:SetPoint("BOTTOMRIGHT", ma, "BOTTOMRIGHT", T + pad, -(T + pad))
+        Style.LayoutShell(Style.GetShell(box))
     else
         own:Hide()
         local clip = Panel.meterClip
@@ -582,6 +697,9 @@ function Panel.Layout(db)
     -- switched off; not while it's on but waiting for a group or combat
     -- (a click then would switch it off, not show it).
     arrow:SetShown(panelOn and not detached and (wanted or not m.enabled))
+    -- Without the square box it's level with the map's middle, so folded it
+    -- tucks behind the map's ring.
+    Panel.arrowY = bare and (panelH / 2 - (T + pad + map / 2)) or 0
     Panel.PlaceArrow(0)
     arrow:SetSize(Panel.TAB[1] + T, Panel.TAB[2])
     arrow.icon:ClearAllPoints()
@@ -596,6 +714,7 @@ function Panel.Layout(db)
     -- jumps straight there.
     local glide = mapOn and Panel.lastMapOn and holder:IsVisible() or false
     Panel.lastMapOn = mapOn
+    Panel.SetBare(bare, glide and Panel.placed == true)
     Panel.SlideMeter(meterIn and 1 or 0, glide)
     return xT
 end
@@ -606,12 +725,18 @@ function Panel.PlaceArrow(out)
     local arrow, panel = Panel.arrow, Panel.panel
     if not arrow then return end
     local T = Pixel.Px(panel, Style.BorderPx(panel))
+    local y = Panel.arrowY or 0
     arrow:ClearAllPoints()
     if Panel.side == "right" then
-        arrow:SetPoint("LEFT", panel, "RIGHT", out - T, 0)
+        arrow:SetPoint("LEFT", panel, "RIGHT", out - T, y)
     else
-        arrow:SetPoint("RIGHT", panel, "LEFT", T - out, 0)
+        arrow:SetPoint("RIGHT", panel, "LEFT", T - out, y)
     end
+end
+
+-- How far the fold tab's top sits below the panel's top.
+function Panel.ArrowTop()
+    return (Panel.panel:GetHeight() - Panel.TAB[2]) / 2 - (Panel.arrowY or 0)
 end
 
 -- Decides which fade owns the XP bar's alpha: its own, the panel's, or none
@@ -651,9 +776,11 @@ function Panel.PlaceMeterFade(db)
     local was = Panel.meterFadeOwner
     if owner == was then return end
     Panel.meterFadeOwner = owner
-    local ma = Panel.meterArea
-    ma:SetIgnoreParentAlpha(owner == "inside")
-    if owner ~= "inside" then ma:SetAlpha(1) end
+    -- The meter's own box (no square box round a round map) fades with it.
+    for _, f in ipairs({ Panel.meterArea, Panel.meterBox }) do
+        f:SetIgnoreParentAlpha(owner == "inside")
+        if owner ~= "inside" then f:SetAlpha(1) end
+    end
     if was then DUI.Fade.Hold(own and "InfoPanel.meter" or "InfoPanel.panel", false) end
 end
 
@@ -672,10 +799,12 @@ function Panel.ApplySlide()
     local p = s.p
     Panel.holder:SetWidth(g.base + p * g.room)
     local clip = Panel.meterClip
-    clip:SetWidth(math.max(p * g.width, 0.01))
+    -- Without the square box the clip's width comes from its two anchors.
+    if not Panel.bare then clip:SetWidth(math.max(p * g.width, 0.01)) end
     clip:SetAlpha(p)
     local ma = Panel.meterArea
     if ma:GetParent() == clip then ma:SetShown(s.goal == 1 or p > 0) end
+    Panel.ShowBoxes()
 end
 
 -- ---------------------------------------------------------------------
@@ -734,6 +863,8 @@ function ns.Build(mod)
                 meterList[1] = Panel.meterFrame
             elseif Panel.meterArea:IsShown() then
                 meterList[1] = Panel.meterArea
+                -- Listed even while hidden, so it's already at the meter's alpha when it shows.
+                if Panel.bare then meterList[2] = Panel.meterBox end
             end
             ns.MeterFrame.Frames("meter", meterList)
             return ns.MeterFrame.Frames("summary", meterList)

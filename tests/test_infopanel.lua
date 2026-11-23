@@ -1295,6 +1295,78 @@ T.test("info panel: a round map without turning has its ring, N fixed at the top
     T.falsy(Map.ring:IsShown(), "no ring on the square")
 end)
 
+T.test("info panel: a round map without its box: the meter slides out in a box of its own, the data texts in one under the map", function()
+    local DUI = login()
+    local P, Style = stub.infopanel.Panel, DUI.Style
+    local function finish() stub.RunOnUpdate(DUI.Motion.Driver(), 1); settle() end
+    local square = Style.GetShell(P.panel)
+    DUI:Set("InfoPanel", "map.noBox", true)
+    finish()
+    T.falsy(P.bare, "a square map keeps its box")
+    T.truthy(square:IsShown())
+    DUI:Set("InfoPanel", "map.shape", "round")
+    finish()
+    T.truthy(P.bare)
+    T.falsy(square:IsShown(), "the square box faded away")
+    T.truthy(P.meterBox:IsShown(), "the meter in a box of its own")
+    T.truthy(P.dataBox:IsShown(), "the data texts in a box of their own")
+    T.eq(Style.GetShell(P.meterBox):GetAlpha(), 1)
+    T.truthy(Minimap:GetFrameLevel() > P.meterArea:GetFrameLevel(), "the map over the meter: it slides out from behind it")
+    T.truthy(P.mapArea:GetFrameLevel() > P.meterBox:GetFrameLevel())
+    -- The meter's box is cut only behind the map: from past the panel's
+    -- outer edge (its shadow) to the map's middle.
+    local a = { P.meterClip:GetPoint(1) }
+    local b = { P.meterClip:GetPoint(2) }
+    T.eq(a[1], "TOPLEFT"); T.eq(a[2], P.panel)
+    T.truthy(a[4] < 0 and a[5] > 0, "room for the shadow")
+    T.eq(b[1], "TOPRIGHT"); T.eq(b[2], P.mapArea); T.eq(b[3], "TOP", "out from behind the map's middle")
+    local box = { P.meterBox:GetPoint(1) }
+    T.eq(box[2], P.meterArea, "the box round the meter")
+    -- Widths: the map's edge is the panel's when folded; open, the meter's box
+    -- and a gap beside it.
+    local T_ = DUI.Pixel.Px(P.panel, Style.BorderPx(P.panel))
+    local map, w, pad = DUI:Get("InfoPanel", "map.size"), DUI:Get("InfoPanel", "meter.width"), P.PAD
+    T.near(P.holder:GetWidth(), T_ + pad + map + w + 2 * (T_ + pad) + pad, 0.01, "open")
+    T.truthy((P.arrowY or 0) > 0, "the fold tab level with the map's middle, above the panel's")
+    DUI:Set("InfoPanel", "meter.enabled", false)
+    finish()
+    T.near(P.holder:GetWidth(), T_ + pad + map, 0.01, "folded: the panel ends at the map's ring")
+    T.falsy(P.meterBox:IsShown(), "no empty box behind the map")
+    T.eq(select(3, P.arrow:GetPoint(1)), "LEFT", "the tab tucks behind the ring")
+    DUI:Set("InfoPanel", "meter.enabled", true)
+    finish()
+    -- A meter with its own fade takes its box along.
+    DUI:Set("InfoPanel", "meter.ownFade", true)
+    finish()
+    T.truthy(P.meterBox:IsIgnoringParentAlpha(), "fades with the meter, not the panel")
+    DUI:Set("InfoPanel", "meter.ownFade", false)
+    finish()
+    T.falsy(P.meterBox:IsIgnoringParentAlpha())
+    -- Square again: the box comes back.
+    DUI:Set("InfoPanel", "map.shape", "square")
+    finish()
+    T.falsy(P.bare)
+    T.truthy(square:IsShown())
+    T.eq(square:GetAlpha(), 1)
+    T.falsy(P.meterBox:IsShown())
+    T.falsy(P.dataBox:IsShown())
+    T.eq(P.meterClip:GetPoint(1), "TOPLEFT")
+    T.eq(P.arrowY, 0)
+    -- Turning makes the map round, so it drops the box too.
+    local old = GetCVarBool
+    GetCVarBool = function(k) if k == "rotateMinimap" then return true end return old and old(k) end
+    stub.FireEvent("CVAR_UPDATE", "rotateMinimap", "1")
+    stub.RunTimers()
+    finish()
+    T.truthy(P.bare, "a turning map is round")
+    T.falsy(square:IsShown())
+    GetCVarBool = old
+    stub.FireEvent("CVAR_UPDATE", "rotateMinimap", "0")
+    stub.RunTimers()
+    finish()
+    T.falsy(P.bare)
+end)
+
 -- The game's Hybrid Minimap, loaded on demand where the map is drawn from art
 -- (dungeons). It's a child of the map filling it, fixed at BACKGROUND strata
 -- level 100 under the map (whose terrain it turns off), with a black background

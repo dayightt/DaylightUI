@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", new = {
+        { "Info panel", "A round minimap can lose its square box, with the damage meter sliding out from behind it in a box of its own" },
+    }, fixed = {
         { "Cooldown Manager", "Slide over now closes the gap for buffs like Flurry and Enrage that were hidden in the game's own Cooldown Manager settings" },
         { "Character", "Swapped to the game's own character window, your gear slots sit over your model again, so you can hover and click them" },
     } },

@@ -95,7 +95,8 @@ ns.DEFAULTS = {
     -- the panel's.
     -- drawerOrder: the addon drawer's buttons in the order the player dragged them.
     -- shape: "square" or "round" (a rotating map is always round).
-    map = { enabled = true, size = 226, shape = "square", buttons = true, drawer = true, drawerOrder = {}, meterSide = "auto",
+    -- noBox: a round map stands on its own, without the square box round it.
+    map = { enabled = true, size = 226, shape = "square", noBox = false, buttons = true, drawer = true, drawerOrder = {}, meterSide = "auto",
              frameStyle = DaylightUI.Style.LookDefaults(),
              clock = { enabled = true, twentyFour = true, seconds = false, useServer = false, textSize = 11, color = ink(INK.VALUE) },
              fps = { enabled = false, textSize = 11, color = ink(INK.VALUE) },      -- next to the clock

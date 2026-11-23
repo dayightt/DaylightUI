@@ -573,7 +573,7 @@ function TM.ApplySlide()
     -- Pushed out past a short window it floated in the open.
     local P = ns.Panel
     if h == P.panel and P.arrow then
-        local tabTop = (P.panel:GetHeight() - ns.Panel.TAB[2]) / 2
+        local tabTop = P.ArrowTop()
         local covered = (TM.height or g.H) + TM.ARROW_CLEAR > tabTop
         P.PlaceArrow(covered and out or 0)
     end

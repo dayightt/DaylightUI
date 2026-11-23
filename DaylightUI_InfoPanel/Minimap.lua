@@ -144,8 +144,9 @@ function Map.SetIconScale(scale)
 end
 
 -- Round by choice, or because it turns: a turning square showed empty corners.
-function Map.Round()
-    local cfg = Map.cfg
+-- cfg: the map's settings, when asked before the map has been laid out.
+function Map.Round(cfg)
+    cfg = cfg or Map.cfg
     return Map.Turning() or (type(cfg) == "table" and cfg.shape == "round")
 end
 
@@ -852,6 +853,10 @@ function Map.Fit()
         DUI.AfterCombat(Map.Fit, "infopanel:mapFit")
         return
     end
+    -- Turning makes the map round, so a panel without a box around a round
+    -- map lays itself out again (which applies the map too).
+    local mod = ns.module
+    if mod and ns.Panel.Bare(mod.db) ~= ns.Panel.bare then return ns.Refresh(mod) end
     Map.Apply(cfg)
 end
 

@@ -287,6 +287,12 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "map.meterSide", label = "Damage meter side",
               values = { auto = "Automatic", left = "Left", right = "Right" }, order = { "auto", "left", "right" },
               desc = "Which side of the minimap the damage meter slides out of, with the threat meter beside it. Automatic picks the side toward the middle of the screen, so it follows when you move the panel." },
+            { type = "toggle", key = "map.noBox", label = "Round map without a box", since = "2.2.5",
+              desc = "A round minimap stands on its own ring. The damage meter slides out from behind it in a box of its own, and the data texts sit in a small box under it. Needs Minimap shape set to Round, or Rotate as you turn.",
+              disabled = function(get)
+                  return get("map.enabled") ~= true
+                      or (get("map.shape") ~= "round" and not (type(GetCVarBool) == "function" and GetCVarBool("rotateMinimap") == true))
+              end },
         } },
         { label = "Borders and background", desc = "The box around the minimap, with the damage meter and data texts in it.", items = mapLook },
         { label = "Clock", desc = "A small time at the bottom of the map. Hover it for both local and server time.", items = {
