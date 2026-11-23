@@ -11,9 +11,13 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", new = {
+        { "Plugins", "Other addons can tell when your Cooldown Manager spells are ready, usable or have their buff up" },
+    }, fixed = {
         { "DoT shade", "No more error in dungeons when your target's target takes a hit" },
         { "Professions", "Clicking someone's profession in chat opens their recipes every time, not your own or nothing" },
+        { "Controller", "Placing a character macro on your action bars with a controller works again" },
+        { "Tooltip", "Other addons' lines no longer pile up over item tooltips on loot and roll windows" },
     } },
     { version = "2.2.3", date = "2026-11-22", summary = "ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.", new = {
         { "Bags", "With ItemTree installed, your bags show its keep, sell and use advice" },
