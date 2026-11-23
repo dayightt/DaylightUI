@@ -3645,6 +3645,111 @@ T.test("chat: say, guild, party and the rest can have their own short tags", fun
     _G.CHAT_SAY_GET, _G.CHAT_WHISPER_INFORM_GET = fmt.say, fmt.inform
 end)
 
+T.test("chat: leader tags use native titles only on non-Latin clients", function()
+    login()
+    local Tags = stub.chatModule.Tags
+    local savedLetters = DaylightUI:Get("Chat", "tagLetters")
+    local savedOwn = {}
+    for kind, text in pairs(Tags.own) do savedOwn[kind] = text end
+    local lines = { party = "|Hchannel:PARTY|h[Party]|h Ann: hi", raid = "|Hchannel:RAID|h[Raid]|h Ann: hi",
+                    instance = "|Hchannel:INSTANCE_CHAT|h[Instance]|h Ann: hi" }
+    local events = { "CHAT_MSG_PARTY_LEADER", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_INSTANCE_CHAT_LEADER" }
+    local kinds = { "party", "raid", "instance" }
+    local get = function(kind, event) return Tags.Shorten(lines[kind], event) end
+    local standard = { party = "PL", raid = "RL", instance = "IL" }
+    local saved, names = {}, { "CHAT_MSG_SAY", "CHAT_MSG_YELL", "WHISPER", "CHAT_MSG_PARTY", "CHAT_MSG_PARTY_LEADER",
+        "CHAT_MSG_RAID", "CHAT_MSG_RAID_LEADER", "CHAT_MSG_GUILD", "CHAT_MSG_OFFICER", "CHAT_MSG_INSTANCE_CHAT",
+        "CHAT_MSG_INSTANCE_CHAT_LEADER", "INSTANCE_CHAT", "INSTANCE_CHAT_LEADER", "CHAT_MSG_RAID_WARNING",
+        "CHAT_WHISPER_INFORM_GET", "CHAT_SAY_GET" }
+    for _, name in ipairs(names) do saved[name] = _G[name] end
+
+    local function restore()
+        for _, name in ipairs(names) do _G[name] = saved[name] end
+        Tags.own = {}
+        for kind, text in pairs(savedOwn) do Tags.own[kind] = text end
+        DaylightUI:Set("Chat", "tagLetters", savedLetters or "native")
+        stub.RunTimers()
+        Tags.ResetDefaults()
+    end
+
+    local ok, err = pcall(function()
+        local function set(t) for name, value in pairs(t) do _G[name] = value end; Tags.ResetDefaults() end
+        local function expected(kind) return "|h[" .. standard[kind] .. "]|h" end
+
+        -- The existing English letters and a custom ASCII parent stay exactly as before.
+        for i, kind in ipairs(kinds) do T.truthy(get(kind, events[i]):find(expected(kind), 1, true), "standard leader tag") end
+        Tags.SetOwn("party", "Grp")
+        T.truthy(get("party", events[1]):find("|h[GrpL]|h", 1, true), "a custom ASCII parent still takes L")
+        Tags.SetOwn("party", "")
+        Tags.ResetDefaults()
+
+        -- Latin words in native mode are still shortened to the same English letters.
+        Tags.Apply({ shortTags = true, tagLetters = "native" })
+        set({ CHAT_MSG_SAY = "Decir", CHAT_MSG_YELL = "Gritar", WHISPER = "Susurrar", CHAT_MSG_PARTY = "Grupo",
+            CHAT_MSG_PARTY_LEADER = "Lider de grupo", CHAT_MSG_RAID = "Banda", CHAT_MSG_GUILD = "Hermandad",
+            CHAT_MSG_OFFICER = "Oficial", CHAT_MSG_INSTANCE_CHAT = "Estancia", CHAT_MSG_RAID_WARNING = "Aviso de la banda",
+            CHAT_WHISPER_INFORM_GET = "A %s: ", CHAT_SAY_GET = "%s dice: " })
+        T.eq(Tags.Default("party"), "G", "Hermandad takes H, so Grupo takes G")
+        T.truthy(get("party", events[1]):find("|h[GL]|h", 1, true), "Latin native words still take L")
+        restore()
+
+        -- Non-Latin game words give the title after the parent word: never the parent alone.
+        set({ CHAT_MSG_PARTY = "小队", CHAT_MSG_PARTY_LEADER = "小队队长",
+              CHAT_MSG_RAID = "团队", CHAT_MSG_RAID_LEADER = "团队领袖",
+              CHAT_MSG_INSTANCE_CHAT = "副本", CHAT_MSG_INSTANCE_CHAT_LEADER = "副本向导" })
+        T.truthy(get("party", events[1]):find("|h[队长]|h", 1, true), "Chinese party leader")
+        T.truthy(get("raid", events[2]):find("|h[领袖]|h", 1, true), "Chinese raid leader")
+        T.truthy(get("instance", events[3]):find("|h[向导]|h", 1, true), "Chinese instance leader")
+
+        -- Leader tags are cached until ResetDefaults().
+        _G.CHAT_MSG_PARTY_LEADER = "小队团长"
+        T.truthy(get("party", events[1]):find("|h[队长]|h", 1, true), "cached leader tag stays until ResetDefaults")
+        Tags.ResetDefaults()
+        T.truthy(get("party", events[1]):find("|h[团长]|h", 1, true), "ResetDefaults clears cached leader tags")
+
+        -- Traditional Chinese uses the same rule.
+        set({ CHAT_MSG_PARTY = "隊伍", CHAT_MSG_PARTY_LEADER = "隊伍隊長" })
+        T.truthy(get("party", events[1]):find("|h[隊長]|h", 1, true), "Traditional Chinese party leader")
+
+        -- A non-Latin custom parent is not a Latin override, so the localized title still wins.
+        set({ CHAT_MSG_PARTY = "小队", CHAT_MSG_PARTY_LEADER = "小队队长" })
+        Tags.SetOwn("party", "队")
+        Tags.ResetDefaults()
+        T.truthy(get("party", events[1]):find("|h[队长]|h", 1, true), "a non-Latin custom parent keeps the native title")
+        Tags.SetOwn("party", "Grp")
+        Tags.ResetDefaults()
+        T.truthy(get("party", events[1]):find("|h[GrpL]|h", 1, true), "a custom ASCII parent on a non-Latin client still takes L")
+        Tags.SetOwn("party", "")
+        Tags.ResetDefaults()
+        restore()
+
+        -- A leader word that does not start with the parent word must not be truncated.
+        set({ CHAT_MSG_PARTY = "Группа", CHAT_MSG_PARTY_LEADER = "Лидер группы" })
+        T.truthy(get("party", events[1]):find("|h[ГL]|h", 1, true), "a non-prefix leader falls back to L")
+
+        -- Two leaders with the same extracted title neither uses it.
+        set({ CHAT_MSG_PARTY = "파티", CHAT_MSG_PARTY_LEADER = "파티장", CHAT_MSG_RAID = "공격대",
+            CHAT_MSG_RAID_LEADER = "공격대장" })
+        T.truthy(get("party", events[1]):find("|h[파L]|h", 1, true), "a duplicate party title falls back to L")
+        T.truthy(get("raid", events[2]):find("|h[공L]|h", 1, true), "a duplicate raid title falls back to L")
+
+        -- The instance fallback globals work when the CHAT_MSG constants are absent.
+        set({ CHAT_MSG_INSTANCE_CHAT = nil, CHAT_MSG_INSTANCE_CHAT_LEADER = nil,
+            INSTANCE_CHAT = "副本", INSTANCE_CHAT_LEADER = "副本向导" })
+        T.truthy(get("instance", events[3]):find("|h[向导]|h", 1, true), "instance leader fallback globals")
+        restore()
+
+        -- Back to English letters restores the original tags.
+        Tags.Apply({ shortTags = true, tagLetters = "english" })
+        for i, kind in ipairs(kinds) do T.truthy(get(kind, events[i]):find(expected(kind), 1, true), "English letters again") end
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end)
+
+    restore()
+    if not ok then error(err, 0) end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chat daylight: a tab's Show window renames it from the box up top", function()
     local Box = daylight()
     local Tabs, Filter = stub.chatModule.Tabs, stub.chatModule.Filter

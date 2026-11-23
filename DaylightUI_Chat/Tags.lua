@@ -47,8 +47,13 @@ Tags.CHAT_TAGS = { say = "S", yell = "Y", whisper = "W", bnet = "W", party = "P"
 Tags.TAG_LETTERS = 6
 -- Group chat by the channel type in the line's link.
 Tags.TYPE_KINDS = { GUILD = "guild", OFFICER = "officer", PARTY = "party", RAID = "raid", INSTANCE_CHAT = "instance" }
--- Leaders share their group's link; the event tells them apart.
-Tags.LEADERS = { CHAT_MSG_PARTY_LEADER = "PL", CHAT_MSG_RAID_LEADER = "RL", CHAT_MSG_INSTANCE_CHAT_LEADER = "IL" }
+-- Leaders share their group's link; the event tells them apart. Each entry holds
+-- its event, kind, parent kind, parent word and leader word, all read from game constants.
+Tags.LEADERS = {
+    { event = "CHAT_MSG_PARTY_LEADER", kind = "party_leader", parent = "party", word = "CHAT_MSG_PARTY", leader = "CHAT_MSG_PARTY_LEADER" },
+    { event = "CHAT_MSG_RAID_LEADER", kind = "raid_leader", parent = "raid", word = "CHAT_MSG_RAID", parentAlias = "RAID", leader = "CHAT_MSG_RAID_LEADER" },
+    { event = "CHAT_MSG_INSTANCE_CHAT_LEADER", kind = "instance_leader", parent = "instance", word = "CHAT_MSG_INSTANCE_CHAT", leader = "CHAT_MSG_INSTANCE_CHAT_LEADER" },
+}
 -- Speech by event: the game's format (CHAT_<key>_GET), the short tag, and the
 -- kind whose custom tag overrides it.
 Tags.SPEECH = {
@@ -130,8 +135,57 @@ Tags.CHAT_WORDS = { guild = "CHAT_MSG_GUILD", party = "CHAT_MSG_PARTY", raid = "
                     warning = "CHAT_MSG_RAID_WARNING" }
 Tags.CHAT_ORDER = { "guild", "party", "raid", "say", "whisper", "yell", "instance", "officer", "warning" }
 
-local defaults
-function Tags.ResetDefaults() defaults = nil end
+local defaults, leaderDefaults
+function Tags.ResetDefaults() defaults, leaderDefaults = nil, nil end
+
+local function nonLatin(s)
+    return type(s) == "string" and string.find(s, "[\128-\255]") ~= nil
+end
+
+local function firstText(...)
+    for i = 1, select("#", ...) do
+        local value = select(i, ...)
+        if type(value) == "string" and value ~= "" and not secret(value) then return value end
+    end
+end
+
+local function leaderWord(leader)
+    if leader.parent == "instance" then
+        return firstText(_G.CHAT_MSG_INSTANCE_CHAT_LEADER, _G.INSTANCE_CHAT_LEADER)
+    end
+    return _G[leader.leader]
+end
+
+local function leaderTag(leader, nativeWord)
+    if not nativeWord then return nil end
+    local parentWord
+    for _, name in ipairs({ Tags.CHAT_WORDS[leader.parent], leader.word, leader.parentAlias }) do
+        if nonLatin(_G[name]) then parentWord = _G[name]; break end
+    end
+    if leader.parent == "instance" and not nonLatin(parentWord) then parentWord = firstText(_G.CHAT_MSG_INSTANCE_CHAT, _G.INSTANCE_CHAT) end
+    if not nonLatin(parentWord) or not nonLatin(nativeWord) then return nil end
+    local title = string.match(nativeWord, "^" .. esc(parentWord) .. "([^\128-\191].*)$")
+    return title ~= "" and title or nil
+end
+
+local function nativeLeaderTags()
+    if not leaderDefaults then
+        local out, seen, duplicates = {}, {}, {}
+        for _, leader in ipairs(Tags.LEADERS) do
+            local tag = leaderTag(leader, leaderWord(leader))
+            if tag then
+                if seen[tag] then duplicates[tag] = true end
+                seen[tag] = true
+                out[leader.kind] = tag
+            end
+        end
+        for _, leader in ipairs(Tags.LEADERS) do
+            if duplicates[out[leader.kind]] then out[leader.kind] = nil end
+        end
+        leaderDefaults = out
+    end
+    return leaderDefaults
+end
 
 local function built()
     -- The game's own words (see above), unless the English letters are asked for.
@@ -225,9 +279,18 @@ local function group(open, ctype, inner, close)
     if crossesLink(inner) then return nil end
     local kind = Tags.TYPE_KINDS[ctype]
     if not kind then return nil end
+    local leader
+    for _, entry in ipairs(Tags.LEADERS) do
+        if entry.event == lineEvent and entry.parent == kind then leader = entry; break end
+    end
     local base = Tags.own[kind] or Tags.Default(kind)
     if not base then return nil end
-    local tag = Tags.LEADERS[lineEvent] and base .. "L" or base
+    local tag = base
+    if leader then
+        local native = Tags.Native() and (not Tags.own[kind] or nonLatin(Tags.own[kind]))
+        local localized = native and nativeLeaderTags()[leader.kind]
+        tag = localized or base .. "L"
+    end
     return open .. "[" .. tag .. "]" .. close
 end
 
