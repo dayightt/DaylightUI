@@ -1093,6 +1093,17 @@ T.test("qol: fishing: a bobber whose tooltip is muted still leaves the click to 
     _G.GameTooltip = nil
 end)
 
+-- The client's GetWorldCursor may return no value at all (not even nil) when
+-- nothing is under the mouse.
+T.test("qol: fishing: nothing under the mouse, the world's answer is empty, the click casts", function()
+    fishSetup(true)
+    local was = _G.C_TooltipInfo
+    _G.C_TooltipInfo = { GetWorldCursor = function() end }
+    press()
+    _G.C_TooltipInfo = was
+    T.truthy(bound(), "an empty answer is no thing under the mouse")
+end)
+
 T.test("qol: fishing: a fight starting takes the mouse back", function()
     fishSetup(true)
     press()

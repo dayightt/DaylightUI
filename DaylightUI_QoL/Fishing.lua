@@ -146,7 +146,8 @@ end
 local function pointingAtThing()
     if UnitExists("mouseover") then return true end
     local info = C_TooltipInfo and C_TooltipInfo.GetWorldCursor
-    if type(info) == "function" and type(info()) ~= "nil" then return true end
+    -- The client may return no value at all here, which type() refuses.
+    if type(info) == "function" and type((info())) ~= "nil" then return true end
     if not (GameTooltip and GameTooltip:IsShown()) then return false end
     local a = GameTooltip:GetAlpha()
     return type(a) ~= "number" or secret(a) or a > 0.9
