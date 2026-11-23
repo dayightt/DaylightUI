@@ -230,7 +230,7 @@ return {
         ["DaylightUI_UnitFrames/GroupParts.lua"] = 4,
         ["DaylightUI_UnitFrames/Indicators.lua"] = 2,
         ["DaylightUI_UnitFrames/Texts.lua"] = 1,
-        ["DaylightUI_UnitFrames/UnitFrames.lua"] = 4,
+        ["DaylightUI_UnitFrames/UnitFrames.lua"] = 3,
         ["Dots.lua"] = 6,
         ["DotsDraw.lua"] = 1,
         ["EditMode.lua"] = 5,

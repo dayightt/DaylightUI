@@ -4626,7 +4626,8 @@ function paintRange(f)
     local pieces = f.pieces
     if pieces then for i = 2, #pieces do paintAlpha(pieces[i]) end end
     for _, part in ipairs(f.fadeKids or {}) do
-        if ownAlpha(part, f) then paintAlpha(part) elseif part:GetAlpha() ~= 1 then part:SetAlpha(1) end
+        -- Never read its alpha back. It can be secret after a secret dim.
+        if ownAlpha(part, f) then paintAlpha(part) else part:SetAlpha(1) end
     end
 end
 
@@ -4648,7 +4649,8 @@ function paintAlpha(f)
     end
     local inRange, dim = o.rangeIn, o.rangeAlpha
     if isSecret(inRange) then
-        if f.SetAlphaFromBoolean and pcall(f.SetAlphaFromBoolean, f, inRange, m, m * dim) then
+        if f.SetAlphaFromBoolean then
+            f:SetAlphaFromBoolean(inRange, m, m * dim)
             f.paintHow, f.paintA, f.paintB, f.paintC = "bool", inRange, m, m * dim
         else
             f:SetAlpha(m)
