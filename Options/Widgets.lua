@@ -3677,7 +3677,9 @@ function W.CompactRow(parent, page, item, width, opts)
         local disabled = Options.IsDisabled(page, item)
         row.disabled = disabled
         row:SetAlpha(disabled and 0.35 or 1)
-        if row.reset then row.reset:SetShown(not disabled and not Options.IsDefault(page, item)) end
+        local first = not row.filled
+        row.filled = true
+        if row.reset then W.EaseShown(row.reset, not disabled and not Options.IsDefault(page, item), first) end
         if c.Refresh then c.Refresh() end
     end
     W.PadRow(row)   -- one D-pad stop, as an options row

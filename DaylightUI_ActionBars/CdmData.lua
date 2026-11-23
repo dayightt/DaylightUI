@@ -1358,16 +1358,17 @@ function Data.SetSpellValue(set, id, key, value)
     elseif spec.gradient then
         if type(value) ~= "table" or not isRGB(value.lo) or not isRGB(value.hi) then return false end
         value = { lo = { value.lo[1], value.lo[2], value.lo[3] }, hi = { value.hi[1], value.hi[2], value.hi[3] } }
-    elseif spec.color and value == nil and spec.accent then
-        -- An accent color goes back to unset, which follows the accent.
     elseif spec.color then
-        if not isRGB(value) then return false end
-        if spec.alpha then
-            local a = value[4]
-            if a ~= nil and type(a) ~= "number" then return false end
-            value = { value[1], value[2], value[3], max(0, min(1, a or 1)) }
-        else
-            value = { value[1], value[2], value[3] }
+        -- An accent color also takes nil, which follows the accent again.
+        if value ~= nil or not spec.accent then
+            if not isRGB(value) then return false end
+            if spec.alpha then
+                local a = value[4]
+                if a ~= nil and type(a) ~= "number" then return false end
+                value = { value[1], value[2], value[3], max(0, min(1, a or 1)) }
+            else
+                value = { value[1], value[2], value[3] }
+            end
         end
     elseif spec.values then
         if not oneOf(spec.values, value) then return false end
