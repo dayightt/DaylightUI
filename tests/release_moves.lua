@@ -8,10 +8,7 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {
-        ["UnitFrames.targetCastbar.strata"] = "Same as frame: a target cast bar standing on its own drew under a target set to High",
-        ["UnitFrames.focusCastbar.strata"] = "Same as frame: a focus cast bar standing on its own drew under its frame the same way",
-    },
+    values = {},
     frames = {},
     plates = {},
 }
