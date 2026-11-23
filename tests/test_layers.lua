@@ -238,6 +238,26 @@ T.test("layers: the frame's border moves with its health bar", function()
     T.eq(shell:GetFrameLevel() - f.health:GetFrameLevel(), gap, "back")
 end)
 
+T.test("layers: incoming heals, absorbs and the overshield stay over the health bar wherever it moves", function()
+    for _, unit in ipairs({ "player", "target" }) do
+        local _, ns = freeTarget()
+        local f = ns.frames[unit]
+        local bars = { heals = f.heals, healWedge = f.heals.wedge, absorbs = f.absorbs,
+                       absorbWedge = f.absorbs.wedge, overshield = f.overshield }
+        local gaps = {}
+        for what, b in pairs(bars) do gaps[what] = b:GetFrameLevel() - f.health:GetFrameLevel() end
+        place(ns, unit, "health")
+        for what, b in pairs(bars) do
+            T.eq(b:GetFrameLevel() - f.health:GetFrameLevel(), gaps[what], unit .. " " .. what .. " keeps its gap")
+        end
+        ns.Layers.Reset(unit)
+        stub.RunTimers()
+        for what, b in pairs(bars) do
+            T.eq(b:GetFrameLevel() - f.health:GetFrameLevel(), gaps[what], unit .. " " .. what .. " back")
+        end
+    end
+end)
+
 T.test("layers: the preview's stand-in aura rows take their place", function()
     local _, ns = freeTarget()
     place(ns, "target", "buffs")

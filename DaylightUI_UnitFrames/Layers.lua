@@ -57,9 +57,13 @@ local function part(key, label, get, extra)
 end
 
 -- glue(f): frames drawn as part of a part without being inside it. They move
--- with it and keep their gap to it. The frame's border goes round its health bar.
+-- with it and keep their gap to it. The frame's border goes round its health
+-- bar, and the incoming heal, absorb and overshield bars draw over it.
 local HEALTH = part("health", "Health bar", function(f) return f.health end,
-    { glue = function(f) return { DUI.Style.GetShell(f) } end })
+    { glue = function(f)
+        local heals, absorbs = f.heals, f.absorbs
+        return { DUI.Style.GetShell(f), heals, heals and heals.wedge, absorbs, absorbs and absorbs.wedge, f.overshield }
+    end })
 local function power(unit)
     return part("power", "Power bar", function(f) return f.freePower and powerFree(unit) and f.freePower or f.power end,
         { free = function(f) return f.freePower ~= nil and powerFree(unit) end,
