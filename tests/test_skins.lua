@@ -818,6 +818,80 @@ T.test("skins: no Daylight UI code runs inside a confirm box while the game open
     T.falsy(s2.down, "back to rest when the box closes")
 end)
 
+-- The game's macro window, as Blizzard_MacroUI.xml builds it.
+local function macroWindow()
+    local f = window("MacroFrame")
+    f.SelectedMacroButton = CreateFrame("CheckButton", "MacroFrameSelectedMacroButton", f)
+    f.SelectedMacroButton.Icon = f.SelectedMacroButton:CreateTexture()
+    f.MacroSelector = CreateFrame("Frame", nil, f)
+    local box = list(f.MacroSelector)
+    box.ScrollTarget = CreateFrame("Frame", nil, box)
+    f.MacroSelector.ScrollBox = box
+    for i = 1, 3 do
+        local b = CreateFrame("Button", nil, box.ScrollTarget)
+        b:SetSize(36, 36)
+        -- SelectorButtonTemplate: its icon is its normal texture.
+        b.Icon = b:CreateTexture()
+        function b:GetNormalTexture() return self.Icon end
+        b.Name = b:CreateFontString()
+        box.rows[i] = b
+    end
+    rows(unpack(box.rows))
+    local bar = CreateFrame("EventFrame", nil, f.MacroSelector)
+    bar.Track = CreateFrame("Frame", nil, bar)
+    bar.Track.Thumb = CreateFrame("Button", nil, bar.Track)
+    bar.Back, bar.Forward = CreateFrame("Button", nil, bar), CreateFrame("Button", nil, bar)
+    f.MacroSelector.ScrollBar = bar
+    local sf = CreateFrame("ScrollFrame", "MacroFrameScrollFrame", f)
+    CreateFrame("EditBox", "MacroFrameText", sf)
+    for _, name in ipairs({ "MacroEditButton", "MacroCancelButton", "MacroSaveButton",
+                            "MacroDeleteButton", "MacroNewButton", "MacroExitButton" }) do
+        local b = button(name, f)
+        b:GetFontString():SetText(name)
+    end
+    for i = 1, 2 do
+        -- PanelTopTabButtonTemplate
+        local tab = CreateFrame("Button", "MacroFrameTab" .. i, f)
+        tab:SetID(i)
+        tab.Left, tab.Middle, tab.Right = tab:CreateTexture(), tab:CreateTexture(), tab:CreateTexture()
+        tab.LeftActive, tab.MiddleActive, tab.RightActive = tab:CreateTexture(), tab:CreateTexture(), tab:CreateTexture()
+        tab.Text = tab:CreateFontString()
+        tab.Text:SetText(i == 1 and "General Macros" or "Character Macros")
+    end
+    return f
+end
+
+-- With the controller UI on, the macro window's footer (X binds a macro to the
+-- controller bars) refreshes at the end of each tab switch, right after the game
+-- enables and disables the New, Edit and Delete buttons, the macro slots and the
+-- tabs. Daylight UI code on any of those ran first and tainted the footer, and
+-- the game then refused SetPreferredGamepadInteractTarget, blamed on the skins.
+T.test("skins: no Daylight UI code runs inside the macro window while the game switches its tab", function()
+    local f
+    login(function() f = macroWindow() end)
+    stub.loadedAddOns.Blizzard_MacroUI = true
+    stub.FireEvent("ADDON_LOADED", "Blizzard_MacroUI")
+    stub.RunTimers()
+    f:Show()
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local Kit = stub.skins.Kit
+    T.truthy(Kit.ShellOf(f), "our window")
+    T.truthy(Kit.ButtonOf(MacroNewButton), "our buttons")
+    T.truthy(Kit.TabOf(MacroFrameTab2), "our tabs")
+    local inside = stub.AddonScriptsInside(f, { "OnShow", "OnHide", "OnSizeChanged", "OnEnable", "OnDisable" })
+    T.eq(#inside, 0, "Daylight UI code inside the macro window: " .. table.concat(inside, ", "))
+
+    -- The quiet pieces still follow the game: a grayed-out button, the picked tab.
+    MacroDeleteButton:Disable()
+    Kit.quietPoller:GetScript("OnUpdate")(Kit.quietPoller, 0.016)
+    T.truthy(Kit.ButtonOf(MacroDeleteButton).off, "a disabled button shows as off")
+    f.selectedTab = 2
+    MacroFrameTab2:Disable()
+    Kit.quietPoller:GetScript("OnUpdate")(Kit.quietPoller, 0.016)
+    T.truthy(Kit.TabOf(MacroFrameTab2).picked or Kit.TabOf(MacroFrameTab2).on, "the character tab shows as picked")
+end)
+
 T.test("skins: the stack split box: our window, arrows and buttons, the amount in the accent", function()
     local f
     login(function()

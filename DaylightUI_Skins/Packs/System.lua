@@ -18,7 +18,24 @@ Engine.Window({ key = "gamemenu", pack = "system", frame = "GameMenuFrame", hide
         if type(f.Header) == "table" then Kit.Strip(f.Header) end
     end })
 Engine.Window({ key = "addons", pack = "system", frame = "AddonList", watch = true })
-Engine.Window({ key = "macros", pack = "system", addon = "Blizzard_MacroUI", frame = "MacroFrame", watch = true })
+-- The macro window, dressed quietly like the confirm boxes below. With the
+-- controller UI on, its footer refreshes at the end of every tab switch, just
+-- after the game enables and disables its buttons and tabs, and a hook on any of
+-- those tainted the footer: the game then refused to bind a macro to the
+-- controller bars. The macro slots keep the game's look.
+local MACRO_BUTTONS = { "MacroEditButton", "MacroCancelButton", "MacroSaveButton",
+    "MacroDeleteButton", "MacroNewButton", "MacroExitButton" }
+Engine.Window({ key = "macros", pack = "system", addon = "Blizzard_MacroUI", frame = "MacroFrame",
+    auto = false,
+    window = { quiet = true },
+    after = function(Kit, f)
+        for _, name in ipairs(MACRO_BUTTONS) do Kit.Button(_G[name], f) end
+        for i = 1, 2 do Kit.Tab(_G["MacroFrameTab" .. i], nil, f) end
+        if type(f.MacroSelector) == "table" then Kit.ScrollBar(f.MacroSelector.ScrollBar) end
+        local text = _G.MacroFrameScrollFrame
+        if type(text) == "table" then Kit.ScrollBar(text.ScrollBar) end
+        Kit.InkGameText(f)
+    end })
 Engine.Window({ key = "clock", pack = "system", addon = "Blizzard_TimeManager", frame = "TimeManagerFrame" })
 -- Loot window: each item becomes a list row (the game's square card,
 -- quality tint and hover glow removed; quality shows in the name and the icon

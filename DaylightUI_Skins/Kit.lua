@@ -1593,8 +1593,9 @@ local TAB_ART = { "Left", "Middle", "Right", "LeftActive", "MiddleActive", "Righ
                   "SquareBackground", "SquareBackgroundActive", "SquareBackgroundActiveGlow" }
 
 -- isSelected(tab): optional, for tabs that track selection their own way
--- (Ace3's tab.selected).
-function Kit.Tab(tab, isSelected)
+-- (Ace3's tab.selected). host: the window that shows it; given, the tab is
+-- dressed quietly, as Kit.Button.
+function Kit.Tab(tab, isSelected, host)
     if not isTable(tab) or not tab.CreateTexture or not once("tab", tab) then return end
     hookTabs()
     hideButtonArt(tab)
@@ -1608,7 +1609,7 @@ function Kit.Tab(tab, isSelected)
         or (type(name) == "string" and _G[name .. "Text"]) or nil
     local icon = isTable(tab.Icon) or isTable(tab.icon)
     if kind(label) == "FontString" and not icon then
-        local t = DUI.Widgets.TabLook(tab, {}, label, { under = Kit.TAB_UNDER })
+        local t = DUI.Widgets.TabLook(tab, {}, label, { under = Kit.TAB_UNDER, quiet = host ~= nil })
         tabs[tab] = t
         tab:HookScript("OnEnter", function() t.Paint(true) end)
         tab:HookScript("OnLeave", function() t.Paint(false) end)
@@ -1638,6 +1639,21 @@ function Kit.Tab(tab, isSelected)
         return selected == true
     end
     local function repaint() picked(tab, selectedNow()) end
+    if host then
+        -- The game's PanelTemplates calls (hooked above, after the game's own)
+        -- paint a pick. Anything else is read while the window is shown.
+        local t = tabs[tab]
+        quietHost(host)[tab] = function(gone)
+            if gone then return end
+            local on = selectedNow()
+            local off = (t.Pick and not on and tab.IsEnabled and not tab:IsEnabled()) or nil
+            if on == (t.picked == true) and off == t.off then return end
+            picked(tab, on)
+            if t.Fit then t.Fit() end
+        end
+        paintTab(tab, selectedNow())
+        return
+    end
     if kind(tab) == "Button" or kind(tab) == "CheckButton" then
         tab:HookScript("OnEnable", repaint)
         tab:HookScript("OnDisable", repaint)

@@ -1669,7 +1669,8 @@ W.TAB_H = 24
 -- (Kit.Tab) s is a separate table so nothing is written on the game's frame.
 -- text is the tab's font string. opts as W.Tab plus under, which puts the
 -- line right under the text instead of at the tab's bottom. Only a resize
--- hook; the caller drives s.Paint(over) and s.Pick(on, animate). s.off dims it.
+-- hook (none with quiet: the caller then calls s.Fit after a resize); the
+-- caller drives s.Paint(over) and s.Pick(on, animate). s.off dims it.
 function W.TabLook(b, s, text, opts)
     s = s or b
     opts = opts or {}
@@ -1703,7 +1704,8 @@ function W.TabLook(b, s, text, opts)
             s.line:SetWidth(full())
         end
     end
-    b:HookScript("OnSizeChanged", function() if s.picked then s.line:SetWidth(full()) end end)
+    function s.Fit() if s.picked then s.line:SetWidth(full()) end end
+    if not opts.quiet then b:HookScript("OnSizeChanged", s.Fit) end
     return s
 end
 
