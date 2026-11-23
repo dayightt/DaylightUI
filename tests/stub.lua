@@ -369,6 +369,11 @@ function Widget:SetParent(p)
     guard(self, "SetParent")
     adopt(self, p)
     self.__parent = p
+    -- Like the client, a new parent puts the frame one level above it, whatever
+    -- level it had before.
+    if type(p) == "table" and type(rawget(p, "__level")) == "number" and rawget(self, "__level") ~= nil then
+        self.__level = p.__level + 1
+    end
     if type(p) == "table" and rawget(p, "__inAura") then self.__inAura = p.__inAura end
 end
 -- Like the client, OnShow and OnHide run when a frame's visibility changes,

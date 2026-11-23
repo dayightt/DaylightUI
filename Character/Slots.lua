@@ -461,13 +461,14 @@ function Slots.DoLend()
     -- Parent to the Character page so the invisible buttons hide on other pages.
     local _, any = next(Slots.frames)
     local host = any:GetParent() or f
-    home = { parent = items:GetParent(), points = pointsOf(items), w = items:GetWidth(), h = items:GetHeight() }
+    home = { parent = items:GetParent(), points = pointsOf(items), w = items:GetWidth(), h = items:GetHeight(),
+             level = items:GetFrameLevel() }
     items:SetParent(host)
     items:ClearAllPoints()
     items:SetPoint("TOPLEFT", host, "TOPLEFT", 0, 0)
     items:SetSize(1, 1)   -- so it never covers the tabs
     for _, b in ipairs(gameButtons()) do
-        buttonHome[b] = { points = pointsOf(b), mouse = b:IsMouseEnabled() }
+        buttonHome[b] = { points = pointsOf(b), mouse = b:IsMouseEnabled(), level = b:GetFrameLevel() }
         Slots.RawAlpha(b, 0)
         local h = slotFor(b)
         if h then
@@ -490,16 +491,20 @@ end
 
 function Slots.Return()
     if not Slots.lent or InCombatLockdown() then return false end
+    -- A new parent drops a frame to one level above it, and the game keeps its
+    -- model under the slots only by level, so the old levels go back too.
+    local items = PaperDollItemsFrame
+    items:SetParent(home.parent)
+    if home.level then items:SetFrameLevel(home.level) end
+    restore(items, home.points)
+    if (home.w or 0) > 0 then items:SetSize(home.w, home.h) end
     for b, saved in pairs(buttonHome) do
         restore(b, saved.points)
+        if saved.level then b:SetFrameLevel(saved.level) end
         b:EnableMouse(saved.mouse ~= false)
         Slots.RawAlpha(b, 1)
     end
     buttonHome = {}
-    local items = PaperDollItemsFrame
-    items:SetParent(home.parent)
-    restore(items, home.points)
-    if (home.w or 0) > 0 then items:SetSize(home.w, home.h) end
     local fly = EquipmentFlyoutFrame
     if flyHome and type(fly) == "table" then fly:SetParent(flyHome) end
     flyHome = nil

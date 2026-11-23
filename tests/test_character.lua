@@ -2250,6 +2250,16 @@ T.test("character currency: the transfer opens the game's own page, then ours co
     T.isnil(CW.state.panel.width, "no panel layout written on the way")
 end)
 
+T.test("character: the slots go back over the game's model at their own level", function()
+    local _, ns = load({ currency = currency() })
+    local page = openPage(ns, "TokenFrame")
+    T.eq(ns.Slots.lent, true)
+    page.pane.button:Click()
+    T.eq(ns.Slots.lent, false)
+    T.eq(PaperDollItemsFrame:GetFrameLevel(), 100, "the level the game gave it")
+    T.truthy(CharacterHeadSlot:GetFrameLevel() > CharacterModelScene:GetFrameLevel(), "a slot over the model")
+end)
+
 T.test("character currency: no transfer in combat", function()
     local _, ns = load({ currency = currency() })
     local page = openPage(ns, "TokenFrame")

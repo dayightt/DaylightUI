@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Cooldown Manager", "Slide over now closes the gap for buffs like Flurry and Enrage that were hidden in the game's own Cooldown Manager settings" },
+        { "Character", "Swapped to the game's own character window, your gear slots sit over your model again, so you can hover and click them" },
     } },
     { version = "2.2.4", date = "2026-11-23", summary = "Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.", new = {
         { "Cooldown Manager", "A group can attach to another frame, like your cast bar or raid frames, and follow it" },

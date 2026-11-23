@@ -120,6 +120,11 @@ local function buildFrames(spec)
     local items = CreateFrame("Frame", "PaperDollItemsFrame", _G.PaperDollFrame)
     items:SetPoint("TOPLEFT", _G.PaperDollFrame, "TOPLEFT", 0, 0)
     items:SetSize(300, 400)
+    -- The game's XML puts the slots at level 100, over the model at 50.
+    items:SetFrameLevel(100)
+    local scene = CreateFrame("Frame", "CharacterModelScene", _G.PaperDollFrame)
+    scene:SetFrameLevel(50)
+    scene:SetAllPoints(_G.PaperDollFrame)
     items.flyoutSettings = { parent = _G.PaperDollFrame }
     items.EquipmentSlots, items.WeaponSlots = {}, {}
     for i, key in ipairs(CW.EQUIP) do
