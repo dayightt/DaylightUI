@@ -8,6 +8,7 @@
 ## Notes-esMX: Las ventanas del propio juego al estilo DaylightUI.
 ## Notes-deDE: Die eigenen Fenster des Spiels im DaylightUI-Stil.
 ## Author: Daylight
+## Category: DaylightUI
 ## Version: 2.2.4
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI

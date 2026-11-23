@@ -74,6 +74,36 @@ T.test("plugins: the (DaylightUI Plugin) tag is left off the title shown, and a 
     T.isnil(says("Tagged"))
 end)
 
+T.test("plugins: one missing the AddOns list category, or filed under another addon, is told on General > Plugins", function()
+    local DUI = withPlugin(function(DUI)
+        stub.addonMeta.Filed = { Title = "Filed (DaylightUI Plugin)", Category = "DaylightUI Plugins", Group = "Filed" }
+        stub.addonMeta.NoCat = { Title = "No Cat (DaylightUI Plugin)" }
+        stub.addonMeta.Tucked = { Title = "Tucked (DaylightUI Plugin)", Category = "DaylightUI Plugins", Group = "DaylightUI" }
+        stub.addonMeta.Bare = {}
+        DUI.RegisterPlugin("Filed")
+        DUI.RegisterPlugin("NoCat")
+        DUI.RegisterPlugin("Tucked")
+        DUI.RegisterPlugin("Bare")
+    end)
+    local P = DUI.Plugins
+    T.falsy(P.list.Filed.unfiled)
+    T.truthy(P.list.NoCat.unfiled, "no Category line")
+    T.truthy(P.list.Tucked.unfiled, "grouped under DaylightUI, so its heading is lost")
+    T.falsy(P.list.Bare.unfiled, "no .toc to judge")
+    local function says(name)
+        for _, g in ipairs(DUI.Options.GetPage("plugins").groups) do
+            if g.label == P.list[name].title then
+                for _, it in ipairs(g.items) do
+                    local t = type(it.label) == "function" and it.label() or it.label
+                    if type(t) == "string" and t:find("## Category", 1, true) then return t end
+                end
+            end
+        end
+    end
+    T.eq(says("NoCat"), 'Its .toc should say "## Category: DaylightUI Plugins" and "## Group: NoCat", so it sits under the plugins\' heading in the AddOns list.')
+    T.isnil(says("Filed"))
+end)
+
 T.test("plugins: a plugin's modules get its own section under the Plugins heading, their settings in the profile", function()
     local DUI = withPlugin(function(DUI)
         DaylightUI:RegisterPlugin("MyPlugin", { title = "My Plugin", author = "Ann", needs = { 1, 0 },

@@ -81,6 +81,12 @@ end
 -- Daylight UI the tag is left off: its section already sits under Plugins.
 Plugins.TAG = "(DaylightUI Plugin)"
 
+-- Every plugin's .toc also says "## Category: DaylightUI Plugins" and names its own
+-- folder as its Group. The AddOns list only reads Category from the addon at the top
+-- of a group, and the game may file an addon that depends on DaylightUI under
+-- DaylightUI's row by itself, where the heading is lost.
+Plugins.CATEGORY = "DaylightUI Plugins"
+
 -- The title without the tag, and whether the tag was there.
 function Plugins.SplitTitle(title)
     local bare = string.match(title, "^(.-)%s*%(%s*[Dd]aylight%s?[Uu][Ii]%s+[Pp]lugin%s*%)$")
@@ -115,6 +121,8 @@ function Plugins.Register(name, spec, extra)
         title = Plugins.SplitTitle(str(spec.title) or tocTitle or name),
         -- Only judged when the .toc can be read: that's the name players see.
         untagged = tocTitle ~= nil and not tagged,
+        unfiled = tocTitle ~= nil and (meta(addon, "Category") ~= Plugins.CATEGORY
+            or (meta(addon, "Group") or addon) ~= addon),
         author = str(spec.author) or meta(addon, "Author"),
         version = spec.version ~= nil and tostring(spec.version) or meta(addon, "Version"),
         website = str(spec.website) or meta(addon, "X-Website"),
@@ -294,6 +302,12 @@ local function pluginGroup(p)
     if p.untagged then
         items[#items + 1] = { type = "text", label = function()
             return string.format(L["Its name in the AddOns list should read \"%s %s\": every plugin's does."], p.title, Plugins.TAG)
+        end }
+    end
+    if p.unfiled then
+        items[#items + 1] = { type = "text", label = function()
+            return string.format(L["Its .toc should say \"## Category: %s\" and \"## Group: %s\", so it sits under the plugins' heading in the AddOns list."],
+                Plugins.CATEGORY, p.addon)
         end }
     end
     items[#items + 1] = changesRow(p.name)

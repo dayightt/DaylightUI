@@ -248,6 +248,7 @@ L["%s spent at level %d so far."] = "Потрачено %s на уровне %d.
 L["%s to spend"] = "Можно потратить: %s"
 L["%s was made for an older DaylightUI and is off: look for an update of it."] = "%s создан для старой версии DaylightUI и отключен: поищите его обновление."
 L["Its name in the AddOns list should read \"%s %s\": every plugin\'s does."] = "В списке модификаций его название должно быть «%s %s»: так называется каждый плагин."
+L["Its .toc should say \"## Category: %s\" and \"## Group: %s\", so it sits under the plugins' heading in the AddOns list."] = "В его .toc должно быть «## Category: %s» и «## Group: %s», чтобы в списке модификаций он стоял под заголовком плагинов."
 L["%s wonders where you went."] = "%s гадает, куда вы пропали."
 L["%s x%d"] = "%s x%d"
 L["%s · Level %d"] = "%s · Уровень %d"

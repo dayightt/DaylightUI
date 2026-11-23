@@ -8,6 +8,7 @@
 ## Notes-esMX: Un conjunto de interfaz suave y minimalista. Este es el núcleo; carga junto a él los módulos que quieras.
 ## Notes-deDE: Ein sanftes, schlichtes UI-Paket. Das ist der Kern; lade die gewünschten Module dazu.
 ## Author: Daylight
+## Category: DaylightUI
 ## X-Curse-Project-ID: 1712997
 ## X-Wago-ID: n6VYLONd
 ## Version: 2.2.4

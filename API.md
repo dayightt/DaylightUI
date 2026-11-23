@@ -1102,11 +1102,20 @@ AddOns list and on download sites what needs Daylight UI.
 ```
 ## Title: Raid Notes (DaylightUI Plugin)
 ## Dependencies: DaylightUI
+## Category: DaylightUI Plugins
+## Group: RaidNotes
 ```
 
 Inside Daylight UI the tag is left off (your section already sits under Plugins), so this one
 shows as "Raid Notes". A plugin without the tag still runs, but General > Plugins says its name
 doesn't follow the rule.
+
+`Category` puts every plugin under one "DaylightUI Plugins" heading in the game's AddOns list, next
+to Daylight UI's own. `Group` is your addon's folder name, spelled exactly. The game only reads
+`Category` from an addon at the top of its group, and it may tuck an addon that depends on
+DaylightUI under DaylightUI's row on its own (more so when the names look alike), where the
+heading is ignored. Naming your own folder keeps your plugin on its own row. General > Plugins
+says so when either line is missing.
 
 ## The game's rules still apply
 
