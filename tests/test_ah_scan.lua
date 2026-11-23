@@ -770,6 +770,70 @@ T.test("a Sell search pairs the suffix, then the scan and the tooltip price the 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's tooltip for an item key, as a link with the suffix's bonus in it.
+-- Bonuses are mostly the AH number less 1580 but not always: 14300 and 14298
+-- trade places (12718 and 12720).
+local function keyTips(answer)
+    local had = _G.C_TooltipInfo
+    local asked = 0
+    _G.C_TooltipInfo = { GetItemKey = function(itemID, level, suffix)
+        asked = asked + 1
+        local bonus = answer and answer(suffix)
+        if bonus == nil then
+            bonus = (suffix == 14300 and 12718) or (suffix == 14298 and 12720) or suffix - 1580
+        end
+        if bonus == false then return nil end
+        return { hyperlink = "|cnIQ2:|Hitem:" .. itemID .. "::::::::27:1491:::1:" .. bonus .. "::::::|h[Phalanx Girdle]|h|r" }
+    end }
+    return function() _G.C_TooltipInfo = had end, function() return asked end
+end
+
+-- A suffixed green dropped and hovered in the loot window: the first time a
+-- link's suffix isn't paired, every suffix is paired through the game's item
+-- key tooltips, so the full scan files each one under its own price.
+T.test("an unpaired suffix pairs every suffix, so a looted green gets its own price", function()
+    local M = girdleLoad()
+    local undo, asked = keyTips()
+    local key = M.Items.Key(DEFENDER)
+    T.eq(key, "7418:14333", "the loot window's link is placed at once")
+    T.eq(M.DB.Table("suffixBonus")["12753"], 14333)
+    T.eq(M.DB.Table("suffixBonus")["12718"], 14300, "taken from the game, never computed")
+    T.eq(M.DB.Table("suffixBonus")["12875"], 14455)
+    local n = asked()
+    M.Items.Key("|cnIQ2:|Hitem:7418::::::::27:1491:::1:99999::::::|h[Phalanx Girdle of Nothing]|h|r")
+    T.eq(asked(), n, "asked once a session, not on every unknown bonus")
+    AHW.Open()
+    T.eq(M.Scan.Full(), true)
+    AHW.Settle()
+    T.eq(M.Store.Min(RKEY, "7418:14333"), 5090, "the Defender's own price")
+    T.eq(M.Store.Min(RKEY, "7418:14455"), 1695)
+    local rows = M.Tooltip.Lines(DEFENDER, false, 1)
+    T.eq(rows and rows[1][2], DaylightUI.Widgets.Money(5090), "the looted Defender shows 50s 90c")
+    undo()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("item key tooltips that disagree with a known pair teach nothing", function()
+    local M = girdleLoad()
+    M.DB.Table("suffixBonus")["12875"] = 14455
+    local undo = keyTips(function(suffix) if suffix == 14455 then return 11111 end end)
+    local _, _, unplaced = M.Items.Key(DEFENDER)
+    T.eq(unplaced, true, "no price rather than a pair the game contradicted")
+    T.isnil(M.DB.Table("suffixBonus")["12753"])
+    T.isnil(M.DB.Table("suffixBonus")["11111"])
+    undo()
+end)
+
+T.test("item key tooltips that answer nothing leave the suffix unplaced", function()
+    local M = girdleLoad()
+    local undo = keyTips(function() return false end)
+    local _, _, unplaced = M.Items.Key(DEFENDER)
+    T.eq(unplaced, true)
+    T.isnil(next(M.DB.Table("suffixBonus")))
+    undo()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("a girdle whose name the game hasn't loaded gets no price", function()
     local M = girdleLoad()
     M.Store.Record(RKEY, "7418", 1695, 1, M.Game.Now())
