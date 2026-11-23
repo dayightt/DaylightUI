@@ -141,6 +141,19 @@ local function cornerY(cfg, holder)
     return -(holder.padUp or 0)
 end
 
+-- Where a header is held in the holder: its corner, or with growCenter the
+-- middle of the side the lines start from. The game's header sizes itself to
+-- the members it shows (configureChildren), so held by the middle a group
+-- that isn't full stays centered, in a fight too. Returns the point and its
+-- y offset.
+function Group.Anchor(cfg, holder)
+    if cfg.growCenter ~= true then return Group.Corner(cfg), cornerY(cfg, holder) end
+    if Group.Direction(cfg) == "rows" then
+        return cfg.growUp == true and "BOTTOM" or "TOP", cornerY(cfg, holder)
+    end
+    return cfg.growLeft == true and "RIGHT" or "LEFT", ((holder.padDown or 0) - (holder.padUp or 0)) / 2
+end
+
 -- How much room count members take, laid out per cfg in rows or columns. w, h
 -- are the button's size (defaults to the settings'). Returns width, height.
 function Group.Footprint(cfg, count, rows, w, h)
@@ -412,7 +425,7 @@ end
 -- group 3 is always the third line even if 1 or 2 is empty.
 -- Protected, out of combat only.
 function Group:PlaceGroupHeaders(cfg, w, ht, rows)
-    local corner, y0 = Group.Corner(cfg), cornerY(cfg, self.holder)
+    local corner, y0 = Group.Anchor(cfg, self.holder)
     local sx, sy = cfg.growLeft == true and -1 or 1, cfg.growUp == true and 1 or -1
     for i, gh in ipairs(self.headers) do
         gh:SetAttribute("unitWidth", w)
@@ -477,8 +490,8 @@ function Group:Layout(cfg, text, range)
     h:SetAttribute("unitHeight", ht)
     holder.padUp, holder.padDown = self:Pads(cfg)
     h:ClearAllPoints()
-    local corner = Group.Corner(cfg)
-    h:SetPoint(corner, holder, corner, 0, cornerY(cfg, holder))
+    local at, y = Group.Anchor(cfg, holder)
+    h:SetPoint(at, holder, at, 0, y)
     local rows = self:ApplyDirection(cfg)
     self:PlaceGroupHeaders(cfg, w, ht, rows)
     holder.tileW, holder.tileH = w, ht

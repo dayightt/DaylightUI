@@ -2071,3 +2071,29 @@ T.test("socket: square, no lit line on the bar to end at the square's side", fun
     stub.RunTimers()
     T.truthy(DUI.Style.GetShell(f).lit:IsShown(), "Classic keeps the frame's lit line")
 end)
+
+T.test("target of target, focus target and pet: a portrait when picked, off by default", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "HUNTER", health = 5, maxHealth = 10 }
+        stub.units.target = { name = "Wolf", isPlayer = false, reaction = 2, health = 5, maxHealth = 10 }
+        stub.units.targettarget = { name = "Stabby", isPlayer = true, class = "HUNTER", health = 5, maxHealth = 10 }
+        stub.units.pet = { name = "Cat", isPlayer = false, reaction = 5, health = 5, maxHealth = 10 }
+    end)
+    for _, unit in ipairs({ "targettarget", "focustarget", "pet" }) do
+        local f = ns.frames[unit]
+        T.truthy(f.portrait, unit .. " has the pieces")
+        T.eq(DUI:Get("UnitFrames", unit .. ".portrait"), "none", unit .. " off by default")
+        T.falsy(DUI:Get("UnitFrames", unit .. ".showLevel"), "no level badge out of the blue")
+    end
+    local tot, pet = ns.frames.targettarget, ns.frames.pet
+    ns.UF.UpdateAll(tot, true); ns.UF.UpdateAll(pet, true)
+    T.falsy(tot.portrait:IsShown()); T.falsy(pet.portrait:IsShown())
+    DUI:Set("UnitFrames", "targettarget.portrait", "class")
+    DUI:Set("UnitFrames", "pet.portrait", "2d")
+    stub.RunTimers()
+    ns.UF.UpdateAll(tot, true); ns.UF.UpdateAll(pet, true)
+    T.truthy(tot.portrait:IsShown(), "the class icon ring on the target of target")
+    T.eq(tot.portrait.icon.__texture, DUI.MEDIA .. "class\\hunter.tga")
+    T.truthy(pet.portrait:IsShown(), "the pet's face")
+    T.truthy(tot.__hitRect[1] < 0 or tot.__hitRect[2] < 0, "the ring is clickable")
+end)

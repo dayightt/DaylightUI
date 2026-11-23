@@ -231,6 +231,13 @@ PB.REGEN_TRAIL_HEAD = 12  -- and its soft edge ahead of it
 PB.REGEN_TRAIL_ALPHA = 0.6
 PB.REGEN_LINE_ALPHA = 0.7 -- the draining line's dim end
 PB.REGEN_NO_MANA = { WARRIOR = true, ROGUE = true }
+-- Keep ticking (player.regenTicks): after the rule, a light runs to each mana
+-- regen tick. The tick's length is measured from the gaps between real mana
+-- gains, never assumed: gaps outside this range (steady regen, a potion) are
+-- not ticks, and without a measured tick nothing shows.
+PB.TICK_MIN, PB.TICK_MAX = 1, 4
+PB.TICK_GRACE = 0.3   -- how late a tick's gain may come before ticking stops
+PB.TICK_ALPHA = 0.6   -- ticks are softer than the rule's own sweep
 
 local WHITE = "Interface\\Buttons\\WHITE8x8"
 local MANA = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
@@ -328,18 +335,26 @@ local function dress(s, look)
 end
 
 -- Adds one sweep to the running timer, or removes it. restart starts it over
--- from the bar's beginning so the old light doesn't jump there.
+-- from the bar's beginning so the old light doesn't jump there. Between rules
+-- the ticks (regen.ticking) run the same light, softer, and fade out at full
+-- mana: plain mana is checked before a tick starts, secret mana goes through
+-- the full-mana curve so the light's alpha drops to 0 at full.
 local function arm(s, restart)
     local look = regen.look
-    local on = regen.ends and look ~= "off" and regen.onMana and s.bar:IsVisible()
+    local on = (regen.ends or regen.ticking) and look ~= "off" and regen.onMana and s.bar:IsVisible()
     if not on then
         if s.holder:IsShown() then DUI.Motion.AlphaTo(s.holder, 0, DUI.Motion.FAST, true) end
         return
     end
     if restart then s.holder:SetAlpha(0) end
     local dir = Enum.StatusBarTimerDirection
-    s.timer:SetTimerDuration(regen.duration, Enum.StatusBarInterpolation.Immediate,
+    s.timer:SetTimerDuration(regen.ends and regen.duration or regen.tickDuration, Enum.StatusBarInterpolation.Immediate,
         look == "line" and dir.RemainingTime or dir.ElapsedTime)
+    if regen.ends then
+        s.timer:SetAlpha(1)
+    else
+        s.timer:SetAlpha(ns.UF.FullManaAlpha("player", 0, PB.TICK_ALPHA))
+    end
     DUI.Motion.AlphaTo(s.holder, 1, DUI.Motion.FAST)
 end
 
@@ -347,24 +362,99 @@ local function armAll(restart)
     for _, s in pairs(regen.sweeps) do arm(s, restart) end
 end
 
+local function ticksOn()
+    local db = ns.module and ns.module.db
+    return db and db.player and db.player.regenTicks == true and regen.look ~= "off"
+end
+
+-- Plain mana, or nil while it reads secret.
+local function plainMana()
+    local cur, max = UnitPower("player", MANA), UnitPowerMax("player", MANA)
+    if isSecret(cur) or isSecret(max) or type(cur) ~= "number" or type(max) ~= "number" then return end
+    return cur, max
+end
+
+local startTick
+
+-- The tick that began at `from`. Its end waits a moment for the next gain;
+-- a gain restarts it from that gain. No gain with mana plain means full or no
+-- regen, so ticking stops. Secret mana can't be read, so the ticks go on by
+-- the measured beat and the curve hides them at full.
+startTick = function(from)
+    local tick = regen.tick
+    if not (tick and ticksOn()) or regen.ends then regen.ticking = nil; return end
+    local cur, max = plainMana()
+    if cur and cur >= max then
+        regen.ticking = nil
+        armAll()
+        return
+    end
+    regen.gen = regen.gen + 1
+    local gen, restart = regen.gen, not regen.ticking
+    regen.ticking = true
+    regen.tickDuration = regen.tickDuration or C_DurationUtil.CreateDuration()
+    regen.tickDuration:SetTimeFromStart(from, tick)
+    armAll(restart)
+    C_Timer.After(math.max(0, from + tick + PB.TICK_GRACE - GetTime()), function()
+        if gen ~= regen.gen then return end
+        if plainMana() then
+            regen.ticking = nil
+            armAll()
+        else
+            startTick(from + tick)
+        end
+    end)
+end
+
+-- The tick in progress now, by the beat of the last gain.
+local function resumeTicks()
+    local tick, last = regen.tick, regen.lastGain
+    if not (tick and last) then return false end
+    local now = GetTime()
+    startTick(last + math.floor((now - last) / tick) * tick)
+    return regen.ticking == true
+end
+
 function PB.RegenStart()
     regen.gen = regen.gen + 1
     local gen, now = regen.gen, GetTime()
     regen.ends = now + PB.REGEN_WINDOW
+    regen.ticking = nil
     regen.duration = regen.duration or C_DurationUtil.CreateDuration()
     regen.duration:SetTimeFromStart(now, PB.REGEN_WINDOW)
     armAll(true)
-    -- Hidden just as the light reaches the end.
+    -- Hidden just as the light reaches the end, unless the ticks take over.
     C_Timer.After(PB.REGEN_WINDOW - DUI.Motion.FAST, function()
         if gen ~= regen.gen then return end
         regen.ends = nil
-        armAll()
+        if not (ticksOn() and resumeTicks()) then armAll() end
     end)
+end
+
+-- A mana change, out of the rule or in it. Only a plain rise counts as a gain;
+-- the gap between two gains is the tick when it's in range.
+function PB.ManaChanged()
+    local cur, max = plainMana()
+    if not cur then return end
+    local last = regen.lastMana
+    regen.lastMana = cur
+    if cur >= max then
+        if regen.ticking then regen.gen = regen.gen + 1; regen.ticking = nil; armAll() end
+        return
+    end
+    if not (last and cur > last) then return end
+    local now = GetTime()
+    if regen.lastGain then
+        local gap = now - regen.lastGain
+        if gap >= PB.TICK_MIN and gap <= PB.TICK_MAX then regen.tick = gap end
+    end
+    regen.lastGain = now
+    if not regen.ends and ticksOn() then startTick(now) end
 end
 
 -- Stops it at once, when turned off.
 function PB.RegenStop()
-    regen.gen, regen.ends = regen.gen + 1, nil
+    regen.gen, regen.ends, regen.ticking = regen.gen + 1, nil, nil
     for _, s in pairs(regen.sweeps) do DUI.Motion.AlphaTo(s.holder, 0, 0, true) end
 end
 
@@ -373,29 +463,39 @@ local function readPower()
     if not isSecret(token) then regen.onMana = token == "MANA" end
 end
 
-local function onEvent(_, event, _, _, spellID)
+local function onEvent(_, event, _, arg2, spellID)
     if event == "UNIT_DISPLAYPOWER" then
         readPower()
         armAll()
+    elseif event == "UNIT_POWER_FREQUENT" then
+        if arg2 == "MANA" then PB.ManaChanged() end
     elseif PB.CostsMana(spellID) then
         PB.RegenStart()
     end
 end
 
-local function listen(on)
-    if on == (regen.listening or false) then return end
-    regen.listening = on
+-- on = the sweep's events; ticks = the mana changes too, only with Keep ticking.
+local function listen(on, ticks)
+    ticks = on and ticks or false
+    if on == (regen.listening or false) and ticks == (regen.listeningTicks or false) then return end
+    regen.listening, regen.listeningTicks = on, ticks
     local ev = regen.events
     if not ev then
         ev = CreateFrame("Frame")
         ev:SetScript("OnEvent", onEvent)
         regen.events = ev
     end
+    ev:UnregisterAllEvents()
     if on then
         ev:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
         ev:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+    end
+    if ticks then
+        ev:RegisterUnitEvent("UNIT_POWER_FREQUENT", "player")
+        regen.lastMana = plainMana()   -- so the first rise already counts
     else
-        ev:UnregisterAllEvents()
+        regen.lastMana, regen.lastGain, regen.tick = nil, nil, nil
+        if regen.ticking then regen.gen = regen.gen + 1; regen.ticking = nil; armAll() end
     end
 end
 
@@ -417,7 +517,7 @@ end
 function PB.RegenApply()
     local look, was = PB.RegenLook(), regen.look
     regen.look = look
-    listen(look ~= "off")
+    listen(look ~= "off", ticksOn())
     if look == "off" then
         if was and was ~= "off" then PB.RegenStop() end
         return

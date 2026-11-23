@@ -75,7 +75,7 @@ PageSample.PARTS = {
     -- grows down toward the grip and the health bar keeps its size. Its width
     -- is the frame's. A style's power line is under the frame, so it grows on its own
     -- (linkIf).
-    { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep", "%s.backPower", "%s.backPowerAlpha" },
+    { label = "Power bar", at = at("power"), keys = { "%s.showPower", "%s.powerHeight", "%s.powerAt", "%s.powerWidth", "%s.powerSlant", "%s.ribbonGap", "%s.regenSweep", "%s.regenTicks", "%s.backPower", "%s.backPowerAlpha" },
       size = { w = "%s.width", h = "%s.powerHeight", link = { h = "%s.height" } },
       linkIf = function(f) return not f.powerLine end },
     { label = "Portrait", at = at("portrait"), keys = { "%s.portrait", "%s.portraitShape", "%s.portraitLook", "%s.portraitRing", "%s.portraitDragon", "%s.portraitDragonColor", "%s.portraitScale" } },

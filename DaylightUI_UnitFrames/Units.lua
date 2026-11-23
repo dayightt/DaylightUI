@@ -15,15 +15,15 @@ ns.SPECS = {
       portrait = true, range = true, threat = true, threatTag = true, dots = true, arrive = true, styled = true,
       level = 30,   -- so the target of target beside it draws fully under its ring (its parts reach its own +15)
       default = { "BOTTOM", nil, "BOTTOM", 200, 240 } },
-    { unit = "targettarget", label = "Target of Target", compact = true, power = true, slant = "left", poll = 0.1, range = true,
+    { unit = "targettarget", label = "Target of Target", compact = true, power = true, slant = "left", poll = 0.1, range = true, portrait = true,
       default = { "LEFT", "DaylightUIFrame_target", "RIGHT", 48, 0 } },
-    { unit = "pet", label = "Pet", compact = true, power = true, slant = "right", tab = true,
+    { unit = "pet", label = "Pet", compact = true, power = true, slant = "right", tab = true, portrait = true,
       default = { "TOPLEFT", "DaylightUIFrame_player", "BOTTOMLEFT", 30, -36 } },
     { unit = "focus", label = "Focus", power = true, slant = "right", tab = true, marker = true, portrait = true,
       range = true, threat = true, styled = true,
       default = { "LEFT", nil, "LEFT", 300, 0 } },
     -- Who your focus is targeting (the game's own focus frame has this too).
-    { unit = "focustarget", label = "Focus Target", compact = true, power = true, slant = "right", poll = 0.1, range = true,
+    { unit = "focustarget", label = "Focus Target", compact = true, power = true, slant = "right", poll = 0.1, range = true, portrait = true,
       default = { "LEFT", "DaylightUIFrame_focus", "RIGHT", 48, 0 } },
 }
 
@@ -40,7 +40,7 @@ end
 ns.COPY_FRAMES = { "player", "target", "focus", "targettarget", "focustarget", "pet", "party", "partyTarget", "raid", "raid20", "raid40", "arena" }
 ns.COPY_KEEP = { enabled = true, showInParty = true, fade = true, follow = true, own = true,
                  direction = true, perLine = true, groupSpacing = true, sortBy = true, groups = true,
-                 hideSelf = true, showSolo = true, growUp = true, growLeft = true, ownSpot = true, strata = true }
+                 hideSelf = true, showSolo = true, growUp = true, growLeft = true, growCenter = true, ownSpot = true, strata = true }
 
 local function deepCopy(v)
     if type(v) ~= "table" then return v end

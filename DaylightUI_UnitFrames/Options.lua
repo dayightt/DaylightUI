@@ -888,6 +888,11 @@ local function growRows(keyOf, lines, gate, rowKey)
               if v == "up" or v == "down" then write("growUp", v == "up") else write("growLeft", v == "left") end
           end,
           default = function() return across() and "down" or "right" end },
+        { type = "toggle", key = rowKey("growCenter"), since = "2.2.4", label = "Grow from the middle", disabled = gate,
+          desc = "The frames start from the middle of the line instead of its end, so a group that isn't full stays centered.",
+          get = function() return read("growCenter") == true end,
+          set = function(v) write("growCenter", v == true) end,
+          default = function() return false end },
     }
 end
 
@@ -1638,7 +1643,7 @@ end
 -- "Health and power" card.
 local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true,
     tabHeight = true, slant = true, fillVertical = true,
-    showInParty = true, direction = true, growLeft = true, growUp = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
+    showInParty = true, direction = true, growLeft = true, growUp = true, growCenter = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
 local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitLook = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
@@ -2146,6 +2151,10 @@ local function framePage(id, label, desc, opts)
             order = { "off", "spark", "trail", "line" },
             desc = "After you cast a spell that costs mana, a light crosses your mana bar for the 5 seconds until your Spirit regen is back. Shows on your player frame and personal display.",
             disabled = powerSpellOff, hidden = function() return not ns.PowerBar.HasMana() end }
+        extras[#extras + 1] = { type = "toggle", key = k("regenTicks"), since = "2.2.4", label = "Keep ticking",
+            desc = "After the 5 seconds, a softer light runs to each mana regen tick until your mana is full. It learns the tick from your mana's own gains, so it starts after the first two.",
+            disabled = function(get) return powerSpellOff(get) or get(k("regenSweep")) == "off" end,
+            hidden = function() return not ns.PowerBar.HasMana() end }
         extras[#extras + 1] = { type = "toggle", key = k("showResting"), label = "Resting",
             desc = "Zzz on your portrait ring while you rest in an inn or city.", disabled = shown }
         extras[#extras + 1] = { type = "slider", key = k("restSize"), label = "Resting size", min = 0.5, max = 2, step = 0.05, unit = "%",
@@ -2263,6 +2272,7 @@ local function framePage(id, label, desc, opts)
         table.insert(groups, 1, { label = "Layout", items = {
             growRows(k, "Lines", shown)[1],
             growRows(k, "Lines", shown)[2],
+            growRows(k, "Lines", shown)[3],
             { type = "slider", key = k("perLine"), label = "Frames per line", min = 1, max = 5, step = 1,
               desc = "At 5 the party is one line. Fewer makes a grid.", disabled = shown },
             { type = "slider", key = k("groupSpacing"), label = "Line spacing", min = 0, max = 80, step = 1,
@@ -2474,6 +2484,8 @@ local function raidPage(size)
                  function(f) return "raid." .. f end)[1],
         growRows(function(f) return ns.Raid.MapKey("raid." .. f, size) end, "Lines", off("raid.enabled"),
                  function(f) return "raid." .. f end)[2],
+        growRows(function(f) return ns.Raid.MapKey("raid." .. f, size) end, "Lines", off("raid.enabled"),
+                 function(f) return "raid." .. f end)[3],
         { type = "dropdown", key = "raid.sortBy", label = "Sort frames by",
           values = RAID_SORT_VALUES, order = RAID_SORT_ORDER, desc = SORT_DESC, disabled = off("raid.enabled") },
         { type = "slider", key = "raid.groups", label = "Show groups up to", min = 1, max = 8, step = 1,
@@ -2795,15 +2807,15 @@ ns.OPTIONS = { pages = {
           strataWhat = "The layer the PvP frames draw in.",
           showLabel = "Show the PvP frames", showDesc = "Turn the PvP frames on or off. When off, the game shows its own after a reload." }),
     framePage("targettarget", "Target of Target", "Who your target is looking at.", { healthText = true, textPos = true, flip = true,
-        power = true, powerToggle = true, powerPos = true }),
+        power = true, powerToggle = true, powerPos = true, portrait = true }),
     framePage("focustarget", "Focus Target", "Who your focus is looking at.", { healthText = true, textPos = true,
-        power = true, powerToggle = true, powerPos = true }),
+        power = true, powerToggle = true, powerPos = true, portrait = true }),
     framePage("partyTarget", "Party Targets", "Who each party member is targeting, in a small frame beside them. Click one to target it too.",
         { healthText = true, textPos = true, flip = true, power = true, powerToggle = true, powerPos = true, place = true,
           strataWhat = "The layer the party targets draw in.",
           showLabel = "Show party targets", showDesc = "A small frame beside each party member showing who they're targeting." }),
     framePage("pet", "Pet", "Your pet or minion.", { happiness = true, power = true, powerToggle = true, powerPos = true, healthText = true, textPos = true,
-        tab = true, small = true, auras = PET_AURA_GROUPS }),
+        tab = true, small = true, portrait = true, auras = PET_AURA_GROUPS }),
 
     { id = "colors", label = "Look", desc = "The frames' shape, class icons, and the bars' and names' colors on every unit frame.", groups = {
         { label = "Frame shape", items = {

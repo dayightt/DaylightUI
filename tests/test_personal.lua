@@ -547,6 +547,103 @@ T.test("mana sweep: follows the bar to its free spot and Ribbon's line", functio
     stub.spellCosts = nil
 end)
 
+-- Keep ticking: the ticks come from the gaps between real mana gains.
+local function gain(amount, after)
+    if after then stub.Advance(after) end
+    local p = stub.units.player
+    p.mana = p.mana + amount
+    stub.FireEvent("UNIT_POWER_FREQUENT", "player", "MANA")
+end
+
+local function tickLogin()
+    local DUI, ns, PR, Sweeps = sweepLogin("spark")
+    local p = stub.units.player
+    p.mana, p.maxMana = 100, 1000
+    return DUI, ns, Sweeps[ns.frames.player.power]
+end
+
+T.test("keep ticking: off by default, no mana events listened to", function()
+    local _, ns = tickLogin()
+    T.falsy(ns.module.db.player.regenTicks)
+    T.falsy(ns.PowerBar.regen.listeningTicks)
+    stub.spellCosts = nil
+end)
+
+T.test("keep ticking: learns the tick from two gains, then runs to each one", function()
+    local DUI, ns, s = tickLogin()
+    DUI:Set("UnitFrames", "player.regenTicks", true)
+    stub.RunTimers()
+    local regen = ns.PowerBar.regen
+    T.truthy(regen.listeningTicks)
+    gain(10)
+    T.falsy(s.holder:IsShown(), "one gain is no beat yet")
+    gain(10, 2)
+    T.eq(regen.tick, 2, "the gap between gains")
+    T.truthy(s.holder:IsShown(), "a light runs to the next tick")
+    local t = s.timer.__timer
+    T.eq(t[1].e - t[1].s, 2)
+    -- A cast: the rule's own sweep takes over, then the ticks come back.
+    cast(10)
+    T.isnil(regen.ticking)
+    T.eq(s.timer.__timer[1].e - s.timer.__timer[1].s, ns.PowerBar.REGEN_WINDOW)
+    stub.Advance(5)
+    stub.RunTimersOnce()
+    T.truthy(regen.ticking, "back to the ticks after the 5 seconds")
+    T.eq(s.timer.__timer[1].e - s.timer.__timer[1].s, 2)
+    stub.spellCosts = nil
+end)
+
+T.test("keep ticking: stops at full mana and when no gain comes", function()
+    local DUI, ns, s = tickLogin()
+    DUI:Set("UnitFrames", "player.regenTicks", true)
+    stub.RunTimers()
+    gain(10); gain(10, 2)
+    local regen = ns.PowerBar.regen
+    T.truthy(regen.ticking, "ticking")
+    stub.units.player.mana = 1000
+    stub.FireEvent("UNIT_POWER_FREQUENT", "player", "MANA")
+    T.isnil(regen.ticking, "full: nothing to tick for")
+    T.falsy(s.holder:IsShown())
+    stub.units.player.mana = 500   -- spent
+    stub.FireEvent("UNIT_POWER_FREQUENT", "player", "MANA")
+    gain(10, 2)
+    T.truthy(regen.ticking, "regen again: the beat is kept")
+    stub.RunTimers()   -- the tick's end, no gain since, mana still plain
+    T.isnil(regen.ticking, "no gain: regen stopped, so the ticks do too")
+    stub.spellCosts = nil
+end)
+
+T.test("keep ticking: steady regen and potions are no tick, so nothing shows", function()
+    local DUI, ns, s = tickLogin()
+    DUI:Set("UnitFrames", "player.regenTicks", true)
+    stub.RunTimers()
+    for _ = 1, 6 do gain(1, 0.1) end
+    T.isnil(ns.PowerBar.regen.tick, "gains a tenth of a second apart")
+    T.falsy(s.holder:IsShown())
+    gain(300, 9)
+    T.isnil(ns.PowerBar.regen.tick, "a long gap isn't one either")
+    stub.spellCosts = nil
+end)
+
+T.test("keep ticking: secret mana keeps the beat, the curve hides it at full", function()
+    local DUI, ns, s = tickLogin()
+    DUI:Set("UnitFrames", "player.regenTicks", true)
+    stub.RunTimers()
+    gain(10); gain(10, 2)
+    local regen = ns.PowerBar.regen
+    stub.units.player.mana = stub.Secret(500)
+    stub.Advance(2.5)
+    stub.RunTimers()
+    T.truthy(regen.ticking, "mana can't be read, so the ticks go on")
+    T.truthy(s.holder:IsShown())
+    stub.units.player.mana = 500
+    DUI:Set("UnitFrames", "player.regenTicks", false)
+    stub.RunTimers()
+    T.isnil(regen.ticking, "switched off")
+    T.falsy(regen.listeningTicks)
+    stub.spellCosts = nil
+end)
+
 T.test("own border: follows General until asked, then its own thickness, corners and shadow", function()
     local DUI, _, PR = login()
     local body = PR.frame.body

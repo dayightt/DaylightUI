@@ -50,7 +50,7 @@ ns.DEFAULTS = {
                slant = true, bigNumber = true, healthText = "value", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitShape = "round", portraitLook = "socket", portraitRingWidth = "normal", portraitRingLine = true, portraitDragon = false, portraitDragonColor = "class",
                predictHeals = true, predictAbsorbs = true, showThreat = true,
                showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = true, showResting = true, showPvP = true, pvpSize = 1, leaderSize = 1, restSize = 1, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false, powerTextPos = "inner", healthTextPos = "inner", healthTextX = 0, healthTextY = 0, powerTextX = 0, powerTextY = 0, druidMana = true,
-               druidBars = { enabled = false, width = 94, height = 6, spacing = 2, showText = false }, costPreview = true, costColor = { 0, 0, 0 }, costAlpha = 0.45, regenSweep = "off", fade = DaylightUI.Fade.Defaults({ fullHealth = false, fullMana = false, target = true }) },
+               druidBars = { enabled = false, width = 94, height = 6, spacing = 2, showText = false }, costPreview = true, costColor = { 0, 0, 0 }, costAlpha = 0.45, regenSweep = "off", regenTicks = false, fade = DaylightUI.Fade.Defaults({ fullHealth = false, fullMana = false, target = true }) },
     target = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 16, width = 187, height = 43, showPower = true, powerHeight = 11, powerAt = "inside", powerWidth = 187, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, powerSlantUnderLeft = false, powerOwnAngle = false, powerLean = 0.21, showName = true, nameOnBar = false, showPercent = true,
                showMarker = true, showClassification = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false,
                portrait = "class", portraitRing = "class", portraitShape = "round", portraitLook = "socket", portraitRingWidth = "normal", portraitRingLine = true, predictHeals = true, predictAbsorbs = true, showThreat = true, threatTag = true,
@@ -64,9 +64,14 @@ ns.DEFAULTS = {
                      -- Power bar off by default, since most people only glance to see who it is.
                      showPower = false, powerHeight = 4, powerTextPos = "inner", powerTextX = 0, powerTextY = 0,
                      showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false,
+                     -- A portrait is off by default on the small frames, and so are its icons.
+                     portrait = "none", portraitRing = "class", portraitShape = "round", portraitLook = "socket", portraitRingWidth = "normal", portraitRingLine = true, portraitScale = 1,
+                     showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = false, leaderSize = 1, showPvP = false, pvpSize = 1,
                      predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults() },
     pet = { enabled = true, showPercent = false, namePos = "bar", nameX = 0, nameY = 0, healthText = "percent", healthTextPos = "inner", healthTextX = 0, healthTextY = 0, percentSign = false, hideFullHealth = false, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, width = 94, height = 20, powerHeight = 4, showPower = true, showName = true, slant = true,
             reverseFill = false, showPowerText = false, powerFormat = "value", powerPercentSign = false, hideFullPower = false,
+            portrait = "none", portraitRing = "class", portraitShape = "round", portraitLook = "socket", portraitRingWidth = "normal", portraitRingLine = true, portraitScale = 1,
+            showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = false, leaderSize = 1, showPvP = false, pvpSize = 1,
             predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults({ fullHealth = false }), happiness = true, happinessBar = false,
             happinessLook = "square", happinessSide = "right", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
             -- The name on the bar, or with nameOnBar off, in a small tab above the frame like the others.
@@ -145,8 +150,9 @@ ns.DEFAULTS = {
               }),
               -- Header layout: down or across, frames per line, sorting, you.
               direction = "columns", perLine = 5, groupSpacing = 4, sortBy = "role", hideSelf = true, showSolo = false,
-              -- Grow from the bottom and/or the right (Group.Corner).
-              growUp = false, growLeft = false,
+              -- Grow from the bottom and/or the right (Group.Corner), or from
+              -- the middle of the line so a short group sits centered (Group.Anchor).
+              growUp = false, growLeft = false, growCenter = false,
               -- Tile look pieces, off or unused in the default look.
               fillVertical = false, showPower = true, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0, nameTag = true,
               rolePos = "home", roleSize = 11, roleX = 0, roleY = 0, markerPos = "home", markerX = 0, markerY = 0, leaderPos = "home", leaderX = 0, leaderY = 0, showReady = true, readyPos = "right", readySize = 14, readyX = 0, readyY = 0,
@@ -170,7 +176,7 @@ ns.DEFAULTS = {
     partyPetText = { name = 10, percent = 10, power = 0 },
     raid = { enabled = true, texts = textSlots(), showInParty = false, width = 72, height = 28, spacing = 2, groupSpacing = 4, showName = true,
              nameColor = "global", nameCustom = { 1, 1, 1 }, nameLimitLen = 0,
-             direction = "columns", sortBy = "group", groups = 8, growUp = false, growLeft = false,
+             direction = "columns", sortBy = "group", groups = 8, growUp = false, growLeft = false, growCenter = false,
              perLine = 5, fillVertical = false, hideSelf = false, namePos = "bar", nameAlign = "center", nameX = 0, nameY = 0, nameTag = true,
              -- Aura groups (AuraGroups.lua), placed by Spots on the tile.
              indicators = indicators(8),

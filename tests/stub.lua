@@ -1734,6 +1734,13 @@ function stub.FinishFade(f)
         if fn then fn(g) end
     end
 end
+-- Runs only the timers already waiting, not the ones they start: a timer that
+-- keeps starting itself again (a repeating beat) can be stepped one round at a time.
+function stub.RunTimersOnce()
+    local pending = timers
+    timers = {}
+    for _, fn in ipairs(pending) do fn() end
+end
 function stub.RunTimers()
     for _ = 1, 10 do
         if #timers == 0 then return end

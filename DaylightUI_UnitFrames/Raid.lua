@@ -308,7 +308,7 @@ function Raid.LayoutNow(d)
 end
 
 -- The holder is as big as the raid size in use, so it's held by the corner
--- the tiles start from (Group.Corner): a raid growing from ten to forty, or
+-- (or middle, Group.Anchor) the tiles start from: a raid growing from ten to forty, or
 -- test mode showing another size, starts its first tile in the same spot.
 -- Called before the holder takes its new size, so the corner is re-saved
 -- where it is now. Spots used to be saved by the holder's center while the
@@ -319,7 +319,7 @@ function Raid.Pin(cfg)
     local Movers, KEY = DUI.Movers, "unitframes.raid"
     local e = Movers.Get(KEY)
     if not e or e.suspended then return end
-    local at = ns.Group.Corner(cfg)
+    local at = (ns.Group.Anchor(cfg, Raid.holder))
     local saved = DUI.DB.Positions()[KEY]
     local picked = type(DUI.DB.General().frameAnchors) == "table" and DUI.DB.General().frameAnchors[KEY]
     if Movers.Valid(saved) and saved.at == nil and not picked then
