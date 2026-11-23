@@ -3518,3 +3518,35 @@ T.test("rich tooltip: lines another addon adds after the show join the card at i
     end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- A hunter pet's tooltip says "Attack Speed 1.49s": a time, not 1 gold 49
+-- silver. Coins never have one or two digits after a decimal mark; a
+-- thousands mark always has three after it.
+T.test("other addons: a time with a decimal stays a time, not coins", function()
+    foreignLogin()
+    local Foreign, W = stub.tooltip.RichForeign, DaylightUI.Widgets
+    T.eq(Foreign.CopperOf("1.49s"), nil, "1.49s is seconds")
+    T.eq(Foreign.CopperOf("2,5s"), nil, "a comma decimal too")
+    T.eq(Foreign.Money("1.49s"), "1.49s")
+    T.eq(Foreign.CopperOf("1,234g 5s"), 12340500, "a thousands mark is still coins")
+    T.eq(Foreign.CopperOf("12g 34s"), 123400)
+    T.eq(Foreign.Words("1.49s"), "1.49s")
+    T.truthy(W)
+end)
+
+-- Volley "fires a volley of ammo ... causing 71 Arcane damage": the card
+-- tagged it Fire, finding "fire" inside "fires".
+T.test("rich spells: the school is a whole word, not part of one", function()
+    login("rich")
+    _G.STRING_SCHOOL_FIRE, _G.STRING_SCHOOL_ARCANE = "Fire", "Arcane"
+    local Spells = stub.tooltip.RichSpells
+    local s = Spells.School("Continuously fires a volley of ammo at the target area, causing 71 Arcane damage to enemy targets within 8 yards every 1 sec for 6 sec.")
+    T.eq(s and s.key, "Arcane")
+    T.eq(Spells.School("Fires a shot that has no school."), nil, "English never reads a school inside a word")
+    local get = _G.GetLocale
+    _G.GetLocale = function() return "deDE" end
+    _G.STRING_SCHOOL_FIRE = "Feuer"
+    local de = Spells.School("Verursacht 50 Feuerschaden.")
+    _G.GetLocale, _G.STRING_SCHOOL_FIRE = get, "Fire"
+    T.eq(de and de.key, "Fire", "German joins the school onto the damage word")
+end)

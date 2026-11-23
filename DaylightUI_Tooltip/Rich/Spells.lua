@@ -245,17 +245,31 @@ function Spells.Read(n, lines, own)
     return r
 end
 
+local function escape(w) return (w:gsub("[%^%$%(%)%%%.%[%]%*%+%-%?]", "%%%0")) end
+
 -- The school a description names first, as { key, word, color }, or nil.
+-- Whole words first, so "fires a volley ... Arcane damage" is Arcane. Languages
+-- that join the school onto the damage word ("Feuerschaden") fall back to
+-- finding it inside a word; English never needs that.
 function Spells.School(text)
     if type(text) ~= "string" then return nil end
     local low = text:lower()
-    local best, at
-    for _, s in ipairs(Spells.SCHOOLS) do
-        local w = _G[s.global]
-        if type(w) ~= "string" or w == "" then w = s.key end
-        local from = low:find(w:lower(), 1, true)
-        if from and (not at or from < at) then best, at = { key = s.key, word = w }, from end
+    local function first(whole)
+        local best, at
+        for _, s in ipairs(Spells.SCHOOLS) do
+            local w = _G[s.global]
+            if type(w) ~= "string" or w == "" then w = s.key end
+            local lw = w:lower()
+            local from
+            if whole then from = low:find("%f[%w]" .. escape(lw) .. "%f[%W]")
+            else from = low:find(lw, 1, true) end
+            if from and (not at or from < at) then best, at = { key = s.key, word = w }, from end
+        end
+        return best
     end
+    local best = first(true)
+    local locale = type(GetLocale) == "function" and GetLocale() or "enUS"
+    if not best and not tostring(locale):find("^en") then best = first(false) end
     if best then best.color = ns.Tooltip.SCHOOL_COLORS[best.key] end
     return best
 end

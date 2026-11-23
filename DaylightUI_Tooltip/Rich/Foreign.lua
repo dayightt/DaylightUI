@@ -96,7 +96,12 @@ end
 -- ---------------------------------------------------------------------
 
 local COPPER = { gold = 10000, silver = 100, copper = 1, g = 10000, s = 100, c = 1 }
-local function count(d) return tonumber((d:gsub("%D", ""))) end
+-- Digits with one or two after a decimal mark are a time or a rate ("1.49s",
+-- a pet's attack speed), never coins: a thousands mark has three after it.
+local function count(d)
+    if d:find("[%.,]%d%d?$") then return nil end
+    return tonumber((d:gsub("%D", "")))
+end
 
 -- Each coin in a text as a mark holding its copper: the game's coins
 -- (|A:coin-gold|a, MoneyFormatterUtil), the old coin textures
@@ -118,7 +123,9 @@ end
 local function lettersOnly(t)
     local total, any = 0, false
     for d, k in t:gmatch("(%d[%d,%.]*)([gsc])") do
-        total, any = total + (count(d) or 0) * COPPER[k], true
+        local n = count(d)
+        if not n then return nil end
+        total, any = total + n * COPPER[k], true
     end
     if not any then return nil end
     if t:gsub("%d[%d,%.]*[gsc]", ""):find("%S") then return nil end
