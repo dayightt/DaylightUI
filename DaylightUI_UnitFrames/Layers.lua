@@ -1,10 +1,11 @@
 -- Layers: which part of a unit frame draws over which, where parts overlap.
--- Each part (the name tab, portrait, portrait icons, aura rows, and the pieces
--- that can stand on their own) has an Order, its frame level above its unit
--- frame, and, while it stands on its own, a Layer (strata, or "FRAME" to draw
--- with its frame). Saved as <unit>.parts.<key> = { order = n, layer = s }.
--- Nothing is set until a player changes it: an untouched part keeps the level
--- its own code gives it, and its Order shows that level.
+-- Each frame ranks its parts (the name tab, portrait, portrait icons, aura
+-- rows, and the pieces that can stand on their own) in one list, top first:
+-- a part draws over every part below it. A part standing on its own can also
+-- take a Layer (strata, or "FRAME" to draw with its frame).
+-- Saved as <unit>.parts = { order = { key, ... }, <key> = { layer = s } }.
+-- Nothing is set until a player changes it: untouched parts keep the levels
+-- their own code gives them, and the list shows them in the order they draw.
 -- Party, raid and arena tiles aren't covered.
 
 local _, ns = ...
@@ -13,11 +14,8 @@ local DUI = DaylightUI
 local Layers = {}
 ns.Layers = Layers
 
-Layers.MIN, Layers.MAX = 1, 60
--- A frame's orders run 1 to its number of parts.
--- Frame levels between two orders: more than any part's own art spans (a
--- portrait with its ring, icons and skull reaches about 9), so parts on
--- different orders never interleave.
+-- Frame levels between two places in the list: more than any part's own art
+-- spans (a portrait with its ring, icons and skull reaches about 9).
 Layers.STEP = 12
 Layers.STRATA_RANK = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6,
                        FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
@@ -134,7 +132,8 @@ local COMBO = part("combo", "Combo points", function(f) if not f.layerPreview th
       mover = function() return ns.Combo.KEY end })
 
 -- Each frame's parts, bottom to top as Daylight UI draws them on a fresh
--- install. A part's place in its list is its default order.
+-- install. It settles parts that draw at the same level, and places a part
+-- that isn't built yet.
 Layers.PARTS = {
     player = extraTexts({ druid(), castbar("player", "playerCastbar"), swing(), HEALTH, power("player"),
         debuffs("player"), buffs("player"), NAME, HEALTH_TEXT, POWER_TEXT }, { PORTRAIT, LEVEL, LEADER, PVP, REST }),
@@ -194,39 +193,33 @@ local function dropCarrier(f, part, regions)
     c:Hide()
 end
 
-function Layers.MaxFor(unit) return math.max(Layers.MIN, #(Layers.PARTS[unit] or {})) end
-
 function Layers.Find(unit, key)
     for _, part in ipairs(Layers.PARTS[unit] or {}) do
         if part.key == key then return part end
     end
 end
 
--- Whether no part of a frame has a saved order or layer.
-function Layers.Untouched(unit)
+local function saved(unit)
     local d = db()
     local p = d and d[unit] and d[unit].parts
-    if type(p) ~= "table" then return true end
-    for _, v in pairs(p) do
-        if type(v) == "table" and (v.order ~= nil or v.layer ~= nil) then return false end
+    return type(p) == "table" and p or nil
+end
+
+-- Whether no part of a frame has a saved place or layer.
+function Layers.Untouched(unit)
+    local p = saved(unit)
+    if not p then return true end
+    if type(p.order) == "table" and #p.order > 0 then return false end
+    for key, v in pairs(p) do
+        if key ~= "order" and type(v) == "table" and v.layer ~= nil then return false end
     end
     return true
 end
 
--- The saved choice for a part, or nil.
+-- A part's saved choices ({ layer = s }), or nil.
 function Layers.Saved(unit, key)
-    local d = db()
-    local p = d and d[unit] and d[unit].parts
-    return type(p) == "table" and type(p[key]) == "table" and p[key] or nil
-end
-
--- A part's Order as it draws now: its level above its unit frame.
-function Layers.OrderOf(unit, key)
-    local s = Layers.Saved(unit, key)
-    if s and tonumber(s.order) then return tonumber(s.order) end
-    local f = frameOf(unit)
-    if not f then return Layers.MIN end
-    return Layers.DefaultOrders(f, unit)[key] or Layers.MIN
+    local p = saved(unit)
+    return p and key ~= "order" and type(p[key]) == "table" and p[key] or nil
 end
 
 -- Sets one frame's level and keeps everything inside it at its offset (the
@@ -277,27 +270,146 @@ local function lowOf(frame)
 end
 Layers.TopOf, Layers.LowOf = topOf, lowOf
 
--- Applies a frame's saved Orders and Layers: a live frame, or an options
--- preview (f.layerPreview) of the same unit. Runs after the frame's own code has
--- placed its parts. Protected parents: out of combat.
--- A part moves as one: its frames, everything inside them and its glue. Parts
--- given an order are stacked from the lowest order up, each wholly over the
--- one before, so two parts never interleave; equal orders go in list order.
--- Where a part draws before any order is set: its frame's own level, or a
--- text's or icon's frame's.
-local function homeLevel(x)
-    if not x.GetFrameLevel then
-        local c = x:GetParent()
-        x = (c and c.home and c.layerOwn and c.home) or c
+-- Puts the parts missing from a bottom-to-top list just over their nearest
+-- part below in ref (another bottom-to-top list), keeping ref's order.
+local function fillFrom(keys, ref)
+    local out, has = {}, {}
+    for _, key in ipairs(keys) do
+        if not has[key] then out[#out + 1], has[key] = key, true end
     end
-    return x.layerHome or x:GetFrameLevel()
+    local below = 0
+    for _, key in ipairs(ref) do
+        if has[key] then
+            for j, k in ipairs(out) do if k == key then below = j end end
+        else
+            below = below + 1
+            table.insert(out, below, key)
+            has[key] = true
+        end
+    end
+    return out
 end
 
--- An unset part's order: its place in its frame's list.
-function Layers.DefaultOrders(_, unit)
+local function reversed(t)
     local out = {}
-    for i, part in ipairs(Layers.PARTS[unit] or {}) do out[part.key] = i end
+    for i = #t, 1, -1 do out[#out + 1] = t[i] end
     return out
+end
+
+local DRAW = { BACKGROUND = 1, BORDER = 2, ARTWORK = 3, OVERLAY = 4, HIGHLIGHT = 5 }
+
+-- A frame's parts bottom to top as they draw now: by level, then a text's or
+-- icon's draw layer, then the parts list. A frame ranks under the texts and
+-- icons at its own level. A part f doesn't have goes where the parts list
+-- puts it. Read only while no part is placed.
+function Layers.DefaultStack(f, unit)
+    local found, all = {}, {}
+    for i, part in ipairs(Layers.PARTS[unit] or {}) do
+        all[i] = part.key
+        local x = f and list(part.get(f))[1]
+        if x then
+            local region = isRegion(part, f)
+            local layer, sub
+            if region then layer, sub = x:GetDrawLayer() end
+            found[#found + 1] = { key = part.key, i = i, level = (region and x:GetParent() or x):GetFrameLevel(),
+                                  draw = region and (DRAW[layer] or 3) or 0, sub = sub or 0 }
+        end
+    end
+    table.sort(found, function(a, b)
+        if a.level ~= b.level then return a.level < b.level end
+        if a.draw ~= b.draw then return a.draw < b.draw end
+        if a.sub ~= b.sub then return a.sub < b.sub end
+        return a.i < b.i
+    end)
+    local keys = {}
+    for i, e in ipairs(found) do keys[i] = e.key end
+    return fillFrom(keys, all)
+end
+
+-- Each live frame's default list, noted by ApplyTo before it places a part.
+local homes = {}
+local function defaultOf(unit)
+    if Layers.Untouched(unit) or not homes[unit] then return Layers.DefaultStack(frameOf(unit), unit) end
+    return homes[unit]
+end
+
+-- The frame's list as the player sees it, top first: the saved one (with any
+-- part it lacks put back where it draws by default), or the default.
+function Layers.Stack(unit)
+    local default = defaultOf(unit)
+    local p = saved(unit)
+    if not (p and type(p.order) == "table" and #p.order > 0) then return reversed(default) end
+    local keys = {}
+    for _, key in ipairs(p.order) do
+        if Layers.Find(unit, key) then keys[#keys + 1] = key end
+    end
+    return reversed(fillFrom(reversed(keys), default))
+end
+
+-- A part's place counted from the bottom (1 draws under the rest).
+function Layers.OrderOf(unit, key)
+    local stack = Layers.Stack(unit)
+    for i, k in ipairs(stack) do
+        if k == key then return #stack - i + 1 end
+    end
+end
+
+-- Saves a frame's list (top first) and, unless layer is false, one part's
+-- Layer (nil clears it), in one write. A list that matches the default saves
+-- as nil, so the frame can be untouched again.
+function Layers.Save(unit, stack, key, layer)
+    local p = {}
+    for k, v in pairs(saved(unit) or {}) do
+        if k ~= "order" and type(v) == "table" and v.layer ~= nil then p[k] = { layer = v.layer } end
+    end
+    local default = reversed(defaultOf(unit))
+    local same = #stack == #default
+    for i, k in ipairs(default) do
+        if stack[i] ~= k then same = false end
+    end
+    if not same then p.order = stack end
+    if key and layer ~= false then
+        p[key] = layer ~= nil and { layer = layer } or nil
+    end
+    DUI:Set("UnitFrames", unit .. ".parts", next(p) and p or nil)
+end
+
+-- Extra texts take part only while added (Add piece).
+function Layers.InUse(unit, part)
+    if not part.slot then return true end
+    return DUI:Get("UnitFrames", unit .. ".texts." .. part.slot .. ".show") == true
+end
+
+-- The list the options page shows, top first: the parts in use.
+function Layers.Shown(unit)
+    local out = {}
+    for _, key in ipairs(Layers.Stack(unit)) do
+        if Layers.InUse(unit, Layers.Find(unit, key)) then out[#out + 1] = key end
+    end
+    return out
+end
+
+-- The list with one part moved past the next part in use above (up) or below
+-- it, or nil when it's already at that end.
+function Layers.Moved(unit, key, up)
+    local stack = Layers.Stack(unit)
+    local at
+    for i, k in ipairs(stack) do if k == key then at = i end end
+    if not at then return nil end
+    local j = at
+    repeat
+        j = j + (up and -1 or 1)
+        if j < 1 or j > #stack then return nil end
+    until Layers.InUse(unit, Layers.Find(unit, stack[j]))
+    table.remove(stack, at)
+    table.insert(stack, j, key)
+    return stack
+end
+
+function Layers.Move(unit, key, up)
+    local stack = Layers.Moved(unit, key, up)
+    if stack then Layers.Save(unit, stack, nil, false) end
+    return stack ~= nil
 end
 
 local function partFrames(f, part, order)
@@ -319,21 +431,35 @@ local function glueOf(f, part)
     return out
 end
 
+-- Applies a frame's saved list and Layers: a live frame, or an options preview
+-- (f.layerPreview) of the same unit. Runs after the frame's own code has
+-- placed its parts. Protected parents: out of combat.
+-- A part moves as one: its frames, everything inside them and its glue. Each
+-- part goes wholly over the one below it in the list, so two parts never
+-- interleave, even one whose art spans more than a step.
 function Layers.ApplyTo(f, unit)
     local parts = Layers.PARTS[unit]
     if not (f and parts) then return end
     local touched = not Layers.Untouched(unit)
+    -- The default list, read before the first pass that places anything.
+    if f == frameOf(unit) then
+        if not touched then homes[unit] = nil
+        elseif not homes[unit] then homes[unit] = Layers.DefaultStack(f, unit) end
+    end
+    local rank = {}
+    if touched then
+        local stack = Layers.Stack(unit)
+        for i, key in ipairs(stack) do rank[key] = #stack - i + 1 end
+    end
     local base = f:GetFrameLevel()
-    local defaults = touched and Layers.DefaultOrders(f, unit) or {}
     local placed = {}
-    for i, part in ipairs(parts) do
+    for _, part in ipairs(parts) do
         local s = Layers.Saved(unit, part.key)
-        local order = touched and ((s and tonumber(s.order)) or defaults[part.key]) or nil
+        local order = rank[part.key]
         local frames = partFrames(f, part, order)
         local glue = glueOf(f, part)
         if #frames > 0 and order then
-            placed[#placed + 1] = { part = part, i = i, frames = frames, glue = glue,
-                                    order = math.max(Layers.MIN, math.min(Layers.MaxFor(unit), order)) }
+            placed[#placed + 1] = { frames = frames, glue = glue, order = order }
         else
             for _, frame in ipairs(frames) do restore(frame) end
             for _, g in ipairs(glue) do restore(g) end
@@ -346,10 +472,13 @@ function Layers.ApplyTo(f, unit)
             end
         end
     end
-    table.sort(placed, function(a, b)
-        if a.order ~= b.order then return a.order < b.order end
-        return a.i < b.i
-    end)
+    table.sort(placed, function(a, b) return a.order < b.order end)
+    -- Every home level is noted before any part moves: moving one relevels the
+    -- frames inside it, a part among them.
+    for _, e in ipairs(placed) do
+        for _, x in ipairs(e.frames) do if x.layerHome == nil then x.layerHome = x:GetFrameLevel() end end
+        for _, x in ipairs(e.glue) do if x.layerHome == nil then x.layerHome = x:GetFrameLevel() end end
+    end
     local prevTop
     for _, e in ipairs(placed) do
         local main = e.frames[1]
@@ -363,7 +492,6 @@ function Layers.ApplyTo(f, unit)
         for _, frame in ipairs(e.frames) do reach = math.min(reach, lowOf(frame) - frame:GetFrameLevel()) end
         for _, g in ipairs(e.glue) do reach = math.min(reach, g.layerGap + lowOf(g) - g:GetFrameLevel()) end
         local level = base + e.order * Layers.STEP - reach
-        -- Two parts on one order: the later one goes wholly over the first.
         if prevTop then level = math.max(level, prevTop + 1 - reach) end
         local top = level
         for _, frame in ipairs(e.frames) do
@@ -380,18 +508,13 @@ end
 
 function Layers.Apply()
     for unit in pairs(Layers.PARTS) do Layers.ApplyTo(frameOf(unit), unit) end
+    -- An open unlock editor grays Bring forward and Send back from the new levels.
+    DUI.Movers.RefreshEditor()
 end
-
--- Saves a part's Order and Layer and redraws. nil clears one.
-function Layers.Set(unit, key, order, layer)
-    local path = unit .. ".parts." .. key
-    DUI:Set("UnitFrames", path .. ".order", order)
-    if layer ~= false then DUI:Set("UnitFrames", path .. ".layer", layer) end
-end
-
 
 -- Unlock's Bring forward / Send back for a part with a handle. others is a
--- list of overlapping frames. Returns the new Order and Layer, or nil and why.
+-- list of overlapping frames. Returns the new list (top first) and Layer, or
+-- nil and why.
 function Layers.Step(unit, key, others, up)
     local f, part = frameOf(unit), Layers.Find(unit, key)
     local mine = part and f and list(part.get(f))[1]
@@ -422,20 +545,28 @@ function Layers.Step(unit, key, others, up)
         layer = pick:GetFrameStrata()
         if layer == f:GetFrameStrata() then layer = "FRAME" end
     end
-    -- Another part of the same frame: one order over (or under) its order.
+    local stack = Layers.Stack(unit)
+    local n, at = #stack, nil
+    for i, k in ipairs(stack) do if k == key then at = i end end
+    local myOrder = n - at + 1
+    table.remove(stack, at)
+    -- Another part of the same frame: just over (or under) it in the list.
     for _, other in ipairs(Layers.PARTS[unit] or {}) do
         if other.key ~= key then
             for _, x in ipairs(list(other.get(f))) do
                 local fr = x.GetFrameLevel and x or x:GetParent()
                 if fr == pick then
-                    local order = Layers.OrderOf(unit, other.key) + (up and 1 or -1)
-                    if order > Layers.MaxFor(unit) or order < Layers.MIN then return nil, "range" end
-                    return order, layer
+                    for i, k in ipairs(stack) do
+                        if k == other.key then
+                            table.insert(stack, up and i or i + 1, key)
+                            return stack, layer
+                        end
+                    end
                 end
             end
         end
     end
-    -- The order that puts all of it just over (or under) that frame.
+    -- The place that puts all of it just over (or under) that frame.
     local base, step, span = f:GetFrameLevel(), Layers.STEP, myTop - myLow
     local order
     if up then
@@ -443,40 +574,95 @@ function Layers.Step(unit, key, others, up)
     else
         order = math.floor((pickLevel - 1 - span - base) / step)
     end
-    if order > Layers.MaxFor(unit) or order < Layers.MIN then return nil, "range" end
-    return order, layer
+    local still = not layer and ((up and order <= myOrder) or (not up and order >= myOrder))
+    if order > n or order < 1 or still then return nil, "range" end
+    table.insert(stack, n - order + 1, key)
+    return stack, layer
 end
 
--- Puts every part of a frame (or one part) back on its own code's level and layer.
+-- Puts every part of a frame back where it drew before any change, or one
+-- part back in its default place on its own code's layer.
 function Layers.Reset(unit, key)
-    DUI:Set("UnitFrames", unit .. ".parts" .. (key and ("." .. key) or ""), nil)
+    if not key then
+        DUI:Set("UnitFrames", unit .. ".parts", nil)
+        return
+    end
+    local keys = {}
+    for _, k in ipairs(Layers.Stack(unit)) do if k ~= key then keys[#keys + 1] = k end end
+    Layers.Save(unit, reversed(fillFrom(reversed(keys), defaultOf(unit))), key, nil)
 end
 
--- The settings rows for one frame's page: a reset, an Order slider per part,
--- and a Layer pick for each part that can stand on its own.
+-- One line of the draw-order list: the part's name and its up and down buttons.
+local LINE = 28
+local function buildLine(parent, unit)
+    local W, Style, L = DUI.Widgets, DUI.Style, DUI.L
+    local line = CreateFrame("Frame", nil, parent)
+    line:SetHeight(LINE)
+    line.move = W.MoveButtons(line)
+    line.move:SetPoint("RIGHT", line, "RIGHT", 0, 0)
+    line.name = Style.Text(line, Style.SIZE.body, "LEFT")
+    line.name:SetPoint("LEFT", line, "LEFT", 0, 0)
+    line.name:SetPoint("RIGHT", line.move, "LEFT", -8, 0)
+    Style.InkText(line.name, "TEXT")
+    local tips = { { line.move.up, true, L["Move up"], L["Draws it over the part above."] },
+                   { line.move.down, false, L["Move down"], L["Draws it under the part below."] } }
+    for _, t in ipairs(tips) do
+        local b, up, title, desc = t[1], t[2], t[3], t[4]
+        b:SetScript("OnClick", function() if line.key then Layers.Move(unit, line.key, up) end end)
+        b:HookScript("OnEnter", function(self) W.Tooltip(self, title, desc) end)
+        b:HookScript("OnLeave", W.HideTooltip)
+    end
+    return line
+end
+
+-- The draw-order list: a line per part in use, top first.
+local function orderList(unit, off)
+    return {
+        type = "custom", label = "Draw order", disabled = off,
+        build = function(row)
+            row.lines = {}
+            row.list = CreateFrame("Frame", nil, row)
+            row.list:SetPoint("TOPLEFT", row, "TOPLEFT", DUI.Widgets.PAD, -4)
+            row.list:SetPoint("TOPRIGHT", row, "TOPRIGHT", -DUI.Widgets.PAD, -4)
+        end,
+        update = function(row)
+            local shown = Layers.Shown(unit)
+            for i, key in ipairs(shown) do
+                local line = row.lines[i]
+                if not line then
+                    line = buildLine(row.list, unit)
+                    row.lines[i] = line
+                end
+                line.key = key
+                line:ClearAllPoints()
+                line:SetPoint("TOPLEFT", row.list, "TOPLEFT", 0, -(i - 1) * LINE)
+                line:SetPoint("TOPRIGHT", row.list, "TOPRIGHT", 0, -(i - 1) * LINE)
+                line.name:SetText(DUI.Options.Text(Layers.Find(unit, key).label))
+                line.move.up.SetUsable(not row.disabled and i > 1)
+                line.move.down.SetUsable(not row.disabled and i < #shown)
+                DUI.Widgets.Stripe(line, i % 2 == 0)
+                line:Show()
+            end
+            for i = #shown + 1, #row.lines do row.lines[i]:Hide() end
+            row.count = #shown
+            row.list:SetHeight(math.max(1, #shown * LINE))
+        end,
+        height = function(row) return (row.count or #Layers.Shown(unit)) * LINE + 8 end,
+    }
+end
+
+-- The settings rows for one frame's page: a reset, the draw-order list, and a
+-- Layer pick for each part that can stand on its own.
 function Layers.Rows(unit, off)
     local rows = {
         { type = "button", label = "Reset layers", func = function() Layers.Reset(unit) end,
-          desc = "Puts every part of this frame back where it drew before you changed its order or layer.",
+          desc = "Puts every part of this frame back where it drew before you changed its place or layer.",
           disabled = function(get) return (off and off(get)) or Layers.Untouched(unit) end },
+        orderList(unit, off),
     }
     for _, part in ipairs(Layers.PARTS[unit] or {}) do
         local key = part.key
         local f = frameOf(unit)
-        -- An extra text's rows only show while that text is added (Add piece).
-        local unused = part.slot and function(get) return get(unit .. ".texts." .. part.slot .. ".show") ~= true end
-        rows[#rows + 1] = { type = "slider", key = unit .. ".parts." .. key .. ".order", label = part.label .. " order",
-            min = Layers.MIN, max = Layers.MaxFor(unit), step = 1,
-            desc = "Where it draws among this frame's parts: a higher number draws on top. "
-                .. (part.mover and "In unlock mode, click it for Bring forward and Send back." or "It has no handle in unlock mode, so it's set here."),
-            get = function() return Layers.OrderOf(unit, key) end,
-
-            -- The default order saves as nil, so a reset leaves the part untouched.
-            set = function(v)
-                Layers.Set(unit, key, v ~= Layers.DefaultOrders(f, unit)[key] and v or nil, false)
-            end,
-            default = function() return Layers.DefaultOrders(f, unit)[key] end,
-            disabled = off, hidden = unused }
         if part.free and not part.ownLayer then
             rows[#rows + 1] = { type = "dropdown", key = unit .. ".parts." .. key .. ".layer", label = part.label .. " layer",
                 values = ns.CASTBAR_STRATA_LABELS, order = ns.CASTBAR_STRATA,
@@ -490,13 +676,18 @@ function Layers.Rows(unit, off)
     return rows
 end
 
--- The unlock editor's hook for a part's handle.
+-- The unlock editor's hook for a part's handle: can(others, up) says whether a
+-- step would go, and why not; step(others, up) takes it.
 function Layers.MoverHook(unit, key)
     return {
+        can = function(others, up)
+            local stack, why = Layers.Step(unit, key, others, up)
+            return stack ~= nil, why
+        end,
         step = function(others, up)
-            local order, layer = Layers.Step(unit, key, others, up)
-            if not order then return false, layer end
-            Layers.Set(unit, key, order, layer or false)
+            local stack, layer = Layers.Step(unit, key, others, up)
+            if not stack then return false, layer end
+            Layers.Save(unit, stack, key, layer or false)
             return true
         end,
         reset = function() Layers.Reset(unit, key) end,
