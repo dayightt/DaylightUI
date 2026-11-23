@@ -501,6 +501,7 @@ function Group:Layout(cfg, text, range)
     self:ApplyTestAlpha()
     self:SetEnabled(on, cfg)
     self:MakeAhead()
+    DUI.Fire("FrameLaidOut", "unitframes." .. tostring(self.key))
 end
 
 -- Creates every button bare before it's needed. The client never runs a

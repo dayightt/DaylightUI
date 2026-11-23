@@ -160,12 +160,22 @@ local function heldUntilFightEnds(f)
     return true
 end
 
--- Leads can be protected, so a tether is placed from its lead's position, never anchored to it.
-local function moveTether(f, x, y)
-    if f.tetherX == x and f.tetherY == y then return end
+-- Leads that are ours and unprotected carry the tether themselves; any other lead's
+-- is placed from its position when it moves, never anchored to it.
+local function anchorTether(f, relative, point, x, y)
+    if f.tetherRelative == relative and f.tetherPoint == point and f.tetherX == x and f.tetherY == y then return end
     f:ClearAllPoints()
-    f:SetPoint("TOPLEFT", f:GetParent(), "CENTER", x, y)
-    f.tetherX, f.tetherY = x, y
+    f:SetPoint("TOPLEFT", relative, point, x, y)
+    f.tetherRelative, f.tetherPoint, f.tetherX, f.tetherY = relative, point, x, y
+end
+
+local function isHung(f)
+    return f.tetherRelative ~= nil and f.tetherRelative ~= f:GetParent()
+end
+
+-- A protected tether would make its lead protected too, so it can't move in a fight.
+local function hangsOff(f, key)
+    return Tether.Hangable(key, f.lead) and not f:IsProtected()
 end
 
 -- Nil when it follows nothing or its lead can't be measured now.
@@ -176,23 +186,11 @@ local function leadSpot(f)
     return pointX + f.fromLeadX, pointY + f.fromLeadY
 end
 
--- Tethers following a lead, moved each frame the lead moves.
+-- Tethers placed beside a lead rather than hung off it: placed again on each pass, and
+-- whenever the lead is placed or laid out.
 local following = {}
-local function followLeads()
-    for f in pairs(following) do
-        if usable(f) then
-            local x, y = leadSpot(f)
-            if x then moveTether(f, x, y) end
-        end
-    end
-end
-Rows.follower = CreateFrame("Frame")
-Rows.follower:Hide()
-Rows.follower:SetScript("OnUpdate", followLeads)
-
-local function setFollowing(f, on)
-    following[f] = on or nil
-    Rows.follower:SetShown(next(following) ~= nil)
+local function setFollowing(f, placedFromLead)
+    following[f] = placedFromLead or nil
 end
 
 -- Spans an attached group's shown pieces, so they move together and clamp on screen as one.
@@ -441,16 +439,21 @@ end
 
 -- At the saved spot when there's no lead or it can't be measured.
 local function placeTether(f, chain)
-    if heldUntilFightEnds(f) then return end
+    if heldUntilFightEnds(f) or (isHung(f) and heldUntilFightEnds(f.tetherRelative)) then return end
     f.extentLeft, f.extentTop = chain.left, chain.top
     sizeTether(f, math.max(1, chain.right - chain.left), math.max(1, chain.top - chain.bottom))
     f:Show()
-    f.lead, f.leadAt = Tether.Lead(chain.key), chain.at
+    f.lead, f.leadAt, f.leadKey = Tether.Lead(chain.key), chain.at, chain.key
     f.fromLeadX = chain.offsetX + (chain.left - chain.rootX)
     f.fromLeadY = chain.offsetY + (chain.top - chain.rootY)
-    setFollowing(f, f.lead ~= nil)
-    local x, y = leadSpot(f)
-    moveTether(f, x or chain.left, y or chain.top)
+    local hung = f.lead ~= nil and hangsOff(f, chain.key)
+    setFollowing(f, f.lead ~= nil and not hung)
+    if hung then
+        anchorTether(f, f.lead, f.leadAt, f.fromLeadX, f.fromLeadY)
+    else
+        local x, y = leadSpot(f)
+        anchorTether(f, f:GetParent(), "CENTER", x or chain.left, y or chain.top)
+    end
 end
 
 local function hideTether(f)
@@ -1370,14 +1373,22 @@ local function isFollowed(key)
     return false
 end
 
--- A group at its saved spot may follow the placed frame now. Settings place every
--- frame again, so only a followed one or a lead that changed asks for a pass.
-DUI.On("MoverApplied", function(key)
+-- Any frame placed may carry a lead hung off it, so a group placed from a lead is
+-- placed again. Settings place every frame again: one pass for the burst.
+DUI.On("MoverApplied", function()
     local leadChanged = Tether.Restate()
-    if leadChanged or isFollowed(key) then Rows.Refresh() end
+    if leadChanged or next(following) ~= nil then Rows.Refresh() end
+end)
+-- Party and raid frames laid out again move without being placed.
+DUI.On("FrameLaidOut", function(key)
+    if isFollowed(key) then Rows.Refresh() end
+end)
+DUI.On("UnlockChanged", function()
+    if next(following) ~= nil then Rows.Refresh() end
 end)
 -- Any setting may switch a lead on or off, or make it loop. Only that needs a pass:
--- the follower keeps up with where a lead is.
+-- a group whose lead moves is placed again when the lead is placed or laid out, else on
+-- the next pass.
 DUI.On("SettingChanged", function(scope, path)
     local leadChanged = Tether.Restate()
     local isCdmSetting = scope == "ActionBars" and type(path) == "string" and path:sub(1, 3) == "cdm"

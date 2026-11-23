@@ -397,6 +397,7 @@ function Raid.PlaceHolder(size)
     for _, n in ipairs(ns.RAID_SIZES) do
         if Movers.Get(Raid.SpotKey(n)) then Movers.Recheck(Raid.SpotKey(n)) end
     end
+    DUI.Fire("FrameLaidOut", "unitframes.raid")
 end
 
 -- A spot that was never moved starts where Raid 10's frames are now.

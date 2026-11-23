@@ -147,6 +147,14 @@ function Tether.Lead(key)
     return frame, hangPointOf(frame)
 end
 
+-- Whether a group can be anchored straight to its lead. Never a plugin's frame: it
+-- could be hung off the layout later, or turn protected.
+function Tether.Hangable(key, frame)
+    if key:find("^plugin%.") or isRestricted(frame) then return false end
+    local ok, protected = ask(frame, "IsProtected")
+    return ok and not protected
+end
+
 local function measurableLead(key, at)
     local leadFrame, hang = Tether.Lead(key)
     if not (leadFrame and Tether.PointAt(leadFrame, at)) then return nil end

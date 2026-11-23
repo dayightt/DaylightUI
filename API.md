@@ -484,8 +484,9 @@ local me = API.For("MyAddon")
 
 A frame you register with `me.RegisterMover` can be picked as a Cooldown Manager group's
 **Attach to** frame, in the Cooldown Manager's layout editor (Edit layout on its page, or `/cdm`).
-The group then follows your frame: it keeps its spot beside it as your frame moves. Your frame is
-listed in Attach to under **Other**, by the label you gave it.
+The group is then placed beside your frame whenever the Cooldown Manager lays out (on aura changes)
+and when your frame is moved in Unlock Frames. If your own code moves the frame, the group catches
+up at the next layout. Your frame is listed in Attach to under **Other**, by the label you gave it.
 
 - It can be picked only while your frame has a size on screen (a width and a height above 0).
   Picking it while it has none does nothing. A hidden frame that has a size can be picked, and

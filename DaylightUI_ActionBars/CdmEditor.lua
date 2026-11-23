@@ -1328,7 +1328,7 @@ local function showLeadRing(key, leadFrame)
 end
 
 local function hideLeadRing()
-    if ui.leadRing then DUI.Motion.AlphaTo(ui.leadRing, 0, 0, true) end
+    if ui.leadRing then DUI.Motion.AlphaTo(ui.leadRing, 0, DUI.Motion.FAST, true) end
 end
 
 local function drawLeadRing(set)
