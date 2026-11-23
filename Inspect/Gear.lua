@@ -19,11 +19,6 @@ ns.GearPage = Page
 Page.EDGE, Page.TOP, Page.ROW, Page.COL, Page.GAP = 16, 12, 58, 200, 8
 Page.FOOT_Y = 14   -- item level line, up from the page's bottom
 
--- Slots that take a permanent enchant (enchanting, plus head, leg and shoulder
--- enchants); empty ones show "No enchant".
-ns.ENCHANTABLE = { Head = true, Shoulder = true, Back = true, Chest = true, Wrist = true, Hands = true,
-    Legs = true, Feet = true, MainHand = true, SecondaryHand = true, Ranged = true }
-
 local function C() return DUI.Char end
 
 local function each(fn)
@@ -122,7 +117,7 @@ end
 
 local function paint(h, key, e)
     local Slots = C().Slots
-    local missing = not e.empty and not e.enchant and ns.ENCHANTABLE[key] == true
+    local missing = C().Gear.MissingEnchant(e)
     if missing then
         local copy = {}
         for k, v in pairs(e) do copy[k] = v end
@@ -130,11 +125,8 @@ local function paint(h, key, e)
         e = copy
     end
     Slots.Paint(h, e, { itemLevel = true })
-    if missing then
-        Style.InkText(h.enchant, "WARN")
-    else
-        h.enchant:SetTextColor(Slots.ENCHANT[1], Slots.ENCHANT[2], Slots.ENCHANT[3])
-    end
+    -- Someone else's missing enchant is worth a look before a group, so amber.
+    if missing then Style.InkText(h.enchant, "WARN") end
 end
 
 function Page.Fill(page)

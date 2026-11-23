@@ -9,6 +9,7 @@ ns.DEFAULTS = {
     names = true,         -- item names beside the icons. Off gives the model the room
     itemLevel = true,     -- the dim line under each name
     levelInIcon = false,  -- the item level in the icon's corner instead, so long names have the room
+    missingEnchants = true, -- a soft "No enchant" under gear that could have one
     scale = 1,
     frameStyle = DaylightUI.Style.LookDefaults(), -- borders, shadows and background, or General's (Style.LookOf)
     repairAt = 0.25,      -- a slot at or under this much durability says "Repair soon"

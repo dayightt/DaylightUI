@@ -844,7 +844,7 @@ T.test("character slots: icons only puts the item level in the corner", function
     T.eq(head.corner:GetText(), "")
 end)
 
-T.test("character slots: an enchant shows as a third green line, read once per link", function()
+T.test("character slots: an enchant shows as a third line, read once per link", function()
     local S, ns = lentWorld({ items = {
         Head = CW.item("Lionheart Helm", { level = 66, enchantId = 2545, enchant = "+1% Dodge" }),
         Legs = CW.item("Plain Pants", { level = 50 }) } })
@@ -865,7 +865,37 @@ T.test("character slots: an enchant shows as a third green line, read once per l
     S.Layout(head, S.ICON, false)
     S.Paint(head, ns.Gear.Read("Head", 0.25), { itemLevel = true })
     T.eq(head.enchant:IsShown(), false)
-    T.eq(head.mark:IsShown(), true, "icons only: a small green mark")
+    T.eq(head.mark:IsShown(), true, "icons only: a small mark")
+end)
+
+T.test("character slots: enchants in the accent, and a soft No enchant where one could go", function()
+    local S, ns = lentWorld({ items = {
+        Head = CW.item("Lionheart Helm", { level = 66, enchantId = 2545, enchant = "+1% Dodge" }),
+        Legs = CW.item("Plain Pants", { level = 50 }),
+        Neck = CW.item("Pendant", { level = 50 }),
+        SecondaryHand = CW.item("Orb", { level = 50 }),
+        Ranged = CW.item("Totem", { level = 50 }) } })
+    local opts = { itemLevel = true, missingEnchants = true }
+    local function paint(key)
+        local h = S.frames[key]
+        S.Layout(h, 196, true)
+        S.Paint(h, ns.Gear.Read(key, 0.25), opts)
+        return h
+    end
+    local head, legs = paint("Head"), paint("Legs")
+    T.rgb({ head.enchant:GetTextColor() }, { DaylightUI.Style.Accent() }, "apart from green item names")
+    T.eq(legs.enchant:GetText(), "No enchant")
+    T.truthy(legs.enchant:IsShown())
+    T.rgb({ legs.enchant:GetTextColor() }, DaylightUI.Style.INK.OFF, "soft")
+    T.falsy(paint("Neck").enchant:IsShown(), "a neck takes none")
+    T.falsy(paint("SecondaryHand").enchant:IsShown(), "a held-in-off-hand item takes none")
+    T.falsy(paint("Ranged").enchant:IsShown(), "nor a relic")
+    opts.missingEnchants = false
+    T.falsy(paint("Legs").enchant:IsShown(), "switched off")
+    S.Layout(legs, S.ICON, false)
+    opts.missingEnchants = true
+    S.Paint(legs, ns.Gear.Read("Legs", 0.25), opts)
+    T.falsy(legs.mark:IsShown(), "icons only: no mark for a missing one")
 end)
 
 T.test("character slots: the enchant line drops the game's 'Enchanted:' in any language", function()
@@ -3319,6 +3349,7 @@ T.test("character slots: a long item name takes a second line", function()
     local P, ns = charPage({ items = { Head = CW.item("The Crown of the Mountain Kings", { quality = 4, level = 66 }),
                                         Neck = CW.item("Pendant", { quality = 3, level = 20 }) } })
     wrapMeasure()
+    DaylightUI:Set("Character", "missingEnchants", false)   -- no third line here
     local page = openChar(ns)
     local S = ns.Slots
     local long, short = S.frames.Head, S.frames.Neck
@@ -3338,6 +3369,7 @@ T.test("character slots: a long repair line takes a second row instead of ending
                                         Neck = CW.item("Pendant", { quality = 3, level = 20 }),
                                         Chest = CW.item("The Breastplate of the Long Name Mountain Kings", { quality = 4, level = 66, cur = 0, max = 100 }) } })
     wrapMeasure()
+    DaylightUI:Set("Character", "missingEnchants", false)   -- no third line here
     local page = openChar(ns)
     local S = ns.Slots
     local h, short, both = S.frames.Head, S.frames.Neck, S.frames.Chest
@@ -3359,6 +3391,7 @@ end)
 T.test("character slots: the item level in the icon's corner leaves the name its own, centered", function()
     local P, ns = charPage({ items = { Head = CW.item("Lionheart Helm", { quality = 4, level = 66 }),
                                         Chest = CW.item("Chest", { cur = 20, max = 100 }) } })
+    DaylightUI:Set("Character", "missingEnchants", false)   -- no third line here
     local page = openChar(ns)
     local h = ns.Slots.frames.Head
     T.eq(h.corner:GetText(), "", "off by default: no number in the corner")

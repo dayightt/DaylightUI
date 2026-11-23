@@ -22,7 +22,6 @@ Slots.GAP = 10            -- icon to name
 Slots.NAME_SIZE, Slots.LINE_SIZE, Slots.CORNER_SIZE = Style.SIZE.body, Style.SIZE.small, Style.SIZE.tiny
 Slots.CORNER_BG_ALPHA, Slots.CORNER_BG_PAD = 0.65, 1   -- the dark square behind the corner's number
 Slots.ENCHANT_SIZE = Style.SIZE.small
-Slots.ENCHANT = DUI.Style.INK.GOOD            -- enchant line
 Slots.MARK = 5                                -- enchant marker size in icons-only mode
 Slots.DOT = 7
 Slots.DIM = DUI.Style.INK.LABEL     -- line under a name
@@ -172,12 +171,10 @@ function Slots.Make(parent, key, side, size, into)
     h.line:SetWordWrap(false)
     h.enchant = Style.Text(h, Slots.ENCHANT_SIZE, justify)
     h.enchant:SetWordWrap(false)
-    h.enchant:SetTextColor(Slots.ENCHANT[1], Slots.ENCHANT[2], Slots.ENCHANT[3])
     h.mark = h.icon:CreateTexture(nil, "OVERLAY")
     h.mark:SetTexture(Slots.WHITE)
     h.mark:SetSize(Slots.MARK, Slots.MARK)
     h.mark:SetPoint("TOPLEFT", h.icon, "TOPLEFT", 2, -2)
-    h.mark:SetVertexColor(Slots.ENCHANT[1], Slots.ENCHANT[2], Slots.ENCHANT[3], 1)
     h.mark:Hide()
     local kept = into or Slots.frames
     kept[key] = h
@@ -314,11 +311,15 @@ end
 -- opts.itemLevel shows the item level line.
 -- Gear swapped while the window is open fades in. Stepped by hand, since the
 -- window can't use alpha animations.
+-- Only the picture and the words the slot shows: fading up shows a hidden text,
+-- and the ammo slot's name and count would land on the ranged weapon's.
 local function arrive(h)
     local M = DUI.Motion
     for _, r in ipairs({ h.tex, h.name, h.line }) do
-        r:SetAlpha(0)
-        M.AlphaTo(r, 1, M.NORMAL)
+        if r == h.tex or h.names then
+            r:SetAlpha(0)
+            M.AlphaTo(r, 1, M.NORMAL)
+        end
     end
 end
 
@@ -377,19 +378,29 @@ function Slots.Paint(h, e, opts)
         local side = w + 2 * Slots.CORNER_BG_PAD
         h.cornerBg:SetSize(side, side)
     end
-    Slots.PaintEnchant(h, e)
+    Slots.PaintEnchant(h, e, opts.missingEnchants == true and ns.Gear.MissingEnchant(e))
     Slots.FitText(h)
     if h.over then Style.InkText(h.name, "VALUE") end
 end
 
--- Enchant as a third line, or a small green mark in icons-only mode. A new
+-- Enchant as a third line, or a small mark in icons-only mode. A new
 -- enchant fades in. The first paint doesn't animate.
-function Slots.PaintEnchant(h, e)
+function Slots.PaintEnchant(h, e, missing)
     local text = (not e.empty and e.enchant) or nil
+    -- In the accent, so it stands apart from green item names and the white
+    -- lines. A slot that could have one says so softly.
+    local r, g, b = DUI.Style.Accent()
+    h.mark:SetVertexColor(r, g, b, 1)
+    if text then
+        h.enchant:SetTextColor(r, g, b)
+    elseif missing then
+        text = L["No enchant"]
+        DUI.Style.InkText(h.enchant, "OFF")
+    end
     local three = h.names == true and text ~= nil
     if three ~= (h.three == true) then stack(h, three) end
     h.enchant:SetShown(three)
-    h.mark:SetShown(text ~= nil and not h.names)
+    h.mark:SetShown(text ~= nil and not h.names and not missing)
     if text == h.enchantText then return end
     local fresh = h.enchantPainted and text ~= nil
     h.enchantText, h.enchantPainted = text, true

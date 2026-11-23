@@ -52,6 +52,8 @@ ns.OPTIONS = { pages = {
               desc = "The dim line under each item's name. Repair warnings still show when it's off." },
             { type = "toggle", key = "levelInIcon", label = "Item level in the icon",
               desc = "The item level in the icon's corner instead of a line under the name, so long names have the room." },
+            { type = "toggle", key = "missingEnchants", since = "2.2.4", label = "Missing enchants",
+              desc = "A soft No enchant line under gear that could carry an enchant but has none. Enchants themselves show in your accent color." },
             { type = "slider", key = "repairAt", label = "Repair warning at", min = 0.05, max = 0.5, step = 0.05, unit = "%",
               desc = "A slot at or under this much durability gets an amber dot and says Repair soon." },
         } },

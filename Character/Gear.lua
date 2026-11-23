@@ -88,6 +88,24 @@ local function bareEnchant(text)
     return text:match(pattern) or text
 end
 
+-- Slots that take a permanent enchant: enchanting's, plus head, leg and
+-- shoulder enchants.
+Gear.ENCHANTABLE = { Head = true, Shoulder = true, Back = true, Chest = true, Wrist = true, Hands = true,
+    Legs = true, Feet = true, MainHand = true, SecondaryHand = true, Ranged = true }
+
+-- Whether this item could carry an enchant it doesn't have. An off hand takes
+-- one as a weapon or a shield (not a held-in-off-hand item), a ranged slot
+-- only as a bow, gun or crossbow (a scope), never a wand, thrown or relic.
+function Gear.MissingEnchant(e)
+    if e.empty or e.enchant or not Gear.ENCHANTABLE[e.key] then return false end
+    if e.key ~= "SecondaryHand" and e.key ~= "Ranged" then return true end
+    local get = (C_Item and C_Item.GetItemInfoInstant) or GetItemInfoInstant
+    if not (e.link and get) then return false end
+    local _, _, _, _, _, class, sub = get(e.link)
+    if e.key == "Ranged" then return class == 2 and Gear.AMMO_WEAPONS[sub] == true end
+    return class == 2 or (class == 4 and sub == 6)
+end
+
 function Gear.Enchant(link, slotId, unit)
     local eid = link and string.match(link, "item:%-?%d+:(%d+)")
     if not eid or eid == "0" then return nil end
@@ -137,6 +155,7 @@ function Gear.Read(key, repairAt, unit)
     e.quality = GetInventoryItemQuality(unit, id) or e.quality
     e.icon = icon
     e.level = levelOf(link)
+    e.link = link
     e.enchant = Gear.Enchant(link, id, unit)
     local cur, max
     if unit == "player" then cur, max = GetInventoryItemDurability(id) end

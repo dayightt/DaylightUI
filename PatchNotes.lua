@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Fishing", "An option to hide the fishing bobber's tooltip while your line is in, so nothing covers the bobber" },
         { "Controller", "The controller's action bars can fade like your other bars, and the Immersive setup fades them outside fights" },
         { "Controller", "Split a stack in your bags with a controller: pick how many and they go in a free slot" },
+        { "Character", "Enchants stand out in your accent color, and gear that could take one but has none says so softly" },
     }, fixed = {
         { "Bags", "No more error opening your bags on a French client" },
         { "DoT shade", "No more error in dungeons when your target's target takes a hit" },
