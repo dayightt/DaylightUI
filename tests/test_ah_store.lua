@@ -41,6 +41,8 @@ T.test("record_and_read_back", function()
     local at = 1700000000
     T.eq(M.Store.Record("US-PvE", "2589", 120, 20, at), true)
     T.deq(M.Store.Seen("US-PvE", "2589"), { min = 120, t = at, q = 20 })
+    T.eq(M.Store.Qty("US-PvE", "2589"), 20, "the count, read without making a table")
+    T.isnil(M.Store.Qty("US-PvE", "2590"), "never seen: nil")
     T.deq(M.Store.Lows("US-PvE", "2589"), { M.Market.Day(at), 120 })
     T.eq(M.Store.Market("US-PvE", "2589", at), 120)
     -- the saved shape
@@ -55,6 +57,26 @@ T.test("record_and_read_back", function()
     T.isnil(M.Store.Lows("US-PvE", "999"))
     T.isnil(M.Store.Market("US-PvE", "999", at))
     T.isnil(M.Store.Seen("EU-PvP", "2589"))
+end)
+
+T.test("bridge_offer_gives_price_seen_at_and_how_many_were_for_sale", function()
+    local M = known()
+    local at = 1700000000
+    T.eq(M.Store.Record("US-PvE", "2589", 120, 20, at), true)
+    local price, seenAt, qty = M.Bridge.Offer(2589)
+    T.eq(price, 120, "the price a price source adds to the recipe")
+    T.eq(seenAt, at, "and when it was seen, so the other addon can age it")
+    T.eq(qty, 20, "and how many were for sale, for its supply math")
+    T.isnil(M.Bridge.Offer(12345), "never seen: nil, not a made-up price")
+end)
+
+T.test("bridge_scanned_at_is_the_last_sighting_of_anything", function()
+    local M = known()
+    T.isnil(M.Bridge.ScannedAt(), "before the first scan")
+    local at = 1700000000
+    M.Store.Record("US-PvE", "2589", 120, 20, at)
+    M.Store.Record("US-PvE", "2590", 300, 4, at + 600)
+    T.eq(M.Bridge.ScannedAt(), at + 600, "the newest sighting wins")
 end)
 
 T.test("min_is_the_last_sightings_lowest", function()
