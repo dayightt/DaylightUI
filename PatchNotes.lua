@@ -18,6 +18,11 @@ DUI.PatchNotes = {
         { "Controller", "Split a stack in your bags with a controller: pick how many and they go in a free slot" },
         { "Character", "Enchants stand out in your accent color, and gear that could take one but has none says so softly" },
     }, fixed = {
+        { "Tooltip", "A hunter pet's attack speed shows as seconds, not gold, and Volley is tagged Arcane, not Fire" },
+        { "Character", "A hunter's arrows no longer cover the ranged weapon's name after new ammo goes in" },
+        { "Threat meter", "Its slide-out tab no longer pops up by the damage meter window when you hover the info panel" },
+        { "Bank", "Moving the bank window in unlock mode no longer nudges it a few pixels up each time" },
+        { "Profiles", "No more question at every login to switch to the profile you already use" },
         { "Bags", "No more error opening your bags on a French client" },
         { "DoT shade", "No more error in dungeons when your target's target takes a hit" },
         { "Professions", "Clicking someone's profession in chat opens their recipes every time, not your own or nothing" },
