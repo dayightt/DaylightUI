@@ -239,7 +239,7 @@ T.test("rolls data: a history drop with a bare [Name] pairs by the name", functi
     local D = S.RollData
     local id = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN })
     local d = D.drops[id]
-    d.lootListKey = nil
+    d.lootListKey, d.historyID = nil, nil
     RW.drops[id].link = "[Band of Accuria]"
     RW.drops[id].historyID = 900
     RW.drops[id].players[2].state = Enum.EncounterLootDropRollState.Greed
@@ -992,6 +992,43 @@ T.test("rolls data: your own line from the game wins over what you pressed", fun
     RW.Pick(id, "Mira Calloway", "pass")
     T.eq(D.drops[id].mine, "pass")
 end)
+
+-- Two copies whose history keys run the other way from their roll ids: the first
+-- guess pairs them backwards. Your pick and the win on one copy must not end the
+-- other, which you haven't rolled on yet.
+local function crossedTwins(history)
+    local S, RW = rollsLogin({ history = history })
+    local a = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN, announce = false })
+    local b = RW.Drop({ name = "Band of Accuria", link = RING, players = SEVEN, announce = false })
+    RW.Announce(b); RW.Announce(a)
+    T.eq(S.RollData.drops[a].historyID, RW.drops[b].historyID, "the first guess pairs them backwards")
+    return S, RW, a, b
+end
+
+for _, history in ipairs({ true, false }) do
+    local how = history and "history" or "chat only"
+    T.test("rolls data: crossed twins, winning one leaves the other open (" .. how .. ")", function()
+        local S, RW, a, b = crossedTwins(history)
+        local D = S.RollData
+        RW.Pick(a, "Bram Holloway", "need"); RW.Pick(b, "Bram Holloway", "greed")
+        cardFor(S, a).buttons.need:Click()
+        T.eq(D.drops[a].mine, "need", "your pick stays on the card you clicked")
+        T.isnil(D.drops[b].mine, "the other copy still waits on you")
+        RW.Roll(a, "Mira Calloway", 40); RW.Roll(a, "Bram Holloway", 90)
+        RW.Win(a, "Bram Holloway")
+        T.eq(D.drops[a].done, true); T.eq(D.drops[a].winner, "Bram")
+        T.falsy(D.drops[b].done, "the copy you haven't rolled on isn't over")
+        T.isnil(D.drops[b].winner)
+        T.eq(D.drops[b].players.Bram.pick, "greed", "Bram's pick on the other copy follows it")
+        tick(S, 10)
+        local card = cardFor(S, b)
+        T.truthy(card, "its card is still up")
+        T.truthy(card.buttons.need:IsShown(), "with its buttons")
+        card.buttons.greed:Click()
+        T.eq(D.drops[b].mine, "greed")
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end)
+end
 
 T.test("rolls data: two copies' history records pair in order, whichever comes first", function()
     local S, RW = rollsLogin()

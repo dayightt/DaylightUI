@@ -129,14 +129,19 @@ local function playerOf(drop, name, self)
     return p
 end
 
+local mend
+
 -- A pick. Your own, once the game says so, is what you picked, whatever was pressed.
-local function setPick(drop, p, pick, offSpec)
+-- record: it came from a chat line or the Loot History, which may name the wrong
+-- copy of an item until mend has checked it.
+local function setPick(drop, p, pick, offSpec, record)
     if not pick or pick == "choosing" then return false end
     local changed = not (p.pick == pick and (not offSpec or p.offSpec))
     p.pick = pick
     if offSpec then p.offSpec = true end
     p.seq = p.seq or nextSeq(drop)
     if p.self then
+        if record then drop.said = pick else drop.took = pick end
         if drop.mine ~= pick then drop.mine = pick; changed = true end
         drop.pending = nil
         if pick ~= "pass" then drop.timedOut = nil end
@@ -189,12 +194,20 @@ function RollData.Start(rollID, rollTime, now)
 end
 
 -- The drop a chat line is about.
+-- A chat line's id is the drop's Loot History key, so a copy already paired with
+-- the history is paired with its chat lines too.
+local function byID(id)
+    return oldest(function(x) return x.historyID == id or x.lootListKey == id end)
+end
+local function unpaired(link)
+    return oldest(function(x) return not x.historyID and not x.lootListKey and sameItem(x, link) end)
+end
+
 local function chatDrop(line)
     if line.historyID then
-        local d = oldest(function(x) return x.historyID == line.historyID end)
-        if d then return d end
+        local d = byID(line.historyID)
         -- The started line was missed: pair the oldest copy without an id.
-        d = oldest(function(x) return not x.historyID and sameItem(x, line.link) end)
+        d = d or unpaired(line.link)
         if d then d.historyID = line.historyID end
         return d
     end
@@ -211,7 +224,7 @@ end
 function RollData.Chat(line, now)
     if type(line) ~= "table" then return end
     if line.kind == "started" then
-        local d = oldest(function(x) return not x.historyID and sameItem(x, line.link) end)
+        local d = line.historyID and (byID(line.historyID) or unpaired(line.link))
         if d then d.historyID = line.historyID end
         return
     end
@@ -229,18 +242,19 @@ function RollData.Chat(line, now)
     local p = playerOf(drop, line.who, line.self)
     if not p then return end
     if line.kind == "pick" then
-        if setPick(drop, p, line.pick, line.offSpec) then fire(id, "pick") end
+        if setPick(drop, p, line.pick, line.offSpec, true) then fire(id, "pick") end
     elseif line.kind == "roll" then
-        setPick(drop, p, line.pick, line.offSpec)
+        setPick(drop, p, line.pick, line.offSpec, true)
         if line.roll and p.roll ~= line.roll then
             p.roll = line.roll
             fire(id, "roll")
         end
     elseif line.kind == "won" then
-        setPick(drop, p, line.pick, line.offSpec)
+        setPick(drop, p, line.pick, line.offSpec, true)
         if line.roll then p.roll = line.roll end
         if setWinner(drop, p, now) then fire(id, "won") end
     end
+    mend(drop)
 end
 
 -- Looks for this drop in the Loot History (it may have been recorded first).
@@ -275,7 +289,9 @@ end
 local function pairCopy(encounterID, key, link)
     local copies = {}
     for _, d in pairs(RollData.drops) do
-        if not d.lootListKey and not d.done and sameItem(d, link) then copies[#copies + 1] = d end
+        if not d.lootListKey and (not d.historyID or d.historyID == key) and not d.done and sameItem(d, link) then
+            copies[#copies + 1] = d
+        end
     end
     if #copies <= 1 then return copies[1] end
     table.sort(copies, byAge)
@@ -318,7 +334,7 @@ function RollData.History(encounterID, key, now)
         if p then
             p.class = plain(r.playerClass, "string") or p.class
             local state = plain(r.state, "number")
-            if setPick(drop, p, RollData.STATE[state], state == 1) then what = what or "pick" end
+            if setPick(drop, p, RollData.STATE[state], state == 1, true) then what = what or "pick" end
             local roll = plain(r.roll, "number")
             if roll and p.roll ~= roll then p.roll = roll; what = "roll" end
             if plain(r.isWinner, "boolean") == true and setWinner(drop, p, now) then what = "won" end
@@ -332,6 +348,7 @@ function RollData.History(encounterID, key, now)
     end
     if not what and (paired or #drop.order ~= seated) then what = "seat" end
     if what then fire(id, what) end
+    mend(drop)
 end
 
 -- A roll button of Daylight UI's pressed, before RollOnLoot. The pick is yours
@@ -347,10 +364,11 @@ end
 function RollData.Mine(rollID, kind)
     local drop = RollData.drops[rollID]
     if not drop then return end
-    drop.mine = kind
+    drop.mine, drop.took = kind, kind
     local p = playerOf(drop, nil, true)
     if p then setPick(drop, p, kind) end
     fire(rollID, "pick")
+    mend(drop)
 end
 
 -- The game hid its popup: it took what you pressed, or your time ran out (a
@@ -366,6 +384,7 @@ function RollData.Cancel(rollID)
         drop.timedOut = true
     end
     fire(rollID, "pick")
+    mend(drop)
 end
 
 -- Your Need number, shown by the game before any chat line.
@@ -537,6 +556,45 @@ function RollData.Twins(drop)
         if d ~= drop then list[#list + 1] = d end
     end
     return list
+end
+
+-- What a drop knows from its chat lines and Loot History record, as opposed to
+-- what the game's roll events told it about its own roll id.
+local RECORD = { "encounterID", "lootListKey", "historyID", "players", "order", "me", "seq", "said",
+    "winner", "done", "doneAt", "tied", "allPassed" }
+
+local function swap(x, y)
+    for _, k in ipairs(RECORD) do x[k], y[k] = y[k], x[k] end
+    for _, d in ipairs({ x, y }) do
+        -- The record has the last word on your pick, the game's events next.
+        d.mine = d.said or d.took
+        local p = d.me and d.players[d.me]
+        if p then p.pick = d.mine end
+    end
+end
+
+-- Nothing ties a game roll id to its Loot History key or chat id, so two copies
+-- of one item are paired by the order things arrive, which is a guess. The
+-- game's own events say which copy you picked: a record saying you picked a
+-- copy you never pressed, while a copy you did press has no such word, means
+-- the two were paired the wrong way round. Left alone, a win on one copy ended
+-- the other before you could roll on it.
+mend = function(drop)
+    if drop.watch then return end
+    local list = copies(drop)
+    if #list < 2 then return end
+    local function pressed(d) return d.pending ~= nil or d.took ~= nil end
+    for _, x in ipairs(list) do
+        if x.said and not pressed(x) and not x.watch then
+            for _, y in ipairs(list) do
+                if y ~= x and pressed(y) and not y.said and not y.watch then
+                    swap(x, y)
+                    fire(x.rollID, "pick"); fire(y.rollID, "pick")
+                    return
+                end
+            end
+        end
+    end
 end
 
 function RollData.TwinIndex(drop)

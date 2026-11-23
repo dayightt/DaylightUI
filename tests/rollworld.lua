@@ -186,7 +186,9 @@ function RW.Install()
         GetSortedDropsForEncounter = function(encounterID)
             if not RW.history or encounterID ~= ENCOUNTER then return nil end
             local list = {}
-            for _, id in ipairs(RW.order) do list[#list + 1] = historyInfo(RW.drops[id]) end
+            for _, id in ipairs(RW.order) do
+                if RW.drops[id].announced then list[#list + 1] = historyInfo(RW.drops[id]) end
+            end
             return list
         end,
         GetSortedInfoForDrop = function(encounterID, key)
@@ -331,9 +333,18 @@ function RW.Drop(spec)
         GroupLootContainer_AddRoll(rollID, d.time)
     end
     stub.FireEvent("START_LOOT_ROLL", rollID, d.time)
-    chat(STRINGS.LOOT_ROLL_STARTED:format(historyID, d.link))
-    historyChanged(d)
+    if spec.announce ~= false then RW.Announce(rollID) end
     return rollID, historyID
+end
+
+-- The started line and the history record. Two copies dropping together get
+-- both START_LOOT_ROLLs first; nothing ties a roll id to its history key, so a
+-- test can announce them in the other order (spec.announce = false, then this).
+function RW.Announce(rollID)
+    local d = RW.drops[rollID]
+    d.announced = true
+    chat(STRINGS.LOOT_ROLL_STARTED:format(d.historyID, d.link))
+    historyChanged(d)
 end
 
 -- A player picks: kind need|offspec|greed|pass|disenchant|transmog|auto (an

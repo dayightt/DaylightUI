@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Nameplates", "The execute range can glow around the whole bar and spark on its line once an enemy is low, with stripes, neon or any bar texture for its fill, and its band can stay fully visible all the time" },
         { "AddOns list", "Daylight UI has its own heading in the game's AddOns list, and its plugins can sit under one of their own" },
     }, fixed = {
+        { "Loot rolls", "When two of the same item drop, rolling on one no longer closes the other before you can roll on it" },
         { "Cooldown Manager", "Slide over now closes the gap for buffs like Flurry and Enrage that were hidden in the game's own Cooldown Manager settings" },
         { "Character", "Swapped to the game's own character window, your gear slots sit over your model again, so you can hover and click them" },
     } },
