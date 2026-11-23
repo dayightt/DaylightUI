@@ -336,6 +336,40 @@ T.test("layers: the options list moves a part with its up button", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("layers: Bring forward and Send back gray out with the reason, and say nothing in chat", function()
+    local DUI, ns, f = freeTarget()
+    local M = DUI.Movers
+    local key = ns.PowerBar.KeyFor("target")
+    M.Unlock()
+    local overlapping = {}
+    M.Overlapping = function() return overlapping end
+    M.OpenEditor(key)
+    local editor = M.Editor()
+    T.truthy(editor.forward.off, "nothing over it: forward is off")
+    T.truthy(editor.back.off, "nothing under it: back is off")
+    T.eq(editor.forward.why, DUI.L["Already over everything it overlaps"])
+    local lines = {}
+    local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    _G.GameTooltip = tip
+    function tip:AddLine(t) lines[#lines + 1] = tostring(t) end
+    function tip:AddDoubleLine(l, r) lines[#lines + 1] = tostring(l) .. " " .. tostring(r) end
+    editor.forward:GetScript("OnEnter")(editor.forward)
+    _G.GameTooltip = nil
+    T.truthy(table.concat(lines, "\n"):find(DUI.L["Already over everything it overlaps"], 1, true), "the reason in its tooltip")
+    local chat = #stub.chat
+    T.falsy(M.StepLayer(key, true))
+    T.eq(#stub.chat, chat, "no chat line")
+    overlapping[1] = f.portraitHolder.key
+    M.RefreshEditor()
+    T.falsy(editor.forward.off, "the portrait over it: forward is on")
+    T.isnil(editor.forward.why)
+    T.truthy(M.StepLayer(key, true))
+    stub.RunTimers()
+    T.eq(ns.Layers.OrderOf("target", "power"), ns.Layers.OrderOf("target", "portrait") + 1, "stepped over it")
+    T.truthy(editor.forward.off, "and now it's over everything it overlaps")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- How two parts draw against each other: 1 (a over b), -1 (b over a), or nil
 -- when nothing decides it (two frames on one level, a frame beside a text).
 local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
