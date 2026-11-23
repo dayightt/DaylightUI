@@ -71,6 +71,8 @@ Donators.LIST = {
     "Stavlor",
     "Luka",
     "Clément aka Harlow Bloom - Forever - PvP RP",
+    "Jonathan",
+    "Paul",
     "HappyS",
     "ramnokri",
     "Shady",
@@ -91,6 +93,7 @@ Donators.LIST = {
     "Caucherman",
     "Gutrush",
     "ElJakeo",
+    "Oliver",
     "Hugo",
     "Daniel C.",
     "sam",
@@ -127,6 +130,8 @@ Donators.MONTHLY = {
     "Harrumph",
     "Luka",
     "Daniel C.",
+    "Paul",
+    "Oliver",
 }
 
 local WHITE = "Interface\\Buttons\\WHITE8X8"
