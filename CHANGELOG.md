@@ -1,3 +1,30 @@
+# DaylightUI 2.2.4
+
+Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.
+
+## New
+- Cooldown Manager: A group can attach to another frame, like your cast bar or raid frames, and follow it
+- Nameplates: Friendly health bars can wait for a fight or for someone to get hurt, with just names otherwise
+- Nameplates: Your group's totem badges can change size and shape, or show the totem's icon or element
+- Party and raid: Frames can grow from the middle, so a group that isn't full stays centered
+- Unit frames: Portraits for the target of target, focus target and pet frames, off until you pick one
+- Unit frames: The mana regen sweep can keep ticking with each regen tick until your mana is full
+- Character: Enchants stand out, and gear that could take one but has none says so softly
+- Controller: The controller's action bars can fade like your other bars, and you can split a stack in your bags
+- Fishing: An option to hide the bobber's tooltip so nothing covers the bobber
+- Plugins: Other addons can tell when your Cooldown Manager spells are ready, usable or have their buff up
+
+## Fixed
+- Unit frames: Buffs, debuffs and cast bars dim and fade with their frame, like out-of-range targets
+- Profiles: No more question at every login to switch to the profile you already use
+- Professions: Clicking someone's profession in chat opens their recipes every time
+- Controller: Placing a character macro on your action bars with a controller works again
+- Tooltip: Other addons' lines no longer pile up over item tooltips on loot and roll windows
+- Tooltip: A hunter pet's attack speed shows in seconds, not gold, and Volley is tagged Arcane
+- Errors: No more errors opening your bags on a French client, or from the DoT shade in dungeons
+- Languages: More Simplified Chinese thanks to Levis
+- Little touches: Arrows no longer cover your ranged weapon's name, the bank stays put in unlock mode, the threat tab stays by its window, and moved portraits stay on top
+
 # DaylightUI 2.2.3
 
 ItemTree advice in your bags, profiles that fit your screen, sharper DoT shades and calmer tooltips.
