@@ -191,9 +191,11 @@ local function onHandleMoved(f, key)
     local positions = DUI.DB.Positions()
     local p = positions[key]
     if p then
-        local h = DUI.Movers.Handle(key)
-        local w, hgt = 0, 0
-        if h then w, hgt = h:GetWidth(), h:GetHeight() end
+        -- The window's own size, as drawn: the handle can be taller (its least
+        -- size), and since it sits on the window's middle, taking its top would
+        -- lift the window a few pixels on every move.
+        local r = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+        local w, hgt = (f:GetWidth() or 0) * r, (f:GetHeight() or 0) * r
         local at = anchorOf(f)
         local x, y = DUI.Movers.PointOf(at, UIParent:GetWidth() / 2 + p[1], UIParent:GetHeight() / 2 + p[2], w, hgt)
         f.Set("position", { x, y, at = at })

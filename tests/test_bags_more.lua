@@ -1055,8 +1055,7 @@ T.test("bags: moving the handle sets the window's own top-left; reset clears it"
     local ns = login()
     local DUI = DaylightUI
     DUI.Movers.Unlock()
-    local h = DUI.Movers.Handle("bags.bag")
-    h:SetSize(400, 300)
+    _G.DaylightUIBag:SetSize(400, 300)
     DUI.DB.Positions()["bags.bag"] = { 0, 0 }
     DUI.Movers.Get("bags.bag").onMoved("bags.bag")
     stub.RunTimers()
@@ -3728,4 +3727,28 @@ T.test("bags: Sell junk leaves a gray item ItemTree keeps, and its tooltip says 
     T.eq(#ns.Junk.Items(), 2, "off: sold with the rest")
     C_Item.GetItemInfo = getInfo
     _G.ItemTreeAPI = nil
+end)
+
+-- Unlocked, every nudge of the bank (arrow keys or typed numbers) also moved
+-- it 3 px up, seen in game: the window is shorter than its handle's least
+-- height, its top was taken from the handle's, and the handle then sat back on
+-- the window's middle, 3 px lower than the move had put it.
+T.test("bags: a handle move puts the window's middle on the handle's middle", function()
+    local ns = bankLogin()
+    local DUI = DaylightUI
+    local f = _G.DaylightUIBank
+    local fh, fw = f:GetHeight(), f:GetWidth()
+    T.truthy(fh < ns.Window.MOVER_MIN[2], "a bank shorter than the handle's least height")
+    DUI.Movers.Unlock()
+    stub.RunTimers()
+    local e, h = DUI.Movers.Get("bags.bank"), DUI.Movers.Handle("bags.bank")
+    DUI.Movers.PlaceHandle(e, h)
+    T.eq(h:GetHeight(), ns.Window.MOVER_MIN[2], "the handle is taller than the window")
+    DUI.DB.Positions()["bags.bank"] = { 10, -20 }
+    e.onMoved("bags.bank")
+    stub.RunTimers()
+    local pos = f.Setting("position")
+    T.near(pos[1], UIParent:GetWidth() / 2 + 10 - fw / 2, 0.01, "left edge")
+    T.near(pos[2], UIParent:GetHeight() / 2 - 20 + fh / 2, 0.01, "top edge: half the window above the middle, not half the handle")
+    DUI.Movers.Lock()
 end)
