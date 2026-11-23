@@ -159,7 +159,7 @@ local look = {
           desc = "A spell's icon pops and lights up once when it comes off a real cooldown (never for the global cooldown). Needs Motion effects (General > Appearance)." },
         { type = "toggle", key = "rankUp", label = "New ranks on your bars",
           desc = "When you learn a new rank of a spell, it takes the place of the rank before it on your bars. A lower rank you keep on purpose, like rank 1 to save mana, stays. Not macros." },
-        { type = "button", label = "Reset bar positions",
+        { type = "button", label = "Reset bar positions", text = "Reset", confirm = true,
           desc = "Puts every bar back in the default arrangement.",
           func = function()
               ns.Bars.ResetPositions()
