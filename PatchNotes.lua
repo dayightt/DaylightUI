@@ -22,7 +22,11 @@ DUI.PatchNotes = {
         { "Party and raid", "Party and raid frames can grow from the middle, so a group that isn't full stays centered" },
         { "Nameplates", "Friendly health bars can wait for a fight, or show when someone gets hurt, with just names the rest of the time" },
         { "Nameplates", "Your group's totem badges can change size, show the totem's spell icon or its element, go square, or drop their border" },
+        { "Cooldown Manager", "A group can attach to another frame, like your Personal Display, a cast bar, party or raid frames, and follow it wherever it goes" },
     }, fixed = {
+        { "Unit frames", "Buffs, debuffs and cast bars dim with the target and focus when they're out of range, and fade with your player and pet frames" },
+        { "Unit frames", "A portrait moved off its frame no longer slips under the other moved pieces" },
+        { "Languages", "More Simplified Chinese thanks to Levis" },
         { "Tooltip", "A hunter pet's attack speed shows as seconds, not gold, and Volley is tagged Arcane, not Fire" },
         { "Character", "A hunter's arrows no longer cover the ranged weapon's name after new ammo goes in" },
         { "Threat meter", "Its slide-out tab no longer pops up by the damage meter window when you hover the info panel" },
