@@ -1686,7 +1686,7 @@ return {
     },
     ["damageFont"] = "Interface\\AddOns\\DaylightUI\\Media\\fonts\\ExpresswayFree.ttf",
     ["lastVersion"] = "test",
-    ["notesSeen"] = "2.2.2",
+    ["notesSeen"] = "2.2.3",
     ["oneStandard"] = true,
     ["profileData"] = {
       ["DPS/Tank"] = {
@@ -2732,6 +2732,8 @@ return {
     ["Bags.frameStyle.windowTintColor.3"] = 0.09,
     ["Bags.greyPoor"] = true,
     ["Bags.iconSize"] = 35,
+    ["Bags.itemTreeKeep"] = true,
+    ["Bags.itemTreeMarks"] = true,
     ["Bags.listDesc"] = false,
     ["Bags.listSort"] = "shelf",
     ["Bags.lockSets"] = false,
@@ -3579,6 +3581,7 @@ return {
     ["Nameplates.dotSkullX"] = 0,
     ["Nameplates.dotSkullY"] = 0,
     ["Nameplates.dotTint"] = true,
+    ["Nameplates.dotsDoesItDie"] = true,
     ["Nameplates.eliteDragon"] = true,
     ["Nameplates.execute"] = "off",
     ["Nameplates.executeAccent"] = true,
@@ -4244,6 +4247,7 @@ return {
     ["Social.friendDim"] = false,
     ["Social.friendFactions"] = false,
     ["Social.scale"] = 1,
+    ["Tooltip.addonAdapters.itemtree"] = true,
     ["Tooltip.addonAdapters.prices"] = true,
     ["Tooltip.addonAdapters.questie"] = true,
     ["Tooltip.addonAdapters.score"] = true,
@@ -4271,6 +4275,7 @@ return {
     ["Tooltip.buffs"] = false,
     ["Tooltip.classBorder"] = true,
     ["Tooltip.classColors"] = true,
+    ["Tooltip.compareItems"] = false,
     ["Tooltip.cursorX"] = 12,
     ["Tooltip.cursorY"] = 12,
     ["Tooltip.dpsSize"] = 14,
@@ -8828,5 +8833,5 @@ return {
     ["general.windowTintColor.2"] = 0.078,
     ["general.windowTintColor.3"] = 0.09,
   },
-  ["version"] = "2.2.2",
+  ["version"] = "2.2.3",
 }
