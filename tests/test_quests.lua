@@ -3328,3 +3328,107 @@ T.test("review: off then on again mid-fade leaves the tracker showing", function
     T.falsy(ns.Tracker.going, "not on its way out any more")
     _G.Questie = nil
 end)
+
+-- ---------------------------------------------------------------------
+-- The player's own zone order: drag a zone name, or pick an order from the
+-- Quests header's menu. It wins over every quest order's zone sorting.
+-- ---------------------------------------------------------------------
+
+local ZONES3 = { quests = {
+    QW.quest(1, "Westfall Stew", { zone = "Westfall", level = 12 }),
+    QW.quest(2, "The Night Watch", { zone = "Duskwood", level = 24 }),
+    QW.quest(3, "Blackrock Menace", { zone = "Redridge Mountains", level = 18 }),
+} }
+
+local function zoneNames(blocks)
+    local out = {}
+    for _, b in ipairs(blocks) do if b.kind == "zone" then out[#out + 1] = b.label end end
+    return out
+end
+
+T.test("zone order: the player's order wins over most recent, a zone not in it slots in after its log neighbor", function()
+    local recent = { [2] = 9 }   -- Duskwood progressed last: most recent would put it first
+    local b = lay(ZONES3, { sort = "recent", recent = recent, zoneOrder = { "Redridge Mountains", "Westfall" } })
+    T.deq(zoneNames(b), { "Redridge Mountains", "Westfall", "Duskwood" })
+    b = lay(ZONES3, { sort = "levelAll", zoneOrder = { "Duskwood", "Westfall", "Redridge Mountains" } })
+    T.deq(zoneNames(b), { "Duskwood", "Westfall", "Redridge Mountains" }, "level across zones too")
+end)
+
+-- Drags a zone name by dy screen pixels (up is positive, as the game counts).
+local function dragZone(Tr, ns, name, dy, settle)
+    local f = Tr.frames["zone:" .. name]
+    local s = f:GetEffectiveScale()
+    stub.cursorPos = { 0, 500 * s }
+    T.truthy(f:GetScript("OnDragStart"), "a zone name can be dragged")
+    f:GetScript("OnDragStart")(f, "LeftButton")
+    stub.cursorPos = { 0, (500 + dy) * s }
+    ns.Tracker.ZoneDragMove()
+    settle()
+    return f
+end
+
+T.test("zone order: a zone dragged to the top stays there for this character, open or folded, and the drop isn't a click", function()
+    local Tr, ns, settle = tracker(ZONES3)
+    T.deq(zoneNames(Tr.shown), { "Westfall", "Duskwood", "Redridge Mountains" })
+    local f = dragZone(Tr, ns, "Redridge Mountains", 400, settle)
+    T.deq(zoneNames(Tr.shown), { "Redridge Mountains", "Westfall", "Duskwood" }, "the list follows while dragging")
+    f:GetScript("OnDragStop")(f)
+    click(Tr, "zone:Redridge Mountains")
+    T.isnil(Tr.Folds()["zone:Redridge Mountains"], "letting go isn't a click")
+    settle()
+    T.deq(DaylightUI.DB.Character().questZoneOrder, { "Redridge Mountains", "Westfall", "Duskwood" }, "saved")
+    -- Progress in Duskwood under the default most recent order: the zone stays put.
+    Tr.Recent()[2] = 99
+    Tr.Queue(true); settle()
+    T.deq(zoneNames(Tr.shown), { "Redridge Mountains", "Westfall", "Duskwood" }, "the player's order wins")
+    -- A folded zone drags the same way.
+    stub.Advance(1)
+    click(Tr, "zone:Westfall"); settle()
+    T.truthy(Tr.Folds()["zone:Westfall"])
+    f = dragZone(Tr, ns, "Westfall", -400, settle)
+    f:GetScript("OnDragStop")(f); settle()
+    T.deq(zoneNames(Tr.shown), { "Redridge Mountains", "Duskwood", "Westfall" })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("zone order: no dragging in a fight (item buttons can't follow)", function()
+    local Tr, ns, settle = tracker(ZONES3)
+    stub.EnterCombat()
+    local f = dragZone(Tr, ns, "Redridge Mountains", 400, settle)
+    f:GetScript("OnDragStop")(f); settle()
+    T.deq(zoneNames(Tr.shown), { "Westfall", "Duskwood", "Redridge Mountains" })
+    T.isnil(DaylightUI.DB.Character().questZoneOrder)
+    stub.LeaveCombat()
+end)
+
+T.test("zone order: a fight starting mid-drag drops the zone where it is", function()
+    local Tr, ns, settle = tracker(ZONES3)
+    local f = dragZone(Tr, ns, "Redridge Mountains", 400, settle)
+    stub.EnterCombat()
+    ns.Tracker.OnEvent("PLAYER_REGEN_DISABLED")
+    T.isnil(ns.Tracker.zoneDrag, "the drag ended")
+    T.deq(DaylightUI.DB.Character().questZoneOrder, { "Redridge Mountains", "Westfall", "Duskwood" })
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("zone order: right-click Quests sorts the zones A to Z, by level, or back to the log's order", function()
+    local Tr, ns, settle = tracker(ZONES3)
+    local got = {}
+    local W = DaylightUI.Widgets
+    local was = W.OpenMenu
+    W.OpenMenu = function(owner, keys, text, current, onPick) got.keys, got.text, got.pick = keys, text, onPick end
+    click(Tr, "section:quests", "RightButton")
+    W.OpenMenu = was
+    T.truthy(got.keys, "a menu opened")
+    T.isnil(Tr.Folds().quests, "a right-click no longer folds the list")
+    for _, k in ipairs(got.keys) do T.truthy(got.text[k], "words for " .. k) end
+    got.pick("zonesAZ"); settle()
+    T.deq(zoneNames(Tr.shown), { "Duskwood", "Redridge Mountains", "Westfall" })
+    got.pick("zonesLevel"); settle()
+    T.deq(zoneNames(Tr.shown), { "Westfall", "Redridge Mountains", "Duskwood" })
+    T.deq(DaylightUI.DB.Character().questZoneOrder, { "Westfall", "Redridge Mountains", "Duskwood" })
+    got.pick("zonesLog"); settle()
+    T.isnil(DaylightUI.DB.Character().questZoneOrder)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

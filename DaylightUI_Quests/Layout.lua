@@ -177,12 +177,15 @@ end
 -- below (the current zone, then log order). Level across zones puts the zone with
 -- the lowest quest first. o.hereFirst keeps the zones you're in (here, header
 -- name -> true) above all of that. o.frozenZones (name -> position, in combat)
--- keeps the on-screen order.
+-- keeps the on-screen order. o.zoneOrder (a list of names, dragged or picked from
+-- the Quests menu) is the player's own order and wins over the sort's.
 function Layout.SortZones(groups, o, here)
     local key
     if o.frozenZones then
         key = function(g) return o.frozenZones[g.name] or math.huge end
         here = nil
+    elseif type(o.zoneOrder) == "table" and #o.zoneOrder > 0 then
+        key = Layout.OwnZoneKey(groups, o.zoneOrder)
     elseif o.sort == "recent" and o.recent then
         key = function(g)
             local newest = 0
@@ -211,6 +214,44 @@ function Layout.SortZones(groups, o, here)
         if rank[a] ~= rank[b] then return rank[a] < rank[b] end
         return at[a] < at[b]
     end)
+end
+
+-- Ranks for the player's own zone order. A zone that isn't in it yet (a new
+-- quest's) slots in right after the zone the log lists before it.
+function Layout.OwnZoneKey(groups, own)
+    local pos, rank = {}, {}
+    for i, name in ipairs(own) do pos[name] = i end
+    local last, step = 0, 0
+    for _, g in ipairs(groups) do
+        if pos[g.name] then
+            last, step = pos[g.name], 0
+            rank[g] = last
+        else
+            step = step + 1
+            rank[g] = last + step / 1000
+        end
+    end
+    return function(g) return rank[g] end
+end
+
+-- A new own order: shown (the zones on screen, in their new order), with the
+-- zones of the old order that aren't on screen kept after the zone they followed.
+function Layout.MergeZoneOrder(old, shown)
+    local out, has = {}, {}
+    for i, name in ipairs(shown) do out[i], has[name] = name, true end
+    local prev
+    for _, name in ipairs(old or {}) do
+        if not has[name] then
+            local at = 1
+            if prev then
+                for i, n in ipairs(out) do if n == prev then at = i + 1; break end end
+            end
+            table.insert(out, at, name)
+            has[name] = true
+        end
+        prev = name
+    end
+    return out
 end
 
 -- A fight with `fightFocus` on: only the priority quest, and quests with an item

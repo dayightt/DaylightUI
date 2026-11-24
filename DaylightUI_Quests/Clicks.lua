@@ -51,6 +51,11 @@ function Clicks.Attach(f)
     f:SetScript("OnClick", function(self, button) DUI.SafeCall(Clicks.OnClick, self, button) end)
     f:SetScript("OnEnter", function(self) DUI.SafeCall(Clicks.OnEnter, self) end)
     f:SetScript("OnLeave", function(self) DUI.SafeCall(Clicks.OnLeave, self) end)
+    if f.kind == "zone" then
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", function(self) DUI.SafeCall(ns.Tracker.ZoneDragStart, self) end)
+        f:SetScript("OnDragStop", function() DUI.SafeCall(ns.Tracker.ZoneDragStop) end)
+    end
 end
 
 -- mapID: a specific map (the turn-in's), otherwise the quest's.
@@ -148,10 +153,25 @@ end
 function Clicks.OnClick(f, button)
     local b = f.block
     if not b then return end
+    if b.kind == "zone" and ns.Tracker.ZoneDropped() then return end
+    if b.kind == "header" and b.id == "quests" and button == "RightButton" then return Clicks.ZoneMenu(f) end
     if b.kind == "zone" and IsShiftKeyDown and IsShiftKeyDown() then ns.Tracker.FoldZoneQuests(b.label)
     elseif b.kind == "header" or b.kind == "zone" then ns.Tracker.ToggleFold(b.id)
     elseif b.kind == "ach" then Clicks.Achievement(b.ach, button)
     elseif b.kind == "quest" then Clicks.Quest(b.quest, button, f) end
+end
+
+-- Right-click the Quests header: an order for the zones. Dragging a zone name
+-- sets one too; the last row hands the zones back to the quest order setting.
+Clicks.ZONE_MENU_KEYS = { "zonesAZ", "zonesLevel", "zonesLog" }
+Clicks.ZONE_MENU = { zonesAZ = L["Sort zones A to Z"], zonesLevel = L["Sort zones by level"],
+                     zonesLog = L["Zones in the usual order"] }
+function Clicks.ZoneMenu(f)
+    local W = DUI.Widgets
+    if not (W and W.OpenMenu) then return end
+    local current = not ns.Tracker.ZoneOrder() and "zonesLog" or nil
+    W.OpenMenu(f, Clicks.ZONE_MENU_KEYS, Clicks.ZONE_MENU, current,
+        function(k) DUI.SafeCall(ns.Tracker.SortZonesBy, k) end)
 end
 
 -- The menu, Questie's entries in its own wording and order. Flat (the menu has
@@ -333,6 +353,8 @@ function Clicks.OnEnter(f)
 end
 
 function Clicks.OnLeave(f)
+    local d = ns.Tracker.zoneDrag
+    if d and d.frame == f then return end   -- a dragged zone stays lit until it's dropped
     if f.kind == "quest" or f.kind == "ach" then f:SetScript("OnUpdate", nil) end
     f.hoverPart = nil
     ns.Rows.Hover(f, false)

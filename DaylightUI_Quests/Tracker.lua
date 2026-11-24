@@ -128,6 +128,7 @@ function Tracker.Options()
              recent = db.sort == "recent" and Tracker.Recent() or nil, near = Tracker.near,
              frozen = InCombatLockdown() and Tracker.order or nil,
              frozenZones = InCombatLockdown() and Tracker.zoneOrder or nil,
+             zoneOrder = Tracker.zoneDrag and Tracker.zoneDrag.order or Tracker.ZoneOrder(),
              frozenReady = InCombatLockdown() and Tracker.readyIDs or nil,
              foldReady = db.foldReady, readyLast = db.readyLast, emptyHeader = db.emptyHeader,
              fightOnly = db.fightFocus and Tracker.fighting or nil }
@@ -626,7 +627,10 @@ function Tracker.FightStarts()
 end
 
 function Tracker.OnEvent(event, a, b)
-    if event == "PLAYER_REGEN_DISABLED" then return Tracker.FightStarts() end
+    if event == "PLAYER_REGEN_DISABLED" then
+        Tracker.ZoneDragStop()      -- a fight drops a dragged zone where it is
+        return Tracker.FightStarts()
+    end
     if event == "PLAYER_REGEN_ENABLED" then Tracker.fighting = false end
     local r = Tracker.reasons
     if event == "QUEST_ACCEPTED" then
@@ -682,6 +686,143 @@ function Tracker.FoldZoneQuests(zone)
     end
     for _, id in ipairs(ids) do folds["q" .. id] = open or nil end
     Tracker.reasons.fold = true
+    Tracker.Queue(true)
+end
+
+-- The player's own zone order, per character: the log's zone names in the order
+-- they picked by dragging a zone name or from the Quests header's menu. nil means
+-- the quest order setting places the zones.
+function Tracker.ZoneOrder()
+    local o = DUI.DB.Character().questZoneOrder
+    return type(o) == "table" and o or nil
+end
+
+local function shownZones()
+    local out = {}
+    for _, b in ipairs(shown) do if b.kind == "zone" then out[#out + 1] = b.label end end
+    return out
+end
+
+local function sameList(a, b)
+    if #a ~= #b then return false end
+    for i = 1, #a do if a[i] ~= b[i] then return false end end
+    return true
+end
+
+-- Each zone's stretch of the list: its name's top to its last quest's bottom.
+local function zoneSpans()
+    local spans, cur = {}, nil
+    for _, b in ipairs(shown) do
+        if b.kind == "zone" then
+            cur = { name = b.label, top = b.y, bottom = b.y + b.h }
+            spans[#spans + 1] = cur
+        elseif b.kind == "header" then
+            cur = nil
+        elseif cur then
+            cur.bottom = b.y + b.h
+        end
+    end
+    return spans
+end
+
+local function cursorY()
+    local _, y = GetCursorPosition()
+    local s = content and content:GetEffectiveScale()
+    if type(y) ~= "number" or type(s) ~= "number" or s <= 0 then return nil end
+    return y / s
+end
+
+-- Dragging a zone name, open or folded. The list lays out again each time it
+-- passes another zone, so the others glide aside with the usual row motion. Not
+-- in a fight: the quest item buttons can't follow their rows then.
+Tracker.ZONE_DROP_GRACE = 0.05    -- a click this soon after a drop is its own release
+function Tracker.ZoneDragStart(f)
+    local b = f and f.block
+    if not (b and b.kind == "zone") or Tracker.zoneDrag then return end
+    if InCombatLockdown() then DUI.ShowError(ns.Clicks.IN_COMBAT); return end
+    local y = cursorY()
+    local order = shownZones()
+    if not y or #order < 2 then return end
+    Tracker.zoneDrag = { frame = f, name = b.label, order = order, from = order,
+                         startY = y, startAt = b.y + b.h / 2 }
+    ns.Rows.Hover(f, true)
+    Tracker.dragger = Tracker.dragger or CreateFrame("Frame", nil, holder)
+    Tracker.dragger:SetScript("OnUpdate", function() DUI.SafeCall(Tracker.ZoneDragMove) end)
+end
+
+function Tracker.ZoneDragMove()
+    local d = Tracker.zoneDrag
+    if not d then return end
+    -- The release can land on another frame, so the button itself says when it's over.
+    if type(IsMouseButtonDown) == "function" and not IsMouseButtonDown("LeftButton") then
+        return Tracker.ZoneDragStop()
+    end
+    if frames["zone:" .. d.name] ~= d.frame then return Tracker.ZoneDragStop() end   -- the zone left the list
+    local y = cursorY()
+    if not y then return end
+    local at = d.startAt + (d.startY - y)
+    local spans = zoneSpans()
+    local over
+    for _, s in ipairs(spans) do
+        if at < s.bottom then over = s; break end
+    end
+    over = over or spans[#spans]
+    if not over or over.name == d.name then return end
+    local before = at < (over.top + over.bottom) / 2
+    local order = {}
+    for _, n in ipairs(d.order) do if n ~= d.name then order[#order + 1] = n end end
+    local i = #order + 1
+    for k, n in ipairs(order) do
+        if n == over.name then i = before and k or k + 1; break end
+    end
+    table.insert(order, i, d.name)
+    if sameList(order, d.order) then return end
+    d.order = order
+    Tracker.Queue(true)
+end
+
+function Tracker.ZoneDragStop()
+    local d = Tracker.zoneDrag
+    if not d then return end
+    Tracker.zoneDrag = nil
+    if Tracker.dragger then Tracker.dragger:SetScript("OnUpdate", nil) end
+    Tracker.zoneDropAt = GetTime()
+    if not sameList(d.order, d.from) then
+        DUI.DB.Character().questZoneOrder = ns.Layout.MergeZoneOrder(Tracker.ZoneOrder(), d.order)
+    end
+    local f = d.frame
+    ns.Rows.Hover(f, type(f.IsMouseOver) == "function" and f:IsMouseOver() == true)
+    Tracker.Queue(true)
+end
+
+function Tracker.ZoneDropped()
+    return Tracker.zoneDropAt ~= nil and GetTime() - Tracker.zoneDropAt <= Tracker.ZONE_DROP_GRACE
+end
+
+-- The Quests header's menu: zones A to Z, by level (each zone's lowest quest, the
+-- way level across zones orders them), or back to the quest order setting's.
+function Tracker.SortZonesBy(how)
+    local c = DUI.DB.Character()
+    if how == "zonesLog" then
+        c.questZoneOrder = nil
+    elseif how == "zonesAZ" or how == "zonesLevel" then
+        local list, key = {}, {}
+        for _, g in ipairs(Tracker.groups or {}) do
+            list[#list + 1] = g.name
+            local low = math.huge
+            for _, q in ipairs(g.quests) do
+                if type(q.level) == "number" and q.level < low then low = q.level end
+            end
+            key[g.name] = how == "zonesLevel" and low or g.name:lower()
+        end
+        table.sort(list, function(a, b)
+            if key[a] ~= key[b] then return key[a] < key[b] end
+            return a < b
+        end)
+        c.questZoneOrder = ns.Layout.MergeZoneOrder(Tracker.ZoneOrder(), list)
+    else
+        return
+    end
     Tracker.Queue(true)
 end
 
