@@ -14,6 +14,7 @@ ns.DEFAULTS = {
     mapRevealDim = 0.6, -- brightness of the unexplored areas
     mapLevels = true, -- the hovered zone's level range after its name (MapLevels.lua)
     mapDungeons = true, -- world map pins (MapPins.lua): dungeon and raid entrances
+    mapDungeonLevels = true, -- their levels, after the type on an entrance's tooltip (MapLevels.lua)
     mapFlights = true,        -- your faction's flight masters
     mapTravel = true,         -- boats and zeppelins
     mapFlightsAll = false, -- the other faction's flight masters too

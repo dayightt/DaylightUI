@@ -2896,6 +2896,7 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
             T.near(x, 530, 0.01); T.near(y, -119, 0.01)
             local r, g = b.icon:GetVertexColor()
             T.eq(r, 1, "the raid icon wears its own colors")
+            T.eq(b.pin.lines[1][3], 309, "the line keeps its instance, for the level range")
         end
         if b.pin.kind == "flight" then
             local r = b.icon:GetVertexColor()
@@ -2962,6 +2963,32 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
     DaylightUI:Set("Skins", "mapTravel", false)
     stub.RunTimers()
     T.eq(P.frame:IsShown(), false)
+end)
+
+-- A dungeon's or raid's levels after its line on the entrance's tooltip
+-- (MapLevels.InstanceText), colored for your level, with its own switch.
+T.test("skins: an entrance's tooltip line gets its dungeon's level range", function()
+    login()
+    local Levels = stub.skins.MapLevels
+    local function plain(t) return (t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    T.eq(plain(Levels.InstanceText(389, 15)), " (13-18)", "Ragefire Chasm")
+    T.eq(plain(Levels.InstanceText(309, 60)), " (60)", "a raid for one level")
+    T.eq(Levels.InstanceText(2998, 15), "", "a dungeon with no range here is left as it was")
+    T.eq(Levels.InstanceText(nil, 15), "")
+    T.truthy(Levels.InstanceText(389, 15):find("|c%x%x%x%x%x%x%x%x"), "colored")
+    -- The game's own color for a level (not in the stub): red below the range, yellow inside it.
+    local get = _G.GetQuestDifficultyColor
+    _G.GetQuestDifficultyColor = function() return QuestDifficultyColors.impossible end
+    T.truthy(Levels.InstanceText(389, 5) ~= Levels.InstanceText(389, 15), "by how hard it is for you")
+    _G.GetQuestDifficultyColor = get
+    -- Its own switch, apart from the zone levels one.
+    DaylightUI:Set("Skins", "mapLevels", false)
+    T.eq(plain(Levels.InstanceText(389, 15)), " (13-18)", "the zone levels switch leaves it alone")
+    DaylightUI:Set("Skins", "mapLevels", true)
+    DaylightUI:Set("Skins", "mapDungeonLevels", false)
+    T.eq(Levels.InstanceText(389, 15), "", "off with its own switch")
+    DaylightUI:Set("Skins", "mapDungeonLevels", true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- The zone under the mouse on a continent map gets its level range after its
