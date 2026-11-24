@@ -2533,6 +2533,31 @@ T.test("cdm card: Form or stance lists the class's own forms, each a switch on b
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A player's Evasion and Sprint bars never showed: both stealth switches were
+-- off, saved while they were cooldowns, and once they showed their buff the
+-- card hid the rows that still hid them.
+T.test("cdm card: Form or stance shows on a buff too, so what hides it can be undone", function()
+    local DUI, AB, Ed, D = edWorld()
+    local set, Card = D.Current(), AB.CdmCard
+    stub.units.player = stub.units.player or { name = "Tester" }
+    stub.units.player.class = "ROGUE"
+    D.AddPiece(set, 11, "bar", 0, 0)
+    local p = set.pieces[11]
+    p.track, p.hideInStealth, p.hideInUnstealthed = "buff", true, true
+    Ed.Select(11)
+    T.eq(AB.CdmOwn.Track(11, p), "buff", "the piece shows its buff")
+    local rows, head = {}, nil
+    for _, r in ipairs(Card.ROWS.show) do
+        if r.item then rows[r.item.key] = r end
+        if r.head == DUI.L["Form or stance"] then head = r end
+    end
+    T.truthy(head.show(set, 11, p), "the heading")
+    local out, stealth = rows["cdm.card.hideInUnstealthed"], rows["cdm.card.hideInStealth"]
+    T.truthy(out.show(set, 11, p) and stealth.show(set, 11, p), "both stealth switches, to turn back on")
+    T.eq(stealth.item.get(), false, "it reads off, as saved")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm card: each moment has its sound row, and its list opens with headings and plays a pick", function()
     local DUI, AB, Ed, D = edWorld()
     local set, Card, W = D.Current(), AB.CdmCard, DUI.Widgets

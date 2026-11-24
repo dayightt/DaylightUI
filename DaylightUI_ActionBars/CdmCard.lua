@@ -692,7 +692,9 @@ Card.ROWS = {
           item = spell("usableGlowColor", { type = "color", label = "Usable glow color" }) },
         { show = isCooldown, item = soundRow("usableSound", "Sound when usable",
             "Plays once as you become able to cast it: Revenge after a block, Overpower after a dodge, Execute on a low target. Rage or mana coming back doesn't count.") },
-        { head = L["Form or stance"], show = function(...) return isCooldown(...) and ns.CdmEffects.FormsOf() ~= nil end },
+        -- Every spell, buffs too: these hide whatever the spell shows, so a
+        -- switch saved while it was a cooldown must stay where it can be undone.
+        { head = L["Form or stance"], show = function() return ns.CdmEffects.FormsOf() ~= nil end },
         { head = L["Buff up"], show = hasBuff },
         { box = "note", show = function(...) return hasBuff(...) and not tellsState(...) end, text = whyUntold },
         { show = function(...) return hasBuff(...) and tellsState(...) end, item = BUFF_UP },
@@ -833,7 +835,7 @@ do
             local key = "hideIn" .. f.key
             at = at + 1
             table.insert(rows, at, {
-                show = function(...) return isCooldown(...) and Fx.FormsOf() == Fx.FORMS[class] end,
+                show = function() return Fx.FormsOf() == Fx.FORMS[class] end,
                 item = { type = "toggle", key = "cdm.card." .. key, label = f.name,
                     desc = "Off: the spell hides while you're in it, and the group's Slide over closes its gap.",
                     get = function() return opt(key) ~= true end,
