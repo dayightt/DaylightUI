@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Nameplates", "The execute range can glow around the whole bar and spark on its line once an enemy is low, with stripes, neon or any bar texture for its fill, and its band can stay fully visible all the time" },
         { "AddOns list", "Daylight UI has its own heading in the game's AddOns list, and its plugins can sit under one of their own" },
         { "Quests", "The quest tracker can fold down to your priority quest in a fight and open again after it" },
+        { "Micro menu", "New looks for the micro menu: every icon in a color of its own, icon size and brightness, spacing, icons that grow as you point at them, and a line under the button of an open window" },
     }, fixed = {
         { "Auction House", "Green drops with a random bonus like \"of the Monkey\" show their auction price on hover again, after your next full scan" },
         { "Loot rolls", "When two of the same item drop, rolling on one no longer closes the other before you can roll on it" },

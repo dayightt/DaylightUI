@@ -43,6 +43,8 @@ Menus.MICRO_CUT = { "Portrait", "Emblem", "HighlightEmblem", "FlashContent" }
 Menus.MICRO_INSET = { 3, 3 }
 Menus.MICRO_ICON = 18
 Menus.MICRO_PRESS = 0.88       -- icon scale when pressed
+Menus.MICRO_GROW = 0.15        -- how much bigger an icon gets under the mouse
+Menus.OPEN_LINE_H = 2          -- the line under an open window's button
 Menus.NEWS_DOT = 7             -- size of the news dot (replaces the game's diamond)
 Menus.LATENCY_W, Menus.LATENCY_H = 16, 2    -- the game menu button's latency line
 Menus.BAGS = {
@@ -108,10 +110,13 @@ local function shownMicro()
 end
 
 -- A button's icon: its slice of the accent, lifted toward white by p (hovered, or
--- its window open), or dimmed while the game has it locked.
+-- its window open), or dimmed while the game has it locked. Icons that rest dimmer
+-- come up to full opacity along the same p.
 local function paintIcon(parts, p)
     parts.lift = p
     local icon, hi = parts.icon, Style.INK.VALUE
+    local rest = parts.restAlpha or 1
+    icon:SetAlpha(rest + (1 - rest) * p)
     local function mix(c)
         return CreateColor(c[1] + (hi[1] - c[1]) * p, c[2] + (hi[2] - c[2]) * p, c[3] + (hi[3] - c[3]) * p, 1)
     end
@@ -125,24 +130,74 @@ local function paintIcon(parts, p)
     end
 end
 
+-- The icon's size, swollen by g (0 to 1) while hovered.
+local function sizeIcon(parts, g)
+    parts.grow = g
+    local s = (parts.size or Menus.MICRO_ICON) * (1 + Menus.MICRO_GROW * g)
+    parts.icon:SetSize(s, s)
+end
+
+-- The tile sits gap px in from the button's edge.
+local function placeBox(parts, btn, gap)
+    parts.gap = gap
+    local box = parts.box
+    box:ClearAllPoints()
+    box:SetPoint("TOPLEFT", btn, "TOPLEFT", gap, -gap)
+    box:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -gap, gap)
+end
+
+-- The line under an open window's button, in the icon's own colors. Made the
+-- first time it's wanted.
+local function openLine(btn, parts)
+    local line = parts.line
+    if not line then
+        line = btn:CreateTexture(nil, "OVERLAY")
+        line:SetTexture("Interface\\Buttons\\WHITE8X8")
+        line:SetHeight(Menus.OPEN_LINE_H)
+        line:SetPoint("BOTTOMLEFT", parts.box, "BOTTOMLEFT", 4, 1)
+        line:SetPoint("BOTTOMRIGHT", parts.box, "BOTTOMRIGHT", -4, 1)
+        line:SetAlpha(0)
+        parts.line, parts.lineOn = line, 0
+    end
+    local a, b = parts.from, parts.to
+    line:SetVertexColor(1, 1, 1, 1)
+    line:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 1), CreateColor(b[1], b[2], b[3], 1))
+    return line
+end
+
 -- Eases a button to what it should show now.
 local function settle(btn)
     local parts = skinned[btn]
     if not parts or not parts.from then return end
+    local db = ns.db or {}
     local open = btn:GetButtonState() == "PUSHED"
+    local hover = btn:IsMouseOver()
     parts.locked = not btn:IsEnabled()
-    if open ~= parts.open then
-        parts.open = open
-        if open then
+    -- An open window shows as a lit border, a line under the icon, or both.
+    local mark = db.microOpenMark or "border"
+    local lit = open and mark ~= "line"
+    if lit ~= parts.lit then
+        parts.lit = lit
+        if lit then
             Style.LightShell(parts.shell)
         else
             Style.SetShellColors(parts.shell, parts.rest[1], parts.rest[2], parts.rest[3])
         end
     end
-    local to = (open or btn:IsMouseOver()) and not parts.locked and 1 or 0
-    -- Motion paints at once when there's nothing to ease, so a new slice shows too.
     local M = DUI.Motion
+    local lineTo = open and mark ~= "border" and 1 or 0
+    if lineTo > 0 or parts.line then
+        local line = openLine(btn, parts)
+        if parts.lineOn ~= lineTo then
+            parts.lineOn = lineTo
+            M.AlphaTo(line, lineTo, M.FAST)
+        end
+    end
+    local to = (open or hover) and not parts.locked and 1 or 0
+    -- Motion paints at once when there's nothing to ease, so a new slice shows too.
     M.Tween(parts.icon, parts.lift, to, M.FAST, function(p) paintIcon(parts, p) end)
+    local grow = hover and not parts.locked and db.microHoverGrow ~= false and M.On() and 1 or 0
+    M.Tween(parts.growKey, parts.grow, grow, M.FAST, function(g) sizeIcon(parts, g) end)
 end
 
 -- Paints the sweep over the row as it stands, each button's state, and the two
@@ -164,18 +219,33 @@ function Menus.PaintMicro()
     end
     local function at(t) return one or { Style.AccentAt(t) } end
     local tiles = db.microBackgrounds ~= false and 1 or 0
+    local size = tonumber(db.microIconSize) or Menus.MICRO_ICON
+    local gap = tonumber(db.microGap) or Menus.MICRO_INSET[1]
     for i, btn in ipairs(list) do
         local spot = (i - 1) % per
         local parts = skinned[btn]
         parts.from, parts.to = at(spot / per), at((spot + 1) / per)
     end
+    local M = DUI.Motion
     for _, name in ipairs(Menus.MICRO) do
         local btn = _G[name]
         local parts = type(btn) == "table" and skinned[btn]
         if parts then
             if not parts.from then parts.from, parts.to = at(0), at(1) end
+            if mode == "each" then
+                local c = Menus.ColorOf(parts.iconName)
+                parts.from, parts.to = c, c
+            end
             parts.standing = standing
-            parts.open = nil        -- a style change rebuilt the shell's colors
+            parts.restAlpha = tonumber(db.microRestAlpha) or 1
+            parts.lit = nil         -- a style change rebuilt the shell's colors
+            if parts.size ~= size then
+                parts.size = size
+                sizeIcon(parts, parts.grow)
+            end
+            if parts.gap ~= gap then
+                M.Tween(parts.gapKey, parts.gap, gap, M.FAST, function(v) placeBox(parts, btn, v) end)
+            end
             settle(btn)
             if parts.tiles ~= tiles then
                 local box = parts.box
@@ -186,6 +256,23 @@ function Menus.PaintMicro()
             if parts.dot then Style.PaintAccent(parts.dot) end
         end
     end
+end
+
+-- One icon's own color under "each", by its icon name.
+function Menus.ColorOf(iconName)
+    local db = ns.db or {}
+    local saved = type(db.microColors) == "table" and db.microColors[iconName]
+    local c = type(saved) == "table" and saved or ns.DEFAULTS.microColors[iconName] or { 1, 1, 1 }
+    return { c[1] or 1, c[2] or 1, c[3] or 1 }
+end
+
+-- Every icon back to its own default color.
+function Menus.ResetColors()
+    DUI.Batch(function()
+        for k, c in pairs(ns.DEFAULTS.microColors) do
+            DUI:Set("ActionBars", "microColors." .. k, { c[1], c[2], c[3] })
+        end
+    end)
 end
 
 local followingMicro = false
@@ -205,15 +292,13 @@ end
 -- masked away (the mask sits off the button, so all of the art is outside it).
 function Menus.SkinMicro(btn, name)
     if type(btn) ~= "table" or skinned[btn] or (btn.IsForbidden and btn:IsForbidden()) then return end
-    local parts = { lift = 0 }
+    local parts = { lift = 0, grow = 0, growKey = {}, gapKey = {}, iconName = Menus.ICONS[name] or "menu" }
     skinned[btn] = parts
     for _, k in ipairs(Menus.MICRO_ART) do fade(btn[k]) end
-    local x, y = Menus.MICRO_INSET[1], Menus.MICRO_INSET[2]
     local box = CreateFrame("Frame", nil, btn)
-    box:SetPoint("TOPLEFT", btn, "TOPLEFT", x, -y)
-    box:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -x, y)
-    box:SetFrameLevel(math.max(0, btn:GetFrameLevel() - 1))
     parts.box = box
+    placeBox(parts, btn, tonumber((ns.db or {}).microGap) or Menus.MICRO_INSET[1])
+    box:SetFrameLevel(math.max(0, btn:GetFrameLevel() - 1))
     parts.shell = Style.Shell(box, shellOpts())
     local o = parts.shell.opts
     parts.rest = { o.borderColor, o.bandColor, o.borderPair }
@@ -233,10 +318,11 @@ function Menus.SkinMicro(btn, name)
     end
 
     local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetTexture(DUI.MEDIA .. "ui-micro-" .. (Menus.ICONS[name] or "menu") .. ".png")
-    icon:SetSize(Menus.MICRO_ICON, Menus.MICRO_ICON)
-    icon:SetPoint("CENTER", box, "CENTER", 0, 0)
+    icon:SetTexture(DUI.MEDIA .. "ui-micro-" .. parts.iconName .. ".png")
     parts.icon = icon
+    parts.size = tonumber((ns.db or {}).microIconSize) or Menus.MICRO_ICON
+    sizeIcon(parts, 0)
+    icon:SetPoint("CENTER", box, "CENTER", 0, 0)
 
     -- A game alert's pulse: its own art, in the accent, around the shell.
     local flash = btn.FlashBorder

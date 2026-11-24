@@ -143,6 +143,41 @@ local EDGE = { off = "None", accent = "Accent color", class = "Class color", cus
 local EDGE_ORDER = { "off", "accent", "class", "custom" }
 -- The micro menu's own look rows do nothing without its Daylight UI style.
 local function microLook(get) return get("skinMenus") ~= true or get("microMenu") ~= "shown" end
+local MICRO_LIT = { accent = "Accent color", class = "Class color", custom = "One color", each = "Each its own" }
+local MICRO_LIT_ORDER = { "accent", "class", "custom", "each" }
+local OPEN_MARK = { border = "Lit border", line = "Line under it", both = "Both" }
+local OPEN_MARK_ORDER = { "border", "line", "both" }
+-- One color row per micro menu icon, shown only when each icon has its own color,
+-- then a button putting them all back. They go in right after the One color row.
+local MICRO_ICON_NAMES = {
+    { "character", "Character" }, { "spellbook", "Spellbook" }, { "talents", "Talents" },
+    { "professions", "Professions" }, { "achievements", "Achievements" }, { "quests", "Quest log" },
+    { "guild", "Guild" }, { "finder", "Group finder" }, { "collections", "Collections" },
+    { "journal", "Adventure guide" }, { "legacy", "Legacy" }, { "housing", "Housing" },
+    { "help", "Help" }, { "shop", "Shop" }, { "menu", "Game menu" },
+}
+local function withMicroColors(items)
+    local function notEach(get) return get("microIconColor") ~= "each" end
+    local rows = {}
+    for _, pair in ipairs(MICRO_ICON_NAMES) do
+        rows[#rows + 1] = { type = "color", key = "microColors." .. pair[1],
+            label = pair[2] .. " micro menu icon color",
+            desc = "This icon's color when Micro menu icon color is Each its own.",
+            hidden = notEach, disabled = microLook }
+    end
+    rows[#rows + 1] = { type = "button", label = "Reset micro menu icon colors", text = "Reset", confirm = true,
+        desc = "Puts every micro menu icon back to its own starting color.",
+        hidden = notEach, disabled = microLook,
+        func = function() ns.Menus.ResetColors() end }
+    local out = {}
+    for _, it in ipairs(items) do
+        out[#out + 1] = it
+        if it.key == "microIconCustom" then
+            for _, r in ipairs(rows) do out[#out + 1] = r end
+        end
+    end
+    return out
+end
 
 -- A text's offset in px from its spot. cdm = the Cooldown Manager has it too.
 local function nudge(field, label, cdm, show)
@@ -376,16 +411,33 @@ local look = {
         menuSize("microMenu", "Micro menu size"),
         { type = "toggle", key = "skinMenus", label = "Daylight UI style bag bar and micro menu", reload = true,
           desc = "Gives the micro menu and bag bar the Daylight UI look: square frames in your action button border style." },
-        { type = "dropdown", key = "microIconColor", label = "Micro menu icon color", values = LIT, order = LIT_ORDER,
-          desc = "The color of the micro menu's icons in the Daylight UI style. Accent color runs your accent along the row, gradient and all.",
+    } },
+    { label = "Micro menu look", desc = "How the micro menu's buttons look in the Daylight UI style.", items = withMicroColors({
+        { type = "dropdown", key = "microIconColor", label = "Micro menu icon color", values = MICRO_LIT, order = MICRO_LIT_ORDER,
+          desc = "The color of the micro menu's icons. Accent color runs your accent along the row, gradient and all. Each its own gives every icon a color of its own, which you can change below.",
           disabled = microLook },
         { type = "color", key = "microIconCustom", label = "Custom micro menu icon color",
           desc = "The micro menu's icon color when Micro menu icon color is One color.",
           hidden = custom("microIconColor"), disabled = microLook },
+        { type = "slider", key = "microIconSize", label = "Micro menu icon size", min = 12, max = 26, step = 1, unit = "px",
+          desc = "How big the icons are inside their buttons.",
+          disabled = microLook },
+        { type = "slider", key = "microRestAlpha", label = "Micro menu icon opacity", min = 0.3, max = 1, step = 0.05, unit = "%",
+          desc = "How bright the icons are when the mouse isn't on them. Lower it for a quieter menu that lights up as you point at it.",
+          disabled = microLook },
         { type = "toggle", key = "microBackgrounds", label = "Micro menu button backgrounds",
           desc = "The dark square behind each micro menu icon. When off, the icons sit on their own.",
           disabled = microLook },
-    } },
+        { type = "slider", key = "microGap", label = "Micro menu spacing", min = 0, max = 8, step = 1, unit = "px",
+          desc = "The space around each button's background. Higher leaves more room between them.",
+          disabled = function(get) return microLook(get) or get("microBackgrounds") == false end },
+        { type = "toggle", key = "microHoverGrow", label = "Grow micro menu icons on hover",
+          desc = "The icon under your mouse swells a little and settles back when you move away. Needs Motion effects (General > Appearance).",
+          disabled = function(get) return microLook(get) or motionOff() end },
+        { type = "dropdown", key = "microOpenMark", label = "Micro menu open marker", values = OPEN_MARK, order = OPEN_MARK_ORDER,
+          desc = "How a button shows that its window is open: a lit border, a line under the icon in its own color, or both.",
+          disabled = microLook },
+    }) },
     { label = "Bag bar fade", desc = "When the shown bag bar fades and how far.",
       items = DaylightUI.Fade.Items("bagBarFade.", nil, unless("bagBar", "shown"), "Bag bar") },
     { label = "Micro menu fade", desc = "When the shown micro menu fades and how far.",

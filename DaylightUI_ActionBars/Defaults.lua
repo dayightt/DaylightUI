@@ -71,10 +71,25 @@ ns.DEFAULTS = {
     cdmBarFx = DaylightUI.BarFx.Defaults(),
     skinMenus = true,       -- bag bar and micro menu in the buttons' look (Menus.lua)
     -- The micro menu's icons in that look: "accent" (one sweep along the row),
-    -- "class" or "custom" (microIconCustom), and the dark tiles behind them.
+    -- "class", "custom" (microIconCustom) or "each" (every icon its own color,
+    -- microColors by icon name), and the dark tiles behind them.
     microIconColor = "accent",
     microIconCustom = { 1, 1, 1 },
+    microColors = {
+        character = { 0.60, 0.80, 1.00 }, professions = { 0.90, 0.68, 0.42 },
+        talents = { 0.55, 0.88, 0.55 }, spellbook = { 0.72, 0.62, 0.98 },
+        achievements = { 0.98, 0.82, 0.35 }, legacy = { 0.92, 0.60, 0.90 },
+        quests = { 0.98, 0.88, 0.40 }, housing = { 0.78, 0.86, 0.55 },
+        guild = { 0.45, 0.88, 0.62 }, finder = { 0.45, 0.82, 0.95 },
+        collections = { 0.98, 0.62, 0.70 }, journal = { 0.92, 0.55, 0.45 },
+        help = { 0.50, 0.88, 0.82 }, shop = { 0.98, 0.70, 0.45 }, menu = { 0.90, 0.88, 0.82 },
+    },
     microBackgrounds = true,
+    microIconSize = 18,     -- px
+    microGap = 3,           -- px from the button's edge to its tile
+    microHoverGrow = true,  -- the icon swells a little under the mouse
+    microOpenMark = "border",   -- an open window's button: "border", "line" or "both"
+    microRestAlpha = 1,     -- icon opacity away from the mouse
     cooldowns = true,       -- Cooldown Manager icons in the same look
     cdmKeybinds = false,    -- keybind on every icon (a piece's keyShown overrides it)
     readyPing = true,       -- a button coming off a real cooldown (not the GCD) pops and flashes

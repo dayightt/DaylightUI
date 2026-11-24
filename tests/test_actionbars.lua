@@ -1954,6 +1954,27 @@ T.test("action bars: the micro icons take a class or picked color, and the tiles
     local r = Style.ClassColor(token)
     T.near(first(QuestLogMicroButton).r, r, 0.001, "class color")
 
+    DUI:Set("ActionBars", "microIconColor", "each")
+    settle()
+    local quest, char = first(QuestLogMicroButton), first(CharacterMicroButton)
+    local want = db.microColors.quests
+    T.near(quest.r, want[1], 0.001, "each: the quest icon its own color")
+    T.near(quest.b, want[3], 0.001)
+    T.truthy(math.abs(quest.b - char.b) > 0.2, "each icon a color of its own")
+    local last = Menus.Parts(QuestLogMicroButton).icon.__gradient[3]
+    T.near(last.g, want[2], 0.001, "one color across the icon, no sweep")
+    DUI:Set("ActionBars", "microColors.quests", { 0.1, 0.2, 0.9 })
+    settle()
+    T.near(first(QuestLogMicroButton).b, 0.9, 0.001, "one icon's color picked")
+    T.near(first(CharacterMicroButton).b, char.b, 0.001, "the others keep theirs")
+    Menus.ResetColors()
+    settle()
+    T.near(first(QuestLogMicroButton).b, want[3], 0.001, "back to the colorful set")
+    T.eq(Menus.Parts(QuestLogMicroButton).icon:GetWidth(), 18, "icon size by default")
+    DUI:Set("ActionBars", "microIconSize", 24)
+    settle()
+    T.eq(Menus.Parts(QuestLogMicroButton).icon:GetWidth(), 24, "icon size picked")
+
     local box = Menus.Parts(QuestLogMicroButton).box
     T.eq(box:GetAlpha(), 1)
     DUI:Set("ActionBars", "microBackgrounds", false)
@@ -1962,6 +1983,75 @@ T.test("action bars: the micro icons take a class or picked color, and the tiles
     DUI:Set("ActionBars", "microBackgrounds", true)
     settle()
     T.eq(box:GetAlpha(), 1, "and back")
+end)
+
+T.test("action bars: the micro tiles take a spacing, a hover grow, an open line and a resting glow", function()
+    local DUI = stub.Load({ actionbars = true, before = function() world(); menuButtons() end })
+    local Menus = stub.actionbars.Menus
+    local db = DUI:GetModule("ActionBars").db
+    local function settle()
+        stub.RunTimers()
+        if DUI.Motion.Driver() then stub.RunOnUpdate(DUI.Motion.Driver(), 1) end
+    end
+    local q = QuestLogMicroButton
+    local parts = Menus.Parts(q)
+
+    -- Spacing: how far in from the button's edge each tile sits.
+    T.eq(db.microGap, 3, "today's inset by default")
+    local _, _, _, x = parts.box:GetPoint(1)
+    T.eq(x, 3)
+    DUI:Set("ActionBars", "microGap", 6)
+    settle()
+    _, _, _, x = parts.box:GetPoint(1)
+    T.eq(x, 6, "the tiles drawn in")
+    local _, _, _, rx, ry = parts.box:GetPoint(2)
+    T.eq(rx, -6); T.eq(ry, 6)
+
+    -- Hover grows the icon a little, and it settles back.
+    T.eq(db.microHoverGrow, true, "on by default")
+    stub.MouseEnter(q)
+    settle()
+    T.truthy(parts.icon:GetWidth() > 18, "grown on hover")
+    stub.MouseLeave(q)
+    settle()
+    T.eq(parts.icon:GetWidth(), 18, "back on leave")
+    DUI:Set("ActionBars", "microHoverGrow", false)
+    stub.MouseEnter(q)
+    settle()
+    T.eq(parts.icon:GetWidth(), 18, "off: stays its size")
+    stub.MouseLeave(q)
+    settle()
+
+    -- An open window: the lit border by default, an underline in the icon's color as a pick.
+    T.eq(db.microOpenMark, "border")
+    q.__state = "PUSHED"
+    Menus.PaintMicro()
+    settle()
+    T.eq(parts.line and parts.line:GetAlpha() or 0, 0, "no line by default")
+    DUI:Set("ActionBars", "microOpenMark", "line")
+    settle()
+    T.eq(parts.line:GetAlpha(), 1, "the line under an open one")
+    T.falsy(parts.lit, "and no lit border")
+    DUI:Set("ActionBars", "microOpenMark", "both")
+    settle()
+    T.eq(parts.line:GetAlpha(), 1)
+    T.truthy(parts.lit, "both: the border lit too")
+    q.__state = nil
+    Menus.PaintMicro()
+    settle()
+    T.eq(parts.line:GetAlpha(), 0, "closed: the line goes")
+
+    -- Icons can rest dimmer and light up when hovered.
+    T.eq(db.microRestAlpha, 1, "full by default")
+    DUI:Set("ActionBars", "microRestAlpha", 0.5)
+    settle()
+    T.near(parts.icon:GetAlpha(), 0.5, 0.001, "dim at rest")
+    stub.MouseEnter(q)
+    settle()
+    T.near(parts.icon:GetAlpha(), 1, 0.001, "full on hover")
+    stub.MouseLeave(q)
+    settle()
+    T.near(parts.icon:GetAlpha(), 0.5, 0.001)
 end)
 
 T.test("action bars: any bar can fade", function()
