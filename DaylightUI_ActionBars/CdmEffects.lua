@@ -1050,6 +1050,36 @@ local function readAlert(item)
     if was ~= (alerts[item] == true) then tell("CooldownProc", item, nil, not was) end
 end
 
+-- Overpower on Forever: a dodge by your target opens a 5 s window, kept as a
+-- hidden buff on you that can't be read in a fight. The game only answers
+-- "usable" in Battle Stance, so outside it Overpower never lit up for a warrior
+-- who'd swap stances to use it. Outside Battle Stance, the target's dodge
+-- (UNIT_COMBAT's action stays plain) opens the window here. It can't tell whose
+-- attack was dodged, so in Battle Stance the game's own answer stands.
+Fx.OVERPOWER = { [7384] = true, [7887] = true, [11584] = true, [11585] = true }
+Fx.OVERPOWER_WINDOW = 5
+local dodgedAt = nil
+
+local function overpowerOpen(sid)
+    return Fx.OVERPOWER[sid] == true and dodgedAt ~= nil and formNow ~= "Battle"
+        and GetTime() - dodgedAt < Fx.OVERPOWER_WINDOW
+end
+
+local dodges = CreateFrame("Frame")
+dodges:RegisterUnitEvent("UNIT_COMBAT", "target")
+dodges:RegisterEvent("PLAYER_TARGET_CHANGED")
+dodges:SetScript("OnEvent", function(_, event, _, action)
+    if event == "PLAYER_TARGET_CHANGED" then
+        if dodgedAt then dodgedAt = nil; Fx.Soon(false) end
+        return
+    end
+    if secret(action) or action ~= "DODGE" then return end
+    dodgedAt = GetTime()
+    Fx.Soon(false)
+    -- Nothing else says when the window ends.
+    C_Timer.After(Fx.OVERPOWER_WINDOW + 0.05, function() Fx.Soon(false) end)
+end)
+
 -- Castable now, per the game (plain in combat too). A secret or missing answer
 -- keeps the last one, so "When not usable" never hides or darkens a spell when
 -- it's needed.
@@ -1069,7 +1099,11 @@ local function readUsable(item)
     else
         local sid = Fx.SpellOf(item)
         if not sid or type(C_Spell) ~= "table" or type(C_Spell.IsSpellUsable) ~= "function" then return end
-        ok, can, noPower = pcall(C_Spell.IsSpellUsable, sid)
+        if overpowerOpen(sid) then
+            ok, can, noPower = true, true, false
+        else
+            ok, can, noPower = pcall(C_Spell.IsSpellUsable, sid)
+        end
     end
     if not ok or type(can) ~= "boolean" or secret(can) then return end
     if glow then usable[item] = can end
@@ -1493,6 +1527,7 @@ local casts = CreateFrame("Frame")
 casts:RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", "player")
 casts:SetScript("OnEvent", function(_, _, _, _, sid)
     if type(sid) ~= "number" or secret(sid) then return end
+    if Fx.OVERPOWER[sid] and dodgedAt then dodgedAt = nil; Fx.Soon(false) end
     DUI.SafeCall(Fx.Armed, sid)
 end)
 

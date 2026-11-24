@@ -2129,6 +2129,59 @@ T.test("cdm effects: the warrior stance you're in is lit, and the light moves wi
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- On Forever the game says Overpower isn't usable outside Battle Stance even
+-- right after a dodge, so a warrior in Defensive or Berserker never saw it light
+-- up to swap stances for it.
+T.test("cdm effects: Overpower lights up after the target dodges, in any stance", function()
+    local DUI, AB, set, ess = fxWorld()
+    local cds = withCooldowns(ess)
+    cds[111], cds[7384] = { duration = 0 }, { duration = 0 }
+    stub.units.player = stub.units.player or { name = "Tester" }
+    stub.units.player.class = "WARRIOR"
+    local stance, gameSays = 3, false
+    local spells = { 2457, 71, 2458 }
+    _G.GetNumShapeshiftForms = function() return #spells end
+    _G.GetShapeshiftFormInfo = function(i) return 132349 + i, stance == i, true, spells[i] end
+    C_Spell.IsSpellUsable = function() return gameSays, false end
+    ess[1].cooldownInfo.overrideSpellID = 7384
+    set.pieces[11].usableGlow = true
+    set.pieces[12].usableGlow = true
+    local Fx = AB.CdmEffects
+    pass(AB)
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.eq(Fx.FormNow(), "Berserker")
+    T.falsy(Fx.GlowShown(ess[1]), "no dodge yet")
+    stub.FireEvent("UNIT_COMBAT", "target", "WOUND", "", stub.Secret(40), 1)
+    stub.RunTimers()
+    T.falsy(Fx.GlowShown(ess[1]), "a hit isn't a dodge")
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+    stub.RunTimers()
+    T.truthy(Fx.GlowShown(ess[1]), "dodged in Berserker Stance: lit")
+    T.falsy(Fx.GlowShown(ess[2]), "only Overpower")
+    stub.Advance(4); stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers()
+    T.truthy(Fx.GlowShown(ess[1]), "still inside the 5 s")
+    stub.Advance(1.1); stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers()
+    T.falsy(Fx.GlowShown(ess[1]), "the window ran out")
+    -- A new target: the dodge was the old one's.
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1); stub.RunTimers()
+    T.truthy(Fx.GlowShown(ess[1]))
+    stub.FireEvent("PLAYER_TARGET_CHANGED"); stub.RunTimers()
+    T.falsy(Fx.GlowShown(ess[1]), "another target: gone")
+    -- Cast it: spent.
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1); stub.RunTimers()
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 7384); stub.RunTimers()
+    T.falsy(Fx.GlowShown(ess[1]), "used: gone")
+    -- In Battle Stance the game knows whose dodge it was: its answer stands.
+    stance = 1
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1); stub.RunTimers()
+    T.falsy(Fx.GlowShown(ess[1]), "Battle Stance, the game says no: someone else's dodge")
+    gameSays = true
+    stub.FireEvent("SPELL_UPDATE_USABLE"); stub.RunTimers()
+    T.truthy(Fx.GlowShown(ess[1]), "the game says yes")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Arcane Shot with every Visibility on Show vanished with no target (not
 -- usable, out of range), on and off cooldown.
 T.test("cdm effects: every Visibility on Show keeps a spell shown when it isn't usable", function()
