@@ -1359,6 +1359,73 @@ T.test("quests order: switched off, the game's order stays", function()
     T.deq(order(Tr), { 2, 1, 3 }, "on again: what moved meanwhile goes first")
 end)
 
+-- Level across zones, and the zone you're in first: both off by default.
+local LEVELS = { quests = {
+    QW.quest(1, "A", { level = 12, objs = kills(1) }),
+    QW.quest(2, "B", { level = 9, objs = kills(1) }),
+    QW.quest(3, "C", { zone = "Elwynn Forest", level = 5, objs = kills(1) }),
+    QW.quest(4, "D", { zone = "Elwynn Forest", level = 9, objs = kills(1) }),
+    QW.quest(5, "E", { level = 9, objs = kills(1) }) } }
+
+T.test("quests order: the level and zone-first picks leave the defaults alone", function()
+    local Tr = tracker(LEVELS)
+    T.eq(DaylightUI:Get("Quests", "sort"), "recent")
+    T.eq(DaylightUI:Get("Quests", "hereFirst"), false)
+    T.deq(order(Tr), { 1, 2, 5, 3, 4 }, "the game's order, the zone you're in first")
+end)
+
+T.test("quests order: level across zones orders the zones by their lowest quest, ties keep their place", function()
+    local Tr = tracker(LEVELS)
+    DaylightUI:Set("Quests", "sort", "levelAll")
+    stub.RunTimers()
+    T.deq(order(Tr), { 3, 4, 2, 5, 1 }, "Elwynn (5) over Westfall (9), each by level")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests order: level across zones with zone names off is one list by level", function()
+    local Tr = tracker(LEVELS)
+    DaylightUI:Set("Quests", "zoneNames", false)
+    DaylightUI:Set("Quests", "sort", "levelAll")
+    stub.RunTimers()
+    T.deq(order(Tr), { 3, 2, 5, 4, 1 }, "levels 5, 9, 9, 9, 12; the 9s keep the list's order")
+    stub.EnterCombat()
+    QW.state.quests[1].level = 1
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.deq(order(Tr), { 3, 2, 5, 4, 1 }, "nothing re-sorts in a fight")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.deq(order(Tr), { 1, 3, 2, 5, 4 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests order: the zone you're in stays on top over newer progress, and follows you", function()
+    local Tr = tracker(THREE)
+    DaylightUI:Set("Quests", "hereFirst", true)
+    stub.RunTimers()
+    QW.state.quests[3].objs = kills(2)
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.deq(order(Tr), { 1, 2, 3 }, "Elwynn's progress doesn't rise over Westfall while you're in Westfall")
+    QW.state.quests[2].objs = kills(2)
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.deq(order(Tr), { 2, 1, 3 }, "inside the zone, newest progress still goes first")
+    QW.state.zone = "Elwynn Forest"
+    stub.FireEvent("ZONE_CHANGED_NEW_AREA"); stub.RunTimers()
+    T.deq(order(Tr), { 3, 2, 1 }, "walking into Elwynn brings it up over Westfall's newer progress")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests order: zone first and level across zones together", function()
+    local Tr = tracker(LEVELS)
+    DaylightUI:Set("Quests", "zoneNames", false)
+    DaylightUI:Set("Quests", "sort", "levelAll")
+    DaylightUI:Set("Quests", "hereFirst", true)
+    stub.RunTimers()
+    T.deq(order(Tr), { 2, 5, 1, 3, 4 }, "Westfall's by level, then Elwynn's")
+    DaylightUI:Set("Quests", "zoneNames", true)
+    stub.RunTimers()
+    T.deq(order(Tr), { 2, 5, 1, 3, 4 }, "with zone names: Westfall's group first")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("quests saved data: the old map marks' and quest givers' lists are cleared at login", function()
     tracker({ quests = { STEW } })
     local saved = DaylightUIDB
