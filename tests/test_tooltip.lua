@@ -308,6 +308,24 @@ T.test("tooltip: a clicked link's X sits on the rich card's corner, not the tool
     T.eq(select(2, close:GetPoint(1)), ItemRefTooltip, "a hidden card is left alone")
 end)
 
+T.test("tooltip: a second link clicked with the tooltip open moves the X with the card", function()
+    login()
+    local close = ItemRefTooltip.CloseButton
+    local card = stub.tooltip.RichPanel.For(ItemRefTooltip)
+    ItemRefTooltip:Show()
+    -- The game refills a shown tooltip for the next link and doesn't show it
+    -- again: only the card comes and goes, so the X follows the card.
+    card:Show()
+    T.eq(select(2, close:GetPoint(1)), card, "a link with a card: the X is on the card")
+    card:Hide()
+    T.eq(select(2, close:GetPoint(1)), ItemRefTooltip, "the next link has none: the X is back on the tooltip")
+    card:Show()
+    T.eq(select(2, close:GetPoint(1)), card, "and a link with a card again: on the card")
+    local _, _, _, x, y = close:GetPoint(1)
+    T.eq(x, DaylightUI.Win.CLOSE_X, "the windows' X spot")
+    T.eq(y, DaylightUI.Win.CloseY(true))
+end)
+
 T.test("tooltip: a rich card's title and small lines take their own size and font", function()
     login()
     local Panel = stub.tooltip.RichPanel

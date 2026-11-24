@@ -187,6 +187,9 @@ function Panel.For(tip)
     p:EnableMouse(false)
     p:Hide()
     p.tip = tip
+    -- The tooltip's own X (a clicked link) follows the card as it comes and goes.
+    p:HookScript("OnShow", function() ns.Tooltip.PlaceClose(tip, true) end)
+    p:HookScript("OnHide", function() ns.Tooltip.PlaceClose(tip, false) end)
     p.shell = Style.Shell(p, { look = ns.Tooltip.LOOK, cornerPx = 0, noBevel = true, bgAlpha = ns.Tooltip.BackAlpha("rich") })
     Style.CutShell(p, Panel.CUT)
     -- The top light: two pieces, so a quality light can fade out along its
