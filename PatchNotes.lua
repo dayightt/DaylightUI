@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Options", "No more red options error in chat at login about the zone title duration or the Auction House undercut; both sliders now show seconds and copper" },
+        { "Character", "If you use the game's own character window, hovering and clicking your gear slots works again right after logging in" },
     } },
     { version = "2.2.6", date = "2026-11-24", summary = "See who each enemy is attacking on its nameplate, sort quests by level, and a Feed Pet button for hunters.", new = {
         { "Nameplates", "Nameplates can show who each enemy is attacking, with its own color, size and font (Nameplates > Health & Names)" },

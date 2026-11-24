@@ -511,7 +511,41 @@ function Slots.Return()
     for _, h in pairs(Slots.frames) do h.button = nil end
     Slots.byButton = {}
     Slots.lent = false
+    Slots.Lift()
     return true
+end
+
+local function descendants(f, out)
+    for _, c in ipairs({ f:GetChildren() }) do
+        out[#out + 1] = c
+        descendants(c, out)
+    end
+    return out
+end
+
+-- The game means each slot to sit one level above its holder (100), over the
+-- model (50), but in game they can load at level 4, under the model, which
+-- then takes every hover and click. Each slot goes back to one above its
+-- holder, its own pieces (border, Alt arrow, outline) moved by the same amount.
+-- The slots aren't protected, so this works in a fight too.
+function Slots.Lift()
+    local items = PaperDollItemsFrame
+    if Slots.lent or type(items) ~= "table" then return end
+    local base = items:GetFrameLevel()
+    for _, b in ipairs(gameButtons()) do
+        local level = b:GetFrameLevel()
+        if b:GetParent() == items and level <= base then
+            local kids = descendants(b, {})
+            local was = {}
+            for i, c in ipairs(kids) do was[i] = c:GetFrameLevel() end
+            local shift = base + 1 - level
+            b:SetFrameLevel(base + 1)
+            -- Only the ones the client didn't already carry along.
+            for i, c in ipairs(kids) do
+                if c:GetFrameLevel() == was[i] then c:SetFrameLevel(was[i] + shift) end
+            end
+        end
+    end
 end
 
 -- The Alt swap menu attaches to the parked page each time it fills, so move it here after.

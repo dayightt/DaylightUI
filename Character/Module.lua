@@ -31,6 +31,10 @@ DUI:RegisterModule("Character", {
             apply = swap,
         })
         if not ns.Follow.given then ns.Window.Build(mod) end
+        -- Shown as itself (picked, or lent for a currency transfer), the game's
+        -- window gets its slots over the model.
+        local g = ns.Follow.Game()
+        if g and g.HookScript then g:HookScript("OnShow", ns.Slots.Lift) end
     end,
     OnSettingChanged = function(_, path)
         ns.swap.Apply()

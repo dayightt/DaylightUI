@@ -2400,6 +2400,25 @@ T.test("character swap: picked before login, the game's window is dressed when i
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game with the game's window picked before login: the slots at level 4
+-- under their own holder at 100, so the model (50) took every hover.
+T.test("character swap: picked before login, the game's slots sit over its model", function()
+    load(nil, { skins = true, before = function()
+        _G.DaylightUIDB = { modules = { Character = { enabled = false } } }
+    end })
+    local head = CharacterHeadSlot
+    local ring = CreateFrame("Frame", nil, head)
+    for _, b in ipairs(PaperDollItemsFrame.EquipmentSlots) do b:SetFrameLevel(4) end
+    ring:SetFrameLevel(5)
+    stub.RunTimers()
+    ToggleCharacter("PaperDollFrame")
+    stub.RunTimers()
+    T.truthy(head:GetFrameLevel() > CharacterModelScene:GetFrameLevel(), "a slot over the model")
+    T.eq(head:GetFrameLevel(), PaperDollItemsFrame:GetFrameLevel() + 1, "one above its holder")
+    T.eq(ring:GetFrameLevel(), head:GetFrameLevel() + 1, "its own pieces move with it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("character swap: picked in a fight, the windows trade places once it ends", function()
     local _, ns = load()
     local F = ns.Follow
