@@ -9,7 +9,7 @@
 ## Notes-deDE: Das Feld oben rechts: eine Erfahrungsleiste oben, darunter ein Schadensmesser und eine eckige Minikarte.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.2.5
+## Version: 2.2.6
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

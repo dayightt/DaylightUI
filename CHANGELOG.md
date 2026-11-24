@@ -1,3 +1,31 @@
+# DaylightUI 2.2.6
+
+See who each enemy is attacking on its nameplate, sort quests by level, and a Feed Pet button for hunters.
+
+## New
+- Nameplates: Nameplates can show who each enemy is attacking, with its own color, size and font (Nameplates > Health & Names)
+- Quests: The quest tracker can sort quests by level across zones and keep your zone on top
+- Bags: Hunters get a Feed Pet button in the bag
+- Unit frames: The swing timer and your cast bar can fade like your frames
+- Unit frames: The power bar can be as tall as the health bar
+- Unlock mode: Move the level-up and reputation banners, the welcome message and the AFK screen
+- Tooltips: Short item stats now shorten food, drink, potions and bandages too
+- Cooldown Manager: A Cooldown Manager button in the Escape menu, and glow colors can go back to your accent
+
+## Changed
+- Unit frames: Removed the target frame's "Show with a target" fade choice, since the frame only appears when you have a target anyway
+
+## Fixed
+- Unit frames: Cast bars on a fading frame no longer flash fully visible or slip behind it
+- Unit frames: A portrait moved away from its frame takes clicks again
+- Chat: A name's menu in the chat no longer has Guild Invite blocked now and then
+- Performance: Less stutter when a crowd of nameplates appears, and far less work in the chat
+- Action bars: Fading everything on a flight path fades the Request Stop button too
+- Tooltips: A recipe's tooltip shows the recipe's own sell price again
+- Auction House: A full scan prices everything, instead of skipping thousands of items
+- Translations: The newest settings in Simplified Chinese (thanks Levis) and Spanish (thanks Ángel)
+- Little touches: Even portrait rings, and /dui platefix says when nameplates are off in the game's options
+
 # DaylightUI 2.2.5
 
 A frameless round minimap, a language picker, new zone title and micro menu looks, and spell colors for your cast bar.
