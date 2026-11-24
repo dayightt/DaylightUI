@@ -451,6 +451,15 @@ function CB.Layout(h, cfg, parentCfg)
     local at = CB.At(h.kind, cfg)
     local hang = type(h.under) == "table" and at == (h.hangAt or "below")
     h.cfgAttach = hang
+    -- A frame fading as one picture draws over a bar hung on its layer just
+    -- above it, so while this bar hangs under one, that frame fades piece by piece.
+    local holds = (hang and cfg.enabled ~= false and not h.preview) and h.under or nil
+    if h.notWholeOf ~= holds then
+        local key = "castbar:" .. tostring(h.kind)
+        if h.notWholeOf then DUI.Fade.NotWhole(h.notWholeOf, key, false) end
+        if holds then DUI.Fade.NotWhole(holds, key, true) end
+        h.notWholeOf = holds
+    end
     -- Hung under the player frame it takes that frame's size, otherwise its own.
     if h.inFrame then
         h:SetScale(1)

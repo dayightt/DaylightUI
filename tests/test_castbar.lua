@@ -1372,3 +1372,38 @@ T.test("a cast bar inside a frame fades the power text while it shows, never a f
     free:Show()
     T.eq(g.powerText:GetAlpha(), 1)
 end)
+
+-- A player's report: with the player frame set to fade, a cast bar hung under it
+-- went behind it. A frame that fades as one picture (Fade's whole mode, drawn to
+-- its own buffer) draws over a bar hung on its layer one step above it, so while
+-- a cast bar hangs under a frame that frame fades piece by piece instead.
+T.test("a frame with a cast bar hung under it never fades as one picture, and does again once the bar is moved", function()
+    local DUI, ns = stub.Load({ module = true })
+    local f = ns.frames.player
+    function f:SetFlattensRenderLayers(on) self.flat = on end
+    function f:SetIsFrameBuffer(on) self.buffer = on end
+    local F = DUI.Fade
+    local function settle()
+        stub.RunTimers()
+        for _ = 1, 3 do
+            F.Step()
+            for _ = 1, 60 do stub.RunOnUpdate(F.driver, 1 / 60) end
+            stub.RunTimers()
+        end
+    end
+    DUI:Set("UnitFrames", "player.fade", { mode = "ooc", alpha = 0.3, delay = 0 })
+    DUI:Set("UnitFrames", "playerCastbar.at", "below")
+    settle()
+    T.truthy(ns.playerCastbar.column, "the bar hangs under the frame")
+    T.falsy(f.buffer, "faded with a bar hung under it: piece by piece")
+    DUI:Set("UnitFrames", "playerCastbar.at", "free")
+    settle()
+    T.eq(f.buffer, true, "the bar on its own: the frame fades as one picture again")
+    DUI:Set("UnitFrames", "playerCastbar.at", "below")
+    settle()
+    T.falsy(f.buffer, "hung again: piece by piece")
+    DUI:Set("UnitFrames", "playerCastbar.enabled", false)
+    settle()
+    T.eq(f.buffer, true, "no cast bar at all: one picture")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

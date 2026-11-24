@@ -319,8 +319,8 @@ local function wholeNow()
     for f in pairs(wholeDue) do
         wholeDue[f] = nil
         -- A frame asked once to stay whole-off never made its list of reasons.
-        local whys = f.fadeWhy
-        local on = whys ~= nil and next(whys) ~= nil and not uiAway
+        local whys, nots = f.fadeWhy, f.fadeNotWhole
+        local on = whys ~= nil and next(whys) ~= nil and not uiAway and not (nots and next(nots))
         if (f.fadeWhole == true) ~= on then setWhole(f, on) end
     end
 end
@@ -365,6 +365,24 @@ function Fade.Whole(f, why, on)
     end
     if whys[why] == (on or nil) then return end
     whys[why] = on or nil
+    wholeDue[f] = true
+    DUI.AfterCombat(wholeNow, "fade:whole")
+end
+
+-- Keeps a frame from fading as one picture while anyone asks (why: a key per
+-- asker). A frame drawn to its own buffer draws over what sits on its layer
+-- just above it: a cast bar hung under the player frame went behind it.
+function Fade.NotWhole(f, why, on)
+    if type(f) ~= "table" then return end
+    local nots = f.fadeNotWhole
+    if not nots then
+        if not on then return end
+        nots = {}
+        f.fadeNotWhole = nots
+    end
+    if nots[why] == (on or nil) then return end
+    nots[why] = on or nil
+    wholeAll[f] = true
     wholeDue[f] = true
     DUI.AfterCombat(wholeNow, "fade:whole")
 end
