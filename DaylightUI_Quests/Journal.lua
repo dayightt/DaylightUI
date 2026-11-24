@@ -98,13 +98,14 @@ function Journal.Read()
     local watched, nWatched = watchedSet()
     local focus = call(api(C_SuperTrack, "GetSuperTrackedQuestID"))
     local out = { groups = {}, watched = nWatched }
-    local byZone, zone = {}, nil
+    local byZone, zone, logRank = {}, nil, {}
     local n = call(api(QL, "GetNumQuestLogEntries"))
     for i = 1, (type(n) == "number" and n or 0) do
         local info = call(api(QL, "GetInfo"), i)
         if type(info) == "table" then
             if info.isHeader then
                 zone = type(info.title) == "string" and info.title or nil
+                if zone and not logRank[zone] then logRank[zone] = i end
             elseif type(info.questID) == "number" and not info.isTask and not info.isHidden then
                 local name = zone or ns.Data.OTHER
                 local q = ns.Data.Quest(info.questID, nil, name, i, info, focus)
@@ -121,6 +122,9 @@ function Journal.Read()
             end
         end
     end
+    -- Zones keep their places while the map refilters the log under them.
+    local seats = ns.Data.Seats(logRank)
+    table.sort(out.groups, function(a, b) return (seats[a.name] or math.huge) < (seats[b.name] or math.huge) end)
     if db.journalHereFirst ~= false then
         local main = ns.Data.Here(function(name) return byZone[name] ~= nil end)
         local here = ns.Data.HereSet(out.groups, main)

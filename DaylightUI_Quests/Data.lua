@@ -82,6 +82,29 @@ function Data.Headers()
     return of, rank, indexOf, infoOf
 end
 
+-- Each log header's place in the tracker, kept for the session. The log's own
+-- order isn't steady: opening the world map refilters it for the map's zone and
+-- headers can trade places, which made the tracker's zones jump around. A header
+-- keeps the place it got when first seen; a new one slots in after the header
+-- the log lists before it. Headers gone from the log give their place up.
+Data.seats = {}
+function Data.Seats(rank)
+    local seats, names = Data.seats, {}
+    for name in pairs(seats) do if not rank[name] then seats[name] = nil end end
+    for name in pairs(rank) do names[#names + 1] = name end
+    table.sort(names, function(a, b) return rank[a] < rank[b] end)
+    local lo = 0
+    for _, name in ipairs(names) do
+        if not seats[name] then
+            local hi
+            for _, n in pairs(seats) do if n > lo and (not hi or n < hi) then hi = n end end
+            seats[name] = hi and (lo + hi) / 2 or lo + 1
+        end
+        lo = seats[name]
+    end
+    return seats
+end
+
 -- A watched quest the log walk didn't place under a header (a collapsed header can
 -- leave its quests out), so ask for its header directly.
 function Data.HeaderFor(questID)
@@ -339,12 +362,13 @@ function Data.Snapshot(filter)
     end
     snap.zone = Data.Here(function(name) return byZone[name] ~= nil end)
     snap.here = Data.HereSet(snap.groups, snap.zone)
+    local seats = Data.Seats(rank)
     table.sort(snap.groups, function(a, b)
         local am, bm = a.name == snap.zone, b.name == snap.zone
         if am ~= bm then return am end
         local ah, bh = snap.here[a.name] == true, snap.here[b.name] == true
         if ah ~= bh then return ah end
-        return (rank[a.name] or math.huge) < (rank[b.name] or math.huge)
+        return (seats[a.name] or math.huge) < (seats[b.name] or math.huge)
     end)
     return snap
 end

@@ -87,6 +87,32 @@ T.test("quests data: groups by zone, the zone you're in first", function()
     T.eq(s.logMax, 25)
 end)
 
+-- Opening the world map makes the game refilter the quest log for the map's
+-- zone (QuestMapFrame_ResetFilters folds every header not on that map) and the
+-- log's own order can shift with it. The tracker's zones must not swap places.
+T.test("quests data: zones keep their places when the log reorders itself", function()
+    local _, ns = load({ zone = "Un'Goro Crater", quests = {
+        QW.quest(1, "Roll the Bones", { zone = "Un'Goro Crater" }),
+        QW.quest(2, "Wandering Shay", { zone = "Azshara" }),
+        QW.quest(3, "Slime", { zone = "Ironforge" }),
+        QW.quest(4, "Staghelm", { zone = "Stormwind City" }),
+        QW.quest(5, "Tanaris Thing", { zone = "Tanaris" }),
+    } })
+    local function names()
+        local out = {}
+        for _, g in ipairs(ns.Data.Snapshot().groups) do out[#out + 1] = g.name end
+        return table.concat(out, ",")
+    end
+    local before = names()
+    -- The map shows Tanaris: the log now lists Tanaris and Stormwind first.
+    local q = QW.state.quests
+    QW.state.quests = { q[5], q[4], q[1], q[2], q[3] }
+    T.eq(names(), before, "same zone order after the log reshuffled")
+    -- A zone that's new to the log still goes where the log puts it.
+    table.insert(QW.state.quests, 3, QW.quest(6, "Feralas Thing", { zone = "Feralas" }))
+    T.eq(names(), "Un'Goro Crater,Azshara,Ironforge,Stormwind City,Feralas,Tanaris")
+end)
+
 T.test("quests data: a quest the log walk missed asks for its header", function()
     local _, ns = load({ quests = { QW.quest(1, "Westfall Stew") } })
     local getInfo = C_QuestLog.GetInfo
