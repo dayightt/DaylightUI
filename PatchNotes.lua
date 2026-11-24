@@ -13,6 +13,8 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Cooldown Manager", "Overpower now lights up and plays its sound after your target dodges in any stance, so you know when to switch to Battle Stance for it" },
+    }, fixed = {
+        { "Cast bars", "A mob's channeled spell now shows a cast bar on the target frame and its nameplate, so you can see it in time to kick it" },
     } },
     { version = "2.2.6.1", date = "2026-11-24", summary = "Fixes: item tooltips show every line again, no more reload box after a boat ride, and no options error at login.", fixed = {
         { "Options", "No more red options error in chat at login about the zone title duration or the Auction House undercut; both sliders now show seconds and copper" },

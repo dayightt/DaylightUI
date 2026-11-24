@@ -5138,3 +5138,12 @@ T.test("nameplates: a custom gradient on the health bar; a tapped mob still goes
     stub.FireEvent("UNIT_FLAGS", "nameplate1")
     T.eq(#S.FillStops(fill), 3, "and back")
 end)
+
+T.test("nameplates: a mob's channel with no display name still shows its bar", function()
+    login()
+    local p = added("nameplate1")
+    stub.units.nameplate1.channel = { name = "Mind Flay", displayName = false, texture = 1, notInterruptible = false, duration = stub.Duration(3) }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "nameplate1")
+    T.truthy(p.cast:IsShown(), "the channel shows")
+    T.eq(stub.Text(p.cast.text), "Mind Flay", "named by the spell when the display name is missing")
+end)

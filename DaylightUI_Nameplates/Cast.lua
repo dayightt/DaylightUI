@@ -313,14 +313,17 @@ function Cast.Update(p)
     local c, u = p.cast, p.unit
     if not u or p.friendly then return Cast.Stop(p) end
     -- displayName, as the game's own bar uses: the first value can be an untranslated name.
+    -- Whether there is a cast is the first value, as the game's bar asks: a mob's channel
+    -- can come without a display name, and then the spell's own name stands in.
     -- The flag and spell id are only kept for plugins (Cast.Painted), passed on whole.
-    local _, name, texture, _, _, _, _, ni, spellID = UnitCastingInfo(u)
+    local spell, name, texture, _, _, _, _, ni, spellID = UnitCastingInfo(u)
     local channel = false
-    if type(name) == "nil" then
-        _, name, texture, _, _, _, ni, spellID = UnitChannelInfo(u)
-        channel = type(name) ~= "nil"
+    if type(spell) == "nil" then
+        spell, name, texture, _, _, _, ni, spellID = UnitChannelInfo(u)
+        channel = type(spell) ~= "nil"
     end
-    if type(name) == "nil" then return Cast.Stop(p) end
+    if type(spell) == "nil" then return Cast.Stop(p) end
+    if type(name) == "nil" then name = spell end
     local duration
     if channel then
         duration = UnitChannelDuration and UnitChannelDuration(u)

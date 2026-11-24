@@ -34,6 +34,16 @@ T.test("a channel drains", function()
     T.eq(h.bar.__timer[3], Enum.StatusBarTimerDirection.RemainingTime)
 end)
 
+T.test("a mob's channel with no display name still shows its bar", function()
+    local _, ns = setup()
+    local t = ns.CastBar.Create("target")
+    ns.CastBar.Layout(t, ns.DEFAULTS.targetCastbar)
+    stub.units.target = { name = "Foe", reaction = 2, channel = { name = "Mind Flay", displayName = false, duration = stub.Duration(3) } }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "target")
+    T.truthy(t:IsShown(), "the channel shows")
+    T.eq(stub.Text(t.text), "Mind Flay", "named by the spell when the display name is missing")
+end)
+
 T.test("channel ticks: lines between a channel's ticks on your own bar only", function()
     local h, ns = setup()
     local CB = ns.CastBar

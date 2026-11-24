@@ -1415,25 +1415,28 @@ function CB.Refresh(h, glide)
     if type(u) ~= "string" then CB.Stop(h); return end
     local channel = false
     -- displayName, like the game's own bar. The first value can be a raw untranslated name.
-    local _, name, texture, from, to, craft, _, notInterruptible, spell = UnitCastingInfo(u)
+    -- Whether there is a cast is the first value, as the game's bar asks: a mob's channel
+    -- can come without a display name, and then the spell's own name stands in.
+    local real, name, texture, from, to, craft, _, notInterruptible, spell = UnitCastingInfo(u)
     -- A craft reports it can't be interrupted, but the locked gray is meant as
     -- a warning about casts you can't kick, so draw a craft like any other cast.
     local batch
     if not isSecret(craft) and craft == true then
         notInterruptible = false
         batch = CB.Batch(h, spell, from, to)
-    elseif type(name) ~= "nil" then
+    elseif type(real) ~= "nil" then
         h.batch = nil
     end
-    if type(name) == "nil" then
-        _, name, texture, _, _, _, notInterruptible, spell = UnitChannelInfo(u)
+    if type(real) == "nil" then
+        real, name, texture, _, _, _, notInterruptible, spell = UnitChannelInfo(u)
         channel = true
-        if type(name) ~= "nil" then h.batch = nil end
+        if type(real) ~= "nil" then h.batch = nil end
     end
-    if type(name) == "nil" then
+    if type(real) == "nil" then
         if not CB.BatchWait(h) then CB.Stop(h, glide) end
         return
     end
+    if type(name) == "nil" then name = real end
     local duration, count = batch, nil
     if batch then
         local b = h.batch

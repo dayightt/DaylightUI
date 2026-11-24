@@ -1984,7 +1984,10 @@ _G.C_DurationUtil = {
 _G.UnitChannelInfo = function(u)
     local x = U(u); local c = x and x.channel
     if not c then return end   -- no cast: the client returns nothing at all, not a nil
-    return c.name, c.name, c.texture, 0, 0, false, c.notInterruptible, c.spellID or 1
+    -- displayName can be missing on a mob's channel; the game's own bar tests the first value.
+    local shown = c.displayName
+    if shown == nil then shown = c.name elseif shown == false then shown = nil end
+    return c.name, shown, c.texture, 0, 0, false, c.notInterruptible, c.spellID or 1
 end
 _G.UnitCastingDuration = function(u) local x = U(u); return x and x.cast and x.cast.duration end
 _G.UnitChannelDuration = function(u) local x = U(u); return x and x.channel and x.channel.duration end
