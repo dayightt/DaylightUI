@@ -404,6 +404,6 @@ local function taxiLayout(f)
     end
 end
 
-Engine.Window({ key = "taxi", pack = "npc", frame = "TaxiFrame", window = { keep = { "InsetBg" } },
+Engine.Window({ key = "taxi", skinKey = "flightmap", pack = "npc", frame = "TaxiFrame", window = { keep = { "InsetBg" } },
     after = function(_, f) taxiLayout(f) end })
 

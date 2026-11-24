@@ -1,8 +1,22 @@
--- The window skins' options page: one switch per pack.
+-- The window skins' options page: pack switches and individual exceptions.
 
 local _, ns = ...
 
 local lookRows = DaylightUI.Options.LookRows("frameStyle", nil)
+
+local function windowGroup(pack, tab, label, windows)
+    local packKey = "packs." .. pack
+    local items = {}
+    for _, window in ipairs(windows) do
+        local key, name = window[1], window[2]
+        ns.DEFAULTS.windowSkins[key] = true
+        items[#items + 1] = { type = "toggle", key = "windowSkins." .. key, label = name, reload = true,
+            desc = "Give this window the Daylight UI look. Reload to apply.",
+            disabled = function(get) return get(packKey) == false end }
+    end
+    return { label = label, tab = tab, items = items,
+        desc = "These switches apply while this group is on in General." }
+end
 
 -- One switch per addon that has a skin (Packs/Addons), shown only while that
 -- addon is installed. The card is hidden when none are.
@@ -99,7 +113,8 @@ ns.OPTIONS = { pages = {
     { id = "skins", label = "Game window skins",
       desc = "The game's own windows in Daylight UI style: Daylight UI borders, window background, font, controls and scroll bars.",
       groups = {
-        { label = "Restyled game windows", desc = "The game's windows Daylight UI didn't rebuild. Rebuilt windows have their own switches under Extras.", items = {
+        { label = "Restyled game windows", tab = "General",
+          desc = "Turn on a group here, then use its tab to choose which windows to restyle.", items = {
             { type = "toggle", key = "packs.npc", label = "Flight maps, stable and books", reload = true,
               desc = "Flight maps, books and letters, tabards and petitions, the stable, and the game's own talk, vendor and trainer windows when you pick them over Daylight UI's." },
             { type = "toggle", key = "packs.social", label = "Guild, calendar and trading", reload = true,
@@ -109,13 +124,11 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "packs.system", label = "Menus, loot and items", reload = true,
               desc = "The game menu, addon list, macros, clock, loot, socketing, upgrading, the scrapper, the auction house, the professions book, the game's character, spellbook, profession and inspect windows, the world map's frame, the breath bar, the box that splits a stack." },
         } },
-        { label = "Windows", items = {
-        } },
         { label = "Borders and background", items = lookRows },
         { label = "Alerts and timers", items = {
             { type = "toggle", key = "breathSlant", label = "Breath bar angled end",
               desc = "Cuts the right end of the breath bar at an angle, on the fatigue and feign death bars too. When off, the end is straight.",
-              disabled = function(get) return get("packs.system") == false end },
+              disabled = function(get) return get("packs.system") == false or get("windowSkins.breath") == false end },
             { type = "toggle", key = "ccAlert", label = "Crowd control alert", reload = true,
               desc = "The alert in the middle of the screen when you're stunned, feared or silenced, as a light line in Daylight UI style. When off, the game's own alert shows instead.",
               disabled = function(get) return get("packs.system") == false end },
@@ -125,7 +138,7 @@ ns.OPTIONS = { pages = {
         { label = "World map", items = {
             { type = "toggle", key = "mapLogBeside", label = "Quest list beside the map",
               desc = "With the map maximized, the quest list opens beside it, as it does on the small map, instead of taking its room from the map. On a narrow screen the map gives up only what doesn't fit.",
-              disabled = function(get) return get("packs.system") == false end },
+              disabled = function(get) return get("packs.system") == false or get("windowSkins.worldmap") == false end },
             { type = "toggle", key = "mapReveal", label = "Show unexplored areas",
               desc = "Parts of the world map you haven't explored yet show too, dimmed so you can still tell where you haven't been." },
             { type = "slider", key = "mapRevealDim", label = "Unexplored area brightness", min = 0.2, max = 1, step = 0.05, unit = "%",
@@ -147,6 +160,64 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "mapPinAlpha", label = "Map symbol opacity", min = 0.2, max = 1, step = 0.05, unit = "%",
               desc = "How solid the world map's symbols are. Lower it to see more of the map under them." },
         } },
+        windowGroup("npc", "NPC", "Flight maps, stable and books", {
+            { "flightmap", "Flight maps" },
+            { "stable", "Stable" },
+            { "itemtext", "Books and letters" },
+            { "tabard", "Tabard designer" },
+            { "petition", "Guild charter" },
+            { "registrar", "Guild registrar" },
+            { "game:gossip", "NPC dialogue" },
+            { "game:quest", "Quest dialogue" },
+            { "game:merchant", "Merchant" },
+            { "trainer", "Trainer" },
+        }),
+        windowGroup("social", "Social", "Guild, calendar and trading", {
+            { "communities", "Guild and communities" },
+            { "communitiesguildlogframe", "Guild log" },
+            { "communitiesguildtexteditframe", "Guild message editor" },
+            { "communitiesguildnewsfiltersframe", "Guild news filters" },
+            { "calendar", "Calendar" },
+            { "trade", "Trade" },
+            { "guildbank", "Guild bank" },
+            { "mail", "Mailbox" },
+            { "openmail", "Opened mail" },
+            { "socialui", "Friends" },
+            { "groupfinder", "Group finder" },
+        }),
+        windowGroup("collections", "Collections", "Collections and journals", {
+            { "collections", "Collections" },
+            { "achievements", "Achievements" },
+            { "journal", "Dungeon journal" },
+            { "legacy", "Legacy" },
+            { "dressup", "Dressing room" },
+        }),
+        windowGroup("system", "System", "Menus, loot and items", {
+            { "gamemenu", "Game menu" },
+            { "addons", "AddOns list" },
+            { "macros", "Macros" },
+            { "clock", "Clock" },
+            { "loot", "Loot window" },
+            { "loottoast", "Loot and money alerts" },
+            { "socketing", "Item socketing" },
+            { "itemupgrade", "Item upgrades" },
+            { "scrapper", "Scrapper" },
+            { "auction", "Auction House" },
+            { "professionsbook", "Professions book" },
+            { "professions", "Professions" },
+            { "character", "Character window" },
+            { "playerspells", "Spellbook and talents" },
+            { "inspect", "Inspect" },
+            { "worldmap", "World map" },
+            { "breath", "Breath bar" },
+            { "stacksplit", "Split stack" },
+            { "layering", "Layering notice" },
+            { "bntoast", "Battle.net alerts" },
+            { "confirmation", "Confirmation popups" },
+            { "rolepoll", "Role poll" },
+            { "rolecheck", "Dungeon role check" },
+            { "popupmenus", "Popup menus" },
+        }),
     } },
     rollsPage(),
 } }

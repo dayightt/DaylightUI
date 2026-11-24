@@ -228,7 +228,7 @@ Engine.Window({ key = "dressup", pack = "collections", frame = "DressUpFrame", w
 
 -- The small dressing room beside the auction house: window look, race
 -- backdrop kept.
-Engine.Window({ key = "sidedressup", pack = "collections", frame = "SideDressUpFrame", watch = true,
+Engine.Window({ key = "sidedressup", skinKey = "dressup", pack = "collections", frame = "SideDressUpFrame", watch = true,
     window = { keep = { "BGTopLeft", "BGBottomLeft" } },
     after = function(Kit, f)
         modelControls(Kit, f.ModelScene)

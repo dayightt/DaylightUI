@@ -820,7 +820,7 @@ Engine.Window({ key = "bntoast", pack = "system", addon = "Blizzard_BNet", frame
 -- on, the game stores each box's focus actions as it opens, and any hook on
 -- the pieces inside would run first and taint them (Kit.Button).
 for i = 1, 4 do
-    Engine.Window({ key = "popup" .. i, pack = "system", frame = "StaticPopup" .. i,
+    Engine.Window({ key = "popup" .. i, skinKey = "confirmation", pack = "system", frame = "StaticPopup" .. i,
         auto = false,
         window = { keep = { "AlertIcon", "ProgressBarBorder", "ProgressBarFill", "Separator" }, quiet = true },
         hide = { ".BG", ".Border" },

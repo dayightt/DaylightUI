@@ -33,6 +33,7 @@ end
 
 function Engine.Wanted(def)
     if cfg == nil or cfg.packs[def.pack] == false or def.broken then return false end
+    if not def.thirdParty and cfg.windowSkins and cfg.windowSkins[def.skinKey or def.key] == false then return false end
     -- Third-party skins also have their own switch in the options.
     if def.switch and cfg.addonSkins and cfg.addonSkins[def.switch] == false then return false end
     return true
@@ -216,7 +217,7 @@ end
 function Engine.Window(def)
     Engine.WINDOWS[#Engine.WINDOWS + 1] = def.frame
     local reg
-    reg = { key = def.key, pack = def.pack, addon = def.addon, skip = def.skip, frameName = def.frame,
+    reg = { key = def.key, pack = def.pack, addon = def.addon, skip = def.skip, frameName = def.frame, skinKey = def.skinKey,
         thirdParty = def.thirdParty, switch = def.switch, label = def.label, apply = function(Kit)
         local f = Engine.Find(def.frame)
         if type(f) ~= "table" or not f.GetObjectType then return false end
@@ -234,6 +235,7 @@ function Engine.Window(def)
         local ranThisFrame, askedAgain, shape = false, false, nil
         local function again(ifChanged)
             if InCombatLockdown and InCombatLockdown() then return end
+            if not Engine.Wanted(reg) then return end
             -- Replaced by a Daylight UI window for now: nothing to dress while it's covered.
             if def.skip and def.skip() then return end
             if ranThisFrame then

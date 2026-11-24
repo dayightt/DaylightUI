@@ -605,6 +605,66 @@ T.test("skins: a pack switched off leaves its windows as the game draws them", f
     T.truthy(stub.skins.Kit.ShellOf(TabardFrame), "on again: skinned now")
 end)
 
+T.test("skins: individual switches apply with their pack and keep their choices when it is off", function()
+    local made = {}
+    login(function()
+        DaylightUIDB.modules.Skins = { windowSkins = { tabard = false, auction = false } }
+        for _, name in ipairs({ "ItemTextFrame", "AuctionHouseFrame", "MacroFrame" }) do
+            made[name] = window(name)
+        end
+        stub.loadedAddOns.Blizzard_AuctionHouseUI = true
+        stub.loadedAddOns.Blizzard_MacroUI = true
+    end)
+    local DUI, Kit = DaylightUI, stub.skins.Kit
+    T.isnil(Kit.ShellOf(TabardFrame))
+    T.isnil(Kit.ShellOf(made.AuctionHouseFrame))
+    T.eq(TabardFrame.NineSlice:GetAlpha(), 1)
+    T.eq(made.AuctionHouseFrame.NineSlice:GetAlpha(), 1)
+    T.truthy(Kit.ShellOf(made.ItemTextFrame), "other NPC windows still skinned")
+    T.truthy(Kit.ShellOf(made.MacroFrame), "other System windows still skinned")
+
+    local page = DUI.Options.GetPage("Skins.skins")
+    local auction
+    for _, group in ipairs(page.groups) do
+        for _, item in ipairs(group.items) do
+            if item.key == "windowSkins.auction" then auction = item end
+        end
+    end
+    T.truthy(auction and auction.reload, "the switch takes effect after reload")
+    DUI:Set("Skins", "packs.system", false)
+    T.truthy(DUI.Options.IsDisabled(page, auction))
+    DUI:Set("Skins", "packs.system", true)
+    T.eq(DUI.Options.Get(page, auction), false, "the exception survives toggling its pack")
+    T.isnil(Kit.ShellOf(made.AuctionHouseFrame))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("skins: every grouped skin has a switch", function()
+    local skins = login()
+    local page = DaylightUI.Options.GetPage("Skins.skins")
+    local switches = {}
+    for _, group in ipairs(page.groups) do
+        for _, item in ipairs(group.items) do
+            if item.key and item.key:match("^windowSkins%.") then
+                switches[item.key] = true
+                T.eq(DaylightUI.Options.Default(page, item), true, item.key .. " defaults to on")
+            end
+        end
+    end
+    -- These two skins already have their own settings.
+    local existing = { lootroll = "rolls.popups", lossofcontrol = "ccAlert" }
+    for _, def in ipairs(skins.Engine.skins) do
+        if def.pack and skins.DEFAULTS.packs[def.pack] ~= nil then
+            local key = existing[def.key] or ("windowSkins." .. (def.skinKey or def.key))
+            if existing[def.key] then
+                T.eq(DaylightUI:Get("Skins", key), true, key .. " defaults to on")
+            else
+                T.truthy(switches[key], def.key .. " has a switch")
+            end
+        end
+    end
+end)
+
 -- A "Talking to NPCs" switch read as the switch for the NPC window, which it
 -- never was. Packs are named only after what they really skin.
 T.test("skins: the Packs card has no switch named after a window Daylight UI rebuilt", function()
