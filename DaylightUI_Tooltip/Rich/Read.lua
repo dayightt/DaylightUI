@@ -28,10 +28,37 @@ local function color(fs)
     return r, g, b
 end
 
+-- Which data line landed on each drawn line, by the lineIndex the game writes
+-- into each one. A recipe's empty spacer draws nothing, so the lines after it
+-- sit one higher than their place in the list: read by position, each drawn
+-- line took the type of the one above it (another addon's Auction price under
+-- the sell price became the sell price). Empty when the data has no indexes.
+local landed = {}
+local function mapLanded(data)
+    for k in pairs(landed) do landed[k] = nil end
+    local list = type(data) == "table" and data.lines
+    if type(list) ~= "table" then return end
+    for _, line in ipairs(list) do
+        local at = type(line) == "table" and line.lineIndex or nil
+        -- The last data line on a drawn line wins: a spacer shares its line
+        -- with the one before and adds nothing to it.
+        if not isSecret(at) and type(at) == "number" then
+            local t, words = line.type, line.leftText
+            local spacer = not isSecret(t) and t == 0 and not isSecret(words) and words == ""
+            if not spacer then landed[at] = line end
+        end
+    end
+end
+
 -- The data's line type and id (a quest title's quest), by line, when plain.
 local function typeOf(data, i)
     local list = type(data) == "table" and data.lines
-    local line = type(list) == "table" and list[i]
+    local line
+    if next(landed) then
+        line = landed[i]
+    else
+        line = type(list) == "table" and list[i]
+    end
     if type(line) ~= "table" then return nil end
     local t, id = line.type, line.id
     if isSecret(t) then t = nil end
@@ -47,6 +74,7 @@ function Read.Lines(tip, data)
     local n = tip.NumLines and tip:NumLines()
     if isSecret(n) then return 0, lines, true end
     if type(n) ~= "number" then n = 0 end
+    mapLanded(data)
     for i = 1, n do
         local left, right = Tip.Line(tip, i), Tip.Line(tip, i, "Right")
         local lt, rt = text(left), text(right)

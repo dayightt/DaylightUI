@@ -2241,6 +2241,37 @@ T.test("tooltip: the card's own lines end at the last one the game drew, not at 
     T.eq(Own({ lines = { { lineIndex = stub.Secret(1) }, {} } }, 4), 2, "a secret index is skipped")
 end)
 
+-- A recipe's spacer draws no line, so every data line after it sits one line
+-- higher. Read by data position, the line under the sell price (an Auction
+-- price added by an addon) took the SellPrice type, and the card showed the
+-- crafted item's auction price as the recipe's vendor price.
+T.test("tooltip: a recipe's drawn lines take their own data line's type, past the spacer", function()
+    login(itemWorld)
+    local Read = stub.tooltip.RichRead
+    local tip = GameTooltip
+    withLines(tip)
+    tip:AddLine("Schematic: EZ-Thro Bronze Mortar", 1, 1, 1)
+    tip:AddLine("Requires Engineering (190)", 1, 0, 0)
+    tip:AddDoubleLine("Sell Price:", "6s", 1, 1, 1, 1, 1, 1)
+    tip:AddDoubleLine("Auction", "95s", 1, 1, 1, 1, 1, 1)
+    local data = { lines = {
+        { type = 0, leftText = "Schematic: EZ-Thro Bronze Mortar", lineIndex = 1 },
+        { type = 0, leftText = "", rightText = "", lineIndex = 1 },
+        { type = 23, leftText = "Requires Engineering (190)", lineIndex = 2 },
+        { type = 11, leftText = "Sell Price:", lineIndex = 3 },
+    } }
+    local n, lines = Read.Lines(tip, data)
+    T.eq(n, 4)
+    T.eq(lines[2].type, 23, "the second drawn line is the Requires line")
+    T.eq(lines[3].type, 11, "the sell price keeps its own type")
+    T.eq(lines[4].type, nil, "the Auction line is another addon's, with no type")
+    -- Data with no line indexes: matched by position, as before.
+    local plain = { lines = { { type = 0 }, { type = 23 }, { type = 11 } } }
+    n, lines = Read.Lines(tip, plain)
+    T.eq(lines[3].type, 11)
+    T.eq(lines[4].type, nil)
+end)
+
 -- The game compares an item with what you wear when its alwaysCompareItems
 -- setting is on or Shift is held, unless the tooltip's flag says no
 -- (TooltipUtil.ShouldDoItemComparison, GameTooltip_SuppressAutomaticCompareItem;

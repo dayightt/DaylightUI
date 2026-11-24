@@ -20,6 +20,7 @@ DUI.PatchNotes = {
     }, fixed = {
         { "Unit frames", "A faded target or focus cast bar no longer flashes fully visible when a cast starts" },
         { "Nameplates", "/dui platefix tells you when nameplates are simply switched off in the game's options" },
+        { "Tooltips", "A recipe's tooltip shows the recipe's own sell price again, not the auction price of what it makes" },
         { "Translations", "The newest settings in Simplified Chinese (thanks Levis) and Spanish (thanks Ángel)" },
     } },
     { version = "2.2.5", date = "2026-11-23", summary = "A frameless round minimap, a language picker, new zone title and micro menu looks, and spell colors for your cast bar.", new = {
