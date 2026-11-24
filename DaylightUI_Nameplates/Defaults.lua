@@ -70,6 +70,7 @@ ns.DEFAULTS = {
     threatPctColor = "threat", -- "threat" (orange or red when it needs you, else white), "white", "accent", "custom"
     threatPctCustom = { INK.WARN[1], INK.WARN[2], INK.WARN[3] }, -- ...color for "custom"
     threatPctSize = 0, -- 0 = scale with bar height
+    mobTarget = false, -- the name of whoever each enemy is attacking, by its plate
     quest = true, -- marker on quest targets
     questCount = true, -- ...with the objective count (4/10) beside it
     questIcon = false, -- ...as an objective icon (sword, bag, cog, eye) in the quest color (needs the Quests module)
@@ -85,6 +86,7 @@ ns.DEFAULTS = {
     percentPos = "right", percentX = 0, percentY = 0,
     levelPos = "left", levelX = 0, levelY = 0,
     threatPctPos = "outtopleft", threatPctX = 0, threatPctY = 0,
+    mobTargetPos = "below", mobTargetX = 0, mobTargetY = 0,
     debuffSpot = "above", debuffGrow = "center", debuffX = 0, debuffY = 0,
     ccSpot = "outright", ccX = 0, ccY = 0,
     defensiveSpot = "outright", defensiveX = 0, defensiveY = 0,

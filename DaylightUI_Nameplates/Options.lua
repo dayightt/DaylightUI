@@ -495,6 +495,10 @@ ns.OPTIONS = { pages = {
                 "The threat number on the nameplates. General uses the health text font.",
                 { disabled = off("threatPct"), follows = { slot = "plates.font.health", label = "Health text" } }),
         }), since("1.6.4", spotItems("Threat %", { spot = "threatPctPos", x = "threatPctX", y = "threatPctY" }, false, off("threatPct")))) },
+        { label = "Enemy's target", items = since("2.2.6", with({
+            { type = "toggle", key = "mobTarget", label = "Enemy's target",
+              desc = "Writes the name of whoever each enemy is attacking by its health bar, players in their class color. Made for tanks: a mob that isn't on a tank is easy to spot." },
+        }, spotItems("Enemy's target", { spot = "mobTargetPos", x = "mobTargetX", y = "mobTargetY" }, false, off("mobTarget")))) },
         { label = "Plate size by threat", items = since("1.7.2", {
             { type = "toggle", key = "threatSize", label = "Plate size by threat",
               desc = "In a group, each enemy's plate takes the size of its threat state, so the mobs that need you stand out. Made for tanks: small while you hold a mob, big once it's on someone else. Your target keeps its own size. Works with Threat colors on or off." },

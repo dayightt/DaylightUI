@@ -456,6 +456,9 @@ function Plate.Create(parent, sample)
     -- Your threat on the mob as a % (threatPct), see Plate.UpdateThreatPct.
     p.threatPct = Style.Text(over, 10, "CENTER", Plate.MEDIA.fonts.threatPct)
     p.threatPct:Hide()
+    -- Who the mob is attacking (mobTarget), see Plate.UpdateMobTarget.
+    p.mobTarget = Style.Text(over, 10, "CENTER", Plate.MEDIA.fonts.name)
+    p.mobTarget:Hide()
 
     -- Name and guild line on their own frame above everything on the bar (fill,
     -- target outline, border corner caps), so a name placed on the bar reads over it.
@@ -933,6 +936,9 @@ function Plate.Layout(p)
     local ts = c.threatPctSize or 0
     Style.SetTextSize(p.threatPct, ts > 0 and ts or math.max(8, math.floor(h * 0.8 + 0.5)))
     if not p.threatPctOn then p.threatPct:Hide() end
+    p.mobTargetOn = c.mobTarget == true and not friendly and not nameOnly and not kind
+    Style.SetTextSize(p.mobTarget, Plate.MobTargetSize(p, c))
+    if not p.mobTargetOn then p.mobTarget:Hide() end
 
     Style.SetTextSize(p.name, nameSize)
     Style.SetTextSize(p.nameEdge, nameSize)
@@ -1710,6 +1716,37 @@ function Plate.ThreatBreath(state)
     return nil
 end
 
+-- Who the mob is attacking (mobTarget, enemy plates with a bar): its target's
+-- name, a player's in their class color, anyone else's white, so a tank sees at a
+-- glance which mobs are off the tanks. In a PvP match the name and class can be
+-- secret: the name goes whole to SetText and a secret class reads as unknown.
+-- Redrawn on the mob's own UNIT_TARGET only, so nothing runs while it holds.
+function Plate.MobTargetSize(p, c)
+    return math.max(8, math.floor(Plate.NameSize(p, c) * Plate.SUB_SCALE + 0.5))
+end
+
+function Plate.UpdateMobTarget(p)
+    local fs = p.mobTarget
+    if not (fs and p.mobTargetOn and p.unit) then
+        if fs then fs:Hide() end
+        return
+    end
+    local tu = p.unit .. "target"
+    local name = plain(UnitExists, tu) == true and DUI.UnitName(tu, "nameplates") or nil
+    if type(name) == "nil" then
+        fs:SetText("")
+        fs:Hide()
+        return
+    end
+    fs:SetText(name)
+    if plain(UnitIsPlayer, tu) == true then
+        fs:SetTextColor(Style.ClassTextColor(plain(UnitClassBase, tu)))
+    else
+        Style.InkText(fs, "VALUE")
+    end
+    fs:Show()
+end
+
 -- Your threat on the mob as a % (threatPct, enemy plates only): the game's scaled
 -- percent (100 = it turns on you), only in a group or with a pet (solo every mob
 -- is on you), hidden while you're not on its list. A boss can return a secret
@@ -2145,7 +2182,8 @@ end
 -- already placed beside the bar. It still goes before the skull, which steps
 -- back over the rows' room.
 Plate.SPOT_ORDER = { "name", "quest", "marker", "debuffs", "helps", "buffs", "cc" }
-Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "defensives", "skull" }
+-- The mob's target came after them all, so turning it on moves nothing already placed.
+Plate.SPOT_LAST = { "percent", "level", "threatPct", "execIcon", "defensives", "skull", "mobTarget" }
 Plate.SPOT_KEYS = {
     name = { spot = "namePos", x = "nameX", y = "nameY" },
     quest = { spot = "questPos", x = "questX", y = "questY" },
@@ -2160,6 +2198,7 @@ Plate.SPOT_KEYS = {
     threatPct = { spot = "threatPctPos", x = "threatPctX", y = "threatPctY" },
     skull = { spot = "dotSkullPos", x = "dotSkullX", y = "dotSkullY" },
     execIcon = { spot = "executeIconPos", x = "executeIconX", y = "executeIconY" },
+    mobTarget = { spot = "mobTargetPos", x = "mobTargetX", y = "mobTargetY" },
 }
 Plate.ROWS = { debuffs = true, helps = true, buffs = true, cc = true, defensives = true } -- outside spots only
 Plate.OUTSIDE = {}
@@ -2168,14 +2207,14 @@ Plate.ABOVE = { above = true, outtopleft = true, outtopright = true }
 -- Distance from the bar's end to the first piece beside it (where the marks always
 -- were), and between pieces sharing a spot.
 Plate.BESIDE_GAP = { name = 2, quest = 3, marker = 4, debuffs = 4, helps = 4, buffs = 4, cc = 4, defensives = 4,
-                     percent = 3, level = 3, threatPct = 3, skull = 3, execIcon = 3 }
+                     percent = 3, level = 3, threatPct = 3, skull = 3, execIcon = 3, mobTarget = 3 }
 Plate.CHAIN_GAP = 2
 
 local Spots = DUI.Spots
 local BESIDE = { outleft = true, outright = true }
 -- Pieces that are a single region of the plate.
 local SINGLE = { marker = "marker", percent = "percent", level = "level", threatPct = "threatPct", skull = "dotSkull",
-                 execIcon = "execIcon" }
+                 execIcon = "execIcon", mobTarget = "mobTarget" }
 local BAR_TEXT = { percent = true, level = true, threatPct = true }
 
 -- A piece's spot, grow direction (an aura row's own; the name and marks follow
@@ -2476,6 +2515,11 @@ local function room(p, piece, c, w, h)
             or (piece == "level" and (c.levelSize or 0)) or 0
         if size <= 0 then size = math.max(8, math.floor(h * 0.8 + 0.5)) end
         return true, p.isSample and textWidth(fs, 20) or 0, size
+    elseif piece == "mobTarget" then
+        -- Its space is kept while switched on, a target or not, so nothing moves as the
+        -- mob picks one up and drops it.
+        if not p.mobTargetOn then return false end
+        return true, p.isSample and textWidth(p.mobTarget, 40) or 0, Plate.MobTargetSize(p, c)
     elseif piece == "execIcon" then
         -- Its space is kept while the style is on, lit or not, so nothing moves as the
         -- enemy drops into range (its alpha may be secret).
@@ -3271,6 +3315,7 @@ local function updateNow(p)
     Plate.UpdateColor(p)
     Plate.UpdateTarget(p)
     Plate.UpdateHover(p)
+    Plate.UpdateMobTarget(p)
     ns.Power.Refresh(p, true)
     ns.Cast.Update(p)
 end
@@ -3361,6 +3406,8 @@ Plate.UNIT_EVENTS = {
     -- (you, a party member; the game's UnitFrame.lua matches it to the frame's
     -- feedbackUnit "player"), never the mob a plate shows.
     UNIT_THREAT_LIST_UPDATE = "color",
+    -- The mob picked a new target (mobTarget).
+    UNIT_TARGET = "mobTarget",
 }
 
 local THREAT_EVENTS = { UNIT_THREAT_LIST_UPDATE = true }
@@ -3381,6 +3428,8 @@ function Plate.OnEvent(p, event, unit, ...)
         if event == "UNIT_MAXHEALTH" then Plate.UpdatePrediction(p) end
     elseif what == "predict" then
         Plate.UpdatePrediction(p)
+    elseif what == "mobTarget" then
+        Plate.UpdateMobTarget(p)
     elseif what == "portrait" then
         if p.minion or p.minionBar then ns.Minion.Update(p) end
     elseif what == "name" then
@@ -3496,6 +3545,8 @@ function Plate.Uninstall(p)
     p.questKindNow, p.questRNow = nil, nil
     p.level:SetText("")
     p.threatPct:Hide()
+    p.mobTarget:SetText("")
+    p.mobTarget:Hide()
     p.dragon:Hide()
     p.sub:SetText("")
     p.sub:Hide()

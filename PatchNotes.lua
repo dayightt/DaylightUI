@@ -15,6 +15,7 @@ DUI.PatchNotes = {
         { "Unit frames", "The swing timer and your cast bar can fade like the frames do (Opacity & fade on their pages)" },
         { "Cooldown Manager", "A Cooldown Manager button in the Escape menu, under Daylight UI's" },
         { "Cooldown Manager", "A glow color you picked can go back to following your accent color, with the reset arrow beside it" },
+        { "Nameplates", "Nameplates can show who each enemy is attacking, so tanks can spot a mob that isn't on a tank (Nameplates > Threat, off at first)" },
     }, changed = {
         { "Unit frames", "The target frame's fade drops Show with a target, which it always has; if you had it on, it's now Always" },
     }, fixed = {

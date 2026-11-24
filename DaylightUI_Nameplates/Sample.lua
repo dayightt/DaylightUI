@@ -143,6 +143,7 @@ local DEBUFF, CC, BUFF, MYBUFF = spotKeys("debuff"), spotKeys("cc"), spotKeys("b
 local DEFENSIVE = spotKeys("defensive")
 local SKULL, PERCENT, LEVEL = spotKeys("dotSkull"), spotKeys("percent", true), spotKeys("level", true)
 local THREATPCT = spotKeys("threatPct")
+local MOBTARGET = spotKeys("mobTarget")
 local function nameStill(p) return Plate.NameOnly(p, Plate.Cfg(p)) end
 local NAME_MOVE = { spot = NAME("Pos"), x = NAME("X"), y = NAME("Y"), still = nameStill }
 -- The cast bar's own dot: its center where it sits with no nudge.
@@ -178,6 +179,8 @@ Sample.PARTS = {
                "threatPctPos", "threatPctX", "threatPctY" },
       move = { spot = THREATPCT("Pos"), x = THREATPCT("X"), y = THREATPCT("Y") },
       size = { s = { "threatPctSize" } } },
+    { label = "Enemy's target", at = at("mobTarget"), keys = { "mobTarget", "mobTargetPos", "mobTargetX", "mobTargetY" },
+      move = { spot = MOBTARGET("Pos"), x = MOBTARGET("X"), y = MOBTARGET("Y") } },
     { label = "Name", at = at("name"),
       keys = { "nameSize", "nameColor", "factionIcon", "media.nameFont", "lastNames.nameplates", "namePos", "nameX", "nameY",
                "friendly.nameSize", "friendly.nameColor", "friendly.namePlayer", "friendly.nameNpc", "friendly.nameOther", "friendly.partyName", "friendly.partyCustom", "friendly.partyMark", "friendly.namePos", "friendly.nameX", "friendly.nameY" },
@@ -599,6 +602,12 @@ local function refresh(s, width, maxH)
         Plate.PaintThreatPct(p.threatPct, c.threatPctColor or "threat", view)
         p.threatPct:SetAlpha(1)
         p.threatPct:Show()
+    end
+    -- The enemy's target: you, as when it's on you.
+    if p.mobTargetOn then
+        p.mobTarget:SetText(DUI.UnitName("player", "nameplates") or "")
+        p.mobTarget:SetTextColor(Style.ClassTextColor(Plate.Plain(UnitClassBase, "player")))
+        p.mobTarget:Show()
     end
     p.hover:Hide()
     paintNames(p, pc, u)

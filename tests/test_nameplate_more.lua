@@ -633,3 +633,87 @@ T.test("nameplates: the cast bar names who the cast is aimed at, in their class 
     _G.UnitSpellTargetName, _G.UnitSpellTargetClass, _G.C_ClassColor = nil, nil, realColor
     stub.units.nameplate1.cast = nil
 end)
+
+-- Who each mob is after (mobTarget): the name of the plate's unit's target.
+local function mobTargets(unit, who)
+    stub.units[unit .. "target"] = who and stub.units[who] or nil
+    stub.FireEvent("UNIT_TARGET", unit)
+end
+
+T.test("nameplates: the mob's target is off as shipped and changes nothing on a plate", function()
+    local NP = login()
+    T.eq(NP.DEFAULTS.mobTarget, false, "off as shipped")
+    local p = added("nameplate1")
+    mobTargets("nameplate1", "player")
+    T.falsy(p.mobTarget and p.mobTarget:IsShown(), "nothing shows while off")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: the mob's target name follows every change, in a fight too", function()
+    local NP = login()
+    stub.units.party1 = { name = "Jaina", class = "MAGE", isPlayer = true, reaction = 5 }
+    stub.units.tankpet = { name = "Wolf", class = "WARRIOR", isPlayer = false, reaction = 5 }
+    DaylightUI:Set("Nameplates", "mobTarget", true)
+    stub.RunTimers()
+    local p = added("nameplate1")
+    local fs = p.mobTarget
+    T.truthy(fs, "made on the plate")
+    -- No target yet: nothing.
+    T.falsy(fs:IsShown(), "no target: hidden")
+    -- On you: your name in your class color.
+    mobTargets("nameplate1", "player")
+    T.truthy(fs:IsShown())
+    T.eq(stub.Plain(fs:GetText()), "Me")
+    local r, g, b = fs:GetTextColor()
+    local cr, cg, cb = DaylightUI.Style.ClassTextColor("WARRIOR")
+    T.near(r, cr, 1e-6, "your class color") ; T.near(g, cg, 1e-6) ; T.near(b, cb, 1e-6)
+    -- Mid-fight it turns on a mage: her name, her color.
+    stub.EnterCombat()
+    mobTargets("nameplate1", "party1")
+    T.eq(stub.Plain(fs:GetText()), "Jaina", "switched mid-fight")
+    r = fs:GetTextColor()
+    T.near(r, (DaylightUI.Style.ClassTextColor("MAGE")), 1e-6, "the mage's color")
+    -- A pet (an NPC, which has a class too): plain white, never a class color.
+    mobTargets("nameplate1", "tankpet")
+    T.eq(stub.Plain(fs:GetText()), "Wolf")
+    r = fs:GetTextColor()
+    T.near(r, DaylightUI.Style.INK.VALUE[1], 1e-6, "an NPC: white")
+    -- It drops its target: hidden again.
+    mobTargets("nameplate1", nil)
+    T.falsy(fs:IsShown(), "no target: hidden")
+    stub.LeaveCombat()
+    -- Other mobs' changes leave this plate alone.
+    mobTargets("nameplate1", "player")
+    local p2 = added("nameplate2")
+    mobTargets("nameplate2", "party1")
+    T.eq(stub.Plain(fs:GetText()), "Me", "another plate's change: this one kept")
+    T.eq(stub.Plain(p2.mobTarget:GetText()), "Jaina")
+    -- The plate goes to another mob: nothing of the last one's target is left.
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    stub.units.nameplate1target = nil
+    added("nameplate1")
+    T.falsy(fs:IsShown(), "a reused plate starts empty")
+    -- Switched off again: hidden at once.
+    mobTargets("nameplate2", "party1")
+    DaylightUI:Set("Nameplates", "mobTarget", false)
+    stub.RunTimers()
+    T.falsy(p2.mobTarget:IsShown(), "off: hidden")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: the mob's target in a PvP match, where an enemy's name and class are secret", function()
+    login()
+    stub.units.nameplate1 = { name = "Horde Rogue", hostile = true, reaction = 2, isPlayer = true, class = "ROGUE",
+                              enemy = true, health = 60, maxHealth = 100, pct = 60 }
+    stub.units.foe = { name = "Horde Mage", class = "MAGE", isPlayer = true, reaction = 2, enemy = true, classHidden = true }
+    DaylightUI:Set("Nameplates", "mobTarget", true)
+    stub.RunTimers()
+    local p = added("nameplate1")
+    stub.EnterCombat()
+    stub.SetRestriction("PvPMatch", true)
+    mobTargets("nameplate1", "foe")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(stub.Plain(p.mobTarget:GetText()), "Horde Mage", "the secret name written whole")
+    stub.SetRestriction("PvPMatch", false)
+    stub.LeaveCombat()
+end)
