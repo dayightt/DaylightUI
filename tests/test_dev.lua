@@ -362,6 +362,35 @@ T.test("dev perf camera: each part alone, then your camera, zoom and UI are back
     stub.cameraZoom = nil
 end)
 
+T.test("dev perf parts: each piece hidden in turn, its gain counted, every alpha back", function()
+    stub.Load()
+    local ns = loadDev()
+    local piece = CreateFrame("Frame", "PerfPartA", UIParent)
+    piece:SetSize(50, 50)
+    piece:SetAlpha(0.7)
+    DaylightUI.Movers.Register(piece, "perfPartA", "Perf piece", { "CENTER", "UIParent", "CENTER", 0, 0 })
+    local run, count = assert(ns.Perf.Parts())
+    T.truthy(count >= 3, "the piece, all pieces, the whole UI")
+    local clock = ns.Perf.partsClock
+    local wentDark = false
+    for _ = 1, 5000 do
+        if not clock.__scripts.OnUpdate then break end
+        -- Frames are quicker while the piece is hidden, so its gain is positive.
+        local dark = piece:GetAlpha() == 0
+        if dark then wentDark = true end
+        stub.RunOnUpdate(clock, dark and 0.008 or 0.010)
+    end
+    T.isnil(clock.__scripts.OnUpdate, "the run finished")
+    T.truthy(wentDark, "the piece really went to alpha 0")
+    T.near(piece:GetAlpha(), 0.7, 1e-9)
+    T.eq(UIParent:GetAlpha(), 1)
+    local mine
+    for _, p in ipairs(run.parts) do if p.label == "Perf piece" then mine = p end end
+    T.truthy(mine, "the piece was measured")
+    T.near(mine.gainMs, 2, 0.3)
+    T.eq(table.concat(DaylightUIDevDB.perfParts, "\n"), table.concat(ns.Perf.PartsLines(run), "\n"))
+end)
+
 T.test("dev perf fade: names the dear pieces and leaves every alpha as it was", function()
     stub.Load()
     local ns = loadDev()
