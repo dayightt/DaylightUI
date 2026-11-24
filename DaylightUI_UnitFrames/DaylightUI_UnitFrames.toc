@@ -9,7 +9,7 @@
 ## Notes-deDE: Sanfte, schlichte Rahmen für Spieler, Ziel, Ziel des Ziels, Begleiter und Fokus, mit Zauberleisten, Schlagtimern und Schwächungszaubern des Ziels.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.2.6
+## Version: 2.2.6.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 ## OptionalDeps: Clique
