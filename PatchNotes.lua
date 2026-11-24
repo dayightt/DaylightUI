@@ -13,6 +13,8 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Quests", "Drag a zone's name in the quest tracker to put your zones in your own order, or right-click Quests to sort them A to Z or by level" },
+    }, fixed = {
+        { "Professions", "Rogues with the Reagent Economy Legacy perk can make poisons in the profession window without the materials, as in the game's own window" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {
         { "Cooldown Manager", "Overpower now lights up and plays its sound after your target dodges in any stance, so you know when to switch to Battle Stance for it" },

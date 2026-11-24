@@ -110,7 +110,7 @@ end
 
 local function keep(recipe)
     if List.chipOn.skill and not ns.Data.SkillsUp(recipe) then return false end
-    if List.chipOn.mats and recipe.count <= 0 then return false end
+    if List.chipOn.mats and not ns.Data.CanMake(recipe) then return false end
     if List.slot and not (List.inSlot and List.inSlot[recipe.id]) then return false end
     local want = List.filter
     if want and not string.find(string.lower(recipe.name), want, 1, true) then return false end

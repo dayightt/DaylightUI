@@ -363,6 +363,13 @@ function Data.Waiting(id)
     return left ~= nil
 end
 
+-- Whether a recipe can be made now as far as materials go. A recipe that costs none
+-- (a rogue's poisons with the Reagent Economy perk) still lists them, so the bag count
+-- says no; the game's own crafting page lets it through (ValidateCraftRequirements).
+function Data.CanMake(recipe)
+    return type(recipe) == "table" and (recipe.count > 0 or recipe.free == true)
+end
+
 -- Everything the list needs: { prof, sections = { { id, name, order, recipes } }, byID }.
 -- Sections in the game's category order, recipes in the game's list order.
 function Data.Read()
@@ -378,7 +385,8 @@ function Data.Read()
             local recipe = { id = id, name = str(r.name) or "", icon = r.icon, link = str(r.hyperlink), favorite = r.favorite == true,
                 difficulty = num(r.relativeDifficulty) or Data.TRIVIAL, skillUps = num(r.numSkillUps) or 0,
                 canSkillUp = r.canSkillUp ~= false, enchant = r.isEnchantingRecipe == true, verb = str(r.alternateVerb),
-                count = num(call("GetCraftableCount", id)) or 0, mats = mats, sub = Data.MaterialsLine(mats) }
+                count = num(call("GetCraftableCount", id)) or 0, mats = mats, sub = Data.MaterialsLine(mats),
+                free = call("HasNoReagentCost", id) == true }
             local cat = num(r.categoryID) and category(r.categoryID, cats) or nil
             if recipe.favorite then cat = Data.FAVORITES end
             local key = cat and cat.id or 0

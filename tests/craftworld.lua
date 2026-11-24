@@ -528,7 +528,10 @@ local function install()
             return out
         end,
         OpenRecipe = function(id) record("OpenRecipe", id) end,
-        HasNoReagentCost = function(id) local r = recipe(id); return r ~= nil and #r.mats == 0 end,
+        -- A recipe with free = true keeps its materials listed but costs none (a rogue's
+        -- poisons with the Reagent Economy Legacy perk): GetCraftableCount still counts
+        -- the bags, as a guess; the game's own window never asks it.
+        HasNoReagentCost = function(id) local r = recipe(id); return r ~= nil and (#r.mats == 0 or r.free == true) end,
     }
 end
 

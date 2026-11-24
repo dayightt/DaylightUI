@@ -1054,6 +1054,33 @@ T.test("craft: the footer: Create, the amount, Create all [n]", function()
     T.truthy(foot.buttons[2].off)
 end)
 
+-- The game's crafting page (ValidateControls) lets Create through when
+-- HasNoReagentCost says so, whatever is in the bags, and offers no Create all then.
+T.test("craft: a recipe that costs no materials can be made with none in the bags", function()
+    local profs = PW.Sample()
+    for _, r in ipairs(profs[1].recipes) do if r.id == 104 then r.free = true end end
+    local ns = load({ profs = profs })
+    open(ns)
+    ns.List.lines[104]:Click()
+    frame(5)
+    local foot = footer(ns)
+    T.falsy(foot.buttons[1].off, "Create is on with no linen in the bags")
+    T.falsy(foot.buttons[2] and foot.buttons[2]:IsShown(), "no Create all, as the game's page")
+    T.falsy(ns.Make.box:IsShown(), "no amount either")
+    local right = page(ns).recipe.stack
+    T.truthy(shown(right, "lineSpec")[1].value:GetText() ~= "Missing materials", "not called missing")
+    page(ns).list.mats:Click()
+    T.truthy(names(ns):find("Bolt of Linen Cloth", 1, true), "Have materials keeps it")
+    page(ns).list.mats:Click()
+    ns.List.lines[104]:Click()
+    frame(5)
+    foot.buttons[1]:Click()
+    local calls = PW.Calls("CraftRecipe")
+    T.eq(#calls, 1, "Create crafts it")
+    T.eq(calls[1][1], 104)
+    T.eq(calls[1][2], 1)
+end)
+
 -- What the client hands an edit box's OnTextChanged when the player types.
 local function typeInto(box, text)
     box.__text = text

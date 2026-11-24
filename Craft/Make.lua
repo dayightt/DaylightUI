@@ -108,7 +108,7 @@ end
 -- enchant only onto an item that stacks, the game's own rule for its Enchant All
 -- button (ProfessionsCraftingPageMixin:ValidateControls): gear takes one cast a press.
 function Make.Many(r)
-    if not r then return false end
+    if not r or r.free then return false end   -- the game offers no Create all for a free recipe
     if not r.enchant then return true end
     local target = Make.TargetFor(r)
     return target ~= nil and target.stacks == true
@@ -218,7 +218,7 @@ end
 
 function Make.Create()
     local r = Make.recipe
-    if not r or r.count < 1 then return end
+    if not ns.Data.CanMake(r) then return end
     Make.Start(r, Make.Many(r) and (Make.amount or 1) or 1)
 end
 
@@ -381,7 +381,7 @@ end
 function Make.PadKeys(f)
     local function can(n)
         local r = Make.recipe
-        return r ~= nil and not Make.state and r.count >= n and not ns.Data.Waiting(r.id)
+        return r ~= nil and not Make.state and (r.count >= n or (n == 1 and ns.Data.CanMake(r))) and not ns.Data.Waiting(r.id)
     end
     f.padKeys = f.padKeys or {}
     table.insert(f.padKeys, { key = "X", label = function() return Make.recipe and verb(Make.recipe) or L["Create"] end,
@@ -405,7 +405,7 @@ function Make.Paint(r)
     end
     local many = Make.Many(r)
     local waiting = ns.Data.Waiting(r.id)
-    local list = { { text = verb(r), primary = true, off = r.count < 1 or waiting, onClick = Make.Create } }
+    local list = { { text = verb(r), primary = true, off = not ns.Data.CanMake(r) or waiting, onClick = Make.Create } }
     if many then
         list[2] = { text = allWords(r.count, r.enchant), off = r.count < 2 or waiting, onClick = Make.CreateAll }
     end

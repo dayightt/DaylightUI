@@ -519,7 +519,7 @@ function Recipe.Fill(pane, r, keepScroll)
     local INK = Style.INK
     local q = ns.Data.OutputQuality(r.id)
     local name = type(q) == "number" and { Win.Parts.QualityColor(q) } or INK.TITLE
-    local count = r.count > 0 and string.format(L["You can make %d"], r.count) or L["Missing materials"]
+    local count = r.count > 0 and string.format(L["You can make %d"], r.count) or (not r.free and L["Missing materials"]) or ""
     s:Line({ recipe = r, icon = r.icon, text = r.name, color = name,
         sub = ns.Data.SkillWords(r.difficulty), subColor = ns.Data.Color(r.difficulty),
         value = count, valueColor = r.count > 0 and { Style.Accent() } or INK.LABEL, tooltip = resultTip })
