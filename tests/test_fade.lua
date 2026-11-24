@@ -1725,3 +1725,29 @@ T.test("fade: the welcome line has an unlock handle; untouched it stays where it
     M.Lock()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- A Threat window set to show only in combat came up in the first fight, faded
+-- out after it, and never came back until a reload: it was hidden (off the
+-- area's list) while still painted faded, and shown again only once the area
+-- was back at full, where newcomers weren't painted.
+T.test("fade: a frame that left faded and rejoins at full gets full again", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local a, w = frame(), frame()
+    local list = { a, w }
+    area(DUI, "tw", { mode = "ooc", alpha = 0, mouseover = false, delay = 0 }, list)
+    stub.Advance(3)
+    settle(F)
+    T.eq(w:GetAlpha(), 0, "out of a fight: faded")
+    -- The window goes away after the fight, still faded.
+    list[2] = nil
+    w:Hide()
+    stub.EnterCombat()
+    settle(F)
+    T.eq(a:GetAlpha(), 1, "the next fight: the area is full")
+    -- The window comes back once the area is already full.
+    w:Show()
+    list[2] = w
+    settle(F)
+    T.eq(w:GetAlpha(), 1, "the window is painted full too")
+end)

@@ -421,9 +421,18 @@ local function paint(e)
     modsDue = true
     local seen = e.seen or {}
     e.seen = seen
+    -- Frames left painted below full, so one that leaves the list faded and
+    -- comes back after the area is full again still gets painted.
+    local dim = e.dim
+    if not dim then
+        dim = setmetatable({}, { __mode = "k" })
+        e.dim = dim
+    end
+    local faded = e.now < 1 or nil
     local n = 0
     for _, f in ipairs(e.list) do
         if e.paint then e.paint(f, e.now) else f:SetAlpha(e.now) end
+        dim[f] = faded
         n = n + 1
         seen[n] = f
     end
@@ -521,6 +530,11 @@ function Fade.Step()
             -- checks per tick on a faded raid).
             listOf(e)
             if newcomers(e) or now - (e.paintedAt or 0) >= Fade.REPAINT then paint(e) end
+        elseif e.dim and next(e.dim) ~= nil then
+            -- Full, but a frame painted faded is away (a window hidden after the
+            -- fight): when it's shown again it would keep that alpha.
+            listOf(e)
+            if newcomers(e) then paint(e) end
         end
         -- A frame can leave, or its fade become Never, without any alpha change.
         -- Only areas currently needing whole-fading read their lists here.
