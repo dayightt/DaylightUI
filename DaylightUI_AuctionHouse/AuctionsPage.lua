@@ -443,7 +443,7 @@ end
 local function bidAmount(r)
     local text = page.bidBox and page.bidBox:GetText() or ""
     if text == "" then return r.minBid end
-    return ns.SellPage.ReadMoney(text)
+    return ns.SellPage.ReadMoney(text, ns.SellPage.TopCoin(r.minBid))
 end
 
 local BID_SAYS = {
@@ -777,7 +777,7 @@ function A.Build(p)
     W.PadNumber(page.bidBox, function(dir)
         local r = rowOf(A.picked)
         if not (r and r.isBid) then return end
-        local c = ns.SellPage.ReadMoney(page.bidBox:GetText()) or r.minBid or 0
+        local c = ns.SellPage.ReadMoney(page.bidBox:GetText(), ns.SellPage.TopCoin(r.minBid)) or r.minBid or 0
         page.bidBox:SetText(ns.SellPage.PlainMoney(ns.SellPage.StepMoney(c, dir, r.minBid or 1)))
     end)
     page.bidBox:SetScript("OnEnterPressed", function(self)

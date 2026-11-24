@@ -134,9 +134,19 @@ function P.StepMoney(c, dir, lowest)
     return math.max(lowest or 0, to)
 end
 
--- "1g 20s 5c" -> 12005; nil when it isn't an amount (a bare number has no
--- coin, so it isn't one). Gold, silver and copper in that order, each once.
-function P.ReadMoney(text)
+-- The largest coin in an amount: 10000, 100 or 1.
+function P.TopCoin(c)
+    if type(c) ~= "number" or c < 1 then return nil end
+    return c >= 10000 and 10000 or c >= 100 and 100 or 1
+end
+
+-- "1g 20s 5c" -> 12005; nil when it isn't an amount. Gold, silver and copper
+-- in that order, each once. Coin words are typed through an input method in
+-- some languages (Chinese 金 银 铜), so a number that ends the price needs
+-- none: after a coin it is the next coin down ("1g 20" = 1g 20s), and a bare
+-- number is in `coin`, the largest coin of the price the box suggested. With
+-- no suggestion a bare number isn't a price.
+function P.ReadMoney(text, coin)
     if type(text) ~= "string" then return nil end
     local gs, ss, cs = symbols()
     local units = { g = 10000, s = 100, c = 1 }
@@ -145,8 +155,14 @@ function P.ReadMoney(text)
     if rest == "" then return nil end
     local total, last = 0, math.huge
     while rest ~= "" do
-        local n, unit, after = rest:match("^(%d+)(%D+)(.*)$")
-        local mult = unit and units[unit]
+        local n, unit, after = rest:match("^(%d+)(%D*)(.*)$")
+        local mult
+        if unit == "" then
+            -- the number ends the text
+            if last == math.huge then mult = coin else mult = last > 1 and last / 100 or nil end
+        else
+            mult = unit and units[unit]
+        end
         if not mult or mult >= last then return nil end
         total, last, rest = total + tonumber(n) * mult, mult, after
     end
@@ -578,12 +594,12 @@ local function typed(which, text, user)
         P.edit.qty = n and math.max(0, floor(n)) or 0
     elseif which == "bid" then
         local trimmed = (text or ""):match("^%s*(.-)%s*$")
-        local c = trimmed ~= "" and P.ReadMoney(trimmed) or nil
+        local c = trimmed ~= "" and P.ReadMoney(trimmed, P.TopCoin(P.edit.unit or (r.d and r.d.unit))) or nil
         P.edit.bid = c
         P.edit.badBid = trimmed ~= "" and c == nil
     else
         local trimmed = (text or ""):match("^%s*(.-)%s*$")
-        local c = trimmed ~= "" and P.ReadMoney(trimmed) or nil
+        local c = trimmed ~= "" and P.ReadMoney(trimmed, P.TopCoin(r.d and r.d.unit)) or nil
         P.edit.unit = c
         P.edit.bad = trimmed ~= "" and c == nil
     end

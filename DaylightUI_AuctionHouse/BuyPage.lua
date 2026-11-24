@@ -1584,7 +1584,7 @@ function BP.BidItem(s)
     local d = S.open
     if not d or S.buying or not s.minBid then return end
     local text = trim(page.bid:GetText())
-    local amount = text == "" and s.minBid or ns.SellPage.ReadMoney(text)
+    local amount = text == "" and s.minBid or ns.SellPage.ReadMoney(text, ns.SellPage.TopCoin(s.minBid))
     if type(amount) ~= "number" or amount < s.minBid then
         return BP.Tell(string.format(L["Bid at least %s."], money(s.minBid)), "WARN")
     end
@@ -1879,7 +1879,7 @@ local function buildFooter(right)
     W.PadNumber(bid, function(dir)
         local s = S.step
         if not (s and s.minBid) then return end
-        local c = ns.SellPage.ReadMoney(trim(bid:GetText())) or s.minBid
+        local c = ns.SellPage.ReadMoney(trim(bid:GetText()), ns.SellPage.TopCoin(s.minBid)) or s.minBid
         bid:SetText(plainMoney(ns.SellPage.StepMoney(c, dir, s.minBid)))
     end)
     bid:SetFrameLevel(page.foot.frame:GetFrameLevel() + 3)

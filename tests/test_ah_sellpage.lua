@@ -399,7 +399,7 @@ T.test("sell: a price that doesn't read is refused", function()
     local page = open(A)
     A.SellPage.Pick("2589", true)
     AHW.Settle()
-    typeIn(page.right.form.price, "12")
+    typeIn(page.right.form.price, "5c 2g")
     page.right.box.post:Click()
     T.eq(AHW.Calls("PostCommodity"), 0)
     T.eq(said(page), "Type a price like 1g 20s 5c.")
@@ -482,6 +482,37 @@ T.test("sell: money in the price box reads and writes", function()
     T.isnil(P.ReadMoney("5c 2g"), "out of order")
     T.eq(P.PlainMoney(20400), "2g 4s")
     T.eq(P.PlainMoney(0), "0c")
+end)
+
+-- A Chinese client's coins are 金 银 铜, typed through the input method: a
+-- number after a coin is the next coin down, and a bare number is in the coin
+-- the box suggested, so a price never needs a coin word at its end.
+T.test("sell: a price reads without typing a coin word, in any language", function()
+    local A = load()
+    local P = A.SellPage
+    local saved = { GOLD_AMOUNT_SYMBOL, SILVER_AMOUNT_SYMBOL, COPPER_AMOUNT_SYMBOL }
+    GOLD_AMOUNT_SYMBOL, SILVER_AMOUNT_SYMBOL, COPPER_AMOUNT_SYMBOL = "\233\135\145", "\233\147\182", "\233\147\156"
+    local read = {}
+    for i, text in ipairs({ "27\233\147\182", "1\233\135\14520", "27\233\147\1825" }) do read[i] = P.ReadMoney(text) end
+    -- put the English coins back before any check can stop the test
+    GOLD_AMOUNT_SYMBOL, SILVER_AMOUNT_SYMBOL, COPPER_AMOUNT_SYMBOL = saved[1], saved[2], saved[3]
+    T.eq(read[1], 2700, "27 silver in the client's own coin word")
+    T.eq(read[2], 12000, "1 gold 20: the 20 is silver")
+    T.eq(read[3], 2705, "27 silver 5: the 5 is copper")
+    T.eq(P.ReadMoney("1g 20"), 12000, "the same with the letters every client takes")
+    T.isnil(P.ReadMoney("5c3"), "nothing comes after copper")
+    T.eq(P.ReadMoney("26", 100), 2600, "a bare number in the coin the box suggested")
+    T.isnil(P.ReadMoney("26"), "and with no suggestion it isn't a price")
+    -- In the window: the sword suggests 2g 4s, the player types a plain 3.
+    local page = open(A)
+    P.Pick("2207", true)
+    AHW.Settle()
+    typeIn(page.right.form.price, "3")
+    T.falsy(said(page) ~= nil and said(page):find("Type a price", 1, true), "read, not refused")
+    page.right.box.post:Click()
+    T.eq(AHW.Log("PostItem")[1][5], 3 * G, "posted at 3 gold: the gear's suggested price is in gold")
+    AHW.Settle()
+    quiet()
 end)
 
 T.test("sell: gear takes a starting bid, stackable goods don't", function()
