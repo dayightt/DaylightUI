@@ -89,3 +89,33 @@ T.test("level up: switched off, the game's banner stays", function()
     m:Show()
     T.eq(m:GetAlpha(), 1, "the game's banner shows")
 end)
+
+-- Players with several monitors put it on their game screen: it has an unlock
+-- handle, and untouched it sits exactly where it always did.
+T.test("level up: an unlock handle; untouched it stays where it was, moved it follows", function()
+    local LU = login()
+    local M = DaylightUI.Movers
+    DaylightUI.DB.General().scale = 1.25
+    M.ApplyAll()
+    local holder = _G.DaylightUILevelUpHolder
+    T.truthy(M.Get("qol.levelup") and holder, "a mover and its holder")
+    T.near(holder:GetScale(), M.Scale(), 0.001, "the holder takes the scale the banner had")
+    local p, rel, rp, x, y = holder:GetPoint(1)
+    T.eq(p, "CENTER"); T.eq(rel, UIParent); T.eq(rp, "TOP"); T.eq(x, 0)
+    T.near(y, LU.Y, 0.001, "the old spot, in the banner's own scale")
+    stub.FireEvent("PLAYER_LEVEL_UP", 11, 18, 15, 1, 0, 2, 0, 1, 0)
+    local f = _G.DaylightUILevelUp
+    T.eq(f:GetParent(), holder, "the banner inside it")
+    local fp, frel, frp, fx, fy = f:GetPoint(1)
+    T.eq(fp, "CENTER"); T.eq(frel, holder); T.eq(frp, "CENTER"); T.eq(fx, 0); T.eq(fy, 0)
+    DaylightUI.DB.Positions()["qol.levelup"] = { 400, -100 }
+    M.Apply("qol.levelup")
+    local _, rel2, rp2, x2, y2 = holder:GetPoint(1)
+    T.eq(rel2, UIParent); T.eq(rp2, "CENTER")
+    T.near(x2, 400 / M.Scale(), 0.001, "moved")
+    T.near(y2, -100 / M.Scale(), 0.001)
+    M.Unlock()
+    T.truthy(M.Handle("qol.levelup") and M.Handle("qol.levelup"):IsShown(), "unlock shows its handle")
+    M.Lock()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

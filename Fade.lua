@@ -1157,12 +1157,28 @@ end
 -- for a new character): "Welcome back, <you>" with your name in the accent,
 -- rising in above the middle, then drifting up and away like the level-up
 -- showpiece. Takes no clicks.
-local welcome
+local welcome, welcomeHolder
+
+-- The line's own spot, with an unlock handle so a player with several monitors
+-- can put it on their game screen. Unscaled, as the line always was.
+Fade.WELCOME_MOVER = "welcome"
+function Fade.WelcomeHolder()
+    if welcomeHolder then return welcomeHolder end
+    local W = Fade.WELCOME
+    welcomeHolder = CreateFrame("Frame", "DaylightUIWelcomeHolder", UIParent)
+    welcomeHolder:SetSize(600, W.size * 2)
+    welcomeHolder:EnableMouse(false)
+    DUI.Movers.Register(welcomeHolder, Fade.WELCOME_MOVER, "Welcome line",
+        { "CENTER", nil, "CENTER", 0, W.y }, { scale = false })
+    return welcomeHolder
+end
+DUI.On("Login", function() Fade.WelcomeHolder() end)
+
 function Fade.Welcome()
     local W = Fade.WELCOME
     local M, Style = DUI.Motion, DUI.Style
     if not welcome then
-        welcome = CreateFrame("Frame", nil, UIParent)
+        welcome = CreateFrame("Frame", nil, Fade.WelcomeHolder())
         welcome:EnableMouse(false)
         welcome:SetFrameStrata("HIGH")
         welcome:SetSize(600, W.size * 2)
@@ -1184,7 +1200,7 @@ function Fade.Welcome()
     Style.InkText(welcome.text, "TEXT")
     local function at(p, a)
         welcome:ClearAllPoints()
-        welcome:SetPoint("CENTER", UIParent, "CENTER", 0, W.y + p)
+        welcome:SetPoint("CENTER", welcomeHolder, "CENTER", 0, p)
         welcome:SetAlpha(a)
     end
     at(-W.rise, 0)

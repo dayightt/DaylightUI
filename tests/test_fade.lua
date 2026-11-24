@@ -1696,3 +1696,32 @@ T.test("fade: Show keeps an area at its opacity while any reason asks, easing in
     F.Show("noSuchArea", "one", true)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Players with several monitors put it on their game screen: the welcome line
+-- has an unlock handle, and untouched it sits exactly where it always did.
+T.test("fade: the welcome line has an unlock handle; untouched it stays where it was, moved it follows", function()
+    local DUI = stub.Load({ intro = true })
+    local F = DUI.Fade
+    local M = DUI.Movers
+    DUI.DB.Character().install = "done"
+    DUI.DB.General().scale = 1.25
+    login(true, F)
+    local holder = _G.DaylightUIWelcomeHolder
+    T.truthy(M.Get("welcome") and holder, "a mover and its holder")
+    T.near(holder:GetScale(), 1, 0.001, "unscaled, as the line always was")
+    local p, rel, rp, x, y = holder:GetPoint(1)
+    T.eq(p, "CENTER"); T.eq(rel, UIParent); T.eq(rp, "CENTER"); T.eq(x, 0)
+    T.near(y, F.WELCOME.y, 0.001, "the old spot")
+    local wl = F.welcome
+    T.eq(wl:GetParent(), holder, "the line inside it")
+    local _, wrel, wrp = wl:GetPoint(1)
+    T.eq(wrel, holder); T.eq(wrp, "CENTER")
+    DUI.DB.Positions()["welcome"] = { 500, 40 }
+    M.Apply("welcome")
+    local _, rel2, rp2, x2, y2 = holder:GetPoint(1)
+    T.eq(rel2, UIParent); T.eq(rp2, "CENTER"); T.near(x2, 500, 0.001, "moved"); T.near(y2, 40, 0.001)
+    M.Unlock()
+    T.truthy(M.Handle("welcome") and M.Handle("welcome"):IsShown(), "unlock shows its handle")
+    M.Lock()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

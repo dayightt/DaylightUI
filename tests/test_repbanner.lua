@@ -185,3 +185,32 @@ T.test("rep banner: one scan looks at each faction once", function()
     T.eq(asks[47], 1)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Players with several monitors put it on their game screen: it has an unlock
+-- handle, and untouched it sits exactly where it always did.
+T.test("rep banner: an unlock handle; untouched it stays where it was, moved it follows", function()
+    local RB = login(true)
+    local M = DaylightUI.Movers
+    DaylightUI.DB.General().scale = 1.25
+    M.ApplyAll()
+    local holder = _G.DaylightUIRepBannerHolder
+    T.truthy(M.Get("qol.rep") and holder, "a mover and its holder")
+    T.near(holder:GetScale(), M.Scale(), 0.001, "the holder takes the scale the banner had")
+    local p, rel, rp, x, y = holder:GetPoint(1)
+    T.eq(p, "CENTER"); T.eq(rel, UIParent); T.eq(rp, "TOP"); T.eq(x, 0)
+    T.near(y, RB.Y, 0.001, "the old spot, in the banner's own scale")
+    RB.Preview()
+    local f = _G.DaylightUIRepBanner
+    T.eq(f:GetParent(), holder, "the banner inside it")
+    local _, frel, frp, fx, fy = f:GetPoint(1)
+    T.eq(frel, holder); T.eq(frp, "CENTER"); T.eq(fx, 0); T.eq(fy, 0)
+    DaylightUI.DB.Positions()["qol.rep"] = { -300, 120 }
+    M.Apply("qol.rep")
+    local _, rel2, rp2, x2 = holder:GetPoint(1)
+    T.eq(rel2, UIParent); T.eq(rp2, "CENTER")
+    T.near(x2, -300 / M.Scale(), 0.001, "moved")
+    M.Unlock()
+    T.truthy(M.Handle("qol.rep") and M.Handle("qol.rep"):IsShown(), "unlock shows its handle")
+    M.Lock()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

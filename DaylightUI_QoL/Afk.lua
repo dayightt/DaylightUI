@@ -28,6 +28,8 @@ Afk.MODEL_WAIT = 2                           -- seconds to wait for the model be
 Afk.GLOW = DUI.MEDIA .. "char-glow.png"
 Afk.GLOW_ALPHA = 0.22
 Afk.HINT = L["Move or press any key to come back"]
+Afk.MOVER = "qol.afk"
+Afk.STAGE_H = 200                            -- the unlock handle's height, round the card's middle
 
 -- Asked when a fight, a queue or a cinematic needs the player: the screen
 -- steps aside (the AFK flag stays).
@@ -37,7 +39,7 @@ Afk.LEAVE_EVENTS = {
     "CINEMATIC_START", "PLAY_MOVIE", "LOADING_SCREEN_ENABLED",
 }
 
-local mod, screen, events
+local mod, screen, events, stage
 local Style, Pixel, Motion = DUI.Style, DUI.Pixel, DUI.Motion
 local Facts = ns.AfkFacts
 
@@ -308,27 +310,46 @@ local function actor()
     return screen and DUI.PlayerActor(screen.scene) or nil
 end
 
--- Sizes everything to the screen (UI scale can change while it's down).
+-- Where the card's left edge stands, with an unlock handle so a player with
+-- several monitors can put the character and card on their game screen. The
+-- dim still covers the whole screen. Untouched it is just right of the
+-- screen's middle, as it always was.
+function Afk.Stage()
+    if stage then return stage end
+    stage = CreateFrame("Frame", "DaylightUIAfkStage", UIParent)
+    stage:SetSize(Afk.PANEL_W, Afk.STAGE_H)
+    stage:EnableMouse(false)
+    DUI.Movers.Register(stage, Afk.MOVER, "AFK screen", function()
+        return { "LEFT", nil, "CENTER", (UIParent:GetHeight() or 768) * 0.02, 0 }
+    end, { scale = false, active = wanted })
+    return stage
+end
+
+-- Sizes everything to the screen (UI scale can change while it's down). All of
+-- it hangs from the stage's left edge, at the same distances it had from the
+-- screen's middle.
 function Afk.Layout()
     local H = UIParent:GetHeight() or 768
+    local at = H * 0.02
     local m = screen.model
     m:ClearAllPoints()
     m:SetSize(H * 0.42, H * 0.72)
-    m:SetPoint("CENTER", screen, "CENTER", -H * 0.18, -H * 0.04)
+    m:SetPoint("CENTER", stage, "LEFT", -H * 0.18 - at, -H * 0.04)
     m.glow:ClearAllPoints()
     m.glow:SetPoint("CENTER", m, "CENTER", 0, H * 0.03)
     m.glow:SetSize(H * 0.42, H * 0.68)
     m.shadow:ClearAllPoints()
     m.shadow:SetPoint("CENTER", m, "BOTTOM", 0, H * 0.72 * 0.12)
     m.shadow:SetSize(H * 0.42 * 0.5, 26)
-    Afk.panelX = H * 0.02
+    screen.hint:ClearAllPoints()
+    screen.hint:SetPoint("BOTTOM", stage, "LEFT", -at, -H / 2 + 48)
     Afk.PlacePanel(Afk.p or 1)
 end
 
 function Afk.PlacePanel(p)
     local panel = screen.panel
     panel:ClearAllPoints()
-    panel:SetPoint("LEFT", screen, "CENTER", (Afk.panelX or 0) + (1 - p) * Afk.SLIDE, 0)
+    panel:SetPoint("LEFT", stage, "LEFT", (1 - p) * Afk.SLIDE, 0)
 end
 
 local function build()
@@ -401,7 +422,6 @@ local function build()
     screen.panel = p
 
     screen.hint = Style.Text(screen, Style.SIZE.small, "CENTER")
-    screen.hint:SetPoint("BOTTOM", screen, "BOTTOM", 0, 48)
     Style.InkText(screen.hint, "LABEL")
     screen.hint:SetText(Afk.HINT)
 
@@ -465,6 +485,7 @@ end
 -- Brings the screen up. preview: shown without the AFK flag (/dui afk).
 function Afk.Show(preview)
     if not Afk.CanShow() then return false end
+    Afk.Stage()
     if not screen then build() end
     Afk.preview = preview == true
     Afk.since = GetTime()
@@ -560,6 +581,8 @@ function Afk.Enable(m)
     wasAway = Afk.IsAway()
     Facts.Begin()
     DUI.RegisterCommand("afk", Afk.Preview, L["/dui afk - preview the AFK screen (any key closes it)"])
+    -- The unlock handle needs its piece from the start.
+    Afk.Stage()
 end
 
 function Afk.Refresh(m)

@@ -26,6 +26,7 @@ local RepBanner = {
     MATCH = 2,          -- seconds a chat line's gain counts for a faction first seen
     GLOW = DUI.MEDIA .. "char-glow.png",
     LAST = 8,           -- Exalted
+    MOVER = "qol.rep",
     -- The game's "Your reputation with %s has increased by %d." lines.
     GAIN_STRINGS = { "FACTION_STANDING_INCREASED", "FACTION_STANDING_INCREASED_BONUS",
         "FACTION_STANDING_INCREASED_DOUBLE_BONUS", "FACTION_STANDING_INCREASED_ACH_BONUS" },
@@ -35,7 +36,7 @@ local RepBanner = {
 ns.RepBanner = RepBanner
 ns.features[#ns.features + 1] = RepBanner
 
-local mod, f, wired
+local mod, f, holder, wired
 local tracking = false  -- the standings are being kept (it's on)
 local run = 0           -- each show's id: a newer one stops the older one's timers
 local current           -- the show up now: { name, reaction, share }
@@ -52,8 +53,12 @@ local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.repBanne
 
 local function build()
     if f then return f end
-    f = CreateFrame("Frame", "DaylightUIRepBanner", UIParent)
-    DUI.Movers.FollowScale(f)
+    -- The holder stays put for the unlock handle and carries the scale; the
+    -- banner drifts inside it.
+    holder = CreateFrame("Frame", "DaylightUIRepBannerHolder", UIParent)
+    holder:SetSize(RepBanner.WIDTH, RepBanner.NAME * 2 + 30)
+    holder:EnableMouse(false)
+    f = CreateFrame("Frame", "DaylightUIRepBanner", holder)
     f:SetSize(RepBanner.WIDTH, 1)
     f:SetFrameStrata("HIGH")
     f:EnableMouse(false)
@@ -87,6 +92,11 @@ local function build()
     f.bar = DUI.Widgets.Bar(f)
     f.bar:SetWidth(RepBanner.BAR_W)
     f.bar:SetPoint("TOP", f.faction, "BOTTOM", 0, -7)
+    -- Untouched it sits where it always did: the old offset was in the
+    -- banner's own scale, the handle's default is in UIParent units.
+    DUI.Movers.Register(holder, RepBanner.MOVER, "Reputation banner", function()
+        return { "CENTER", nil, "TOP", 0, RepBanner.Y * DUI.Movers.Scale(RepBanner.MOVER) }
+    end, { active = enabled })
     return f
 end
 
@@ -141,7 +151,7 @@ end
 
 local function place(p)
     f:ClearAllPoints()
-    f:SetPoint("CENTER", UIParent, "TOP", 0, RepBanner.Y + RepBanner.DRIFT * p)
+    f:SetPoint("CENTER", holder, "CENTER", 0, RepBanner.DRIFT * p)
 end
 
 local function rise(p)
@@ -363,6 +373,8 @@ end
 function RepBanner.Enable(m)
     mod = m
     wire()
+    -- The unlock handle needs the holder from the start.
+    build()
     tracking = enabled()
     if tracking then scan(true) end
 end

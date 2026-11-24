@@ -22,13 +22,14 @@ local LevelUp = {
     DRIFT = 16,         -- px it rises as it goes
     GLOW = DUI.MEDIA .. "char-glow.png",
     SEP = "  ·  ",
+    MOVER = "qol.levelup",
     -- The preview's gains (the game sends the real ones).
     SAMPLE = { 18, 15, 1, 0, 2, 0, 1, 0 },
 }
 ns.LevelUp = LevelUp
 ns.features[#ns.features + 1] = LevelUp
 
-local mod, f, wired, watch
+local mod, f, holder, wired, watch
 local run = 0           -- each show's id: a newer one stops the older one's timers
 local blanked = false   -- the game's toast manager is at alpha 0 by this file
 
@@ -36,8 +37,13 @@ local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.levelUp 
 
 local function build()
     if f then return f end
-    f = CreateFrame("Frame", "DaylightUILevelUp", UIParent)
-    DUI.Movers.FollowScale(f)
+    -- The holder stays put for the unlock handle (a second monitor's player
+    -- moves it to their game screen) and carries the scale; the banner drifts
+    -- inside it.
+    holder = CreateFrame("Frame", "DaylightUILevelUpHolder", UIParent)
+    holder:SetSize(LevelUp.WIDTH, LevelUp.NUMBER + 40)
+    holder:EnableMouse(false)
+    f = CreateFrame("Frame", "DaylightUILevelUp", holder)
     f:SetSize(LevelUp.WIDTH, 1)
     f:SetFrameStrata("HIGH")
     f:EnableMouse(false)
@@ -93,6 +99,11 @@ local function build()
     Style.InkText(f.gains, "TEXT")
     f.talents = Style.Text(f, LevelUp.GAINS, "CENTER")
     f.talents:SetPoint("TOP", f.gains, "BOTTOM", 0, -6)
+    -- Untouched it sits where it always did: the old offset was in the
+    -- banner's own scale, the handle's default is in UIParent units.
+    DUI.Movers.Register(holder, LevelUp.MOVER, "Level up", function()
+        return { "CENTER", nil, "TOP", 0, LevelUp.Y * DUI.Movers.Scale(LevelUp.MOVER) }
+    end, { active = enabled })
     return f
 end
 
@@ -119,7 +130,7 @@ end
 
 local function place(p)
     f:ClearAllPoints()
-    f:SetPoint("CENTER", UIParent, "TOP", 0, LevelUp.Y + LevelUp.DRIFT * p)
+    f:SetPoint("CENTER", holder, "CENTER", 0, LevelUp.DRIFT * p)
 end
 
 -- "+18 Health  ·  +2 Strength  ·  +1 Stamina", from PLAYER_LEVEL_UP's gains.
@@ -277,6 +288,8 @@ end
 function LevelUp.Enable(m)
     mod = m
     wire()
+    -- The unlock handle needs the holder from the start.
+    build()
 end
 
 function LevelUp.Refresh(m)

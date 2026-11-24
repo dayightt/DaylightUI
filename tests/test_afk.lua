@@ -463,3 +463,38 @@ T.test("afk: a map someone else made see-through stays so after", function()
     away(false)
     T.near(Minimap:GetAlpha(), 0.4, 0.001)
 end)
+
+-- Players with several monitors put it on their game screen: the character and
+-- card stand on a piece with an unlock handle, and untouched they sit exactly
+-- where they always did (the card's left edge just right of the screen's middle,
+-- the character left of it, the hint at the bottom).
+T.test("afk: an unlock handle; untouched the card, character and hint stay where they were, moved they follow", function()
+    local Afk = world()
+    local M = DaylightUI.Movers
+    local stage = _G.DaylightUIAfkStage
+    T.truthy(M.Get("qol.afk") and stage, "a mover and its piece, before the screen is ever shown")
+    away(true)
+    local H = UIParent:GetHeight()
+    local p, rel, rp, x, y = stage:GetPoint(1)
+    T.eq(p, "LEFT"); T.eq(rel, UIParent); T.eq(rp, "CENTER")
+    T.near(x, H * 0.02, 0.001, "the card's old spot"); T.near(y, 0, 0.001)
+    local s = screen()
+    local pp, prel, prp, px, py = s.panel:GetPoint(1)
+    T.eq(pp, "LEFT"); T.eq(prel, stage); T.eq(prp, "LEFT"); T.near(px, 0, 0.001); T.eq(py, 0)
+    local mp, mrel, mrp, mx, my = s.model:GetPoint(1)
+    T.eq(mp, "CENTER"); T.eq(mrel, stage); T.eq(mrp, "LEFT")
+    T.near(mx, -H * 0.18 - H * 0.02, 0.001, "the character's old spot"); T.near(my, -H * 0.04, 0.001)
+    local hp, hrel, hrp, hx, hy = s.hint:GetPoint(1)
+    T.eq(hp, "BOTTOM"); T.eq(hrel, stage); T.eq(hrp, "LEFT")
+    T.near(hx, -H * 0.02, 0.001); T.near(hy, -H / 2 + 48, 0.001, "the hint's old spot at the bottom")
+    away(false)
+    DaylightUI.DB.Positions()["qol.afk"] = { 900, 0 }
+    M.Apply("qol.afk")
+    local _, rel2, rp2, x2 = stage:GetPoint(1)
+    T.eq(rel2, UIParent); T.eq(rp2, "CENTER"); T.near(x2, 900, 0.001, "moved")
+    M.Unlock()
+    T.truthy(M.Handle("qol.afk") and M.Handle("qol.afk"):IsShown(), "unlock shows its handle")
+    M.Lock()
+    T.falsy(Afk.Shown())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
