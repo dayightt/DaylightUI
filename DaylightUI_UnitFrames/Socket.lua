@@ -324,7 +324,7 @@ function Socket.Layout(f, geo)
         placeWhole(own.shadow, p, shadowSize(m, shell, half), 0, -one)
         own.outline:Show()
         own.band:SetShown(heavy)
-        own.shadow:SetShown(not geo.noShadow)
+        own.shadow:Show()
         Style.PaintJoin(own, shell)
         Socket.Threat(f, f.threatNow, f.threatFlag)
         return
@@ -369,7 +369,6 @@ function Socket.Layout(f, geo)
     socket.cast:SetVertexColor(0, 0, 0, Socket.CAST_ALPHA)
     placeCrop(socket.cast, f, cx + toward * shift, cy - shift,
         half * (1 + Socket.CAST_REACH), box)
-    if geo.noShadow then socket.cast:Hide() end
 
     -- The level tag sits on the bottom join, when the ring reaches past it.
     f.socketJoinX = Socket.JoinX(half, cy, geo.off, geo.shapeArt ~= nil)

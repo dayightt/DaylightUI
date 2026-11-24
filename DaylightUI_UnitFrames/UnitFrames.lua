@@ -165,33 +165,6 @@ UF.RING_LIT_FILE = DUI.MEDIA .. "portrait-band-lit.png"
 UF.RING_WIDTHS = { thin = 0.85, normal = 0.772, thick = 0.68 }
 UF.RING_WIDTH_NAMES = { thin = "Thin", normal = "Normal", thick = "Thick" }
 UF.RING_WIDTH_ORDER = { "thin", "normal", "thick" }
--- A square or angled portrait can also have a 1 px edge or none. The shape's
--- own art lies behind the picture, a pixel bigger each side, so only its edge
--- shows, and the red aggro band does the same. The sweep and the pulse run
--- over a ring and would cover the picture here, so they stay off; the halo
--- still breathes round it.
-UF.EDGE_WIDTHS = { pixel = true, none = true }
-UF.EDGE_WIDTH_NAMES = { pixel = "1 px", none = "None" }
-function UF.PortraitEdge(p, edge, size)
-    local was = p.edgeOnly
-    p.edgeOnly = edge
-    if edge then
-        p.ring:SetSize(size, size)
-        p.threatBand:SetSize(size, size)
-        p.ring:SetParent(p)
-        p.ring:SetDrawLayer("BACKGROUND", 2)
-        p.threatBand:SetParent(p)
-        p.threatBand:SetDrawLayer("BACKGROUND", 3)
-    elseif was then
-        p.ring:SetParent(p.top)
-        p.ring:SetDrawLayer("OVERLAY", 0)
-        p.threatBand:SetParent(p.top)
-        p.threatBand:SetDrawLayer("OVERLAY", 2)
-    end
-    p.ring:SetShown(edge ~= "none")
-    p.pulse:SetShown(not edge)
-    p.fill:SetAlpha(edge and 0 or 1)
-end
 -- art: a square shape's art name (UF.ShapeArt), nil for the round ring.
 function UF.RingFiles(width, line, art)
     width = UF.RING_WIDTHS[width] and width or "normal"
@@ -2093,7 +2066,6 @@ function UF.LayoutPortrait(f, cfg)
         return
     end
     f.ringColor = cfg.portraitRing
-    f.portraitFlip = cfg.portraitFlip == true
     local outerRight = f.spec.slant == "left"
     f.portraitScale = tonumber(cfg.portraitScale) or 1
     local socket = ns.Socket.Wanted(f, cfg, mode)
@@ -2128,24 +2100,13 @@ function UF.LayoutPortrait(f, cfg)
     -- A square's half-side, or the ring's radius: how far it reaches each way.
     local half = shapeArt and R * UF.SQUARE or R
     f.portraitOverlap = half - off  -- how far the ring reaches over the bar
-    local Rk, ratio, inner, edge
-    -- A 1 px edge or none is drawn from a square shape itself. A round ring,
-    -- and a portrait set into its frame, have no art for it: they take the thin ring.
-    local width = cfg.portraitRingWidth
-    if UF.EDGE_WIDTHS[width] and (socket or not shapeArt) then width = "thin" end
+    local Rk, ratio, inner
     if socket then
-        Rk, ratio, inner = ns.Socket.RingSize(Rb, width)
-        f.ringFile, f.ringLitFile = ns.Socket.RingFiles(width, shapeArt)
-    elseif UF.EDGE_WIDTHS[width] then
-        Rk = R
-        local hole = DUI.MEDIA .. "portrait-" .. shapeArt .. "-hole.png"
-        f.ringFile, f.ringLitFile = hole, hole
-        edge = width
-        inner = (half - (width == "pixel" and Pixel.Px(f, 1) or 0)) / UF.SQUARE
-        ratio = inner / Rk
+        Rk, ratio, inner = ns.Socket.RingSize(Rb, cfg.portraitRingWidth)
+        f.ringFile, f.ringLitFile = ns.Socket.RingFiles(cfg.portraitRingWidth, shapeArt)
     else
         Rk = R
-        f.ringFile, f.ringLitFile, ratio = UF.RingFiles(width, cfg.portraitRingLine, shapeArt)
+        f.ringFile, f.ringLitFile, ratio = UF.RingFiles(cfg.portraitRingWidth, cfg.portraitRingLine, shapeArt)
         inner = Rk * ratio
     end
     local k = Rk / R
@@ -2183,7 +2144,6 @@ function UF.LayoutPortrait(f, cfg)
     p.threatBand:SetSize(art, art)
     p.pulse:SetSize(art, art)
     p.fill:SetSize(art, art)
-    UF.PortraitEdge(p, edge, 2 * half)
     p.head:SetSize(0.8 * Rk, 0.8 * Rk)
     p.radius = half * k * (1 + ratio) / 2   -- the band's middle
     -- The bezel reaches the ring's opening (a thin ring's opening is wider than
@@ -2257,13 +2217,12 @@ function UF.LayoutPortrait(f, cfg)
         p.fill:SetSwipeTexture(f.ringFile)
     end
     -- One shadow: the socket's, under the join, replaces the ring's own.
-    p.shadow:SetShown(not socket and cfg.portraitShadow ~= false)
+    p.shadow:SetShown(not socket)
     -- The socket's black backing reaches out to the frame's band, so the aggro
     -- glow goes above it there, or the backing hides it right round the ring.
     p.halo:SetDrawLayer("BACKGROUND", socket and 1 or -7)
     local geo = socket and { R = R, half = half, off = off, outerRight = outerRight, shapeArt = shapeArt,
-        opening = shapeArt and inner * UF.SQUARE or inner, free = f.portraitFree,
-        noShadow = cfg.portraitShadow == false } or nil
+        opening = shapeArt and inner * UF.SQUARE or inner, free = f.portraitFree } or nil
     p:Show()
     if f.portraitFree then
         -- On its own: the frame keeps its whole length and its own hit rect.
@@ -2549,9 +2508,8 @@ function UF.UpdatePortrait(f)
             p.model:Hide()
             p.rim:Hide()
             p.icon:SetTexture(file)
-            -- A ring on the right (the target) mirrors its icon to face inward,
-            -- and the frame's flip turns it the other way.
-            if (f.spec.slant == "left") ~= (f.portraitFlip == true) then l, r = r, l end
+            -- A ring on the right (the target) mirrors its icon to face inward.
+            if f.spec.slant == "left" then l, r = r, l end
             p.icon:SetTexCoord(l, r, t, b)
             p.icon:SetSize(p.classSize, p.classSize)
             p.icon:Show()
@@ -2573,10 +2531,6 @@ function UF.UpdatePortrait(f)
     p.rim:Hide()
     DUI.SafeCall(SetPortraitTexture, p.icon, u)
     Style.CropIcon(p.icon)
-    if f.portraitFlip == true then
-        local c = Style.ICON_CROP
-        p.icon:SetTexCoord(c[2], c[1], c[3], c[4])
-    end
     p.icon:SetSize(p.faceSize, p.faceSize)
     p.icon:Show()
 end

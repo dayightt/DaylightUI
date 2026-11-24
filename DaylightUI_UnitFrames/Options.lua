@@ -1756,8 +1756,7 @@ local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
 local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitLook = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
-    portraitRingWidth = true, portraitRingLine = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true,
-    portraitShadow = true, portraitFlip = true }
+    portraitRingWidth = true, portraitRingLine = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true }
 local function splitFrame(prefix, items, power)
     local basic, bars, portrait = {}, {}, {}
     for _, it in ipairs(items) do
@@ -1958,26 +1957,9 @@ local function framePage(id, label, desc, opts)
             values = UF.RING_COLORS, order = UF.RING_COLOR_ORDER,
             desc = "Class gradient: the unit's class colors (an NPC's are by how friendly it is), and the red aggro ring is shaded to match. Accent color: your accent on every frame. Daylight gradient: the logo's colors on every frame. Light: a gray ring. Dark: the same dark border as the frame.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
-        local widthNames = {}
-        for key, name in pairs(UF.RING_WIDTH_NAMES) do widthNames[key] = name end
-        for key, name in pairs(UF.EDGE_WIDTH_NAMES) do widthNames[key] = name end
         frame[#frame + 1] = { type = "dropdown", key = k("portraitRingWidth"), label = "Ring thickness", since = "1.8.1",
-            values = widthNames, order = { "thin", "normal", "thick", "pixel", "none" },
-            -- 1 px and None draw the square's own edge: square and angled, classic look.
-            choices = function()
-                local order = { "thin", "normal", "thick" }
-                if liveGet(k("portraitShape")) ~= "round" and liveGet(k("portraitLook")) == "classic" then
-                    order[4], order[5] = "pixel", "none"
-                end
-                return widthNames, order
-            end,
-            desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it. A square or angled portrait in the classic look can also have a 1 px edge or none.",
-            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
-        frame[#frame + 1] = { type = "toggle", key = k("portraitShadow"), label = "Portrait shadow", since = "2.2.5",
-            desc = "The soft shadow under the portrait. When off, it sits flat, for a minimal look.",
-            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
-        frame[#frame + 1] = { type = "toggle", key = k("portraitFlip"), label = "Flip the portrait", since = "2.2.5",
-            desc = "Mirrors the face or class icon so it looks the other way, so your portrait and your target's can face each other. 3D models keep the game's view.",
+            values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
+            desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle", since = "1.8.1",
             desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band. A portrait set into its frame has a thin ring with no line.",
