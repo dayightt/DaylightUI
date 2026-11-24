@@ -349,7 +349,7 @@ end
 -- window, the side facing the screen's middle.
 function TM.Side(h)
     local P = ns.Panel
-    if h ~= nil and h == P.panel then return P.side == "right" and "right" or "left" end
+    if h ~= nil and h == P.panel then return P.across == "right" and "right" or "left" end
     if h ~= nil and h == P.meterFrame then
         local x = DUI.Movers.Position("infopanel.meter")
         if type(x) == "number" and x < 0 then return "right" end
@@ -392,7 +392,7 @@ function TM.Layout()
     local rowH, gap = cfg.rowHeight, ns.Meter.SPACING
     local headH = TM.HeadHeight()
     local n = TM.RowCount()
-    local W = below and ns.module.db.meter.width or cfg.width
+    local W = below and (ns.Panel.meterWidth or ns.module.db.meter.width) or cfg.width
     local H = 2 * inset + headH + n * (rowH + gap) - gap
     win:SetSize(W, H)
     Style.LayoutShell(s)

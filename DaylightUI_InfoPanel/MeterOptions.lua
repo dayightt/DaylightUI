@@ -456,17 +456,30 @@ function MO.Page()
     rows[#rows + 1] = DUI.Options.BackRow("media.meter", "Meter bar", what)
     rows[#rows + 1] = DUI.Options.FontRow("media.meterFont", "Meter font", "Names and numbers on every meter and threat meter")
 
-    -- The panel's meter inside the panel has no window of its own.
+    -- The panel's meter inside the panel has no window of its own. Under or over
+    -- the map it takes the map's width but keeps a height of its own.
+    local function stacked()
+        local db = ns.module and ns.module.db
+        local side = db and db.map.meterSide
+        return side == "below" or side == "above"
+    end
     local function ownWindow(e) return e.id ~= "main" or e.cfg.detached == true end
+    local function ownHeight(e) return ownWindow(e) or stacked() end
     local window = {
         picker(),
         { type = "toggle", key = "meter.detached", label = "Separate damage meter window", only = "main",
           desc = "Takes the damage meter out of the panel into its own window in the bottom-right corner; move it in unlock mode." },
         win({ type = "slider", key = "win.width", label = "Window width", kinds = ALL, min = 100, max = 600, step = 1, unit = "px",
-              hidden = function(get) return MO.picked == "threat" and get("win.at") == "below" end,
+              hidden = function(get)
+                  if MO.picked == "main" then
+                      local db = ns.module.db
+                      return db.meter.detached ~= true and stacked() and db.map.enabled == true
+                  end
+                  return MO.picked == "threat" and get("win.at") == "below"
+              end,
               desc = "How wide the window is. Dragging its corner in unlock mode sets it too." }),
         win({ type = "slider", key = "win.height", label = "Window height", kinds = LISTS, min = 80, max = 500, step = 1, unit = "px",
-              when = ownWindow,
+              when = ownHeight,
               desc = "How tall the window is. Dragging its corner in unlock mode sets it too." }),
     }
     for _, row in ipairs(DUI.Options.LookRows("win.frameStyle")) do

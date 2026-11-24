@@ -38,10 +38,80 @@ local function ease(h, on)
     end
 end
 
+-- With the meter set below or above the map, windows still at their first spot
+-- line up in a column off the panel, each after the one before, so they move
+-- with the panel's meter as it slides.
+local function docked(e, positions)
+    return e.cfg.enabled == true and not DUI.Movers.Valid(positions[MF.Key(e.id)])
+end
+
+-- How far the docked windows reach from the panel (UIParent units), out to
+-- the last one that's up (wantedOnly) or the last one switched on.
+local function reach(wantedOnly)
+    local positions, total, upto = DUI.DB.Positions(), 0, 0
+    local ui = UIParent:GetEffectiveScale()
+    for _, e in ipairs(ns.Windows.Own()) do
+        local h = MF.hosts[e.id]
+        if h and not h.dead and docked(e, positions) then
+            local f = h.frame
+            total = total + (f:GetHeight() or 0) * f:GetEffectiveScale() / ui + MF.GAP
+            if not wantedOnly or h.laidWanted then upto = total end
+        end
+    end
+    return upto
+end
+
+-- Which way the docked windows run: the meter's way, except over a panel
+-- near the screen's top, where they'd run off it and hang under it instead.
+function MF.DockWay()
+    local P = ns.Panel
+    local dock = P.Dock()
+    if dock ~= "above" then return dock end
+    local top = P.holder:GetTop()
+    if type(top) ~= "number" then return dock end
+    local ui = UIParent:GetEffectiveScale()
+    if top * P.holder:GetEffectiveScale() / ui + reach(false) > UIParent:GetHeight() then return "below" end
+    return dock
+end
+
+local function dockHome(id, dock)
+    local P = ns.Panel
+    local prev, positions = P.holder, DUI.DB.Positions()
+    for _, e in ipairs(ns.Windows.Own()) do
+        if e.id == id then break end
+        local h = MF.hosts[e.id]
+        if h and not h.dead and docked(e, positions) then prev = h.frame end
+    end
+    local x = P.across == "right" and "LEFT" or "RIGHT"
+    if dock == "below" then return { "TOP" .. x, prev, "BOTTOM" .. x, 0, -MF.GAP } end
+    return { "BOTTOM" .. x, prev, "TOP" .. x, 0, MF.GAP }
+end
+
+-- How far the docked windows under the panel reach below it.
+function MF.DockedHeight(wantedOnly)
+    if MF.dockWay ~= "below" then return 0 end
+    return reach(wantedOnly)
+end
+
+-- The docked windows' reach, eased as they come and go, so what hangs under
+-- them (the quest tracker) glides instead of jumping.
+local function easeChain()
+    local goal = MF.DockedHeight(true)
+    if goal == MF.chainGoal then return end
+    local from = MF.chainGoal == nil and goal or (MF.chain or goal)
+    MF.chainGoal = goal
+    DUI.Motion.Tween("infopanel:dockChain", from, goal, DUI.Motion.NORMAL, function(v)
+        MF.chain = v
+        ns.Tracker.Follow()
+    end)
+end
+
 -- Default position: bottom-right of the screen, to the left of earlier windows
 -- that are still at their default spots.
 function MF.Home(id)
     local P = ns.Panel
+    local dock = MF.dockWay
+    if dock then return dockHome(id, dock) end
     local x = -P.EDGE
     local db = ns.module and ns.module.db
     local positions = DUI.DB.Positions()
@@ -236,6 +306,8 @@ end
 function MF.Sync(mod)
     local db = mod.db
     ns.Windows.Fill(db)
+    -- Decided once a pass, so every window of the column runs the same way.
+    MF.dockWay = MF.DockWay()
     local live = {}
     for _, e in ipairs(ns.Windows.Own(db)) do
         if Windows_KINDS[e.kind] then
@@ -258,6 +330,7 @@ function MF.Sync(mod)
     for id, h in pairs(MF.hosts) do
         if not live[id] and not h.dead then retire(h) end
     end
+    easeChain()
 end
 
 -- Whether any window's visibility should change (combat, roster, zone).

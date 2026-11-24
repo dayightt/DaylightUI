@@ -97,6 +97,145 @@ T.test("info panel: on Automatic, moved past the screen's middle, the meter come
     T.eq(P.side, "left", "reset: the screen's corner")
 end)
 
+T.test("info panel: Below, the meter slides down out of the minimap's bottom and the map stays put", function()
+    local DUI = login()
+    local P = stub.infopanel.Panel
+    DUI:Set("InfoPanel", "map.meterSide", "below")
+    settle()
+    T.eq(P.side, "below")
+    T.eq(DUI.Movers.Corner("infopanel"), "TOPRIGHT", "pinned by the map's top corner, so it grows downward")
+    local map, meterH = DUI:Get("InfoPanel", "map.size"), DUI:Get("InfoPanel", "meter.height")
+    local wide, tall = P.holder:GetWidth(), P.panel:GetHeight()
+    T.near(wide, map + 2 * P.inset, 0.01, "one column as wide as the map")
+    T.near(P.meterArea:GetWidth(), map, 0.01, "the meter as wide as the map")
+    T.near(P.meterArea:GetHeight(), meterH, 0.01, "as tall as its height setting")
+    T.eq(P.mapArea:GetPoint(1), "TOPLEFT", "the map at the top")
+    T.eq(P.meterClip:GetPoint(1), "BOTTOMLEFT", "the meter rides the panel's bottom edge")
+    local a = { P.arrow:GetPoint(1) }
+    T.eq(a[1], "TOP"); T.eq(a[3], "BOTTOM", "the fold tab on the bottom edge")
+    DUI:Set("InfoPanel", "meter.enabled", false)
+    stub.RunOnUpdate(P.slide.driver, P.SLIDE / 2)
+    local mid = P.panel:GetHeight()
+    T.truthy(mid < tall and mid > tall - meterH - P.inset, "slides, never jumps")
+    settle()
+    T.near(tall - P.panel:GetHeight(), meterH + P.inset, 0.01, "folded: the meter's height back")
+    T.near(P.holder:GetWidth(), wide, 0.01, "the width never changes")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("info panel: Above, the meter rises over the minimap, pinned by the map's bottom corner", function()
+    local DUI = login()
+    local P = stub.infopanel.Panel
+    DUI:Set("InfoPanel", "map.meterSide", "above")
+    settle()
+    T.eq(P.side, "above")
+    T.eq(DUI.Movers.Corner("infopanel"), "BOTTOMRIGHT", "the map's bottom corner stays where it is")
+    T.eq(P.mapArea:GetPoint(1), "BOTTOMLEFT", "the map at the bottom")
+    T.eq(P.meterClip:GetPoint(1), "TOPLEFT", "the meter rides the panel's top edge")
+    local a = { P.arrow:GetPoint(1) }
+    T.eq(a[1], "TOP", "with the experience bar on top, the fold tab sits on the bottom edge")
+    DUI:Set("InfoPanel", "xp.enabled", false)
+    settle()
+    a = { P.arrow:GetPoint(1) }
+    T.eq(a[1], "BOTTOM"); T.eq(a[3], "TOP", "without it, on the top edge toward the meter")
+    -- Back to a side: everything where it was.
+    DUI:Set("InfoPanel", "map.meterSide", "auto")
+    settle()
+    T.eq(P.side, "left")
+    T.eq(DUI.Movers.Corner("infopanel"), "TOPRIGHT")
+    T.eq(P.mapArea:GetPoint(1), "TOPRIGHT")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("info panel: Below, the player's meter windows line up under the meter and slide with it", function()
+    local DUI = login()
+    local ns = stub.infopanel
+    local P, MF = ns.Panel, ns.MeterFrame
+    DUI:Set("InfoPanel", "map.meterSide", "below")
+    settle()
+    local one = ns.Windows.Add("damage")
+    local two = ns.Windows.Add("healing")
+    stub.RunTimers()
+    settle()
+    local p1 = { MF.hosts[one].frame:GetPoint(1) }
+    T.eq(p1[1], "TOPRIGHT"); T.eq(p1[2], P.holder, "the first hangs from the panel")
+    T.eq(p1[3], "BOTTOMRIGHT", "under it, right edges lined up")
+    local p2 = { MF.hosts[two].frame:GetPoint(1) }
+    T.eq(p2[2], MF.hosts[one].frame, "the second hangs from the first")
+    T.eq(p2[3], "BOTTOMRIGHT")
+    -- Moved by hand, a window keeps its own spot; the next one closes up.
+    DUI.DB.Positions()["infopanel.meter." .. one] = { 100, 100 }
+    DUI.Movers.Apply("infopanel.meter." .. one)
+    ns.RefreshMeters(ns.module)
+    stub.RunTimers()
+    T.eq(select(2, MF.hosts[one].frame:GetPoint(1)), UIParent, "moved: its own spot")
+    T.eq(select(2, MF.hosts[two].frame:GetPoint(1)), P.holder, "the next one takes its place under the panel")
+    -- Above a panel low on the screen they stack upward; near the top they'd
+    -- run off it, so they hang under the panel instead.
+    function P.holder:GetTop() return 400 end
+    DUI:Set("InfoPanel", "map.meterSide", "above")
+    settle()
+    stub.RunTimers()
+    local up = { MF.hosts[two].frame:GetPoint(1) }
+    T.eq(up[1], "BOTTOMRIGHT"); T.eq(up[2], P.holder); T.eq(up[3], "TOPRIGHT", "over the panel")
+    function P.holder:GetTop() return UIParent:GetHeight() - 20 end
+    ns.RefreshMeters(ns.module)
+    stub.RunTimers()
+    up = { MF.hosts[two].frame:GetPoint(1) }
+    T.eq(up[1], "TOPRIGHT"); T.eq(up[3], "BOTTOMRIGHT", "no room over it: under it")
+    P.holder.GetTop = nil
+    -- Back on a side, they go back to the screen's corner.
+    DUI:Set("InfoPanel", "map.meterSide", "left")
+    settle()
+    stub.RunTimers()
+    T.eq(select(2, MF.hosts[two].frame:GetPoint(1)), UIParent, "the bottom-right corner again")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("info panel: Below, the quest tracker glides down with the meter and the docked windows, never in a fight", function()
+    local DUI = login()
+    local ns = stub.infopanel
+    local P, Tr, MF = ns.Panel, ns.Tracker, ns.MeterFrame
+    DUI.questsOwnTracker = true
+    -- The fake game has no layout: the panel's bottom follows its height.
+    function P.panel:GetRight() return 1900 end
+    function P.panel:GetBottom() return 1000 - self:GetHeight() end
+    local function y() return select(5, Tr.anchor:GetPoint(1)) end
+    local function glide() local d = DUI.Motion.Driver(); if d then stub.RunOnUpdate(d, 1) end end
+    DUI:Set("InfoPanel", "map.meterSide", "below")
+    settle()
+    Tr.Apply(DUI:Get("InfoPanel", "tracker"))
+    glide()
+    T.near(y(), P.panel:GetBottom() - P.GAP, 0.01, "under the panel with the meter out")
+    -- Folding: the tracker comes up with the meter, step by step.
+    local open = y()
+    DUI:Set("InfoPanel", "meter.enabled", false)
+    stub.RunOnUpdate(P.slide.driver, P.SLIDE / 2)
+    T.truthy(y() > open, "on its way up")
+    T.near(y(), P.panel:GetBottom() - P.GAP, 0.01, "right under the meter's edge mid-slide")
+    settle()
+    glide()
+    local folded = y()
+    T.near(folded, P.panel:GetBottom() - P.GAP, 0.01, "under the folded panel")
+    -- A window docked under the panel: the tracker goes under it.
+    local id = ns.Windows.Add("damage")
+    stub.RunTimers()
+    glide()
+    local h = MF.hosts[id].frame:GetHeight()
+    T.near(y(), folded - h - MF.GAP, 0.01, "under the docked window")
+    -- In a fight the quest item buttons can't move: the tracker waits, then glides.
+    stub.EnterCombat()
+    local before = y()
+    P.arrow:GetScript("OnClick")(P.arrow)
+    settle()
+    glide()
+    T.eq(y(), before, "held in the fight")
+    stub.LeaveCombat()
+    glide()
+    T.near(y(), P.panel:GetBottom() - P.GAP - h - MF.GAP, 0.01, "after it, under the meter and the window")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("info panel: the minimap's box has its own background and border", function()
     local DUI = login()
     local P = stub.infopanel.Panel

@@ -61,11 +61,22 @@ end
 
 -- Under the panel, where the tracker's corner goes: in UIParent units from the screen's bottom-left. nil until the
 -- panel has a place.
+-- With the meter below the map, also under the meter windows docked there.
+-- Daylight UI's own tracker follows the meter as it slides; the game's is
+-- placed by its layout until a reload, so it keeps room for the whole meter.
 local function underPanel()
-    local panel = ns.Panel.panel
+    local P = ns.Panel
+    local panel = P.panel
     if not (panel and panel:GetRight() and panel:GetBottom()) then return nil end
     local s = panel:GetEffectiveScale() / UIParent:GetEffectiveScale()
-    return panel:GetRight() * s, panel:GetBottom() * s - ns.Panel.GAP
+    local bottom = panel:GetBottom() * s - P.GAP
+    local MF = ns.MeterFrame
+    if Tracker.Replaced() then
+        bottom = bottom - (MF.chain or MF.DockedHeight(true))
+    else
+        bottom = bottom - P.RoomBelow() * s - MF.DockedHeight(false)
+    end
+    return panel:GetRight() * s, bottom
 end
 
 -- Where that corner goes: the handle's top-right corner where it was moved
@@ -143,7 +154,46 @@ function Tracker.FollowStrip()
     end
 end
 
-function Tracker.PlaceAnchor()
+-- Daylight UI's own tracker hangs from the anchor, so moving it moves the list.
+-- Its quest item buttons can't follow in a fight, so nothing here moves it
+-- then: a glide under way stops and the rest waits for the fight's end.
+Tracker.GLIDE = "infopanel:trackerAnchor"
+local function setAnchor(x, y)
+    anchor.x, anchor.y = x, y
+    anchor:ClearAllPoints()
+    anchor:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", x, y)
+end
+
+local function glideAnchor(x, y, glide)
+    if anchor.goalX == x and anchor.goalY == y and (glide or (anchor.x == x and anchor.y == y)) then return end
+    anchor.goalX, anchor.goalY = x, y
+    local fx, fy = anchor.x, anchor.y
+    if not (glide and fx and fy) or (fx == x and fy == y) then
+        DUI.Motion.Tween(Tracker.GLIDE, 0, 0, 0)
+        if fx ~= x or fy ~= y then setAnchor(x, y) end
+        return
+    end
+    DUI.Motion.Tween(Tracker.GLIDE, 0, 1, DUI.Motion.NORMAL, function(t)
+        if InCombatLockdown() then
+            DUI.Motion.Tween(Tracker.GLIDE, 0, 0, 0)
+            anchor.goalX, anchor.goalY = nil, nil
+            DUI.AfterCombat(Tracker.PlaceAnchor, "tracker:anchor")
+            return
+        end
+        setAnchor(fx + (x - fx) * t, fy + (y - fy) * t)
+    end)
+end
+
+-- Each step of the meter's slide or of the docked windows coming and going:
+-- the list keeps right under them, out of a fight.
+function Tracker.Follow()
+    if not Tracker.Replaced() or anchor.x == nil or InCombatLockdown() then return end
+    Tracker.PlaceAnchor(true)
+end
+
+-- follow: placed at once, keeping step with the panel; else a move of Daylight
+-- UI's own tracker glides there.
+function Tracker.PlaceAnchor(follow)
     if not anchor then return end
     Tracker.FollowStrip()
     local cx, cy = corner()
@@ -160,13 +210,12 @@ function Tracker.PlaceAnchor()
     end
     local x, y = cx - Tracker.EDGE, cy
     local first = anchor.x == nil
-    local changed = anchor.x ~= x or anchor.y ~= y
-    if changed then
-        anchor.x, anchor.y = x, y
-        anchor:ClearAllPoints()
-        anchor:SetPoint("TOPRIGHT", UIParent, "BOTTOMLEFT", x, y)
+    if Tracker.Replaced() then
+        glideAnchor(x, y, follow ~= true and not first and DUI.Movers.unlocked ~= true)
+        return
     end
-    if Tracker.Replaced() then return end
+    local changed = anchor.x ~= x or anchor.y ~= y
+    if changed then setAnchor(x, y) end
     -- The layout gets this spot as plain screen offsets. It's rewritten when
     -- unlock mode ends after a move or reset, and a reload applies it. The panel
     -- moving or resizing later is no request to move the tracker, so that
