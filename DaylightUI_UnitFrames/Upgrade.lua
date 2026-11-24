@@ -613,6 +613,20 @@ ns.UPGRADE_STEPS[24] = function(uf, _, _, run)
     end
 end
 
+-- 25: the target frame and target of target lost the fade's Show with a
+-- target, since they only show with one. With it on they were always shown at
+-- their opacity, so they become Always. With Only enemies too, Always keeps
+-- an enemy target from ever fading, which is what that player asked for.
+ns.UPGRADE_STEPS[25] = function(uf)
+    for _, id in ipairs({ "target", "targettarget" }) do
+        local f = type(uf[id]) == "table" and uf[id].fade or nil
+        if type(f) == "table" then
+            if f.target == true then f.mode = "never" end
+            f.target, f.targetEnemy = nil, nil
+        end
+    end
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 -- Each step also gets this run: from = the last step done before it (0 for a
 -- new profile), picked = settings an earlier step set from the player's own

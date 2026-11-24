@@ -1316,8 +1316,11 @@ Fade.CARD_LABEL = "Opacity & fade"
 -- (Fade.HubGroups).
 -- opts.own: a switch giving the area a fade of its own (the XP bar's, apart
 -- from its panel). It goes first, and the rows below it only count while it's on.
+-- opts.noTarget: hides Show with a target and Only enemies, for an area that
+-- only shows while you have a target anyway (the target frame).
 function Fade.Items(prefix, extra, disabled, name, opts)
     local noFloat = opts ~= nil and opts.noFloat == true
+    local noTarget = opts ~= nil and opts.noTarget == true
     local own = opts ~= nil and opts.own or nil
     local function areaOff(get) return disabled ~= nil and disabled(get) == true end
     local function pageOff(get) return areaOff(get) or (own ~= nil and get(own.key) ~= true) end
@@ -1347,6 +1350,10 @@ function Fade.Items(prefix, extra, disabled, name, opts)
         { type = "slider", key = prefix .. "delay", label = "Delay", min = 0, max = 30, step = 0.5,
           desc = "How long it waits before it fades, in seconds: after a fight ends, once a fight starts, after your mouse leaves it, after you clear your target, or after a change it shows.", disabled = off },
     }
+    if noTarget then
+        local function never() return true end
+        items[5].hidden, items[6].hidden = never, never
+    end
     local area = { prefix = prefix, name = name, base = {}, extras = {}, areaOff = areaOff }
     for i, field in ipairs(Fade.FIELDS) do
         items[i].fadeArea = area

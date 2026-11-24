@@ -2187,7 +2187,8 @@ local function framePage(id, label, desc, opts)
         } })
     end
     if opts.tab then groups[#groups + 1] = tabCard(id, noTabStyle) end
-    groups[#groups + 1] = DaylightUI.Fade.Card(id .. ".fade.", fadeExtra, shown, nil, { noFloat = ns.FLOAT[id] == false })
+    groups[#groups + 1] = DaylightUI.Fade.Card(id .. ".fade.", fadeExtra, shown, nil,
+        { noFloat = ns.FLOAT[id] == false, noTarget = ns.WITH_TARGET[id] == true })
     groups[#groups + 1] = { label = "Text", items = ordered(text, TEXT_ORDER) }
     local extras = {}
     local needHome, homeDis = "", shown

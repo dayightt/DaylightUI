@@ -1376,6 +1376,72 @@ T.test("unit frames: fade through the engine and multiply with the range fade", 
     stub.LeaveCombat()
 end)
 
+T.test("unit frames: frames that only show with your target have no Show with a target", function()
+    local DUI, ns = stub.Load({ module = true })
+    local function fadeRow(pageId, field)
+        for _, page in ipairs(ns.OPTIONS.pages) do
+            if page.id == pageId then
+                for _, g in ipairs(page.groups) do
+                    for _, item in ipairs(g.items or {}) do
+                        if item.key == pageId .. ".fade." .. field then return item end
+                    end
+                end
+            end
+        end
+    end
+    local get = function(k) return DUI:Get("UnitFrames", k) end
+    for _, id in ipairs({ "target", "targettarget" }) do
+        for _, field in ipairs({ "target", "targetEnemy" }) do
+            local row = fadeRow(id, field)
+            T.truthy(row, id .. " still has the row for the Fade page's lookups")
+            T.truthy(row and row.hidden and row.hidden(get), id .. ": " .. field .. " hidden")
+        end
+        T.falsy(fadeRow(id, "mouseover").hidden, id .. ": the other rows stay")
+    end
+    for _, id in ipairs({ "player", "focus", "pet" }) do
+        local row = fadeRow(id, "target")
+        T.truthy(row and not (row.hidden and row.hidden(get)), id .. ": Show with a target stays")
+    end
+    -- The Fade page's copies follow the area's own rule.
+    local hub = DUI.Fade.HubGroups()
+    for _, card in ipairs(hub) do
+        for _, item in ipairs(card.items) do
+            if item.label == "Settings for" and item.choices then
+                local values = item.choices()
+                for id in pairs(values) do
+                    if id == "UnitFrames:target.fade." then
+                        item.set(id)
+                        for _, row in ipairs(card.items) do
+                            if row.label == "Show with a target" or row.label == "Only enemies" then
+                                T.truthy(row.hidden(), "Fade page: " .. row.label .. " hidden for the target frame")
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+T.test("upgrade 25: Show with a target on the target frame becomes Always", function()
+    local _, ns = stub.Load({ module = true })
+    local p = { modules = { UnitFrames = { groupFrames = 24,
+        target = { fade = { mode = "ooc", target = true } },
+        targettarget = { fade = { mode = "always", target = true, targetEnemy = true } },
+        focus = { fade = { mode = "ooc", target = true } } } }, positions = {}, general = {} }
+    ns.UpgradeGroupFrames(p)
+    local uf = p.modules.UnitFrames
+    T.eq(uf.target.fade.mode, "never", "it was always shown at its opacity: now it says so")
+    T.isnil(uf.target.fade.target)
+    T.eq(uf.targettarget.fade.mode, "never", "only enemies: kept shown, so an enemy never fades")
+    T.isnil(uf.targettarget.fade.target); T.isnil(uf.targettarget.fade.targetEnemy)
+    T.eq(uf.focus.fade.mode, "ooc", "the focus frame's means your target: left alone")
+    T.eq(uf.focus.fade.target, true)
+    local q = { modules = { UnitFrames = { groupFrames = 24, target = { fade = { mode = "ooc" } } } }, positions = {}, general = {} }
+    ns.UpgradeGroupFrames(q)
+    T.eq(q.modules.UnitFrames.target.fade.mode, "ooc", "without it, the fade is untouched")
+end)
+
 T.test("unit frames: player and pet can fade only at full health", function()
     local DUI, ns = stub.Load({ module = true })
     -- As in the client: health is secret even out of combat, so the game

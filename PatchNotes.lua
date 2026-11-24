@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", changed = {
+        { "Unit frames", "The target frame's fade drops Show with a target, which it always has; if you had it on, it's now Always" },
+    } },
     { version = "2.2.5", date = "2026-11-23", summary = "A frameless round minimap, a language picker, new zone title and micro menu looks, and spell colors for your cast bar.", new = {
         { "Info panel", "A frameless round minimap, and a damage meter that can slide out below or above it" },
         { "Nameplates", "The execute range can glow and spark once an enemy is low, with new fills" },

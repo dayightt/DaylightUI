@@ -811,6 +811,10 @@ ns.FADE_FULL_HEALTH = { player = true, pet = true }
 -- and go with their unit.
 ns.FLOAT = { target = false, targettarget = false, focus = false, focustarget = false, partyTarget = false }
 
+-- Frames that only exist while you have a target, so the fade's Show with a
+-- target would just mean always shown.
+ns.WITH_TARGET = { target = true, targettarget = true }
+
 -- Health is secret, so whether it's full is left to the game at paint time
 -- (UF.FullHealthAlpha). A change counts as activity instead: the frame comes
 -- back and fades again a delay after the last change (a heal back to full).
