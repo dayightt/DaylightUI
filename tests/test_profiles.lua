@@ -599,6 +599,57 @@ T.test("profiles: logout strips defaults in every profile", function()
     T.isnil(DaylightUIDB.profileData[DUI.DB.DEFAULT], "the unsaved stand-in isn't saved")
 end)
 
+-- The bags, the bank and the bank and alts window keep their spots in the
+-- Bags settings, from the screen's bottom left. A shared profile carries them
+-- with the frame positions, so they come along, follow that switch and are
+-- fitted to another screen like every other piece.
+T.test("profiles: a shared one carries the bag, bank and alts windows' spots with the frame positions", function()
+    talents(1, 1)
+    me()
+    local DUI = stub.Load({ module = true, bags = true, before = fakeEncoding })
+    stub.RunTimers()
+    local P = DUI.Profiles
+    stub.SetScreen(1920, 1080, 768 / 1080)
+    DUI:Set("Bags", "position", { 1800, 500, at = "TOPLEFT" })
+    DUI:Set("Bags", "bank.position", { 100, 700, at = "TOPLEFT" })
+    DUI:Set("Bags", "viewer.position", { 400, 600, at = "TOPLEFT" })
+    DUI:Set("Bags", "bank.columns", 18)
+    local text = P.Encode(P.Snapshot())
+    local p = P.Decode(text)
+    T.truthy(p.positions["bags.bag"], "the bag's spot goes with the frame positions")
+    T.truthy(p.positions["bags.bank"] and p.positions["bags.viewer"], "the bank's and the alts window's too")
+    T.isnil(p.modules.Bags.position, "not as a screen-tied setting")
+    T.eq(p.modules.Bags.bank.columns, 18, "the bank's own settings come along")
+
+    -- Imported on the same screen, each lands where it was, as Bags settings.
+    DUI:Set("Bags", "position", { 5, 6, at = "TOPLEFT" })
+    local made = DaylightUIDB.profileData[assert(P.Create("Theirs", p))]
+    T.near(made.modules.Bags.position[1], 1800, 1e-6, "the bag")
+    T.near(made.modules.Bags.position[2], 500, 1e-6)
+    T.eq(made.modules.Bags.position.at, "TOPLEFT")
+    T.near(made.modules.Bags.bank.position[1], 100, 1e-6, "the bank")
+    T.near(made.modules.Bags.viewer.position[2], 600, 1e-6, "bank and alts")
+    T.isnil(made.positions["bags.bag"], "not left as a mover's spot")
+
+    -- Frame positions switched off: your own spots stay.
+    stub.Dismiss()
+    P.ShowImport()
+    local box = _G.DaylightUIProfileBox
+    box.edit:SetText(text)
+    local keys = {}
+    for i, part in ipairs(P.Parts(P.Decode(text))) do keys[part.key] = i end
+    box.parts.rows[keys.positions]:GetScript("OnClick")()
+    box.name:SetText("NoSpots")
+    box.go:GetScript("OnClick")()
+    T.near(DaylightUIDB.profileData.NoSpots.modules.Bags.position[1], 5, 1e-6, "your own bag spot")
+
+    -- On a wider screen the bag by the right edge keeps its gap from that edge.
+    stub.SetScreen(2560, 1080, 768 / 1080)
+    made = DaylightUIDB.profileData[P.ImportInto(P.Decode(text), { positions = true })]
+    local w = UIParent:GetWidth()
+    T.near(made.modules.Bags.position[1], w - (1920 - 1800), 0.5, "as far from the right edge")
+end)
+
 T.test("profiles: importing makes a new profile, chosen for this character", function()
     talents(1, 1)
     me()
