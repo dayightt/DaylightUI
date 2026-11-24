@@ -171,6 +171,7 @@ end
 
 function Items.Sync(blocks, frames)
     Items.blocks, Items.frames = blocks, frames
+    if ns.Tracker and ns.Tracker.starting then Items.Place(); return end
     DUI.AfterCombat(Items.Place, "quests:items")
 end
 
@@ -208,7 +209,7 @@ end
 -- every frame something in the list moves, so buttons already in place are
 -- left alone.
 function Items.Follow()
-    if not next(want) or InCombatLockdown() then return end
+    if not next(want) or ns.Locked() then return end
     local v = view()
     local frames = Items.frames or NONE
     local side = DUI:GetModule("Quests").db.itemSide

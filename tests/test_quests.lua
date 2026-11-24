@@ -1415,6 +1415,36 @@ end)
 
 local ITEM = { link = "|cffffffff|Hitem:5862::::::::|h[Seaforium]|h|r", icon = 1234, charges = 2 }
 
+T.test("quests fight fold: in a fight only the priority quest and item quests stay, all back after", function()
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { objs = kills(1) }), QW.quest(2, "B", { objs = kills(1), item = ITEM }),
+                                        QW.quest(3, "C", { objs = kills(1) }), QW.quest(4, "D", { objs = kills(1) }) } })
+    DaylightUI:Set("Quests", "sort", "zone")
+    DaylightUI:Set("Quests", "fightFocus", true)
+    QW.state.focus = 3
+    stub.FireEvent("SUPER_TRACKING_CHANGED"); stub.RunTimers()
+    T.deq(order(Tr), { 1, 2, 3, 4 })
+    stub.secure = true
+    stub.EnterCombat()
+    T.deq(order(Tr), { 2, 3 }, "folds as the fight starts, the item quest moving up with its button")
+    T.eq(Tr.held, false)
+    QW.state.quests[1].objs = kills(2)
+    stub.FireEvent("QUEST_LOG_UPDATE"); stub.RunTimers()
+    T.deq(order(Tr), { 2, 3 }, "stays folded through the fight")
+    QW.state.focus = 4
+    stub.FireEvent("SUPER_TRACKING_CHANGED"); stub.RunTimers()
+    T.deq(order(Tr), { 2, 4 }, "a new priority quest mid-fight shows instead")
+    stub.LeaveCombat(); stub.RunTimers()
+    T.deq(order(Tr), { 1, 2, 3, 4 }, "unfolds after the fight")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests fight fold: off by default, the list stays whole in a fight", function()
+    local Tr = tracker({ quests = { QW.quest(1, "A"), QW.quest(2, "B") } })
+    QW.state.focus = 2
+    stub.EnterCombat(); stub.RunTimers()
+    T.deq(order(Tr), { 1, 2 })
+end)
+
 T.test("quests items: one secure button per quest with an item", function()
     local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = ITEM }), QW.quest(2, "B") } })
     local b = ns.Items.buttons[1]

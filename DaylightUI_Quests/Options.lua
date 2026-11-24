@@ -107,6 +107,8 @@ ns.OPTIONS = { pages = {
               desc = "A quest ready to hand in shows its title alone. A timed quest never folds." },
             { type = "toggle", key = "readyLast", label = "Ready quests at the bottom",
               desc = "Quests ready to hand in leave their zones and gather in a Ready to turn in section under the rest, so the quests still to do stay on top. Nothing moves in a fight." },
+            { type = "toggle", key = "fightFocus", label = "Only the priority quest in a fight",
+              desc = "When a fight starts the list folds down to your priority quest and opens again once it ends. Quests with an item button stay, since their buttons can't move in a fight." },
             { type = "dropdown", key = "instances", label = "Tracker in dungeons and raids", values = INSTANCE_MODES, order = { "zone", "fold", "hide", "none" },
               desc = "What the tracker does when you enter a dungeon, raid or battleground. It comes back as you leave. This zone only keeps the quests for where you are; the All button over the list shows the rest until you leave." },
             { type = "toggle", key = "hoverDim", label = "Dim other quests on hover",

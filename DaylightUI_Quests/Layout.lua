@@ -193,7 +193,24 @@ function Layout.SortZones(groups, o)
     end)
 end
 
+-- A fight with `fightFocus` on: only the priority quest, and quests with an item
+-- button (those buttons can't move in a fight). A copy, the snapshot stays whole.
+function Layout.FightOnly(snap)
+    local out = {}
+    for k, v in pairs(snap) do out[k] = v end
+    out.groups, out.achievements = {}, {}
+    for _, g in ipairs(snap.groups) do
+        local keep = {}
+        for _, q in ipairs(g.quests) do
+            if q.focus or q.item then keep[#keep + 1] = q end
+        end
+        out.groups[#out.groups + 1] = { name = g.name, quests = keep }
+    end
+    return out
+end
+
 function Layout.Build(snap, o, measure)
+    if o.fightOnly then snap = Layout.FightOnly(snap) end
     local blocks, y = {}, 0
     local gap = o.compact and Layout.QUEST_GAP.compact or Layout.QUEST_GAP.normal
     local folds = o.folds or {}

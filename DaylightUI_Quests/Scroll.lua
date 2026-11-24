@@ -74,7 +74,7 @@ function Scroll.Set(h, max, animate)
 end
 
 function Scroll.Held()
-    return InCombatLockdown() and ns.Items and ns.Items.Any()
+    return ns.Locked() and ns.Items and ns.Items.Any()
 end
 
 -- Scrolls to y, moving the row edge fades and item buttons along. Not in combat

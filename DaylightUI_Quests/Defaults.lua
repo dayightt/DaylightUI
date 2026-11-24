@@ -31,6 +31,7 @@ ns.DEFAULTS = {
     sort = "recent",          -- recent (a quest that progresses moves to the top with its zone) | zone | level | near | ready
     foldReady = false,        -- a ready quest shows only its title (never for timed ones)
     readyLast = false,        -- ready quests in their own section after the rest
+    fightFocus = false,       -- in a fight, only the priority quest (and quests with an item button)
     instances = "zone",       -- in a dungeon or raid: zone (this zone only) | fold | hide | none (applied on the loading screen)
     objColors = "plain",      -- objective text: plain | done (green once done) | count (red to green)
     hoverDim = true,          -- dim the other quests while one is hovered

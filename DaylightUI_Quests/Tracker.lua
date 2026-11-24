@@ -23,7 +23,7 @@ Tracker.FALLBACK = { "TOPRIGHT", "UIParent", "TOPRIGHT", -24, -300 }
 Tracker.BOX_PAD = { 8, 10, 6 }    -- box padding around the list: sides, top, bottom (the top clears the header's buttons)
 Tracker.EVENTS = { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPTED", "QUEST_TURNED_IN",
     "QUEST_REMOVED", "QUEST_AUTOCOMPLETE", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD",
-    "CONTENT_TRACKING_UPDATE", "TRACKED_ACHIEVEMENT_UPDATE", "PLAYER_REGEN_ENABLED", "SUPER_TRACKING_CHANGED",
+    "CONTENT_TRACKING_UPDATE", "TRACKED_ACHIEVEMENT_UPDATE", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "SUPER_TRACKING_CHANGED",
     "PLAYER_LEVEL_UP",    -- title difficulty colors depend on the player's level
     "UNIT_QUEST_LOG_CHANGED", "GROUP_ROSTER_UPDATE" }   -- which party members are on a quest
 -- These can arrive in bursts (a whole raid turning in), so they wait and get one check.
@@ -129,7 +129,8 @@ function Tracker.Options()
              frozen = InCombatLockdown() and Tracker.order or nil,
              frozenZones = InCombatLockdown() and Tracker.zoneOrder or nil,
              frozenReady = InCombatLockdown() and Tracker.readyIDs or nil,
-             foldReady = db.foldReady, readyLast = db.readyLast, emptyHeader = db.emptyHeader }
+             foldReady = db.foldReady, readyLast = db.readyLast, emptyHeader = db.emptyHeader,
+             fightOnly = db.fightFocus and Tracker.fighting or nil }
 end
 
 -- Only the current zone: the player's filter, or a dungeon's own view (instances
@@ -479,7 +480,12 @@ function Tracker.Render(animate, ifChanged)
     content:SetWidth(look.width)
     local r = Tracker.reasons
     Tracker.reasons = { enter = {}, leave = {}, far = {}, fold = false }
-    if InCombatLockdown() and ns.Layout.WouldMoveItems(shown, blocks, { from = Tracker.contentHeight, to = height,
+    if Tracker.starting then
+        -- The fight-start fold: item buttons can still move now but can't glide
+        -- after, so with any of them showing the rows land in place at once.
+        for _, b in ipairs(blocks) do if b.item then animate = false; break end end
+    end
+    if ns.Locked() and ns.Layout.WouldMoveItems(shown, blocks, { from = Tracker.contentHeight, to = height,
             max = db.maxHeight, offset = ns.Scroll and ns.Scroll.offset, growUp = db.growUp == true }) then
         -- Item buttons can't follow in combat: keep the on-screen layout and only update
         -- what's already there. The rest plays when combat ends.
@@ -603,7 +609,25 @@ end
 -- again) and combat ending (whatever was held).
 Tracker.ALWAYS = { PLAYER_ENTERING_WORLD = true, PLAYER_REGEN_ENABLED = true }
 
+-- In a fight the list can fold down to the priority quest (`fightFocus`). It
+-- folds while PLAYER_REGEN_DISABLED runs, just before the lockdown, since that's
+-- the last moment the item buttons can follow their rows. Quests with an item
+-- button stay, so in the fight nothing has to move under them.
+Tracker.fighting = false
+function ns.Locked()
+    return InCombatLockdown() and not Tracker.starting
+end
+function Tracker.FightStarts()
+    Tracker.fighting = true
+    if not (db and db.fightFocus and Tracker.built and Tracker.Wanted()) then return end
+    Tracker.starting = true
+    DUI.SafeCall(Tracker.Render, DUI.loggedIn == true, false)
+    Tracker.starting = false
+end
+
 function Tracker.OnEvent(event, a, b)
+    if event == "PLAYER_REGEN_DISABLED" then return Tracker.FightStarts() end
+    if event == "PLAYER_REGEN_ENABLED" then Tracker.fighting = false end
     local r = Tracker.reasons
     if event == "QUEST_ACCEPTED" then
         if type(a) == "number" then r.enter[a] = true end
