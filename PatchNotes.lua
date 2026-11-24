@@ -20,6 +20,8 @@ DUI.PatchNotes = {
     }, fixed = {
         { "Unit frames", "A faded target or focus cast bar no longer flashes fully visible when a cast starts" },
         { "Nameplates", "/dui platefix tells you when nameplates are simply switched off in the game's options" },
+        { "Nameplates", "A little less stutter when a crowd of nameplates comes into view at once" },
+        { "Chat", "The chat does far less work while you're not typing" },
         { "Tooltips", "A recipe's tooltip shows the recipe's own sell price again, not the auction price of what it makes" },
         { "Translations", "The newest settings in Simplified Chinese (thanks Levis) and Spanish (thanks Ángel)" },
     } },

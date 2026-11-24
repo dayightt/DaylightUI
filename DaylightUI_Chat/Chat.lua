@@ -47,6 +47,9 @@ Chat.GAP = 4 -- gap between the panel and the input strip under it (as the info 
 Chat.TAB_ROOM = 24 -- space above the chat for its tabs (and the edit box)
 Chat.FLOAT_PAD = 4 -- panel margin around an undocked window
 Chat.WATCH = 0.25 -- watcher interval, seconds
+-- The game's EventRegistry events around a typing box (ChatFrameEditBox.lua).
+Chat.INPUT_EDGES = { "ChatFrame.OnEditBoxFocusGained", "ChatFrame.OnEditBoxFocusLost",
+    "ChatFrame.OnEditBoxShow", "ChatFrame.OnEditBoxHide" }
 Chat.TAB_PAD = 6 -- padding each side of a tab label
 Chat.ICON_GAP = 10 -- the game's gap between a whisper tab's left cap and its words
 Chat.TAB_TEXT = Style.SIZE.body -- tab label size before settings load (tabSize after)
@@ -1211,17 +1214,25 @@ local function register()
 end
 
 -- The edit box sits over the tab row: visible and clickable only while typing,
--- otherwise invisible and letting clicks through to the tabs. The game keeps it
--- shown in its classic chat style (and doesn't always honor the typing-only one),
--- so this relies on neither. Applies to every box over the panel (each docked tab
--- has its own). Alpha is checked every frame (the game sets an idle box to 0.35),
--- mouse only on a change. It eases in and out (FAST) out of combat and snaps in
--- combat, where nothing of the game's fades. Its outline takes the channel color.
+-- otherwise invisible and letting clicks through to the tabs. In the "im" chat
+-- style the game leaves an idle box shown at 0.35 alpha, so this sets its alpha
+-- itself. Applies to every box over the panel (each docked tab has its own). It
+-- eases in and out (FAST) out of combat and snaps in combat, where nothing of
+-- the game's fades. Its outline takes the channel color.
+-- The game only touches the box's alpha right after its focus changes, and it
+-- announces each change (ChatFrame.OnEditBoxFocusGained/Lost), so the boxes are
+-- looked at every frame only after one of those, while typing (a channel switch
+-- recolors the outline) or while one is still easing. Otherwise a look every
+-- Chat.WATCH s is enough: it catches a box whose focus reads secret.
 local inputAlpha = {} -- each box's eased alpha
+local inputBusy, inputSince = true, 0
+
+function Chat.InputEdge() inputBusy = true end
+
 function Chat.Input(dt)
     local M = DUI.Motion
     local step = (dt and M.On() and not (Chat.fight or InCombatLockdown())) and dt / M.FAST or 1
-    local any, box = false, nil
+    local any, box, easing = false, nil, false
     for eb in pairs(ebAt) do
         local typing = focused(eb)
         any = any or typing
@@ -1229,6 +1240,7 @@ function Chat.Input(dt)
         local goal = typing and 1 or 0
         local a = inputAlpha[eb] or goal
         if a < goal then a = math.min(goal, a + step) elseif a > goal then a = math.max(goal, a - step) end
+        if a ~= goal then easing = true end
         inputAlpha[eb] = a
         local shown = eb:GetAlpha()
         if secret(shown) or shown ~= a then eb:SetAlpha(a) end
@@ -1240,6 +1252,7 @@ function Chat.Input(dt)
     end
     if ns.Box.On() then ns.Box.Typing(any) end
     Chat.PadTyping(box)
+    inputBusy = any or easing
 end
 
 -- A controller: the game gives the chat the D-pad through its own chat frame
@@ -1281,7 +1294,11 @@ function Chat.PadTyping(eb)
 end
 
 function Chat.Step(dt)
-    Chat.Input(dt)
+    inputSince = inputSince + (dt or 0)
+    if inputBusy or inputSince >= Chat.WATCH then
+        inputSince = 0
+        Chat.Input(dt)
+    end
     ns.Feel.Step(dt)
     ns.Box.GlowStep()
 end
@@ -1377,6 +1394,13 @@ function Chat.Build(mod)
     end)
     for _, e in ipairs({ "UPDATE_CHAT_WINDOWS", "UPDATE_FLOATING_CHAT_WINDOWS" }) do
         DUI.RegisterEvent(e, Chat.Pass)
+    end
+    -- The game's own announcements of a box gaining or losing focus (or showing),
+    -- through EventRegistry: the callback only raises a flag.
+    if EventRegistry and EventRegistry.RegisterCallback then
+        for _, e in ipairs(Chat.INPUT_EDGES) do
+            EventRegistry:RegisterCallback(e, Chat.InputEdge, Chat)
+        end
     end
     -- "Float during fights" floats it in combat (at once, since the game's tab row
     -- never fades in combat); leaving combat brings the panel back.

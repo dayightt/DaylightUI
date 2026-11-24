@@ -2266,6 +2266,13 @@ T.test("chat: the input box's outline eases into the channel's color", function(
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game announces a typing box's focus change through EventRegistry
+-- (ChatFrameEditBox.lua, from the box's own focus scripts).
+local function announce(event, eb)
+    local cb = callbacks["ChatFrame.OnEditBox" .. event]
+    if cb then cb(eb) end
+end
+
 T.test("chat: the typing box eases in out of a fight and snaps in one", function()
     login()
     local Chat = stub.chatModule.Chat
@@ -2274,6 +2281,7 @@ T.test("chat: the typing box eases in out of a fight and snaps in one", function
     function eb:HasFocus() return focused end
     Chat.Step(1)
     focused = true
+    announce("FocusGained", eb)
     Chat.Step(DaylightUI.Motion.FAST / 2)
     T.truthy(eb:GetAlpha() > 0 and eb:GetAlpha() < 1, "on its way in: " .. eb:GetAlpha())
     T.truthy(eb:IsMouseEnabled(), "typing at once")
@@ -2281,9 +2289,46 @@ T.test("chat: the typing box eases in out of a fight and snaps in one", function
     Chat.Step(1)
     Chat.fight = true
     focused = true
+    announce("FocusGained", eb)
     Chat.Step(0.01)
     T.eq(eb:GetAlpha(), 1, "in a fight: at once")
     Chat.fight = nil
+end)
+
+-- Idle chat used to look at every typing box every frame (HasFocus, alpha, outline
+-- color), about 14 boxes, 60+ times a second. The game says when a box's focus
+-- changes, so the boxes are only looked at around those changes and while typing.
+T.test("chat: idle typing boxes aren't looked at every frame, a focus change shows the box at once", function()
+    login()
+    local Chat = stub.chatModule.Chat
+    local eb = ChatFrame1EditBox
+    local focused, looks = false, 0
+    function eb:HasFocus() looks = looks + 1; return focused end
+    for _ = 1, 30 do Chat.Step(1 / 60) end   -- settle whatever login left
+    looks = 0
+    for _ = 1, 60 do Chat.Step(1 / 60) end   -- one idle second
+    T.truthy(looks <= 1 / Chat.WATCH + 1, "an idle second: a few looks, not one a frame (" .. looks .. ")")
+    -- Enter: the game focuses the box and says so; the very next frame shows it.
+    focused = true
+    announce("FocusGained", eb)
+    Chat.Step(1 / 60)
+    T.truthy(eb:GetAlpha() > 0, "typing: on its way in the next frame")
+    T.truthy(eb:IsMouseEnabled(), "and takes clicks at once")
+    looks = 0
+    for _ = 1, 10 do Chat.Step(1 / 60) end
+    T.truthy(looks >= 10, "while typing it's followed every frame (a channel switch recolors it)")
+    T.eq(eb:GetAlpha(), 1)
+    -- Sent: focus lost is announced first, then the game sets the idle box to 0.35.
+    focused = false
+    announce("FocusLost", eb)
+    eb:SetAlpha(0.35)
+    for _ = 1, 30 do Chat.Step(1 / 60) end
+    T.eq(eb:GetAlpha(), 0, "the game's 0.35 is taken back down")
+    T.falsy(eb:IsMouseEnabled(), "clicks go through to the tabs again")
+    -- A box whose focus reads secret and no announcement: caught by the slow look.
+    focused = true
+    for _ = 1, math.ceil(Chat.WATCH * 60) + 2 do Chat.Step(1 / 60) end
+    T.truthy(eb:GetAlpha() > 0, "missed edge: seen within one watch")
 end)
 
 -- A whisper in a dungeon fight caused hundreds of errors. The game's box took the

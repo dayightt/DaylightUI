@@ -24,7 +24,7 @@ local DRIVERS = {
     ["Options/Widgets.lua"] = { 1, "a shown list's scroll bar: a look each poll (hover, a new range)" },
 }
 -- Lua instructions per idle frame, about 20% over the last measure (solo 1550, fight 3101).
-local BUDGET = { solo = 1900, fight = 3700 }
+local BUDGET = { solo = 1550, fight = 3700 }
 local FASTEST_TICKER = 0.1
 
 local ALL = { module = true, actionbars = true, buffs = true, skins = true, bags = true, nameplates = true,
