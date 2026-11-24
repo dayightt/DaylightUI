@@ -1260,6 +1260,42 @@ T.test("leave button: its own unlock-mode handle; a moved one stays where it was
     T.isnil(b.__shows, "never shown by us"); T.isnil(b.__hides, "never hidden by us")
 end)
 
+-- The flight frame has its own stop button, so "Fade everything on a flight
+-- path" takes the game's Request Stop button along; hovering it still brings
+-- it back, as with every hushed area.
+T.test("leave button: fades with everything on a flight path, comes back on hover and after landing", function()
+    local flying = false
+    login()
+    local was = _G.UnitOnTaxi
+    _G.UnitOnTaxi = function(unit) return unit == "player" and flying end
+    local DUI, b = DaylightUI, MainMenuBarVehicleLeaveButton
+    local F = DUI.Fade
+    -- Two checks, each followed by two seconds of frames: the hush eases out slowly.
+    local function settle()
+        for _ = 1, 2 do
+            F.Step()
+            for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
+        end
+    end
+    DUI:Set("general", "fadeOnFlight", true)
+    settle()
+    T.eq(b:GetAlpha(), 1, "on the ground: shown")
+    flying = true
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    settle()
+    T.eq(b:GetAlpha(), 0, "on the flight path: faded with the rest")
+    b.__over = true
+    settle()
+    T.eq(b:GetAlpha(), 1, "the mouse on it: back, to ask for a stop")
+    b.__over = nil
+    flying = false
+    stub.FireEvent("PLAYER_CONTROL_GAINED")
+    settle()
+    T.eq(b:GetAlpha(), 1, "landed: shown")
+    T.isnil(b.__shows, "never shown by us"); T.isnil(b.__hides, "never hidden by us")
+    _G.UnitOnTaxi = was
+end)
+
 T.test("leave button: the game showing it (a vehicle, a flight) doesn't leave it at its Edit Mode spot", function()
     login()
     local b = MainMenuBarVehicleLeaveButton

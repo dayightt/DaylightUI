@@ -103,7 +103,9 @@ end
 -- where it sits while shown, and the faded alpha never goes above it. Float
 -- stands in for the mode as out of combat.
 function Fade.Read(e)
-    local s = DUI:Get(e.scope, e.path)
+    -- An area with no setting of its own never fades by itself; it only
+    -- follows the hushes (a flight path, the campfire).
+    local s = e.path and DUI:Get(e.scope, e.path) or nil
     local d = Fade.DEFAULT
     local mode, alpha, mouseover, delay, opacity, target
     if type(s) ~= "table" then
@@ -511,7 +513,7 @@ function Fade.Step()
 end
 
 -- def needs a key and a frames function, plus the scope and path of the area's
--- fade setting. page is the options page (an id or a list) that shows it. The
+-- fade setting (no path: it never fades by itself and only follows the hushes). page is the options page (an id or a list) that shows it. The
 -- optional functions cap (an opacity limit), wake, over (whether the mouse is on
 -- it, when its frames can't tell) and paint (sets the alpha itself) tune it.
 -- float = false drops the "Only when something changes" choice, and whole = true
@@ -612,7 +614,7 @@ end
 function Fade.Wake(key)
     local e = entries[key]
     if e == nil then return end
-    local s = DUI:Get(e.scope, e.path)
+    local s = e.path and DUI:Get(e.scope, e.path) or nil
     if not floats(e, s) then return end
     local delay = type(s.delay) == "number" and math.max(0, s.delay) or Fade.DEFAULT.delay
     e.lastNear = math.max(e.lastNear or 0, GetTime() + math.max(0, Fade.WAKE - delay))
@@ -622,7 +624,7 @@ end
 -- its watching when none of its areas do.
 function Fade.Floats(key)
     local e = entries[key]
-    return e ~= nil and floats(e, DUI:Get(e.scope, e.path))
+    return e ~= nil and floats(e, e.path and DUI:Get(e.scope, e.path) or nil)
 end
 
 -- Float everything (General > Fade): on while every area that can float does.

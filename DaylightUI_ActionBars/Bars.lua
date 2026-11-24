@@ -244,6 +244,18 @@ function Bars.RegisterFades(db)
         DUI.Fade.Register{ key = "ActionBars.cdm", scope = "ActionBars", path = "cdmFade",
             page = "ActionBars.cdm.layout", frames = ns.CdmRows.FadeFrames, paint = ns.CdmRows.PaintFade }
     end
+    -- The game's Request Stop / leave vehicle button. It has no fade of its own
+    -- (it's there when you need it), but "Fade everything on a flight path"
+    -- takes it along: the flight timer has its own stop button, and hovering
+    -- this one still brings it back.
+    local leave = {}
+    DUI.Fade.Register{ key = "ActionBars.leave", scope = "ActionBars",
+        frames = function()
+            local b = ns.Park and ns.Park.leave
+            if type(b) ~= "table" then return NONE end
+            leave[1] = b
+            return leave
+        end }
     local totems = {}
     -- The totem timers (the game's TotemFrame, placed by Totems.lua).
     DUI.Fade.Register{ key = "ActionBars.totemTimers", scope = "ActionBars", path = "totemTimersFade",
