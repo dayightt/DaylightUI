@@ -93,6 +93,14 @@ function Store.SeenAt(rkey, key)
     return item.t
 end
 
+-- How many were for sale at that sighting, nil when never seen. Makes no table
+-- (Seen does): a price source reads it once per item of a recipe list.
+function Store.Qty(rkey, key)
+    local item = itemOf(rkey, key)
+    if not item or item.t == nil then return nil end
+    return item.q
+end
+
 -- The lowest unit buyout of the last sighting, nil when never seen. Makes no
 -- table (Seen does): price sources read it for every formula and tooltip.
 function Store.Min(rkey, key)

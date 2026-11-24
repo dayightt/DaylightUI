@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 14
+print(API.major, API.minor)   -- 1, 15
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 15 }` for the Auction House prices (1.15), `{ 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -1069,6 +1069,28 @@ Daylight UI's coins, inline icons cropped. To pick the pieces yourself, see [Too
 
 Event `FramePlaced(key)`: a frame was put on its spot by its mover (a profile, a move). Follow a
 frame here instead of hooking its `SetPoint`.
+
+## Auction House prices (1.15)
+
+`DaylightUI.AuctionPrices` is what the Auction House module knows, published for addons that
+price things: a profession planner, a spreadsheet, a shopping list.
+
+| Call | What it gives |
+|---|---|
+| `AuctionPrices.Item(id)` | `price, seenAt`: what one sells for, and when it was seen. The price is the newest sighting's lowest buyout while it is fresh (12 hours), the usual market value after that |
+| `AuctionPrices.Offer(id)` | `price, seenAt, quantity`: the same sighting, and how many were for sale |
+| `AuctionPrices.ScannedAt()` | When anything was last seen at the Auction House, nil before the first scan |
+| `AuctionPrices.Vendor(id)` | What a merchant sells one for, as last seen at one |
+| `AuctionPrices.Soulbound(id)` | `true` for an item that can never be sold |
+| `AuctionPrices.CUT` | The house's share of a sale: `0.05` |
+
+Each call answers `nil` for an item never seen, and none of them makes a table to read
+(`Offer` returns three numbers). `DaylightUI.On("AuctionPricesChanged", fn)` says when a
+number moved, after a scan, a search or a browse.
+
+The table is absent while the Auction House module is off, and while DaylightMogul owns the
+Auction House: check once and stay quiet without it, the way a profession's profit display
+does.
 
 ## A plugin of your own
 
