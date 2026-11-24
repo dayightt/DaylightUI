@@ -712,6 +712,13 @@ end
 function Widget:StartMoving() self.__moving = true end
 function Widget:SetClampedToScreen(v) self.__clamped = v and true or false end
 function Widget:IsClampedToScreen() return self.__clamped == true end
+-- The part of the frame the screen keeps in view: insets into its own rect
+-- (left and bottom positive, right and top negative let that much hang off).
+function Widget:SetClampRectInsets(l, r, t, b) self.__clampInsets = { l, r, t, b } end
+function Widget:GetClampRectInsets()
+    local c = self.__clampInsets or { 0, 0, 0, 0 }
+    return c[1], c[2], c[3], c[4]
+end
 function Widget:StopMovingOrSizing() self.__moving = false end
 function Widget:CreateTexture(name, layer, _, sublevel)
     local t = new("Texture", name, self)

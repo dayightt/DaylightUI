@@ -919,6 +919,12 @@ function Panel.ApplySlide()
         -- Without the square box the clip's width comes from its two anchors.
         if not Panel.bare then clip:SetWidth(math.max(p * g.width, 0.01)) end
     end
+    -- The screen keeps only the map's part in view. Near an edge the meter
+    -- hangs off it instead of pushing the whole panel, map and all, back on.
+    local grown = g.column and (g.panelOn and p * g.room or 0) or p * g.room
+    local side = Panel.side
+    Panel.holder:SetClampRectInsets(side == "left" and grown or 0, side == "right" and -grown or 0,
+        side == "above" and -grown or 0, side == "below" and grown or 0)
     clip:SetAlpha(p)
     local ma = Panel.meterArea
     if ma:GetParent() == clip then ma:SetShown(s.goal == 1 or p > 0) end

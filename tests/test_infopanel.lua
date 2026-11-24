@@ -123,6 +123,33 @@ T.test("info panel: Below, the meter slides down out of the minimap's bottom and
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- At the screen's top-right corner, Above and Right pushed the whole box (map
+-- too) back on screen. The meter's room may hang off the edge; the map never moves.
+T.test("info panel: on every side the screen keeps only the map in view, so opening the meter never pushes it", function()
+    local DUI = login()
+    local P = stub.infopanel.Panel
+    local want = { left = { 1, 1 }, right = { 2, -1 }, above = { 3, -1 }, below = { 4, 1 } }
+    for side, w in pairs(want) do
+        DUI:Set("InfoPanel", "map.meterSide", side)
+        DUI:Set("InfoPanel", "meter.enabled", true)
+        settle()
+        T.truthy(P.holder:IsClampedToScreen(), side .. ": still kept on screen")
+        local room = P.geo.room
+        T.truthy(room > 0, side .. ": the meter takes room")
+        local insets = { P.holder:GetClampRectInsets() }
+        for i = 1, 4 do
+            T.near(insets[i], i == w[1] and w[2] * room or 0, 0.01, side .. ": inset " .. i)
+        end
+        DUI:Set("InfoPanel", "meter.enabled", false)
+        stub.RunOnUpdate(P.slide.driver, P.SLIDE / 2)
+        local half = { P.holder:GetClampRectInsets() }
+        T.near(half[w[1]], w[2] * P.slide.p * room, 0.01, side .. ": follows the slide")
+        settle()
+        T.near(select(w[1], P.holder:GetClampRectInsets()), 0, 0.01, side .. ": folded, the whole box")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("info panel: Above, the meter rises over the minimap, pinned by the map's bottom corner", function()
     local DUI = login()
     local P = stub.infopanel.Panel
