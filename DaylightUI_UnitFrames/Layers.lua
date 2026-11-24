@@ -56,13 +56,22 @@ local function part(key, label, get, extra)
     return p
 end
 
+-- A pet frame's happiness square: the preview's own, or the live pet's (ns.happiness).
+local function happinessOf(f)
+    if f.happiness then return f.happiness end
+    local h = ns.happiness
+    if h and h.pet == f then return h end
+end
+
 -- glue(f): frames drawn as part of a part without being inside it. They move
 -- with it and keep their gap to it. The frame's border goes round its health
--- bar, and the incoming heal, absorb and overshield bars draw over it.
+-- bar, and the incoming heal, absorb and overshield bars and a pet's happiness
+-- stripe draw over it.
 local HEALTH = part("health", "Health bar", function(f) return f.health end,
     { glue = function(f)
-        local heals, absorbs = f.heals, f.absorbs
-        return { DUI.Style.GetShell(f), heals, heals and heals.wedge, absorbs, absorbs and absorbs.wedge, f.overshield }
+        local heals, absorbs, mood = f.heals, f.absorbs, happinessOf(f)
+        return { DUI.Style.GetShell(f), heals, heals and heals.wedge, absorbs, absorbs and absorbs.wedge,
+                 f.overshield, mood and mood.band }
     end })
 local function power(unit)
     return part("power", "Power bar", function(f) return f.freePower and powerFree(unit) and f.freePower or f.power end,
@@ -146,7 +155,7 @@ Layers.PARTS = {
     focus = extraTexts({ castbar("focus", "focusCastbarFree"), HEALTH, power("focus"), debuffs("focus"), buffs("focus"),
         NAME, HEALTH_TEXT, POWER_TEXT }, { PORTRAIT, MARKER, LEVEL, LEADER, PVP }),
     pet = extraTexts({ HEALTH, power("pet"), debuffs("pet"), buffs("pet"), HEALTH_TEXT, POWER_TEXT },
-        { NAME, part("happiness", "Pet happiness", function(f) return f.happiness end) }),
+        { NAME, part("happiness", "Pet happiness", happinessOf) }),
     personal = { debuffs("personal"), buffs("personal") },
 }
 

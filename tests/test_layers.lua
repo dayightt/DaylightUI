@@ -258,6 +258,43 @@ T.test("layers: incoming heals, absorbs and the overshield stay over the health 
     end
 end)
 
+-- A hunter's pet: the live frame's happiness square is ns.happiness, and its
+-- "On the frame" stripe draws over the health bar.
+local function hunterPet()
+    local DUI, ns = stub.Load({ module = true, before = function()
+        stub.units.player = { name = "Hunts", isPlayer = true, class = "HUNTER" }
+        _G.HasPetUI = function() return true, true end
+        _G.C_PetInfo = {
+            GetPetHappiness = function() return 2, 125, 1 end,
+            GetPetFoodTypes = function() return { "Meat" } end,
+        }
+    end })
+    stub.RunTimers()
+    return DUI, ns, ns.frames.pet
+end
+
+T.test("layers: the live pet's happiness square moves with its place in the list", function()
+    local _, ns, f = hunterPet()
+    local h = ns.happiness
+    T.truthy(h and h.pet == f, "the live square")
+    place(ns, "pet", "happiness")
+    T.truthy(h:GetFrameLevel() > ns.Layers.TopOf(f.health), "on top of the list, over the health bar")
+    place(ns, "pet", "happiness", "health", true)
+    T.truthy(h:GetFrameLevel() < f.health:GetFrameLevel(), "under the health bar")
+end)
+
+T.test("layers: the pet's happiness stripe stays over its health bar wherever the bar moves", function()
+    local DUI, ns, f = hunterPet()
+    DUI:Set("UnitFrames", "pet.happinessLook", "frame")
+    stub.RunTimers()
+    local band = ns.happiness.band
+    T.truthy(band and band:IsShown(), "the stripe shows")
+    local gap = band:GetFrameLevel() - f.health:GetFrameLevel()
+    T.truthy(gap > 0, "over the bar to start")
+    place(ns, "pet", "health")
+    T.eq(band:GetFrameLevel() - f.health:GetFrameLevel(), gap, "keeps its gap over the bar")
+end)
+
 T.test("layers: the preview's stand-in aura rows take their place", function()
     local _, ns = freeTarget()
     place(ns, "target", "buffs")
