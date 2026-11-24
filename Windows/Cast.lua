@@ -6,7 +6,8 @@
 -- steals the mouse, it forwards hover, drag and clicks back through the spec.
 --
 --   local c = Win.Caster({ name = "DaylightUIBookCast", above = function() return frame end,
---                          enter = fn(row), leave = fn(row), drag = fn(row), post = fn(row, button) })
+--                          enter = fn(row), leave = fn(row), drag = fn(row), drop = fn(row),
+--                          post = fn(row, button) })
 --   c.Over(row, { type1 = "spell", spell = id })   -- from the row's OnEnter
 --   c.Hide()                                         -- when the window closes
 --
@@ -83,11 +84,15 @@ function Win.Caster(spec)
         end)
         b:SetScript("OnDragStart", function(self)
             if not (self.row and spec.drag) then return end
-            self.dragging = true
+            self.dragging, self.dragRow = true, self.row
             spec.drag(self.row)
         end)
         b:SetScript("OnDragStop", function(self)
             self.dragging = nil
+            -- The mouse may have left the row by now, so tell the row the drag began on.
+            local from = self.dragRow
+            self.dragRow = nil
+            if from and spec.drop then spec.drop(from) end
             if self.row then return end
             -- Never hide the drag's own button inside OnDragStop. Dropped onto
             -- the world, that stops the client drawing everything on WorldFrame

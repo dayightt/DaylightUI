@@ -236,8 +236,11 @@ function Win.HeaderIcon(f, icon, tip, onClick)
     return b
 end
 
-function Win.Tabs(f, tabs, onPick)
+-- opts.onReorder(ids): the tabs can be dragged into another order, and this is
+-- told the new order of ids after a drop.
+function Win.Tabs(f, tabs, onPick, opts)
     f.tabs, f.onTab = {}, onPick
+    f.onReorder = opts and opts.onReorder or nil
     local right = f.headerRight or f.close
     for i = #tabs, 1, -1 do
         local t = tabs[i]
@@ -245,12 +248,21 @@ function Win.Tabs(f, tabs, onPick)
         b.id = t.id
         b:SetPoint("RIGHT", right, "LEFT", -Win.TAB_GAP, 0)
         b:SetScript("OnClick", function()
-            if f.tab == b.id then return end
+            if f.tab == b.id or Win.TabDropped(f) then return end
             Win.PickTab(f, b.id)
             if f.onTab then f.onTab(b.id) end
         end)
+        if f.onReorder then
+            b:RegisterForDrag("LeftButton")
+            b:SetScript("OnDragStart", function() Win.TabDragStart(f, b) end)
+            b:SetScript("OnDragStop", function() Win.TabDragStop(f) end)
+        end
         table.insert(f.tabs, 1, b)
         right = b
+    end
+    if f.onReorder and not f.tabDragHooked then
+        f.tabDragHooked = true
+        f:HookScript("OnHide", function() Win.TabDragStop(f) end)
     end
     Win.FitTabs(f)
     if not f.fitTabsOnShow then
@@ -272,6 +284,130 @@ function Win.FitTabs(f)
     end
     f.title:SetPoint("RIGHT", f, "RIGHT", -room, 0)
     if f.sub then f.sub:SetPoint("RIGHT", f, "RIGHT", -room, 0) end
+end
+
+-- Dragging a tab along the header: it follows the mouse, the others glide
+-- aside (FAST), and the drop tells onReorder. Spots are each tab's right edge
+-- as an offset from whatever the last tab hangs on (the X or a header icon).
+local function tabAnchor(f) return f.headerRight or f.close end
+
+local function placeTab(f, b, off)
+    b:ClearAllPoints()
+    b:SetPoint("RIGHT", tabAnchor(f), "LEFT", off, 0)
+end
+
+local function tabSlots(order)
+    local out, off = {}, -Win.TAB_GAP
+    for i = #order, 1, -1 do
+        out[i] = off
+        off = off - order[i]:GetWidth() - Win.TAB_GAP
+    end
+    return out, off + Win.TAB_GAP
+end
+
+-- The mouse along the header, in the same offsets as the spots.
+local function cursorOff(f)
+    local x = GetCursorPosition()
+    local left = tabAnchor(f):GetLeft()
+    if type(x) ~= "number" or type(left) ~= "number" then return nil end
+    return x / f:GetEffectiveScale() - left
+end
+
+local function slideTab(f, d, b, to)
+    b.tabSlide = b.tabSlide or {}
+    local M = DUI.Motion
+    M.Tween(b.tabSlide, d.seen[b], to, M.FAST, function(v) d.seen[b] = v; placeTab(f, b, v) end)
+end
+
+-- Clicks right after a drop are its own release, not a click.
+Win.TAB_DROP_GRACE = 0.05
+function Win.TabDropped(f)
+    return f.tabDropAt ~= nil and GetTime() - f.tabDropAt <= Win.TAB_DROP_GRACE
+end
+
+function Win.TabDragStart(f, b)
+    if not (f.onReorder and f.tabs) or #f.tabs < 2 or f.tabDrag then return end
+    local x = cursorOff(f)
+    if not x then return end
+    local slots, leftmost = tabSlots(f.tabs)
+    local d = { b = b, order = {}, seen = {}, level = b:GetFrameLevel() }
+    for i, o in ipairs(f.tabs) do
+        d.order[i], d.seen[o] = o, slots[i]
+        if o == b then d.at = i end
+        placeTab(f, o, slots[i])
+    end
+    if not d.at then return end
+    d.grab = x - slots[d.at]
+    d.min, d.max = leftmost + b:GetWidth(), -Win.TAB_GAP
+    f.tabDrag = d
+    b:SetFrameLevel(d.level + 5)
+    f.tabDragger = f.tabDragger or CreateFrame("Frame", nil, f)
+    f.tabDragger:SetScript("OnUpdate", function() Win.TabDragMove(f) end)
+end
+
+function Win.TabDragMove(f)
+    local d = f.tabDrag
+    if not d then return end
+    -- The release can land on another frame (a secure caster over the tab), so
+    -- the button itself says when it's over.
+    if type(IsMouseButtonDown) == "function" and not IsMouseButtonDown("LeftButton") then
+        return Win.TabDragStop(f)
+    end
+    local x = cursorOff(f)
+    if not x then return end
+    local b, w = d.b, d.b:GetWidth()
+    local right = math.max(d.min, math.min(d.max, x - d.grab))
+    d.seen[b] = right
+    placeTab(f, b, right)
+    local rest = {}
+    for _, o in ipairs(d.order) do if o ~= b then rest[#rest + 1] = o end end
+    local best, bestDist
+    for j = 1, #rest + 1 do
+        local trial = {}
+        for k, o in ipairs(rest) do trial[k] = o end
+        table.insert(trial, j, b)
+        local dist = math.abs(tabSlots(trial)[j] - right)
+        if not bestDist or dist < bestDist then best, bestDist = j, dist end
+    end
+    if best == d.at then return end
+    table.insert(rest, best, b)
+    d.order, d.at = rest, best
+    local slots = tabSlots(rest)
+    for i, o in ipairs(rest) do
+        if o ~= b then slideTab(f, d, o, slots[i]) end
+    end
+end
+
+function Win.TabDragStop(f)
+    local d = f.tabDrag
+    if not d then return end
+    f.tabDrag = nil
+    if f.tabDragger then f.tabDragger:SetScript("OnUpdate", nil) end
+    f.tabDropAt = GetTime()
+    local moved = false
+    for i, o in ipairs(d.order) do if f.tabs[i] ~= o then moved = true end end
+    f.tabs = d.order
+    local slots = tabSlots(f.tabs)
+    local b = d.b
+    b.tabSlide = b.tabSlide or {}
+    local M = DUI.Motion
+    M.Tween(b.tabSlide, d.seen[b], slots[d.at], M.FAST, function(v) placeTab(f, b, v) end, function()
+        -- Chained again, so a later label width change still lays them out.
+        local right = tabAnchor(f)
+        for i = #f.tabs, 1, -1 do
+            local o = f.tabs[i]
+            if o.tabSlide and o ~= b then M.Tween(o.tabSlide, 0, 0) end   -- a slide still going would re-place it
+            o:ClearAllPoints()
+            o:SetPoint("RIGHT", right, "LEFT", -Win.TAB_GAP, 0)
+            right = o
+        end
+        b:SetFrameLevel(d.level)
+    end)
+    if moved and f.onReorder then
+        local ids = {}
+        for i, o in ipairs(f.tabs) do ids[i] = o.id end
+        DUI.SafeCall(f.onReorder, ids)
+    end
 end
 
 -- Repaints colors the core restyle doesn't cover. Call on style changes.

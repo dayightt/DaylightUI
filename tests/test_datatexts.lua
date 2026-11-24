@@ -1458,6 +1458,24 @@ T.test("data texts: professions show the primaries' skill; a click opens the las
     _G.GetProfessions, _G.GetProfessionInfo = nil, nil
 end)
 
+T.test("data texts: professions follow the order dragged in the profession window", function()
+    local DUI = login(nil, function()
+        _G.GetProfessions = function() return 1, 2, nil, nil, 3 end
+        local info = { { "Tailoring", 245, 300, 197 }, { "Enchanting", 230, 300, 333 }, { "Cooking", 75, 75, 185 } }
+        _G.GetProfessionInfo = function(i) local p = info[i] return p[1], 0, p[2], p[3], 0, 0, p[4] end
+    end)
+    DUI.DB.Character().craftOrder = { 185, 333, 197 }
+    DUI:Set("InfoPanel", "data.slot4", "professions")
+    stub.RunTimers()
+    measureLikeTheGame()
+    T.eq(shown()[4], "230 · 245", "Enchanting first, as dragged")
+    hover(4)
+    local tip = tipText()
+    local c, e = tip:find("Cooking", 1, true), tip:find("Enchanting", 1, true)
+    T.truthy(c and e and c < e, tip)
+    _G.GetProfessions, _G.GetProfessionInfo = nil, nil
+end)
+
 T.test("data texts: hearthstone shows home and its cooldown; out of combat a secure button over it uses it", function()
     local cd = { 0, 0 }
     local DUI = login(nil, function()

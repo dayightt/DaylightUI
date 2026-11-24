@@ -236,10 +236,13 @@ function Craft.MakeTabs(f)
     end
     local list = {}
     for _, t in ipairs(tabs) do list[#list + 1] = { id = t.skillLine, text = t.name } end
-    Win.Tabs(f, list, Craft.Switch)
+    Win.Tabs(f, list, Craft.Switch, { onReorder = function(ids)
+        ns.Data.SetOrder(ids)
+        Craft.tabs = ns.Data.Tabs()
+    end })
     for i, b in ipairs(f.tabs) do
-        local spellID = tabs[i].spellID
-        b:HookScript("OnEnter", function(self) Craft.TabCaster(f, self, spellID) end)
+        b.spellID = tabs[i].spellID
+        b:HookScript("OnEnter", function(self) Craft.TabCaster(f, self, self.spellID) end)
     end
 end
 
@@ -254,8 +257,24 @@ function Craft.TabCaster(f, b, spellID)
             above = function() return f end,
             enter = function(row) row.Paint(true) end,
             leave = function(row) row.Paint(false) end,
+            -- A tab dragged from here: its release must not cast, so the caster
+            -- holds no spell until the mouse is let go, then it's laid again over
+            -- whichever tab the mouse is on.
+            drag = function(row)
+                local btn = Craft.tabCaster.button
+                if btn and not InCombatLockdown() then btn:SetAttribute("type1", nil) end
+                Win.TabDragStart(f, row)
+            end,
+            drop = function()
+                Win.TabDragStop(f)
+                C_Timer.After(0, function()
+                    for _, t in ipairs(f.tabs or {}) do
+                        if t:IsMouseOver() then return Craft.TabCaster(f, t, t.spellID) end
+                    end
+                end)
+            end,
             post = function(row, button)
-                if button ~= "LeftButton" or f.tab == row.id then return end
+                if button ~= "LeftButton" or f.tab == row.id or Win.TabDropped(f) then return end
                 Win.PickTab(f, row.id)
                 if DUI.Sound then DUI.Sound.Play("click") end
             end })

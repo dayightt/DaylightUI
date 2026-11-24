@@ -94,7 +94,39 @@ function Data.Tabs()
             end
         end
     end
-    return out
+    return Data.Ordered(out)
+end
+
+-- The player's own order of professions (tabs dragged in this window), kept per
+-- character as a list of skill lines.
+function Data.SetOrder(ids)
+    local char = DUI.DB and DUI.DB.Character and DUI.DB.Character()
+    if not char then return end
+    local copy = {}
+    for i, id in ipairs(ids) do copy[i] = id end
+    char.craftOrder = copy
+end
+
+-- Sorts a list of professions (each with .skillLine) by the saved order, in place.
+-- Saved ones fill the spots saved ones held, in the saved order; any other (one
+-- learned since, or one without a window) keeps its spot. The data text's list
+-- uses this too.
+function Data.Ordered(list)
+    local char = DUI.DB and DUI.DB.Character and DUI.DB.Character()
+    local saved = char and char.craftOrder
+    if type(saved) ~= "table" then return list end
+    local rank = {}
+    for i, id in ipairs(saved) do rank[id] = i end
+    local spots, picked = {}, {}
+    for i, p in ipairs(list) do
+        if p.skillLine and rank[p.skillLine] then
+            spots[#spots + 1] = i
+            picked[#picked + 1] = p
+        end
+    end
+    table.sort(picked, function(a, b) return rank[a.skillLine] < rank[b.skillLine] end)
+    for k, i in ipairs(spots) do list[i] = picked[k] end
+    return list
 end
 
 -- Primary professions (the ones that can be unlearned), with or without a crafting

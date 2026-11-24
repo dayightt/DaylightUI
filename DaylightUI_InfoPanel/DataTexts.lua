@@ -722,12 +722,15 @@ function DT.ReadProfessions()
     for i = 1, 7 do
         local idx = list[i]
         if idx then
-            local name, _, rank, max = call(_G.GetProfessionInfo, idx)
+            local name, _, rank, max, _, _, skillLine = call(_G.GetProfessionInfo, idx)
             if type(name) == "string" then
-                out[#out + 1] = { name = name, rank = num(rank), max = num(max), primary = i <= 2 }
+                out[#out + 1] = { name = name, rank = num(rank), max = num(max), primary = i <= 2, skillLine = num(skillLine) }
             end
         end
     end
+    -- In the order the player dragged the profession window's tabs into.
+    local Data = DUI.Craft and DUI.Craft.Data
+    if Data and Data.Ordered then DUI.SafeCall(Data.Ordered, out) end
     return out
 end
 

@@ -163,6 +163,90 @@ T.test("craft: a tab for each profession with a crafting window, the open one pi
     T.eq(f.tab, 197, "the open profession's tab picked")
 end)
 
+-- A player had Cooking in front of their two main professions. A tab dragged to a
+-- new spot stays there for this character, the others glide aside while it moves,
+-- and letting go never counts as a click on the tab.
+T.test("craft: a tab dragged to the front stays there for this character; the others glide aside", function()
+    local ns = load()
+    local f = open(ns)
+    local Win = DaylightUI.Win
+    local right = f.headerRight or f.close
+    right.GetLeft = function() return 600 end   -- the fake game lays nothing out
+    local s = f:GetEffectiveScale()
+    local tail, cook = f.tabs[1], f.tabs[2]
+    local function at(b) local _, _, _, x = b:GetPoint(1); return x end
+    local gap = Win.TAB_GAP
+    local cookMid = -gap - cook:GetWidth() / 2
+    stub.cursorPos = { (600 + cookMid) * s, 0 }
+    T.truthy(cook:GetScript("OnDragStart"), "a tab can be dragged")
+    cook:GetScript("OnDragStart")(cook, "LeftButton")
+    stub.cursorPos = { (600 - 1000) * s, 0 }
+    Win.TabDragMove(f)
+    local tailFrom = -gap - cook:GetWidth() - gap
+    T.near(at(tail), tailFrom, 0.5, "Tailoring starts where it was drawn, no jump")
+    frame(2)
+    T.truthy(at(tail) > tailFrom + 0.5 and at(tail) < -gap - 0.5, "and glides aside: " .. at(tail))
+    frame(20)
+    T.near(at(tail), -gap, 0.5, "Tailoring now rightmost")
+    cook:GetScript("OnDragStop")(cook)
+    cook:Click()
+    T.eq(#PW.Calls("OpenTradeSkill"), 0, "letting go isn't a click")
+    frame(20)
+    T.eq(f.tabs[1].text:GetText(), "Cooking")
+    T.eq(f.tabs[2].text:GetText(), "Tailoring")
+    T.deq(DaylightUI.DB.Character().craftOrder, { 185, 197 }, "saved for this character")
+    T.eq(ns.Data.Tabs()[1].name, "Cooking", "every list of tabs reads the order")
+    ns.Window.tabs = nil
+    ns.Window.MakeTabs(f)
+    T.eq(f.tabs[1].text:GetText(), "Cooking", "rebuilt tabs keep it")
+    stub.Advance(1)
+    f.tabs[1]:Click()
+    T.eq((PW.Calls("OpenTradeSkill")[1] or {})[1], 185, "a click after it still switches")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Out of combat the mouse sits on a secure caster laid over the tab, so the drag
+-- starts there. Its release must not cast the profession.
+T.test("craft: a tab dragged from its secure caster moves too, and the release casts nothing", function()
+    local ns = load()
+    local f = open(ns)
+    local Win = DaylightUI.Win
+    local right = f.headerRight or f.close
+    right.GetLeft = function() return 600 end
+    local s = f:GetEffectiveScale()
+    local cook = f.tabs[2]
+    cook.GetLeft, cook.GetBottom = function() return 560 end, function() return 500 end
+    cook:GetScript("OnEnter")(cook)
+    local b = _G.DaylightUICraftTab
+    T.truthy(b and b:IsShown() and b:GetAttribute("type1") == "spell", "the caster is over Cooking")
+    stub.cursorPos = { (600 - Win.TAB_GAP - 5) * s, 0 }
+    b:GetScript("OnDragStart")(b, "LeftButton")
+    T.falsy(b:GetAttribute("type1"), "the caster casts nothing while a tab is dragged")
+    stub.cursorPos = { (600 - 1000) * s, 0 }
+    Win.TabDragMove(f)
+    b:GetScript("OnLeave")(b)
+    b:GetScript("OnDragStop")(b)
+    frame(20)
+    T.eq(f.tabs[1].text:GetText(), "Cooking", "moved")
+    T.deq(DaylightUI.DB.Character().craftOrder, { 185, 197 })
+    T.eq(#PW.Calls("CastSpell"), 0, "nothing cast")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("craft: a new profession keeps its place among the saved order", function()
+    local profs = PW.Sample()
+    profs[#profs + 1] = { name = "First Aid", skillLine = 129, icon = 135966, spellID = 3273, rank = 1, max = 75, recipes = {} }
+    local ns = load({ profs = profs })
+    DaylightUI.DB.Character().craftOrder = { 185, 197 }
+    local names = {}
+    for _, t in ipairs(ns.Data.Tabs()) do names[#names + 1] = t.name end
+    T.eq(table.concat(names, ", "), "Cooking, Tailoring, First Aid")
+    DaylightUI.DB.Character().craftOrder = { 129, 197 }
+    names = {}
+    for _, t in ipairs(ns.Data.Tabs()) do names[#names + 1] = t.name end
+    T.eq(table.concat(names, ", "), "First Aid, Cooking, Tailoring", "Cooking (not saved) keeps its spot")
+end)
+
 T.test("craft: learned recipes under their categories, in the game's order", function()
     local ns = load()
     open(ns)
