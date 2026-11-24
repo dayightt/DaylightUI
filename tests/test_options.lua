@@ -58,7 +58,7 @@ T.test("our windows and the skins are pages under Extras, not sections of their 
         sections[#sections + 1] = s.id
         if s.id == "QoL" then for _, p in ipairs(s.pages) do ids[#ids + 1] = p.id end end
     end
-    T.eq(table.concat(ids, ","), "QoL.qol,QoL.loot,QoL.flight,QoL.scenes,Character.window,NPC.window,windows,Skins.skins,Skins.rolls")
+    T.eq(table.concat(ids, ","), "QoL.qol,QoL.loot,QoL.flight,QoL.zone,QoL.scenes,Character.window,NPC.window,windows,Skins.skins,Skins.rolls")
     for _, id in ipairs(sections) do
         T.truthy(id ~= "Skins" and id ~= "Character" and id ~= "NPC" and id ~= "Book" and id ~= "Inspect", id)
     end
