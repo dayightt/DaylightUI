@@ -21,6 +21,9 @@ DUI.Media.RegisterSlot(Plate.MEDIA.fonts.threatPct, "Nameplates", "media.threatP
 -- Level font: "general" uses the health text's too.
 Plate.MEDIA.fonts.level = "plates.font.level"
 DUI.Media.RegisterSlot(Plate.MEDIA.fonts.level, "Nameplates", "media.levelFont", "font", Plate.MEDIA.fonts.health)
+-- The mob's target's font: "general" uses the name's.
+Plate.MEDIA.fonts.mobTarget = "plates.font.mobTarget"
+DUI.Media.RegisterSlot(Plate.MEDIA.fonts.mobTarget, "Nameplates", "media.mobTargetFont", "font", Plate.MEDIA.fonts.name)
 -- The execute range's own bar texture (its "Bar texture" fill).
 Plate.MEDIA.bars.execute = "plates.execute"
 DUI.Media.RegisterSlot(Plate.MEDIA.bars.execute, "Nameplates", "media.execute", "bar")
@@ -457,7 +460,7 @@ function Plate.Create(parent, sample)
     p.threatPct = Style.Text(over, 10, "CENTER", Plate.MEDIA.fonts.threatPct)
     p.threatPct:Hide()
     -- Who the mob is attacking (mobTarget), see Plate.UpdateMobTarget.
-    p.mobTarget = Style.Text(over, 10, "CENTER", Plate.MEDIA.fonts.name)
+    p.mobTarget = Style.Text(over, 10, "CENTER", Plate.MEDIA.fonts.mobTarget)
     p.mobTarget:Hide()
 
     -- Name and guild line on their own frame above everything on the bar (fill,
@@ -1717,12 +1720,29 @@ function Plate.ThreatBreath(state)
 end
 
 -- Who the mob is attacking (mobTarget, enemy plates with a bar): its target's
--- name, a player's in their class color, anyone else's white, so a tank sees at a
--- glance which mobs are off the tanks. In a PvP match the name and class can be
--- secret: the name goes whole to SetText and a secret class reads as unknown.
+-- name, by default a player's in their class color and anyone else's white, so
+-- you see at a glance who each mob is on. In a PvP match the name and class can
+-- be secret: the name goes whole to SetText and a secret class reads as unknown.
 -- Redrawn on the mob's own UNIT_TARGET only, so nothing runs while it holds.
 function Plate.MobTargetSize(p, c)
+    local own = tonumber(c.mobTargetSize) or 0
+    if own > 0 then return own end
     return math.max(8, math.floor(Plate.NameSize(p, c) * Plate.SUB_SCALE + 0.5))
+end
+
+-- mobTargetColor: "class" (players by class, others white), "white", "accent", "custom".
+function Plate.PaintMobTarget(fs, unit)
+    local c = cfg()
+    local mode = c.mobTargetColor or "class"
+    if mode == "accent" then return Style.InkText(fs, "pop") end
+    if mode == "custom" and type(c.mobTargetCustom) == "table" then
+        local t = c.mobTargetCustom
+        return fs:SetTextColor(t[1], t[2], t[3])
+    end
+    if mode == "class" and plain(UnitIsPlayer, unit) == true then
+        return fs:SetTextColor(Style.ClassTextColor(plain(UnitClassBase, unit)))
+    end
+    Style.InkText(fs, "VALUE")
 end
 
 function Plate.UpdateMobTarget(p)
@@ -1739,11 +1759,7 @@ function Plate.UpdateMobTarget(p)
         return
     end
     fs:SetText(name)
-    if plain(UnitIsPlayer, tu) == true then
-        fs:SetTextColor(Style.ClassTextColor(plain(UnitClassBase, tu)))
-    else
-        Style.InkText(fs, "VALUE")
-    end
+    Plate.PaintMobTarget(fs, tu)
     fs:Show()
 end
 

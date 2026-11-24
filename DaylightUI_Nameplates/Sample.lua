@@ -179,8 +179,11 @@ Sample.PARTS = {
                "threatPctPos", "threatPctX", "threatPctY" },
       move = { spot = THREATPCT("Pos"), x = THREATPCT("X"), y = THREATPCT("Y") },
       size = { s = { "threatPctSize" } } },
-    { label = "Enemy's target", at = at("mobTarget"), keys = { "mobTarget", "mobTargetPos", "mobTargetX", "mobTargetY" },
-      move = { spot = MOBTARGET("Pos"), x = MOBTARGET("X"), y = MOBTARGET("Y") } },
+    { label = "Enemy's target", at = at("mobTarget"),
+      keys = { "mobTarget", "mobTargetColor", "mobTargetCustom", "mobTargetSize", "media.mobTargetFont",
+               "mobTargetPos", "mobTargetX", "mobTargetY" },
+      move = { spot = MOBTARGET("Pos"), x = MOBTARGET("X"), y = MOBTARGET("Y") },
+      size = { s = { "mobTargetSize" } } },
     { label = "Name", at = at("name"),
       keys = { "nameSize", "nameColor", "factionIcon", "media.nameFont", "lastNames.nameplates", "namePos", "nameX", "nameY",
                "friendly.nameSize", "friendly.nameColor", "friendly.namePlayer", "friendly.nameNpc", "friendly.nameOther", "friendly.partyName", "friendly.partyCustom", "friendly.partyMark", "friendly.namePos", "friendly.nameX", "friendly.nameY" },
@@ -606,7 +609,7 @@ local function refresh(s, width, maxH)
     -- The enemy's target: you, as when it's on you.
     if p.mobTargetOn then
         p.mobTarget:SetText(DUI.UnitName("player", "nameplates") or "")
-        p.mobTarget:SetTextColor(Style.ClassTextColor(Plate.Plain(UnitClassBase, "player")))
+        Plate.PaintMobTarget(p.mobTarget, "player")
         p.mobTarget:Show()
     end
     p.hover:Hide()

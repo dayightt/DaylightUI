@@ -71,6 +71,9 @@ ns.DEFAULTS = {
     threatPctCustom = { INK.WARN[1], INK.WARN[2], INK.WARN[3] }, -- ...color for "custom"
     threatPctSize = 0, -- 0 = scale with bar height
     mobTarget = false, -- the name of whoever each enemy is attacking, by its plate
+    mobTargetColor = "class", -- "class" (players in their class color, others white), "white", "accent", "custom"
+    mobTargetCustom = { INK.VALUE[1], INK.VALUE[2], INK.VALUE[3] }, -- ...color for "custom"
+    mobTargetSize = 0, -- 0 = a share of the name's size, like the guild line
     quest = true, -- marker on quest targets
     questCount = true, -- ...with the objective count (4/10) beside it
     questIcon = false, -- ...as an objective icon (sword, bag, cog, eye) in the quest color (needs the Quests module)
@@ -216,6 +219,8 @@ ns.DEFAULTS = {
 ns.DEFAULTS.media.threatPctFont = "general"
 -- Level font, same rule.
 ns.DEFAULTS.media.levelFont = "general"
+-- The mob's target's font: "general" uses the name's.
+ns.DEFAULTS.media.mobTargetFont = "general"
 -- The execute range's "Bar texture": "general" uses the one on General > Appearance.
 ns.DEFAULTS.media.execute = "general"
 -- Bar animation (the core's BarFx.lua) on every plate's health, power and

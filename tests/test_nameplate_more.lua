@@ -717,3 +717,51 @@ T.test("nameplates: the mob's target in a PvP match, where an enemy's name and c
     stub.SetRestriction("PvPMatch", false)
     stub.LeaveCombat()
 end)
+
+-- It's for anyone who wants to see who a mob is on, not only tanks: it sits with
+-- the other texts on Health & Names, with the same color, size and font rows.
+T.test("nameplates: the mob's target lives on Health & Names with its own color, size and font", function()
+    local NP = login()
+    local O = DaylightUI.Options
+    local function card(pageId, label)
+        for _, g in ipairs(O.GetPage(pageId).groups) do
+            if g.label == label then return g end
+        end
+    end
+    T.isnil(card("Nameplates.threat", "Enemy's target"), "no longer on the Threat page")
+    local g = card("Nameplates.bars", "Enemy's target")
+    T.truthy(g, "on Health & Names")
+    local keys = {}
+    for _, it in ipairs(g.items) do if it.key then keys[it.key] = it end end
+    for _, k in ipairs({ "mobTarget", "mobTargetColor", "mobTargetCustom", "mobTargetSize", "media.mobTargetFont",
+                         "mobTargetPos", "mobTargetX", "mobTargetY" }) do
+        T.truthy(keys[k], "a row for " .. k)
+    end
+    -- Defaults keep what shipped: class color, the name's size share, the name's font.
+    T.eq(NP.DEFAULTS.mobTargetColor, "class")
+    T.eq(NP.DEFAULTS.mobTargetSize, 0)
+    T.eq(NP.DEFAULTS.media.mobTargetFont, "general")
+    stub.units.party1 = { name = "Jaina", class = "MAGE", isPlayer = true, reaction = 5 }
+    DaylightUI:Set("Nameplates", "mobTarget", true)
+    stub.RunTimers()
+    local p = added("nameplate1")
+    local fs = p.mobTarget
+    mobTargets("nameplate1", "party1")
+    local base = select(2, fs:GetFont())
+    -- White, accent, one color: each repaints the name it shows now.
+    DaylightUI:Set("Nameplates", "mobTargetColor", "white"); stub.RunTimers()
+    T.near((fs:GetTextColor()), DaylightUI.Style.INK.VALUE[1], 1e-6, "white")
+    DaylightUI:Set("Nameplates", "mobTargetColor", "accent"); stub.RunTimers()
+    T.near((fs:GetTextColor()), (DaylightUI.Style.Pop()), 1e-6, "the accent")
+    DaylightUI:Set("Nameplates", "mobTargetCustom", { 0.1, 0.9, 0.2 })
+    DaylightUI:Set("Nameplates", "mobTargetColor", "custom"); stub.RunTimers()
+    local r, gg = fs:GetTextColor()
+    T.near(r, 0.1, 1e-6, "one color"); T.near(gg, 0.9, 1e-6)
+    -- A new target keeps the picked color.
+    mobTargets("nameplate1", "player")
+    T.near((fs:GetTextColor()), 0.1, 1e-6, "kept on a new target")
+    -- Its own size.
+    DaylightUI:Set("Nameplates", "mobTargetSize", 18); stub.RunTimers()
+    T.truthy(select(2, fs:GetFont()) ~= base, "its own size")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
