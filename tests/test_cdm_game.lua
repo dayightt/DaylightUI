@@ -173,6 +173,39 @@ T.test("cdm game: the game's layout pass lets held items go and Daylight UI clai
 end)
 end
 
+-- The game makes its items click-through, with a tooltip only while Edit Mode's
+-- "Show tooltips" is on (CooldownViewerItemMixin:SetTooltipsShown). An item Daylight
+-- UI holds, or hides and shows again, keeps that.
+T.test("cdm game: a held game item takes no clicks and shows its tooltip by Show tooltips", function()
+    local DUI, AB, D, R = world()
+    local id = CW.ID(REND, ESSENTIAL)
+    local set = D.Current()
+    D.AddPiece(set, id, "icon", 0, 0)
+    pass(AB)
+    local item = CW.Item(id)
+    T.eq(R.DrawnBy(id), "game")
+    T.truthy(held(item, id), "held in its piece")
+    T.eq(item:IsMouseClickEnabled(), false, "held: a click goes through to the world")
+    T.eq(item:IsMouseMotionEnabled(), true, "Show tooltips on: the hover shows the tooltip")
+    CW.Setting("EssentialCooldownViewer", "ShowTooltips", 0); stub.RunTimers()
+    item = CW.Item(id)
+    T.eq(item:IsMouseClickEnabled(), false)
+    T.eq(item:IsMouseMotionEnabled(), false, "Show tooltips off: no tooltip")
+    -- Hidden on cooldown, then shown again when ready.
+    set.pieces[id].onCd = "hide"
+    pass(AB)
+    CW.Cooldown(REND, 5); stub.RunTimers()
+    T.eq(item:GetAlpha(), 0, "on cooldown: hidden")
+    T.eq(item:IsMouseMotionEnabled(), false, "no tooltip over the gap")
+    CW.Setting("EssentialCooldownViewer", "ShowTooltips", 1); stub.RunTimers()
+    item = CW.Item(id)
+    CW.Cooldown(REND, nil); stub.RunTimers()
+    T.eq(item:GetAlpha(), 1, "ready: shown")
+    T.eq(item:IsMouseClickEnabled(), false, "shown again: still click-through")
+    T.eq(item:IsMouseMotionEnabled(), true, "and its tooltip back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The viewers keep which item shows which aura in a table the client refuses
 -- to tainted code. A layout pass run by an addon dies on it and leaves the
 -- viewer broken, which is why Daylight UI never calls the game's Cooldown

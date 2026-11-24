@@ -170,6 +170,15 @@ end
 -- The saved button table of a claimed item (nil when Daylight UI doesn't hold it).
 function Fx.ButtonOf(item) return opts[item] end
 
+-- Gives a game item its mouse back as the game sets it (CooldownViewerItemMixin:SetTooltipsShown).
+-- Clicks go through to the world, and the hover shows a tooltip only while its viewer's
+-- Edit Mode "Show tooltips" is on.
+function Fx.GameMouse(item)
+    local viewer = item.GetViewerFrame and item:GetViewerFrame()
+    item:SetMouseClickEnabled(false)
+    item:SetMouseMotionEnabled(not (viewer and viewer.tooltipsShown == false))
+end
+
 -- Glow -----------------------------------------------------------------
 -- The game's own proc glow (the looping spell alert ring every player knows) on a
 -- Daylight UI frame, recolored to the option's color or the accent (a gradient accent
@@ -1247,7 +1256,7 @@ local function applyAlpha(item)
         item:EnableMouse(false)
     elseif mouseOff[item] then
         mouseOff[item] = nil
-        item:EnableMouse(true)
+        Fx.GameMouse(item)
     end
 end
 
@@ -1459,7 +1468,7 @@ function Fx.Clear(item)
         wash.__on = nil
         wash:SetAlpha(0)
     end
-    if mouseOff[item] then mouseOff[item] = nil; item:EnableMouse(true) end
+    if mouseOff[item] then mouseOff[item] = nil; Fx.GameMouse(item) end
     cdState[item], away[item], usable[item], castable[item], down[item] = nil, nil, nil, nil, nil
     short[item] = nil
     buffOnly[item] = nil
