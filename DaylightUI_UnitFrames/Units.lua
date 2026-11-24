@@ -992,6 +992,11 @@ function ns.Build(mod)
         ns.playerCastbar.near = ns.frames.player
         ns.playerCastbar.moverKey = "unitframes.playerCastbar"
         DUI.Movers.Register(ns.playerCastbar, "unitframes.playerCastbar", "Player Cast Bar", { "BOTTOM", nil, "BOTTOM", 0, 180 })
+        -- Its own fade. The key stays out of the unit frames' hushes, so a craft
+        -- at a campfire still shows its cast.
+        local castList = { ns.playerCastbar }
+        DUI.Fade.Register{ key = "PlayerCastbar", scope = "UnitFrames", path = "playerCastbar.fade", page = "UnitFrames.player",
+            frames = function() return castList end, paint = CB.PaintFade, float = false }
         -- The swing timers hang under the cast bar unless detached.
         ns.swing = ns.Swing.Create()
         if ns.swing then
@@ -1003,8 +1008,9 @@ function ns.Build(mod)
                 DUI.Movers.Register(ns.swing.pods[o[1]], ns.Swing.MOVERS[o[1]], o[2], { "BOTTOM", nil, "BOTTOM", 0, o[3] })
                 DUI.Movers.Suspend(ns.Swing.MOVERS[o[1]], true)
             end
-            -- No fade setting of its own, so it only leaves with the unit
-            -- frames when they are hushed (sitting at a campfire).
+            -- Its own fade, and it leaves with the unit frames when they are
+            -- hushed (sitting at a campfire). No "Only when something changes":
+            -- its visibility setting already shows it only while you swing.
             local swing = ns.swing
             local parts = { swing, swing.pods.main, swing.pods.off, swing.pods.ranged }
             DUI.Fade.Register{ key = "UnitFrames.swing", scope = "UnitFrames", path = "swing.fade", page = "UnitFrames.swing",

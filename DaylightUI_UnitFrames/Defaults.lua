@@ -84,7 +84,8 @@ ns.DEFAULTS = {
     -- sits over it, "free" uses its own mover. x/y nudge it above or below.
     playerCastbar = { enabled = true, at = "below", x = 0, y = 0, width = 285, height = 27, showIcon = false, slant = true, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false,
                       from = "frame",   -- when hung "below": under the player frame, or "power" for under a free-standing power bar (player.powerAt free)
-                      shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 } },   -- its own border (UF.OwnShell)
+                      shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 },   -- its own border (UF.OwnShell)
+                      fade = DaylightUI.Fade.Defaults() },
     -- The target's cast bar: inside its frame over the power bar (at = "power"),
     -- or its own bar with its own size above or below the frame (nudged by
     -- x/y) or on its own mover ("free").
@@ -127,7 +128,8 @@ ns.DEFAULTS = {
               customGradient = DaylightUI.Style.DefaultStops(),   -- fill "customGradient": every hand's bar in these colors
               slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, showIcon = false, textSize = 12, reverseFill = false, spacing = 0, growUp = false,
               colors = { main = { 0.80, 0.68, 0.46 }, off = { 0.62, 0.56, 0.46 }, ranged = { 0.50, 0.66, 0.52 },
-                         queued = { 0.86, 0.44, 0.32 } } },
+                         queued = { 0.86, 0.44, 0.32 } },
+              fade = DaylightUI.Fade.Defaults() },
     combo = { enabled = true, size = 14, fullRed = true,
         height = 0, gap = 3, x = 0, y = 0,
         color = { 1.0, 0.82, 0.25 }, fullColor = { 0.95, 0.22, 0.2 },

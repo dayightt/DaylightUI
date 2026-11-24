@@ -2788,6 +2788,7 @@ local PLAYER_CAST = {
             " Under the frame, between the frames or under the personal display, it draws with the frame instead."),
     } },
     castShell("playerCastbar"),
+    DaylightUI.Fade.Card("playerCastbar.fade.", nil, off("playerCastbar.enabled"), "Your cast bar", { noFloat = true }),
     castTextCard("player", "Player", "your"),
 }
 local TARGET_CAST = {
@@ -3159,6 +3160,7 @@ ns.OPTIONS = { pages = {
             strataRow("swing.strata", "Swing timer layer", "The layer the swing timer draws in when detached, as a group or a bar on its own.",
                 off("swing.enabled"), " Hung under the player frame or the cast bar, it draws with them instead."),
         } },
+        DaylightUI.Fade.Card("swing.fade.", nil, off("swing.enabled"), "Swing timer", { noFloat = true }),
         shellCard("swing", "swing.enabled", true),
         DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {
             { id = "swing", label = "Swing timer", base = "swing.barFx.", kind = "swing", gate = off("swing.enabled") },

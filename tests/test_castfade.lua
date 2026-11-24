@@ -253,3 +253,106 @@ T.test("cast bars: show the spell's display name, not its raw name", function()
     _G.UnitCastingInfo, _G.UnitChannelInfo = casting, channel
     T.eq(h.text.__text, "打开")
 end)
+
+-- The fade setting of a cast bar, its own (yours) or its frame's (the target's
+-- bar on its own): a cast starting never snaps a faded bar back to full.
+
+local function settleFade(secs)
+    local F = DaylightUI.Fade
+    for _ = 1, 30 do
+        F.Step()
+        if F.driver then stub.RunOnUpdate(F.driver, secs / 30) end
+        stub.Advance(secs / 30)
+    end
+end
+
+local function optionItem(pageId, key)
+    for id, page in DaylightUI.Options.Pages() do
+        if id == pageId then
+            for _, g in ipairs(page.groups) do
+                for _, it in ipairs(g.items or {}) do if it.key == key then return it, g end end
+            end
+        end
+    end
+end
+
+T.test("cast bars: your cast bar has an Opacity & fade card on its page, never fading by default", function()
+    local DUI = stub.Load({ module = true })
+    stub.RunTimers()
+    local it, g = optionItem("UnitFrames.player", "playerCastbar.fade.mode")
+    T.truthy(it, "the Visible row")
+    T.eq(g and g.label, DUI.Fade.CARD_LABEL)
+    T.isnil(it and it.values.float, "no Only when something changes: it already shows only while you cast")
+    T.eq(DUI:Get("UnitFrames", "playerCastbar.fade.mode"), "never", "untouched, nothing changes")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cast bars: your cast bar fades by its own setting, and a cast keeps it faded", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    -- On its own, where a cast that ends fades out (hung, it slides back under the frame).
+    DUI:Set("UnitFrames", "playerCastbar.at", "free")
+    DUI:Set("UnitFrames", "playerCastbar.fade.mode", "always")
+    DUI:Set("UnitFrames", "playerCastbar.fade.mouseover", false)
+    DUI:Set("UnitFrames", "playerCastbar.fade.alpha", 0.3)
+    DUI:Set("UnitFrames", "playerCastbar.fade.delay", 1)
+    stub.RunTimers()
+    settleFade(3)
+    local h = ns.playerCastbar
+    cast()
+    T.near(h:GetAlpha(), 0.3, 0.001, "starts faded, not at full")
+    settleFade(1)
+    T.near(h:GetAlpha(), 0.3, 0.001, "and stays there")
+    stub.units.player = {}
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "player")
+    run(30)
+    T.falsy(h:IsShown(), "still fades out and hides when the cast ends")
+    cast("Fireball")
+    T.near(h:GetAlpha(), 0.3, 0.001, "the next cast faded too")
+    -- Back to Always: full again.
+    DUI:Set("UnitFrames", "playerCastbar.fade.mode", "never")
+    stub.RunTimers()
+    settleFade(2)
+    T.eq(h:GetAlpha(), 1)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cast bars: the target's bar on its own keeps the target frame's fade when a cast starts", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.units.target = { name = "Mob", health = 10, maxHealth = 10 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    DUI:Set("UnitFrames", "targetCastbar.at", "free")
+    DUI:Set("UnitFrames", "target.fade.mode", "always")
+    DUI:Set("UnitFrames", "target.fade.mouseover", false)
+    DUI:Set("UnitFrames", "target.fade.alpha", 0.2)
+    DUI:Set("UnitFrames", "target.fade.delay", 1)
+    stub.RunTimers()
+    settleFade(3)
+    local h = ns.targetCastbarFree
+    stub.units.target.cast = { name = "Fireball", notInterruptible = false, duration = stub.Duration(1) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.truthy(h:IsShown())
+    T.near(h:GetAlpha(), 0.2, 0.001, "faded with its frame, not snapped to full")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("cast bars: hung under the player frame, your faded cast bar slides out faded", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    DUI:Set("UnitFrames", "playerCastbar.fade.mode", "always")
+    DUI:Set("UnitFrames", "playerCastbar.fade.mouseover", false)
+    DUI:Set("UnitFrames", "playerCastbar.fade.alpha", 0.4)
+    DUI:Set("UnitFrames", "playerCastbar.fade.delay", 1)
+    stub.RunTimers()
+    settleFade(3)
+    local h = ns.playerCastbar
+    T.truthy(h.column, "hung")
+    cast()
+    T.near(h:GetAlpha(), 0.4, 0.001)
+    stub.units.player = {}
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "player")
+    run(30)
+    cast("Fireball")
+    T.near(h:GetAlpha(), 0.4, 0.001, "the next one too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

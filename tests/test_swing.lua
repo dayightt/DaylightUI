@@ -976,3 +976,38 @@ T.test("swing timer: a custom gradient on every hand; a queued attack keeps its 
     stub.FireEvent("ACTIONBAR_UPDATE_STATE")
     T.eq(#DUI.Style.FillStops(tex), 3, "and back")
 end)
+
+T.test("swing: an Opacity & fade card of its own, and the bars fade by it", function()
+    local _, ns = login(function() stub.swing.speeds = { 2.6, 1.8, 3.0 } end, "always")
+    local DUI = DaylightUI
+    local found
+    for id, page in DUI.Options.Pages() do
+        if id == "UnitFrames.swing" then
+            for _, g in ipairs(page.groups) do
+                for _, it in ipairs(g.items or {}) do if it.key == "swing.fade.mode" then found = it end end
+            end
+        end
+    end
+    T.truthy(found, "the Visible row on the Swing Timer page")
+    T.isnil(found and found.values.float, "no Only when something changes")
+    T.eq(DUI:Get("UnitFrames", "swing.fade.mode"), "never", "untouched, nothing changes")
+    local h = ns.swing
+    local r = rows(h)
+    DUI:Set("UnitFrames", "swing.bars.off.detach", true)
+    DUI:Set("UnitFrames", "swing.bars.off.visibility", "always")
+    DUI:Set("UnitFrames", "swing.fade.mode", "always")
+    DUI:Set("UnitFrames", "swing.fade.mouseover", false)
+    DUI:Set("UnitFrames", "swing.fade.alpha", 0.25)
+    DUI:Set("UnitFrames", "swing.fade.delay", 1)
+    stub.RunTimers()
+    stub.RunOnUpdate(r.off.pop.driver, 1)
+    local F = DUI.Fade
+    for _ = 1, 30 do
+        F.Step()
+        stub.RunOnUpdate(F.driver, 3 / 30)
+        stub.Advance(3 / 30)
+    end
+    T.near(h:GetAlpha(), 0.25, 0.001, "the group faded")
+    T.near(r.off.pod:GetAlpha(), 0.25, 0.001, "the bar on its own too")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

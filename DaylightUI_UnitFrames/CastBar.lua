@@ -1002,9 +1002,30 @@ function CB.Stop(h, glide)
     end
 end
 
+-- The fade engine's paint for your cast bar, which has a fade setting of its
+-- own. A bar fading out at the end of a cast is left to finish.
+function CB.PaintFade(h, a)
+    h.fadeNow = a
+    local key = h.__duiAlphaKey
+    if key and key.goal == 0 then return end
+    h:SetAlpha(a)
+end
+
+-- Puts a bar that was just shown back at its fade: its own (yours), or its
+-- frame's (the target's and focus's), so a cast never snaps a faded bar to full.
+function CB.Refade(h)
+    local o = h.fadeOf
+    if o then
+        ns.UF.PaintFade(o, o.fadeNow)
+    elseif type(h.fadeNow) == "number" then
+        h:SetAlpha(h.fadeNow)
+    end
+end
+
 -- Show the bar at once, cancelling a fade out in progress.
 local function showBar(h)
     DUI.Motion.AlphaTo(h, 1, 0)
+    CB.Refade(h)
     CB.SetUp(h, true)
 end
 
