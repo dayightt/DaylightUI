@@ -359,6 +359,13 @@ T.test("money: gold, silver and copper with our coins", function()
     T.eq(DUI.MoneyString(12345), "1" .. coin(DUI, "gold") .. " 23" .. coin(DUI, "silver") .. " 45" .. coin(DUI, "copper"))
 end)
 
+T.test("money: its coins can sit lower, for a font they ride high in", function()
+    local DUI = stub.Load()
+    T.truthy(DUI.MoneyString(300, 2):find(":0:0:0:-2:", 1, true), "lowered")
+    T.truthy(DUI.MoneyString(300):find(":0:0:0:0:", 1, true), "as before without it")
+    T.falsy(DUI.MoneyString(300, 0):find("-0", 1, true), "no negative zero")
+end)
+
 T.test("money: zero parts are left out", function()
     local DUI = stub.Load()
     T.eq(DUI.MoneyString(10005), "1" .. coin(DUI, "gold") .. " 5" .. coin(DUI, "copper"))

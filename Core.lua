@@ -73,11 +73,12 @@ DUI.Thousands = thousands
 -- (texture coords -4..60 of the 64 px file, which moves the coin's own
 -- transparent edge to the left), never from an x offset. The client draws an
 -- offset but leaves it out of the text's width, so right-aligned money (the
--- bag footer) had its last coin hanging past the edge.
-function DUI.CoinIcon(kind)
-    return "|T" .. DUI.MEDIA .. "coin-" .. kind .. ".png:0:0:0:0:64:64:-4:60:0:64|t"
+-- bag footer) had its last coin hanging past the edge. lower: pixels to sit the coin
+-- lower, for a font it rides high in.
+function DUI.CoinIcon(kind, lower)
+    return "|T" .. DUI.MEDIA .. "coin-" .. kind .. ".png:0:0:0:" .. ((lower and lower ~= 0) and -lower or 0) .. ":64:64:-4:60:0:64|t"
 end
-local function coinPart(n, kind) return n .. DUI.CoinIcon(kind) end
+local function coinPart(n, kind, lower) return n .. DUI.CoinIcon(kind, lower) end
 
 -- The game's colorblind mode: its setting, or the old global some clients still set.
 local function colorblind()
@@ -94,7 +95,7 @@ end
 -- copper for zero. Nil, negative or non-numbers count as 0. With the game's
 -- colorblind mode on, the game's own text version is used instead. A secret
 -- amount can't be split into coins (that's math), so it returns empty text.
-function DUI.MoneyString(amount)
+function DUI.MoneyString(amount, lower)
     if issecretvalue and issecretvalue(amount) then return "" end
     amount = (type(amount) == "number" and amount > 0) and math.floor(amount) or 0
     if colorblind() and type(GetMoneyString) == "function" then
@@ -103,9 +104,9 @@ function DUI.MoneyString(amount)
     end
     local gold, silver, copper = math.floor(amount / 10000), math.floor(amount / 100) % 100, amount % 100
     local parts = {}
-    if gold > 0 then parts[#parts + 1] = coinPart(thousands(gold), "gold") end
-    if silver > 0 then parts[#parts + 1] = coinPart(silver, "silver") end
-    if copper > 0 or #parts == 0 then parts[#parts + 1] = coinPart(copper, "copper") end
+    if gold > 0 then parts[#parts + 1] = coinPart(thousands(gold), "gold", lower) end
+    if silver > 0 then parts[#parts + 1] = coinPart(silver, "silver", lower) end
+    if copper > 0 or #parts == 0 then parts[#parts + 1] = coinPart(copper, "copper", lower) end
     return table.concat(parts, " ")
 end
 

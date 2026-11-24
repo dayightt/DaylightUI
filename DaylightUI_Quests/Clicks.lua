@@ -287,11 +287,14 @@ function Clicks.QuestTip(q, hints)
         local ok, money = pcall(GetQuestLogRewardMoney, q.id)
         if ok and type(money) == "number" and money > 0 then
             Tips.Gap()
+            -- Under its heading, in both looks: beside it the value sat far off at the edge, and a
+            -- long reward had no room.
+            Tips.Sub(L["Rewards"])
             if DUI:Get("Tooltip", "style") == "rich" then
-                Tips.Line(L["Rewards"], DUI.MoneyString(money), Tips.MONEY)
+                -- The card repaints a line by its own rules (a gold one turned green), but leaves one with
+                -- its own color code alone; and its font rides the coin high, so it sits lower.
+                Tips.Text(DUI.Win.Parts.Hex(Tips.MONEY) .. DUI.MoneyString(money, 3) .. "|r")
             else
-                -- Under its heading in the Simple look, so a long reward has the whole width.
-                Tips.Sub(L["Rewards"])
                 Tips.Text(DUI.MoneyString(money), Tips.MONEY)
             end
         end

@@ -2161,11 +2161,12 @@ T.test("quests clicks: the Simple tooltip spaces its heading from the objectives
     T.eq(simple[at(simple, "Stringy") - 1], " ", "a gap between the heading and the first objective")
     local rich = lines("rich")
     T.truthy(rich[at(rich, "Stringy") - 1] ~= " ", "the zone stays right over the objectives, as the card reads it")
-    -- The reward: under its heading in Simple (a long one has the whole width), a row on the card.
+    -- The reward: under its heading in both looks (a long one has the whole width).
     local head = at(simple, "Rewards")
     T.truthy(head and not simple[head]:find(" | ", 1, true), "the heading alone on its line")
     T.truthy(simple[head + 1], "the reward under it")
-    T.truthy(at(rich, "Rewards | "), "a row on the Rich card")
+    local rhead = at(rich, "Rewards")
+    T.truthy(rhead and not rich[rhead]:find(" | ", 1, true) and rich[rhead + 1], "and under it on the Rich card")
 end)
 
 T.test("quests clicks: the tooltip's words are calm, a hint's click wears the accent; progress reads amber, done reads green", function()
