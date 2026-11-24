@@ -9,7 +9,7 @@
 ## Notes-deDE: Der Chat des Spiels im DaylightUI-Look oder ein eigenes Chatfenster: Unterhaltungen in einer Seitenliste, Flüstern nach Person, ein schwebender Modus; Namen in Klassenfarbe, Zeitstempel und anklickbare Weblinks.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.2.4
+## Version: 2.2.5
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

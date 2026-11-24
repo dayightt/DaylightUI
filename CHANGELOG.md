@@ -1,3 +1,31 @@
+# DaylightUI 2.2.5
+
+A frameless round minimap, a language picker, new zone title and micro menu looks, and spell colors for your cast bar.
+
+## New
+- Info panel: A frameless round minimap, and a damage meter that can slide out below or above it
+- Nameplates: The execute range can glow and spark once an enemy is low, with new fills
+- Cast bars: Give each of your spells its own cast bar color (Cast Bars > Spell colors)
+- Zone title: The zone title has its own options page: what shows, colors, font, size and flourishes
+- Micro menu: New micro menu looks: a color per icon, size, spacing and a line under open windows
+- Quests: The quest tracker can fold to your priority quest during a fight
+- Professions: Drag the profession tabs into your own order, saved per character
+- General: Pick the language of Daylight UI's own text, apart from the game's (options Home page)
+- AddOns list: Daylight UI and its plugins get their own headings in the game's AddOns list
+
+## Fixed
+- Auction House: Greens with a random bonus like "of the Monkey" show their auction price again
+- Loot rolls: When two of the same item drop, rolling on one no longer closes the other
+- Cooldown Manager: No gap for buffs hidden in the game's settings, bar times back on the right, and a preview that shows every change
+- Unit frames: Buffs and debuffs over a frame sit side by side, instead of debuffs floating high above
+- Unit frames: Cast bars no longer fill behind their spell icon, and Aimed Shot's mana cost stays shaded all cast
+- Unit frames: DoTs over 1,000 damage show their whole damage left, and Viper Sting no longer counts as damage
+- Nameplates: A friend at full health no longer leaves an empty target outline or focus mark
+- Character: In the game's own character window, your gear slots sit over your model again
+- Bags: Quest items you can also wear, like the Monogrammed Sash, start their quest instead of going on
+- Profiles: Shared profiles bring along where your bags, bank and Bank and alts windows sit
+- Little touches: Quicker price typing in the Auction House, no second cast bar in the profession window, no marble in the trade window, and the No enchant line starts off (its own switch in Inspect)
+
 # DaylightUI 2.2.4
 
 Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.
@@ -9,7 +37,7 @@ Cooldown Manager groups that follow your frames, friendly plates that wait for a
 - Party and raid: Frames can grow from the middle, so a group that isn't full stays centered
 - Unit frames: Portraits for the target of target, focus target and pet frames, off until you pick one
 - Unit frames: The mana regen sweep can keep ticking with each regen tick until your mana is full
-- Character: Enchants stand out, and gear that could take one but has none says so softly
+- Character: Enchants stand out, and gear that could take one but has none can say so (Character and Inspect options)
 - Controller: The controller's action bars can fade like your other bars, and you can split a stack in your bags
 - Fishing: An option to hide the bobber's tooltip so nothing covers the bobber
 - Plugins: Other addons can tell when your Cooldown Manager spells are ready, usable or have their buff up

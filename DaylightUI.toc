@@ -11,7 +11,7 @@
 ## Category: DaylightUI
 ## X-Curse-Project-ID: 1712997
 ## X-Wago-ID: n6VYLONd
-## Version: 2.2.4
+## Version: 2.2.5
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## SavedVariables: DaylightUIDB
 ## AddonCompartmentFunc: DaylightUI_OpenOptions

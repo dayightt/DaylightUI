@@ -9,7 +9,7 @@
 ## Notes-deDE: Die Tooltips des Spiels im DaylightUI-Stil: dunkler Rahmen, Namen in Klassenfarbe, Ränder nach Gegenstandsqualität, eine schmale Gesundheitsleiste, auf Wunsch am Mauszeiger.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.2.4
+## Version: 2.2.5
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 
