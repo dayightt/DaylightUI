@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Character", "If you use the game's own character window, hovering and clicking your gear slots works again right after logging in" },
         { "Tooltips", "Item tooltips show everything again: a level or profession requirement, the last stat, a bag's slots, what food restores and a weapon's Chance on hit effect are back, and long item names wrap instead of ending in \"...\"" },
         { "Tooltips", "A mob's or player's level on the tooltip shows how hard they are for you again (gray, green, yellow, orange, red), not hostile red" },
+        { "General", "No more \"Daylight UI updated its layout, reload?\" box after taking a zeppelin, a boat or entering a dungeon" },
         { "Cooldown Manager", "The Form or stance switches now show on buffs too, so a buff left hidden in Stealth or out of it (like Evasion or Sprint) can be shown again" },
         { "Unit Frames", "The gold dragon around an elite's portrait no longer sits a pixel wider on one side at some portrait sizes" },
         { "Quests", "The zones in the quest tracker and quest log no longer swap places when you open a quest on the map" },

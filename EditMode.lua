@@ -589,6 +589,12 @@ end)
 -- again, so nothing would ask it to install. Once in the world, check whether
 -- the game has its layouts by now and the event hasn't been handled.
 local askedOnEntry = false
+-- A loading screen starting ends the login's checks: its layouts event comes
+-- before PLAYER_ENTERING_WORLD (a zeppelin, a boat), while the active layout
+-- can read wrong. A /reload leaves the world too, but starts fresh after.
+DUI.RegisterEvent("PLAYER_LEAVING_WORLD", function()
+    profileChecked, staleChecked = true, true
+end)
 DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isInitialLogin, isReloadingUi)
     -- A loading screen after login: the login's checks are over even if the game
     -- had no active layout for them yet. Later layouts events are the loading

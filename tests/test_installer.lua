@@ -1000,6 +1000,26 @@ T.test("installer: a login whose layouts came late never asks on a loading scree
     T.isnil(stub.Asked(), "no reload asked")
 end)
 
+-- Seen in game on 2.2.5 still, after a zeppelin or boat: on a loading screen the
+-- game sends its layouts event before PLAYER_ENTERING_WORLD, so a login whose
+-- layouts came late still had its check waiting when that event came.
+T.test("installer: a loading screen's layouts event before entering the world never asks", function()
+    local DUI = login()
+    DUI.Installer.Install()
+    DUI = reload()
+    stub.Dismiss()
+    local active = saved.activeLayout
+    saved.activeLayout = 0
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")             -- the login's, nothing active yet
+    saved.activeLayout = active
+    stub.FireEvent("PLAYER_LEAVING_WORLD")                 -- the zeppelin's loading screen starts
+    DUI.EditMode.Add("glitch", function() end, function() return false end)
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")             -- before entering the world
+    stub.FireEvent("PLAYER_ENTERING_WORLD", false, false)
+    stub.RunTimers()
+    T.isnil(stub.Asked(), "no reload asked")
+end)
+
 T.test("installer: Healer again leaves an edited Healer profile alone", function()
     local DUI = login()
     DUI.Installer.Install("Healer")
