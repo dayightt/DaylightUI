@@ -1123,6 +1123,19 @@ T.test("cdm: unlock mode's bar has a Cooldown Manager button that opens the layo
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("cdm: the Escape menu's Cooldown Manager button opens the layout, or leaves it to the game while off", function()
+    local DUI, AB = editorWorld()
+    T.truthy(DUI.OpenCooldownManager(), "taken")
+    T.truthy(AB.CdmEditor.IsOpen(), "the editor opens")
+    AB.CdmEditor.Close()
+    AB.Cooldowns.enabled = nil
+    T.falsy(DUI.OpenCooldownManager(), "off: the game's settings open instead")
+    T.falsy(AB.CdmEditor.IsOpen(), "the editor stays shut")
+    T.falsy(stub.ChatContains("switch it on"), "nothing printed")
+    AB.Cooldowns.enabled = true
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm own: the empty bar takes the spell's background color and follows changes", function()
     local DUI, AB, E, D = editorWorld()
     local set = D.Current()

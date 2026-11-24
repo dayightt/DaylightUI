@@ -1764,6 +1764,15 @@ DUI.Movers.AddBarButton(L["Cooldown Manager"], function() Ed.Open() end,
     function() return ns.Cooldowns.enabled and true or false end,
     L["Edit your cooldown layout right on the screen. Type /cdm to open it any time."])
 
+-- The Escape menu's Cooldown Manager button (core GameMenu.lua) opens this editor
+-- while Daylight UI's Cooldown Manager is on, as /cdm does; off, it opens the
+-- game's own settings.
+function DUI.OpenCooldownManager()
+    if not ns.Cooldowns.enabled then return false end
+    Ed.Open()
+    return true
+end
+
 DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
     if not isOpen then return end
     Ed.Close()
