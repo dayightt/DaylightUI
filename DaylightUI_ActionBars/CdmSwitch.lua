@@ -137,8 +137,46 @@ end
 -- The game's rows that hide a spell: Enum.CooldownViewerCategory HiddenSpell, HiddenAura.
 local HIDDEN_ROWS = { -1, -2 }
 
+local function plainID(s)
+    return type(s) == "number" and not (issecretvalue and issecretvalue(s))
+end
+
+-- The spell ids the game's item matches an aura by (its own, override and linked).
+local function itemIDs(info)
+    local ids = {}
+    for _, k in ipairs({ "spellID", "overrideSpellID", "overrideTooltipSpellID", "linkedSpellID" }) do
+        local s = info[k]
+        if plainID(s) then ids[s] = true end
+    end
+    local linked = info.linkedSpellIDs
+    if type(linked) == "table" and not (issecrettable and issecrettable(linked)) then
+        for _, s in ipairs(linked) do
+            if plainID(s) then ids[s] = true end
+        end
+    end
+    return ids
+end
+
+-- Does the buff land as an aura the game's item can't match? Its auras are the
+-- game data's (CdmCustom.Fact) and those seen from its casts (CdmOwn.AuraOf).
+-- Such a buff never lights in the game's row, so the aura holder keeps it.
+local function unseenAura(info)
+    local C, Own = ns.CdmCustom, ns.CdmOwn
+    local ids = itemIDs(info)
+    for s in pairs(ids) do
+        local fact = C and C.Fact and C.Fact(s)
+        for _, a in ipairs(fact and fact.auras or {}) do
+            if not ids[a] then return true end
+        end
+        for a in pairs(Own and Own.AuraOf and Own.AuraOf(s) or {}) do
+            if not ids[a] then return true end
+        end
+    end
+    return false
+end
+
 -- Every game cooldown id placed in a Daylight UI layout of this class whose game row
--- is a buff row: { [id] = that row }.
+-- is a buff row and whose aura the game's item can see: { [id] = that row }.
 function Switch.Placed()
     local out = {}
     for _, entry in ipairs(Data.Profiles()) do
@@ -147,7 +185,9 @@ function Switch.Placed()
             if type(id) == "number" then
                 local info = Data.Info(id)
                 local row = info and info.category
-                if row == Switch.ROWS[1] or row == Switch.ROWS[2] then out[id] = row end
+                if (row == Switch.ROWS[1] or row == Switch.ROWS[2]) and not unseenAura(info) then
+                    out[id] = row
+                end
             end
         end
     end
@@ -309,10 +349,18 @@ function Switch.Run()
     if Switch.Wanted() then
         local added = type(char.cdmSwitched) == "table" and char.cdmSwitched or {}
         local unhid = type(char.cdmUnhid) == "table" and char.cdmUnhid or {}
-        n = Switch.Apply(t, tag, Switch.Hidden(), added, layoutName(classID, spec), Switch.Placed(), unhid)
+        local placed = Switch.Placed()
+        -- A buff brought out of a hidden row that no longer qualifies goes back there.
+        local stale, staleAdded = {}, {}
+        for id, from in pairs(unhid) do
+            if not placed[id] then stale[id], staleAdded[id] = from, added[id] end
+        end
+        local back = next(stale) ~= nil and Switch.Remove(t, tag, staleAdded, stale) or 0
+        for id in pairs(stale) do added[id], unhid[id] = nil, nil end
+        n = back + Switch.Apply(t, tag, Switch.Hidden(), added, layoutName(classID, spec), placed, unhid)
         if n > 0 then
             char.cdmSwitched = added
-            if next(unhid) ~= nil then char.cdmUnhid = unhid end
+            char.cdmUnhid = next(unhid) ~= nil and unhid or nil
         end
     else
         if type(char.cdmSwitched) ~= "table" then return 0 end

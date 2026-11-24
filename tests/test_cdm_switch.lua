@@ -104,6 +104,10 @@ local function world(opts)
     if opts.arrived ~= false then stub.FireEvent("COOLDOWN_VIEWER_DATA_LOADED") end
     if opts.switched then DaylightUI.DB.Character().cdmSwitched = opts.switched end
     if opts.unhid then DaylightUI.DB.Character().cdmUnhid = opts.unhid end
+    if opts.learned then
+        local own = stub.actionbars.CdmOwn
+        own.AuraOf = function(sid) return opts.learned[sid] end
+    end
     if opts.placed then
         local pieces = {}
         for _, id in ipairs(opts.placed) do pieces[id] = { x = 0, y = 0, shape = "icon" } end
@@ -196,6 +200,38 @@ T.test("cdm switch: a buff hidden in the game's layout but placed in Daylight UI
     T.deq(rows[-2], { 32, 34 }, "hidden again, as the player left it")
     T.eq(rows[2], nil)
     T.eq(DaylightUI.DB.Character().cdmUnhid, nil)
+    done()
+end)
+
+-- Improved Stormstrike: the game's item knows only its own spell, and the proc
+-- lands as another. Back in the game's row it would never show, so it stays
+-- hidden and Daylight UI's aura holder keeps drawing it.
+T.test("cdm switch: a placed buff whose aura the game's item can't see stays hidden", function()
+    world({ placed = { 34 }, learned = { [1034] = { [2034] = true } }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32, 34 } } } } }, { [1] = "Mine" } })
+    end })
+    local rows = saved()[3][TAG][1][2]
+    T.deq(rows[-2], { 32, 34 }, "left hidden, as the player put it")
+    T.eq(DaylightUI.DB.Character().cdmUnhid, nil)
+    T.eq(stub.actionbars.CdmRows.DrawnBy(34) ~= "game", true, "the aura holder draws it")
+    done()
+    -- Already brought out by 2.2.5: it goes back to the hidden row it came from.
+    world({ placed = { 34 }, learned = { [1034] = { [2034] = true } },
+            switched = { [31] = 2, [33] = 2, [34] = 2 }, unhid = { [34] = -2 }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32 }, [2] = { 31, 33, 34 } } } } }, { [1] = "Mine" } })
+    end })
+    rows = saved()[3][TAG][1][2]
+    T.deq(rows[-2], { 32, 34 }, "hidden again")
+    T.deq(rows[2], { 31, 33 }, "the buffs switched on by default stay")
+    T.eq(DaylightUI.DB.Character().cdmUnhid, nil)
+    T.eq(DaylightUI.DB.Character().cdmSwitched[34], nil)
+    T.eq(DaylightUI.DB.Character().cdmSwitched[31], 2)
+    done()
+    -- An aura the item sees (its own spell) still comes back.
+    world({ placed = { 34 }, learned = { [1034] = { [1034] = true } }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32, 34 } } } } }, { [1] = "Mine" } })
+    end })
+    T.deq(DaylightUI.DB.Character().cdmUnhid, { [34] = -2 })
     done()
 end)
 
