@@ -86,7 +86,8 @@ function Bug.Setup()
     local _, off = Bug.Modules()
     local tainted = Bug.PlateCache()
     return string.format("[Game %s (%s) %s, %s %s, screen %sx%s at UI scale %s, modules off: %s%s]",
-        tostring(version or "?"), tostring(build or "?"), tostring(DUI.LOCALE),
+        tostring(version or "?"), tostring(build or "?"),
+        DUI.LOCALE == DUI.CLIENT_LOCALE and tostring(DUI.LOCALE) or (tostring(DUI.CLIENT_LOCALE) .. "/" .. tostring(DUI.LOCALE)),
         tostring(call(UnitClassBase, "player") or "?"), tostring(call(UnitLevel, "player") or "?"),
         tostring(width or "?"), tostring(height or "?"),
         type(scale) == "number" and string.format("%.2f", scale) or "?", listed(off),
@@ -365,4 +366,4 @@ function Bug.Show()
     f.rows[1].edit:SetFocus()
 end
 
-DUI.RegisterCommand("bug", Bug.Show, L["/dui bug - your version, addons and setup, ready to copy into the Discord bug form"])
+DUI.RegisterCommand("bug", Bug.Show, function() return L["/dui bug - your version, addons and setup, ready to copy into the Discord bug form"] end)

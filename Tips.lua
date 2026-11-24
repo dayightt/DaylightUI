@@ -190,7 +190,7 @@ Tips.WORDS = {
 Tips.POWERS = { MANA = "MANA", RAGE = "RAGE", ENERGY = "ENERGY", FOCUS = "FOCUS" } -- the game's word globals -> power token
 
 local function words()
-    return Tips.WORDS[DUI.LOCALE] or Tips.WORDS.enUS
+    return Tips.WORDS[DUI.CLIENT_LOCALE] or Tips.WORDS.enUS
 end
 local function has(s, list)
     for _, w in ipairs(list) do if s:find(w, 1, true) then return true end end

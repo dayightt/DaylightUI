@@ -282,4 +282,4 @@ DUI.Options.RegisterPage({
     groups = { { label = "Patch notes", bare = true, items = { list } } },
 })
 
-DUI.RegisterCommand("notes", function() DUI.OptionsPanel.Show("patchnotes") end, L["/dui notes - what's new"])
+DUI.RegisterCommand("notes", function() DUI.OptionsPanel.Show("patchnotes") end, function() return L["/dui notes - what's new"] end)

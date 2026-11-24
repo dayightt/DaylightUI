@@ -783,7 +783,9 @@ end
 DUI.FadeShowAll = Fade.ToggleShowAll
 -- Every Daylight UI key sits in its own section of the game's Key Bindings, named by this.
 _G.BINDING_HEADER_DAYLIGHTUI = "Daylight UI"
-_G.BINDING_NAME_DAYLIGHTUI_SHOWALL = DUI.L["Fade Toggle"]
+DUI.WithLanguage(function()
+    _G.BINDING_NAME_DAYLIGHTUI_SHOWALL = DUI.L["Fade Toggle"]
+end)
 
 -- The game draws the minimap's dots (your arrow, quest marks, tracking,
 -- party) at full strength regardless of its parents' alpha. So whoever fades

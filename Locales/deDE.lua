@@ -1,7 +1,6 @@
 -- German (deDE). English text is the key (Locales/Locales.lua).
 local _, DUI = ...
-if DUI.LOCALE ~= "deDE" then return end
-local L = DUI.L
+DUI.AddLanguage("deDE", function(L)
 
 -- DaylightUI_Tooltip: checked by a native speaker.
 L["Activity"] = "Aktivität"
@@ -7294,3 +7293,4 @@ L["The data bar has no border on the global style: on a strip this thin the acce
 L["The color of every chat panel's border. The border still lights up in your accent color while you drag a corner to size the chat."] = "Die Randfarbe jedes Chat-Panels. Der Rand leuchtet weiterhin in deiner Akzentfarbe auf, während du eine Ecke ziehst, um die Chatgröße zu ändern."
 L["Every chat panel: the main one, the second one and a chat window pulled out on its own. On the global style the Classic chat keeps a thin line."] = "Jedes Chat-Panel: das Hauptpanel, das zweite und ein einzeln herausgezogenes Chatfenster. Im globalen Stil behält der klassische Chat eine dünne Linie."
 L["Gives the second chat panel its own background opacity, set in the row below. When off, it's as see-through as the main chat panel. Shown while the chat's Use Daylight UI global style is off."] = "Gibt dem zweiten Chat-Panel eine eigene Hintergrunddeckkraft, einzustellen in der Zeile darunter. Ist die Option aus, ist es so durchsichtig wie das Haupt-Chat-Panel. Sichtbar, solange „Globalen Daylight-UI-Stil verwenden“ beim Chat aus ist."
+end)

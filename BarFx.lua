@@ -11,7 +11,8 @@ local L = DUI.L
 local BarFx = {}
 DUI.BarFx = BarFx
 
-BarFx.STYLES = { flow = L["Flow"], tide = L["Tide"] }
+-- Each style's name, looked up when shown (a picked language goes on after load).
+BarFx.STYLES = { flow = function() return L["Flow"] end, tide = function() return L["Tide"] end }
 BarFx.ORDER = { "flow", "tide" }
 
 -- Power bars on "By power type": the style that suits each power. A style not
@@ -27,7 +28,11 @@ local byFill = setmetatable({}, { __mode = "k" })  -- fill texture -> bar
 function BarFx.Choices(auto)
     local values, order = { none = NONE or L["None"] }, { "none" }
     if auto then values.auto = L["By power type"]; order[2] = "auto" end
-    for _, k in ipairs(BarFx.ORDER) do values[k] = BarFx.STYLES[k]; order[#order + 1] = k end
+    for _, k in ipairs(BarFx.ORDER) do
+        local label = BarFx.STYLES[k]
+        values[k] = type(label) == "function" and label() or label
+        order[#order + 1] = k
+    end
     return values, order
 end
 
@@ -291,7 +296,8 @@ local function paintFlow(s)
     return true, more
 end
 
--- More styles plug in here (BarFxStyles.lua): BarFx.Add(key, label, def), def =
+-- More styles plug in here (BarFxStyles.lua): BarFx.Add(key, label, def), label a
+-- string or a function returning it (looked up when shown), def =
 -- { flow = true (Flow's rolling colors under it), build(s) -> piece, layout(s, p, w, h),
 --   paint(s, p, lo, hi, alpha), show(s, p, on), kick(s, p, dir, size) }.
 -- A piece is built the first time its style is picked, then kept.

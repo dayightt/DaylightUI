@@ -363,4 +363,4 @@ function W.Run()
 end
 
 DUI.RegisterCommand("worldtest", function() DUI.Print(W.Run()) end,
-    L["/dui worldtest - run while nameplates are invisible, and send us the box and the two screenshots"])
+    function() return L["/dui worldtest - run while nameplates are invisible, and send us the box and the two screenshots"] end)

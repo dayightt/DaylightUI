@@ -686,6 +686,8 @@ local commands, commandOrder = {}, {}
 -- (previews, diagnostics, dev tools). All of them run either way.
 DUI.LISTED_COMMANDS = { [""] = true, unlock = true, test = true, leader = true }
 
+-- help: its line in /dui's list, or a function returning it (looked up when
+-- listed, so a core file's line is in the picked language).
 function DUI.RegisterCommand(name, fn, help)
     commands[name] = { fn = fn, help = help }
     commandOrder[#commandOrder + 1] = name
@@ -700,6 +702,7 @@ local function printHelp(all)
     DUI.Print(L["Commands:"])
     for _, name in ipairs(commandOrder) do
         local help = commands[name].help
+        if type(help) == "function" then help = help() end
         if help and (all or DUI.LISTED_COMMANDS[name]) then DUI.Print("  " .. help) end
     end
     if not all then DUI.Print("  " .. L["/dui all - every command"]) end
@@ -974,13 +977,15 @@ DUI.RegisterCommand("test", function(rest)
     end
     DUI.testRaid = raid
     DUI.SetTestMode(not DUI.testMode)
-end, L["/dui test - preview every frame with sample units (/dui test raid: with a raid of forty)"])
+end, function() return L["/dui test - preview every frame with sample units (/dui test raid: with a raid of forty)"] end)
 
 -- Lifecycle
 
 DUI.RegisterEvent("ADDON_LOADED", function(_, name)
     if name == ADDON_NAME then
         DUI.DB.Init()
+        -- The language picked on Home, before any module file reads its text.
+        DUI.UseLanguage(DUI.DB.Root().language)
         -- Before any module builds its text.
         DUI.Style.PickFont()
     end

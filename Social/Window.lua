@@ -33,8 +33,10 @@ Social.page = "friends"   -- page to open on: the last one shown this session
 
 -- Status labels and their dot colors (header and friend rows).
 Social.STATUS = { "on", "away", "busy" }
-Social.STATUS_WORD = { on = L["Available"], away = L["Away"], busy = L["Busy"], off = L["Offline"],
-    hidden = L["Appearing offline"] }
+DUI.WithLanguage(function()
+    Social.STATUS_WORD = { on = L["Available"], away = L["Away"], busy = L["Busy"], off = L["Offline"],
+        hidden = L["Appearing offline"] }
+end)
 function Social.StatusColor(status)
     local I = Style.INK
     return status == "on" and I.GOOD or status == "away" and I.WARN or status == "busy" and I.BAD or I.OFF

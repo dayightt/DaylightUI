@@ -251,7 +251,9 @@ function K.LoadLanguage(path, locale, clientLocale)
     local L = setmetatable({}, { __index = function(_, k) return k end })
     local chunk, err = loadfile(path)
     if not chunk then return nil, err end
-    local ok, e = pcall(chunk, "DaylightUI", { LOCALE = clientLocale or locale, L = L })
+    local client = clientLocale or locale
+    local DUI = { AddLanguage = function(which, fill) if which == client then fill(L) end end }
+    local ok, e = pcall(chunk, "DaylightUI", DUI)
     if not ok then return nil, e end
     local out = {}
     for k, v in pairs(L) do out[k] = v end

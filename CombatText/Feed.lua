@@ -364,12 +364,14 @@ DUI.On("StyleChanged", paintWarnLook)
 -- Test mode and the options preview: the real path, fed made-up numbers
 
 CT.DEMO_EVERY = 0.55
-CT.DEMO = {
-    { "DAMAGE", 412 }, { "HEAL", "", 918 }, { "SPELL_DAMAGE", 684, school = 4 }, { "DAMAGE_CRIT", 1386 },
-    { "DODGE" }, { "SPELL_ACTIVE", L["Overpower"] }, { "PERIODIC_HEAL", "", 240 }, { "SPELL_DAMAGE", 523, school = 16 },
-    { "HEAL_CRIT", "", 2140 }, { "DAMAGE", 298 }, { "BLOCK" }, { "SPELL_DAMAGE_CRIT", 1720, school = 32 },
-    { "ABSORB_ADDED", "", 860 }, { "PARRY" }, { "ENERGIZE", 25 },
-}
+DUI.WithLanguage(function()
+    CT.DEMO = {
+        { "DAMAGE", 412 }, { "HEAL", "", 918 }, { "SPELL_DAMAGE", 684, school = 4 }, { "DAMAGE_CRIT", 1386 },
+        { "DODGE" }, { "SPELL_ACTIVE", L["Overpower"] }, { "PERIODIC_HEAL", "", 240 }, { "SPELL_DAMAGE", 523, school = 16 },
+        { "HEAL_CRIT", "", 2140 }, { "DAMAGE", 298 }, { "BLOCK" }, { "SPELL_DAMAGE_CRIT", 1720, school = 32 },
+        { "ABSORB_ADDED", "", 860 }, { "PARRY" }, { "ENERGIZE", 25 },
+    }
+end)
 
 -- Pushes the next fake message onto a stage. Returns the line for tests.
 function CT.DemoStep(s, n)

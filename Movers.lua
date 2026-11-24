@@ -1864,9 +1864,9 @@ DUI.On("StyleChanged", function()
     end
 end)
 
-DUI.RegisterCommand("unlock", Movers.Unlock, L["/dui unlock - move frames"])
-DUI.RegisterCommand("lock", Movers.Lock, L["/dui lock - finish moving"])
+DUI.RegisterCommand("unlock", Movers.Unlock, function() return L["/dui unlock - move frames"] end)
+DUI.RegisterCommand("lock", Movers.Lock, function() return L["/dui lock - finish moving"] end)
 DUI.RegisterCommand("reset", function()
     Movers.ResetAll()
     DUI.Print(L["All frames are back in their default places."])
-end, L["/dui reset - put every frame back"])
+end, function() return L["/dui reset - put every frame back"] end)

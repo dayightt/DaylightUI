@@ -1177,4 +1177,4 @@ end
 
 DUI.RegisterCommand("npc", function()
     if Npc.frame then Npc.Sample() else DUI.Print(L["The NPC window is switched off (/dui > Talk)."]) end
-end, L["/dui npc - try the NPC window with a sample talk"])
+end, function() return L["/dui npc - try the NPC window with a sample talk"] end)

@@ -286,8 +286,10 @@ function Style.PickFont()
     local client = clientFont()
     Style.FONT = Style.FontFileOf(DUI.DB.General().font)
     if DUI.Widgets then
-        DUI.Widgets.BODY = on and client or DUI.OptionsTheme.BodyFont()
-        DUI.Widgets.TITLE = Style.FONT
+        -- Daylight UI's text picked in a language whose letters the client's fonts lack.
+        local own = DUI.OptionsTheme.LanguageFont()
+        DUI.Widgets.BODY = own or (on and client) or DUI.OptionsTheme.BodyFont()
+        DUI.Widgets.TITLE = own or Style.FONT
     end
 end
 
@@ -3440,4 +3442,4 @@ DUI.RegisterCommand("debug", function(rest)
             DUI.Print(string.format("  bar level=%d", child:GetFrameLevel()))
         end
     end
-end, DUI.L["/dui debug [frame] - report how a frame's border was drawn"])
+end, function() return DUI.L["/dui debug [frame] - report how a frame's border was drawn"] end)

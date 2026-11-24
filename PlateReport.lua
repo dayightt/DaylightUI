@@ -21,7 +21,7 @@ DUI.RegisterCommand("flatoff", function()
     else
         DUI.Print(L["flatoff: plates flatten their layers again"])
     end
-end, L["/dui flatoff - switch nameplate layer flattening off and on"])
+end, function() return L["/dui flatoff - switch nameplate layer flattening off and on"] end)
 
 local function plain(v)
     if DUI.IsSecret(v) then return nil end
@@ -1189,7 +1189,7 @@ function R.RegisterFallback()
         for _, line in ipairs(R.CheckLines()) do DUI.Print(line) end
         for _, line in ipairs(R.Daylight()) do DUI.Print(line) end
         DUI.Print(R.MarkSaid(R.Mark()))
-    end, L["/dui platecheck - run while a nameplate is missing, and send us what it prints"])
+    end, function() return L["/dui platecheck - run while a nameplate is missing, and send us what it prints"] end)
     DUI.RegisterCommand("platefix", function(rest)
         if string.lower(rest or "") ~= "yes" then return DUI.Print(R.Fix()) end
         if not fixStep then return DUI.Print(L["Run /dui platefix first, while the nameplates are invisible."]) end
@@ -1197,5 +1197,5 @@ function R.RegisterFallback()
         R.FixYes(fixRun)
         fixDone(fixStep)
         DUI.Print(L["Copy the text in the box and send it to the Daylight UI team, then /reload."])
-    end, L["/dui platefix - run while nameplates are invisible, one step each time, and say which step brought them back"])
+    end, function() return L["/dui platefix - run while nameplates are invisible, one step each time, and say which step brought them back"] end)
 end

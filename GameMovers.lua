@@ -299,8 +299,8 @@ GM.EDIT_FRAMES = {
           local cvar = _G.GetCVarBool
           return not (cvar and cvar("lootUnderMouse"))
       end,
-      savedText = L["DaylightUI saved the loot window's position. Reload to put it in place?"],
-      ownText = L["The loot window's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] },
+      savedText = function() return L["DaylightUI saved the loot window's position. Reload to put it in place?"] end,
+      ownText = function() return L["The loot window's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] end },
     -- The Skins look is a child of it (Packs/LossOfControl.lua), so it follows
     -- wherever the game puts it.
     { name = "LossOfControlFrame", system = "LossOfControl", label = "CC Alert", minW = 256, minH = 58,
@@ -309,8 +309,8 @@ GM.EDIT_FRAMES = {
           local v = set and type(f.GetSettingValue) == "function" and f:GetSettingValue(set.Size)
           return type(v) == "number" and v > 0 and v / 100 or 1
       end,
-      savedText = L["DaylightUI saved the crowd control alert's position. Reload to put it in place?"],
-      ownText = L["The crowd control alert's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] },
+      savedText = function() return L["DaylightUI saved the crowd control alert's position. Reload to put it in place?"] end,
+      ownText = function() return L["The crowd control alert's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] end },
     -- The breath bar's container, which holds the breath, fatigue, feign death and
     -- release bars: the game's Timer Bars piece. The Skins look is a child of each
     -- bar (Packs/Breath.lua), so it follows. Its bars hang down from the top, so
@@ -327,8 +327,8 @@ GM.EDIT_FRAMES = {
           local v = set and type(f.GetSettingValue) == "function" and f:GetSettingValue(set.Size)
           return type(v) == "number" and v > 0 and v / 100 or 1
       end,
-      savedText = L["DaylightUI saved the breath bar's position. Reload to put it in place?"],
-      ownText = L["The breath bar's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] },
+      savedText = function() return L["DaylightUI saved the breath bar's position. Reload to put it in place?"] end,
+      ownText = function() return L["The breath bar's spot is kept by the game's Edit Mode, and you're on an Edit Mode layout of your own: move it there (Esc > Edit Mode)."] end },
 }
 
 local editMoved = {} -- name -> spec: handle moved or reset since unlocking
@@ -400,11 +400,11 @@ local function saveEdit()
     local moved, text, count = editMoved, nil, 0
     editMoved = {}
     if not EM.IsActive() then
-        for _, spec in pairs(moved) do DUI.Print(spec.ownText) end
+        for _, spec in pairs(moved) do DUI.Print(spec.ownText()) end
         return
     end
     if not EM.UpToDate() then
-        for _, spec in pairs(moved) do text, count = spec.savedText, count + 1 end
+        for _, spec in pairs(moved) do text, count = spec.savedText(), count + 1 end
         EM.Save(count == 1 and text or L["DaylightUI saved these positions. Reload to put them in place?"])
     end
 end

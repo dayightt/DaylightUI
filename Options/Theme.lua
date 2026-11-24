@@ -42,6 +42,19 @@ Theme.COLORS = {
 Theme.LATIN = { enUS = true, enGB = true, deDE = true, frFR = true, esES = true, esMX = true,
                 itIT = true, ptBR = true, ptPT = true }
 Theme.NARROW = "Fonts\\ARIALN.TTF"
+-- The alphabet a language Daylight UI is translated into needs, past Latin.
+Theme.ALPHABET = { ruRU = "russian", koKR = "korean", zhCN = "simplifiedchinese" }
+
+-- The game's font for the alphabet of Daylight UI's picked language, when the
+-- client is in another language: an English client's fonts have no Korean or
+-- Chinese letters, and a picked font may have no Russian ones. nil otherwise.
+function Theme.LanguageFont(locale)
+    locale = locale or DUI.LOCALE
+    local alphabet = Theme.ALPHABET[locale]
+    if not alphabet or locale == DUI.CLIENT_LOCALE then return nil end
+    if alphabet == "russian" and DUI.Style.HasCyrillic(DUI.Style.FONT) then return nil end
+    return DUI.Style.ALPHABET_FONTS[alphabet]
+end
 
 function Theme.BodyFont(locale)
     if locale == nil and type(GetLocale) == "function" then locale = GetLocale() end
@@ -62,25 +75,28 @@ Theme.SECTIONS = {}
 local function section(id, color, icon, short, blurb)
     Theme.SECTIONS[id] = { color = hex(color), icon = icon, short = short, blurb = blurb }
 end
--- Some languages need a different word for action bars than for health or
--- power bars, so they can translate this one separately. English keeps "Bars"
--- because the rail is narrow.
-local barsShort = L["Action bars, short"]
-if barsShort == "Action bars, short" then barsShort = L["Bars"] end
-section("core", "e9dcc8", "home", L["General"], L["Look, layout, profiles and setup."])
-section("UnitFrames", "3d9cff", "frames", L["Frames"], L["Player, target, party, raid and more."])
-section("ActionBars", "5f8cff", "bars", barsShort, L["Your action bars and their buttons."])
-section("CooldownManager", "7d7cf5", "cooldowns", L["CDM"], L["The cooldown manager's layout."])
-section("InfoPanel", "9a72e8", "info", L["Info"], L["The info panel, meter, map and tracker."])
-section("Quests", "a76fe0", "quests", L["Quests"], L["Your quest tracker."])
-section("Bags", "b56ad6", "bags", L["Bags"], L["Backpack, bank and categories."])
-section("Nameplates", "cc66c0", "plates", L["Plates"], L["Names and bars over heads."])
-section("Buffs", "e0679f", "buffs", L["Buffs"], L["Your buffs and debuffs."])
-section("Tooltip", "f0708a", "tooltip", L["Tooltips"], L["The game's tooltips."])
-section("Chat", "ff8a5a", "chat", L["Chat"], L["Chat windows, tabs and text."])
-section("AuctionHouse", "ff923c", "auction", L["Auction"], L["Buy, sell, your auctions and item prices."])
-section("QoL", "ff9a1f", "extras", L["Extras"], L["Small helpers and the game's windows in DaylightUI style."])
-section("patchnotes", "e9dcc8", "news", L["News"], L["What changed in each version."])
+-- Built once the picked language is on (Locales.lua).
+DUI.WithLanguage(function()
+    -- Some languages need a different word for action bars than for health or
+    -- power bars, so they can translate this one separately. English keeps "Bars"
+    -- because the rail is narrow.
+    local barsShort = L["Action bars, short"]
+    if barsShort == "Action bars, short" then barsShort = L["Bars"] end
+    section("core", "e9dcc8", "home", L["General"], L["Look, layout, profiles and setup."])
+    section("UnitFrames", "3d9cff", "frames", L["Frames"], L["Player, target, party, raid and more."])
+    section("ActionBars", "5f8cff", "bars", barsShort, L["Your action bars and their buttons."])
+    section("CooldownManager", "7d7cf5", "cooldowns", L["CDM"], L["The cooldown manager's layout."])
+    section("InfoPanel", "9a72e8", "info", L["Info"], L["The info panel, meter, map and tracker."])
+    section("Quests", "a76fe0", "quests", L["Quests"], L["Your quest tracker."])
+    section("Bags", "b56ad6", "bags", L["Bags"], L["Backpack, bank and categories."])
+    section("Nameplates", "cc66c0", "plates", L["Plates"], L["Names and bars over heads."])
+    section("Buffs", "e0679f", "buffs", L["Buffs"], L["Your buffs and debuffs."])
+    section("Tooltip", "f0708a", "tooltip", L["Tooltips"], L["The game's tooltips."])
+    section("Chat", "ff8a5a", "chat", L["Chat"], L["Chat windows, tabs and text."])
+    section("AuctionHouse", "ff923c", "auction", L["Auction"], L["Buy, sell, your auctions and item prices."])
+    section("QoL", "ff9a1f", "extras", L["Extras"], L["Small helpers and the game's windows in DaylightUI style."])
+    section("patchnotes", "e9dcc8", "news", L["News"], L["What changed in each version."])
+end)
 Theme.FALLBACK_ICON = "module"
 
 -- The whole Daylight sweep, for a section the table doesn't know.

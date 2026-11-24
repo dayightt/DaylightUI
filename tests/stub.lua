@@ -4172,10 +4172,10 @@ function stub.Load(opts)
     stub.Reset()
     if opts.before then opts.before() end
     local DUI, UF = {}, nil
-    -- opts.locale(L) is a test's own language, put on DUI.L right after
+    -- opts.locale(L, DUI) is a test's own language, put on DUI.L right after
     -- Locales.lua makes it and before any file reads it (tests/test_locale.lua).
     loadFiles("", stub.CORE_FILES, "DaylightUI", DUI, opts.locale and function(file)
-        if file == "Locales/Locales.lua" then opts.locale(DUI.L) end
+        if file == "Locales/Locales.lua" then opts.locale(DUI.L, DUI) end
     end)
     loadFiles("Character/", stub.CHARACTER_FILES, "DaylightUI", DUI)   -- the character window, part of the core
     stub.character = DUI.Char

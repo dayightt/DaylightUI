@@ -21,7 +21,9 @@ Allies.CHIPS_Y = 44
 Allies.TOP = 76
 Allies.ROW = 42
 Allies.FILTERS = { "all", "party", "trade", "whisper" }
-Allies.FILTER_WORD = { all = ALL or L["All"], party = L["Grouped"], trade = L["Traded"], whisper = L["Whispered"] }
+DUI.WithLanguage(function()
+    Allies.FILTER_WORD = { all = ALL or L["All"], party = L["Grouped"], trade = L["Traded"], whisper = L["Whispered"] }
+end)
 Allies.filter = "all"
 Allies.folds = {}
 

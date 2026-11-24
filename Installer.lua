@@ -29,11 +29,13 @@ DUI.Installer = Installer
 
 Installer.VERSION = 2 -- bump to show a new guide to already set-up characters once
 Installer.EXISTING = "existing"
-Installer.ROLE_TEXT = {
-    ["DPS/Tank"] = L["Party on the left, you and your target low in the middle."],
-    Healer = L["Your party and raid as square tiles under you, dispels easy to spot."],
-    ["Immersive Preset"] = L["Calm for questing: bars and your frame fade after a fight, the micro menu waits for the mouse. All shown in dungeons."],
-}
+DUI.WithLanguage(function()
+    Installer.ROLE_TEXT = {
+        ["DPS/Tank"] = L["Party on the left, you and your target low in the middle."],
+        Healer = L["Your party and raid as square tiles under you, dispels easy to spot."],
+        ["Immersive Preset"] = L["Calm for questing: bars and your frame fade after a fight, the micro menu waits for the mouse. All shown in dungeons."],
+    }
+end)
 -- The opening's sunrise: its height, the band of the art it shows and how far
 -- right of center its frame sits.
 Installer.OPENING_BANNER = { height = 190, crop = { 0.286, 0.750 }, shift = 27 }
@@ -1345,4 +1347,4 @@ function Installer.Install(preset, existing)
 end
 
 DUI.RegisterCommand("install", function() Installer.Show() end,
-    L["/dui install - the setup guide: set this character up, or take the tour again"])
+    function() return L["/dui install - the setup guide: set this character up, or take the tour again"] end)

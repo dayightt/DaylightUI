@@ -1,7 +1,6 @@
 -- French (frFR). English text is the key (Locales/Locales.lua).
 local _, DUI = ...
-if DUI.LOCALE ~= "frFR" then return end
-local L = DUI.L
+DUI.AddLanguage("frFR", function(L)
 
 -- Machine draft below this line: not yet checked by a native speaker.
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "Une couronne sur le cadre du chef de groupe. Il suit l'onglet du nom ou le portrait jusqu'à ce que vous lui choisissiez une place."
@@ -5073,3 +5072,4 @@ L["The data bar has no border on the global style: on a strip this thin the acce
 L["The color of every chat panel's border. The border still lights up in your accent color while you drag a corner to size the chat."] = "La couleur de bordure de chaque panneau de chat. La bordure s'illumine toujours de votre couleur d'accent quand vous tirez un coin pour redimensionner le chat."
 L["Every chat panel: the main one, the second one and a chat window pulled out on its own. On the global style the Classic chat keeps a thin line."] = "Chaque panneau de chat : le principal, le second et une fenêtre de chat détachée. Avec le style global, le chat classique garde une ligne fine."
 L["Gives the second chat panel its own background opacity, set in the row below. When off, it's as see-through as the main chat panel. Shown while the chat's Use Daylight UI global style is off."] = "Donne au second panneau de chat sa propre opacité de fond, réglée dans la ligne ci-dessous. Désactivé, il est aussi transparent que le panneau principal. Visible tant qu'Utiliser le style global de Daylight UI est désactivé pour le chat."
+end)

@@ -34,13 +34,16 @@ end
 Strip.PAD = 10           -- padding around the sample
 Strip.HINT_HEIGHT = 16   -- help line under the sample
 Strip.LAYER = 50         -- hotspot frame level offset, above every part
-Strip.HINT = L["Click any part to jump to its settings."]
-Strip.DESIGN_HINT = L["Drag a piece to move it. Click it for its settings; the arrow keys then nudge it."]
-Strip.TIP = L["Click to jump to its settings."]
-Strip.DESIGN_EMPTY = L["Click a piece of the preview to see its settings here."]
-Strip.ALL = L["Every setting for this piece"]
-Strip.ADD = L["+ Add piece"]
-Strip.DESIGN_TIP = L["Drag to move it, or click for its settings."]
+-- Its words, once the picked language is on (Locales.lua).
+DUI.WithLanguage(function()
+    Strip.HINT = L["Click any part to jump to its settings."]
+    Strip.DESIGN_HINT = L["Drag a piece to move it. Click it for its settings; the arrow keys then nudge it."]
+    Strip.TIP = L["Click to jump to its settings."]
+    Strip.DESIGN_EMPTY = L["Click a piece of the preview to see its settings here."]
+    Strip.ALL = L["Every setting for this piece"]
+    Strip.ADD = L["+ Add piece"]
+    Strip.DESIGN_TIP = L["Drag to move it, or click for its settings."]
+end)
 Strip.DRAG_START = 4     -- px of movement before a press becomes a drag
 Strip.DOT = 5            -- spot dot size; the nearest one is DOT_NEAR
 Strip.DOT_NEAR = 8

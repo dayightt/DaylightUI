@@ -5,7 +5,7 @@
 -- its engine with DaylightMogul's tours. Home's "Take the tour" runs it again.
 --
 -- Each area adds its own stop with DUI.Tour.Add(id, spec). spec fields:
---   order, title, text (string or function)
+--   order, title, text (each a string or function)
 --   part(): the regions to light, one box around those shown (none: the card
 --     sits in the middle)
 --   available(), enter(), leave(next): optional (show a sample, open the
@@ -167,7 +167,7 @@ end
 local function words(step, n)
     local c = Tour.card
     c.count:SetText(string.format(L["%d of %d"], S.i, n))
-    c.title:SetText(step.title)
+    c.title:SetText(type(step.title) == "function" and step.title() or step.title)
     c.text:SetText(type(step.text) == "function" and step.text() or step.text)
     c.next.text:SetText(S.i == n and (DONE or L["Done"]) or (NEXT or L["Next"]))
     c.next.FitWidth(Tour.BTN_W)
@@ -610,13 +610,13 @@ DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
         DUI.AfterCombat(Tour.Offer, "tour")
     end
 end)
-DUI.RegisterCommand("tour", function() Tour.Start() end, L["/dui tour - a short tour of what Daylight UI adds"])
+DUI.RegisterCommand("tour", function() Tour.Start() end, function() return L["/dui tour - a short tour of what Daylight UI adds"] end)
 
 -- The core's stops (modules add theirs in their own files)
 
 Tour.Add("unlock", {
     order = 80,
-    title = L["Move anything"],
+    title = function() return L["Move anything"] end,
     text = function()
         return string.format(L["Every piece of Daylight UI moves. %s shows a handle on each: drag it, scroll to resize, right-click to put it back. %s shows every frame with sample units, to style them without a group."],
             pop("/dui unlock"), pop("/dui test"))
@@ -637,7 +637,7 @@ end
 
 Tour.Add("options", {
     order = 90,
-    title = L["Every setting"],
+    title = function() return L["Every setting"] end,
     text = function()
         return string.format(L["Press Escape and pick Daylight UI in the game menu, or type %s. %s over any Daylight UI window sizes it. %s on Home runs this tour again."],
             pop("/dui"), pop(L["Ctrl + mouse wheel"]), pop(L["Take the tour"]))
@@ -669,7 +669,7 @@ end
 
 Tour.Add("search", {
     order = 95,
-    title = L["Find any setting"],
+    title = function() return L["Find any setting"] end,
     text = function()
         return string.format(L["Type a word in %s and every setting that matches shows up here, ready to change on the spot. No digging through pages."],
             pop(L["Search settings"]))

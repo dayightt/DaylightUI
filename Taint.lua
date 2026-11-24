@@ -140,7 +140,7 @@ function Taint.Report(quiet)
 end
 
 DUI.RegisterCommand("taint", function() Taint.Report(false) end,
-    L["/dui taint - the game's values DaylightUI has marked (for tracking down blocked actions)"])
+    function() return L["/dui taint - the game's values DaylightUI has marked (for tracking down blocked actions)"] end)
 
 -- With the taint log on (/console taintLog 1), check once after login or a
 -- reload so taint shows up before a fight turns it into an error.

@@ -21,7 +21,9 @@ Friends.CHIPS_Y = 44
 Friends.TOP = 76
 -- The chips over the list: everyone, friends in this game, everyone online.
 Friends.FILTERS = { "all", "game", "online" }
-Friends.FILTER_WORD = { all = ALL or L["All"], game = L["Same game"], online = L["Online"] }
+DUI.WithLanguage(function()
+    Friends.FILTER_WORD = { all = ALL or L["All"], game = L["Same game"], online = L["Online"] }
+end)
 Friends.filter = "all"
 -- A friend's faction as the game's own banner icon, cropped like our other icons.
 Friends.FACTION_ICON = { Alliance = "Interface\\Icons\\INV_BannerPVP_02", Horde = "Interface\\Icons\\INV_BannerPVP_01" }

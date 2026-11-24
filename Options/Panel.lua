@@ -1223,7 +1223,7 @@ end)
 -- Entry points: /dui, the addon compartment and the game's AddOns settings.
 -- ---------------------------------------------------------------------
 
-DUI.RegisterCommand("", Panel.Toggle, L["/dui - open options"])
+DUI.RegisterCommand("", Panel.Toggle, function() return L["/dui - open options"] end)
 
 function DaylightUI_OpenOptions() Panel.Toggle() end
 

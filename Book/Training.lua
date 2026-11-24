@@ -132,16 +132,18 @@ end
 -- area id is named by the game too. Woo Ping's district is a best guess from his
 -- spot on the old Stormwind map; Ansekhwa's spot on Thunder Bluff's main mesa has no
 -- district name, so only the city shows.
-Training.MASTERS = {
-    [11865] = { map = 1455, city = L["Ironforge"], district = L["The Military Ward"] },        -- Buliwyf Stonehand
-    [13084] = { map = 1455, city = L["Ironforge"], district = L["The Military Ward"] },        -- Bixi Wobblebonk
-    [11867] = { map = 1453, city = L["Stormwind City"], district = L["Trade District"] },      -- Woo Ping
-    [11866] = { map = 1457, city = L["Darnassus"], district = L["Warrior's Terrace"], area = 1660 },   -- Ilyenia Moonfire
-    [2704] = { map = 1454, city = L["Orgrimmar"], district = L["Valley of Honor"] },          -- Hanashi
-    [11868] = { map = 1454, city = L["Orgrimmar"], district = L["Valley of Honor"] },         -- Sayoc
-    [11869] = { map = 1456, city = L["Thunder Bluff"] },                                    -- Ansekhwa
-    [11870] = { map = 1458, city = L["Undercity"], district = L["The War Quarter"] },          -- Archibald
-}
+DUI.WithLanguage(function()
+    Training.MASTERS = {
+        [11865] = { map = 1455, city = L["Ironforge"], district = L["The Military Ward"] },        -- Buliwyf Stonehand
+        [13084] = { map = 1455, city = L["Ironforge"], district = L["The Military Ward"] },        -- Bixi Wobblebonk
+        [11867] = { map = 1453, city = L["Stormwind City"], district = L["Trade District"] },      -- Woo Ping
+        [11866] = { map = 1457, city = L["Darnassus"], district = L["Warrior's Terrace"], area = 1660 },   -- Ilyenia Moonfire
+        [2704] = { map = 1454, city = L["Orgrimmar"], district = L["Valley of Honor"] },          -- Hanashi
+        [11868] = { map = 1454, city = L["Orgrimmar"], district = L["Valley of Honor"] },         -- Sayoc
+        [11869] = { map = 1456, city = L["Thunder Bluff"] },                                    -- Ansekhwa
+        [11870] = { map = 1458, city = L["Undercity"], district = L["The War Quarter"] },          -- Archibald
+    }
+end)
 
 local function mapName(id)
     if not (type(id) == "number" and C_Map and type(C_Map.GetMapInfo) == "function") then return nil end

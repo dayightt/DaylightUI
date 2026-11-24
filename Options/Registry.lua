@@ -487,6 +487,31 @@ function Options.NewSinceChoices()
     return values, order
 end
 
+-- The languages Daylight UI's text comes in, each named in its own words,
+-- after Automatic (the game's language).
+function Options.LanguageChoices()
+    local names = {}
+    for _, lang in ipairs(DUI.LANGUAGES) do names[lang[1]] = lang[2] end
+    local client = names[DUI.LANGUAGE_FILE[DUI.CLIENT_LOCALE] or DUI.CLIENT_LOCALE]
+    local values = { auto = client and string.format(L["Automatic (%s)"], client) or L["Automatic"] }
+    local order = { "auto" }
+    for _, lang in ipairs(DUI.LANGUAGES) do
+        values[lang[1]] = lang[2]
+        order[#order + 1] = lang[1]
+    end
+    return values, order
+end
+
+-- A language's name drawn in a font that has its letters: the options' own
+-- font may have no Russian, Korean or Chinese ones.
+function Options.LanguageFont(locale)
+    local body = DUI.Widgets.BODY
+    local alphabet = DUI.OptionsTheme.ALPHABET[locale]
+    if not alphabet or locale == DUI.CLIENT_LOCALE then return body end
+    if alphabet == "russian" and DUI.Style.HasCyrillic(body) then return body end
+    return DUI.Style.ALPHABET_FONTS[alphabet]
+end
+
 -- Typing "new" (any case, stray spaces too) also lists every row tagged NEW.
 local function asksForNew(query)
     return string.lower(query):match("^%s*(.-)%s*$") == string.lower(L["NEW"])
@@ -1239,6 +1264,15 @@ Options.RegisterPage({
         { label = "", items = { GREETING } },
         { label = "", items = { SHARED_PROFILES } },
         { label = "Quick actions", items = { PREVIEW, UNLOCK, RESET_POSITIONS, SETUP, TOUR } },
+        { label = "Language", items = {
+            { type = "dropdown", label = "Daylight UI's language", since = "2.2.5", reload = true,
+              search = "Language Translation",
+              desc = "The language of Daylight UI's own text: these options, the setup guide and its frames. "
+                  .. "The game's own text, such as spell and item names, stays in your game's language. Shows after a /reload.",
+              choices = Options.LanguageChoices, preview = "font", fetch = Options.LanguageFont,
+              get = function() return DUI.DB.Root().language or "auto" end,
+              set = function(v) DUI.DB.Root().language = v ~= "auto" and v or nil end },
+        } },
         { label = "New options", items = {
             { type = "dropdown", label = "Show NEW on options added since", noSearch = true,
               desc = "Rows added after this version carry a NEW tag as you go through the pages. Search for new to list them all.",

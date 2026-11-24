@@ -368,7 +368,9 @@ end
 Data.KIND = { [1] = "party", [2] = "party", [12] = "party", [13] = "party", [14] = "party", [15] = "party",
     [16] = "party", [17] = "party", [3] = "trade", [5] = "trade", [6] = "trade", [7] = "trade", [8] = "trade",
     [9] = "trade", [10] = "trade", [4] = "whisper", [23] = "legacy" }
-Data.KIND_WORDS = { party = L["Grouped with you"], trade = L["Traded with you"], whisper = L["Whispered"], legacy = L["Legacy friend"] }
+DUI.WithLanguage(function()
+    Data.KIND_WORDS = { party = L["Grouped with you"], trade = L["Traded with you"], whisper = L["Whispered"], legacy = L["Legacy friend"] }
+end)
 
 local function classToken(id)
     local info = id and type(C_ClassInfo) == "table" and call(C_ClassInfo.GetClassInfo, id)

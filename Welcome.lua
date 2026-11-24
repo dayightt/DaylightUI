@@ -523,4 +523,4 @@ DUI.RegisterEvent("PLAYER_LOGIN", function()
 end)
 
 DUI.RegisterCommand("welcome", function() Welcome.Show() end,
-    L["/dui welcome - what's new in Daylight UI 2.0, and the new portraits and tooltips to pick from"])
+    function() return L["/dui welcome - what's new in Daylight UI 2.0, and the new portraits and tooltips to pick from"] end)

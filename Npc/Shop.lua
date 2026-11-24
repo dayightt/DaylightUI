@@ -791,19 +791,21 @@ end
 -- Sample shop (the sample talk's "Let me browse your goods")
 
 local SAMPLE_ICON = 134400
-Shop.SAMPLE = {
-    { index = 1, name = L["Refreshing Spring Water"], texture = SAMPLE_ICON, price = 25, stack = 5, quality = 1, usable = true },
-    { index = 2, name = L["Tough Jerky"], texture = SAMPLE_ICON, price = 25, stack = 5, quality = 1, usable = true },
-    { index = 3, name = L["Freshly Baked Bread"], texture = SAMPLE_ICON, price = 125, stack = 5, quality = 1, usable = true },
-    { index = 4, name = L["Simple Wood"], texture = SAMPLE_ICON, price = 38, stack = 1, quality = 1, usable = true },
-    { index = 5, name = L["Flint and Tinder"], texture = SAMPLE_ICON, price = 135, stack = 1, quality = 1, usable = true },
-    { index = 6, name = L["Coarse Thread"], texture = SAMPLE_ICON, price = 10, stack = 1, quality = 1, usable = true },
-    { index = 7, name = L["Rough Arrow"], texture = SAMPLE_ICON, price = 10, stack = 200, quality = 1, usable = true },
-    { index = 8, name = L["Small Brown Pouch"], texture = SAMPLE_ICON, price = 500, stack = 1, quality = 1, usable = true, available = 3 },
-    { index = 9, name = L["Traveler's Backpack"], texture = SAMPLE_ICON, price = 25000, stack = 1, quality = 2, usable = true },
-}
+DUI.WithLanguage(function()
+    Shop.SAMPLE = {
+        { index = 1, name = L["Refreshing Spring Water"], texture = SAMPLE_ICON, price = 25, stack = 5, quality = 1, usable = true },
+        { index = 2, name = L["Tough Jerky"], texture = SAMPLE_ICON, price = 25, stack = 5, quality = 1, usable = true },
+        { index = 3, name = L["Freshly Baked Bread"], texture = SAMPLE_ICON, price = 125, stack = 5, quality = 1, usable = true },
+        { index = 4, name = L["Simple Wood"], texture = SAMPLE_ICON, price = 38, stack = 1, quality = 1, usable = true },
+        { index = 5, name = L["Flint and Tinder"], texture = SAMPLE_ICON, price = 135, stack = 1, quality = 1, usable = true },
+        { index = 6, name = L["Coarse Thread"], texture = SAMPLE_ICON, price = 10, stack = 1, quality = 1, usable = true },
+        { index = 7, name = L["Rough Arrow"], texture = SAMPLE_ICON, price = 10, stack = 200, quality = 1, usable = true },
+        { index = 8, name = L["Small Brown Pouch"], texture = SAMPLE_ICON, price = 500, stack = 1, quality = 1, usable = true, available = 3 },
+        { index = 9, name = L["Traveler's Backpack"], texture = SAMPLE_ICON, price = 25000, stack = 1, quality = 2, usable = true },
+    }
 
-Shop.SAMPLE_SOLD = { index = 1, name = L["Coarse Thread"], texture = SAMPLE_ICON, price = 67, stack = 3, quality = 0, usable = true, buyback = true }
+    Shop.SAMPLE_SOLD = { index = 1, name = L["Coarse Thread"], texture = SAMPLE_ICON, price = 67, stack = 3, quality = 0, usable = true, buyback = true }
+end)
 
 function Shop.StartSample()
     Shop.sampleMoney, Shop.sampleJunk, Shop.sampleRepair, Shop.sampleSold = 21435, 3, 160, nil

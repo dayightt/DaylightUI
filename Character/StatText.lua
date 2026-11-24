@@ -21,63 +21,66 @@ local function chance(text)
         return n and string.format(text, n) or nil
     end
 end
-local GEAR = L["From your gear, buffs and race."]
-local function resist(say)
-    return { say = say,
-             from = L["From your gear and buffs."] }
-end
+-- What each stat does, once the picked language is on.
+DUI.WithLanguage(function()
+    local GEAR = L["From your gear, buffs and race."]
+    local function resist(say)
+        return { say = say,
+                 from = L["From your gear and buffs."] }
+    end
 
--- say is a string or a function of the row's values. If the function
--- returns nil, `none` is shown instead. from says where the stat comes from.
-StatText.SAY = {
-    str = { say = L["Your melee attacks hit harder: Strength adds attack power."], from = GEAR },
-    agi = { say = L["More critical strikes, dodges and armor. Hunters and rogues hit harder with it too."], from = GEAR },
-    sta = { say = function(v) return string.format(L["Your health. Each point adds about 10; you have %.0f."], v) end, from = GEAR },
-    int = { say = L["More mana, and more critical strikes with spells."], from = GEAR },
-    spi = { say = L["Your health and mana come back faster while you're not fighting or casting."], from = GEAR },
-    dmg = { say = function(lo, hi) return string.format(L["Each main-hand swing hits for %.0f to %.0f before armor."], lo, hi) end, from = L["From your weapon and attack power."] },
-    speed = { say = function(v) return string.format(L["Your main hand swings every %.2f seconds. Lower is faster."], v) end, from = L["From your weapon, and haste."] },
-    ap = { say = function(v) return string.format(L["Adds about %.0f damage per second to your melee attacks."], v / 14) end, from = L["From Strength, Agility, gear and buffs."] },
-    hit = { say = function(v) return string.format(L["Your attacks and spells miss %.1f%% less often."], v) end, from = L["From your gear and talents."] },
-    crit = { say = chance(L["About 1 in %d of your attacks hits for double damage."]), none = L["Your attacks don't land critical hits yet."], from = L["From Agility, gear and talents."] },
-    expertise = { say = L["Fewer of your attacks are dodged or parried."], from = L["From your gear and talents."] },
-    rdmg = { say = function(lo, hi) return string.format(L["Each shot hits for %.0f to %.0f before armor."], lo, hi) end, from = L["From your ranged weapon, ammo and attack power."] },
-    rspeed = { say = function(v) return string.format(L["You shoot every %.2f seconds. Lower is faster."], v) end, from = L["From your ranged weapon, and haste."] },
-    rap = { say = function(v) return string.format(L["Adds about %.0f damage per second to your shots."], v / 14) end, from = L["From Agility, gear and buffs."] },
-    rcrit = { say = chance(L["About 1 in %d of your shots hits for double damage."]), none = L["Your shots don't land critical hits yet."], from = L["From Agility, gear and talents."] },
-    sp = { say = function(v) return string.format(L["Adds up to %.0f to your spells' damage."], v) end, from = L["From your gear and buffs."] },
-    heal = { say = function(v) return string.format(L["Adds up to %.0f to your heals."], v) end, from = L["From your gear and buffs."] },
-    scrit = { say = chance(L["About 1 in %d of your spells lands a critical hit for half again as much."]), none = L["Your spells don't land critical hits yet."], from = L["From Intellect, gear and talents."] },
-    regen = { say = function(v) return string.format(L["You get back %.0f mana every 5 seconds while casting."], v) end, from = L["From Spirit, gear and buffs."] },
-    health = { say = function(v) return string.format(L["You can take %.0f damage before you die."], v) end, from = L["From Stamina, gear and buffs."] },
-    power = { say = L["The most you can hold for your abilities."], from = L["From your class, gear and buffs."] },
-    ohdmg = { say = function(lo, hi) return string.format(L["Each off-hand swing hits for %.0f to %.0f before armor."], lo, hi) end, from = L["From your weapon and attack power."] },
-    haste = { say = function(v) return string.format(L["You swing %.1f%% faster."], v) end, from = L["From your gear, buffs and talents."] },
-    rhaste = { say = function(v) return string.format(L["You shoot %.1f%% faster."], v) end, from = L["From your quiver, gear and buffs."] },
-    shaste = { say = function(v) return string.format(L["You cast %.1f%% faster."], v) end, from = L["From your gear, buffs and talents."] },
-    armorpen = { say = function(v) return string.format(L["Your attacks ignore %.0f of the target's armor."], v) end, from = L["From your gear and talents."] },
-    rarmorpen = { say = function(v) return string.format(L["Your attacks ignore %.0f of the target's armor."], v) end, from = L["From your gear and talents."] },
-    spen = { say = function(v) return string.format(L["Your spells ignore %.0f of the target's resistances."], v) end, from = L["From your gear and talents."] },
-    armor = { say = L["Lowers the physical damage you take."], from = L["From your gear, Agility and buffs."] },
-    defense = { say = L["Fewer critical hits against you, and more misses, dodges, parries and blocks."], from = L["From your defense skill and gear."] },
-    dodge = { say = chance(L["You dodge about 1 in %d attacks."]), none = L["You don't dodge attacks yet."], from = L["From Agility, defense and gear."] },
-    parry = { say = chance(L["You parry about 1 in %d attacks from the front."]), none = L["You can't parry yet."], from = L["From defense, gear and talents."] },
-    block = { say = chance(L["You block about 1 in %d attacks with your shield."]), none = L["You don't block yet."], from = L["From your shield, defense and gear."] },
-    movespeed = { say = function(v) return string.format(L["You move at %.0f%% of a normal run: on foot, mounted, swimming or flying, by what you're doing."], v) end,
-                  from = L["From your mount, talents, gear and buffs."] },
-    res_fire = resist(L["Lowers the fire damage you take, and how often fire spells hit you in full."]),
-    res_nature = resist(L["Lowers the nature damage you take, and how often nature spells hit you in full."]),
-    res_frost = resist(L["Lowers the frost damage you take, and how often frost spells hit you in full."]),
-    res_shadow = resist(L["Lowers the shadow damage you take, and how often shadow spells hit you in full."]),
-    res_arcane = resist(L["Lowers the arcane damage you take, and how often arcane spells hit you in full."]),
-}
+    -- say is a string or a function of the row's values. If the function
+    -- returns nil, `none` is shown instead. from says where the stat comes from.
+    StatText.SAY = {
+        str = { say = L["Your melee attacks hit harder: Strength adds attack power."], from = GEAR },
+        agi = { say = L["More critical strikes, dodges and armor. Hunters and rogues hit harder with it too."], from = GEAR },
+        sta = { say = function(v) return string.format(L["Your health. Each point adds about 10; you have %.0f."], v) end, from = GEAR },
+        int = { say = L["More mana, and more critical strikes with spells."], from = GEAR },
+        spi = { say = L["Your health and mana come back faster while you're not fighting or casting."], from = GEAR },
+        dmg = { say = function(lo, hi) return string.format(L["Each main-hand swing hits for %.0f to %.0f before armor."], lo, hi) end, from = L["From your weapon and attack power."] },
+        speed = { say = function(v) return string.format(L["Your main hand swings every %.2f seconds. Lower is faster."], v) end, from = L["From your weapon, and haste."] },
+        ap = { say = function(v) return string.format(L["Adds about %.0f damage per second to your melee attacks."], v / 14) end, from = L["From Strength, Agility, gear and buffs."] },
+        hit = { say = function(v) return string.format(L["Your attacks and spells miss %.1f%% less often."], v) end, from = L["From your gear and talents."] },
+        crit = { say = chance(L["About 1 in %d of your attacks hits for double damage."]), none = L["Your attacks don't land critical hits yet."], from = L["From Agility, gear and talents."] },
+        expertise = { say = L["Fewer of your attacks are dodged or parried."], from = L["From your gear and talents."] },
+        rdmg = { say = function(lo, hi) return string.format(L["Each shot hits for %.0f to %.0f before armor."], lo, hi) end, from = L["From your ranged weapon, ammo and attack power."] },
+        rspeed = { say = function(v) return string.format(L["You shoot every %.2f seconds. Lower is faster."], v) end, from = L["From your ranged weapon, and haste."] },
+        rap = { say = function(v) return string.format(L["Adds about %.0f damage per second to your shots."], v / 14) end, from = L["From Agility, gear and buffs."] },
+        rcrit = { say = chance(L["About 1 in %d of your shots hits for double damage."]), none = L["Your shots don't land critical hits yet."], from = L["From Agility, gear and talents."] },
+        sp = { say = function(v) return string.format(L["Adds up to %.0f to your spells' damage."], v) end, from = L["From your gear and buffs."] },
+        heal = { say = function(v) return string.format(L["Adds up to %.0f to your heals."], v) end, from = L["From your gear and buffs."] },
+        scrit = { say = chance(L["About 1 in %d of your spells lands a critical hit for half again as much."]), none = L["Your spells don't land critical hits yet."], from = L["From Intellect, gear and talents."] },
+        regen = { say = function(v) return string.format(L["You get back %.0f mana every 5 seconds while casting."], v) end, from = L["From Spirit, gear and buffs."] },
+        health = { say = function(v) return string.format(L["You can take %.0f damage before you die."], v) end, from = L["From Stamina, gear and buffs."] },
+        power = { say = L["The most you can hold for your abilities."], from = L["From your class, gear and buffs."] },
+        ohdmg = { say = function(lo, hi) return string.format(L["Each off-hand swing hits for %.0f to %.0f before armor."], lo, hi) end, from = L["From your weapon and attack power."] },
+        haste = { say = function(v) return string.format(L["You swing %.1f%% faster."], v) end, from = L["From your gear, buffs and talents."] },
+        rhaste = { say = function(v) return string.format(L["You shoot %.1f%% faster."], v) end, from = L["From your quiver, gear and buffs."] },
+        shaste = { say = function(v) return string.format(L["You cast %.1f%% faster."], v) end, from = L["From your gear, buffs and talents."] },
+        armorpen = { say = function(v) return string.format(L["Your attacks ignore %.0f of the target's armor."], v) end, from = L["From your gear and talents."] },
+        rarmorpen = { say = function(v) return string.format(L["Your attacks ignore %.0f of the target's armor."], v) end, from = L["From your gear and talents."] },
+        spen = { say = function(v) return string.format(L["Your spells ignore %.0f of the target's resistances."], v) end, from = L["From your gear and talents."] },
+        armor = { say = L["Lowers the physical damage you take."], from = L["From your gear, Agility and buffs."] },
+        defense = { say = L["Fewer critical hits against you, and more misses, dodges, parries and blocks."], from = L["From your defense skill and gear."] },
+        dodge = { say = chance(L["You dodge about 1 in %d attacks."]), none = L["You don't dodge attacks yet."], from = L["From Agility, defense and gear."] },
+        parry = { say = chance(L["You parry about 1 in %d attacks from the front."]), none = L["You can't parry yet."], from = L["From defense, gear and talents."] },
+        block = { say = chance(L["You block about 1 in %d attacks with your shield."]), none = L["You don't block yet."], from = L["From your shield, defense and gear."] },
+        movespeed = { say = function(v) return string.format(L["You move at %.0f%% of a normal run: on foot, mounted, swimming or flying, by what you're doing."], v) end,
+                      from = L["From your mount, talents, gear and buffs."] },
+        res_fire = resist(L["Lowers the fire damage you take, and how often fire spells hit you in full."]),
+        res_nature = resist(L["Lowers the nature damage you take, and how often nature spells hit you in full."]),
+        res_frost = resist(L["Lowers the frost damage you take, and how often frost spells hit you in full."]),
+        res_shadow = resist(L["Lowers the shadow damage you take, and how often shadow spells hit you in full."]),
+        res_arcane = resist(L["Lowers the arcane damage you take, and how often arcane spells hit you in full."]),
+    }
 
--- A school's own spell power row (Stats.SCHOOLS).
-for _, sc in ipairs(ns.Stats.SCHOOLS) do
-    local name = sc[3]
-    StatText.SAY["sp_" .. sc[2]] = { say = function(v) return string.format(L["Adds up to %.0f to your %s spells' damage."], v, name) end,
-        from = L["From gear and buffs for this school, on top of your spell power."] }
-end
+    -- A school's own spell power row (Stats.SCHOOLS).
+    for _, sc in ipairs(ns.Stats.SCHOOLS) do
+        local name = sc[3]
+        StatText.SAY["sp_" .. sc[2]] = { say = function(v) return string.format(L["Adds up to %.0f to your %s spells' damage."], v, name) end,
+            from = L["From gear and buffs for this school, on top of your spell power."] }
+    end
+end)
 
 function StatText.For(row)
     if row.secret or row.stale or not row.values then return nil end

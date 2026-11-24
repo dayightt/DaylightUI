@@ -30,6 +30,60 @@ T.test("the client's locale is read before Core.lua", function()
     end)
 end)
 
+-- The language picked on Home, saved account-wide, is put on as the saved
+-- settings load: before any module file runs, so their text reads it too.
+T.test("a picked language shows on Daylight UI's text, the client keeps its own", function()
+    local de = K.LoadLanguage(K.LanguageFiles().deDE, "deDE")
+    local DUI = stub.Load{ login = false, before = function() DaylightUIDB = { language = "deDE" } end }
+    T.eq(DUI.LOCALE, "deDE", "the picked language")
+    T.eq(DUI.CLIENT_LOCALE, "enUS", "the game's own language stays")
+    T.eq(DUI.L["Width"], de["Width"], "German text on an English client")
+
+    withLocale("deDE", function()
+        DUI = stub.Load{ login = false, before = function() DaylightUIDB = { language = "enUS" } end }
+    end)
+    T.eq(DUI.LOCALE, "enUS")
+    T.eq(DUI.CLIENT_LOCALE, "deDE")
+    T.eq(DUI.L["Width"], "Width", "English on a German client")
+    T.eq(next(DUI.L), nil, "none of the client's lines left behind")
+
+    withLocale("deDE", function()
+        DUI = stub.Load{ login = false, before = function() DaylightUIDB = { language = "auto" } end }
+    end)
+    T.eq(DUI.L["Width"], de["Width"], "Automatic is the client's language")
+    withLocale("esMX", function()
+        DUI = stub.Load{ login = false }
+    end)
+    T.truthy(next(DUI.L) ~= nil, "Mexican Spanish players get the Spanish lines")
+    DUI = stub.Load{ login = false, before = function() DaylightUIDB = { language = "xxXX" } end }
+    T.eq(DUI.LOCALE, "enUS", "a language that isn't there falls back to the client's")
+end)
+
+T.test("the language row on Home saves account-wide and asks for a reload", function()
+    local DUI = stub.Load{ module = true }
+    local O = DUI.Options
+    local page, row
+    for _, p in O.Pages() do
+        for _, g in ipairs(p.groups or {}) do
+            for _, it in ipairs(g.items or {}) do
+                if it.label == "Daylight UI's language" then page, row = p, it end
+            end
+        end
+    end
+    T.truthy(row, "a Language row")
+    T.eq(page.id, "home")
+    T.eq(O.Get(page, row), "auto", "Automatic until picked")
+    local values = row.choices()
+    T.eq(values.deDE, "Deutsch", "each language in its own words")
+    T.eq(values.zhCN, "简体中文")
+    stub.Dismiss()
+    O.Set(page, row, "frFR")
+    T.eq(DaylightUIDB.language, "frFR", "saved for the account, not the profile")
+    T.truthy(stub.Asked(), "a reload is asked")
+    T.eq(DUI.LOCALE, "enUS", "nothing changes until the reload")
+    T.eq(row.fetch("koKR"), DUI.Style.ALPHABET_FONTS.korean, "a name in another alphabet drawn in a font that has it")
+end)
+
 T.test("every language file loads alone, and only for its own language", function()
     for locale, path in pairs(K.LanguageFiles()) do
         local lines, err = K.LoadLanguage(path, locale)
@@ -200,6 +254,40 @@ T.test("pseudo sweep: every options page outside NOT_YET draws only translated t
     end
     DUI.OptionsPanel.Search("sha")
     walk(DUI.OptionsPanel.Frame(), "search", bad)
+    T.eq(table.concat(bad, "\n"), "")
+end)
+
+-- A picked language goes on after the core's files ran: any of the core's
+-- text read while loading (a table of labels made at file load) would stay in
+-- the client's language. A pseudo language picked this way finds them.
+T.test("a picked language reaches text the core reads while loading", function()
+    -- A German client: text kept from load time is German, and the pseudo
+    -- language can't turn it back.
+    local DUI
+    withLocale("deDE", function()
+        DUI = stub.Load{ module = true, actionbars = true, buffs = true, bags = true, nameplates = true,
+            tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true,
+            before = function() DaylightUIDB = { language = "xxXX" } end,
+            locale = function(_, D) D.AddLanguage("xxXX", pseudo) end }
+    end)
+    T.eq(DUI.LOCALE, "xxXX")
+    local bad = {}
+    for id, page in DUI.Options.Pages() do
+        if not K.NOT_YET[page.scope] then
+            DUI.OptionsPanel.Show(id)
+            walk(DUI.OptionsPanel.Frame(), "page " .. id, bad)
+        end
+    end
+    DUI.OptionsPanel.Search("sha")
+    walk(DUI.OptionsPanel.Frame(), "search", bad)
+    local I = DUI.Installer
+    I.Show()
+    walk(DUI.InstallerUI.Frame(), "guide welcome", bad)
+    I.Start("tour")
+    for _, s in ipairs(I.Steps()) do
+        I.Go(s.id)
+        walk(DUI.InstallerUI.Frame(), "guide " .. s.id, bad)
+    end
     T.eq(table.concat(bad, "\n"), "")
 end)
 

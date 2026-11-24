@@ -163,7 +163,7 @@ end
 
 -- A white-hot head riding the fill's end, with streaks racing back behind it.
 local WHITE_HOT = { 1, 1, 1 }
-BarFx.Add("comet", L["Comet"], def("comet", function(hi)
+BarFx.Add("comet", function() return L["Comet"] end, def("comet", function(hi)
     return mix(hi, WHITE_HOT, 0.6), WHITE_HOT, mix(hi, WHITE_HOT, 0.8)
 end))
 
@@ -171,7 +171,7 @@ end))
 -- rise. The sheet carries the cooling in its own colors.
 BarFx.EMBER = { 1, 0.62, 0.28 }
 BarFx.EMBER_HOT = { 1, 0.92, 0.66 }
-BarFx.Add("embers", L["Embers"], def("embers", function(hi)
+BarFx.Add("embers", function() return L["Embers"] end, def("embers", function(hi)
     local warm = mix(hi, BarFx.EMBER, 0.5)
     return mix(warm, BarFx.EMBER_HOT, 0.6), BarFx.EMBER_HOT, mix(warm, BarFx.EMBER_HOT, 0.4)
 end))
@@ -211,7 +211,7 @@ local function over(s, blend)
     return t
 end
 
-BarFx.Add("tide", L["Tide"], {
+BarFx.Add("tide", function() return L["Tide"] end, {
     build = function(s)
         local p = {}
         p.swell = over(s, "ADD")

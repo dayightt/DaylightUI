@@ -25,15 +25,17 @@ Window.WHITE = "Interface\\Buttons\\WHITE8X8"
 -- Pages in tab order, with the game's frame for each (its
 -- CharacterFrame.activeSubframe value). Pet has none: the game shows the pet as
 -- a side tab inside its Character page, so the game's window stays where it was.
-Window.PAGES = {
-    { id = "character", label = L["Character"], frame = "PaperDollFrame" },
-    { id = "pet", label = L["Pet"] },
-    { id = "reputation", label = L["Reputation"], frame = "ReputationFrame" },
-    { id = "skills", label = L["Skills"], frame = "SkillsFrame" },
-    { id = "pvp", label = L["PvP"], frame = "PVPRankFrame" },
-    { id = "currency", label = L["Currency"], frame = "TokenFrame" },
-    { id = "statistics", label = L["Statistics"], frame = "StatisticsFrame" },
-}
+DUI.WithLanguage(function()
+    Window.PAGES = {
+        { id = "character", label = L["Character"], frame = "PaperDollFrame" },
+        { id = "pet", label = L["Pet"] },
+        { id = "reputation", label = L["Reputation"], frame = "ReputationFrame" },
+        { id = "skills", label = L["Skills"], frame = "SkillsFrame" },
+        { id = "pvp", label = L["PvP"], frame = "PVPRankFrame" },
+        { id = "currency", label = L["Currency"], frame = "TokenFrame" },
+        { id = "statistics", label = L["Statistics"], frame = "StatisticsFrame" },
+    }
+end)
 
 Window.EVENTS = { "PLAYER_EQUIPMENT_CHANGED", "UNIT_INVENTORY_CHANGED", "UPDATE_INVENTORY_DURABILITY", "UNIT_STATS",
     "UNIT_ATTACK_POWER", "UNIT_RANGED_ATTACK_POWER", "UNIT_ATTACK_SPEED", "UNIT_DAMAGE", "UNIT_RANGEDDAMAGE",

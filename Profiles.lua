@@ -2156,5 +2156,5 @@ local profilesPage = DUI.Options.RegisterPage({
 PAGE_GROUPS = profilesPage.groups
 DUI.On("PacksChanged", function() profilesPage.groups = profileGroups(PAGE_GROUPS) end)
 
-DUI.RegisterCommand("export", function() Profiles.ShowExport() end, L["/dui export - the profile in use as text to share"])
-DUI.RegisterCommand("import", function() Profiles.ShowImport() end, L["/dui import - add a shared DaylightUI profile"])
+DUI.RegisterCommand("export", function() Profiles.ShowExport() end, function() return L["/dui export - the profile in use as text to share"] end)
+DUI.RegisterCommand("import", function() Profiles.ShowImport() end, function() return L["/dui import - add a shared DaylightUI profile"] end)

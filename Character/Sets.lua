@@ -318,11 +318,13 @@ end
 -- The panel
 -- ---------------------------------------------------------------------
 
-Sets.WHERE = {
-    bags = { L["Bags"], Style.INK.LABEL },
-    bank = { L["Bank"], Style.INK.WARN },
-    missing = { L["Missing"], Style.INK.BAD },
-}
+DUI.WithLanguage(function()
+    Sets.WHERE = {
+        bags = { L["Bags"], Style.INK.LABEL },
+        bank = { L["Bank"], Style.INK.WARN },
+        missing = { L["Missing"], Style.INK.BAD },
+    }
+end)
 
 local function itemTip(b)
     local e = b.lineSpec and b.lineSpec.item

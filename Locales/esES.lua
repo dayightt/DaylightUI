@@ -1,7 +1,6 @@
 -- Spanish (esES). English text is the key (Locales/Locales.lua).
 local _, DUI = ...
-if DUI.LOCALE ~= "esES" and DUI.LOCALE ~= "esMX" then return end   -- Mexican Spanish players get it too
-local L = DUI.L
+DUI.AddLanguage("esES", function(L)
 
 -- Reviewed for World of Warcraft: Forever (esES).
 
@@ -8751,3 +8750,4 @@ L["under the price"] = "por debajo del precio"
 L["vendor"] = "comerciante"
 L["worldtest"] = "worldtest"
 L["worldtest: done. Send the text in the box and the two newest screenshots (Screenshots folder), then /reload."] = "worldtest: hecho. Envía el texto del cuadro y las dos últimas capturas (carpeta Screenshots) y después haz /reload."
+end)

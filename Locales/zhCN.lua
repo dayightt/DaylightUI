@@ -1,7 +1,6 @@
 -- Simplified Chinese (zhCN). English text is the key (Locales/Locales.lua).
 local _, DUI = ...
-if DUI.LOCALE ~= "zhCN" then return end
-local L = DUI.L
+DUI.AddLanguage("zhCN", function(L)
 
 -- Simplified Chinese localization maintained by Levis; checked against DaylightUI 1.6.7.
 L["  %s (on %s)"] = "  %s（在%s上）"
@@ -8790,3 +8789,4 @@ L["Takes all %s parts into %s."] = "采用全部 %s 个部件，导入 %s。"
 L["Use it"] = "使用它"
 L["Worthless"] = "无价值"
 L["its Edit Mode layout can't be read"] = "无法读取其编辑模式布局"
+end)

@@ -1,7 +1,6 @@
 -- Russian (ruRU). English text is the key (Locales/Locales.lua).
 local _, DUI = ...
-if DUI.LOCALE ~= "ruRU" then return end
-local L = DUI.L
+DUI.AddLanguage("ruRU", function(L)
 
 -- Machine draft below this line: not yet checked by a native speaker.
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "Корона на рамке лидера группы. Следует за вкладкой имени или портретом, пока вы не выберете ему место."
@@ -4961,3 +4960,4 @@ L["The data bar has no border on the global style: on a strip this thin the acce
 L["The color of every chat panel's border. The border still lights up in your accent color while you drag a corner to size the chat."] = "Цвет рамки каждой панели чата. Рамка по-прежнему подсвечивается цветом акцента, пока вы тянете угол, чтобы изменить размер чата."
 L["Every chat panel: the main one, the second one and a chat window pulled out on its own. On the global style the Classic chat keeps a thin line."] = "Каждая панель чата: основная, вторая и отдельно вынесенное окно чата. В общем стиле классический чат сохраняет тонкую линию."
 L["Gives the second chat panel its own background opacity, set in the row below. When off, it's as see-through as the main chat panel. Shown while the chat's Use Daylight UI global style is off."] = "Даёт второй панели чата свою непрозрачность фона, задаётся в строке ниже. Если выключено, она так же прозрачна, как основная. Видно, пока у чата выключен «Общий стиль Daylight UI»."
+end)
