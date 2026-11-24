@@ -526,7 +526,7 @@ T.test("social: a friend playing on two game accounts shows both characters", fu
     Tips.Person = function(name, where, ...) people[#people + 1] = name .. " / " .. tostring(where); return was(name, where, ...) end
     ns.Friends.Tip(ns.Window.frame, bo)
     Tips.Person = was
-    T.deq(people, { "Lyra / Riverglades", "Tarn / Stranglethorn Vale" })
+    T.deq(people, { "Lyra / nil", "Tarn / nil" })
 
     local spec = ns.Friends.Spec(bo)
     local also

@@ -138,8 +138,19 @@ function Friends.Tip(owner, f)
     local function show(c)
         if c.char then
             local r, g, b = Style.ClassTextColor(c.class)
-            T.Person(c.char, c.zone, { r, g, b })
-            T.Text(Friends.Who(c), Style.INK.LABEL)
+            -- The zone on its own line: beside the name it cut a long character name short.
+            T.Person(c.char, nil, { r, g, b })
+            -- Level (its number in the class color) and class, then the race with its faction, then where.
+            local class = Rows().ClassWord(c.class)
+            if c.level then
+                class = string.format(L["Level %s"], DUI.Win.Parts.Hex({ r, g, b }) .. c.level .. "|r") .. " " .. class
+            end
+            T.Text(class, Style.INK.LABEL)
+            local faction = c.faction and (c.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+            if c.race or faction then
+                T.Text((c.race or "") .. ((c.race and faction) and " " or "") .. (faction and ("(" .. faction .. ")") or ""), Style.INK.LABEL)
+            end
+            if c.zone then T.Text(c.zone) end
         elseif c.game and f.status ~= "off" then
             T.Text(string.format(L["Playing %s"], c.game))
         end
@@ -150,7 +161,6 @@ function Friends.Tip(owner, f)
         T.Gap()
         show(o)
     end
-    if f.faction and ns.Setting("friendFactions") == true then T.Line(L["Faction"], f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"])) end
     if f.ruleset then T.Line(L["Server"], f.ruleset) end
     if f.note then T.Line(L["Note"], f.note) end
     if f.broadcast then T.Text("\"" .. f.broadcast .. "\"") end
