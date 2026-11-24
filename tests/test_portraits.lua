@@ -335,7 +335,8 @@ T.test("elites and rares get the dragon round the normal ring; without a portrai
     T.truthy(p.elite:IsShown())
     T.truthy(p.ring:IsShown(), "the very ring every portrait has stays, the dragon behind it")
     T.eq(p.elite.__texture, ns.UF.DRAGON_FILE)
-    T.near(p.elite:GetWidth(), p.ring:GetWidth() / ns.UF.DRAGON_RING, 0.01, "drawn bigger so its ring lines up")
+    T.near(p.elite:GetWidth(), p.ring:GetWidth() / ns.UF.DRAGON_RING, DUI.Pixel.Unit(f) + 0.01,
+        "drawn bigger so its ring lines up (rounded to whole pixels)")
     T.eq(p.elite.__texCoord[1], 0, "the target's ring is on the right: the dragon wraps it as drawn")
     T.rgb(p.elite.__vertex, ns.UF.ELITE_RING_COLORS.gold, "gold")
     T.falsy(f.crest:IsShown(), "no badge while the ring shows it")
@@ -2118,7 +2119,7 @@ T.test("the ring's middle and picture land on whole pixels at any portrait size 
     end
     for _, look in ipairs({ "classic", "socket" }) do
         DUI:Set("UnitFrames", "player.portraitLook", look)
-        for _, scale in ipairs({ 0.95, 1, 1.05, 1.1, 1.15 }) do
+        for _, scale in ipairs({ 0.95, 1, 1.05, 1.1, 1.15, 1.2 }) do
             DUI:Set("UnitFrames", "player.portraitScale", scale)
             stub.RunTimers()
             UF.UpdateAll(f, true)
@@ -2129,6 +2130,12 @@ T.test("the ring's middle and picture land on whole pixels at any portrait size 
             -- Centered on a whole pixel, the ring's picture draws the same on both sides.
             local rp, rrel, rrp, rx, ry = p.ring:GetPoint(1)
             T.eq(rp, "CENTER"); T.eq(rrel, p); T.eq(rrp, "CENTER"); T.eq(rx, 0); T.eq(ry, 0)
+            -- Seen in game at 120%: the elite's dragon ring drew a pixel wider
+            -- on one side. A picture centered on a whole pixel needs an even
+            -- number of pixels, or both its edges fall on half pixels.
+            if look == "classic" then
+                whole(p.elite:GetWidth() / 2, label .. ": half of the dragon")
+            end
         end
     end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
