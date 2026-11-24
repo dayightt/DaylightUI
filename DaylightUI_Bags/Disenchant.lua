@@ -1,5 +1,5 @@
--- Spell buttons in the bag's tool row: Disenchant, Comprehend Scroll and Pick
--- Lock, each for characters who know it. Click one to get the targeting hand, then click an
+-- Spell buttons in the bag's tool row: Disenchant, Comprehend Scroll, Pick
+-- Lock and Feed Pet, each for characters who know it. Click one to get the targeting hand, then click an
 -- item, same as casting from the spellbook.
 --
 -- Casting needs a secure button, and a secure button inside the bag would keep
@@ -246,3 +246,7 @@ ns.Comprehend = Tool({ spell = 1296017, icon = "ui-micro-quests.png",
 -- A rogue's Pick Lock, cast on a lockbox in the bags.
 ns.PickLock = Tool({ spell = 1804, icon = "ui-lock.png",
     name = "DaylightUIBagPickLock", key = "pickLockButton", title = L["Pick Lock"] })
+
+-- A hunter's Feed Pet, cast on food in the bags.
+ns.FeedPet = Tool({ spell = 6991, icon = "ui-feed.png",
+    name = "DaylightUIBagFeedPet", key = "feedPetButton", title = L["Feed Pet"] })

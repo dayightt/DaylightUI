@@ -1582,6 +1582,8 @@ local function bagWindow()
               desc = L["Click, then click a scroll to comprehend it. Not during a fight."], onClick = function() end },
             { key = "pickLockButton", icon = ns.PickLock.ICON, title = ns.PickLock.Title,
               desc = L["Click, then click a lockbox to pick its lock. Not during a fight."], onClick = function() end },
+            { key = "feedPetButton", icon = ns.FeedPet.ICON, title = ns.FeedPet.Title,
+              desc = L["Click, then click a food to feed your pet. Not during a fight."], onClick = function() end },
         },
     })
     ns.window = f
@@ -1603,6 +1605,7 @@ function ns.Build(mod)
         ns.Disenchant.Register(f)
         ns.Comprehend.Register(f)
         ns.PickLock.Register(f)
+        ns.FeedPet.Register(f)
         ns.Prep.Start(f)
         ns.Junk.Register()
         ns.ItemTree.Register()

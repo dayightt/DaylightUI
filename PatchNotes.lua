@@ -18,6 +18,7 @@ DUI.PatchNotes = {
         { "Nameplates", "Nameplates can show who each enemy is attacking, so tanks can spot a mob that isn't on a tank (Nameplates > Threat, off at first)" },
         { "Quests", "The quest tracker can sort every quest by level across zones, and keep the zone you're in at the top (both off at first, in the quest tracker options)" },
         { "Unlock mode", "The level-up and reputation banners, the welcome message and the AFK screen can be moved in unlock mode, handy with several monitors" },
+        { "Bags", "Hunters get a Feed Pet button in the bag, like the one for scrolls" },
         { "Tooltips", "Short, colored item stats shortens food, drink, potions and bandages too (\"530 health over 24 sec\", \"Well Fed: +5 Stamina (15 min)\")" },
     }, changed = {
         { "Unit frames", "The target frame's fade drops Show with a target, which it always has; if you had it on, it's now Always" },

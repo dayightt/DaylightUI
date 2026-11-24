@@ -3752,3 +3752,37 @@ T.test("bags: a handle move puts the window's middle on the handle's middle", fu
     T.near(pos[2], UIParent:GetHeight() / 2 - 20 + fh / 2, 0.01, "top edge: half the window above the middle, not half the handle")
     DUI.Movers.Lock()
 end)
+
+-- A player's ask: feed the pet from the bag, like Comprehend Scroll's button.
+T.test("bags: the Feed Pet button: shown to hunters who know it, beside the other tools; hovered, it casts Feed Pet", function()
+    local ns = login()
+    local FP = ns.FeedPet
+    T.truthy(FP, "a Feed Pet tool")
+    T.eq(FP.SPELL, 6991)
+    local known = {}
+    _G.IsPlayerSpell = function(id) return known[id] == true end
+    stub.FireEvent("SPELLS_CHANGED")
+    local f = open(ns)
+    local b = f.feedPetButton
+    T.truthy(b, "its button in the tool row")
+    T.falsy(b:IsShown(), "not a hunter: no button")
+    T.eq(select(2, f.search:GetPoint(2)), f.viewButton, "the search ends at the last tool shown")
+    known[FP.SPELL] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.truthy(b:IsShown())
+    T.eq(select(2, f.search:GetPoint(2)), b, "the search ends at it")
+    T.truthy(tostring(b.icon:GetTexture()):find("ui%-feed%.png"), "a flat icon like the rest of the row")
+    b.GetLeft, b.GetBottom = function() return 360 end, function() return 300 end
+    b:SetSize(28, 28)
+    stub.secure = true
+    b:GetScript("OnEnter")(b)
+    local o = FP.caster.button
+    T.truthy(o and o:IsShown(), "the secure button lies over ours")
+    T.truthy(o ~= ns.Disenchant.caster.button and o ~= ns.Comprehend.caster.button, "its own secure button")
+    T.eq(o:GetAttribute("type1"), "spell"); T.eq(o:GetAttribute("spell"), FP.SPELL)
+    T.eq(o:GetParent(), UIParent, "never inside the bag")
+    stub.EnterCombat()
+    T.falsy(o:IsShown(), "hidden as the fight starts")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
