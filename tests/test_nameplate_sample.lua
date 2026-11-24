@@ -598,3 +598,33 @@ T.test("nameplate sample: the Friendly page's chips show a player's guild or an 
     s.Refresh(600, 200)
     T.eq(s.p.sub.__text, "<Bridge Four>", "back to the player")
 end)
+
+T.test("nameplate sample: the enemy's target drags, resizes and takes its color in Design mode", function()
+    local DUI, ns = load()
+    T.eq(ns.DEFAULTS.mobTarget, false, "off as shipped")
+    T.falsy(sample(ns, "bars").p.mobTarget:IsShown(), "off: not on the sample")
+    DUI:Set("Nameplates", "mobTarget", true)
+    stub.RunTimers()
+    local s = sample(ns, "bars")
+    T.truthy(s.p.mobTarget:IsShown(), "on: the sample shows it")
+    T.eq(stub.Text(s.p.mobTarget), "Me", "your name, as if the mob were on you")
+    local part = partOf(s.Parts(), "Enemy's target")
+    T.truthy(part and part.move, "it moves")
+    T.eq(part.move.spotKey, "mobTargetPos"); T.eq(part.move.xKey, "mobTargetX"); T.eq(part.move.yKey, "mobTargetY")
+    T.eq(#part.move.dots, 17, "any spot, on the bar too")
+    T.eq(part.size.keys.s, "mobTargetSize", "and resizes")
+    -- A drop on another spot saves that spot.
+    local above
+    for _, d in ipairs(part.move.dots) do if d.spot == "outtopright" then above = d end end
+    local spot = part.move.drop(above.x, above.y)
+    T.eq(spot, "outtopright", "dropped on a dot: that spot")
+    -- Its settings are all on the page it lives on, so a click on it leads there.
+    local keys = pageKeys(DUI, "bars")
+    for _, k in ipairs(part.keys) do T.truthy(keys[k], "on Health & Names: " .. k) end
+    DUI:Set("Nameplates", "mobTargetColor", "custom")
+    DUI:Set("Nameplates", "mobTargetCustom", { 0.2, 0.4, 0.9 })
+    stub.RunTimers()
+    s = sample(ns, "bars")
+    T.near(select(3, s.p.mobTarget:GetTextColor()), 0.9, 1e-6, "One color: the picked color")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
