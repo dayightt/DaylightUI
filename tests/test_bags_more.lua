@@ -3000,8 +3000,8 @@ T.test("bags on a controller: X does an item's right click through a secure key,
     local s = _G[o.click]
     -- An item with a spell is used by bag and slot: clicking this addon's item
     -- button ran the game's click code tainted (CloseAllBags in the use).
-    T.eq(s:GetAttribute("type"), "item")
-    T.eq(s:GetAttribute("item"), "0 1")
+    T.eq(s:GetAttribute("type"), "macro")
+    T.eq(s:GetAttribute("macrotext"), "/use 0 1")
     T.eq(s:GetAttribute("clickbutton"), nil)
     local said = {}
     for _, row in ipairs(DaylightUI.Pad.HintList(f)) do said[#said + 1] = row[2] end
@@ -3077,12 +3077,12 @@ T.test("bags on a controller: X attaches a usable item at the mailbox", function
     T.eq(a.type, "click"); T.eq(a.clickbutton, at)
     _G.MailFrame:Hide()
     a = ns.Window.PadUseSecure(f, at)
-    T.eq(a.type, "item"); T.eq(a.item, "0 1")
+    T.eq(a.type, "macro"); T.eq(a.macrotext, "/use 0 1")
     -- Equipping goes the same way; selling keeps the right click.
     local equippable = C_Item.IsEquippableItem
     C_Item.IsEquippableItem = function() return true end
     a = ns.Window.PadUseSecure(f, at)
-    T.eq(a.type, "item"); T.eq(a.item, "0 1")
+    T.eq(a.type, "macro"); T.eq(a.macrotext, "/use 0 1")
     _G.MerchantFrame = CreateFrame("Frame", "MerchantFrame", UIParent)
     a = ns.Window.PadUseSecure(f, at)
     T.eq(a.type, "click"); T.eq(a.clickbutton, at)
@@ -3108,8 +3108,8 @@ T.test("bags on a controller: a right-click goes through a secure use on the slo
     enter(slotButton)
     local useButton = _G.DaylightUIBagUse
     T.truthy(useButton and useButton:IsShown(), "on the hovered slot")
-    T.eq(useButton:GetAttribute("type2"), "item")
-    T.eq(useButton:GetAttribute("item"), "0 1", "that slot, by bag and slot")
+    T.eq(useButton:GetAttribute("type2"), "macro")
+    T.eq(useButton:GetAttribute("macrotext"), "/use 0 1", "that slot, by bag and slot")
     T.eq(useButton:GetFrameStrata(), "HIGH", "a strata above the bag's, so raising the bag on a click can't cover it")
     leave(slotButton)
     T.falsy(useButton:IsShown(), "off when the pointer leaves")
@@ -3231,7 +3231,7 @@ T.test("bags on a controller: at a vendor an item with no value is used securely
     _G.MerchantFrame.selectedTab = 1
     T.truthy(C_Container.GetContainerItemInfo(0, 1).hasNoValue)
     local action = ns.Window.PadUseSecure(f, slotButton)
-    T.eq(action.type, "item"); T.eq(action.item, "0 1")
+    T.eq(action.type, "macro"); T.eq(action.macrotext, "/use 0 1")
     slotButton:GetScript("OnEnter")(slotButton)
     T.truthy(_G.DaylightUIBagUse:IsShown(), "the mouse too")
     slotButton:GetScript("OnLeave")(slotButton)

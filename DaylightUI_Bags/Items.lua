@@ -314,7 +314,11 @@ local function makeUseButton()
     -- Both presses: the game acts on the down or the up one depending on
     -- ActionButtonUseKeyDown (SecureActionButton_OnClick), and ignores the other.
     useButton:RegisterForClicks("RightButtonDown", "RightButtonUp")
-    useButton:SetAttribute("type2", "item")
+    -- A /use macro, not the "item" action: that one equips anything wearable by
+    -- name first, so a quest item you can also wear was put on instead of
+    -- starting its quest. /use on a bag slot is UseContainerItem, the bag's own
+    -- right click.
+    useButton:SetAttribute("type2", "macro")
     if useButton.SetPassThroughButtons then
         useButton:SetPassThroughButtons("LeftButton", "MiddleButton", "Button4", "Button5")
     end
@@ -371,7 +375,7 @@ function Items.UseOver(slotButton, fromEvent)
         return Items.UseOff(true)
     end
     local button = makeUseButton()
-    button:SetAttribute("item", bag .. " " .. slot)
+    button:SetAttribute("macrotext", "/use " .. bag .. " " .. slot)
     button:ClearAllPoints()
     button:SetAllPoints(slotButton)
     button:SetFrameStrata(strataAbove(slotButton:GetFrameStrata()))

@@ -616,7 +616,9 @@ function Window.PadUseSecure(window, slotButton)
     if not label then return nil end
     local info, bag, slot = padItem(slotButton)
     if info and USED_IN_PLACE[label] and not slotButton.dluiGuarded and not Window.HandsOver(info) then
-        return { type = "item", item = bag .. " " .. slot }
+        -- A /use macro rather than the "item" action, which would equip a quest
+        -- item you can wear instead of starting its quest (Items.UseOver).
+        return { type = "macro", macrotext = "/use " .. bag .. " " .. slot }
     end
     return { type = "click", clickbutton = slotButton }
 end

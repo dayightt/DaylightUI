@@ -28,6 +28,10 @@ DUI.PatchNotes = {
         { "Unit frames", "Viper Sting no longer shows as damage left on your target's health bar" },
         { "Cooldown Manager", "Bars show their cooldown time at the right end again, not over the spell's name" },
         { "Cooldown Manager", "The editor's preview shows your look changes right away: swipe direction, cooldown numbers, stack counts, bar colors and backgrounds" },
+        { "Bags", "Using a quest item you can also wear, like the Monogrammed Sash, starts its quest instead of putting it on" },
+        { "Trade", "The trade window's item and money areas no longer show the game's marble background" },
+        { "Auction House", "Prices no longer need a coin word at the end: 1g 20 is 1 gold 20 silver, and a plain number uses the coin the price box suggests" },
+        { "Profiles", "Shared profiles bring along where your bags, bank and Bank and alts windows sit" },
         { "Professions", "The game's own profession window no longer shows a second cast bar while you craft" },
     } },
     { version = "2.2.4", date = "2026-11-23", summary = "Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.", new = {
