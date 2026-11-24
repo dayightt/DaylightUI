@@ -2273,8 +2273,14 @@ T.test("tooltip: the card's own lines end at the last one the game drew, not at 
     -- A recipe's spell, as the game hands it: an empty spacer second that adds
     -- no line, so four drawn lines from five data lines, then another addon's.
     local recipe = { lines = { { type = 13, lineIndex = 1 }, { type = 0, leftText = "", rightText = "", lineIndex = 1 },
-        { lineIndex = 2 }, { lineIndex = 3 }, { type = 34, lineIndex = 4 } } }
+        { leftText = "Reagents: Bronze Tube", lineIndex = 2 }, { leftText = "Requires Engineering (190)", lineIndex = 3 },
+        { type = 34, leftText = "Teaches you how to make a mortar.", lineIndex = 4 } } }
     T.eq(Own(recipe, 5), 4, "the fifth line is the other addon's")
+    -- An item's SellPrice line has no words: stamped with the line above, its
+    -- coins drawn one below by the game's post-call. Those coins are the game's.
+    local ring = { lines = { { type = 22, leftText = "Ring", lineIndex = 1 }, { leftText = "+7 Stamina", lineIndex = 2 },
+        { type = 11, price = 4630, lineIndex = 2 } } }
+    T.eq(Own(ring, 4), 3, "the coins line is the game's, the fourth another addon's")
     T.eq(Own({ lines = { {}, {}, {} } }, 5), 3, "no line indexes: the data's count, as before")
     T.eq(Own({ lines = {} }, 5), 5, "no lines of its own: all are the card's")
     T.eq(Own({ lines = { { lineIndex = stub.Secret(1) }, {} } }, 4), 2, "a secret index is skipped")

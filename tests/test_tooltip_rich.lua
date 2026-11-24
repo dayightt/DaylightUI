@@ -749,7 +749,7 @@ end
 -- The game filling a tooltip with an item: its lines (each { left, right,
 -- color } or text), its data's own lines (types: line types by index), the
 -- post-calls, then Show.
-local function fillItem(tip, link, list, after, types, guid)
+local function fillItem(tip, link, list, after, types, guid, dataLines)
     tip:SetOwner(UIParent, "ANCHOR_NONE")
     tip.__link = link
     local own = {}
@@ -762,7 +762,7 @@ local function fillItem(tip, link, list, after, types, guid)
         end
         own[i] = { type = types and types[i] or nil }
     end
-    local data = { type = Enum.TooltipDataType.Item, hyperlink = link, lines = own, guid = guid }
+    local data = { type = Enum.TooltipDataType.Item, hyperlink = link, lines = dataLines or own, guid = guid }
     for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
     for _, fn in ipairs(post[data.type] or {}) do fn(tip, data) end
     if after then after(tip) end
@@ -3192,6 +3192,46 @@ end)
 
 -- Seen by a player: a recipe's tags showed "Binds when picked up" twice, the
 -- recipe's and the boots' it makes, with no telling which was which.
+-- Seen in game: the game's SellPrice data line draws no text. It is stamped
+-- with the line above it (lineIndex = NumLines before the coins), and its
+-- post-call then adds the coins line. Read as landing on its stamp, the line
+-- above (a ring's last stat, a level requirement) took the sell price's type
+-- and vanished from the card.
+T.test("rich tooltip: the line above the sell price stays on the card", function()
+    local _, Panel = login("rich")
+    items()
+    _G.ITEM_SOULBOUND = "Soulbound"
+    local list = { { "Jaina's Signet Ring", nil, { 0.118, 1, 0 } }, "Soulbound", "Finger", "+3 Strength",
+        "+7 Stamina", "Requires Level 33", "Sell Price: 46|A:coin-silver:0:0|a 30|A:coin-copper:0:0|a" }
+    local data = {
+        { type = 22, leftText = "Jaina's Signet Ring", lineIndex = 1 },
+        { type = 20, leftText = "Soulbound", lineIndex = 2 },
+        { type = 21, leftText = "Finger", lineIndex = 3 },
+        { type = 0, leftText = "+3 Strength", lineIndex = 4 },
+        { type = 0, leftText = "+7 Stamina", lineIndex = 5 },
+        { type = 0, leftText = "Requires Level 33", lineIndex = 6 },
+        { type = 11, price = 4630, lineIndex = 6 },
+    }
+    fillItem(GameTooltip, "greaves", list, nil, nil, nil, data)
+    local p = Panel.Get(GameTooltip)
+    local words = {}
+    for i = 2, p.count do
+        local it = p.items[i]
+        for _, fs in ipairs({ it.fs or false, it.label or false, it.value or false }) do
+            if fs then words[#words + 1] = stub.Text(fs) end
+        end
+    end
+    local all = table.concat(words, "|")
+    T.truthy(all:find("Stamina", 1, true), "the last stat: " .. all)
+    T.truthy(all:find("Requires Level 33", 1, true), "the level requirement: " .. all)
+    T.truthy(all:find("46", 1, true), "the sell price still in the foot: " .. all)
+    local Read = stub.tooltip.RichRead
+    local _, lines = Read.Lines(GameTooltip, { lines = data })
+    T.eq(lines[6].type, 0, "the requirement keeps its own type")
+    T.eq(lines[7].type, 11, "the coins line is the sell price")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: a recipe keeps its own binding in its tags, the crafted item's goes with that item", function()
     local _, Panel = login("rich")
     items()

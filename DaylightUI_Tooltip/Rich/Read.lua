@@ -28,25 +28,34 @@ local function color(fs)
     return r, g, b
 end
 
--- Which data line landed on each drawn line, by the lineIndex the game writes
--- into each one. A recipe's empty spacer draws nothing, so the lines after it
--- sit one higher than their place in the list: read by position, each drawn
--- line took the type of the one above it (another addon's Auction price under
--- the sell price became the sell price). Empty when the data has no indexes.
+-- Which drawn line a data line's own text sits on, or nil. The game stamps
+-- each data line with NumLines after adding its text, so a line with no text
+-- (a recipe's empty spacer, the SellPrice line) carries the stamp of the line
+-- above it. The SellPrice line's post-call then adds the coins line, so that
+-- one is its own, one below the stamp. Read as its stamp, the line above (a
+-- ring's last stat, a level requirement) was taken for the sell price.
+local SELL = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SellPrice or 11
+local function hasWords(v) return isSecret(v) or (type(v) == "string" and v ~= "") end
+function Read.Landed(line)
+    if type(line) ~= "table" then return nil end
+    local at = line.lineIndex
+    if isSecret(at) or type(at) ~= "number" then return nil end
+    if hasWords(line.leftText) or hasWords(line.rightText) then return at end
+    local kind = line.type
+    if not isSecret(kind) and kind == SELL then return at + 1 end
+    return nil
+end
+
+-- Which data line landed on each drawn line (Read.Landed). Empty when the
+-- data has no indexes: then they're matched by position.
 local landed = {}
 local function mapLanded(data)
     for k in pairs(landed) do landed[k] = nil end
     local list = type(data) == "table" and data.lines
     if type(list) ~= "table" then return end
     for _, line in ipairs(list) do
-        local at = type(line) == "table" and line.lineIndex or nil
-        -- The last data line on a drawn line wins: a spacer shares its line
-        -- with the one before and adds nothing to it.
-        if not isSecret(at) and type(at) == "number" then
-            local t, words = line.type, line.leftText
-            local spacer = not isSecret(t) and t == 0 and not isSecret(words) and words == ""
-            if not spacer then landed[at] = line end
-        end
+        local at = Read.Landed(line)
+        if at then landed[at] = line end
     end
 end
 
