@@ -21,6 +21,7 @@ ns.DEFAULTS = {
     chatPosts = false,        -- a chat line for each post
     undercutAhead = 0,        -- My auctions: this many cheaper ones from others still count as fine
     hours = 24,               -- auction length, also Sell's last pick (2, 8 or 24)
+    bagClick = "both",        -- which click on a bag item puts it on Sell: right, alt or both
     tooltip = true,
     tooltipUsual = false,     -- the usual price repeats the auction line on most items
     tooltipAge = true,
@@ -89,6 +90,10 @@ ns.OPTIONS = { pages = {
             { type = "dropdown", key = "hours", label = "Auction length",
               values = { [2] = "2 hours", [8] = "8 hours", [24] = "24 hours" }, order = { 2, 8, 24 },
               desc = "How long a new auction stays up. Picking another length on the Sell tab changes this too. Longer auctions cost a bigger deposit." },
+            { type = "dropdown", key = "bagClick", label = "Sell from your bags with",
+              values = { both = "Right-click or Alt-click", right = "Right-click", alt = "Alt-click" },
+              order = { "both", "right", "alt" },
+              desc = "Which click on an item in your bags puts it on the Sell tab while the Auction House is open. Works with Daylight UI's bags." },
             { type = "toggle", key = "chatPosts", label = "A chat line for each post",
               desc = "Each auction you post from Sell is written in chat with its price, so you can look back at what you put up." },
         } },

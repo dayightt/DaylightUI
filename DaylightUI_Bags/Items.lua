@@ -561,16 +561,22 @@ function Items.Dress(btn)
     local pushed = btn.GetPushedTexture and btn:GetPushedTexture()
     if pushed then pushed:SetColorTexture(0, 0, 0, 0.3) end
     -- Alt-right-click picks this item's group (the game does nothing with that
-    -- click on a bag item). A plain right click at the Auction House also puts
-    -- the item on the Sell tab of Daylight UI's auction window when it's open.
+    -- click on a bag item). A plain right click or an Alt-left-click at the
+    -- Auction House puts the item on the Sell tab of Daylight UI's auction
+    -- window; the auction addon decides which of the two its setting takes.
     btn:HookScript("OnClick", function(self, button)
-        if button ~= "RightButton" then return end
-        if IsAltKeyDown and IsAltKeyDown() and ns.Categories then
-            ns.Categories.Menu(self)
-        elseif DUI.AuctionHouseSell and not (IsModifierKeyDown and IsModifierKeyDown()) then
-            local bag, slot = bagAndSlotOf(self)
-            if type(bag) == "number" and type(slot) == "number" then DUI.AuctionHouseSell(bag, slot) end
+        local alt = IsAltKeyDown and IsAltKeyDown()
+        local other = (IsShiftKeyDown and IsShiftKeyDown()) or (IsControlKeyDown and IsControlKeyDown())
+        if button == "RightButton" and alt then
+            if ns.Categories then ns.Categories.Menu(self) end
+            return
         end
+        if not DUI.AuctionHouseSell or other then return end
+        local click = (button == "RightButton" and not alt and "right")
+            or (button == "LeftButton" and alt and "alt") or nil
+        if not click then return end
+        local bag, slot = bagAndSlotOf(self)
+        if type(bag) == "number" and type(slot) == "number" then DUI.AuctionHouseSell(bag, slot, click) end
     end)
     -- A locked item's slot takes no clicks at a vendor or while Disenchant is targeting.
     -- Looking at a new item clears its dot.

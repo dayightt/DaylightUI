@@ -564,10 +564,14 @@ ns.On("ScanStarted", function() Main.ScanChanged() end)
 ns.On("ScanEnded", function() Main.ScanChanged() end)
 ns.RegisterEvent("PLAYER_REGEN_DISABLED", function() Main.FightStarts() end)
 
--- A right click on a bag item while this window has the Auction House: it
--- goes on Sell, as the game's own window takes it. True when it was taken.
-function Main.SellFromBag(bag, slot)
+-- A right click or Alt-click on a bag item while this window has the Auction
+-- House: it goes on Sell, as the game's own window takes it. The bagClick
+-- setting says which clicks count ("right", "alt" or "both"); nil is any.
+-- True when it was taken.
+function Main.SellFromBag(bag, slot, click)
     if not (Main.IsOpen() and Main.Covers()) then return false end
+    local want = ns.Setting and ns.Setting("bagClick") or "both"
+    if click and want ~= "both" and want ~= click then return false end
     local key = ns.Bags.KeyAt(bag, slot)
     if not key then return false end
     Main.ShowTab("sell")

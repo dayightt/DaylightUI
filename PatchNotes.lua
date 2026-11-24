@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Quests", "Drag a zone's name in the quest tracker to put your zones in your own order, or right-click Quests to sort them A to Z or by level" },
+        { "Auction House", "Alt-click an item in your bags to put it on the Sell tab, like right-click; pick either one under Auction > Buying and selling" },
     }, fixed = {
         { "Professions", "Rogues with the Reagent Economy Legacy perk can make poisons in the profession window without the materials, as in the game's own window" },
     } },

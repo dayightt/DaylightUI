@@ -3786,3 +3786,33 @@ T.test("bags: the Feed Pet button: shown to hunters who know it, beside the othe
     stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The Auction House addon takes a bag item on its Sell tab. A plain right
+-- click and an Alt-left-click both reach it, each saying which click it was;
+-- Alt-right-click stays the group menu and other modifiers reach nothing.
+T.test("bags: right-click and Alt-click hand the item to the Auction House", function()
+    local ns = login()
+    open(ns)
+    local got = {}
+    DaylightUI.AuctionHouseSell = function(bag, slot, click) got[#got + 1] = { bag, slot, click }; return true end
+    local menu = ns.Categories.Menu
+    local menus = 0
+    ns.Categories.Menu = function() menus = menus + 1 end
+    local btn = ns.Bags.buttons[0][1]
+    local click = btn:GetScript("OnClick")
+    click(btn, "RightButton")
+    stub.alt = true
+    click(btn, "LeftButton")
+    click(btn, "RightButton")
+    stub.shift = true
+    click(btn, "LeftButton")
+    stub.alt, stub.shift = false, false
+    click(btn, "LeftButton")
+    ns.Categories.Menu = menu
+    DaylightUI.AuctionHouseSell = nil
+    T.eq(#got, 2, "a right click and an Alt-left-click")
+    T.eq(got[1][3], "right"); T.eq(got[1][1], 0); T.eq(got[1][2], 1)
+    T.eq(got[2][3], "alt")
+    T.eq(menus, 1, "Alt-right-click is the group menu")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
