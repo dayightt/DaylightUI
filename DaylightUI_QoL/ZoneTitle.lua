@@ -16,9 +16,18 @@ local ZoneTitle = {
     LINE = 1,           -- its thickness
     NAME = 26, SUB = 15, PVP = 13,
     RISE = 12,          -- px the name rises as it comes in
-    HOLD = 2.5,         -- seconds the whole title stays
+    HOLD = 2.5,         -- seconds the whole title stays (zoneTitleHold)
     SUB_HOLD = 1.5,     -- seconds a subzone alone stays
     DRIFT = 6,          -- px it rises as it goes
+    MOVER = "qol.zone",
+    FONT = "qol.zone.font",     -- its font's Media slot (zoneTitleFont)
+    TEST_PART = "zone",
+    GLOW = DUI.MEDIA .. "char-glow.png",
+    GEM = DUI.MEDIA .. "shape-diamond.png",
+    GEM_SIZE = 9,       -- the diamond in the line's middle
+    SHINE_W = 110,      -- the light that runs across the name
+    SHINE_ALPHA = 0.45,
+    HAZE_ALPHA = 0.3,
     -- The game's PvP colors (SetZoneText), softened like the Daylight tooltips'.
     COLORS = {
         sanctuary = { 0.55, 0.80, 0.92 },
@@ -34,15 +43,25 @@ ZoneTitle.COLORS.combat = ZoneTitle.COLORS.hostile
 ns.ZoneTitle = ZoneTitle
 ns.features[#ns.features + 1] = ZoneTitle
 
+DUI.Media.RegisterSlot(ZoneTitle.FONT, "QoL", "zoneTitleFont", "font")
+
 local GAME_TEXTS = { "ZoneTextString", "SubZoneTextString", "PVPInfoTextString", "PVPArenaTextString" }
 local WARM = Style.INK.TEXT
 
-local mod, f, wired, lastZone
+local mod, f, holder, wired, lastZone
+local sample = false    -- the still copy unlock and test mode show
 local held              -- a change that came while busy(): "zone" (the whole title) or "sub"
 local run = 0           -- each show's id: a newer one stops the older one's timers
 local full = -1         -- the id of the last whole-title show
 
 local function enabled() return mod ~= nil and mod.db ~= nil and mod.db.zoneTitle == true end
+
+local function db(key)
+    if mod and mod.db and mod.db[key] ~= nil then return mod.db[key] end
+    return ns.DEFAULTS[key]
+end
+local function on(key) return db(key) == true end
+local function num(key, fallback) return tonumber(db(key)) or fallback end
 
 -- A plain string from one of the game's zone getters, or nil.
 local function read(fn)
@@ -54,14 +73,26 @@ end
 
 local function build()
     if f then return f end
-    f = CreateFrame("Frame", "DaylightUIZoneTitle", UIParent)
-    DUI.Movers.FollowScale(f)
+    -- The holder stays put for the unlock handle and carries the scale; the
+    -- title drifts inside it.
+    holder = CreateFrame("Frame", "DaylightUIZoneTitleHolder", UIParent)
+    holder:SetSize(ZoneTitle.WIDTH, 80)
+    holder:EnableMouse(false)
+    f = CreateFrame("Frame", "DaylightUIZoneTitle", holder)
     f:SetSize(ZoneTitle.WIDTH, 1)
     f:SetFrameStrata("HIGH")
     f:EnableMouse(false)
     f:Hide()
     -- The top is free again: a reputation banner that waited plays now.
     f:SetScript("OnHide", function() if ns.RepBanner then ns.RepBanner.Resume() end end)
+
+    -- A soft haze behind the name, in its color.
+    f.haze = f:CreateTexture(nil, "BACKGROUND")
+    f.haze:SetTexture(ZoneTitle.GLOW)
+    f.haze:SetBlendMode("ADD")
+    f.haze:SetPoint("CENTER", f, "CENTER", 0, 14)
+    f.haze:SetSize(ZoneTitle.WIDTH * 1.1, 90)
+    f.haze:SetAlpha(0)
 
     -- The line: two halves from the middle out (painted per show, paint()).
     f.left = f:CreateTexture(nil, "ARTWORK")
@@ -72,28 +103,83 @@ local function build()
     f.right:SetPoint("LEFT", f, "CENTER", 0, 0)
     f.left:SetHeight(ZoneTitle.LINE)
     f.right:SetHeight(ZoneTitle.LINE)
+    -- A small diamond where the line starts from.
+    f.gem = f:CreateTexture(nil, "OVERLAY")
+    f.gem:SetTexture(ZoneTitle.GEM)
+    f.gem:SetPoint("CENTER", f, "CENTER", 0, 0)
+    f.gem:SetSize(1, 1)
+    f.gem:Hide()
 
-    f.name = Style.Text(f, ZoneTitle.NAME, "CENTER")
-    f.sub = Style.Text(f, ZoneTitle.SUB, "CENTER")
+    f.name = Style.Text(f, ZoneTitle.NAME, "CENTER", ZoneTitle.FONT)
+    f.sub = Style.Text(f, ZoneTitle.SUB, "CENTER", ZoneTitle.FONT)
     f.sub:SetPoint("TOP", f, "CENTER", 0, -8)
     Style.InkText(f.sub, "LABEL")
-    f.pvp = Style.Text(f, ZoneTitle.PVP, "CENTER")
+    f.pvp = Style.Text(f, ZoneTitle.PVP, "CENTER", ZoneTitle.FONT)
+
+    -- The band over the name that a light runs across as it lands.
+    f.band = CreateFrame("Frame", nil, f)
+    f.band:SetPoint("BOTTOMLEFT", f, "LEFT", 0, 0)
+    f.band:SetPoint("BOTTOMRIGHT", f, "RIGHT", 0, 0)
+    f.band:SetHeight(ZoneTitle.NAME + 12)
+    f.shine = f.band:CreateTexture(nil, "OVERLAY")
+    f.shine:SetTexture(ZoneTitle.GLOW)
+    f.shine:SetBlendMode("ADD")
+    f.shine:Hide()
+
+    DUI.Movers.Register(holder, ZoneTitle.MOVER, "Zone title", { "CENTER", nil, "TOP", 0, ZoneTitle.Y },
+        { active = enabled })
     return f
 end
 
--- Paints the name and line in the accent, following it along a gradient accent.
--- The line is bright in the middle and fades out at the ends.
-local function paint(zone)
+-- Text sizes from the settings; the band, shine and haze follow the name's.
+local function size()
+    local nameSize = num("zoneTitleNameSize", ZoneTitle.NAME)
+    local subSize = num("zoneTitleSubSize", ZoneTitle.SUB)
+    Style.SetTextSize(f.name, nameSize)
+    Style.SetTextSize(f.sub, subSize)
+    Style.SetTextSize(f.pvp, math.max(Style.SIZE.tiny, subSize - 2))
+    f.band:SetHeight(nameSize + 12)
+    f.shine:SetSize(ZoneTitle.SHINE_W, nameSize * 2)
+    f.haze:SetSize(ZoneTitle.WIDTH * 1.1, nameSize * 3.5)
+end
+
+-- The name's color for this show as { r, g, b }, or nil for the accent.
+-- "zone" is the zone's own PvP color: green friendly, red hostile and so on.
+local function nameColor(pvpColor)
+    local mode = db("zoneTitleColor")
+    if mode == "zone" and pvpColor then return pvpColor end
+    if mode == "white" then return Style.INK.TITLE end
+    if mode == "custom" and type(db("zoneTitleCustom")) == "table" then return db("zoneTitleCustom") end
+    return nil
+end
+
+-- Paints the name and line in the accent (following a gradient accent along
+-- them) or in the one color picked. The line is bright in the middle and fades
+-- out at the ends; the haze, diamond and shine take the middle's color.
+local function paint(zone, pvpColor)
     local a, m, b
-    Style.PaintAccentText(f.name, zone)
-    if Style.GradientAccent() then
-        a, m, b = { Style.AccentAt(0) }, { Style.AccentAt(0.5) }, { Style.AccentAt(1) }
-    else
-        m = { Style.Accent() }
+    if on("zoneTitleCaps") then zone = Style.Upper(zone) end
+    local c = nameColor(pvpColor)
+    if c then
+        f.name:SetText(zone)
+        f.name:SetTextColor(c[1], c[2], c[3])
+        m = c
         a, b = m, m
+    else
+        Style.PaintAccentText(f.name, zone)
+        if Style.GradientAccent() then
+            a, m, b = { Style.AccentAt(0) }, { Style.AccentAt(0.5) }, { Style.AccentAt(1) }
+        else
+            m = { Style.Accent() }
+            a, b = m, m
+        end
     end
     f.left:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 0), CreateColor(m[1], m[2], m[3], 1))
     f.right:SetGradient("HORIZONTAL", CreateColor(m[1], m[2], m[3], 1), CreateColor(b[1], b[2], b[3], 0))
+    f.haze:SetVertexColor(m[1], m[2], m[3])
+    f.gem:SetVertexColor(m[1], m[2], m[3])
+    -- The light is the middle's color lifted most of the way to white.
+    f.shineColor = { m[1] + (1 - m[1]) * 0.6, m[2] + (1 - m[2]) * 0.6, m[3] + (1 - m[3]) * 0.6 }
 end
 
 -- The line at fraction p of its full spread. Hidden at zero, otherwise its
@@ -104,11 +190,27 @@ local function spread(p)
     f.right:SetWidth(w / 2)
     f.left:SetShown(p > 0)
     f.right:SetShown(p > 0)
+    -- The diamond grows in over the second half, once the line is under way.
+    local g = on("zoneTitleGem") and math.max(0, p * 2 - 1) or 0
+    f.gem:SetShown(g > 0)
+    if g > 0 then
+        local px = math.max(1, ZoneTitle.GEM_SIZE * g)
+        f.gem:SetSize(px, px)
+        f.gem:SetAlpha(g)
+    end
+    f.haze:SetAlpha(on("zoneTitleHaze") and ZoneTitle.HAZE_ALPHA * p or 0)
 end
 
 local function place(p)
     f:ClearAllPoints()
-    f:SetPoint("CENTER", UIParent, "TOP", 0, ZoneTitle.Y + ZoneTitle.DRIFT * p)
+    f:SetPoint("CENTER", holder, "CENTER", 0, ZoneTitle.DRIFT * p)
+end
+
+-- A soft light runs across the name as it lands.
+local function shine()
+    if not on("zoneTitleShine") then return end
+    Motion.Sweep(f.shine, f.band, { width = ZoneTitle.SHINE_W, dur = Motion.SLOW * 2,
+        alpha = ZoneTitle.SHINE_ALPHA, color = f.shineColor, key = "zonetitle:shine" })
 end
 
 local function rise(p)
@@ -132,12 +234,15 @@ end
 -- Starts a show: a new id, everything at rest, the frame up.
 local function begin()
     build()
+    size()
+    sample = false
     run = run + 1
     local id = run
     local function later(t, fn)
         C_Timer.After(t, function() if id == run then fn() end end)
     end
     f.name:SetAlpha(0)
+    f.shine:Hide()
     Motion.Fade(f.sub, 0, 0, 0)   -- stops a fade-in still playing from the last show
     Motion.Fade(f.pvp, 0, 0, 0)
     spread(0)
@@ -192,9 +297,11 @@ end
 -- The whole title: zone name, line, subzone, PvP line.
 function ZoneTitle.Play(zone, sub, pvp, color)
     if type(zone) ~= "string" or zone == "" then return end
+    if not on("zoneTitleSub") then sub = "" end
+    if not on("zoneTitlePvP") then pvp = nil end
     local id, later = begin()
     full = id
-    paint(zone)
+    paint(zone, color)
     f.sub:SetText(sub or "")
     setPvP(pvp, color)
 
@@ -210,21 +317,25 @@ function ZoneTitle.Play(zone, sub, pvp, color)
         Motion.Fade(f.sub, 0, 1, Motion.NORMAL)
         Motion.Fade(f.pvp, 0, 1, Motion.NORMAL)
     end)
-    -- 3. It holds, then goes.
-    later(Motion.SLOW + ZoneTitle.HOLD, function() out(id) end)
+    -- 3. As the name lands, a light runs across it.
+    later(Motion.SLOW * 0.6, shine)
+    -- 4. It holds, then goes.
+    later(Motion.SLOW + num("zoneTitleHold", ZoneTitle.HOLD), function() out(id) end)
 end
 
 -- Just the subzone (and an arena's PvP line), small, where it sits under the
 -- title. While the whole title shows, its subzone line changes in place.
 function ZoneTitle.Sub(sub, pvp, color)
-    if type(sub) ~= "string" or sub == "" then return end
-    if f and f:IsShown() and full == run then
+    if type(sub) ~= "string" or sub == "" or not on("zoneTitleSub") then return end
+    if not on("zoneTitlePvP") then pvp = nil end
+    if f and f:IsShown() and full == run and not sample then
         if f.sub:GetText() == sub then return end   -- the game often sends two events at once
         f.sub:SetText(sub)
         setPvP(f.pvp:GetText(), f.pvpColor)
         Motion.Fade(f.sub, 0, 1, Motion.NORMAL)
         return
     end
+    if not on("zoneTitleSubAlone") then return end
     local id, later = begin()
     f.name:SetText("")
     f.sub:SetText(sub)
@@ -234,14 +345,59 @@ function ZoneTitle.Sub(sub, pvp, color)
     later(Motion.NORMAL + ZoneTitle.SUB_HOLD, function() out(id) end)
 end
 
--- Up on screen (the reputation banner waits for it).
-function ZoneTitle.Showing() return f ~= nil and f:IsShown() end
+-- Up on screen (the reputation banner waits for it). The still sample in
+-- unlock or test mode doesn't hold anything up.
+function ZoneTitle.Showing() return f ~= nil and f:IsShown() and not sample end
 
 -- Steps aside at once (a level-up takes the spot, or it was switched off).
 function ZoneTitle.Stop()
-    if not (f and f:IsShown()) then return end
+    if not ZoneTitle.Showing() then return end
     run = run + 1
     out(run)
+end
+
+local function sampleWanted()
+    if not enabled() then return false end
+    if DUI.Movers.unlocked == true then return true end
+    return DUI.testMode == true and DUI.TestPartShown(ZoneTitle.TEST_PART) == true
+end
+
+local function resample()
+    if sample and f then
+        sample = false
+        f:Hide()
+    end
+    ZoneTitle.Sample()
+end
+
+-- The title standing still while unlock or test mode wants it, so it can be
+-- placed and its settings seen. A real zone change plays over it.
+function ZoneTitle.Sample()
+    if sampleWanted() then
+        if ZoneTitle.Showing() then return end
+        build()
+        size()
+        sample = true
+        run = run + 1
+        full = run
+        local s = ZoneTitle.SAMPLE
+        local color = ZoneTitle.COLORS[s[3]]
+        paint(s[1], color)
+        f.sub:SetText(on("zoneTitleSub") and s[2] or "")
+        setPvP(on("zoneTitlePvP") and (CONTESTED_TERRITORY or L["Contested Territory"]) or nil, color)
+        f.name:SetAlpha(1)
+        f.sub:SetAlpha(1)
+        f.pvp:SetAlpha(1)
+        rise(1)
+        spread(1)
+        place(0)
+        f:SetAlpha(1)
+        f:Show()
+    elseif sample and f then
+        sample = false
+        run = run + 1
+        f:Hide()
+    end
 end
 
 function ZoneTitle.Preview()
@@ -292,6 +448,14 @@ local function wire()
     DUI.RegisterEvent("ZONE_CHANGED", onZone)
     DUI.RegisterEvent("ZONE_CHANGED_INDOORS", onZone)
     DUI.RegisterCommand("zone", ZoneTitle.Preview, L["/dui zone - preview the zone title"])
+    DUI.RegisterTestPart(ZoneTitle.TEST_PART, "Zone title", 98, enabled)
+    DUI.On("TestModeChanged", ZoneTitle.Sample)
+    DUI.On("TestPartChanged", function(key) if key == ZoneTitle.TEST_PART then ZoneTitle.Sample() end end)
+    DUI.On("UnlockChanged", ZoneTitle.Sample)
+    -- The accent or font changed: the sample shows it at once.
+    DUI.On("StyleChanged", resample)
+    -- The unlock handle needs the holder from the start.
+    build()
 end
 
 -- The game's zone texts: hidden while this one is on.
@@ -313,5 +477,7 @@ function ZoneTitle.Refresh(m)
     mod = m
     gameTexts()
     if not enabled() then held = nil end
-    if not enabled() and f then run = run + 1; f:Hide() end
+    if not enabled() and f then run = run + 1; sample = false; f:Hide() end
+    -- A setting changed while the sample shows: draw it again with the change.
+    resample()
 end

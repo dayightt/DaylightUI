@@ -37,6 +37,13 @@ local lootLook = DaylightUI.Options.LookRows("lootFeedFrame", function(get) retu
       disabled = function(get) return get("lootFeedBorderColor") ~= "custom" end },
 })
 
+-- The zone title page's pieces.
+local ZONE_MOVER = "qol.zone"
+local function zoneOff(get) return get("zoneTitle") ~= true end
+local ZONE_COLOR = { accent = "Accent color", zone = "The zone's PvP color", white = "White", custom = "One color" }
+local zoneFont = DaylightUI.Options.FontRow("zoneTitleFont", "Zone title font", "Every text in the zone title", zoneOff)
+zoneFont.since = "2.2.5"
+
 -- The flight timer page's pieces.
 local FLIGHT_MOVER, WELCOME_MOVER = "qol.flight", "qol.welcome"
 local function flightOff(get) return get("flightTimer") ~= true end
@@ -122,7 +129,7 @@ ns.OPTIONS = { pages = {
               desc = "Plays it now. Also /dui levelup.",
               func = function() if ns.LevelUp then ns.LevelUp.Preview() end end },
             { type = "toggle", key = "zoneTitle", label = "Zone title animation",
-              desc = "A new zone's name rises in at the top of the screen with a thin line under it, then the subzone and PvP status; a subzone shows just its name, small. It replaces the game's zone text. Follows Motion effects (General > Appearance)." },
+              desc = "A new zone's name rises in at the top of the screen with a thin line under it, then the subzone and PvP status; a subzone shows just its name, small. It replaces the game's zone text. Its text, colors and size are on the Zone title page. Follows Motion effects (General > Appearance)." },
             { type = "button", label = "Preview the zone title", text = "Preview",
               desc = "Plays it now. Also /dui zone.",
               func = function() if ns.ZoneTitle then ns.ZoneTitle.Preview() end end },
@@ -304,6 +311,58 @@ ns.OPTIONS = { pages = {
               desc = "A thin line in your accent color along the top of the box." },
         } },
         { label = "Borders and background", items = flightLook },
+      } },
+    { id = "zone", label = "Zone title",
+      desc = "The zone's name at the top of the screen when you arrive somewhere new.",
+      groups = {
+        { label = "Zone title", items = {
+            { type = "toggle", key = "zoneTitle", label = "Zone title animation",
+              desc = "A new zone's name rises in at the top of the screen with a thin line under it, then the subzone and PvP status. It replaces the game's zone text. Move it with /dui unlock." },
+            { type = "button", label = "Preview the zone title", text = "Preview", disabled = zoneOff,
+              desc = "Plays it now. Also /dui zone.",
+              func = function() if ns.ZoneTitle then ns.ZoneTitle.Preview() end end },
+        } },
+        { label = "What shows", items = {
+            { type = "toggle", key = "zoneTitleSub", since = "2.2.5", label = "Show the subzone", disabled = zoneOff,
+              desc = "The part of the zone you're in, like Goldshire, under the zone's name." },
+            { type = "toggle", key = "zoneTitlePvP", since = "2.2.5", label = "Show the PvP status", disabled = zoneOff,
+              desc = "Contested, Sanctuary, Horde or Alliance territory under the name, in its own color." },
+            { type = "toggle", key = "zoneTitleSubAlone", since = "2.2.5", label = "Show subzone changes",
+              desc = "Walking into a new part of the same zone shows its name, small. When off, only a new zone shows the title.",
+              disabled = function(get) return zoneOff(get) or get("zoneTitleSub") == false end },
+            { type = "toggle", key = "zoneTitleCaps", since = "2.2.5", label = "Zone name in capitals", disabled = zoneOff,
+              desc = "Writes the zone's name in capital letters." },
+            { type = "slider", key = "zoneTitleHold", since = "2.2.5", label = "Zone title duration", min = 1, max = 8, step = 0.5, unit = "s",
+              disabled = zoneOff, desc = "How long the whole title stays before it drifts away." },
+        } },
+        { label = "Colors", items = {
+            { type = "dropdown", key = "zoneTitleColor", since = "2.2.5", label = "Zone name color", values = ZONE_COLOR,
+              order = { "accent", "zone", "white", "custom" }, disabled = zoneOff,
+              desc = "The color of the name and the line under it: your accent color (General > Appearance), the zone's PvP color (green friendly, red hostile, amber contested), white, or a color you pick." },
+            { type = "color", key = "zoneTitleCustom", since = "2.2.5", label = "Custom zone name color",
+              desc = "The name and line's color when Zone name color is One color.",
+              disabled = function(get) return zoneOff(get) or get("zoneTitleColor") ~= "custom" end },
+        } },
+        { label = "Size and text", items = {
+            { type = "slider", since = "2.2.5", label = "Zone title scale", min = 0.5, max = 2, step = 0.05, unit = "x", disabled = zoneOff,
+              desc = "The whole zone title. Also the mouse wheel over its handle in /dui unlock.",
+              get = function() return DaylightUI.Movers.PieceScale(ZONE_MOVER) end,
+              set = function(v) DaylightUI.Movers.SetPieceScale(ZONE_MOVER, v) end,
+              default = function() return 1 end },
+            zoneFont,
+            { type = "slider", key = "zoneTitleNameSize", since = "2.2.5", label = "Zone name text size", min = 16, max = 48, step = 1,
+              disabled = zoneOff, desc = "How big the zone's name is." },
+            { type = "slider", key = "zoneTitleSubSize", since = "2.2.5", label = "Subzone text size", min = 10, max = 24, step = 1,
+              disabled = zoneOff, desc = "How big the subzone is. The PvP status is a little smaller." },
+        } },
+        { label = "Flourishes", items = {
+            { type = "toggle", key = "zoneTitleShine", since = "2.2.5", label = "Light across the zone name", disabled = zoneOff,
+              desc = "A soft light runs across the name as it settles in. Follows Motion effects (General > Appearance)." },
+            { type = "toggle", key = "zoneTitleHaze", since = "2.2.5", label = "Glow behind the zone name", disabled = zoneOff,
+              desc = "A soft haze in the name's color glows behind it." },
+            { type = "toggle", key = "zoneTitleGem", since = "2.2.5", label = "Diamond on the line", disabled = zoneOff,
+              desc = "A small diamond grows in where the line under the name starts from." },
+        } },
       } },
     { id = "scenes", label = "Scenes",
       desc = "Calm scenes along the bottom of the screen while you fish or craft.",
