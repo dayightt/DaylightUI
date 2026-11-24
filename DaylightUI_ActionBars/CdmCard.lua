@@ -133,6 +133,15 @@ local function spell(key, item)
         local set, id = picked()
         if id and Data.SetSpellValue(set, id, key, v) then changed() end
     end
+    -- A glow color shows the row's reset arrow while set. Reset puts it back on the accent.
+    local spec = Data.SPELL_FIELDS[key]
+    if spec and spec.accent then
+        item.reset = true
+        item.isSet = function()
+            local _, _, p = picked()
+            return p ~= nil and ns.CdmEffects.Get(p, key) ~= nil
+        end
+    end
     return item
 end
 
