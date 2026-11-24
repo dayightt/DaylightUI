@@ -2447,6 +2447,11 @@ function W.FormatValue(item, v)
         local t = string.format("%.4f", v):gsub("(%.%d%d%d-)0+$", "%1")
         return t .. "x"
     end
+    if item.unit == "s" then
+        local t = string.format("%.2f", v):gsub("%.?0+$", "")
+        return t .. " s"
+    end
+    if item.unit == "c" then return string.format("%d c", math.floor(v + 0.5)) end
     if (item.step or 1) < 1 then return string.format("%.2f", v) end
     return tostring(math.floor(v + 0.5))
 end

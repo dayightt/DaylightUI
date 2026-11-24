@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Options", "No more red options error in chat at login about the zone title duration or the Auction House undercut; both sliders now show seconds and copper" },
+    } },
     { version = "2.2.6", date = "2026-11-24", summary = "See who each enemy is attacking on its nameplate, sort quests by level, and a Feed Pet button for hunters.", new = {
         { "Nameplates", "Nameplates can show who each enemy is attacking, with its own color, size and font (Nameplates > Health & Names)" },
         { "Quests", "The quest tracker can sort quests by level across zones and keep your zone on top" },

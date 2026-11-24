@@ -46,7 +46,8 @@ local sections, pages = {}, {}
 
 local KNOWN = { toggle = true, slider = true, dropdown = true, button = true, text = true, custom = true, color = true, gradient = true }
 local VALUE = { toggle = true, slider = true, dropdown = true, color = true, gradient = true }
-local UNITS = { ["%"] = true, px = true, x = true }
+-- s = seconds, c = copper.
+local UNITS = { ["%"] = true, px = true, x = true, s = true, c = true }
 Options.VALUE = VALUE
 
 -- Runs on every page at login, so it allocates nothing for valid items.

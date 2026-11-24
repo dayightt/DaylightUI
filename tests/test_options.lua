@@ -201,6 +201,16 @@ T.test("every unit frames page is valid", function()
     T.falsy(stub.ChatContains("Options ("))
 end)
 
+T.test("every module's pages are valid, with nothing reported in chat", function()
+    local DUI = stub.Load({ module = true, actionbars = true, buffs = true, skins = true, bags = true, nameplates = true,
+        tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true })
+    for id, page in DUI.Options.Pages() do
+        local errors = DUI.Options.ValidatePage(page)
+        T.eq(#errors, 0, id .. ": " .. tostring(errors[1]))
+    end
+    T.falsy(stub.ChatContains("Options ("))
+end)
+
 T.test("defaults, resets and dependencies", function()
     local DUI = stub.Load({ module = true })
     local O = DUI.Options
@@ -368,6 +378,9 @@ T.test("sliders snap, show units and take typed values", function()
     local W = DUI.Widgets
     T.eq(W.FormatValue({ unit = "px" }, 4), "4 px")
     T.eq(W.FormatValue({ unit = "x" }, 1.25), "1.25x")
+    T.eq(W.FormatValue({ unit = "s" }, 2.5), "2.5 s")
+    T.eq(W.FormatValue({ unit = "s" }, 20), "20 s")
+    T.eq(W.FormatValue({ unit = "c" }, 5), "5 c")
     T.eq(W.FormatValue({ unit = "x" }, 1), "1.00x")
     T.eq(W.FormatValue({ unit = "x" }, 0.71), "0.71x", "a saved 0.71 reads as it did")
     T.eq(W.FormatValue({ unit = "x" }, 0.7111), "0.7111x", "decimals show when the value has them")
