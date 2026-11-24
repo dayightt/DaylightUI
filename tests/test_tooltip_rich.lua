@@ -2437,6 +2437,27 @@ T.test("rich tooltip: a long item name wraps instead of being cut", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game: "Green Hills of Stranglethorn - Pag..." on a narrow card. Two
+-- lines weren't enough for its words, so the second one ended in "...".
+T.test("rich tooltip: a name that needs three lines gets three", function()
+    local _, Panel = login("rich")
+    items()
+    local name = "Green Hills of Stranglethorn Valley Collected Works - Page 6"
+    fillItem(GameTooltip, "greaves", { { name, nil, EPIC }, "742 Armor" })
+    local title = Panel.Get(GameTooltip).items[1].title
+    -- Wrap it word by word at the title's width, as the client does.
+    local room, lines, row = title:GetWidth(), 1, ""
+    for word in name:gmatch("%S+") do
+        local try = row == "" and word or (row .. " " .. word)
+        title:SetText(try)
+        if row ~= "" and title:GetStringWidth() > room then lines, row = lines + 1, word else row = try end
+    end
+    title:SetText(name)
+    T.truthy(lines == 3, "the name needs three lines here: " .. lines)
+    T.eq(title:GetMaxLines(), 3, "all of them")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: an Equip sentence's wrapped lines ran into each other.
 T.test("rich tooltip: a wrapped sentence on the card has room between its lines", function()
     local _, Panel = login("rich")

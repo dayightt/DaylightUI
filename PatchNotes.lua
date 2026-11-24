@@ -14,7 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Options", "No more red options error in chat at login about the zone title duration or the Auction House undercut; both sliders now show seconds and copper" },
         { "Character", "If you use the game's own character window, hovering and clicking your gear slots works again right after logging in" },
-        { "Tooltips", "Item tooltips no longer drop the line just above the sell price, like a level requirement, the last stat or a weapon's Chance on hit effect" },
+        { "Tooltips", "Item tooltips show everything again: a level or profession requirement, the last stat, a bag's slots, what food restores and a weapon's Chance on hit effect are back, and long item names wrap instead of ending in \"...\"" },
         { "Quests", "The zones in the quest tracker and quest log no longer swap places when you open a quest on the map" },
     } },
     { version = "2.2.6", date = "2026-11-24", summary = "See who each enemy is attacking on its nameplate, sort quests by level, and a Feed Pet button for hunters.", new = {

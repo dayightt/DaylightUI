@@ -757,6 +757,26 @@ local function longestWord(fs, text)
     return best
 end
 
+-- How many lines a text takes wrapped at room, word by word as the client
+-- wraps it, measured on the fs itself (its text put back after). At least 2:
+-- it's only asked once the text is already too wide for one.
+Panel.TITLE_LINES = 3
+local function wrappedLines(fs, text, room)
+    if type(text) ~= "string" then return 2 end
+    local lines, row = 1, ""
+    for word in text:gmatch("%S+") do
+        local try = row == "" and word or (row .. " " .. word)
+        fs:SetText(try)
+        if row ~= "" and widthOf(fs) > room then
+            lines, row = lines + 1, word
+        else
+            row = try
+        end
+    end
+    fs:SetText(text)
+    return math.max(2, lines)
+end
+
 function place.header(p, item, y, inner)
     local x = padX(p)
     local spec, h = item.spec, 0
@@ -799,11 +819,14 @@ function place.header(p, item, y, inner)
         end
     end
     if not isSecret(item.spec.title) and widthOf(item.title) > room + 1 then
+        -- As many lines as its words need (a book page's long name on a narrow
+        -- card took three), so it never ends in "...".
+        local lines = math.min(Panel.TITLE_LINES, wrappedLines(item.title, item.spec.title, room))
         item.title:SetWidth(room)
         item.title:SetWordWrap(true)
-        item.title:SetMaxLines(2)
+        item.title:SetMaxLines(lines)
         item.title:SetSpacing(Panel.LINE_SPACING)
-        th = 2 * one + Panel.LINE_SPACING
+        th = lines * one + (lines - 1) * Panel.LINE_SPACING
     end
     -- Everything under the title has the room right of the icon, the whole way.
     local wide = inner + padX(p) - x
