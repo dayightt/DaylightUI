@@ -2856,9 +2856,34 @@ T.test("chat daylight: a link click is the game's own, for the main window", fun
     local _, box = daylight()
     local got
     _G.SetItemRef = function(link, text, button, frame) got = { link, text, button, frame } end
-    box:GetScript("OnHyperlinkClick")(box, "player:Bob", "[Bob]", "LeftButton")
-    T.eq(got and got[1], "player:Bob")
+    box:GetScript("OnHyperlinkClick")(box, "item:2589", "[Linen Cloth]", "LeftButton")
+    T.eq(got and got[1], "item:2589")
     T.eq(got[4], DEFAULT_CHAT_FRAME, "as if clicked in the main window")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A click that misses the twins lands on the box itself (a line the twins skip,
+-- such as one whose text read secret). Run from there, the game's name menu
+-- carries Daylight UI's taint and its Guild Invite is blocked ("the game
+-- blocked Invite()", a player's report), as Copy Character Name was. So a name
+-- or channel clicked on the box itself never reaches the game's click: the
+-- twins are laid again, and the next click is the game's own.
+T.test("chat daylight: a name or channel clicked on the box itself never runs the game's click from Daylight UI", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local calls, synced = 0, 0
+    _G.SetItemRef = function() calls = calls + 1 end
+    local sync = CH.Links.Sync
+    CH.Links.Sync = function(...) synced = synced + 1; return sync(...) end
+    for _, link in ipairs({ "player:Robb-Realm:77:GUILD", "BNplayer:Kira:3:78:BN_WHISPER",
+                            "playerCommunity:Robb:1", "channel:CHANNEL:2" }) do
+        for _, button in ipairs({ "LeftButton", "RightButton" }) do
+            box:GetScript("OnHyperlinkClick")(box, link, "[x]", button)
+        end
+    end
+    CH.Links.Sync = sync
+    T.eq(calls, 0, "the game's click never ran from the box's own script")
+    T.truthy(synced >= 1, "the twins were laid again for the next click")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -5595,7 +5620,8 @@ T.test("chat daylight: a Shift-clicked name's /who answer shows on the tab you'r
     _G.IsModifiedClick, _G.SetItemRef = function(what) return what == "CHATLINK" end, function() end
     systemLine("Dave has come online.")
     T.eq(#boxTexts(box), 0, "a system line alone stays out of Trade")
-    box:GetScript("OnHyperlinkClick")(box, "player:Bob:7:CHANNEL:2", "[Bob]", "LeftButton")
+    -- The click lands on the name's twin, whose hook tells the box a /who was asked.
+    stub.chatModule.Links.NameClicked("player:Bob:7:CHANNEL:2")
     systemLine("[Bob]: Level 12 Human Mage")
     T.truthy(string.find(boxTexts(box)[1] or "", "Level 12", 1, true), "the answer shows")
     stub.Advance(Box.ANSWER + 0.1)

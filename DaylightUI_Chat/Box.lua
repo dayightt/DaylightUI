@@ -1103,6 +1103,16 @@ function Box.BindKeys()
     end
 end
 
+-- Links only the game's own click may open: names (their menu, a whisper) and
+-- channel tags (they open the chat box). A secret link counts too.
+Box.GAME_ONLY = { player = true, BNplayer = true, playerCommunity = true, channel = true }
+function Box.GameOnly(link)
+    if type(link) ~= "string" then return false end
+    if secret(link) then return true end
+    local kind = string.match(link, "^([^:]+)")
+    return Box.GAME_ONLY[kind] == true
+end
+
 -- One panel's message list, tab row and header.
 local function buildPane(P, holder, panel, name)
     local frame = CreateFrame("ScrollingMessageFrame", name, holder)
@@ -1114,11 +1124,17 @@ local function buildPane(P, holder, panel, name)
     frame:SetIndentedWordWrap(true)
     frame:SetTextCopyable(true) -- drag over lines to select, Ctrl+C copies
     frame:SetHyperlinksEnabled(true)
-    frame:SetScript("OnHyperlinkClick", function(_, link, text, button)
+    frame:SetScript("OnHyperlinkClick", function(f, link, text, button)
         if ns.Extras.OnLink(link) or ns.Links.LinkQuestie(link, text, button)
             or ns.Links.ClubTicket(link, text, button) then return end
-        if type(link) == "string" and not secret(link) and string.find(link, "^player")
-            and IsModifiedClick and IsModifiedClick("CHATLINK") then Box.Asked() end
+        -- A name or channel that reached the box missed its twin. The game's
+        -- click on one, run from here, carries Daylight UI's taint into its
+        -- menu and chat box (the menu's Guild Invite and Copy Character Name
+        -- were blocked), so the twins are laid again for the next click instead.
+        if Box.GameOnly(link) then
+            DUI.SafeCall(ns.Links.Sync, f)
+            return
+        end
         SetItemRef(link, text, button, DEFAULT_CHAT_FRAME)
     end)
     frame:SetScript("OnHyperlinkEnter", function(f, link) ns.LinkTips.OnEnter(f, link) end)
