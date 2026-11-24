@@ -13,6 +13,35 @@ local L = DUI.L
 local LABEL = "|cff1e90ffD|r|cff4083f5a|r|cff6276e8y|r|cff8569d8l|r|cffa65dc3i|r"
     .. "|cffc556a3g|r|cffdc5881h|r|cffed685et|r|cfff8813cU|r|cffff9a1fI|r"
 
+-- Paints text letter by letter along the title's gradient, so the Cooldown
+-- Manager entry matches the Daylight UI one at any length or language.
+local STOPS = {}
+for hex in LABEL:gmatch("|cff(%x%x%x%x%x%x)") do
+    STOPS[#STOPS + 1] = { tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16) }
+end
+
+local function inGradient(text)
+    local chars = {}
+    for ch in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do chars[#chars + 1] = ch end
+    local letters = 0
+    for _, ch in ipairs(chars) do if ch ~= " " then letters = letters + 1 end end
+    local out, n = {}, 0
+    for _, ch in ipairs(chars) do
+        if ch == " " then
+            out[#out + 1] = ch
+        else
+            local t = letters > 1 and n / (letters - 1) or 0
+            local pos = 1 + t * (#STOPS - 1)
+            local i = math.min(math.floor(pos), #STOPS - 1)
+            local f, a, b = pos - i, STOPS[i], STOPS[i + 1]
+            local function mix(k) return math.floor(a[k] + (b[k] - a[k]) * f + 0.5) end
+            out[#out + 1] = string.format("|cff%02x%02x%02x%s|r", mix(1), mix(2), mix(3), ch)
+            n = n + 1
+        end
+    end
+    return table.concat(out)
+end
+
 -- The Cooldown Manager button does what /cdm does: Daylight UI's layout editor
 -- when its Cooldown Manager is on (the Action Bars module sets
 -- DUI.OpenCooldownManager and returns true when it took the click), otherwise the
@@ -53,7 +82,7 @@ local function addToMenu(menu)
     local cd
     if hasCooldowns() then
         local ok, why = cooldownsAvailable()
-        cd = menu:AddButton(L["Cooldown Manager"], function()
+        cd = menu:AddButton(inGradient("DUI " .. L["Cooldown Manager"]), function()
             closeMenu()
             openCooldowns()
         end, not ok, why)

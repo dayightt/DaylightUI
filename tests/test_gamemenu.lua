@@ -76,9 +76,11 @@ local function gameMenu()
     return menu, function() return active end
 end
 
+local function plain(text) return (text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+
 local function cdmButton(active)
     for _, b in ipairs(active()) do
-        if b:GetText() == "Cooldown Manager" then return b end
+        if plain(b:GetText()) == "DUI Cooldown Manager" then return b end
     end
 end
 
@@ -97,7 +99,9 @@ T.test("a Cooldown Manager button sits under Daylight UI's and opens the game's 
     stub.FireEvent("PLAYER_LOGIN")
     menu:Show()
     local b = cdmButton(active)
-    T.truthy(b, "the button is there")
+    T.truthy(b, "the button is there, named DUI Cooldown Manager")
+    T.truthy(b:GetText():find("|cff1e90ffD|r", 1, true), "it starts in the title's blue")
+    T.truthy(b:GetText():find("|cffff9a1fr|r", 1, true), "and ends in its orange")
     T.eq(#active(), 5, "both of ours added once")
     T.eq(b.layoutIndex, 1.75, "right under Daylight UI's, above AddOns")
     T.isnil(b.topPadding, "no gap of its own")
