@@ -469,6 +469,10 @@ function MO.Page()
         picker(),
         { type = "toggle", key = "meter.detached", label = "Separate damage meter window", only = "main",
           desc = "Takes the damage meter out of the panel into its own window in the bottom-right corner; move it in unlock mode." },
+            { type = "dropdown", key = "map.meterSide", label = "Damage meter side", only = "main",
+              values = { auto = "Automatic", left = "Left", right = "Right", below = "Below", above = "Above" },
+              order = { "auto", "left", "right", "below", "above" },
+              desc = "Which side of the minimap the damage meter slides out of, with the threat meter beside it. Automatic picks the side toward the middle of the screen, so it follows when you move the panel. Below and Above keep it as wide as the map, and your other meter windows line up after it, with the quest tracker moving along." },
         win({ type = "slider", key = "win.width", label = "Window width", kinds = ALL, min = 100, max = 600, step = 1, unit = "px",
               hidden = function(get)
                   if MO.picked == "main" then

@@ -284,10 +284,6 @@ ns.OPTIONS = { pages = {
               reload = true, disabled = off("map.enabled") },
         } },
         { label = "Minimap box", desc = "The box around the minimap, with the damage meter and data texts in it.", items = {
-            { type = "dropdown", key = "map.meterSide", label = "Damage meter side",
-              values = { auto = "Automatic", left = "Left", right = "Right", below = "Below", above = "Above" },
-              order = { "auto", "left", "right", "below", "above" },
-              desc = "Which side of the minimap the damage meter slides out of, with the threat meter beside it. Automatic picks the side toward the middle of the screen, so it follows when you move the panel. Below and Above keep it as wide as the map, and your other meter windows line up after it, with the quest tracker moving along." },
             { type = "toggle", key = "map.noBox", label = "Frameless round map", since = "2.2.5",
               desc = "A round minimap stands on its own ring. The damage meter slides out from behind it in a box of its own, and the data texts sit in a small box under it. Needs Minimap shape set to Round, or Rotate as you turn.",
               disabled = function(get)
