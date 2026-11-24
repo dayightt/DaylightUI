@@ -8,7 +8,6 @@ local _, ns = ...
 ns.Game = ns.Game or {}
 ns.Game.SLICE = 250      -- most replicate rows handled in one frame
 ns.Game.ITEM_WAIT = 10   -- seconds to wait for the game to know an item (a full scan: of no item arriving)
-ns.Game.ITEM_WAIT_MAX = 120   -- seconds a full scan waits for items at most, however steadily they arrive
 
 -- Now, in seconds: the server's clock when the game has one (prices seen on
 -- different PCs line up), else the computer's. Every price row is stamped with it.

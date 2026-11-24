@@ -15,14 +15,17 @@
 -- ns.AH.Request, then read SLICE rows a frame so a big AH stays smooth.
 -- Rows the game can't price are skipped: bid only (buyout 0), count 0, no
 -- item or an item that no longer exists. A row whose item the game doesn't
--- know yet (hasAllInfo false: no link, so no suffix) waits for the item's
--- data and is read again. On a cold cache (a first scan) thousands of items
--- load one after another, so the wait ends only after ITEM_WAIT seconds in
--- which no item arrived at all (each arrival restarts that clock), and at
--- most ITEM_WAIT_MAX seconds after the first item was asked for; the items
--- still missing then are skipped and counted. An item the game says can't
--- load is skipped at once (not counted: scanning again wouldn't help). The
--- AH closing part way throws everything away: half a scan prices nothing.
+-- know yet (hasAllInfo false) has no link. Only weapons and armor need one
+-- (a random suffix is in the link alone), so anything else is priced by its
+-- itemID at once: the client knows an item's class without the server. Gear
+-- waits for its data and is read again. On a cold cache thousands of items
+-- load one after another, so the wait has no time limit while items keep
+-- arriving; when none has come for REASK seconds the ones still missing are
+-- asked for again (the client can let an ask fall, Auctionator asks again
+-- too), and after ITEM_WAIT seconds with no arrival at all they are skipped
+-- and counted. An item the game says can't load is skipped at once (not
+-- counted: scanning again wouldn't help). The AH closing part way throws
+-- everything away: half a scan prices nothing.
 
 local _, ns = ...
 
@@ -35,6 +38,7 @@ Replicate.EMPTY_WAIT = 15  -- seconds an empty list gets to fill before it count
 local LOOK = 0.25        -- seconds between looks while the list settles
 local MIN_LOOK = 0.05    -- seconds at least between looks at the item wait's end
 local EPS = 1e-6
+Replicate.REASK = 2      -- seconds of no item arriving before the missing ones are asked for again
 local ITEM_EVENTS = { "ITEM_DATA_LOAD_RESULT", "GET_ITEM_INFO_RECEIVED" }
 
 local frame = CreateFrame("Frame")   -- item data events, only while a list is being read
@@ -70,9 +74,19 @@ end
 local armTimer, schedule
 
 -- When the wait for items ends: ITEM_WAIT after the last arrival (or after
--- the wait began), and never later than ITEM_WAIT_MAX after the first ask.
+-- the wait began).
 local function waitEnds(j)
-    return math.min(j.lastProgress + ns.Game.ITEM_WAIT, j.firstAsk + ns.Game.ITEM_WAIT_MAX)
+    return j.lastProgress + ns.Game.ITEM_WAIT
+end
+
+-- True when the item may carry a random suffix: weapons and armor, and any
+-- item whose class the client can't say (it waits, as before).
+local GEAR = { [2] = true, [4] = true }
+local function mayHaveSuffix(itemID)
+    if not (C_Item and C_Item.GetItemInfoInstant) then return true end
+    local classID = select(6, C_Item.GetItemInfoInstant(itemID))
+    if type(classID) ~= "number" or classID < 0 then return true end
+    return GEAR[classID] == true
 end
 
 -- An item the game never loaded in time: its rows are skipped, counted once.
@@ -83,8 +97,7 @@ local function skip(j, itemID)
 end
 
 -- Waits for the item's data, the row read again when it comes; or skips the
--- row (the item was given up on, the game said no data is coming, or the
--- wait is past ITEM_WAIT_MAX).
+-- row (the item was given up on, or the game said no data is coming).
 local function wait(j, itemID, index)
     local entry = j.waiting[itemID]
     if entry then
@@ -93,10 +106,8 @@ local function wait(j, itemID, index)
     end
     if j.failed[itemID] or j.gaveUp[itemID] then return end
     local now = GetTime()
-    if j.firstAsk and now + EPS >= j.firstAsk + ns.Game.ITEM_WAIT_MAX then return skip(j, itemID) end
-    j.firstAsk = j.firstAsk or now
     -- nothing was waiting: the quiet clock starts now
-    if j.numWaiting == 0 then j.lastProgress = now end
+    if j.numWaiting == 0 then j.lastProgress, j.askedAt = now, now end
     if not j.asked[itemID] then
         j.asked[itemID] = true
         if C_Item and C_Item.RequestLoadItemDataByID then C_Item.RequestLoadItemDataByID(itemID) end
@@ -125,13 +136,15 @@ local function read(j, index)
     local unit = math.floor(buyout / count)
     if unit < 1 then return end
     if C_Item and C_Item.DoesItemExistByID and not C_Item.DoesItemExistByID(itemID) then return end
-    if not hasAllInfo then
-        -- read again when the item's data comes; skipped when it can't wait
-        -- (waited ITEM_WAIT already, or the game said no data is coming)
+    local key, base
+    if hasAllInfo then
+        key, base = ns.Items.Key(C_AuctionHouse.GetReplicateItemLink(index))
+    elseif mayHaveSuffix(itemID) then
+        -- read again when the item's data comes; skipped when the game said
+        -- no data is coming, or nothing came for ITEM_WAIT
         wait(j, itemID, index)
         return
     end
-    local key, base = ns.Items.Key(C_AuctionHouse.GetReplicateItemLink(index))
     if not key or ns.Items.ID(key) ~= itemID then key, base = ns.Items.Key(itemID) end
     if not key then return end
     ns.Rows.Add(j.rows, key, base, unit, count)
@@ -216,15 +229,29 @@ schedule = function(j)
     end)
 end
 
--- One timer for the end of the wait. When it fires and an item arrived
--- meanwhile, it looks again later; at the end, every item still waited for
--- is given up on (its rows skipped, the item counted).
+-- Every item still waited for, asked for again.
+local function askAgain(j, now)
+    j.askedAt = now
+    if not (C_Item and C_Item.RequestLoadItemDataByID) then return end
+    for itemID in pairs(j.waiting) do C_Item.RequestLoadItemDataByID(itemID) end
+end
+
+-- One timer for the wait. When nothing arrived for REASK, the missing items
+-- are asked for again; when an item arrived meanwhile, it looks again later;
+-- at the end, every item still waited for is given up on (its rows skipped,
+-- the item counted).
 armTimer = function(j)
     if j.timer or j.numWaiting == 0 then return end
-    j.timer = C_Timer.NewTimer(math.max(waitEnds(j) - GetTime(), MIN_LOOK), function()
+    local quietSince = math.max(j.lastProgress, j.askedAt or j.lastProgress)
+    local at = math.min(waitEnds(j), quietSince + Replicate.REASK)
+    j.timer = C_Timer.NewTimer(math.max(at - GetTime(), MIN_LOOK), function()
         j.timer = nil
         if job ~= j then return end
-        if GetTime() + EPS >= waitEnds(j) then
+        local now = GetTime()
+        if now + EPS < waitEnds(j) then
+            local since = math.max(j.lastProgress, j.askedAt or j.lastProgress)
+            if now + EPS >= since + Replicate.REASK then askAgain(j, now) end
+        else
             for itemID in pairs(j.waiting) do
                 j.waiting[itemID] = nil   -- clearing a field while walking the table is allowed
                 skip(j, itemID)

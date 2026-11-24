@@ -26,6 +26,7 @@ DUI.PatchNotes = {
         { "Unit frames", "Portrait rings no longer look a pixel wider on one side at some sizes and UI scales" },
         { "Action bars", "Fade everything on a flight path fades the Request Stop button too (hover it to bring it back)" },
         { "Tooltips", "A recipe's tooltip shows the recipe's own sell price again, not the auction price of what it makes" },
+        { "Auction House", "A full scan prices everything on the Auction House, instead of skipping thousands of items on your first scan of the day" },
         { "Translations", "The newest settings in Simplified Chinese (thanks Levis) and Spanish (thanks Ángel)" },
     } },
     { version = "2.2.5", date = "2026-11-23", summary = "A frameless round minimap, a language picker, new zone title and micro menu looks, and spell colors for your cast bar.", new = {
