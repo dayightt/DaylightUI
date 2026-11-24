@@ -41,6 +41,35 @@ local lootLook = DaylightUI.Options.LookRows("lootFeedFrame", function(get) retu
 local ZONE_MOVER = "qol.zone"
 local function zoneOff(get) return get("zoneTitle") ~= true end
 local ZONE_COLOR = { accent = "Accent color", zone = "The zone's PvP color", white = "White", custom = "One color" }
+local LINE_COLOR = { name = "Same as the name", accent = "Accent color", zone = "The zone's PvP color", white = "White", custom = "One color" }
+local SUB_COLOR = { label = "Daylight UI tan", name = "Same as the name", accent = "Accent color", white = "White", custom = "One color" }
+local PVP_COLOR = { zone = "The zone's PvP color", label = "Daylight UI tan", white = "White", custom = "One color" }
+-- A color dropdown and its "One color" picker under it.
+local function zoneColor(key, label, values, order, desc, customLabel, customDesc)
+    return { type = "dropdown", key = key, since = "2.2.5", label = label, values = values, order = order,
+             disabled = zoneOff, desc = desc },
+           { type = "color", key = key .. "Custom", since = "2.2.5", label = customLabel, desc = customDesc,
+             disabled = function(get) return zoneOff(get) or get(key) ~= "custom" end }
+end
+local zoneColors = {}
+for _, row in ipairs({
+    { "zoneTitleColor", "Zone name color", ZONE_COLOR, { "accent", "zone", "white", "custom" },
+      "The zone's name: your accent color (General > Appearance), the zone's PvP color (green friendly, red hostile, amber contested), white, or a color you pick.",
+      "Custom zone name color", "The name's color when Zone name color is One color." },
+    { "zoneTitleLineColor", "Zone title line color", LINE_COLOR, { "name", "accent", "zone", "white", "custom" },
+      "The thin line under the name, and the light, glow and diamond with it. Same as the name follows the name's color.",
+      "Custom zone title line color", "The line's color when Zone title line color is One color." },
+    { "zoneTitleSubColor", "Subzone color", SUB_COLOR, { "label", "name", "accent", "white", "custom" },
+      "The subzone under the name, like Goldshire, and a subzone shown on its own.",
+      "Custom subzone color", "The subzone's color when Subzone color is One color." },
+    { "zoneTitlePvPColor", "PvP status color", PVP_COLOR, { "zone", "label", "white", "custom" },
+      "Contested, Sanctuary, Horde or Alliance territory: in the zone's own PvP color, tan, white, or a color you pick.",
+      "Custom PvP status color", "The PvP status's color when PvP status color is One color." },
+}) do
+    local a, b = zoneColor(row[1], row[2], row[3], row[4], row[5], row[6], row[7])
+    zoneColors[#zoneColors + 1] = a
+    zoneColors[#zoneColors + 1] = b
+end
 local zoneFont = DaylightUI.Options.FontRow("zoneTitleFont", "Zone title font", "Every text in the zone title", zoneOff)
 zoneFont.since = "2.2.5"
 
@@ -335,14 +364,7 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "zoneTitleHold", since = "2.2.5", label = "Zone title duration", min = 1, max = 8, step = 0.5, unit = "s",
               disabled = zoneOff, desc = "How long the whole title stays before it drifts away." },
         } },
-        { label = "Colors", items = {
-            { type = "dropdown", key = "zoneTitleColor", since = "2.2.5", label = "Zone name color", values = ZONE_COLOR,
-              order = { "accent", "zone", "white", "custom" }, disabled = zoneOff,
-              desc = "The color of the name and the line under it: your accent color (General > Appearance), the zone's PvP color (green friendly, red hostile, amber contested), white, or a color you pick." },
-            { type = "color", key = "zoneTitleCustom", since = "2.2.5", label = "Custom zone name color",
-              desc = "The name and line's color when Zone name color is One color.",
-              disabled = function(get) return zoneOff(get) or get("zoneTitleColor") ~= "custom" end },
-        } },
+        { label = "Colors", items = zoneColors },
         { label = "Size and text", items = {
             { type = "slider", since = "2.2.5", label = "Zone title scale", min = 0.5, max = 2, step = 0.05, unit = "x", disabled = zoneOff,
               desc = "The whole zone title. Also the mouse wheel over its handle in /dui unlock.",

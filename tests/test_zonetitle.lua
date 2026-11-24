@@ -298,7 +298,7 @@ T.test("zone title: the name's color can be the zone's PvP color, white or one c
     local f
     local function play(mode, custom)
         DaylightUI:Set("QoL", "zoneTitleColor", mode)
-        if custom then DaylightUI:Set("QoL", "zoneTitleCustom", custom) end
+        if custom then DaylightUI:Set("QoL", "zoneTitleColorCustom", custom) end
         stub.FireEvent("ZONE_CHANGED_NEW_AREA")
         f = _G.DaylightUIZoneTitle
         finish()
@@ -395,5 +395,55 @@ T.test("zone title: the flourishes, a light across the name, a haze and a diamon
     T.falsy(f.gem:IsShown(), "no diamond")
     T.eq(f.haze:GetAlpha(), 0, "no haze")
     T.falsy(f.shine:IsShown(), "no light")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("zone title: the subzone, PvP line and line under the name each take their own color", function()
+    login()
+    local S = DaylightUI.Style
+    local f
+    local function play()
+        stub.FireEvent("ZONE_CHANGED_NEW_AREA")
+        f = _G.DaylightUIZoneTitle
+    end
+    local function line() local g = f.left.__gradient[3]; return { g.r, g.g, g.b } end
+    play()
+    T.rgb({ f.sub:GetTextColor() }, S.INK.LABEL, "subzone: tan by default")
+    T.rgb({ f.pvp:GetTextColor() }, stub.qol.ZoneTitle.COLORS.contested, "PvP: the zone's color by default")
+    finish()
+
+    DaylightUI:Set("QoL", "zoneTitleColor", "custom")
+    DaylightUI:Set("QoL", "zoneTitleColorCustom", { 0.3, 0.5, 0.9 })
+    DaylightUI:Set("QoL", "zoneTitleSubColor", "name")
+    DaylightUI:Set("QoL", "zoneTitlePvPColor", "white")
+    DaylightUI:Set("QoL", "zoneTitleLineColor", "custom")
+    DaylightUI:Set("QoL", "zoneTitleLineColorCustom", { 0.9, 0.2, 0.2 })
+    play()
+    T.rgb({ f.sub:GetTextColor() }, { 0.3, 0.5, 0.9 }, "subzone: same as the name")
+    T.rgb({ f.pvp:GetTextColor() }, S.INK.VALUE, "PvP: white")
+    T.rgb(line(), { 0.9, 0.2, 0.2 }, "the line: its own color")
+    T.rgb({ f.gem:GetVertexColor() }, { 0.9, 0.2, 0.2 }, "the diamond follows the line")
+    finish()
+
+    DaylightUI:Set("QoL", "zoneTitleSubColor", "custom")
+    DaylightUI:Set("QoL", "zoneTitleSubColorCustom", { 0.1, 0.8, 0.3 })
+    DaylightUI:Set("QoL", "zoneTitlePvPColor", "custom")
+    DaylightUI:Set("QoL", "zoneTitlePvPColorCustom", { 0.8, 0.8, 0.1 })
+    DaylightUI:Set("QoL", "zoneTitleLineColor", "zone")
+    play()
+    T.rgb({ f.sub:GetTextColor() }, { 0.1, 0.8, 0.3 }, "subzone: one color")
+    T.rgb({ f.pvp:GetTextColor() }, { 0.8, 0.8, 0.1 }, "PvP: one color")
+    T.rgb(line(), stub.qol.ZoneTitle.COLORS.contested, "the line: the zone's PvP color")
+    finish()
+
+    -- A subzone on its own takes its color too.
+    where.sub = "Lion's Pride Inn"
+    stub.FireEvent("ZONE_CHANGED_INDOORS")
+    T.rgb({ f.sub:GetTextColor() }, { 0.1, 0.8, 0.3 }, "a lone subzone in its color")
+    finish()
+    DaylightUI:Set("QoL", "zoneTitleSubColor", "name")
+    where.sub = "Goldshire"
+    stub.FireEvent("ZONE_CHANGED")
+    T.rgb({ f.sub:GetTextColor() }, { 0.3, 0.5, 0.9 }, "a lone subzone follows the name's color")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

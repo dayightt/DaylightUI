@@ -113,7 +113,6 @@ local function build()
     f.name = Style.Text(f, ZoneTitle.NAME, "CENTER", ZoneTitle.FONT)
     f.sub = Style.Text(f, ZoneTitle.SUB, "CENTER", ZoneTitle.FONT)
     f.sub:SetPoint("TOP", f, "CENTER", 0, -8)
-    Style.InkText(f.sub, "LABEL")
     f.pvp = Style.Text(f, ZoneTitle.PVP, "CENTER", ZoneTitle.FONT)
 
     -- The band over the name that a light runs across as it lands.
@@ -143,36 +142,64 @@ local function size()
     f.haze:SetSize(ZoneTitle.WIDTH * 1.1, nameSize * 3.5)
 end
 
--- The name's color for this show as { r, g, b }, or nil for the accent.
--- "zone" is the zone's own PvP color: green friendly, red hostile and so on.
-local function nameColor(pvpColor)
-    local mode = db("zoneTitleColor")
-    if mode == "zone" and pvpColor then return pvpColor end
-    if mode == "white" then return Style.INK.TITLE end
-    if mode == "custom" and type(db("zoneTitleCustom")) == "table" then return db("zoneTitleCustom") end
+-- A color setting's pick as { r, g, b }, or nil when it means the accent
+-- (or the zone's PvP color in a zone that has none). "zone" is the zone's own
+-- PvP color: green friendly, red hostile and so on.
+local function colorOf(key, pvpColor)
+    local mode = db(key)
+    if mode == "zone" then return pvpColor end
+    if mode == "white" then return Style.INK.VALUE end
+    if mode == "label" then return Style.INK.LABEL end
+    if mode == "custom" then
+        local c = db(key .. "Custom")
+        if type(c) == "table" then return c end
+    end
     return nil
 end
 
--- Paints the name and line in the accent (following a gradient accent along
--- them) or in the one color picked. The line is bright in the middle and fades
--- out at the ends; the haze, diamond and shine take the middle's color.
+-- The accent's ends and middle, along it when it's a gradient.
+local function accentStops()
+    if Style.GradientAccent() then
+        return { Style.AccentAt(0) }, { Style.AccentAt(0.5) }, { Style.AccentAt(1) }
+    end
+    local m = { Style.Accent() }
+    return m, m, m
+end
+
+-- The subzone and PvP lines in their picked colors. Read at paint time, so a
+-- new accent shows on the next title.
+local function paintSmall(pvpColor)
+    local c = colorOf("zoneTitleSubColor", pvpColor)
+    if db("zoneTitleSubColor") == "name" then c = f.nameRGB end
+    if db("zoneTitleSubColor") == "accent" then c = { Style.Accent() } end
+    c = c or Style.INK.LABEL
+    f.sub:SetTextColor(c[1], c[2], c[3])
+    local p = colorOf("zoneTitlePvPColor", f.pvpColor) or WARM
+    f.pvp:SetTextColor(p[1], p[2], p[3])
+end
+
+-- Paints the name in the accent (letter by letter along a gradient accent) or
+-- in the color picked, and the line under it the same way, or in its own
+-- color. The line is bright in the middle and fades out at the ends; the
+-- haze, diamond and shine take the line's middle color.
 local function paint(zone, pvpColor)
-    local a, m, b
     if on("zoneTitleCaps") then zone = Style.Upper(zone) end
-    local c = nameColor(pvpColor)
+    local na, nm, nb
+    local c = colorOf("zoneTitleColor", pvpColor)
     if c then
         f.name:SetText(zone)
         f.name:SetTextColor(c[1], c[2], c[3])
-        m = c
-        a, b = m, m
+        na, nm, nb = c, c, c
     else
         Style.PaintAccentText(f.name, zone)
-        if Style.GradientAccent() then
-            a, m, b = { Style.AccentAt(0) }, { Style.AccentAt(0.5) }, { Style.AccentAt(1) }
-        else
-            m = { Style.Accent() }
-            a, b = m, m
-        end
+        na, nm, nb = accentStops()
+    end
+    f.nameRGB = nm
+
+    local a, m, b = na, nm, nb
+    if db("zoneTitleLineColor") ~= "name" then
+        local l = db("zoneTitleLineColor") ~= "accent" and colorOf("zoneTitleLineColor", pvpColor)
+        if l then a, m, b = l, l, l else a, m, b = accentStops() end
     end
     f.left:SetGradient("HORIZONTAL", CreateColor(a[1], a[2], a[3], 0), CreateColor(m[1], m[2], m[3], 1))
     f.right:SetGradient("HORIZONTAL", CreateColor(m[1], m[2], m[3], 1), CreateColor(b[1], b[2], b[3], 0))
@@ -226,9 +253,8 @@ local function setPvP(text, color)
         f.pvp:SetPoint("TOP", f, "CENTER", 0, -8)
     end
     f.pvp:SetText(text or "")
-    local c = color or WARM
-    f.pvpColor = c
-    f.pvp:SetTextColor(c[1], c[2], c[3])
+    f.pvpColor = color
+    paintSmall(color)
 end
 
 -- Starts a show: a new id, everything at rest, the frame up.
@@ -337,6 +363,7 @@ function ZoneTitle.Sub(sub, pvp, color)
     end
     if not on("zoneTitleSubAlone") then return end
     local id, later = begin()
+    f.nameRGB = colorOf("zoneTitleColor", color) or { Style.Accent() }
     f.name:SetText("")
     f.sub:SetText(sub)
     setPvP(pvp, color)
