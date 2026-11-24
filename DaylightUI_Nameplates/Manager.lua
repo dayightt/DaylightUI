@@ -1253,7 +1253,8 @@ function Manager.CheckLines(detail)
             end
         end
     end
-    out[#out + 1] = #wrongs > 0 and string.format("LOOKS WRONG: %d plate(s).", #wrongs) or "Nothing looks wrong."
+    out[#out + 1] = #wrongs > 0 and string.format("LOOKS WRONG: %d plate(s).", #wrongs)
+        or Report.AllSwitchedOff() and Report.SWITCHED_OFF or "Nothing looks wrong."
     return out
 end
 
@@ -1459,6 +1460,7 @@ function Manager.Fix()
     if Report.FixBusy() then return Report.FIX_WAIT end
     if InCombatLockdown() then return "platefix: leave combat first, then /dui platefix again." end
     local n = (Manager.fixStep or 0) + 1
+    if n == 1 and Report.AllSwitchedOff() then return Report.SWITCHED_OFF_SAID end
     if n > Manager.FIX_STEPS then
         Manager.fixWithout = nil -- nothing helped, so the next plates are whole again
         Manager.FixDone(nil)

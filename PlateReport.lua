@@ -735,6 +735,20 @@ R.LOG_FLOOR = 600 -- about ten log lines, the minute or so before step 1
 R.FIX_GAP = 0.5
 R.FIX_SETTLE = 1
 R.FIX_SHOW_CVARS = { "nameplateShowEnemies", "nameplateShowFriendlyPlayers", "nameplateShowFriendlyNpcs" }
+
+-- Every kind of plate switched off in the game's settings (its "Show enemy
+-- nameplates" key flips the enemy one): there is nothing for platefix to bring
+-- back, and players sent reports of exactly that.
+function R.AllSwitchedOff()
+    for _, name in ipairs(R.FIX_SHOW_CVARS) do
+        if R.CVar(name) ~= "0" then return false end
+    end
+    return true
+end
+R.SWITCHED_OFF = "Every kind of nameplate is switched off in the game's settings (enemies, friendly players, "
+    .. "friendly NPCs)."
+R.SWITCHED_OFF_SAID = "platefix: " .. R.SWITCHED_OFF .. " Turn them on in the game's Nameplates options, "
+    .. "or press the game's key for enemy nameplates."
 R.PLATE_CVARS = { "nameplateMaxDistance", "nameplateShowOnlyNameForFriendlyPlayerUnits", "nameplateShowEnemyMinions",
     "nameplateMinScale", "nameplateMaxScale", "nameplateSelectedScale" }
 R.OFF = "Nameplates module off"
@@ -762,6 +776,7 @@ function R.CheckLines(detail)
             for _, line in ipairs((R.PlateHead(p[1], p[2]))) do out[#out + 1] = line end
         end
     end
+    if R.AllSwitchedOff() then out[#out + 1] = R.SWITCHED_OFF end
     return out
 end
 
@@ -1169,6 +1184,7 @@ function R.Fix()
     if R.FixBusy() then return R.FIX_WAIT end
     if InCombatLockdown() then return "platefix: leave combat first, then /dui platefix again." end
     local n = (fixStep or 0) + 1
+    if n == 1 and R.AllSwitchedOff() then return R.SWITCHED_OFF_SAID end
     if n > #R.FIX then
         fixDone(nil)
         return "platefix: that was every step and none brought them back. Copy the text in the box and send it to the "

@@ -956,3 +956,34 @@ T.test("platefix: step 1 says so when the game refuses the plate size", function
     local text = NP.Manager.FixReport(1)
     T.truthy(text:find("size refused", 1, true), "the report carries the game's words")
 end)
+
+-- A player with every kind of plate switched off in the game's settings (the
+-- game's "Show enemy nameplates" key flips one of them) has no plates to bring
+-- back. platefix says so instead of running its steps, and the check says so
+-- instead of "Nothing looks wrong".
+T.test("platefix: with every plate kind switched off it says so and runs no step", function()
+    local NP, cvars = login()
+    cvars.nameplateShowEnemies, cvars.nameplateShowFriendlyPlayers, cvars.nameplateShowFriendlyNpcs = "0", "0", "0"
+    local said = NP.Manager.Fix()
+    T.truthy(said:find("switched off", 1, true), said)
+    T.eq(NP.Manager.fixStep, nil, "no step ran")
+    local lines = NP.Manager.CheckLines()
+    T.truthy(lines[#lines]:find("switched off", 1, true), lines[#lines])
+    cvars.nameplateShowFriendlyNpcs = "1"
+    said = NP.Manager.Fix()
+    T.truthy(said:find("platefix 1/", 1, true), "one kind on: the steps run, " .. said)
+end)
+
+T.test("platefix: with the Nameplates module off, every plate kind switched off is said too", function()
+    stub.Load({ before = function()
+        _G.C_NamePlate = { GetNamePlateForUnit = function() end }
+        stub.units = { player = { name = "Me", class = "PRIEST", isPlayer = true } }
+    end })
+    _G.SetCVar = function() end
+    _G.GetCVar = function() return "0" end
+    local R = DaylightUI.PlateReport
+    local said = R.Fix()
+    T.truthy(said:find("switched off", 1, true), said)
+    local lines = R.CheckLines()
+    T.truthy(lines[#lines]:find("switched off", 1, true), lines[#lines])
+end)

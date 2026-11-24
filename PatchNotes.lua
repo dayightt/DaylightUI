@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Unit frames", "The target frame's fade drops Show with a target, which it always has; if you had it on, it's now Always" },
     }, fixed = {
         { "Unit frames", "A faded target or focus cast bar no longer flashes fully visible when a cast starts" },
+        { "Nameplates", "/dui platefix tells you when nameplates are simply switched off in the game's options" },
     } },
     { version = "2.2.5", date = "2026-11-23", summary = "A frameless round minimap, a language picker, new zone title and micro menu looks, and spell colors for your cast bar.", new = {
         { "Info panel", "A frameless round minimap, and a damage meter that can slide out below or above it" },
