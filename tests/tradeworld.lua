@@ -221,6 +221,11 @@ function TW.Install()
         rm[key] = b
         right = b
     end
+    -- TradeFrame_OnLoad: each inset keeps its marble art, the other side's dimmed.
+    TradeRecipientItemsInset.Bg:SetAlpha(0.1)
+    TradeRecipientMoneyInset.Bg:SetAlpha(0)
+    TradeRecipientEnchantInset.Bg:SetAlpha(0.1)
+    rbg:SetAlpha(0.6)
     return f
 end
 

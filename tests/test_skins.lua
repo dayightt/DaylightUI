@@ -520,6 +520,21 @@ T.test("skins: trade slots, money frames and the Trade/Cancel buttons", function
     T.eq(TradeFrameTradeButton:GetWidth(), TradeFrameCancelButton:GetWidth())
 end)
 
+-- The game's own trade layout (tests/tradeworld.lua): each side's item, enchant
+-- and money boxes are InsetFrameTemplates with marble art, named but not keyed,
+-- so the window walk never finds them as insets.
+T.test("skins: trade's marble boxes become the dark inset every skinned window has", function()
+    local TW, f = require("tradeworld"), nil
+    local S = login(function() f = TW.Install() end)
+    TW.Fill(f, { mine = { { name = "Linen Cloth" } } })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    for _, name in ipairs({ "TradePlayerItemsInset", "TradePlayerEnchantInset", "TradePlayerInputMoneyInset",
+                            "TradeRecipientItemsInset", "TradeRecipientEnchantInset", "TradeRecipientMoneyInset" }) do
+        T.eq(_G[name].Bg:GetAlpha(), 0, name .. ": the marble gone")
+        T.truthy(S.Kit.ShadeOf(_G[name]), name .. ": the dark inset instead")
+    end
+end)
+
 T.test("skins: trade shows the other side's accept in the good color, easing in", function()
     login()
     local h = TradeHighlightRecipient

@@ -652,6 +652,15 @@ Engine.Window({ key = "trade", pack = "social", frame = "TradeFrame",
         local Style = DUI.Style
         tradeItems(Kit, "TradePlayerItem")
         tradeItems(Kit, "TradeRecipientItem")
+        -- Each side's item, enchant and money boxes are inset frames with the
+        -- game's marble art. They're named but not keyed, so the window walk
+        -- doesn't know them as insets: dressed here like every other inset.
+        for _, side in ipairs({ "Player", "Recipient" }) do
+            Kit.Inset(_G["Trade" .. side .. "ItemsInset"])
+            Kit.Inset(_G["Trade" .. side .. "EnchantInset"])
+        end
+        Kit.Inset(_G.TradePlayerInputMoneyInset)
+        Kit.Inset(_G.TradeRecipientMoneyInset)
         Kit.Strip(_G.TradeRecipientMoneyFrame)
         -- Their money sits on a gold-edged box: a text box's look instead.
         local theirBox = _G.TradeRecipientMoneyBg
