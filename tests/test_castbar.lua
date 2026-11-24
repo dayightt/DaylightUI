@@ -67,6 +67,74 @@ T.test("channel ticks: lines between a channel's ticks on your own bar only", fu
     CB.cfg.channelTicks = false
 end)
 
+-- A warlock wants Drain Life green and Drain Soul purple at a glance.
+T.test("spell colors: your cast of a listed spell takes its color, any rank, others keep theirs", function()
+    local h, ns = setup()
+    local CB, Style = ns.CastBar, DaylightUI.Style
+    stub.spells = { [689] = { name = "Drain Life" }, [11700] = { name = "Drain Life" }, [686] = { name = "Shadow Bolt" } }
+    CB.cfg.spellColors = { { name = "drain life", color = { 0.2, 0.8, 0.3 } } }
+    local function hi(bar)
+        local g = bar:GetStatusBarTexture().__gradient
+        return g and g[3]
+    end
+    local wr, wg, wb = Style.Soften(0.2, 0.8, 0.3)
+    for _, id in ipairs({ 689, 11700 }) do
+        stub.units.player = { channel = { name = "Drain Life", spellID = id, duration = stub.Duration(5) } }
+        stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
+        local c = hi(h.bar)
+        T.truthy(c, "a gradient from the picked color, rank " .. id)
+        T.near(c.r, wr, 1e-6); T.near(c.g, wg, 1e-6); T.near(c.b, wb, 1e-6)
+    end
+    stub.units.player = { cast = { name = "Shadow Bolt", spellID = 686, duration = stub.Duration(3) } }
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    T.isnil(hi(h.bar), "a spell not on the list keeps the cast color")
+    T.near(h.bar:GetStatusBarTexture().__vertex[1], CB.cfg.cast[1], 1e-6)
+    stub.units.player = { cast = { name = "Drain Life", spellID = 689, notInterruptible = true, duration = stub.Duration(3) } }
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    T.isnil(hi(h.bar), "can't be interrupted still wins: it's a warning")
+    local t = CB.Create("target")
+    CB.Layout(t, ns.DEFAULTS.targetCastbar)
+    stub.units.target = { name = "Foe", reaction = 2, channel = { name = "Drain Life", spellID = 689, duration = stub.Duration(3) } }
+    stub.FireEvent("UNIT_SPELLCAST_CHANNEL_START", "target")
+    T.isnil(hi(t.bar), "only your own bar: another unit's spell can be secret")
+    -- The preview shows the last spell picked, in its color.
+    CB.ShowSample(h, ns.Test.CASTS.player)
+    T.eq(h.text.__text, "drain life")
+    T.truthy(hi(h.bar), "the sample in the picked color")
+    CB.cfg.spellColors = {}
+    CB.ShowSample(h, ns.Test.CASTS.player)
+    T.eq(h.text.__text, "Holy Light", "no list: the usual sample")
+    T.isnil(hi(h.bar))
+    stub.spells = nil
+end)
+
+T.test("spell colors: added by id or name, each in its own color, recolored and taken off", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    local CB = ns.CastBar
+    stub.spells = { [689] = { name = "Drain Life" }, [1120] = { name = "Drain Soul" } }
+    T.eq(CB.AddSpellColor("689"), "Drain Life", "by id, the game's name kept")
+    local name, why = CB.AddSpellColor("424242")
+    T.isnil(name); T.truthy(why, "an id with no spell says so")
+    T.eq(CB.AddSpellColor("1120"), "Drain Soul")
+    local list = DUI:Get("UnitFrames", "casts.spellColors")
+    T.eq(#list, 2)
+    T.truthy(list[1].color[1] ~= list[2].color[1] or list[1].color[3] ~= list[2].color[3], "each starts in its own color")
+    CB.AddSpellColor("689")
+    list = DUI:Get("UnitFrames", "casts.spellColors")
+    T.eq(#list, 2, "no second line for the same spell")
+    T.eq(list[2].name, "Drain Life", "it moves last, so the preview shows it")
+    CB.SetSpellColor(2, { 0.1, 0.9, 0.2 })
+    T.eq(DUI:Get("UnitFrames", "casts.spellColors")[2].color[2], 0.9)
+    T.eq(CB.cfg.spellColors[2].color[2], 0.9, "the bars read the saved list")
+    CB.RemoveSpellColor(1)
+    list = DUI:Get("UnitFrames", "casts.spellColors")
+    T.eq(#list, 1); T.eq(list[1].name, "Drain Life")
+    CB.RemoveSpellColor(1)
+    T.eq(#DUI:Get("UnitFrames", "casts.spellColors"), 0)
+    stub.spells = nil
+end)
+
 T.test("a secret interruptible flag lays the locked color over the fill, the client picks", function()
     local h, ns = setup()
     local lc = ns.CastBar.cfg.locked

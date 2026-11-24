@@ -743,6 +743,143 @@ function CB.Painted(h)
         notInterruptible = h.notInterruptible, interrupted = h.holding == true })
 end
 
+-- The color picked for the spell on your own bar (casts.spellColors, a list of
+-- { name, color, icon }), or nil. It goes by name so every rank matches, and
+-- the latest pick wins. Only your own bar asks: another unit's spell id can
+-- be secret, yours never is.
+function CB.SpellColor(h)
+    if h.kind ~= "player" then return nil end
+    local list = CB.cfg.spellColors
+    if type(list) ~= "table" or #list == 0 then return nil end
+    local name = h.sampleSpell
+    if not h.test then
+        local id = h.spellID
+        if isSecret(id) or type(id) ~= "number" then return nil end
+        name = C_Spell.GetSpellName(id)
+    end
+    if isSecret(name) or type(name) ~= "string" then return nil end
+    name = name:lower()
+    for i = #list, 1, -1 do
+        local e = list[i]
+        if type(e) == "table" and type(e.name) == "string" and type(e.color) == "table"
+            and e.name:lower() == name then
+            return e.color
+        end
+    end
+    return nil
+end
+
+-- Editing the list (the Cast Bars page). A new spell starts in the next of
+-- these colors, so adding one shows a change at once; a click on its swatch
+-- picks another.
+CB.SPELL_COLOR_START = {
+    { 0.36, 0.78, 0.38 }, { 0.62, 0.38, 0.86 }, { 0.32, 0.62, 0.92 },
+    { 0.94, 0.58, 0.24 }, { 0.86, 0.30, 0.30 }, { 0.30, 0.78, 0.74 },
+}
+
+local function spellColorList()
+    local list = {}
+    for i, e in ipairs(type(CB.cfg.spellColors) == "table" and CB.cfg.spellColors or {}) do
+        if type(e) == "table" then
+            list[i] = { name = e.name, icon = e.icon,
+                        color = type(e.color) == "table" and { e.color[1], e.color[2], e.color[3] } or nil }
+        end
+    end
+    return list
+end
+
+local function saveSpellColors(list)
+    DUI:Set("UnitFrames", "casts.spellColors", list)
+end
+
+-- The spell's game name and icon, from a name or an id typed in.
+local function spellOf(text)
+    local id = tonumber(text)
+    if id then
+        local name = C_Spell.GetSpellName(id)
+        if type(name) ~= "string" or name == "" then return nil end
+        return name, C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(id)
+    end
+    local info = C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(text)
+    if type(info) == "table" and type(info.name) == "string" then return info.name, info.iconID end
+    -- Your spellbook, any case.
+    local low = text:lower()
+    for _, e in ipairs(CB.BookSpells()) do
+        if e.name:lower() == low then return e.name, e.icon end
+    end
+    return nil
+end
+
+-- Your spellbook's spells, highest rank, by name: { name, icon }.
+function CB.BookSpells()
+    local SD = DUI.Book and DUI.Book.SpellData
+    local data = SD and SD.Read(false)
+    local out, seen = {}, {}
+    for _, section in ipairs(data and data.sections or {}) do
+        for _, e in ipairs(section.spells or {}) do
+            if type(e.name) == "string" and not e.passive and not e.future and not seen[e.name] then
+                seen[e.name] = true
+                out[#out + 1] = { name = e.name, icon = e.icon }
+            end
+        end
+    end
+    table.sort(out, function(a, b) return a.name < b.name end)
+    return out
+end
+
+-- Adds a spell by name or id. Returns its name, or nil and why not.
+function CB.AddSpellColor(text)
+    text = strtrim(text or "")
+    if text == "" then return nil end
+    local name, icon = spellOf(text)
+    if not name then
+        return nil, tonumber(text) and DUI.L["No spell has that ID."]
+            or DUI.L["No spell by that name in your spellbook. Type its spell ID instead."]
+    end
+    local list = spellColorList()
+    for i, e in ipairs(list) do
+        if type(e.name) == "string" and e.name:lower() == name:lower() then
+            -- Already there: it moves to the end, so the preview shows it.
+            table.remove(list, i)
+            list[#list + 1] = e
+            saveSpellColors(list)
+            return name
+        end
+    end
+    local start = CB.SPELL_COLOR_START[(#list % #CB.SPELL_COLOR_START) + 1]
+    list[#list + 1] = { name = name, icon = icon, color = { start[1], start[2], start[3] } }
+    saveSpellColors(list)
+    return name
+end
+
+function CB.RemoveSpellColor(i)
+    local list = spellColorList()
+    if not list[i] then return end
+    table.remove(list, i)
+    saveSpellColors(list)
+end
+
+function CB.SetSpellColor(i, rgb)
+    local list = spellColorList()
+    if not (list[i] and type(rgb) == "table") then return end
+    list[i].color = { rgb[1], rgb[2], rgb[3] }
+    saveSpellColors(list)
+end
+
+-- Names from your spellbook that start with what was typed (W.Complete).
+function CB.SuggestSpells(text)
+    text = strtrim(text or "")
+    if #text < 2 or text:match("^%d+$") then return nil end
+    local low, out = text:lower(), {}
+    for _, e in ipairs(CB.BookSpells()) do
+        if e.name:lower():find(low, 1, true) == 1 then
+            out[#out + 1] = { insert = e.name, from = 1, to = #text, label = e.name }
+            if #out >= 8 then break end
+        end
+    end
+    return #out > 0 and out or nil
+end
+
 function paintColor(h)
     -- Reset the empty part to the plain color the last secret flag picked from.
     local off, back = h.backOff, backOf(h)
@@ -777,6 +914,15 @@ function paintColor(h)
             back:SetVertexColor(pal.locked.r * k, pal.locked.g * k, pal.locked.b * k, Style.BAR_BACK_ALPHA)
         end
         CB.PaintHiddenClass(h)
+        return
+    end
+    -- A spell given its own color: a gradient from that color, whatever the fill.
+    local own = CB.SpellColor(h)
+    if own then
+        Style.SetBarGradient(h.bar, false)
+        Style.ClearBarStops(h.bar)
+        CB.PaintHiddenClass(h)
+        DUI.Gradients.PaintFrom(h.bar, own)
         return
     end
     -- A caster whose class the game hides (battlegrounds): the class layers
@@ -1029,6 +1175,13 @@ function CB.ShowSample(h, cast)
     if not h then return end
     -- With channel ticks on, your bar's sample is a channel, to show them.
     if h.kind == "player" and CB.cfg.channelTicks == true and cast.channel then cast = cast.channel end
+    -- With spell colors set, your bar's sample is the last spell picked, in its color.
+    local list = h.kind == "player" and CB.cfg.spellColors
+    local last = type(list) == "table" and list[#list]
+    if type(last) == "table" and type(last.name) == "string" then
+        cast = { text = last.name, value = cast.value, icon = last.icon or cast.icon }
+    end
+    h.sampleSpell = cast.text
     h.test = true
     h.duration = nil
     CB.PlaceTicks(h, cast.ticks or 0)

@@ -20,6 +20,8 @@ DUI.PatchNotes = {
         { "Micro menu", "New looks for the micro menu: every icon in a color of its own, icon size and brightness, spacing, icons that grow as you point at them, and a line under the button of an open window" },
         { "General", "Pick the language of Daylight UI's own text on the options' Home page, apart from your game's language" },
         { "Professions", "Drag the profession tabs into your own order, so your main professions come first. Saved for each character, and the Professions info text follows it too" },
+        { "Cast bars", "Give your own spells their own cast bar color, like Drain Life in green and Drain Soul in purple (Cast Bars > Spell colors)" },
+        { "Unit frames", "Square portraits can have a 1 px border or none, and every portrait can turn off its shadow or flip to face the other way" },
     }, fixed = {
         { "Auction House", "Green drops with a random bonus like \"of the Monkey\" show their auction price on hover again, after your next full scan" },
         { "Loot rolls", "When two of the same item drop, rolling on one no longer closes the other before you can roll on it" },

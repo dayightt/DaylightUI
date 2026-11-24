@@ -683,6 +683,113 @@ local function spellName(id)
     if type(name) == "string" and not DaylightUI.IsSecret(name) then return name end
 end
 
+-- Your cast bar's spell colors: a name box to add a spell, then a line per
+-- spell with its icon, name, color swatch and an X.
+local SPELL_LINE, SPELL_ADD_H, SPELL_NOTE = 28, 42, 22
+local function spellColorLine(row)
+    local W, Style, Motion = DaylightUI.Widgets, DaylightUI.Style, DaylightUI.Motion
+    local CB = ns.CastBar
+    local line = CreateFrame("Frame", nil, row.list)
+    line:SetHeight(SPELL_LINE)
+    line.icon = line:CreateTexture(nil, "ARTWORK")
+    line.icon:SetSize(SPELL_LINE - 8, SPELL_LINE - 8)
+    line.icon:SetPoint("LEFT", line, "LEFT", 2, 0)
+    Style.CropIcon(line.icon)
+    line.delete = W.DeleteButton(line)
+    line.delete:SetPoint("RIGHT", line, "RIGHT", 0, 0)
+    line.swatch = W.Swatch(line, line, function()
+        local e = (CB.cfg.spellColors or {})[line.index]
+        return e and e.color
+    end, function(rgb) CB.SetSpellColor(line.index, rgb) end)
+    line.swatch:SetPoint("RIGHT", line.delete, "LEFT", -8, 0)
+    line.text = W.Font(line, W.BODY, Style.SIZE.body, W.COLORS.text)
+    line.text:SetPoint("LEFT", line.icon, "RIGHT", 8, 0)
+    line.text:SetPoint("RIGHT", line.swatch, "LEFT", -8, 0)
+    line.delete:SetScript("OnClick", function()
+        if line.going then return end
+        line.going = true
+        Motion.Fade(line, 1, 0, Motion.FAST)
+        local i = line.index
+        C_Timer.After(Motion.FAST, function()
+            line.going = nil
+            CB.RemoveSpellColor(i)
+        end)
+    end)
+    return line
+end
+
+local spellColorItem = {
+    type = "custom", label = "Spell colors", since = "2.2.5",
+    build = function(row)
+        local W, Style, L = DaylightUI.Widgets, DaylightUI.Style, DaylightUI.L
+        local CB = ns.CastBar
+        row.lines = {}
+        row.input = W.Input(row, { hint = L["A spell's name or ID"], maxLetters = 80 })
+        row.input:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -8)
+        row.input:SetPoint("TOPRIGHT", row, "TOPRIGHT", -(W.PAD + 90), -8)
+        row.add = W.Button(row, ADD or L["Add"], W.INPUT_H)
+        row.add:SetWidth(80)
+        row.add:SetPoint("TOPRIGHT", row, "TOPRIGHT", -W.PAD, -8)
+        local function add()
+            local name, why = CB.AddSpellColor(row.input:GetText())
+            row.why = why
+            if name then
+                row.fresh = name
+                row.input:SetText("")
+            end
+            -- A refused name changes no setting, and an added one should fade in.
+            local panel = DaylightUI.OptionsPanel
+            if panel and panel.IsShown() then panel.Refresh() end
+        end
+        row.add:SetScript("OnClick", add)
+        row.input:SetScript("OnEnterPressed", add)
+        W.Complete(row.input, CB.SuggestSpells)
+        row.note = W.Font(row, W.BODY, Style.SIZE.small, Style.INK.WARN)
+        row.note:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -SPELL_ADD_H)
+        row.note:SetPoint("TOPRIGHT", row, "TOPRIGHT", -W.PAD, -SPELL_ADD_H)
+        row.list = CreateFrame("Frame", nil, row)
+        row.empty = W.Font(row.list, W.BODY, Style.SIZE.body, Style.INK.LABEL)
+        row.empty:SetPoint("TOPLEFT", row.list, "TOPLEFT", 0, -6)
+        row.empty:SetText(L["No spells yet."])
+    end,
+    update = function(row)
+        local W, Motion = DaylightUI.Widgets, DaylightUI.Motion
+        local list = ns.CastBar.cfg.spellColors or {}
+        local top = SPELL_ADD_H + (row.why and SPELL_NOTE or 0)
+        row.note:SetText(row.why or "")
+        row.note:SetShown(row.why ~= nil)
+        row.list:ClearAllPoints()
+        row.list:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -top)
+        row.list:SetPoint("TOPRIGHT", row, "TOPRIGHT", -W.PAD, -top)
+        for i, e in ipairs(list) do
+            local line = row.lines[i]
+            if not line then
+                line = spellColorLine(row)
+                row.lines[i] = line
+            end
+            line.index = i
+            line:ClearAllPoints()
+            line:SetPoint("TOPLEFT", row.list, "TOPLEFT", 0, -(i - 1) * SPELL_LINE)
+            line:SetPoint("TOPRIGHT", row.list, "TOPRIGHT", 0, -(i - 1) * SPELL_LINE)
+            line.icon:SetTexture(e.icon or 134400)
+            line.text:SetText(e.name or "")
+            line.swatch.Refresh()
+            W.Stripe(line, i % 2 == 0)
+            line:Show()
+            if e.name == row.fresh then Motion.Fade(line, 0, 1, Motion.FAST)
+            elseif not line.going then line:SetAlpha(1) end
+        end
+        row.fresh = nil
+        for i = #list + 1, #row.lines do row.lines[i]:Hide() end
+        row.count, row.top = #list, top
+        row.empty:SetShown(#list == 0)
+        row.list:SetHeight(math.max(SPELL_LINE, #list * SPELL_LINE))
+    end,
+    height = function(row)
+        return (row.top or SPELL_ADD_H) + math.max(1, row.count or 0) * SPELL_LINE + 6
+    end,
+}
+
 -- Your spells with a range, highest rank, by name. A pick saved on another
 -- character stays listed so the menu never shows a blank.
 local function rangeSpellChoices()
@@ -1649,7 +1756,8 @@ local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
 local PORTRAIT_FIELDS = { portrait = true, portraitShape = true, portraitLook = true, portraitAt = true, portraitIconsStay = true, portraitRing = true,
-    portraitRingWidth = true, portraitRingLine = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true }
+    portraitRingWidth = true, portraitRingLine = true, portraitDragon = true, portraitDragonColor = true, portraitScale = true,
+    portraitShadow = true, portraitFlip = true }
 local function splitFrame(prefix, items, power)
     local basic, bars, portrait = {}, {}, {}
     for _, it in ipairs(items) do
@@ -1850,9 +1958,26 @@ local function framePage(id, label, desc, opts)
             values = UF.RING_COLORS, order = UF.RING_COLOR_ORDER,
             desc = "Class gradient: the unit's class colors (an NPC's are by how friendly it is), and the red aggro ring is shaded to match. Accent color: your accent on every frame. Daylight gradient: the logo's colors on every frame. Light: a gray ring. Dark: the same dark border as the frame.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
+        local widthNames = {}
+        for key, name in pairs(UF.RING_WIDTH_NAMES) do widthNames[key] = name end
+        for key, name in pairs(UF.EDGE_WIDTH_NAMES) do widthNames[key] = name end
         frame[#frame + 1] = { type = "dropdown", key = k("portraitRingWidth"), label = "Ring thickness", since = "1.8.1",
-            values = UF.RING_WIDTH_NAMES, order = UF.RING_WIDTH_ORDER,
-            desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it.",
+            values = widthNames, order = { "thin", "normal", "thick", "pixel", "none" },
+            -- 1 px and None draw the square's own edge: square and angled, classic look.
+            choices = function()
+                local order = { "thin", "normal", "thick" }
+                if liveGet(k("portraitShape")) ~= "round" and liveGet(k("portraitLook")) == "classic" then
+                    order[4], order[5] = "pixel", "none"
+                end
+                return widthNames, order
+            end,
+            desc = "How thick the ring is. A thicker ring leaves a smaller picture inside. The red aggro ring and its lights follow it. A square or angled portrait in the classic look can also have a 1 px edge or none.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
+        frame[#frame + 1] = { type = "toggle", key = k("portraitShadow"), label = "Portrait shadow", since = "2.2.5",
+            desc = "The soft shadow under the portrait. When off, it sits flat, for a minimal look.",
+            disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
+        frame[#frame + 1] = { type = "toggle", key = k("portraitFlip"), label = "Flip the portrait", since = "2.2.5",
+            desc = "Mirrors the face or class icon so it looks the other way, so your portrait and your target's can face each other. 3D models keep the game's view.",
             disabled = function(get) return shown(get) or get(k("portrait")) == "none" or tooShort(get) end, hidden = onCard }
         frame[#frame + 1] = { type = "toggle", key = k("portraitRingLine"), label = "Line round the middle", since = "1.8.1",
             desc = "The thin dark line round the middle of the ring. When off, the ring is one smooth band. A portrait set into its frame has a thin ring with no line.",
@@ -2966,6 +3091,9 @@ ns.OPTIONS = { pages = {
             { type = "color", key = "casts.locked", label = "Can't be interrupted", hidden = fillIs("casts.fill", "pair"),
               desc = "The bar's color while the cast can't be interrupted." },
         }, stopsRows("casts.customGradient", "casts.fill", "cast bar", "your cast bar")) },
+        { label = "Spell colors",
+          desc = "Your cast bar in a color of its own for the spells you pick, like Drain Life in green and Drain Soul in purple. Every rank takes it, whatever the fill style. A cast that can't be interrupted keeps its warning color.",
+          items = { spellColorItem } },
         { label = "Other cast bars' colors", items = DaylightUI.Options.Join({
             { type = "toggle", key = "targetCasts.classColor", label = "Class color on other cast bars",
               desc = "A player's casts in their class color, or their class's gradient with a two-color fill. Creatures' casts keep the fill style. Not with the Daylight gradient or a custom gradient.",
