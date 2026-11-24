@@ -26,7 +26,7 @@ local _, DUI = ...
 local Dots = {}
 DUI.Dots = Dots
 
-local VERSION = 2 -- bumping this drops learned tick sizes that older code got wrong
+local VERSION = 3 -- bumping this drops learned tick sizes that older code got wrong
 local DEFAULT_INTERVAL = 3
 -- Seconds either side of an expected tick. On Forever the first tick lands
 -- within about 0.1 s of one interval after the cast, later ones within about
@@ -67,6 +67,8 @@ Dots.PATTERNS = {
     drain = "(%d+) health.-every (%d+%.?%d*) sec",
     lasts = "[Ll]asts (%d+%.?%d*) sec",
     awards = "Awards (%d+) combo point",
+    -- How the game groups big numbers and writes decimals here ("1,214").
+    thousands = { "," },
 }
 
 -- The French client words its tooltips its own way: "inflige 40 points de
@@ -81,6 +83,7 @@ Dots.LOCALES = {
         drain = "(%d+) points de vie.-toutes les (%d+%.?%d*) sec",
         lasts = "[Dd]ure (%d+%.?%d*) sec",
         awards = "gagnez (%d+) points? de combo",
+        thousands = { "\194\160", "\226\128\175", " " }, decimal = ",",
     },
     -- Spanish puts the school after the damage: "causando 40 p. de daño de
     -- las Sombras durante 12 s.", "15 p. de salud ... cada 3 segundo durante 30 s."
@@ -93,6 +96,7 @@ Dots.LOCALES = {
         drain = "(%d+) p%. de salud.-cada (%d+%.?%d*) s",
         lasts = "durante (%d+%.?%d*) s",
         awards = "[Oo]torga (%d+) p[^%s]* de combo",
+        thousands = { "%." }, decimal = ",",
     },
     -- Brazilian Portuguese: "causando 40 de dano de Sombra ao longo de 12 s."
     ptBR = {
@@ -104,6 +108,7 @@ Dots.LOCALES = {
         drain = "(%d+) pontos de vida.-a cada (%d+%.?%d*) s",
         lasts = "[Dd]ura (%d+%.?%d*) s",
         awards = "[Cc]oncede (%d+) pontos? de combo",
+        thousands = { "%." }, decimal = ",",
     },
     -- German, Korean and Chinese name the duration before the damage, so
     -- those patterns say the order of their captures (see Dots.Parse).
@@ -121,6 +126,7 @@ Dots.LOCALES = {
         drain = { "alle (%d+%.?%d*) Sek%.%s*(%d+) Punkt%(e%) Gesundheit", order = "ea" },
         lasts = "Hält (%d+%.?%d*) Sek%. lang an",
         awards = "Gewährt (%d+) Combopunkt",
+        thousands = { "%." }, decimal = ",",
     },
     -- "40 ед. урона от темной магии за 12 сек.", "12 дополнительного урона от
     -- тайной магии в течение 9 сек.", Curse of Agony's "в течение 24 сек. ...
@@ -139,6 +145,7 @@ Dots.LOCALES = {
         drain = "(%d+) ед%. здоровья.-раз в (%d+%.?%d*) сек",
         lasts = "Время действия[^%d]*(%d+%.?%d*) сек",
         awards = "Длина серии приемов увеличивается на (%d+)",
+        thousands = { "\194\160", "\226\128\175", " " }, decimal = ",",
     },
     -- "在12秒内造成累计40点伤害" (Corruption names no school here: the spell's
     -- own school comes from SCHOOL_BY_NAME). Rip and Rupture list their
@@ -334,16 +341,40 @@ local function parseFinisher(desc, points)
     return e.total, PHYSICAL, e.duration
 end
 
+-- French words a mana drain like a DoT ("616 points de mana en 8 sec", Viper
+-- Sting), so words naming mana mean the health bar has nothing to show.
+local function drainsMana(words)
+    words = string.lower(words or "")
+    local mana = type(MANA) == "string" and string.lower(MANA) or "mana"
+    return string.find(words, "mana", 1, true) ~= nil or string.find(words, mana, 1, true) ~= nil
+end
+
+-- The game groups big numbers in descriptions ("1,214 Shadow damage", "1.214",
+-- "1 214") and some languages write decimals with a comma ("7,5 Sek."). The
+-- patterns want plain digits: on "1,214" they started after the comma and
+-- read 214. A separator only counts between a digit and exactly three more.
+local function plainNumbers(desc)
+    local P = Dots.PATTERNS
+    for _, sep in ipairs(P.thousands or {}) do
+        local grouped = "(%d)" .. sep .. "(%d%d%d)%f[^%d]"
+        for _ = 1, 2 do desc = string.gsub(desc, grouped, "%1%2") end -- twice for 1,234,567
+    end
+    if P.decimal then desc = string.gsub(desc, "(%d)" .. P.decimal .. "(%d)", "%1.%2") end
+    return desc
+end
+
 -- Returns total, school, duration, interval (only when stated), or nil if not
 -- a DoT. combo is the points a finisher was cast with (unknown = 1, erring low).
 function Dots.Parse(desc, combo)
     if type(desc) ~= "string" or isSecret(desc) then return nil end
+    desc = plainNumbers(desc)
     local P = Dots.PATTERNS
     if string.find(desc, P.finisher) then return parseFinisher(desc, combo or 1) end
     if string.find(desc, P.weapon) or string.find(desc, P.heal) then return nil end
     -- The last "... damage over N sec", so Immolate's periodic part, not its hit.
     local over = scan(desc, P.over, "aws")
     local last = over[#over]
+    if last and drainsMana(last.w) then last = nil end
     if last then
         local total, duration = tonumber(last.a), tonumber(last.s)
         if total and duration and duration > 0 then return total, schoolOf(last.w), duration end
@@ -559,6 +590,7 @@ local METER_TRIES, METER_WAIT = 20, 0.5  -- the meter can take a few seconds to 
 -- nil when something does but this language's wording can't be read for it.
 function Dots.Upfront(desc)
     if type(desc) ~= "string" or isSecret(desc) then return nil end
+    desc = plainNumbers(desc)
     local over = scan(desc, Dots.PATTERNS.over, "aws")
     local last = over[#over]
     if not last then return 0 end

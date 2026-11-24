@@ -24,6 +24,8 @@ DUI.PatchNotes = {
         { "Unit frames", "Buffs and debuffs over a frame sit side by side whichever way each row grows, instead of the debuffs floating high above" },
         { "Unit frames", "With the spell icon on, a cast bar no longer fills hidden behind the icon at the start of a cast" },
         { "Unit frames", "Aimed Shot's mana cost stays shaded on your mana bar for the whole cast" },
+        { "Unit frames", "DoTs over 1,000 damage, like Shadow Word: Pain at higher ranks, show their whole damage left on frames and nameplates" },
+        { "Unit frames", "Viper Sting no longer shows as damage left on your target's health bar" },
         { "Professions", "The game's own profession window no longer shows a second cast bar while you craft" },
     } },
     { version = "2.2.4", date = "2026-11-23", summary = "Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.", new = {
