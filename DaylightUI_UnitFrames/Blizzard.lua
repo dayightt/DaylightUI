@@ -186,6 +186,10 @@ function Blizzard.Apply(db)
     if db.playerCastbar.enabled then
         Blizzard.HideCastBar("PlayerCastingBarFrame")
         Blizzard.HideCastBar("PetCastingBarFrame")
+        -- The profession window borrows this one in place of the player cast bar
+        -- while you craft (when the game's cast bar is locked to the player frame),
+        -- so it would be a second bar beside Daylight UI's own.
+        Blizzard.HideCastBar("OverlayPlayerCastingBarFrame")
     end
     -- The game's own swing timers (shown when its option is on).
     if db.swing.enabled and ns.swing then

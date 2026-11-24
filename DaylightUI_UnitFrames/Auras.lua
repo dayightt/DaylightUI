@@ -841,12 +841,14 @@ function Auras.Place(set, frame, frameCfg)
     local up, down = set.aboveLift or 0, set.buffDrop or 0
     local any = {}
     set.flow = {}
-    -- Both rows over (or under) the frame, buffs running right from the left
-    -- end and debuffs left from the right end: they share the line side by
-    -- side, each in its own half, instead of stacking.
+    -- Both rows over (or under) the frame, starting at opposite ends and
+    -- running toward each other (buffs right and debuffs left, or the other
+    -- way round): they share the line side by side, each in its own half,
+    -- instead of stacking.
     local sb, sd = spots.buff, spots.debuff
     local paired = set.buffs and sb and sd and sb.spot == sd.spot and (sb.spot == "above" or sb.spot == "below")
-        and sb.grow == "right" and sd.grow == "left"
+        and (sb.grow == "right" or sb.grow == "left") and (sd.grow == "right" or sd.grow == "left")
+        and sb.grow ~= sd.grow
     local pairTall, buffLine = 0, 0
     local function total(list) local n = 0; for _, v in ipairs(list or {}) do n = n + v end; return n end
     -- With either row empty the other keeps the whole line.

@@ -21,6 +21,10 @@ DUI.PatchNotes = {
         { "Cooldown Manager", "Slide over now closes the gap for buffs like Flurry and Enrage that were hidden in the game's own Cooldown Manager settings" },
         { "Character", "Swapped to the game's own character window, your gear slots sit over your model again, so you can hover and click them" },
         { "Nameplates", "Targeting a friend at full health no longer leaves an empty outline where their hidden health bar would be" },
+        { "Unit frames", "Buffs and debuffs over a frame sit side by side whichever way each row grows, instead of the debuffs floating high above" },
+        { "Unit frames", "With the spell icon on, a cast bar no longer fills hidden behind the icon at the start of a cast" },
+        { "Unit frames", "Aimed Shot's mana cost stays shaded on your mana bar for the whole cast" },
+        { "Professions", "The game's own profession window no longer shows a second cast bar while you craft" },
     } },
     { version = "2.2.4", date = "2026-11-23", summary = "Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.", new = {
         { "Cooldown Manager", "A group can attach to another frame, like your cast bar or raid frames, and follow it" },

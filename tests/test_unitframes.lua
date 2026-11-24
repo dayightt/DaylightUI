@@ -577,6 +577,25 @@ T.test("a cast shades the power it will use, and stops when the cast ends", func
     stub.spellCosts = nil
 end)
 
+-- A hunter's Aimed Shot: Auto Shot lands (its own SUCCEEDED) and a key pressed
+-- mid-cast fails ("another action is in progress") while the cast runs on.
+-- Only the end of this cast may take its shade away.
+T.test("the cost shade stays for the whole cast while other casts end around it", function()
+    local f = costFrame({ costPreview = true })
+    stub.FireEvent("UNIT_SPELLCAST_START", "player", "aimed", 123)
+    T.truthy(f.cost:IsShown())
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "auto", 75)
+    T.truthy(f.cost:IsShown(), "Auto Shot landing mid-cast")
+    stub.FireEvent("UNIT_SPELLCAST_FAILED", "player", "other", 1978)
+    T.truthy(f.cost:IsShown(), "another spell refused mid-cast")
+    stub.FireEvent("ACTIONBAR_UPDATE_STATE")
+    T.truthy(f.cost:IsShown(), "an action bar refresh")
+    T.eq(f.cost.__value, 50)
+    stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "aimed", 123)
+    T.falsy(f.cost:IsShown(), "the cast itself ending")
+    stub.spellCosts = nil
+end)
+
 T.test("the cost preview ignores other power types and missing data", function()
     local f = costFrame({ costPreview = true })
     stub.spellCosts = { [123] = { { type = 1, name = "RAGE", cost = 20 } } }

@@ -65,6 +65,32 @@ T.test("Apply hides only what DaylightUI replaces", function()
     T.falsy(PlayerCastingBarFrame:IsShown())
 end)
 
+-- With "Lock to Player Frame" on in Edit Mode, the game's profession window
+-- borrows a second player cast bar while you craft. Daylight UI's own player
+-- cast bar already shows the craft, so that one must stay quiet too.
+T.test("the profession window's borrowed cast bar stays hidden while crafting", function()
+    local ns = setup()
+    local db = DaylightUI.DB.MergeDefaults({}, ns.DEFAULTS)
+    ns.Blizzard.Apply(db)
+    local page = CreateFrame("Frame", nil, UIParent)
+    OverlayPlayerCastingBarFrame:StartReplacingPlayerBarAt(page)
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    T.falsy(OverlayPlayerCastingBarFrame:IsShown() and OverlayPlayerCastingBarFrame:GetAlpha() > 0,
+        "no second cast bar over the profession window")
+    OverlayPlayerCastingBarFrame:EndReplacingPlayerBar()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("the borrowed cast bar is left to the game when Daylight UI's player cast bar is off", function()
+    local ns = setup()
+    local db = DaylightUI.DB.MergeDefaults({ playerCastbar = { enabled = false } }, ns.DEFAULTS)
+    ns.Blizzard.Apply(db)
+    OverlayPlayerCastingBarFrame:StartReplacingPlayerBarAt(CreateFrame("Frame", nil, UIParent))
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    T.truthy(OverlayPlayerCastingBarFrame:IsShown(), "the game's own craft bar still shows")
+    OverlayPlayerCastingBarFrame:EndReplacingPlayerBar()
+end)
+
 T.test("a warning is printed once when EllesmereUI unit frames are loaded", function()
     local ns = setup(function() stub.loadedAddOns.EllesmereUIUnitFrames = true end)
     ns.Blizzard.WarnConflicts()

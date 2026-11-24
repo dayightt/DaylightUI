@@ -4111,12 +4111,16 @@ function UF.CreateCost(f, spec)
         DUI.SafeCall(h.RegisterUnitEvent, h, e, "player")
     end
     DUI.SafeCall(h.RegisterEvent, h, "ACTIONBAR_UPDATE_STATE")
-    h:SetScript("OnEvent", function(_, event, _, _, spellID)
+    h:SetScript("OnEvent", function(_, event, _, castGUID, spellID)
         if f.test then return end
         if event == "UNIT_SPELLCAST_START" then
-            f.costCast = spellID
+            f.costCast, f.costGUID = spellID, castGUID
         elseif event ~= "ACTIONBAR_UPDATE_STATE" then
-            f.costCast = nil
+            -- Only this cast's own end clears it. A hunter's Auto Shot lands
+            -- and a key pressed mid-cast fails while Aimed Shot runs on.
+            local mine = isSecret(castGUID) or isSecret(f.costGUID) or type(f.costGUID) == "nil"
+                or castGUID == f.costGUID
+            if mine then f.costCast, f.costGUID = nil, nil end
         end
         -- Turned off, so don't ask the client (this fires often).
         if not f.costPreview then f.cost:Hide(); return end

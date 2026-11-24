@@ -89,6 +89,30 @@ T.test("over the frame the rows sit side by side: buffs from the left end, debuf
     T.truthy(set.buffs:GetWidth() + set.debuffs:GetWidth() < f:GetWidth(), "each in its own part of the line")
 end)
 
+-- A player's report: buffs turned to grow left and debuffs right put the
+-- debuffs high over the frame, past every row the buffs could fill, though
+-- the two rows start at opposite ends and never meet.
+T.test("swapped ends, the rows still share the line: debuffs from the left end, buffs from the right", function()
+    local DUI, ns = login()
+    for k, v in pairs({ debuffs = true, buffs = true, debuffGrow = "right", buffGrow = "left",
+                        debuffRows = 3, debuffPerRow = 5, maxDebuffs = 15,
+                        buffRows = 2, buffPerRow = 5, maxBuffs = 8, buffSize = 16 }) do
+        DUI:Set("UnitFrames", "playerAuras." .. k, v)
+    end
+    for _, set in ipairs({ ns.playerAuras, ns.auras }) do
+        if set == ns.auras then
+            for k, v in pairs({ debuffGrow = "right", buffGrow = "left", buffSpot = "above", debuffSpot = "above" }) do
+                DUI:Set("UnitFrames", "targetAuras." .. k, v)
+            end
+        end
+        local dp, _, _, _, dy = set.debuffs:GetPoint(1)
+        local bp, _, _, _, by = set.buffs:GetPoint(1)
+        T.truthy(dp:find("LEFT$"), "debuffs at the left end")
+        T.truthy(bp:find("RIGHT$"), "buffs at the right end")
+        T.near(dy, by, 0.01, "side by side, not stacked")
+    end
+end)
+
 T.test("nothing pushes the player's rows: they sit where they're placed", function()
     local DUI, ns = login(function()
         stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", powerToken = "ENERGY" }

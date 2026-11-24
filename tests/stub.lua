@@ -2318,10 +2318,35 @@ function stub.SecureClick(b, button, down)
             if v == "" then v = nil end
             return v
         end
+        -- SecureCmdItemParse (ChatFrameUtil.lua): "bag slot" names that bag item.
+        -- /use then hands it to SecureCmdUseItem, which is UseContainerItem for a
+        -- bag item (SlashCommands.lua): what the bag's own right click does.
+        local function useBagItem(item)
+            local bag, slot = string.match(item or "", "^(%d+)%s+(%d+)$")
+            if bag and C_Container and C_Container.UseContainerItem then
+                C_Container.UseContainerItem(tonumber(bag), tonumber(slot))
+            end
+        end
         if acts and attr("type") == "macro" then
             local text = attr("macrotext")
+            local useItem = type(text) == "string" and string.match(text, "^/use%s+(%d+%s+%d+)$")
             if text == "/reload" then ReloadUI()
+            elseif useItem then useBagItem(useItem)
             elseif type(text) == "string" then slashLine(text) end
+        end
+        -- SECURE_ACTIONS.item (SecureTemplates.lua): an item that can be worn and
+        -- isn't is equipped by name, whatever else it does; anything else is used.
+        if acts and attr("type") == "item" then
+            local item = attr("item")
+            local bag, slot = string.match(item or "", "^(%d+)%s+(%d+)$")
+            local name = bag and C_Container and C_Container.GetContainerItemLink
+                and C_Container.GetContainerItemLink(tonumber(bag), tonumber(slot)) or item
+            if name and C_Item and C_Item.IsEquippableItem and C_Item.IsEquippableItem(name)
+                and not (C_Item.IsEquippedItem and C_Item.IsEquippedItem(name)) then
+                if C_Item.EquipItemByName then C_Item.EquipItemByName(name) end
+            else
+                useBagItem(item)
+            end
         end
         -- Type "spell": a test world that cares what a cast does sets stub.CastSpell.
         if acts and attr("type") == "spell" and stub.CastSpell then stub.CastSpell(attr("spell")) end
@@ -2567,6 +2592,12 @@ local BASE_TEMPLATES = {
         f.__attrs["ping-receiver"] = true
     end,
     ActionBarButtonTemplate = actionButton,
+    -- Blizzard_FrameXMLUtil/Mainline/Cooldown.xml: setAllPoints="true", so a new
+    -- cooldown already covers its parent; points set after it add to those two.
+    CooldownFrameTemplate = function(f)
+        local p = f.__parent
+        f.__points = { { "TOPLEFT", p, "TOPLEFT", 0, 0 }, { "BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, 0 } }
+    end,
     SecureHandlerBaseTemplate = function(f) f.__protected = true end,
     -- SecureHandlers.lua: OnClick runs the frame's "_onclick" snippet (self,
     -- button, down), then the client's PostClick runs the addon's script.
@@ -3739,6 +3770,29 @@ function stub.Reset()
         local f = new("StatusBar", n, _G.UIParent)
         function f:SetUnit(u) self.__castUnit = u; self.__setUnitCalled = true end
         f:RegisterEvent("UNIT_SPELLCAST_START")
+    end
+    -- The player cast bar the profession window borrows while you craft
+    -- (CastingBarFrame.lua, OverlayPlayerCastingBarMixin): it stands in for
+    -- PlayerCastingBarFrame over the given frame and shows on the next player
+    -- cast its own events hear.
+    local overlay = new("StatusBar", "OverlayPlayerCastingBarFrame", _G.UIParent)
+    overlay:Hide()
+    function overlay:SetUnit(u) self.__castUnit = u; self.__setUnitCalled = true end
+    overlay:RegisterEvent("UNIT_SPELLCAST_START")
+    overlay:SetScript("OnEvent", function(self, _, unit)
+        if unit == "player" and self.showCastbar then self:Show() end
+    end)
+    function overlay:StartReplacingPlayerBarAt(parent)
+        _G.PlayerCastingBarFrame.showCastbar = false
+        self:SetParent(parent)
+        self:SetFrameStrata("HIGH")
+        self.showCastbar = true
+    end
+    function overlay:EndReplacingPlayerBar()
+        self.showCastbar = false
+        self:Hide()
+        self:SetParent(_G.UIParent)
+        _G.PlayerCastingBarFrame.showCastbar = true
     end
     -- The swing timer API: speeds and the target's reach set by hand, the spells
     -- queued for the next swing, and the game's own swing bars.

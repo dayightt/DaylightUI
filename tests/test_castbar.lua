@@ -420,6 +420,27 @@ T.test("a cast bar of its own can angle its left end, its right end, or both", f
     T.eq(Style.GetSlant(ns.playerCastbar).side, "both", "yours, with its right end on by default")
 end)
 
+-- A player's report: with the icon on, the cast's first stretch filled hidden
+-- behind the icon, so a cast looked like it hadn't started.
+T.test("with the spell icon on, the fill starts past the icon, never under it", function()
+    local DUI, ns = stub.Load({ module = true })
+    DUI:Set("UnitFrames", "playerCastbar.at", "free")
+    DUI:Set("UnitFrames", "playerCastbar.showIcon", true)
+    DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    DUI:Set("UnitFrames", "targetCastbar.slantLeft", true)
+    stub.RunTimers()
+    for _, h in ipairs({ ns.playerCastbar, ns.targetCastbarFree }) do
+        T.truthy(h.icon:IsShown(), "the icon shows")
+        local _, _, _, ix = h.icon:GetPoint(1)
+        local _, _, _, bx = h.bar:GetPoint(1)
+        T.truthy(bx >= ix + h.icon:GetWidth() - 0.01, "the fill starts at the icon's right edge")
+    end
+    DUI:Set("UnitFrames", "playerCastbar.showIcon", false)
+    stub.RunTimers()
+    local _, _, _, bx, by = ns.playerCastbar.bar:GetPoint(1)
+    T.near(bx, -by, 0.01, "no icon: the fill runs the whole bar, inside the border")
+end)
+
 T.test("a cast bar of its own can flip each angled end on its own", function()
     local DUI, ns = stub.Load({ module = true })
     local Style = DaylightUI.Style

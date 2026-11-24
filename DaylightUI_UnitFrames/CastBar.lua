@@ -220,7 +220,7 @@ function CB.Create(unit, attachTo, into, opts)
     local overlay = CreateFrame("Frame", nil, h)
     overlay:SetAllPoints(h)
     overlay:SetFrameLevel(h.bar:GetFrameLevel() + 3)
-    -- The spell icon sits over the bar, so the fill can run under it.
+    -- The spell icon sits over the bar's level; the fill starts past it (CB.Layout).
     if not attachTo then
         h.icon = overlay:CreateTexture(nil, "ARTWORK")
         Style.CropIcon(h.icon)
@@ -570,8 +570,8 @@ function CB.Layout(h, cfg, parentCfg)
         end
     end
     if h.under and not h.inFrame then DUI.Movers.Suspend(h.moverKey, at ~= "free") end
-    -- The fill runs the whole bar (under a portrait ring, if any). The icon and
-    -- text start past the ring.
+    -- The fill runs the whole bar (under a portrait ring, if any), or starts
+    -- past the spell icon. The icon and text start past the ring.
     h.bar:ClearAllPoints()
     h.bar:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
     h.bar:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
@@ -585,6 +585,9 @@ function CB.Layout(h, cfg, parentCfg)
         h.icon:SetSize(s, s)
         h.icon:Show()
         contentLead = lead + s
+        -- The fill starts past the icon: run under it, a cast's first stretch
+        -- filled out of sight and the bar looked like nothing had started.
+        h.bar:SetPoint("TOPLEFT", h, "TOPLEFT", T + contentLead, -T)
     elseif h.icon then
         h.icon:Hide()
     end
