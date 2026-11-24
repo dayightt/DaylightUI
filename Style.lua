@@ -3334,9 +3334,11 @@ function Style.Text(parent, size, justify, font)
     return fs
 end
 
+-- Layouts call this on every pass (a nameplate on every add), so a text whose
+-- font, size, outline and shadow already match is left as it is.
 function Style.SetTextSize(fs, size)
     textSize[fs] = size
-    Style.ApplyFont(fs)
+    repaintFont(fs)
 end
 
 -- Removes a shell or FontString from the repaint sets, for pieces the client

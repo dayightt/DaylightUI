@@ -1136,6 +1136,32 @@ T.test("style: the text outline and shadow are settings", function()
     T.eq(fs.__shadowColor and fs.__shadowColor[4] or 0, 0, "no shadow")
 end)
 
+T.test("style: SetTextSize leaves a text alone when its size is the same, and still follows a change", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    local fs = S.Text(UIParent, 12)
+    -- A nameplate lays out its texts again on every add; the font only changes when its look does.
+    local writes = 0
+    local setFont, setObj = fs.SetFont, fs.SetFontObject
+    fs.SetFont = function(...) writes = writes + 1; return setFont(...) end
+    fs.SetFontObject = function(...) writes = writes + 1; return setObj(...) end
+    S.SetTextSize(fs, 12)
+    S.SetTextSize(fs, 12)
+    T.eq(writes, 0, "same size: no font written")
+    S.SetTextSize(fs, 15)
+    T.truthy(writes > 0, "a new size is written")
+    T.eq(fs.__font[2], 15)
+    DUI:Set("general", "fontScale", 2)
+    stub.RunTimers()
+    T.eq(fs.__font[2], 30, "Text size still follows")
+    writes = 0
+    S.SetTextSize(fs, 15)
+    T.eq(writes, 0, "after a repaint, same size: nothing")
+    DUI:Set("general", "textOutline", "THICKOUTLINE")
+    S.SetTextSize(fs, 15)
+    T.eq(fs.__font[3], "THICKOUTLINE", "a changed outline is put on even before the repaint runs")
+end)
+
 T.test("style: DressText puts our font on someone else's text and keeps it up with the settings", function()
     local DUI = stub.Load()
     local S = DUI.Style
