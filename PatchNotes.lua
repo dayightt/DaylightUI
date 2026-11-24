@@ -14,11 +14,13 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Unit frames", "The swing timer and your cast bar can fade like the frames do (Opacity & fade on their pages)" },
         { "Cooldown Manager", "A Cooldown Manager button in the Escape menu, under Daylight UI's" },
+        { "Cooldown Manager", "A glow color you picked can go back to following your accent color, with the reset arrow beside it" },
     }, changed = {
         { "Unit frames", "The target frame's fade drops Show with a target, which it always has; if you had it on, it's now Always" },
     }, fixed = {
         { "Unit frames", "A faded target or focus cast bar no longer flashes fully visible when a cast starts" },
         { "Nameplates", "/dui platefix tells you when nameplates are simply switched off in the game's options" },
+        { "Translations", "The newest settings in Simplified Chinese (thanks Levis) and Spanish (thanks Ángel)" },
     } },
     { version = "2.2.5", date = "2026-11-23", summary = "A frameless round minimap, a language picker, new zone title and micro menu looks, and spell colors for your cast bar.", new = {
         { "Info panel", "A frameless round minimap, and a damage meter that can slide out below or above it" },
