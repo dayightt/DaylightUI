@@ -323,7 +323,14 @@ T.test("rich tooltip: a player's card, banner first", function()
     T.eq(#head.tags, 2)
     T.eq(stub.Text(head.tags[1].text), "MAGE", "spec unknown: the class")
     T.eq(stub.Text(head.right), "60", "the level on the right, as on a creature's card")
-    T.rgb({ head.right:GetTextColor() }, { DaylightUI.Style.ClassTextColor("MAGE") }, "the level in their class color")
+    T.rgb({ head.right:GetTextColor() }, DaylightUI.Style.INK.WARN, "the level by how hard they are for you")
+    -- When the game can't say how hard: their class color.
+    local real = DaylightUI.LevelColor
+    DaylightUI.LevelColor = function() return nil end
+    local text, ink = stub.tooltip.RichWorld.Level("mouseover")
+    DaylightUI.LevelColor = real
+    T.eq(text, "60")
+    T.rgb(ink, { DaylightUI.Style.ClassTextColor("MAGE") }, "no difficulty: the class color")
     T.eq(stub.Text(head.tags[2].text), "NIGHT ELF")
     T.truthy(p.washColor, "the banner's class light")
     local rows = {}
@@ -2002,7 +2009,17 @@ T.test("rich tooltip: a mob's card, as the board lays it out", function()
     T.eq(head.icon.art.__portraitUnit, "mouseover", "its face as the icon")
     T.truthy(head.icon.art.__portraitSquare, "square: the card cuts the corner")
     T.eq(stub.Text(head.right), "23", "the level on the right")
-    T.rgb({ head.right:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "the level in its reaction's color")
+    T.rgb({ head.right:GetTextColor() }, DaylightUI.Style.INK.WARN, "the level by how hard it is for you, not its reaction")
+    -- Seen in game: a gray level 12 mob's card showed its level hostile red,
+    -- while its plate showed it gray.
+    stub.units.mouseover.difficulty = 0
+    p = Panel.Get(hoverBoar())
+    T.rgb({ p.items[1].right:GetTextColor() }, DaylightUI.Style.INK.OFF, "a trivial mob's level stays gray")
+    local real = DaylightUI.LevelColor
+    DaylightUI.LevelColor = function() return nil end
+    local _, ink = stub.tooltip.RichWorld.Level("mouseover")
+    DaylightUI.LevelColor = real
+    T.rgb(ink, { DaylightUI.Style.ReactionColor(2) }, "no difficulty and not a player: its reaction")
     T.eq(tagWords(head), "HOSTILE,BEAST,SKINNABLE")
     T.falsy(head.icon and head.icon.edge:IsShown(), "a plain mob's face has no edge")
     T.rgb({ head.tags[1].text:GetTextColor() }, { DaylightUI.Style.ReactionColor(2) }, "hostile in its color")

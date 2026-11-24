@@ -249,7 +249,17 @@ function World.Level(unit)
     local level = plain(UnitLevel(unit))
     if type(level) ~= "number" then return nil end
     if level <= 0 then return "??", Style.INK.BAD end
-    return tostring(level), World.Ink(DUI.LevelColor(unit, level))
+    -- How hard the unit is for you first; when the game can't say, a player's
+    -- class color, then the unit's reaction.
+    local c = DUI.LevelColor(unit, level)
+    if c then return tostring(level), World.Ink(c) end
+    if plain(UnitIsPlayer(unit)) == true then
+        local _, token = UnitClass(unit)
+        if type(token) == "string" and not isSecret(token) then return tostring(level), { Style.ClassTextColor(token) } end
+    end
+    local reaction = plain(UnitReaction(unit, "player"))
+    if type(reaction) == "number" then return tostring(level), { Style.ReactionColor(reaction) } end
+    return tostring(level), Style.INK.VALUE
 end
 
 -- The level as drawn: an elite's carries a gold "+", a rare's a silver "R"
@@ -368,12 +378,6 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     local Panel, Rich = ns.RichPanel, ns.Rich
     local own = ownCount(data, n)
     local level, levelColor = World.Level(unit)
-    -- The level in its reaction's color, like the tag under it. "??" (far
-    -- above you) keeps its warning red.
-    local reaction = plain(UnitReaction(unit, "player"))
-    if level and level ~= "??" and type(reaction) == "number" then
-        levelColor = { Style.ReactionColor(reaction) }
-    end
     local r = World.ReadMob(lines, own, level)
     -- No lines (the game hid them): its name from the unit, maybe secret.
     if n == 0 then r.title = DUI.UnitName(unit, "tooltip") or "" end
