@@ -22,6 +22,7 @@ DUI.PatchNotes = {
         { "Nameplates", "/dui platefix tells you when nameplates are simply switched off in the game's options" },
         { "Nameplates", "A little less stutter when a crowd of nameplates comes into view at once" },
         { "Chat", "The chat does far less work while you're not typing" },
+        { "Unit frames", "Portrait rings no longer look a pixel wider on one side at some sizes and UI scales" },
         { "Action bars", "Fade everything on a flight path fades the Request Stop button too (hover it to bring it back)" },
         { "Tooltips", "A recipe's tooltip shows the recipe's own sell price again, not the auction price of what it makes" },
         { "Translations", "The newest settings in Simplified Chinese (thanks Levis) and Spanish (thanks Ángel)" },

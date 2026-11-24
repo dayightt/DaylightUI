@@ -1736,7 +1736,8 @@ T.test("socket: the level badge sits where the ring meets the bar's bottom edge"
     T.eq(badge.__texture, ns.UF.LEVEL_TAG_FILE, "a slanted tag")
     T.near(badge:GetWidth(), 0.7 * R, 1e-6); T.near(badge:GetHeight(), 0.4 * R, 1e-6)
     local Rb = f.portrait.mask:GetWidth() / 2 / ns.Socket.PICTURE
-    T.near(x, 0.7 * R - Rb * ns.UF.PORTRAIT_OUT, 1e-6, "0.7 of the radius past the ring's middle")
+    local off = DUI.Pixel.Snap(f, Rb * ns.UF.PORTRAIT_OUT)
+    T.near(x, 0.7 * R - off, 1e-6, "0.7 of the radius past the ring's middle (on a whole pixel)")
     T.rgb(badge.__vertex, { 1, 1, 1 }, "its own colors, untinted")
     DUI:Set("UnitFrames", "player.portraitLook", "classic")
     stub.RunTimers()
@@ -2096,4 +2097,39 @@ T.test("target of target, focus target and pet: a portrait when picked, off by d
     T.eq(tot.portrait.icon.__texture, DUI.MEDIA .. "class\\hunter.tga")
     T.truthy(pet.portrait:IsShown(), "the pet's face")
     T.truthy(tot.__hitRect[1] < 0 or tot.__hitRect[2] < 0, "the ring is clickable")
+end)
+
+-- At a UI scale like 0.71 on a 1080-line screen, the ring's middle sat half a
+-- pixel off and its picture an odd number of pixels wide at some Portrait
+-- sizes (100, 105, 110 %), so one side drew a pixel wider than the other.
+T.test("the ring's middle and picture land on whole pixels at any portrait size and UI scale", function()
+    local DUI, ns = login(function()
+        stub.physW, stub.physH = 2560, 1080
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF, Pixel = ns.UF, DUI.Pixel
+    Pixel.Refresh()
+    UIParent:SetScale(0.71)
+    local f = ns.frames.player
+    local p = f.portrait
+    local function whole(v, what)
+        local px = v / Pixel.Unit(f)
+        T.near(px, math.floor(px + 0.5), 1e-3, what .. " is " .. px .. " px")
+    end
+    for _, look in ipairs({ "classic", "socket" }) do
+        DUI:Set("UnitFrames", "player.portraitLook", look)
+        for _, scale in ipairs({ 0.95, 1, 1.05, 1.1, 1.15 }) do
+            DUI:Set("UnitFrames", "player.portraitScale", scale)
+            stub.RunTimers()
+            UF.UpdateAll(f, true)
+            local _, _, _, x, y = p:GetPoint(1)
+            local label = look .. " at " .. scale
+            whole(x, label .. ": the middle across")
+            whole(y, label .. ": the middle up")
+            -- Centered on a whole pixel, the ring's picture draws the same on both sides.
+            local rp, rrel, rrp, rx, ry = p.ring:GetPoint(1)
+            T.eq(rp, "CENTER"); T.eq(rrel, p); T.eq(rrp, "CENTER"); T.eq(rx, 0); T.eq(ry, 0)
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

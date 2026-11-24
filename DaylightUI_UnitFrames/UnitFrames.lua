@@ -2076,7 +2076,7 @@ function UF.LayoutPortrait(f, cfg)
         -- As tall as the whole frame with its row and line, centered on it.
         local up, down = f.hitTop or 0, f.foot or 0
         R = Pixel.Snap(f, (f:GetHeight() + up + down) * f.ringShare * scale)
-        f.portraitY = (up - down) / 2
+        f.portraitY = Pixel.Snap(f, (up - down) / 2)
     else
         R = Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * scale / 2)
         f.portraitY = 0
@@ -2085,8 +2085,9 @@ function UF.LayoutPortrait(f, cfg)
         f.portraitY = 0
         holder:SetScale(DUI.Movers.Scale(holder.key))
     end
-    -- Its middle sits where the classic ring's does.
-    local off = R * UF.PORTRAIT_OUT
+    -- Its middle sits where the classic ring's does, on a whole pixel: half a
+    -- pixel off, the ring drew a pixel wider on one side.
+    local off = Pixel.Snap(f, R * UF.PORTRAIT_OUT)
     local shapeArt = UF.ShapeArt(cfg.portraitShape, outerRight)
     -- Set into the frame, the ring is built from the inside out on the classic
     -- ring's radius: the picture keeps its size and the frame's border goes
