@@ -730,6 +730,42 @@ T.test("social: recent allies under Pinned (and legacy friends) and Recent, the 
     clean()
 end)
 
+T.test("social: a recent ally's class comes from C_CreatureInfo when C_ClassInfo is missing", function()
+    local ns = load()
+    local creature = _G.C_CreatureInfo or {}
+    _G.C_CreatureInfo = creature
+    local was, classInfo = creature.GetClassInfo, _G.C_ClassInfo
+    _G.C_ClassInfo = nil
+    creature.GetClassInfo = function(id) return { className = "Mage", classFile = "MAGE", classID = id } end
+    local list = ns.Data.Allies()
+    _G.C_ClassInfo, creature.GetClassInfo = classInfo, was
+    T.truthy(#list > 0)
+    for _, a in ipairs(list) do T.eq(a.class, "MAGE", a.name) end
+    clean()
+end)
+
+T.test("social: a recent ally's tooltip has the level in the class color and the zone on its own line", function()
+    local ns = load()
+    open(ns)
+    _G.GameTooltip = _G.GameTooltip or CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    local Tips, texts, was = DaylightUI.Tips, {}, DaylightUI.Tips.Text
+    Tips.Text = function(t, ...) texts[#texts + 1] = t; return was(t, ...) end
+    local subs, wasSub = {}, Tips.Sub
+    Tips.Sub = function(t, ...) subs[#subs + 1] = t; return wasSub(t, ...) end
+    local lines, wasLine = {}, Tips.Line
+    Tips.Line = function(l, v, ...) lines[l] = v; return wasLine(l, v, ...) end
+    ns.Allies.Tip(ns.Window.frame, { name = "Elia Hania", class = "MAGE", level = 15, what = "Whispered", online = true,
+        location = "The Deadmines, a very long place name" })
+    Tips.Text, Tips.Sub, Tips.Line = was, wasSub, wasLine
+    T.truthy(subs[1]:find("|cff", 1, true) and subs[1]:find("15", 1, true), "the level in the class color")
+    T.isnil(lines["Zone"], "no label and value to be cut")
+    local found
+    for _, t in ipairs(texts) do if t == "The Deadmines, a very long place name" then found = true end end
+    T.truthy(found, "the zone alone on a line")
+    T.truthy(#texts >= 2 and texts[1] == "Whispered", "what it was, alone on its line")
+    clean()
+end)
+
 T.test("social: an ally picked: Invite and Whisper by name, Pin keeps them (a shine as they move up)", function()
     local ns = load()
     open(ns)

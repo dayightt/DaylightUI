@@ -38,9 +38,20 @@ function Allies.Tip(owner, a)
     T.Clear()
     local r, g, b = Style.ClassTextColor(a.class)
     T.Title(a.name, r, g, b)
-    T.Sub(((a.level and string.format(L["Level %s"], a.level) .. " ") or "") .. Rows().ClassWord(a.class))
-    T.Text(a.what .. (a.when and (" · " .. Data().Ago(a.when)) or ""))
-    if a.location and a.online then T.Line(L["Zone"], a.location) end
+    -- Level (its number in the class color) and class, as the Friends tooltip has them.
+    local who = Rows().ClassWord(a.class)
+    if a.level then who = string.format(L["Level %s"], DUI.Win.Parts.Hex({ r, g, b }) .. a.level .. "|r") .. " " .. who end
+    T.Sub(who)
+    -- The race with its faction in parentheses, as the Friends tooltip has it.
+    local faction = a.faction and (a.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+    if a.race or faction then
+        T.Sub((a.race or "") .. ((a.race and faction) and " " or "") .. (faction and ("(" .. faction .. ")") or ""))
+    end
+    -- What it was and when, on two lines: a long "what" pushed the time onto a line of its own anyway.
+    T.Text(a.what)
+    if a.when then T.Text(Data().Ago(a.when), Style.INK.LABEL) end
+    -- The zone on its own line, not beside a label: a long one was cut short.
+    if a.location and a.online then T.Text(a.location) end
     if a.note then T.Line(L["Note"], a.note) end
     if a.pinned then T.Text(L["Pinned: kept on your list"], Style.INK.LABEL) end
     T.Gap()
