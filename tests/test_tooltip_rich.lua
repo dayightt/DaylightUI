@@ -2238,6 +2238,29 @@ T.test("rich tooltip: an item's effects sit a little apart from its stats", func
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("rich tooltip: food reads in a few words on its card, under the short stats switch", function()
+    local _, Panel = login("rich")
+    items()
+    local FOOD = "Use: Restores 530 health over 24 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and gain 5 Stamina and 5% increased experience from kills for 15 min."
+    local function said()
+        local p, out = Panel.Get(GameTooltip), {}
+        for _, t in ipairs(kinds(p, "text")) do
+            out[#out + 1] = (stub.Text(t.fs):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", ""))
+        end
+        return out
+    end
+    fillItem(GameTooltip, "cloth", { "Smoked Bear Meat", { FOOD, nil, GREEN } })
+    local out = said()
+    T.eq(out[1], "Use: 530 health over 24 sec")
+    T.eq(out[2], "Well Fed: +5 Stamina, +5% XP (15 min)")
+    DaylightUI:Set("Tooltip", "greenStats", false)
+    stub.RunTimers()
+    GameTooltip:Hide()
+    fillItem(GameTooltip, "cloth", { "Smoked Bear Meat", { FOOD, nil, GREEN } })
+    T.eq(said()[1], FOOD, "off: the game's sentence")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Binding and Unique are tags under the name. Long ones go on a second row
 -- rather than past the card's edge.
 T.test("rich tooltip: an item's binding and Unique tags wrap onto a second row", function()

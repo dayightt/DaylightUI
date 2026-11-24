@@ -481,12 +481,25 @@ local function sort(n, lines, own, info, groups)
         elseif isGreen(c) or trigger(t) then
             local word, rest = trigger(t)
             local short = word == (ITEM_SPELL_TRIGGER_ONEQUIP or "Equip:") and Tip.ShortText(rest) or nil
+            local use, fed
+            if word == (ITEM_SPELL_TRIGGER_ONUSE or "Use:") and Tip.ShortsOn() then use, fed = Tip.ShortUse(rest) end
             if short then
                 for part in (short .. "\n"):gmatch("(.-)\n") do
                     local num, name, color = Items.Stat(part)
                     if num then
                         color = color or Style.INK.GOOD
                         g.list[#g.list + 1] = function(p) numLine(p, num, name, color) end
+                    end
+                end
+            elseif use then
+                -- Food, drink, potions: what it restores, then the well fed buff.
+                local good = hex(Style.INK.GOOD)
+                g.effects[#g.effects + 1] = function(p)
+                    ns.RichPanel.Text(p, good .. word .. "|r " .. use, Style.INK.TEXT)
+                end
+                if fed then
+                    g.effects[#g.effects + 1] = function(p)
+                        ns.RichPanel.Text(p, good .. Tip.WELL_FED .. "|r " .. fed, Style.INK.TEXT)
                     end
                 end
             elseif word then

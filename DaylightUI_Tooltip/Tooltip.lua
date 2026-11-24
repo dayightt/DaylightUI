@@ -1016,6 +1016,112 @@ function Tip.PaintStats(text)
     return out
 end
 
+-- Food, drink, potions and bandages in a few words, the same idea as the
+-- short stats: "Use: Restores 530 health over 24 sec. Must remain seated
+-- while eating. If you spend at least 10 seconds eating you will become well
+-- fed and gain 5 Stamina for 15 min." reads "530 health over 24 sec" and
+-- "+5 Stamina (15 min)". English only, like the stats. Every sentence must
+-- be one it knows, or the line stays the game's.
+Tip.USE_RESTORES = {
+    { "^Restores ([%d,]+) health and ([%d,]+) mana over (%d+) sec$", "both" },
+    { "^Restores ([%d,]+%%?) (%a+) over (%d+) sec$", "over" },
+    { "^Restores ([%d,]+) to ([%d,]+) (%a+)$", "range" },
+    { "^Restores ([%d,]+%%?) (%a+)$", "now" },
+    { "^Heals ([%d,]+) damage over (%d+) sec$", "bandage" },
+}
+Tip.USE_SEATED = "^Must remain seated while %a+$"
+Tip.WELL_FED = L["Well Fed:"]
+Tip.USE_FED = "^If you spend at least %d+ seconds %a+ you will become well fed and gain (.+) for (%d+ %a+)$"
+
+-- A restored amount in the color of what it fills: health heal green, mana its power color.
+local function amount(n, what)
+    if what == "health" then return hex(Style.INK.GOOD) .. n .. "|r" end
+    if what == "mana" then return hex({ Style.PowerColor("MANA") }) .. n .. "|r" end
+end
+
+local function restored(sentence)
+    sentence = sentence:gsub("^Instantly r", "R")
+    for _, r in ipairs(Tip.USE_RESTORES) do
+        local a, b, c = sentence:match(r[1])
+        if a then
+            local kind = r[2]
+            if kind == "both" then
+                return string.format("%s health and %s mana over %s sec", amount(a, "health"), amount(b, "mana"), c)
+            elseif kind == "over" then
+                local n = amount(a, b)
+                return n and string.format("%s %s over %s sec", n, b, c)
+            elseif kind == "range" then
+                local n = amount(a .. "-" .. b, c)
+                return n and (n .. " " .. c)
+            elseif kind == "now" then
+                local n = amount(a, b)
+                return n and (n .. " " .. b)
+            else
+                return string.format("%s health over %s sec", amount(a, "health"), b)
+            end
+        end
+    end
+end
+
+local function titled(words)
+    return (words:gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end))
+end
+
+-- "5 Stamina and 5% increased experience from kills" -> "+5 Stamina, +5% XP",
+-- each in its color; "12 Stamina and Spirit" gives both 12. nil if any part is unknown.
+local fedParts = {}
+local function wellFed(gain, length)
+    local n, last = 0, nil
+    local list = gain:gsub(", and ", ", "):gsub(" and ", ", ")
+    for piece in list:gmatch("[^,]+") do
+        piece = piece:gsub("^%s+", ""):gsub("%s+$", "")
+        local part
+        local xp = piece:match("^(%d+)%% .*experience")
+        if xp then
+            part = hex({ Style.Pop() }) .. "+" .. xp .. "% XP|r"
+        else
+            local num, name = piece:match("^([%d,]+%%?) (%a[%a ]*)$")
+            if num then last = num else name = piece:match("^(%a[%a ]*)$") end
+            num = num or last
+            if not (num and name) then
+                for i = n, 1, -1 do fedParts[i] = nil end
+                return nil
+            end
+            name = titled(name)
+            part = hex(Tip.StatColor(name) or { Style.Pop() }) .. "+" .. num .. " " .. name .. "|r"
+        end
+        n = n + 1
+        fedParts[n] = part
+    end
+    local out = table.concat(fedParts, ", ", 1, n)
+    for i = n, 1, -1 do fedParts[i] = nil end
+    local secs = tonumber(length:match("^(%d+) sec$"))
+    if secs and secs >= 60 and secs % 60 == 0 then length = (secs / 60) .. " min" end
+    return n > 0 and (out .. " (" .. length .. ")") or nil
+end
+
+-- The words after "Use:" as (what it restores, the well fed buff or nil), or nil to leave the line.
+function Tip.ShortUse(rest)
+    if type(rest) ~= "string" then return nil end
+    local text = rest:gsub("%.%s*$", "")
+    local use, fed
+    for sentence in (text .. ". "):gmatch("(.-)%.%s+") do
+        if sentence:find(Tip.USE_SEATED) then
+            -- Said by every food and drink: dropped.
+        elseif not use and restored(sentence) then
+            use = restored(sentence)
+        else
+            local gain, length = sentence:match(Tip.USE_FED)
+            fed = not fed and gain and wellFed(gain, length) or nil
+            if not fed then return nil end
+        end
+    end
+    if use then return use, fed end
+end
+
+-- Whether item lines are shortened (the "Short, colored item stats" switch).
+function Tip.ShortsOn() return cfg and cfg.greenStats and true or false end
+
 -- An item's stat lines: green Equip sentences shortened, then those and the
 -- game's white "+10 Stamina" / "+5 Fire Resistance" lines colored.
 function Tip.ShortenStats(tip)
@@ -1028,7 +1134,16 @@ function Tip.ShortenStats(tip)
         -- first, so other lines cost no pattern match.
         local short = Tip.ShortStat(text)
         local painted = Tip.PaintStats(short or text)
-        if painted then
+        local useWord = type(ITEM_SPELL_TRIGGER_ONUSE) == "string" and ITEM_SPELL_TRIGGER_ONUSE or "Use:"
+        local use, fed
+        if not (short or painted) and type(text) == "string" and text:sub(1, #useWord) == useWord then
+            use, fed = Tip.ShortUse((text:sub(#useWord + 1):gsub("^%s+", "")))
+        end
+        if use then
+            local c = Style.INK.GOOD
+            line:SetText(useWord .. " " .. use .. (fed and ("\n" .. Tip.WELL_FED .. " " .. fed) or ""))
+            line:SetTextColor(c[1], c[2], c[3])
+        elseif painted then
             line:SetText(painted)
         elseif short then
             local c = Style.INK.GOOD

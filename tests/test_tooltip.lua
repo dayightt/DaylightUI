@@ -1360,6 +1360,45 @@ T.test("tooltip: short item stats, on out of the box, procs left alone", functio
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("tooltip: food, drink, potions and bandages in a few words, under the short stats switch", function()
+    login(itemWorld)
+    local at = withLines(GameTooltip)
+    local Item = Enum.TooltipDataType.Item
+    local function words(i) return (at(i):GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    local FOOD = "Use: Restores 530 health over 24 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and gain 5 Stamina and 5% increased experience from kills for 15 min."
+    local OLD_FOOD = "Use: Restores 1,338 health over 27 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and gain 12 Stamina and Spirit for 900 sec."
+    local LONG = "Use: Restores 2,148 health over 30 sec. Must remain seated while eating. If you spend at least 10 seconds eating you will become well fed and restore 8 mana every 5 seconds for 10 min."
+    fill(GameTooltip, Item, { id = 1001, hyperlink = "food" }, {
+        "Smoked Bear Meat", FOOD, OLD_FOOD,
+        "Use: Restores 1,344 mana over 30 sec. Must remain seated while drinking.",
+        "Use: Restores 900 health and 900 mana over 30 sec. Must remain seated while eating.",
+        "Use: Restores 455 to 585 health.",
+        "Use: Instantly restores 700 to 900 mana.",
+        "Use: Heals 400 damage over 8 sec.",
+        LONG,
+        "Use: Returns you to your home.",
+    })
+    T.eq(words(2), "Use: 530 health over 24 sec\nWell Fed: +5 Stamina, +5% XP (15 min)")
+    T.eq(words(3), "Use: 1,338 health over 27 sec\nWell Fed: +12 Stamina, +12 Spirit (15 min)", "an old food's both stats, seconds read as minutes")
+    T.eq(words(4), "Use: 1,344 mana over 30 sec", "a drink")
+    T.eq(words(5), "Use: 900 health and 900 mana over 30 sec", "a mage's food")
+    T.eq(words(6), "Use: 455-585 health", "a potion")
+    T.eq(words(7), "Use: 700-900 mana", "a mana potion")
+    T.eq(words(8), "Use: 400 health over 8 sec", "a bandage")
+    T.eq(at(9):GetText(), LONG, "a sentence it can't read stays whole")
+    T.eq(at(10):GetText(), "Use: Returns you to your home.", "other use effects stay")
+    local hex = DaylightUI.Win.Parts.Hex
+    local Style, Tip = DaylightUI.Style, stub.tooltip.Tooltip
+    T.truthy(at(2):GetText():find(hex(Style.INK.GOOD) .. "530|r", 1, true), "health in heal green")
+    T.truthy(at(4):GetText():find(hex({ Style.PowerColor("MANA") }) .. "1,344|r", 1, true), "mana in mana's color")
+    T.truthy(at(2):GetText():find(hex(Tip.STAT_COLORS.Stamina) .. "+5 Stamina|r", 1, true), "a stat in its color")
+    DaylightUI:Set("Tooltip", "greenStats", false)
+    stub.RunTimers()
+    fill(GameTooltip, Item, { id = 1001, hyperlink = "food" }, { "Smoked Bear Meat", FOOD })
+    T.eq(at(2):GetText(), FOOD, "off: the game's sentence")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("tooltip: item stats keep their colors in other languages", function()
     -- The game's own stat formats, as a German and a Korean client have them.
     local saved = {}

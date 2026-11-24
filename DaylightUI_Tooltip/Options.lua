@@ -143,7 +143,7 @@ ns.OPTIONS = { pages = {
         } },
         { label = "Item and spell lines", items = {
             { type = "toggle", key = "greenStats", label = "Short, colored item stats",
-              desc = "An item's green Equip lines in a few words (\"Improves your chance to hit by 1%\" reads \"+1% Hit\"), and every stat in a color of its own: each school, hit, crit, spell power, healing, the base stats. Procs and use effects stay as they are.",
+              desc = "An item's green Equip lines in a few words (\"Improves your chance to hit by 1%\" reads \"+1% Hit\"), and every stat in a color of its own: each school, hit, crit, spell power, healing, the base stats. Food, drink, potions and bandages too (\"530 health over 24 sec\", \"Well Fed: +5 Stamina (15 min)\"). Procs and other use effects stay as they are.",
               hidden = function(get) return get("style") == "rich" end },
             { type = "toggle", key = "itemLevel", label = "Item level line",
               desc = "An Item Level line on weapon and armor tooltips, in soft gold.",
