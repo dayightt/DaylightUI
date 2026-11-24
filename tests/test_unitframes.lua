@@ -2386,3 +2386,40 @@ T.test("a secret name keeps to the Max name length by width", function()
     T.truthy(t.nameText:GetWidth() < 4 * 7 + 6, "the name as wide as 4 letters")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- A player's ask: the power bar as tall as the health, side by side with the
+-- portrait between them. The power slider stopped at 20 while health went to 80.
+T.test("the power bar height goes as high as the frame's height, and lays out that tall", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    local O = DUI.Options
+    local function row(pageId, label)
+        for _, g in ipairs(O.GetPage(pageId).groups) do
+            for _, it in ipairs(g.items) do
+                if it.label == label then return it end
+            end
+        end
+    end
+    for _, page in ipairs({ "player", "target", "focus", "party" }) do
+        local h, p = row("UnitFrames." .. page, "Height"), row("UnitFrames." .. page, "Power bar height")
+        T.truthy(h and p, page)
+        T.eq(p.max, h.max, page .. ": power goes as high as health")
+    end
+    T.eq(ns.DEFAULTS.player.powerHeight, 11, "the default stays")
+    DUI:Set("UnitFrames", "player.powerAt", "free")
+    DUI:Set("UnitFrames", "player.powerHeight", 43)
+    stub.RunTimers()
+    local bar = DaylightUIPowerBar_player
+    T.truthy(bar and bar:IsShown(), "the free power bar shows")
+    T.truthy(bar:GetHeight() >= DaylightUI.Pixel.Snap(bar, 43) - 0.01, "as tall as asked")
+end)
+
+T.test("a tile that can't grow keeps some health under a power bar taller than it", function()
+    local _, ns = stub.Load({ module = true, login = false })
+    local f = ns.UF.Create(PLAYER)
+    f:SetSize(100, 30)
+    ns.UF.Layout(f, { width = 100, height = 30, powerHeight = 60, showName = true, showPercent = true }, ns.DEFAULTS.playerText, true)
+    local px = DaylightUI.Pixel.Px(f, DaylightUI.Style.BorderPx(f))
+    T.truthy(f:GetHeight() - 2 * px - f.power:GetHeight() >= ns.UF.MIN_HEALTH, "health still shows")
+    T.truthy(f.power:GetHeight() < 30, "the power bar stops inside the tile")
+end)

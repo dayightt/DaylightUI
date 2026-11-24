@@ -881,6 +881,55 @@ function UF.CreatePortraitHolder(f)
     return h
 end
 
+-- A portrait on its own still targets on a left click and opens the unit's menu
+-- on a right click, like the frame. The holder is a plain frame of Daylight UI's
+-- (it hides and shows in a fight), so the click is a secure button inside the
+-- frame laid over the holder's spot: never anchored to the holder, since a
+-- protected frame can't be. It shows with its frame, so the unit watch drives it.
+-- Placed out of combat only: after a layout and after the holder's mover applies.
+function UF.PlacePortraitClick(f)
+    if InCombatLockdown() then return end
+    local h, b = f.portraitHolder, f.portraitClick
+    if not h then return end
+    if not f.portraitFree then
+        if b then b:Hide() end
+        return
+    end
+    if not b then
+        b = CreateFrame("Button", nil, f, "SecureUnitButtonTemplate")
+        b:SetAttribute("useparent-unit", true)
+        b:SetAttribute("*type1", "target")
+        b:SetAttribute("*type2", "togglemenu")
+        b:RegisterForClicks("AnyUp")
+        b:SetScript("OnEnter", function() UF.OnEnter(f) end)
+        b:SetScript("OnLeave", UF.OnLeave)
+        if type(ClickCastFrames) == "table" then ClickCastFrames[b] = true end
+        f.portraitClick = b
+    end
+    -- The holder's offsets are in its own scale, the button's in the frame's.
+    local k = h:GetEffectiveScale() / b:GetEffectiveScale()
+    b:ClearAllPoints()
+    local placed = false
+    for i = 1, h:GetNumPoints() do
+        local point, rel, relPoint, x, y = h:GetPoint(i)
+        -- Only onto frames the button may anchor to: the screen or a secure frame.
+        if type(rel) == "nil" or rel == UIParent or (type(rel) == "table" and rel.IsProtected and rel:IsProtected()) then
+            b:SetPoint(point, rel or UIParent, relPoint, (x or 0) * k, (y or 0) * k)
+            placed = true
+        end
+    end
+    if not placed then
+        -- Held by another piece of Daylight UI's: stand on the same spot of the screen.
+        local cx, cy = h:GetCenter()
+        if not cx then b:Hide() return end
+        b:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cx * k, cy * k)
+    end
+    b:SetSize(h:GetWidth() * k, h:GetHeight() * k)
+    b:SetFrameStrata(h:GetFrameStrata())
+    b:SetFrameLevel(h:GetFrameLevel() + 20)
+    b:Show()
+end
+
 -- Each frame inside the portrait keeps its place above the portrait when the
 -- portrait changes level: its offset is noted the first time it is seen, before
 -- the portrait moves, and set again outright, so the ring stays over the band
@@ -1512,7 +1561,10 @@ function UF.Layout(f, cfg, text, keepSize)
         f.power:ClearAllPoints()
         f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T)
         f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
-        f.power:SetHeight(Pixel.Snap(f, cfg.powerHeight))
+        -- A tile sized by its header can't grow, so a tall power bar stops
+        -- where it would leave less than UF.MIN_HEALTH of health.
+        local room = f:GetHeight() - 2 * T - Pixel.Px(f, Style.SEPARATOR_PX) - Pixel.Snap(f, UF.MIN_HEALTH)
+        f.power:SetHeight(math.max(Pixel.Px(f, 1), math.min(Pixel.Snap(f, cfg.powerHeight), Pixel.Snap(f, room))))
         f.separator:ClearAllPoints()
         f.separator:SetPoint("BOTTOMLEFT", f.power, "TOPLEFT", 0, 0)
         f.separator:SetPoint("BOTTOMRIGHT", f.power, "TOPRIGHT", 0, 0)
@@ -1720,6 +1772,7 @@ function UF.Layout(f, cfg, text, keepSize)
     f.percentText:SetShown(cfg.showPercent == true)
 
     UF.LayoutPortrait(f, cfg)
+    UF.PlacePortraitClick(f)
     if f.backdrop then UF.LayoutBackdrop(f, cfg, side, cut) end
     f.crestOnTab = not (f.portrait and f.portrait:IsShown())
     f.showLevel, f.showLeader, f.showResting = cfg.showLevel ~= false, cfg.showLeader ~= false, cfg.showResting ~= false

@@ -516,10 +516,10 @@ T.test("the power bar's grips: its thickness, with the frame growing by as much"
     T.eq(pw.size.link.h.key, "target.height", "the frame grows with it, so the health bar keeps its size")
 end)
 
-T.test("raid tiles: the power bar goes to 20 px, the tile to 80 tall", function()
+T.test("raid tiles: the power bar goes to 80 px, as tall as the tile", function()
     local _, ns = load()
     local pw = byLabel(sample(ns, "raid").Parts())["Power bar"]
-    T.eq(pw.size.max.h, 20)
+    T.eq(pw.size.max.h, 80)
     T.eq(pw.size.link.h.max, 80)
 end)
 

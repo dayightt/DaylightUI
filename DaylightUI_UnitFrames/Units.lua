@@ -955,6 +955,10 @@ function ns.Build(mod)
                 list[#list + 1] = UF.CreatePortraitHolder(f)
                 local m = PORTRAIT_MOVERS[spec.unit]
                 DUI.Movers.Register(f.portraitHolder, UF.PORTRAIT_FREE[spec.unit], m[1], m[2])
+                -- The click over it follows the holder wherever it's put.
+                DUI.On("MoverApplied", function(key)
+                    if key == UF.PORTRAIT_FREE[spec.unit] then UF.PlacePortraitClick(f) end
+                end)
             end
             -- The pieces fade by the frame's own rules (its full health or mana wait).
             for i = 2, #list do list[i].fadeOf = f end

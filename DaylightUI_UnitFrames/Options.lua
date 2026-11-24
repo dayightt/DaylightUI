@@ -1863,8 +1863,9 @@ local function framePage(id, label, desc, opts)
             disabled = shown }
     end
     if opts.power then
-        frame[#frame + 1] = { type = "slider", key = k("powerHeight"), label = "Power bar height", min = 2, max = 20, step = 1,
-            desc = "How tall the power bar is.", disabled = powerOff, hidden = onLine }
+        frame[#frame + 1] = { type = "slider", key = k("powerHeight"), label = "Power bar height", min = 2, max = opts.maxHeight or 80,
+            step = 1, desc = "How tall the power bar is. Inside the frame, the frame grows to keep some health showing.",
+            disabled = powerOff, hidden = onLine }
         if styled then
             frame[#frame + 1] = { type = "slider", key = k("powerHeight"), label = "Power line height", min = 2, max = 20,
                 step = 1, desc = "The thin power bar under the health bar.", disabled = powerOff, hidden = noLine }
@@ -2629,7 +2630,7 @@ local function raidPage(size)
           desc = "The health bar fills bottom to top instead of across.", disabled = off("raid.enabled") },
         { type = "toggle", key = "raid.showPower", label = "Power bar",
           desc = "A thin mana, rage or energy bar at the foot of each tile.", disabled = off("raid.enabled") },
-        { type = "slider", key = "raid.powerHeight", label = "Power bar height", min = 2, max = 20, step = 1,
+        { type = "slider", key = "raid.powerHeight", label = "Power bar height", min = 2, max = 80, step = 1,
           desc = "How tall each tile's power bar is.", disabled = offAny("raid.enabled", "raid.showPower") },
         barRows("raid.media.power", "the raid tiles' power bars", "Power bar", offAny("raid.enabled", "raid.showPower"))[1],
         barRows("raid.media.power", "the raid tiles' power bars", "Power bar", offAny("raid.enabled", "raid.showPower"))[2],

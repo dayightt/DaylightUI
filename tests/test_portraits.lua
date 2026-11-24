@@ -2133,3 +2133,45 @@ T.test("the ring's middle and picture land on whole pixels at any portrait size 
     end
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- A player's ask: with the portrait on its own, a right click on it opened
+-- nothing; only the health bar opened the unit's menu.
+T.test("a portrait on its own targets and opens the unit's menu, and follows its holder", function()
+    local DUI, ns = login()
+    stub.RunTimers()
+    local f = ns.frames.target
+    T.isnil(f.portraitClick, "nothing made while the portrait sits on the frame")
+    DUI:Set("UnitFrames", "target.portraitAt", "free")
+    stub.RunTimers()
+    local b, h = f.portraitClick, f.portraitHolder
+    T.truthy(b, "a click button over the portrait")
+    T.eq(b:GetParent(), f, "inside the secure frame, so it shows with the unit")
+    T.truthy(b:IsProtected())
+    T.eq(b:GetAttribute("useparent-unit"), true)
+    T.eq(b:GetAttribute("*type1"), "target")
+    T.eq(b:GetAttribute("*type2"), "togglemenu")
+    local _, rel = b:GetPoint(1)
+    T.truthy(rel ~= h, "never anchored to the holder")
+    T.near(b:GetWidth() * b:GetEffectiveScale(), h:GetWidth() * h:GetEffectiveScale())
+    -- Moved in unlock mode: the click goes along.
+    DUI.DB.Positions()[ns.UF.PORTRAIT_FREE.target] = { 300, -50 }
+    DUI.Movers.Apply(ns.UF.PORTRAIT_FREE.target)
+    stub.RunTimers()
+    local hp, hrel, hrp, hx, hy = h:GetPoint(1)
+    local bp, brel, brp, bx, by = b:GetPoint(1)
+    T.eq(bp, hp); T.eq(brel, hrel); T.eq(brp, hrp)
+    local k = h:GetEffectiveScale() / b:GetEffectiveScale()
+    T.near(bx, hx * k); T.near(by, hy * k)
+    -- In a fight a move waits, nothing protected is touched.
+    stub.EnterCombat()
+    DUI.DB.Positions()[ns.UF.PORTRAIT_FREE.target] = { 100, 0 }
+    DUI.Movers.Apply(ns.UF.PORTRAIT_FREE.target)
+    stub.LeaveCombat()
+    stub.RunTimers()
+    _, _, _, bx = b:GetPoint(1)
+    T.near(bx, (select(4, h:GetPoint(1))) * k)  -- caught up after the fight
+    DUI:Set("UnitFrames", "target.portraitAt", "frame")
+    stub.RunTimers()
+    T.falsy(b:IsShown(), "back on the frame, the frame's own click is enough")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
