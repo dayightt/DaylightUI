@@ -3550,3 +3550,47 @@ T.test("rich spells: the school is a whole word, not part of one", function()
     _G.GetLocale, _G.STRING_SCHOOL_FIRE = get, "Fire"
     T.eq(de and de.key, "Fire", "German joins the school onto the damage word")
 end)
+
+-- The profession window's result icon fills the tooltip again from its own
+-- OnUpdate every frame (Blizzard_ProfessionsRecipeSchematicForm: OnEnter sets
+-- an OnUpdate that calls SetRecipeResultItem), anchored ANCHOR_RIGHT, so the
+-- card is pinned by its bottom. Auction addons add their lines in the fill
+-- and more after the game's Show, then Show again. Seen in game: their lines
+-- stood over and above the card, never in it.
+T.test("rich tooltip: a profession result refilled every frame keeps auction lines in the card", function()
+    local _, Panel = login("rich")
+    items()
+    local icon = CreateFrame("Button", nil, UIParent)
+    local function check(what, rows)
+        local bad = {}
+        for i = 1, GameTooltip:NumLines() do
+            for _, side in ipairs({ "Left", "Right" }) do
+                local fs = _G["GameTooltipText" .. side .. i]
+                if fs:GetText() and fs:GetAlpha() ~= 0 then bad[#bad + 1] = side .. i .. ":" .. tostring(fs:GetText()) end
+            end
+        end
+        T.eq(table.concat(bad, ","), "", what .. ": the game's lines muted")
+        T.eq(Panel.Get(GameTooltip).count, rows, what .. ": the card's rows")
+        local p = Panel.Get(GameTooltip)
+        T.near(GameTooltip:GetHeight(), p.wantH * p:GetScale(), 0.01, what .. ": fitted to the card")
+    end
+    local function frame(first)
+        if not first then update() end
+        fillItem(GameTooltip, "legplates", LEGPLATES, function(t)
+            t:AddDoubleLine("Auction", "6s 45c")
+        end)
+        GameTooltip.__owner, GameTooltip.__anchor = icon, "ANCHOR_RIGHT"
+        GameTooltip:AddLine("TSM AuctionDB")
+        GameTooltip:AddDoubleLine("  Min Buyout", "6s 45c")
+        GameTooltip:AddDoubleLine("  Region Sale Avg", "3s 14c")
+        GameTooltip:Show()
+    end
+    frame(true)
+    local rows = Panel.Get(GameTooltip).count
+    for k = 1, 3 do
+        frame(false)
+        check("frame " .. k, rows)
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
