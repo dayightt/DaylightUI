@@ -244,6 +244,15 @@ function B.UpdateCooldown(f)
     f.Timer:Clear()
 end
 
+-- The countdown numbers end where a buff bar's time does, 4 px in from the right.
+local function rightNumbers(t)
+    local fs = t.GetCountdownFontString and t:GetCountdownFontString()
+    if type(fs) ~= "table" or not fs.SetPoint then return end
+    fs:ClearAllPoints()
+    fs:SetPoint("RIGHT", t, "RIGHT", -4, 0)
+    if fs.SetJustifyH then fs:SetJustifyH("RIGHT") end
+end
+
 -- Applies the time size, color and the block's time toggle to the countdown numbers.
 local function dressTimer(f, block)
     local Look = ns.CdmData.Look
@@ -257,6 +266,7 @@ local function dressTimer(f, block)
     if type(fs) == "table" then
         Style.DressText(fs, t.timeSize, { slot = ns.MEDIA.font })
         CD.Ink(fs, c)
+        rightNumbers(f.Timer)
     end
 end
 
@@ -271,6 +281,9 @@ end
 -- count, on a cooldown bar or under an aura bar.
 local function addTimer(f)
     local t = CreateFrame("Cooldown", nil, f.Bar, "CooldownFrameTemplate")
+    -- The template covers its parent; without clearing that the box spans the whole
+    -- bar and the numbers sit in its middle, over the name.
+    t:ClearAllPoints()
     t:SetPoint("TOPRIGHT", f.Bar, "TOPRIGHT", 0, 0)
     t:SetPoint("BOTTOMRIGHT", f.Bar, "BOTTOMRIGHT", 0, 0)
     t:SetWidth(B.TIME_W)
@@ -279,6 +292,7 @@ local function addTimer(f)
     DUI.SafeCall(t.SetDrawBling, t, false)
     local clock = Style.ClockFormatter()
     if clock and t.SetCountdownFormatter then DUI.SafeCall(t.SetCountdownFormatter, t, clock) end
+    rightNumbers(t)
     t:HookScript("OnCooldownDone", function() DUI.SafeCall(B.UpdateCooldown, f) end)
     f.Timer = t
     local count = f.Icon:CreateFontString(nil, "OVERLAY", "NumberFontNormal")
@@ -730,6 +744,7 @@ function B.MakeFace(h)
     local bar = f.parts.bar
     bar:SetValue(0)
     local t = CreateFrame("Cooldown", nil, bar, "CooldownFrameTemplate")
+    t:ClearAllPoints()
     t:SetPoint("TOPRIGHT", bar, "TOPRIGHT", 0, 0)
     t:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", 0, 0)
     t:SetWidth(B.TIME_W)
@@ -738,6 +753,7 @@ function B.MakeFace(h)
     DUI.SafeCall(t.SetDrawBling, t, false)
     local clock = Style.ClockFormatter()
     if clock and t.SetCountdownFormatter then DUI.SafeCall(t.SetCountdownFormatter, t, clock) end
+    rightNumbers(t)
     f.Timer = t
     function f.SetTime(start, dur)
         local U = _G.C_DurationUtil

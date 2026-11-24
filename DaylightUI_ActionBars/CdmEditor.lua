@@ -959,6 +959,11 @@ local function previewFor(id)
     f.time = DUI.Style.Text(f.bar, 11, "RIGHT")
     f.time:SetPoint("RIGHT", f.bar, "RIGHT", -4, 0)
     f.key = f:CreateFontString(nil, "OVERLAY")
+    -- A sample stack count, over the swipe like the real icon's.
+    f.over = CreateFrame("Frame", nil, f)
+    f.over:SetAllPoints(f)
+    f.over:SetFrameLevel(f.cd:GetFrameLevel() + 2)
+    f.count = f.over:CreateFontString(nil, "OVERLAY")
     f.lit = outline(f, 2)
     f:SetScript("OnMouseDown", onPieceDown)
     f:SetScript("OnMouseUp", onPieceUp)
@@ -975,6 +980,44 @@ local function sample(id)
     local dur = 8 + (id % 23)
     local t = ((GetTime() or 0) + id * 1.7) % dur
     return dur, t
+end
+
+-- The fill and the empty part as the spell's real bar paints them: its own Fill and
+-- Background, else its group's Bar color and Background, and its animation.
+local function paintBarFill(f, set, id, p)
+    local CD = ns.Cooldowns
+    f.parts = f.parts or {}
+    f.parts.back = DUI.Style.BarBack(f.bar)
+    f.button = p
+    -- Per spell colors go by the spell id, as on the real bar.
+    if not f.cooldownInfo then f.cooldownInfo = { spellID = ns.CdmOwn and ns.CdmOwn.SpellOf(id) } end
+    CD.ColourBase(f, f.bar, f.parts, Data.PieceLook(set, id, "color"), p, Data.PieceLook(set, id, "barStops"))
+    local mode, v = CD.BackOf(p, { back = Data.PieceLook(set, id, "back"),
+        backColor = Data.PieceLook(set, id, "backColor"), backGradient = Data.PieceLook(set, id, "backGradient") })
+    CD.PaintBack(f.parts.back, mode, v)
+    CD.TrackFx(f, f.bar, f.parts, true)
+end
+
+-- The icon's swipe, cooldown numbers and count as the spell's real icon shows them.
+local function paintIconLook(f, set, id, p)
+    local CD, Fx, Own = ns.Cooldowns, ns.CdmEffects, ns.CdmOwn
+    ns.Skin.StyleSwipe(f.cd)
+    local buffOnly = Own and Own.Track(id, p) == "buff"
+    local hide = Fx.Get(p, "noSwipe") == true or (buffOnly and Fx.Get(p, "noDurationSwipe") == true)
+    f.cd:SetDrawSwipe(not hide)
+    f.cd:SetReverse(Fx.Get(p, "reverse") == true)
+    local t = CD.TextLook({ iconText = Data.TextOf(set, id) })
+    f.textLook = t
+    f.numbers = CD.StyleNumbers(f.cd, t)
+    -- Only a spell that holds a count gets a sample one.
+    local counts = Own and Own.Stacks(id)
+    if counts then
+        DUI.Style.DressText(f.count, t.countSize, { slot = ns.MEDIA.font })
+        CD.Ink(f.count, t.countColor)
+        CD.PlaceCount(f.count, f, t.countSpot)
+        f.count:SetText("2")
+    end
+    f.count:SetShown(counts and true or false)
 end
 
 local function paintPiece(f, set, id, b)
@@ -1004,16 +1047,15 @@ local function paintPiece(f, set, id, b)
         local Fx = ns.CdmEffects
         ns.Cooldowns.PlaceName(f.name, f.bar, Fx.Get(p, "showName") ~= false, Fx.Get(p, "nameAlign") == "center")
         f.time:SetShown(look("time") ~= false)
-        DUI.Style.SetBarColor(f.bar, DUI.Style.ClassColor(select(2, UnitClass("player"))))
-        -- A dark empty part, like the real bars.
-        local back, c = DUI.Style.BarBack(f.bar), DUI.Style.BACKGROUND
-        if back then back:SetVertexColor(c[1], c[2], c[3], DUI.Style.BAR_BACK_ALPHA) end
+        paintBarFill(f, set, id, p)
         f.cd:Hide()
         f.key:Hide()
+        f.count:Hide()
     else
         f.icon:SetShown(true)
         f.icon:SetAllPoints(f)
         f.cd:Show()
+        paintIconLook(f, set, id, p)
         -- The key that casts it, as the real icon will show it.
         local CD = ns.Cooldowns
         local text, t = CD.KeyText({ iconText = Data.TextOf(set, id) }, Ed.SpellName(id))
@@ -1022,6 +1064,14 @@ local function paintPiece(f, set, id, b)
         f.key:Show()
     end
     f.aura = ns.CdmOwn and (ns.CdmOwn.Entry(id) or {}).aura or false
+end
+
+-- "Color when almost ready" on the sample: the numbers turn for the last seconds.
+local function lowSample(f, left)
+    local t, fs = f.textLook, f.numbers
+    if not (t and type(fs) == "table" and fs.SetTextColor) then return end
+    local c = (t.low and left <= t.lowAt) and t.lowColor or t.cdColor
+    fs:SetTextColor(c[1], c[2], c[3], 1)
 end
 
 -- Steps the sample timers every Ed.TICK while Live preview is on.
@@ -1039,6 +1089,7 @@ local function tickSamples()
                     f.cd:SetCooldown(now - t, dur)
                     f.cdUntil = now - t + dur
                 end
+                lowSample(f, dur - t)
             elseif f.cdUntil then
                 f.cd:Clear()
                 f.cdUntil = nil

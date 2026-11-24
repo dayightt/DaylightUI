@@ -26,6 +26,8 @@ DUI.PatchNotes = {
         { "Unit frames", "Aimed Shot's mana cost stays shaded on your mana bar for the whole cast" },
         { "Unit frames", "DoTs over 1,000 damage, like Shadow Word: Pain at higher ranks, show their whole damage left on frames and nameplates" },
         { "Unit frames", "Viper Sting no longer shows as damage left on your target's health bar" },
+        { "Cooldown Manager", "Bars show their cooldown time at the right end again, not over the spell's name" },
+        { "Cooldown Manager", "The editor's preview shows your look changes right away: swipe direction, cooldown numbers, stack counts, bar colors and backgrounds" },
         { "Professions", "The game's own profession window no longer shows a second cast bar while you craft" },
     } },
     { version = "2.2.4", date = "2026-11-23", summary = "Cooldown Manager groups that follow your frames, friendly plates that wait for a fight, and centered party and raid frames.", new = {

@@ -1434,6 +1434,47 @@ T.test("cdm effects: our own icon eases in and out of Only when usable (FAST)", 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A player's rogue: a cooldown bar's time sat in the middle of the bar, over the
+-- spell's name, while a buff bar's time sat at its right end. The game's cooldown
+-- template covers its parent (setAllPoints), so the time box has to drop that
+-- left corner before it's pinned to the right end, or its numbers center on the bar.
+local function onlyRight(t, w, why)
+    T.truthy(t:GetNumPoints() > 0, why .. ": placed")
+    for i = 1, t:GetNumPoints() do
+        local p = t:GetPoint(i)
+        T.truthy(p == "TOPRIGHT" or p == "BOTTOMRIGHT" or p == "RIGHT", why .. ": no " .. tostring(p) .. " point")
+    end
+    T.eq(t:GetWidth(), w, why .. ": the time box's width")
+end
+T.test("cdm bars: a cooldown bar's time sits at its right end, icon and face alike", function()
+    local DUI, AB, set, w = barsWorld()
+    -- The client's countdown text, lent here: the fake game has none.
+    local make = CreateFrame
+    CreateFrame = function(kind, ...)
+        local fr = make(kind, ...)
+        if kind == "Cooldown" then
+            local fs = fr:CreateFontString(nil, "OVERLAY")
+            fs:SetPoint("CENTER", fr, "CENTER", 0, 0)
+            function fr:GetCountdownFontString() return fs end
+        end
+        return fr
+    end
+    place(AB.CdmData, set, 11, 1)
+    pass(AB)
+    local f = AB.CdmBars.CooldownFrame(11)
+    onlyRight(f.Timer, AB.CdmBars.TIME_W, "cooldown bar")
+    local fs = f.Timer:GetCountdownFontString()
+    T.eq(fs:GetNumPoints(), 1); T.eq((fs:GetPoint(1)), "RIGHT", "the numbers end at the right, as a buff bar's time")
+    -- A bar face (Arcane Blast's stack, Summon Hawk) times its aura the same way.
+    local h = CreateFrame("Frame", nil, UIParent)
+    h.Bar = CreateFrame("StatusBar", nil, h)
+    local face = AB.CdmBars.MakeFace(h)
+    CreateFrame = make
+    onlyRight(face.Timer, AB.CdmBars.TIME_W, "bar face")
+    T.eq((face.Timer:GetCountdownFontString():GetPoint(1)), "RIGHT", "bar face: numbers at the right")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("cdm bars: an Essential cooldown in a bar block is our bar, filled by the client", function()
     local DUI, AB, set, w, ess = barsWorld()
     local D, R = AB.CdmData, AB.CdmRows
@@ -2371,6 +2412,72 @@ T.test("cdm card: the glow Style row plays each style on the spell in the editor
     T.falsy(host.glowDriver:IsShown(), "the lights give way to it")
     stub.RunTimers(Fx.PREVIEW_HOLD + 0.1)
     T.falsy(Fx.GlowShown(f), "a preview rests after a moment")
+end)
+
+-- A player's paladin: checking Reverse on the swipe showed in game but not on the
+-- spell in the editor. Every Look row the card offers has to show on the preview.
+local function lookRow(Card, key)
+    for _, r in ipairs(Card.ROWS.look) do if r.item and r.item.key == key then return r.item end end
+end
+T.test("cdm card: the editor's preview follows every Look row, icon and bar", function()
+    -- The client's countdown text and its switch, lent here: the fake game has neither.
+    local make = CreateFrame
+    CreateFrame = function(kind, ...)
+        local fr = make(kind, ...)
+        if kind == "Cooldown" then
+            local fs = fr:CreateFontString(nil, "OVERLAY")
+            function fr:GetCountdownFontString() return fs end
+            function fr:SetHideCountdownNumbers(v) self.__noNumbers = v == true end
+        end
+        return fr
+    end
+    local DUI, AB, Ed, D = edWorld()
+    local set, Card = D.Current(), AB.CdmCard
+    D.AddChain(set, { 11 }, "icon", 0, 0)
+    D.AddChain(set, { 12 }, "bar", 0, -200)
+    Ed.Changed()
+    Ed.Select(11)
+    local f = Ed.PreviewOf(11)
+    T.falsy(f.cd:GetReverse(), "not reversed yet")
+    lookRow(Card, "cdm.card.reverse").set(true)
+    T.truthy(f.cd:GetReverse(), "Reverse shows on the preview")
+    lookRow(Card, "cdm.card.noSwipe").set(true)
+    T.falsy(f.cd:GetDrawSwipe(), "Hide on cooldown takes the swipe off")
+    lookRow(Card, "cdm.card.noSwipe").set(false)
+    T.truthy(f.cd:GetDrawSwipe(), "and back")
+    lookRow(Card, "cdm.card.cdNumbers").set(false)
+    T.truthy(f.cd.__noNumbers, "cooldown numbers off")
+    lookRow(Card, "cdm.card.cdNumbers").set(true)
+    T.falsy(f.cd.__noNumbers, "and on")
+    lookRow(Card, "cdm.card.cdSize").set(21)
+    local fs = f.cd:GetCountdownFontString()
+    T.eq(select(2, fs:GetFont()), 21, "their size")
+    lookRow(Card, "cdm.card.cdColor").set({ 0.1, 0.2, 0.3 })
+    T.near((fs:GetTextColor()), 0.1, 0.001, "their color")
+    -- Almost ready: the sample's numbers turn for its last seconds.
+    lookRow(Card, "cdm.card.low").set(true)
+    lookRow(Card, "cdm.card.lowAt").set(10)
+    lookRow(Card, "cdm.card.lowColor").set({ 0.9, 0.1, 0.1 })
+    local sawLow
+    for _ = 1, 400 do
+        stub.Advance(0.1); stub.RunTickers()
+        if math.abs((fs:GetTextColor()) - 0.9) < 0.001 then sawLow = true; break end
+    end
+    T.truthy(sawLow, "the almost ready color shows on the sample")
+    -- The bar's fill and background, its own and its group's.
+    Ed.Select(12)
+    local b = Ed.PreviewOf(12)
+    lookRow(Card, "cdm.card.barMode").set("solid")
+    lookRow(Card, "cdm.card.barColor").set({ 0.2, 0.6, 0.4 })
+    local c = b.bar.__barColor
+    T.truthy(c and math.abs(c[1] - 0.2) < 0.001 and math.abs(c[2] - 0.6) < 0.001, "the spell's own fill color")
+    lookRow(Card, "cdm.card.backMode").set("solid")
+    lookRow(Card, "cdm.card.backColor").set({ 0.5, 0.1, 0.7, 0.8 })
+    local back = DUI.Style.BarBack(b.bar)
+    local r, g, bl = back:GetVertexColor()
+    T.near(r, 0.5, 0.001, "the spell's own background"); T.near(bl, 0.7, 0.001)
+    CreateFrame = make
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("cdm card: Move back and Move forward trade places with the spell beside it", function()
