@@ -436,10 +436,10 @@ local function questRow(p, name, have, need, chance, done)
     local label = name
     if chance and not done then label = name .. " " .. Hex(Style.INK.LABEL) .. chance .. "|r" end
     if done then
-        Panel.Row(p, label, L["Complete"], Style.INK.GOOD, Style.INK.OFF)
+        Panel.Row(p, label, L["Complete"], Style.INK.GOOD, Style.INK.OFF, nil, nil, true)
     elseif have then
         local r, g, b = Style.Accent()
-        Panel.Row(p, label, string.format(L["%d / %d"], have, need), { r, g, b }, Style.INK.TEXT)
+        Panel.Row(p, label, string.format(L["%d / %d"], have, need), { r, g, b }, Style.INK.TEXT, nil, nil, true)
         local cfg = ns.Tooltip.Config()
         if not (cfg and cfg.questBars == false) then
             Panel.Bar(p, { value = have, max = need, pair = accentPair(), h = 4 })

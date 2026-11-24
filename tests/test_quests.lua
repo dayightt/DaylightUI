@@ -2054,7 +2054,10 @@ T.test("quests clicks: the tooltip lists objectives and the hint", function()
     f:GetScript("OnEnter")(f)
     local text = table.concat(GameTooltip.lines, "\n")
     T.truthy(text:find("Westfall Stew", 1, true))
-    T.truthy(text:find("Goretusk Snout | 3/6", 1, true))
+    local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(GameTooltip.lines[2]:find("|cff", 1, true), "the level in its difficulty color")
+    T.falsy(GameTooltip.lines[2]:find("·", 1, true), "the zone is not on the level's line")
+    T.truthy(plain:find("3/6 Goretusk Snout", 1, true), "the count follows the text on one line, so a long objective wraps instead of being cut")
     for _, h in ipairs(ns.Clicks.HINTS) do
         local found
         for _, l in ipairs(GameTooltip.lines) do if l:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "") == h then found = true end end
@@ -2139,6 +2142,32 @@ T.test("quests clicks: rowTipKind details puts the quest's story and every rewar
     T.eq(O.CountMatches(O.GetPage("Quests.tracker"), "quest tooltip detail"), 1, "options search finds the setting")
 end)
 
+T.test("quests clicks: the Simple tooltip spaces its heading from the objectives, the Rich card keeps them together", function()
+    -- The Tooltip module isn't loaded here: its style is stood in for.
+    local function lines(style)
+        local Tr = tracker({ quests = { STEW } })
+        local was = DaylightUI.Get
+        DaylightUI.Get = function(self, scope, path)
+            if scope == "Tooltip" and path == "style" then return style end
+            return was(self, scope, path)
+        end
+        local f = Tr.frames["quest:1"]
+        f:GetScript("OnEnter")(f)
+        DaylightUI.Get = was
+        return GameTooltip.lines
+    end
+    local function at(list, pat) for i, l in ipairs(list) do if l:find(pat, 1, true) then return i end end end
+    local simple = lines("simple")
+    T.eq(simple[at(simple, "Stringy") - 1], " ", "a gap between the heading and the first objective")
+    local rich = lines("rich")
+    T.truthy(rich[at(rich, "Stringy") - 1] ~= " ", "the zone stays right over the objectives, as the card reads it")
+    -- The reward: under its heading in Simple (a long one has the whole width), a row on the card.
+    local head = at(simple, "Rewards")
+    T.truthy(head and not simple[head]:find(" | ", 1, true), "the heading alone on its line")
+    T.truthy(simple[head + 1], "the reward under it")
+    T.truthy(at(rich, "Rewards | "), "a row on the Rich card")
+end)
+
 T.test("quests clicks: the tooltip's words are calm, a hint's click wears the accent; progress reads amber, done reads green", function()
     local done = QW.quest(2, "Done Deal", { objs = { { text = "6/6 Thing", have = 6, need = 6, done = true } } })
     local Tr, ns = tracker({ quests = { STEW, done } })
@@ -2153,17 +2182,26 @@ T.test("quests clicks: the tooltip's words are calm, a hint's click wears the ac
     end
     local Tips = DaylightUI.Tips
     local by = hover("quest:1")
-    local snout = by["Goretusk Snout"]
+    -- An objective is one wrapped line, its count in the progress color.
+    local function objective(key, name)
+        for t, c in pairs(by) do
+            local r, g, b = t:match("^|cff(%x%x)(%x%x)(%x%x)%d+/%d+|r " .. name)
+            if r then return c, { tonumber(r, 16) / 255, tonumber(g, 16) / 255, tonumber(b, 16) / 255 } end
+        end
+    end
+    local snout, count = objective(by, "Goretusk Snout")
+    T.truthy(snout, "the objective's line")
     T.rgb(snout.lc, Tips.TEXT, "the objective's words calm, so rows read apart")
-    T.truthy(snout.rc[1] > snout.rc[3] and snout.rc[2] > snout.rc[3], "3/6 reads amber")
-    T.truthy(snout.rc[1] > Tips.GOOD[1], "not green yet")
+    T.truthy(count[1] > count[3] and count[2] > count[3], "3/6 reads amber")
+    T.truthy(count[1] > Tips.GOOD[1] - 0.01, "not green yet")
     local key, what = ns.Clicks.HINTS[2]:match("^(.-:)(%s.*)$")
     local hint
     for t, c in pairs(by) do if t:find(key, 1, true) and t:find(what, 1, true) then hint = { t, c } end end
     T.truthy(hint and hint[1]:find("|c", 1, true), "a hint's click is colored apart")
     T.rgb(hint[2].lc, Tips.TEXT, "what it does: a calm label")
     by = hover("quest:2")
-    T.rgb(by["Thing"].rc, Tips.GOOD, "6/6 reads green")
+    local _, green = objective(by, "Thing")
+    T.truthy(math.abs(green[1] - Tips.GOOD[1]) < 0.01 and math.abs(green[2] - Tips.GOOD[2]) < 0.01, "6/6 reads green")
 end)
 
 T.test("quests clicks: an achievement opens its window; shift-click stops tracking it", function()
