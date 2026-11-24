@@ -26,6 +26,8 @@
 --   dropAsks = { [itemID] = n }         the first n RequestLoadItemDataByID of it are let fall, unanswered
 --                                       (guess: Auctionator asks every 0.4 s for items still loading)
 --   missing = { [itemID] = true }       C_Item.DoesItemExistByID false (a deleted item)
+--   staleRows = { [itemID] = true }     its replicate rows keep hasAllInfo false and no link after the
+--                                       item loads (guess: the list is a snapshot taken at the ask)
 --   page = 50                           search rows per page
 --   moreEvents = { "added", "updated" } what a RequestMore*SearchResults answer fires, in
 --                                       order: *_SEARCH_RESULTS_ADDED, *_UPDATED (guess: unknown
@@ -905,7 +907,7 @@ local function install()
         local a = type(index) == "number" and st.replicate[index + 1]
         if not a then return end
         if st.replicateBlank and GetTime() < st.replicateAt + st.replicateBlank - EPS then return end
-        local known = cached(a.itemID)
+        local known = cached(a.itemID) and not st.staleRows[a.itemID]
         local owner = a.owner or "Seller"
         return known and nameOf(a.itemID) or nil, known and 134400 or nil, a.count or 0, a.quality or 1, true,
             a.level or 1, "", a.minBid or ((a.buyout or 0) > 0 and a.buyout or 1), 0, a.buyout or 0, a.bid or 0,
@@ -913,6 +915,7 @@ local function install()
     end)
     def("GetReplicateItemLink", function(index)
         local a = type(index) == "number" and S().replicate[index + 1]
+        if a and S().staleRows[a.itemID] then return nil end
         return a and linkOf(a) or nil
     end)
     def("GetReplicateItemTimeLeft", function(index)
@@ -1629,7 +1632,7 @@ function AHW.world(spec)
             replicateLate = spec.replicateLate, replicateEarly = spec.replicateEarly, replicateBlank = spec.replicateBlank,
             moreEvents = copy(spec.moreEvents or { "added", "updated" }),
             auctions = {}, commodities = copy(spec.commodities or {}), neverCache = copy(spec.neverCache or {}),
-            dropAsks = copy(spec.dropAsks or {}), missing = copy(spec.missing or {}), uncached = {}, loading = {},
+            dropAsks = copy(spec.dropAsks or {}), missing = copy(spec.missing or {}), staleRows = copy(spec.staleRows or {}), uncached = {}, loading = {},
             replicate = {}, commodity = {}, items = {}, searches = {}, browse = nil, bids = {},
             quoteBump = spec.quoteBump or 0, quoteFails = spec.quoteFails == true,
             quoteSeconds = spec.quoteSeconds or 300,

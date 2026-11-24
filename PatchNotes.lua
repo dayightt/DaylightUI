@@ -16,6 +16,7 @@ DUI.PatchNotes = {
     }, fixed = {
         { "Cast bars", "A mob's channeled spell now shows a cast bar on the target frame and its nameplate, so you can see it in time to kick it" },
         { "Threat meter", "A Threat window set to show only in combat comes back every fight, instead of only the first one after a reload" },
+        { "Auction House", "A full scan finishes again instead of loading items over and over without end" },
     } },
     { version = "2.2.6.1", date = "2026-11-24", summary = "Fixes: item tooltips show every line again, no more reload box after a boat ride, and no options error at login.", fixed = {
         { "Options", "No more red options error in chat at login about the zone title duration or the Auction House undercut; both sliders now show seconds and copper" },

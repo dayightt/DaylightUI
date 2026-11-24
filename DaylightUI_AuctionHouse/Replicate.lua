@@ -139,6 +139,10 @@ local function read(j, index)
     local key, base
     if hasAllInfo then
         key, base = ns.Items.Key(C_AuctionHouse.GetReplicateItemLink(index))
+    elseif j.arrived[itemID] then
+        -- The item loaded but its row still has no link: price it by its ID.
+        -- Waiting again would never end, as each new ask brings another answer.
+        key, base = ns.Items.Key(C_AuctionHouse.GetReplicateItemLink(index))
     elseif mayHaveSuffix(itemID) then
         -- read again when the item's data comes; skipped when the game said
         -- no data is coming, or nothing came for ITEM_WAIT
@@ -274,6 +278,7 @@ local function itemArrived(j, itemID, success)
     if success == false then
         j.failed[itemID] = true   -- no data is coming: later rows of it are skipped too
     else
+        j.arrived[itemID] = true
         for _, index in ipairs(entry) do
             j.readyTail = j.readyTail + 1
             j.ready[j.readyTail] = index
@@ -304,7 +309,7 @@ function Replicate.Start(onDone, onSent)
     local j = {
         onDone = onDone, rows = ns.Rows.New(), total = 0, nextIndex = 0,
         ready = {}, readyHead = 1, readyTail = 0,
-        waiting = {}, numWaiting = 0, peakWaiting = 0, asked = {}, failed = {}, gaveUp = {}, skipped = 0,
+        waiting = {}, numWaiting = 0, peakWaiting = 0, asked = {}, failed = {}, gaveUp = {}, arrived = {}, skipped = 0,
         blank = {}, blanks = 0, seen = {}, unique = 0,
     }
     job = j

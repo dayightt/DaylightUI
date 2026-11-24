@@ -18,7 +18,7 @@ local function load(auctions, opts)
     local M = AHW.Mog({
         ruleset = opts.ruleset,
         ah = { auctions = auctions or {}, neverCache = opts.neverCache, missing = opts.missing,
-               itemSpacing = opts.itemSpacing, dropAsks = opts.dropAsks, replicateCooldown = opts.replicateCooldown,
+               itemSpacing = opts.itemSpacing, dropAsks = opts.dropAsks, staleRows = opts.staleRows, replicateCooldown = opts.replicateCooldown,
                replicateLate = opts.replicateLate, replicateEarly = opts.replicateEarly,
                replicateBlank = opts.replicateBlank },
         before = function()
@@ -294,6 +294,25 @@ T.test("an_item_whose_load_was_let_fall_is_asked_again", function()
     AHW.Settle()
     T.truthy(AHW.Calls("RequestLoadItemDataByID") >= 3, "asked again")
     T.eq(said("Full scan done: 2 items priced."), 1, "nothing skipped")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
+
+-- A full scan that never ended: an item arrived, its row still read as not
+-- known, so it was waited for again, asked for again two seconds later, and
+-- each answer started the quiet clock over.
+T.test("a_row_still_unknown_after_its_item_arrived_is_priced_by_its_id", function()
+    local M = load({
+        { itemID = BLADE, count = 1, buyout = 4000, cached = false, classID = 2 },
+        { itemID = LINEN, count = 20, buyout = 2000 },
+    }, { staleRows = { [BLADE] = true } })
+    AHW.Open()
+    T.eq(M.Scan.Full(), true)
+    for _ = 1, 10 do
+        AHW.Settle()
+        AHW.Advance(M.Game.ITEM_WAIT)
+    end
+    AHW.Settle()
+    T.eq(said("Full scan done: 2 items priced."), 1, "the scan ends with the blade priced")
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
 
