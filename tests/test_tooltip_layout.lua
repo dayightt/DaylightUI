@@ -1019,6 +1019,32 @@ T.test("a profile switch redraws the sample from the new profile's layout", func
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("the sample follows Quest progress bars and shows nothing Forever doesn't have", function()
+    local P, strip = page()
+    P.SetDesign(true)
+    stub.RunTimers()
+    for _, line in ipairs(shape(strip.Sample().Card())) do
+        T.falsy(line:find("Raider"), "no Raider.IO on Forever: " .. line)
+    end
+    local function questBars()
+        local chips = strip.ViewChips()
+        if strip.Sample().View() ~= "mob" then chips[3]:Click() end
+        stub.RunTimers()
+        T.eq(strip.Sample().View(), "mob")
+        local p, n = strip.Sample().Card(), 0
+        local span = p.spans.quests
+        for i = span.from, span.to do
+            if p.items[i].kind == "bar" then n = n + 1 end
+        end
+        return n
+    end
+    T.eq(questBars(), 1, "a bar under the objective by default")
+    DaylightUI:Set("Tooltip", "questBars", false)
+    stub.RunTimers()
+    T.eq(questBars(), 0, "Quest progress bars off: the objective without its bar")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("Simple style: no sample on the Tooltips page", function()
     local P, strip = page()
     DaylightUI:Set("Tooltip", "style", "simple")

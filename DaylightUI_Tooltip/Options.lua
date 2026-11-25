@@ -159,7 +159,7 @@ ns.OPTIONS = { pages = {
               desc = "Price lines another addon adds (Auctionator, TSM) as a label and Daylight UI's coins.",
               hidden = function(get) return get("style") ~= "rich" or noAddonLines(get) end },
             { type = "toggle", key = "addonAdapters.score", label = "Scores from other addons", since = "2.0",
-              desc = "A score another addon adds (Raider.IO) as a row with the number in your accent color.",
+              desc = "A score or rating another addon adds, as a row with the number in your accent color.",
               hidden = function(get) return get("style") ~= "rich" or noAddonLines(get) end },
             { type = "toggle", key = "addonAdapters.itemtree", label = "ItemTree's advice",
               desc = "ItemTree's lines under a heading of their own, with what it says to do (keep, sell, open) as colored tags.",

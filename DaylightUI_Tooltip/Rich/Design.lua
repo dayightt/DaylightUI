@@ -68,7 +68,7 @@ Design.SAMPLES.player = function(p)
         health = function() Panel.Bar(p, { value = 82, max = 100, pair = { lo, hi }, h = 7 }) end,
         power = function() Panel.Bar(p, { value = 60, max = 100, pair = { mlo, mhi }, h = 4 }) end,
         buffs = function() Panel.Icons(p, { 135932, 135987, 136078, 135964 }, 4) end,
-        addons = function() Panel.Row(p, L["Raider.IO score"], "2140", pop(), INK.TEXT) end,
+        addons = function() Panel.Row(p, L["Note"], L["Great healer"], INK.VALUE, INK.TEXT) end,
     }
 end
 
@@ -86,8 +86,10 @@ Design.SAMPLES.mob = function(p)
         quests = function()
             Panel.Section(p, L["Boar Hides for Farmer Rowan"])
             Panel.Row(p, L["Ridgeback hide"], "6/10", pop(), INK.TEXT)
-            local qlo, qhi = DUI.Gradients.PairFrom(pop())
-            Panel.Bar(p, { value = 6, max = 10, pair = { qlo, qhi }, h = 4 })
+            if Panel.Wants("questBars") then
+                local qlo, qhi = DUI.Gradients.PairFrom(pop())
+                Panel.Bar(p, { value = 6, max = 10, pair = { qlo, qhi }, h = 4 })
+            end
         end,
         facts = function() Panel.Text(p, L["Requires Skinning (30)"], INK.LABEL, Style.SIZE.small) end,
         target = function() Panel.Row(p, L["Targeting"], L["You"], INK.WARN) end,

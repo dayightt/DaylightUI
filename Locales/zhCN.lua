@@ -7731,7 +7731,7 @@ L["A light sweeps across the roll when someone wins it, twice when it's you. Nee
 L["A line in the item's quality color along the top of each roll."] = "每个掷骰顶部显示一条物品品质颜色的线条。"
 L["A player or creature as one small line where the tooltip would be: their name, their health and a thin bar. Hold the full card key to see the whole card."] = "在原鼠标提示位置以精简的一行显示玩家或生物：名字、生命值和一条细血条。按住完整卡片按键可查看完整卡片。"
 L["A row of small ticks on a compact roll, one per player: tall for a high roll, faint for Greed, flat for Pass."] = "紧凑掷骰上的一排小刻度，每名玩家一个：点数越高越长，贪婪为浅色，放弃为平直。"
-L["A score another addon adds (Raider.IO) as a row with the number in your accent color."] = "其他插件（Raider.IO）添加的评分会独立成行显示，数字使用你的强调色。"
+L["A score or rating another addon adds, as a row with the number in your accent color."] = "其他插件添加的评分或评级会独立成行显示，数字使用你的强调色。"
 L["A thin bar beside each roll, as long as the number, to compare rolls at a glance."] = "每个掷骰旁的一条细条，长度与点数成正比，方便一眼比较各次点数。"
 L["A thin line in your accent color along the top of the box."] = "框体顶部的一条强调色细线。"
 L["Above name"] = "名字上方"
