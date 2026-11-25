@@ -311,6 +311,15 @@ end
 
 -- Showing and hiding --------------------------------------------------------
 
+-- Other addons hear a real proc come, renew and go (ProcShown, ProcRenewed,
+-- ProcHidden). Test flares and a look change that redraws one stay quiet.
+local quiet = false
+local function tell(event, f, stacks)
+    if quiet or f.test then return end
+    local R = DUI.APIReport
+    if R and R.Event then R.Event(event, f.key, stacks) end
+end
+
 function Flares.Shown(key)
     return Flares.live[key] ~= nil
 end
@@ -328,9 +337,12 @@ function Flares.Show(key, info)
     end
     if f then
         local renewed = info.left and (not f.drainEnd or math.abs(GetTime() + info.left - f.drainEnd) > 0.25)
+        local restacked = info.stacks ~= f.info.stacks
         f.info = info
+        f.endsAt = info.left and GetTime() + info.left or nil
         if f.stackDim ~= stackDim then f.stackDim = stackDim; shade(f) end
         if renewed or (not info.left and f.drainEnd) then drain(f) end
+        if renewed or restacked then tell("ProcRenewed", f, info.stacks) end
         return f
     end
     local design = info.design or ns.Alerts.Get(key, "design")
@@ -341,6 +353,7 @@ function Flares.Show(key, info)
     f.lane = Flares.TakeLane(d.spot, key)
     f.dim, f.boost, f.frac, f.drainA, f.stackDim = stackDim, 1, 1, 1, stackDim
     f.test = info.test
+    f.endsAt = info.left and GetTime() + info.left or nil
     Flares.live[key] = f
     Flares.Paint(f)
     Flares.Layout(f, Motion.On() and Flares.ARRIVE_FROM or 1)
@@ -350,6 +363,7 @@ function Flares.Show(key, info)
     -- Once as it lands. A test flare stays quiet (test mode shows many at
     -- once); the Show button plays it itself.
     if not info.test then Flares.PlaySound(key) end
+    tell("ProcShown", f, info.stacks)
     return f
 end
 
@@ -359,6 +373,7 @@ function Flares.Hide(key, now)
     Flares.live[key] = nil
     Flares.FreeLane(f.spot, key)
     stopLoops(f)
+    tell("ProcHidden", f)
     if now or not Motion.On() then
         Motion.Tween(f.fade, 0, 0, 0)
         release(f)
@@ -379,8 +394,10 @@ function Flares.Restart(key)
     local f = Flares.live[key]
     if not f then return end
     local info, test = f.info, f.test
+    quiet = true
     Flares.Hide(key, true)
-    local g = Flares.Show(key, info)
+    local _, g = DUI.SafeReturn(Flares.Show, key, info)
+    quiet = false
     -- The engine's update may have replaced a test flare's info: it stays a test.
     if g then g.test = test end
 end

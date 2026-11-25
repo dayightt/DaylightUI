@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Mailbox", "Space collects all your mail, like it moves quest talk along (Dialogue keys, NPC window options)" },
+        { "Plugins", "Other addons can follow your proc alerts and light flares of their own: daylightui.com/plugins" },
     }, fixed = {
         { "Auction House", "No more stutter when hovering items, while search results come in, or during a full scan" },
     } },

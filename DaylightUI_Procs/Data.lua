@@ -193,6 +193,11 @@ Data.PROCS = {
 Data.BY = {}
 for _, p in ipairs(Data.PROCS) do Data.BY[p.key] = p end
 
+-- An alert another addon adds through DaylightUI.API: it's looked up like any
+-- proc (its look, its name), but never joins PROCS, so the engine, the aura
+-- container and the options page leave it to the addon that shows it.
+function Data.AddPlugin(p) Data.BY[p.key] = p end
+
 Data.MODES = { trance = true, faster = true, usable = true, free = true, overlay = true, casts = true,
                aura = true, instant = true, reset = true }
 

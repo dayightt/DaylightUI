@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 15
+print(API.major, API.minor)   -- 1, 16
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 15 }` for the Auction House prices (1.15), `{ 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 16 }` for Proc Alerts (1.16), `{ 1, 15 }` for the Auction House prices (1.15), `{ 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -1051,7 +1051,7 @@ with the error said once. Call `AddGlowStyle` again with the same key to change 
 
 | Call | What it does |
 |---|---|
-| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"`, and since 1.13 `"rolls"` (the loot roll cards' holder) (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
+| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"`, since 1.13 `"rolls"` (the loot roll cards' holder), and since 1.16 `"procs"` (the area round the character the proc flares hang in) (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
 | `API.GetMoverFrame(key)` | The frame placed under a mover key: `"unitframes.player"`, `"actionbars.main"`, `"infopanel"`, yours `"plugin.<name>.<key>"`. |
 | `API.IsUnlocked()` | Unlock mode is on. |
 | `me.IsPreviewing(key)` | Your part should show its sample now: unlock mode, or test mode with its test part ticked. |
@@ -1091,6 +1091,39 @@ number moved, after a scan, a search or a browse.
 The table is absent while the Auction House module is off, and while DaylightMogul owns the
 Auction House: check once and stay quiet without it, the way a profession's profit display
 does.
+
+## Proc Alerts (1.16)
+
+Proc Alerts lights a painted flare around the character when a proc is ready. These calls let you
+read and follow them, and show alerts of your own in the same flares.
+
+| Call | What it does |
+|---|---|
+| `API.ProcAlerts()` | The procs this character can be alerted to: its class's, then the gear ones. A fresh list of `{ key, name, spellID, itemID, design, enabled, drawnBy }`. `name` is in the player's language; `design` is the flare the player picked; `drawnBy` is `"daylight"`, or `"game"` for a buff the client shows by itself (Daylight UI never sees when one of those comes, so it has no state and no events). |
+| `API.ProcState(key)` | A flare that's up right now: `{ key, stacks, left, dur, test }`. `left` and `dur` are seconds (`nil` for a proc with no timer), `test` is `true` for a flare shown by the options, test mode or `TestProcAlert`. `nil` when it isn't up. |
+| `API.TestProcAlert(key, seconds)` | Shows a proc's flare for `seconds` (10 by default), like the options' Show button: no sound and no events. `false` for an unknown key. |
+| `me.WatchProc(key, handlers)` | One proc's moments in one call: `shown`, `renewed` (each gets key, stacks), `hidden` (key), and `changed(state)`, called once at once with `API.ProcState`'s table (or `nil`) and again after each moment. Returns a handle for `API.Off`, or `nil` for an unknown moment. |
+| `me.AddProcAlert(key, spec)` | An alert of your own. `spec`: `name`, `design` (one of the twelve: `"wings"`, `"talons"`, `"pillars"`, `"shards"`, `"flames"`, `"bolt"`, `"comet"`, `"crown"`, `"sigil"`, `"sun"`, `"ring"`, `"wave"`; `"sun"` by default), `anim` (`"breathe"`, `"pulse"`, `"impact"`, `"flash"`, `"still"`; `"pulse"` by default), `stacks` (the most it can have: fewer show dimmer), `sound` (a sound file id, or `"none"`). Calling it again changes the look. Everyone else sees its key as `"<your plugin>:<key>"`. `false` for a design or animation that doesn't exist. |
+| `me.ShowProcAlert(key, info)` | Shows your alert, or updates it when it's up. `info`: `left` and `dur` (seconds: the flare shortens as time runs out), `stacks`. It plays its sound once as it lands. You decide when it goes: Daylight UI never hides it, except when the player turns Proc Alerts off. |
+| `me.HideProcAlert(key)` | Takes your alert away. `true` when it was up. |
+
+Events: `ProcShown` and `ProcRenewed` (key, stacks: renewed means its time started over or its
+stacks changed) and `ProcHidden` (key), for every flare Daylight UI shows for a real proc and for
+plugins' alerts; never for a test flare, and never when the player only changes a flare's look
+while it's up.
+
+The flares are Daylight UI's own: they're placed in lanes so two never overlap, colored by the
+player's settings, and pooled (a frame is reused for another proc), so there's no flare frame to
+hold on to. To sit beside them, use `API.GetFrame("procs")`, the area they hang in. Every call
+answers `nil` or `false` while Proc Alerts is off, and its answers are plain values, safe in a fight.
+
+```lua
+local me = API.For("MyPlugin")
+me.AddProcAlert("lust", { name = "Bloodlust", design = "crown", anim = "flash" })
+me.On("ProcShown", function(key) print(key, "is up") end)
+-- When your own trigger fires:
+me.ShowProcAlert("lust", { left = 40, dur = 40 })
+```
 
 ## A plugin of your own
 
