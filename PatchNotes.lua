@@ -27,6 +27,7 @@ DUI.PatchNotes = {
         { "Unit frames", "The power number on the target and focus frames stays hidden while a cast bar covers it, instead of popping back partway through a cast" },
         { "Unit frames", "Your cast bar moved away from the player frame no longer slips behind it when the player frame is set to fade" },
         { "Unit frames", "The gold and silver dragons around elite, rare and boss portraits no longer show a thin sliver beside the portrait ring" },
+        { "Controller", "With a controller and the game's party targeting turned off, the D-pad moves between party and raid members again" },
         { "Flight timer", "The flight timer now shows on the druid flight out of Nighthaven in Moonglade, the one you take by talking to the flight master" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {

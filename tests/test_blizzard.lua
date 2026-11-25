@@ -161,3 +161,114 @@ T.test("with the mouse, the game's target frame is parked out of sight", functio
     T.falsy(TargetFrame:IsVisible())
     T.eq(TargetFrame:GetParent(), ns.Blizzard.hiddenParent)
 end)
+
+-- The controller's directional party targeting (party targeting off in the
+-- game's controller settings, and always in a raid) walks the game's own group
+-- frames: RaidTargetingFreeSelection hands CompactPartyFrame (a child of
+-- PartyFrame) or CompactRaidFrameContainer to SmartNavigation, which only stops
+-- on visible buttons (IsButtonValid: IsVisible and IsRectValid), and the D-pad
+-- Click()s the one it lands on. CompactPartyFrame is shown by the raid
+-- manager's GROUP_ROSTER_UPDATE (CompactRaidFrameManager_UpdateContainerVisibility).
+local function padOn()
+    _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+end
+
+local function padOff() _G.InputUtil, _G.GamepadMode = nil, nil end
+
+-- The game's group frames as the client has them in a party: the party list
+-- shown inside PartyFrame (its OnShow refreshes the game's controller footer),
+-- the raid container hidden, both listening to the roster.
+local function gameGroupFrames()
+    local party = CreateFrame("Frame", "PartyFrame", UIParent)
+    party:RegisterEvent("GROUP_ROSTER_UPDATE")
+    local list = CreateFrame("Frame", "CompactPartyFrame", party)
+    list.shows = 0
+    list:SetScript("OnShow", function(self) self.shows = self.shows + 1 end)
+    list.memberUnitFrames = {}
+    for i, unit in ipairs({ "player", "party1", "party2" }) do
+        local b = CreateFrame("Button", "CompactPartyFrameMember" .. i, list)
+        b:SetAttribute("unit", unit)
+        b:EnableMouse(true)
+        list.memberUnitFrames[i] = b
+    end
+    local manager = CreateFrame("Frame", "CompactRaidFrameManager", UIParent)
+    manager:RegisterEvent("GROUP_ROSTER_UPDATE")
+    local container = CreateFrame("Frame", "CompactRaidFrameContainer", UIParent)
+    container:RegisterEvent("GROUP_ROSTER_UPDATE")
+    container:Hide()
+    return party, list, manager, container
+end
+
+T.test("on a controller the game's party list stays visible but unseen, so the D-pad can walk it", function()
+    local ns = setup()
+    padOn()
+    local party, list, manager, container = gameGroupFrames()
+    ns.Blizzard.Apply(DaylightUI.DB.MergeDefaults({}, ns.DEFAULTS))
+    stub.RunTimers()
+    local member = list.memberUnitFrames[2]
+    T.truthy(member:IsVisible(), "the game's navigation only stops on what it can see")
+    T.eq(member:GetEffectiveAlpha(), 0, "but it isn't seen")
+    T.falsy(member:IsMouseEnabled(), "and takes no clicks")
+    T.eq(list.shows, 0, "never shown from Daylight UI's code: its OnShow is the game's controller footer")
+    T.truthy(party:IsEventRegistered("GROUP_ROSTER_UPDATE"), "it keeps up with the roster")
+    T.truthy(manager:IsEventRegistered("GROUP_ROSTER_UPDATE"), "the raid manager still shows the party list when a group forms")
+    T.falsy(manager:IsVisible(), "while staying out of sight")
+    T.truthy(container:IsEventRegistered("GROUP_ROSTER_UPDATE"), "the raid's list too")
+    T.eq(container:GetParent(), ns.Blizzard.veil, "and it is seen-through when the game shows it in a raid")
+    container:Show()
+    T.eq(container:GetEffectiveAlpha(), 0)
+    padOff()
+end)
+
+T.test("on a controller the cursor sits on Daylight UI's tile of the same member, and skips members it doesn't show", function()
+    local _, ns = stub.Load({ module = true })
+    padOn()
+    local anchors, ignored = {}, {}
+    _G.CreateAnchor = function(point, rel, relPoint, x, y) return { point = point, rel = rel, relPoint = relPoint } end
+    _G.SmartNavigation_SetCustomCursorAnchorPointForFrame = function(f, a)
+        if stub.combat then error("refused in a fight") end
+        anchors[f] = a
+    end
+    _G.SmartNavigation_MarkFrameIgnored = function(f) ignored[f] = true end
+    _G.SmartNavigation_ClearIgnoreStatus = function(f) ignored[f] = nil end
+    local _, list = gameGroupFrames()
+    ns.Blizzard.Apply(DaylightUI.DB.MergeDefaults({}, ns.DEFAULTS))
+    local h = ns.Party.header
+    local tiles = {}
+    for i, unit in ipairs({ "party2", "party1" }) do
+        local b = CreateFrame("Button", "DaylightUIPartyHeaderUnitButton" .. i, h)
+        b:SetAttribute("unit", unit)
+        h.initialConfigFunction(h, b:GetName())
+        tiles[unit] = b
+    end
+    h:Show()
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    local m = list.memberUnitFrames
+    T.truthy(anchors[m[2]], "party1 has a cursor spot")
+    T.eq(anchors[m[2]] and anchors[m[2]].rel, tiles.party1, "on Daylight UI's party1 tile")
+    T.eq(anchors[m[3]] and anchors[m[3]].rel, tiles.party2)
+    T.truthy(ignored[m[1]], "you aren't in Daylight UI's party list by default, so the D-pad skips you")
+    -- The roster changes in a fight: the spots wait for it to end (the game refuses them).
+    stub.EnterCombat()
+    tiles.party1:SetAttribute("unit", "party2")
+    tiles.party2:SetAttribute("unit", "party1")
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.eq(anchors[m[2]] and anchors[m[2]].rel, tiles.party2, "moved after the fight")
+    _G.CreateAnchor, _G.SmartNavigation_SetCustomCursorAnchorPointForFrame = nil, nil
+    _G.SmartNavigation_MarkFrameIgnored, _G.SmartNavigation_ClearIgnoreStatus = nil, nil
+    padOff()
+end)
+
+T.test("with the mouse, the game's group frames are parked and silenced as before", function()
+    local ns = setup()
+    local party, list, manager = gameGroupFrames()
+    ns.Blizzard.Apply(DaylightUI.DB.MergeDefaults({}, ns.DEFAULTS))
+    T.falsy(list.memberUnitFrames[2]:IsVisible())
+    T.falsy(party:IsEventRegistered("GROUP_ROSTER_UPDATE"))
+    T.falsy(manager:IsEventRegistered("GROUP_ROSTER_UPDATE"))
+end)
