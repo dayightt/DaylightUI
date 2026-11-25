@@ -393,8 +393,11 @@ function UF.PaintPercent(f, r, g, b)
 end
 
 -- hideFull: the text's alpha from the core's full curve (0 at full), which
--- works with secret power.
+-- works with secret power. A cast bar lying over the power bar keeps the text
+-- hidden (fs.underCast, set by CastBar.lua): every power change would bring it
+-- back over the spell name.
 local function powerAtFull(fs, u, hideFull)
+    if fs.underCast then return end
     local curve = hideFull and UnitPowerPercent and Health.FullCurve()
     if curve then
         fs:SetAlpha(UnitPowerPercent(u, nil, false, curve))
@@ -413,8 +416,11 @@ function UF.WriteSamplePower(fs, format, pct, value, sign, hideFull, token)
     pct = pct or 0
     if token and token ~= "MANA" then value = nil end
     fs:SetFormattedText(Health.FormatSample(format or "value", pct, value, sign))
-    fs:SetAlpha((hideFull and pct >= 100) and 0 or 1)
+    if not fs.underCast then fs:SetAlpha((hideFull and pct >= 100) and 0 or 1) end
 end
+
+-- The power text's own alpha again, once a cast bar stops covering it.
+UF.PowerTextAlpha = powerAtFull
 
 function UF.WritePower(fs, format, u, hideFull, sign)
     powerAtFull(fs, u, hideFull)

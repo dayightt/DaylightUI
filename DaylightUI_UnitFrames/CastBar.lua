@@ -241,18 +241,31 @@ function CB.Create(unit, attachTo, into, opts)
     end)
     -- Inside a frame the bar covers the power bar, so the power text would run
     -- into the spell name: it fades out while the bar shows. Only the show and
-    -- hide matter here, so a secret cast never gets read.
+    -- hide matter here, so a secret cast never gets read. underCast tells the
+    -- power text's writers to leave its alpha alone until the bar goes.
     if into then
         h:HookScript("OnShow", function(self)
             local t = attachTo.powerText
             if type(t) ~= "table" then return end
+            if self.coveredText and self.coveredText ~= t then self.coveredText.underCast = nil end
             self.coveredText = t
+            if t.underCast then return end
+            t.underCast = true
             DUI.Motion.Fade(t, 1, 0, DUI.Motion.FAST)
         end)
         h:HookScript("OnHide", function(self)
             local t = self.coveredText
             self.coveredText = nil
-            if t then DUI.Motion.Fade(t, 0, 1, DUI.Motion.FAST) end
+            if not t then return end
+            t.underCast = nil
+            -- Hidden at full power: its alpha is the game's answer (secret in a
+            -- fight), so it is written straight back rather than faded to.
+            local u = attachTo.unitToken
+            if attachTo.hideFullPower and type(u) == "string" then
+                ns.UF.PowerTextAlpha(t, u, true)
+            else
+                DUI.Motion.Fade(t, 0, 1, DUI.Motion.FAST)
+            end
         end)
     end
     h:Hide()
@@ -451,15 +464,23 @@ function CB.Layout(h, cfg, parentCfg)
     local at = CB.At(h.kind, cfg)
     local hang = type(h.under) == "table" and at == (h.hangAt or "below")
     h.cfgAttach = hang
-    -- A frame fading as one picture draws over a bar hung on its layer just
-    -- above it, so while this bar hangs under one, that frame fades piece by piece.
-    local holds = (hang and cfg.enabled ~= false and not h.preview) and h.under or nil
-    if h.notWholeOf ~= holds then
-        local key = "castbar:" .. tostring(h.kind)
-        if h.notWholeOf then DUI.Fade.NotWhole(h.notWholeOf, key, false) end
-        if holds then DUI.Fade.NotWhole(holds, key, true) end
-        h.notWholeOf = holds
+    -- A frame fading as one picture draws over a cast bar that overlaps it,
+    -- even one on a higher layer, so while this bar hangs under a frame that
+    -- frame fades piece by piece. Your own bar standing on its own may sit
+    -- anywhere by the player frame and its pieces, so they all do.
+    local holds
+    if cfg.enabled ~= false and not h.preview then
+        if hang then holds = { h.under }
+        elseif h.kind == "player" and frames and frames.player then holds = frames.player.pieces end
     end
+    local key = "castbar:" .. tostring(h.kind)
+    local now = {}
+    for _, f in ipairs(holds or {}) do now[f] = true end
+    for f in pairs(h.notWholeOf or {}) do
+        if not now[f] then DUI.Fade.NotWhole(f, key, false) end
+    end
+    for f in pairs(now) do DUI.Fade.NotWhole(f, key, true) end
+    h.notWholeOf = next(now) and now or nil
     -- Hung under the player frame it takes that frame's size, otherwise its own.
     if h.inFrame then
         h:SetScale(1)

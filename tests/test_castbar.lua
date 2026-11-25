@@ -1383,11 +1383,70 @@ T.test("a cast bar inside a frame fades the power text while it shows, never a f
     T.eq(g.powerText:GetAlpha(), 1)
 end)
 
+-- A player's report: the target's power text came back over a mount being
+-- summoned, now and then. Every power change wrote the text's alpha back to 1
+-- (or to the full-power fade) under the cast bar.
+T.test("the target's power text stays hidden under its cast bar through power changes and target swaps", function()
+    local DUI, ns = stub.Load({ module = true })
+    DUI:Set("UnitFrames", "target.showPowerText", true)
+    stub.RunTimers()
+    local f = _G.DaylightUIFrame_target
+    local h = ns.targetCastbar
+    stub.units.target = { name = "Rider", reaction = 4, power = 2600, powerMax = 2600,
+        cast = { name = "Black Skeletal Horse", duration = stub.Duration(1.5) } }
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    stub.UnitWatch()
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.truthy(h:IsVisible(), "the cast shows inside the frame")
+    T.truthy(f.powerText:IsShown(), "the power text is on")
+    T.eq(f.powerText:GetAlpha(), 0, "hidden under the spell name")
+    stub.FireEvent("UNIT_POWER_FREQUENT", "target", "MANA")
+    T.eq(f.powerText:GetAlpha(), 0, "a power change keeps it hidden")
+    stub.FireEvent("UNIT_MAXPOWER", "target", "MANA")
+    stub.FireEvent("UNIT_DISPLAYPOWER", "target")
+    T.eq(f.powerText:GetAlpha(), 0, "so does a new max or power type")
+    -- A swap to another caster: the bar stays up, the frame redraws.
+    stub.units.target = { name = "Other", reaction = 4, power = 100, powerMax = 2600,
+        cast = { name = "Frostbolt", duration = stub.Duration(2) } }
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    stub.UnitWatch()
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.eq(f.powerText:GetAlpha(), 0, "a target swap mid-cast keeps it hidden")
+    DUI:Set("UnitFrames", "target.hideFullPower", true)
+    stub.RunTimers()
+    stub.FireEvent("UNIT_POWER_FREQUENT", "target", "MANA")
+    T.eq(f.powerText:GetAlpha(), 0, "the full-power fade doesn't bring it back either")
+    DUI:Set("UnitFrames", "target.hideFullPower", false)
+    stub.RunTimers()
+    -- The cast ends: the text comes back and power changes show it again.
+    stub.units.target.cast = nil
+    stub.FireEvent("UNIT_SPELLCAST_STOP", "target")
+    fadeOut()
+    T.falsy(h:IsShown(), "the bar is gone")
+    T.eq(f.powerText:GetAlpha(), 1, "back when the cast ends")
+    stub.FireEvent("UNIT_POWER_FREQUENT", "target", "MANA")
+    T.eq(f.powerText:GetAlpha(), 1, "and stays back")
+    -- The target goes away mid-cast.
+    stub.units.target.cast = { name = "Frostbolt", duration = stub.Duration(2) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "target")
+    T.eq(f.powerText:GetAlpha(), 0)
+    stub.units.target = nil
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    stub.UnitWatch()
+    stub.RunTimers()
+    stub.units.target = { name = "Third", reaction = 4, power = 50, powerMax = 100 }
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    stub.UnitWatch()
+    stub.RunTimers()
+    T.falsy(h:IsShown())
+    T.eq(f.powerText:GetAlpha(), 1, "a new target with no cast shows its power text")
+end)
+
 -- A player's report: with the player frame set to fade, a cast bar hung under it
 -- went behind it. A frame that fades as one picture (Fade's whole mode, drawn to
 -- its own buffer) draws over a bar hung on its layer one step above it, so while
 -- a cast bar hangs under a frame that frame fades piece by piece instead.
-T.test("a frame with a cast bar hung under it never fades as one picture, and does again once the bar is moved", function()
+T.test("a frame with your cast bar hung under it or on its own never fades as one picture, and does again with the bar off", function()
     local DUI, ns = stub.Load({ module = true })
     local f = ns.frames.player
     function f:SetFlattensRenderLayers(on) self.flat = on end
@@ -1406,14 +1465,31 @@ T.test("a frame with a cast bar hung under it never fades as one picture, and do
     settle()
     T.truthy(ns.playerCastbar.column, "the bar hangs under the frame")
     T.falsy(f.buffer, "faded with a bar hung under it: piece by piece")
+    -- A player's report after 2.2.6: a cast bar moved off on its own still went
+    -- behind. A frame drawn to its own buffer covered it wherever it stood, its
+    -- layer picked higher or not, so any cast bar of yours keeps it off.
     DUI:Set("UnitFrames", "playerCastbar.at", "free")
+    DUI:Set("UnitFrames", "playerCastbar.strata", "HIGH")
     settle()
-    T.eq(f.buffer, true, "the bar on its own: the frame fades as one picture again")
+    T.falsy(ns.playerCastbar.column, "the bar stands on its own")
+    T.eq(ns.playerCastbar:GetFrameStrata(), "HIGH", "in the layer picked for it")
+    T.falsy(f.buffer, "the bar on its own: the frame still fades piece by piece")
+    DUI:Set("UnitFrames", "player.powerAt", "free")
+    settle()
+    local pb = f.freePower
+    T.truthy(pb, "the power bar on its own")
+    function pb:SetFlattensRenderLayers(on) self.flat = on end
+    function pb:SetIsFrameBuffer(on) self.buffer = on end
+    DUI:Set("UnitFrames", "player.fade", { mode = "ooc", alpha = 0.2, delay = 0 })
+    settle()
+    T.falsy(pb.buffer, "and so do the pieces that fade with it")
+    DUI:Set("UnitFrames", "player.powerAt", "inside")
     DUI:Set("UnitFrames", "playerCastbar.at", "below")
     settle()
     T.falsy(f.buffer, "hung again: piece by piece")
     DUI:Set("UnitFrames", "playerCastbar.enabled", false)
     settle()
     T.eq(f.buffer, true, "no cast bar at all: one picture")
+    T.eq(pb.buffer, true, "its power bar too")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
