@@ -47,6 +47,16 @@ local function spotItems(name, k, outside, dis, desc)
     return items
 end
 
+-- The friendly name's spot only means something around the health bar, but its
+-- nudges also move the name of a plate shown without one.
+local function friendlyNameItems()
+    local items = spotItems("Friendly name", { spot = "friendly.namePos", x = "friendly.nameX", y = "friendly.nameY" },
+        false, off("friendly.enabled"),
+        "Over, under, beside or on a friendly plate's health bar. Without the health bar the name stays centered, and the nudges below still move it.")
+    for i = 2, #items do items[i].disabled = nil end
+    return items
+end
+
 -- items, each marked new in version.
 local function since(version, items)
     for _, item in ipairs(items) do item.since = version end
@@ -735,9 +745,7 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "friendly.classIconScale", label = "Class icon size", min = 0.5, max = 2.5, step = 0.05, unit = "%",
               desc = "How big the class icon is next to the name. It grows and shrinks with the name size.",
               disabled = function(get) return get("friendly.classIcon") == "none" end },
-        }), spotItems("Friendly name", { spot = "friendly.namePos", x = "friendly.nameX", y = "friendly.nameY" }, false,
-            off("friendly.enabled"),
-            "Over, under, beside or on a friendly plate's health bar. Without the health bar the name stays centered.")))) },
+        }), friendlyNameItems()))) },
         { label = "Guild names", items = with({
             { type = "toggle", key = "friendly.guild", label = "Friendly guild names",
               desc = "A friendly player's <guild> under their name, smaller." },

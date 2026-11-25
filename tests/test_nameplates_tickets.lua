@@ -144,3 +144,34 @@ T.test("nameplates: an object you face shows no name while friendly NPC plates a
     stub.units.softinteract = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Friendly NPC names without the health bar sat high over the model, and the
+-- name nudges that could lower them were grayed out with the bar off.
+T.test("nameplates: the friendly name nudges move a name-only plate's name, and stay usable", function()
+    login()
+    local DUI = DaylightUI
+    DUI:Set("Nameplates", "friendly.enabled", false)
+    stub.RunTimers()
+    stub.units.nameplate1 = { name = "Guard Hammond", reaction = 5, health = 100, maxHealth = 100 }
+    local p = added("nameplate1")
+    T.truthy(p.friendly and stub.nameplates.Plate.NameOnly(p, stub.nameplates.cfg), "a name-only friendly plate")
+    local _, _, _, x0, y0 = p.name:GetPoint(1)
+    DUI:Set("Nameplates", "friendly.nameY", -30)
+    DUI:Set("Nameplates", "friendly.nameX", 5)
+    stub.RunTimers()
+    local point, rel, _, x, y = p.name:GetPoint(1)
+    T.eq(point, "CENTER", "still centered on the plate")
+    T.eq(rel, p)
+    T.eq(y, y0 - 30, "down / up moves it")
+    T.eq(x, x0 + 5, "left / right moves it")
+    local items = {}
+    for _, page in ipairs(stub.nameplates.OPTIONS.pages) do
+        for _, g in ipairs(page.groups or {}) do
+            for _, it in ipairs(g.items or {}) do if it.key then items[it.key] = it end end
+        end
+    end
+    local get = function(k) return DUI:Get("Nameplates", k) end
+    T.falsy(items["friendly.nameY"].disabled and items["friendly.nameY"].disabled(get), "up / down usable without the bar")
+    T.falsy(items["friendly.nameX"].disabled and items["friendly.nameX"].disabled(get), "left / right usable without the bar")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

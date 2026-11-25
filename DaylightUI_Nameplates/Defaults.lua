@@ -176,7 +176,7 @@ ns.DEFAULTS = {
         classIconScale = 1.3, -- the icon's size as a share of the name's
         guildColor = "class", guildCustom = { INK.GOOD[1], INK.GOOD[2], INK.GOOD[3] }, guildSize = 0,
         roleColor = "tan", roleCustom = { INK.MONEY[1], INK.MONEY[2], INK.MONEY[3] }, roleSize = 0,
-        namePos = "above", nameX = 0, nameY = 0, -- with the health bar on; name-only stays centered
+        namePos = "above", nameX = 0, nameY = 0, -- the spot needs the health bar; name-only stays centered, nudged by X and Y
         percentPos = "right", percentX = 0, percentY = 0,
         levelPos = "left", levelX = 0, levelY = 0,
         healthColor = "classGradient", healthCustom = { 0.3, 0.7, 0.35 }, healthGradient = DaylightUI.Style.DefaultStops(),

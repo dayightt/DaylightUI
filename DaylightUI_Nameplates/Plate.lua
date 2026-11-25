@@ -2566,7 +2566,7 @@ end
 -- The name and its guild or title line as one block: above the bar the line sits
 -- closest to it, anywhere else under the name. Justified to the spot's side; on
 -- the bar as wide as the space there.
-local function placeName(p, L, rel, spot, nameOnly, w)
+local function placeName(p, L, rel, spot, nameOnly, nx, ny)
     local name, sub = p.name, p.sub
     name:ClearAllPoints()
     sub:ClearAllPoints()
@@ -2578,7 +2578,7 @@ local function placeName(p, L, rel, spot, nameOnly, w)
         p.nameJustify = "CENTER"
         name:SetJustifyH("CENTER")
         sub:SetJustifyH("CENTER")
-        name:SetPoint("CENTER", p, "CENTER", 0, 0)
+        name:SetPoint("CENTER", p, "CENTER", nx, ny)
         sub:SetPoint("TOP", name, "BOTTOM", 0, -1)
         if p.groupMarkOn then Plate.PlaceGroupMark(p) end
         if p.classIconOn then Plate.PlaceClassIcon(p) end
@@ -2629,7 +2629,13 @@ end
 
 local function place(p, x, piece)
     local spot, grow, nx, ny = Plate.SpotOf(p, piece)
-    if piece == "name" and x.nameOnly then spot, grow, nx, ny = "above", "center", 0, 0 end
+    -- A name-only plate has no bar to place the name around, so it stays centered,
+    -- but a friendly plate's name nudges still move it: the game puts the plate high
+    -- over some models.
+    if piece == "name" and x.nameOnly then
+        spot, grow = "above", "center"
+        if not p.friendly then nx, ny = 0, 0 end
+    end
     local on, across, up = room(p, piece, x.c, x.w, x.h)
     local box = x.box
     box.above, box.below, box.outL, box.outR = 0, 0, 0, 0
@@ -2658,7 +2664,7 @@ local function place(p, x, piece)
                                               line = Plate.ROWS[piece] and x.w or nil })
     box.cutR = cutR
     if piece == "name" then
-        placeName(p, L, rel, spot, x.nameOnly, x.w)
+        placeName(p, L, rel, spot, x.nameOnly, nx, ny)
     elseif piece == "quest" then
         placeQuest(p, L, rel)
     elseif SINGLE[piece] then
@@ -2700,8 +2706,8 @@ local function place(p, x, piece)
             -- A name-only plate's name sits on the plate's middle, not over the bar: the
             -- class icon reaches up from it, the guild line down.
             local half = Plate.NameSize(p, x.c) / 2 - x.h / 2
-            r.up = math.max(r.up, half + Plate.ClassIconRoom(p, x.c, "above"))
-            r.down = math.max(r.down, half + (p.sub:IsShown() and 1 + p.subPx or 0))
+            r.up = math.max(r.up, half + Plate.ClassIconRoom(p, x.c, "above") + math.max(0, ny))
+            r.down = math.max(r.down, half + (p.sub:IsShown() and 1 + p.subPx or 0) + math.max(0, -ny))
         elseif r then
             if Plate.ABOVE[spot] then r.up = math.max(r.up, far + math.max(0, ny))
             else r.down = math.max(r.down, far + math.max(0, -ny)) end
