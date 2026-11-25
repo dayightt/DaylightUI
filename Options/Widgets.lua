@@ -386,6 +386,7 @@ end
 W.MENU_BUTTON_MIN = 110
 function W.MenuButton(parent, text, h)
     local b = W.Button(parent, "", h or 24)
+    b.dropdown = true   -- its menu plays the close sound when let go (W.OpenMenu)
     b.chevron = W.Icon(b, "ui-chevron.png", 10, Style.INK.LABEL)
     b.chevron:SetPoint("RIGHT", b, "RIGHT", -10, 0)
     b.text:ClearAllPoints()
@@ -2791,22 +2792,31 @@ local catcher, menu
 -- top row).
 local open = {}
 
+-- Let go without a pick (a click beside it, Escape). A dropdown then plays
+-- its close sound, as the game's do; a right-click menu closes quietly, like
+-- the game's context menus.
+local function dismiss()
+    local o = open.watch
+    W.CloseMenu()
+    if type(o) == "table" and o.dropdown and DUI.Sound then DUI.Sound.Play("dismiss") end
+end
+
 local function buildMenu()
     catcher = CreateFrame("Button", nil, UIParent)
     catcher:SetAllPoints(UIParent)
     catcher:SetFrameStrata("FULLSCREEN_DIALOG")
     catcher:RegisterForClicks("AnyUp")
-    catcher:SetScript("OnClick", function() W.CloseMenu() end)
+    catcher:SetScript("OnClick", dismiss)
     catcher:Hide()
     -- Escape closes the menu first and the window under it stays, as with the
     -- game's menus. Out of a fight the menu's keys take Escape; in a fight they
     -- are off, and the game's Escape hides the stand-in instead.
     DUI.Win.Keys(catcher, function(key)
         if key ~= "ESCAPE" then return false end
-        W.CloseMenu()
+        dismiss()
         return true
     end)
-    catcher.escape = DUI.Motion.EscapeFor(function() W.CloseMenu() end)
+    catcher.escape = DUI.Motion.EscapeFor(dismiss)
     -- The game's menus close when what opened them stops being visible (a
     -- window closing, a row scrolled away). Runs only while a menu is open.
     catcher:SetScript("OnUpdate", function()
@@ -3338,6 +3348,7 @@ end
 
 function W.dropdown(row, page, item)
     local b = CreateFrame("Button", nil, row)
+    b.dropdown = true
     b:SetSize(W.CONTROL_WIDTH, 26)
     b.bg = W.Round(b, "BACKGROUND")
     b.bg:SetAllPoints(b)

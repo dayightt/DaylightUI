@@ -23,7 +23,8 @@ Sound.FILES = { open = DIR .. "open.ogg", close = DIR .. "close.ogg", toggle = D
                 quest = DIR .. "quest3.ogg", apply = DIR .. "apply.ogg", done = DIR .. "done.ogg",
                 campfire = DIR .. "campfire.ogg", flare = DIR .. "flare.ogg", -- QoL Campfire.lua: the crackle loop and the flare
                 splash = DIR .. "splash.ogg", -- QoL Fishing.lua: a fish bites
-                spend = DIR .. "spend.ogg", refund = DIR .. "refund.ogg", gone = DIR .. "gone.ogg" }
+                spend = DIR .. "spend.ogg", refund = DIR .. "refund.ogg", gone = DIR .. "gone.ogg",
+                dismiss = DIR .. "toggle.ogg" } -- a dropdown closed without a pick
 Sound.GAP = 0.1 -- min seconds between the same sound (a window and its game kit are heard once)
 
 -- Each sound's kind. One choice per kind (general.soundKinds.<kind>): "soft"
@@ -34,11 +35,12 @@ Sound.GAP = 0.1 -- min seconds between the same sound (a window and its game kit
 -- apply: something big went through (talents, a talent set). done: something
 -- small (a spell learned, a letter sent). gone: a W.Confirm went through.
 -- spend, refund: a talent point spent or taken back.
-Sound.KINDS = { open = "windows", close = "windows", click = "clicks", toggle = "toggles", snap = "snaps",
+Sound.KINDS = { open = "windows", close = "windows", click = "clicks", toggle = "toggles", dismiss = "toggles", snap = "snaps",
                 spend = "clicks", refund = "clicks", apply = "confirms", done = "confirms", gone = "confirms" }
 -- The game's kit for each of Daylight UI's under "game" (none for snap or confirms, which stay Daylight UI's or none).
 Sound.GAME_KIT = { open = "IG_CHARACTER_INFO_OPEN", close = "IG_CHARACTER_INFO_CLOSE",
                    click = "IG_MAINMENU_OPTION", toggle = "IG_MAINMENU_OPTION_CHECKBOX_ON",
+                   dismiss = "IG_MAINMENU_OPTION_CHECKBOX_OFF",
                    spend = "IG_MAINMENU_OPTION", refund = "IG_MAINMENU_OPTION" }
 
 -- Game sound files Daylight UI mutes, each with every kit that plays it. A muted file

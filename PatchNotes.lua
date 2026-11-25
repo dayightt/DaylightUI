@@ -31,7 +31,7 @@ DUI.PatchNotes = {
         { "Unit frames", "The gold and silver dragons around elite, rare and boss portraits no longer show a thin sliver beside the portrait ring" },
         { "Controller", "With a controller and the game's party targeting turned off, the D-pad moves between party and raid members again" },
         { "Bags", "On a controller, Y on food offers Feed Pet again, and X uses items that start a quest" },
-        { "Windows", "Escape closes Daylight UI's small windows (the damage meter breakdown, whispers, chat filters, questions) in a fight too, and they close when you're feared or stunned, like the game's own; Escape closes an open dropdown first, and a dropdown closes with its window" },
+        { "Windows", "Escape closes Daylight UI's small windows (the damage meter breakdown, whispers, chat filters, questions) in a fight too, and they close when you're feared or stunned, like the game's own; Escape closes an open dropdown first, a dropdown closes with its window, and closing one without picking makes the game's soft click" },
         { "Quests", "Questie icons on the world map no longer jump and flicker when you rest the mouse on them" },
         { "Tooltips", "Comparing an item with what you wear no longer makes the tooltips twitch sideways while you hover it" },
         { "Nameplates", "The Big defensives icon now works on enemy players in PvP, so you see Divine Protection, Divine Shield and the like before wasting your damage" },

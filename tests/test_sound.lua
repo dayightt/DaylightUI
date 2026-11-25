@@ -285,3 +285,53 @@ T.test("sound: a loop plays its file again and again, and stops with a fade", fu
     T.isnil(DUI.Sound.Loop("campfire", 7.5), "Soft UI sounds off: no loop")
     _G.StopSound = nil
 end)
+
+-- The game's dropdowns play the checkbox-off kit when they close
+-- (DropdownButton.lua OnMenuClosed, MenuVariants.GetDropdownCloseSoundKit);
+-- its right-click menus are silent. A pick already plays a click.
+T.test("sound: a dropdown let go without a pick plays its close sound, a right-click menu stays quiet", function()
+    local DUI, W = login()
+    local Wd = DUI.Widgets
+    local owner = Wd.MenuButton(UIParent, "Pick")
+    local function open() Wd.OpenMenu(owner, { "a", "b" }, { a = "A", b = "B" }, nil, function() end) end
+    -- The screen-wide catcher behind the menu, found from its first row.
+    local function catcher()
+        local c = Wd.MenuRow(1)
+        while c and c:GetParent() ~= UIParent do c = c:GetParent() end
+        return c
+    end
+    open()
+    local n = #W.played
+    catcher():Click()
+    T.falsy(Wd.menuOwner)
+    T.eq(#W.played, n + 1, "a click beside the dropdown closes it with a sound")
+    T.eq(last(W), DUI.Sound.FILES.dismiss)
+    -- Escape (the menu's own key) does the same.
+    stub.Advance(1)
+    open()
+    n = #W.played
+    local c = catcher()
+    c.keys:GetScript("OnKeyDown")(c.keys, "ESCAPE")
+    T.eq(#W.played, n + 1, "Escape too")
+    -- A pick plays the row's click, not the close sound as well.
+    stub.Advance(1)
+    open()
+    n = #W.played
+    Wd.MenuRow(1):Click()
+    T.eq(#W.played, n + 1, "one sound for a pick")
+    T.eq(last(W), DUI.Sound.FILES.click)
+    -- A right-click menu, like the game's context menus: no sound on letting go.
+    stub.Advance(1)
+    local row = CreateFrame("Button", nil, UIParent)
+    Wd.OpenMenu(row, { "a" }, { a = "A" }, nil, function() end, nil, { atCursor = true })
+    n = #W.played
+    catcher():Click()
+    T.eq(#W.played, n, "a right-click menu closes quietly")
+    -- The game's sounds picked: the game's own close kit.
+    stub.Advance(1)
+    DUI:Set("general", "soundKinds.toggles", "game")
+    open()
+    local k = #W.kits
+    catcher():Click()
+    T.eq(W.kits[k + 1], SOUNDKIT.IG_MAINMENU_OPTION_CHECKBOX_OFF, "the game's dropdown close kit")
+end)
