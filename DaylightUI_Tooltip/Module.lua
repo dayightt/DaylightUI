@@ -10,7 +10,7 @@ DaylightUI:RegisterModule("Tooltip", {
     -- The module's parts, so a file missing after an update disables the
     -- module with one line in chat instead of erroring.
     ns = ns,
-    parts = { "Tooltip", "RichRead", "RichPanel", "RichPlayers", "RichItems", "RichSpells", "RichWorld", "RichForeign", "RichPill", "Rich", "RichSample", "TipGhost" },
+    parts = { "Tooltip", "RichRead", "RichPanel", "RichLayout", "RichPlayers", "RichItems", "RichSpells", "RichWorld", "RichForeign", "RichPill", "Rich", "RichSample", "TipGhost", "RichDesign" },
     label = "Tooltips",
     order = 140,
     defaults = ns.DEFAULTS,
@@ -18,6 +18,7 @@ DaylightUI:RegisterModule("Tooltip", {
     OnEnable = function(mod)
         -- Before anything reads the sizes; a profile switch reloads, so this sees each one.
         DaylightUI.SafeCall(ns.UpgradeSizes, DaylightUI.DB.Active())
+        DaylightUI.SafeCall(ns.UpgradeLayout, DaylightUI.DB.Active())
         if off() then ns.Tooltip.BarOnly(mod) else ns.Tooltip.Build(mod) end
     end,
     OnSettingChanged = function(mod) if not off() then ns.Tooltip.Refresh(mod) end end,

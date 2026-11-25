@@ -17,6 +17,7 @@ Defaults.lua
 Tooltip.lua
 Rich\Read.lua
 Rich\Panel.lua
+Rich\Layout.lua
 Rich\Players.lua
 Rich\Items.lua
 Rich\Spells.lua
@@ -27,4 +28,5 @@ Rich\Rich.lua
 Rich\Sample.lua
 Ghost.lua
 Options.lua
+Rich\Design.lua
 Module.lua

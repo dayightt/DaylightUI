@@ -50,6 +50,33 @@ Panel.LINE_SPACING = 3 -- between the lines of a wrapped sentence
 
 local panels = setmetatable({}, { __mode = "k" }) -- tooltip -> panel
 
+-- Whether a card switch is on (a missing one is: every one defaults on).
+function Panel.Wants(key)
+    local c = ns.Tooltip.Config()
+    return not (type(c) == "table" and DUI.DB.GetPath(c, key) == false)
+end
+
+-- Compact rows (the "Row spacing" setting): every card's rows and rules
+-- closer together.
+Panel.COMPACT_ROW_GAP, Panel.COMPACT_RULE_GAP = 3, 6
+function Panel.Compact()
+    local c = ns.Tooltip.Config()
+    return type(c) == "table" and c.cardRows == "compact"
+end
+
+-- The cards' width setting (times each kind's own width).
+function Panel.WidthScale()
+    local c = ns.Tooltip.Config()
+    local k = type(c) == "table" and tonumber(c.cardWidth) or 1
+    return math.max(0.8, math.min(1.3, k or 1))
+end
+
+-- The cut corner, unless switched off.
+function Panel.Cut(p)
+    local cut = Panel.Wants("cardCut") and Panel.CUT or 0
+    if Style.GetCut(p) ~= cut then Style.CutShell(p, cut) end
+end
+
 local function W() return DUI.Widgets end
 local function font() return ns.MEDIA and ns.MEDIA.font end
 
@@ -1086,7 +1113,8 @@ function Panel.Finish(p)
     p:SetScale(Panel.Scale())
     local widest = 0
     for i = 1, p.count do widest = math.max(widest, natural(p.items[i])) end
-    local most = Panel.WIDTH[p.kind] or Panel.WIDTH.other
+    local most = (Panel.WIDTH[p.kind] or Panel.WIDTH.other) * Panel.WidthScale()
+    if Panel.Compact() then p.rowGap, p.ruleGap = Panel.COMPACT_ROW_GAP, Panel.COMPACT_RULE_GAP end
     -- Rounded up: a card a fraction short of its widest text cut it with "...".
     local w = math.ceil(math.min(most, math.max(Panel.MIN_W, widest + 2 * padX(p))))
     if Panel.FIXED[p.kind] then
@@ -1105,13 +1133,16 @@ function Panel.Finish(p)
         -- Rows sit ROW_GAP apart; a rule or a gap brings its own room.
         if last and SPACED[item.kind] ~= false and SPACED[last] ~= false then y = y + rowGap end
         item.y = y
-        y = y + place[item.kind](p, item, y, inner)
+        -- Its height, for the Design sample's hotspots (Rich/Design.lua).
+        item.tall = place[item.kind](p, item, y, inner)
+        y = y + item.tall
         last = item.kind
     end
     measuring = nil
     local h = math.floor(y + Panel.PAD_BOTTOM + 0.5)
     p.wantW, p.wantH = w, h
     Panel.Pin(p)
+    Panel.Cut(p)
     alignTags(p)
     -- Where the game puts the tooltip may come a frame later.
     C_Timer.After(0, function() if p:IsShown() then alignTags(p) end end)
@@ -1129,7 +1160,7 @@ function Panel.PaintLight(p)
     local a, b = p.light[1], p.light[2]
     -- A plugin painting the light (API Paint "tooltip", owns "light") colors it.
     if Panel.Owned("light") then return end
-    if not pair then
+    if not pair or not Panel.Wants("cardLight") then
         a:Hide()
         b:Hide()
         return
@@ -1173,7 +1204,7 @@ function Panel.PaintWash(p)
             break
         end
     end
-    if not (c and header and header.kind == "header") then
+    if not (c and header and header.kind == "header") or not Panel.Wants("cardWash") then
         a:Hide()
         b:Hide()
         return
@@ -1213,7 +1244,7 @@ end
 Panel.SWEEP_LIFT = 0.5
 function Panel.Sweep(p, c)
     local M = DUI.Motion
-    if InCombatLockdown() or not (p.lightPair and type(c) == "table" and M.On()) then return end
+    if InCombatLockdown() or not (p.lightPair and type(c) == "table" and M.On() and Panel.Wants("cardLight")) then return end
     local k = Panel.SWEEP_LIFT
     local r, g, b = c[1] + (1 - c[1]) * k, c[2] + (1 - c[2]) * k, c[3] + (1 - c[3]) * k
     local left, right = p.sweep.halves[1], p.sweep.halves[2]
@@ -1272,6 +1303,7 @@ function Panel.Chrome(p)
     p.chrome = true
     p.wantW, p.wantH, p.padded = nil, nil, nil
     if p.pinned then Panel.Stretch(p, p.tip) end
+    Panel.Cut(p)
     Panel.PaintLight(p)
     Panel.PaintWash(p)
     p:Show()

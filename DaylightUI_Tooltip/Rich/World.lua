@@ -154,11 +154,6 @@ function World.Sort(p, lines, own, taken)
     return notQuest, anyQuest
 end
 
-local function rule(p)
-    local last = p.items[p.count]
-    if last and last.kind ~= "rule" then ns.RichPanel.Rule(p) end
-end
-
 -- In a restricted dungeon the tooltip's own lines are secret and the card is
 -- built from the unit, but the quests it counts for are still in the data the
 -- game filled it from (a nameplate reads the same lines there). Its quest
@@ -191,11 +186,11 @@ end
 function World.DrawDataQuests(p, quests)
     if #quests == 0 then return end
     local Rich, Panel, INK, SIZE = ns.Rich, ns.RichPanel, Style.INK, Style.SIZE
-    rule(p)
-    local plainRun = {}
+    -- The card's layout puts the line above the first.
+    local plainRun, first = {}, true
     local function flush()
-        if #plainRun > 0 then Rich.Lines(p, #plainRun, plainRun, 1) end
-        plainRun = {}
+        if #plainRun > 0 then Rich.Lines(p, #plainRun, plainRun, 1, nil, first) end
+        plainRun, first = {}, false
     end
     for _, q in ipairs(quests) do
         if q.secret ~= nil then
@@ -340,14 +335,15 @@ function World.Tags(unit, r)
     if class == "worldboss" then tags[#tags + 1] = Tag(W.boss, INK.BAD) end
     if class == "elite" or class == "rareelite" then tags[#tags + 1] = Tag(W.elite, INK.MONEY) end
     if class == "rare" or class == "rareelite" then tags[#tags + 1] = Tag(W.rare, World.RARE_COLOR) end
-    local reaction = plain(UnitReaction(unit, "player"))
+    local Wants = ns.RichPanel.Wants
+    local reaction = Wants("tags.mob.reaction") and plain(UnitReaction(unit, "player")) or nil
     if type(reaction) == "number" then
         local name = reaction <= 3 and W.hostile or reaction == 4 and W.neutral or W.friendly
         tags[#tags + 1] = Tag(name, { Style.ReactionColor(reaction) })
     end
     local kindRaw, idRaw = UnitCreatureType(unit)
     local kind, kindID = plain(kindRaw), plain(idRaw)
-    if type(kind) == "string" and kind ~= "" then
+    if type(kind) == "string" and kind ~= "" and Wants("tags.mob.type") then
         tags[#tags + 1] = Tag(kind, World.KIND_COLORS[kindID] or INK.TEXT)
     end
     for _, t in ipairs(r.tags) do tags[#tags + 1] = Tag(t[1], t[2]) end
@@ -393,34 +389,28 @@ function World.Mob(p, tip, unit, data, n, lines, light)
     local _, rankColor = World.Rank(unit)
     Panel.Header(p, { portrait = face, iconSize = World.ICON, iconGap = World.ICON_GAP, iconTile = face and pair or nil,
         iconEdge = face and rankColor or nil,
-        title = r.title, titleSize = World.TITLE, sub = r.sub, right = World.LevelText(unit, level), rightColor = levelColor, rightSize = Style.SIZE.title,
+        title = r.title, titleSize = World.TITLE, sub = r.sub,
+        right = Panel.Wants("headerLevel") and World.LevelText(unit, level) or nil, rightColor = levelColor, rightSize = Style.SIZE.title,
         tags = #tags > 0 and tags or nil, tagGap = World.TAG_GAP })
-    local barLow = cfg and cfg.mobBar == "bottom"
-    if not barLow then
-        Panel.Gap(p, World.BEFORE_BAR)
-        Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
-    end
-    if n == 0 then
-        World.DrawDataQuests(p, World.DataQuests(data))
-    else
-        local notQuest, anyQuest = World.Sort(p, lines, own, r.taken)
-        if anyQuest then Rich.Lines(p, n, lines, 2, notQuest) end
-    end
-    local cfg = ns.Tooltip.Config()
-    local target = cfg.showTarget and ns.RichPlayers.Target(unit) or nil
+    -- Its pieces, in the player's order (Rich/Layout.lua).
     local Foreign = ns.RichForeign
-    -- Its facts, other addons' lines when they're mixed in, who it's targeting.
-    if #r.facts > 0 or target or Foreign.Has(p, "mixed") then
-        rule(p)
+    local pieces = {}
+    pieces.health = { has = true, draw = function() Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair }) end }
+    if n == 0 then
+        local quests = World.DataQuests(data)
+        pieces.quests = { has = #quests > 0, draw = function() World.DrawDataQuests(p, quests) end }
+    else
+        -- Sorted even when hidden: another addon's quest rows count as the card's.
+        local notQuest, anyQuest = World.Sort(p, lines, own, r.taken)
+        pieces.quests = { has = anyQuest, draw = function() Rich.Lines(p, n, lines, 2, notQuest, true) end }
+    end
+    pieces.facts = { has = #r.facts > 0, draw = function()
         for _, i in ipairs(r.facts) do fact(p, lines[i]) end
-        Foreign.Place(p, "mixed")
-        if target then Panel.Row(p, L["Targeting"], target[1], target[2]) end
-    end
-    if barLow then
-        Panel.Gap(p, World.BEFORE_BAR)
-        Panel.Bar(p, { unit = unit, health = true, h = 7, pair = pair })
-    end
-    Foreign.Place(p, "own")
+    end }
+    local target = ns.RichLayout.Shown("mob", "target") and ns.RichPlayers.Target(unit) or nil
+    pieces.target = { has = target ~= nil, draw = function() Panel.Row(p, L["Targeting"], target[1], target[2]) end }
+    pieces.addons = Foreign.Part(p, "mob")
+    ns.RichLayout.Run(p, "mob", pieces)
     Panel.Finish(p)
 end
 
@@ -473,7 +463,6 @@ function World.Object(p, tip, data, n, lines, light)
     local Foreign = ns.RichForeign
     local notQuest, anyQuest = Foreign.QuestLines(p)
     if anyQuest then Rich.Lines(p, n, lines, own + 1, notQuest) end
-    Foreign.Place(p, "mixed")
-    Foreign.Place(p, "own")
+    Foreign.Bottom(p)
     Panel.Finish(p)
 end

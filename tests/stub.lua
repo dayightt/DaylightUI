@@ -4348,7 +4348,7 @@ function stub.Load(opts)
     end
     if opts.tooltip then
         local TT = {}
-        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Spells.lua", "Rich/World.lua", "Rich/Foreign.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Rich/Sample.lua", "Ghost.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
+        loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Layout.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Spells.lua", "Rich/World.lua", "Rich/Foreign.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Rich/Sample.lua", "Ghost.lua", "Options.lua", "Rich/Design.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Tooltip")
         stub.tooltip = TT
     end

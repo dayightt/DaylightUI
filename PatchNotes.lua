@@ -15,6 +15,8 @@ DUI.PatchNotes = {
         { "Proc Alerts", "A new module lights up a painted flare around your character when a proc is ready, like Clearcasting or Overpower. Each one has its own look, colors, size and sound in the options." },
         { "Quests", "Drag a zone's name in the quest tracker to put your zones in your own order, or right-click Quests to sort them A to Z or by level" },
         { "Auction House", "Alt-click an item in your bags to put it on the Sell tab, like right-click; pick either one under Auction > Buying and selling" },
+        { "Tooltips", "Turn on Design mode on the Tooltips page to drag the pieces of a tooltip card into your own order and sections, or hide them" },
+        { "Tooltips", "More ways to set up the tooltip cards: turn each tag and the level by the name on or off, drop the colored top light, the glow or the cut corner, tighter rows, a wider or narrower card, and the stack size on items" },
     }, changed = {
         { "Action bars", "Show empty buttons now covers the action bars only: the game hides the pet bar's empty slots itself, so it never worked there" },
     }, fixed = {

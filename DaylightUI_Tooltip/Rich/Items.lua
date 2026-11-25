@@ -367,8 +367,8 @@ local function sort(n, lines, own, info, groups)
     local inSet = false
     local made = Items.Made(lines, own, lines[1] and lines[1].left)
     groups.madeAt = made
-    local madeGroups = { list = groups.made, effects = groups.made, set = groups.made, facts = groups.made,
-        quote = groups.made, taken = groups.taken }
+    local madeGroups = { numbers = groups.made, stats = groups.made, effects = groups.made, set = groups.made,
+        facts = groups.made, quote = groups.made, taken = groups.taken }
     local sellWord = type(SELL_PRICE) == "string" and SELL_PRICE or "Sell Price"
     local sellType = Enum and Enum.TooltipDataLineType and Enum.TooltipDataLineType.SellPrice or 11
     -- The simple look renames the game's line to "Vendor" before the card reads it.
@@ -407,7 +407,7 @@ local function sort(n, lines, own, info, groups)
             -- The crafted item's name heads its part, in its quality color.
             local c2 = c and DUI.Tips.GameColor(c[1], c[2], c[3])
             local nameColor = (c and c2 ~= "white" and c2 ~= "yellow") and { c[1], c[2], c[3] } or Style.INK.TITLE
-            g.list[#g.list + 1] = function(p) ns.RichPanel.Line(p, t, nameColor) end
+            g.numbers[#g.numbers + 1] = function(p) ns.RichPanel.Line(p, t, nameColor) end
         elseif inMade and isBadge(line, t) then
             -- What the crafted item binds as: with it, never among the recipe's own tags.
             local badge = Items.BadgeColor(t)
@@ -433,28 +433,28 @@ local function sort(n, lines, own, info, groups)
         elseif t:find(P.armor) then
             local armor = { t:match(P.armor), ARMOR or L["Armor"] }
             g.armor = armor
-            g.list[#g.list + 1] = function(p) pairLine(p, armor, armor.block) end
+            g.numbers[#g.numbers + 1] = function(p) pairLine(p, armor, armor.block) end
         elseif t:find(P.block) then
             local block = { t:match(P.block), BLOCK or L["Block"] }
             if g.armor and not g.armor.block then
                 -- Drawn on the armor's line.
                 g.armor.block = block
             else
-                g.list[#g.list + 1] = function(p) numLine(p, block[1], block[2]) end
+                g.numbers[#g.numbers + 1] = function(p) numLine(p, block[1], block[2]) end
             end
         elseif t:find(P.damage) then
             local lo, hi = t:match(P.damage)
             local damage = { string.format(L["%s - %s"], lo, hi), DAMAGE or L["Damage"] }
             local words, num = wordsAndNumber(right and Items.Words(right) or "")
             local speed = words and { num, words } or nil
-            g.list[#g.list + 1] = function(p) pairLine(p, damage, speed) end
-            g.damageAt = #g.list
+            g.numbers[#g.numbers + 1] = function(p) pairLine(p, damage, speed) end
+            g.damageAt = #g.numbers
         elseif t:find(P.dps) then
             -- Big, over the damage and speed it comes from: the number that
             -- tells two weapons apart at a glance.
             local v = t:match(P.dps)
             local words = Items.DpsWords(v)
-            table.insert(g.list, g.damageAt or #g.list + 1, function(p) ns.RichPanel.Big(p, words()) end)
+            table.insert(g.numbers, g.damageAt or #g.numbers + 1, function(p) ns.RichPanel.Big(p, words()) end)
             g.damageAt = nil
         elseif t:find(P.setName) then
             local name, have, total = t:match(P.setName)
@@ -488,7 +488,7 @@ local function sort(n, lines, own, info, groups)
                     local num, name, color = Items.Stat(part)
                     if num then
                         color = color or Style.INK.GOOD
-                        g.list[#g.list + 1] = function(p) numLine(p, num, name, color) end
+                        g.stats[#g.stats + 1] = function(p) numLine(p, num, name, color) end
                     end
                 end
             elseif use then
@@ -512,7 +512,7 @@ local function sort(n, lines, own, info, groups)
         elseif Items.Stat(t) and not right and not isRed(c) then
             local num, name, color = Items.Stat(t)
             color = color or (num:sub(1, 1) == "-" and Style.INK.DAMAGE) or Style.INK.VALUE
-            g.list[#g.list + 1] = function(p) numLine(p, num, name, color) end
+            g.stats[#g.stats + 1] = function(p) numLine(p, num, name, color) end
         elseif ns.Rich.IsFlavor(line) then
             g.quote[#g.quote + 1] = function(p) ns.Rich.Flavor(p, line) end
         else
@@ -538,7 +538,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     p.washDown = true
     local first = lines[1]
     local own = ns.Rich.Own(data, n)
-    local groups = { list = {}, effects = {}, set = {}, facts = {}, quote = {}, made = {}, taken = {} }
+    local groups = { numbers = {}, stats = {}, effects = {}, set = {}, facts = {}, quote = {}, made = {}, taken = {} }
     info.badges = {}
     local foot = sort(n, lines, own, info, groups)
     -- A recipe: the card's tags are the recipe's own. The link may name the
@@ -563,11 +563,14 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         if kind ~= "white" and kind ~= "yellow" then titleColor = { c[1], c[2], c[3] } end
     end
     local tags = {}
-    if info.level then
+    local Wants = Panel.Wants
+    if info.level and Wants("tags.item.level") then
         tags[#tags + 1] = Items.Tag(string.format(L["ilvl %d"], math.floor(info.level + 0.5)),
             info.light or Style.INK.VALUE)
     end
-    if info.slot then
+    if info.slot and not Wants("tags.item.slot") then
+        -- Its slot and what it is (Plate, Sword) left off the card.
+    elseif info.slot then
         -- The slot, then what it is (Plate, Sword) in a tag of its own color.
         tags[#tags + 1] = Items.Tag(info.slot, info.slotColor)
         local word = info.slotWord or info.sub
@@ -587,56 +590,42 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
             tags[#tags + 1] = Items.Tag(what, info.kindColor)
         end
     end
-    for _, badge in ipairs(info.badges) do tags[#tags + 1] = Items.Tag(badge, Items.BadgeColor(badge)) end
+    if Wants("tags.item.bind") then
+        for _, badge in ipairs(info.badges) do tags[#tags + 1] = Items.Tag(badge, Items.BadgeColor(badge)) end
+    end
+    -- How many fit in one bag slot, with the small facts (the stack size switch).
+    local stack = (Tip.Config() or {}).stackSize == true and Tip.StackSize(link) or nil
+    if stack then
+        local words = L["Stacks to %s"]:format(hex({ Style.Pop() }) .. stack .. "|r")
+        groups.facts[#groups.facts + 1] = function() Panel.Text(p, words, Style.INK.LABEL, Style.SIZE.small) end
+    end
     Panel.Header(p, { icon = info.icon, iconSize = Items.ICON, iconEdge = info.color,
         title = first and first.left or "", titleColor = titleColor, tags = tags, tagGap = Items.TAG_GAP,
         wash = info.color })
     Panel.Gap(p, Items.AFTER_HEADER)
-    -- The card's parts, a rule between each that has something: the list of
-    -- numbers, then everything said in words (effects, set, other facts, the
-    -- quote last), then the foot. Inside a part, groups sit a small gap apart.
-    local any = false
-    local function part(...)
-        local first = true
-        for g = 1, select("#", ...) do
-            local list = select(g, ...)
-            if #list > 0 then
-                if first and any then Panel.Rule(p) elseif not first then Panel.Gap(p, Items.GROUP_GAP) end
-                first, any = false, true
-                for _, add in ipairs(list) do add(p) end
-            end
-        end
-    end
-    -- Other addons' lines (Rich/Foreign.lua): their own area is the foot,
-    -- first (a price), then durability and sell price; mixed in, they go with
-    -- what the card says in words. An item's card keeps to two or three rules.
-    -- Lines the card drew itself (a sell price, a compare's changes) aren't
-    -- theirs.
+    -- The card's pieces in the player's order (Rich/Layout.lua). By default:
+    -- the numbers, then everything said in words (effects, set, other
+    -- facts, the quote last), the item a recipe makes, then the foot (other
+    -- addons' lines first, then durability and sell price), a rule between
+    -- each, so a card keeps to two or three rules. Lines the card drew itself
+    -- (a sell price, a compare's changes) aren't other addons'.
     local Foreign, taken = ns.RichForeign, groups.taken
     if compare then
         for i in pairs(compare.skip) do taken[i] = true end
     end
-    local mixed, other, wear = {}, {}, {}
-    if Foreign.Has(p, "mixed", taken) then mixed[1] = function() Foreign.Place(p, "mixed", taken) end end
-    if Foreign.Has(p, "own", taken) then other[1] = function() Foreign.Place(p, "own", taken) end end
-    if foot.durability or foot.money then
-        -- A sell price alone (a quest reward has no durability) says what it is.
-        local label = foot.durability or L["Vendor"]
-        -- A list of its own: a small gap keeps it from reading as the last
-        -- addon's line.
-        wear[1] = function()
-            Panel.Row(p, label, foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small, Style.SIZE.body)
-        end
+    local pieces = {}
+    for _, key in ipairs({ "numbers", "stats", "effects", "set", "facts", "quote", "made" }) do
+        local list = groups[key]
+        pieces[key] = { has = #list > 0, draw = function()
+            for _, add in ipairs(list) do add(p) end
+        end }
     end
-    part(groups.list)
-    if #groups.made > 0 then
-        -- The item a recipe makes, all of it together under its name.
-        part(groups.effects, groups.set, groups.facts, groups.quote)
-        part(groups.made, mixed)
-    else
-        part(groups.effects, groups.set, groups.facts, groups.quote, mixed)
-    end
-    part(other, wear)
+    pieces.addons = Foreign.Part(p, "item", taken)
+    -- A sell price alone (a quest reward has no durability) says what it is.
+    pieces.foot = { has = (foot.durability or foot.money) ~= nil, draw = function()
+        Panel.Row(p, foot.durability or L["Vendor"], foot.money, Style.INK.VALUE, Style.INK.LABEL, Style.SIZE.small, Style.SIZE.body)
+    end }
+    local any = ns.RichLayout.Run(p, "item", pieces)
     -- A compare's chips: what changes if you swap, last. They sit on the
     -- equipped item's card, so a heading says they're the trade, not its stats.
     if compare and #compare.chips > 0 then
@@ -646,7 +635,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
         Panel.Tags(p, compare.chips)
     end
     -- Nothing under the header: no room kept for it.
-    if not any and p.items[p.count].kind == "gap" then p.count = p.count - 1 end
+    if not any then ns.RichLayout.DropGap(p) end
     Panel.Finish(p)
     return info
 end

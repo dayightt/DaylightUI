@@ -4,6 +4,116 @@ local _, ns = ...
 
 local lookRows = DaylightUI.Options.LookRows("frameStyle")
 
+local function notRich(get) return get("style") ~= "rich" end
+local SINCE = "2.3"
+
+-- Each Rich card's pieces (Rich/Layout.lua): a switch per piece, the same
+-- ones Design mode's Hidden tray flips, and a reset for the card's order.
+local CARDS = {
+    { id = "player", label = "Player",
+      reset = "Reset the player card's layout", resetDesc = "Puts the pieces of player cards back in their first order and sections. Hidden pieces stay hidden.",
+      pieces = {
+        { "guild", "Guild on player cards", "Their guild, and their rank in it when Guild rank is on." },
+        { "zone", "Zone on player cards", "Where a party or raid member is." },
+        { "ilvl", "Item level on player cards", "Their average item level, once the game knows it (yours, or someone you've inspected)." },
+        { "health", "Health bar on player cards", "Their health as a bar under the rows." },
+        { "power", "Power bar on player cards", "Their mana, rage or energy as a thin bar under their health." },
+        { "addons", "Other addons' lines on player cards", "Lines other addons add (scores, notes). When off, only Daylight UI plugins' lines still show." },
+    } },
+    { id = "mob", label = "Creature",
+      reset = "Reset the creature card's layout", resetDesc = "Puts the pieces of creature cards back in their first order and sections. Hidden pieces stay hidden.",
+      pieces = {
+        { "health", "Health bar on creature cards", "The creature's health as a bar." },
+        { "quests", "Quests on creature cards", "The quests it counts for, with each objective's progress." },
+        { "facts", "Small facts on creature cards", "The game's other lines about it, in small text (a skill it needs, a title)." },
+        { "addons", "Other addons' lines on creature cards", "Lines other addons add. When off, only Daylight UI plugins' lines still show." },
+    } },
+    { id = "item", label = "Item",
+      reset = "Reset the item card's layout", resetDesc = "Puts the pieces of item cards back in their first order and sections. Hidden pieces stay hidden.",
+      pieces = {
+        { "numbers", "Damage and armor on item cards", "A weapon's damage, speed and damage per second, or a piece's armor and block." },
+        { "stats", "Stats on item cards", "Strength, Stamina and every other stat, one line each." },
+        { "effects", "Effects on item cards", "What it does when you equip or use it." },
+        { "set", "Set on item cards", "Its set's name, how many pieces you have, and the set bonuses." },
+        { "facts", "Requirements on item cards", "Level, class and other requirements, and the game's other small lines." },
+        { "quote", "Quote on item cards", "The item's flavor text." },
+        { "made", "Crafted item on item cards", "On a recipe, the item it makes." },
+        { "addons", "Other addons' lines on item cards", "Prices, counts and other lines other addons add. When off, only Daylight UI plugins' lines still show." },
+        { "foot", "Durability and vendor price on item cards", "Its durability and what a vendor pays for it." },
+    } },
+    { id = "spell", label = "Spell",
+      reset = "Reset the spell card's layout", resetDesc = "Puts the pieces of spell cards back in their first order and sections. Hidden pieces stay hidden.",
+      pieces = {
+        { "tiles", "Cast, cost and range on spell cards", "The three boxes under the spell's name: cast time, cost and range or cooldown." },
+        { "cooldown", "Cooldown countdown on spell cards", "When a spell on your action bar is cooling down, how long until it's ready." },
+        { "desc", "Description on spell cards", "What the spell does." },
+        { "reagents", "Reagents on spell cards", "On a profession recipe, the reagents and tools it needs." },
+        { "facts", "Small facts on spell cards", "The game's other small lines about the spell." },
+        { "addons", "Other addons' lines on spell cards", "Lines other addons add. When off, only Daylight UI plugins' lines still show." },
+    } },
+}
+
+local function pieceChoices()
+    local out = {}
+    for _, c in ipairs(CARDS) do
+        local items = {}
+        for _, piece in ipairs(c.pieces) do
+            items[#items + 1] = { type = "toggle", key = "pieces." .. c.id .. "." .. piece[1],
+                label = piece[2], desc = piece[3], since = SINCE, hidden = notRich }
+        end
+        items[#items + 1] = { type = "button", label = c.reset, text = "Reset",
+            confirm = true, since = SINCE, hidden = notRich, desc = c.resetDesc,
+            func = function()
+                local L = ns.RichLayout
+                DaylightUI:Set("Tooltip", "layout." .. c.id, L.DefaultText(c.id))
+            end }
+        out[#out + 1] = { id = c.id, label = c.label, items = items }
+    end
+    return out
+end
+
+-- The tags under each card's name.
+local TAGS = {
+    { id = "player", label = "Player", tags = {
+        { "class", "Class tag on player cards", "Their spec, or their class until the game knows it, in their class color." },
+        { "race", "Race tag on player cards", "Their race, in their faction's color." },
+    } },
+    { id = "mob", label = "Creature", tags = {
+        { "reaction", "Reaction tag on creature cards", "Hostile, Neutral or Friendly, in its color." },
+        { "type", "Creature type tag on creature cards", "What it is: Beast, Humanoid, Undead and so on." },
+    } },
+    { id = "item", label = "Item", tags = {
+        { "level", "Item level tag on item cards", "The item's level." },
+        { "slot", "Slot tags on item cards", "Where it's worn and what it is (Legs, Plate)." },
+        { "bind", "Binding tags on item cards", "Binds when picked up or equipped, Unique and the like." },
+    } },
+    { id = "spell", label = "Spell", tags = {
+        { "school", "School tag on spell cards", "The spell's school (Frost, Fire), in its color." },
+        { "rank", "Rank tag on spell cards", "The spell's rank." },
+    } },
+}
+
+local function tagChoices()
+    local out = {}
+    for _, c in ipairs(TAGS) do
+        local items = {}
+        for _, t in ipairs(c.tags) do
+            items[#items + 1] = { type = "toggle", key = "tags." .. c.id .. "." .. t[1], label = t[2],
+                desc = t[3], since = SINCE, hidden = notRich }
+        end
+        out[#out + 1] = { id = c.id, label = c.label, items = items }
+    end
+    return out
+end
+
+-- Other addons' lines hidden on every Rich card: their looks have nothing to do.
+local function noAddonLines(get)
+    for _, kind in ipairs({ "player", "mob", "item", "spell" }) do
+        if get("pieces." .. kind .. ".addons") ~= false then return false end
+    end
+    return true
+end
+
 ns.OPTIONS = { pages = {
     { id = "tooltip", label = "Tooltips",
       desc = "The game's tooltips in the Daylight UI look.",
@@ -27,32 +137,34 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "portraits", label = "Portraits", since = "2.0.2",
               desc = "A creature's face and a player's class icon at the top of their card. Off, the card starts with the name.",
               hidden = function(get) return get("style") ~= "rich" end },
-            { type = "dropdown", key = "mobBar", label = "Creature health bar", since = "2.1.4",
-              values = { top = "Top", bottom = "Bottom" }, order = { "top", "bottom" },
-              desc = "Where a creature's health bar sits on its card: under the name, or at the end of the card.",
-              hidden = function(get) return get("style") ~= "rich" end },
             { type = "toggle", key = "questBars", label = "Quest progress bars", since = "2.1.4",
               desc = "A thin bar under each quest objective on the card. Off, the objective and its count still show.",
               hidden = function(get) return get("style") ~= "rich" end },
         } },
+        DaylightUI.Options.PickCard({ label = "Card pieces",
+            desc = "What each Rich card shows. Turn on Design mode at the top of the page to drag them into your own order.",
+            pickDesc = "Which card's pieces to set.", choices = pieceChoices(), pickHidden = notRich }),
+        DaylightUI.Options.PickCard({ label = "Card header",
+            desc = "The name at the top of each Rich card, its tags and level.",
+            lead = {
+                { type = "toggle", key = "headerLevel", label = "Level beside the name", since = SINCE, hidden = notRich,
+                  desc = "A player's or creature's level at the right of their name, colored by how hard they are for you." },
+            },
+            pickDesc = "Which card's tags to set.", choices = tagChoices(), pickHidden = notRich }),
         { label = "Other addons", items = {
-            { type = "dropdown", key = "addonLines", label = "Other addons' lines", since = "2.0",
-              values = { own = "Their own area", mixed = "Mixed in", hidden = "Hidden" }, order = { "own", "mixed", "hidden" },
-              desc = "Lines other addons add to a tooltip (prices, quest progress, scores, bag counts). Their own area: at the bottom of the card under a line. Mixed in: with the card's own rows. Hidden: left out; Daylight UI plugins' lines still show.",
-              hidden = function(get) return get("style") ~= "rich" end },
             { type = "toggle", key = "addonAdapters.questie", label = "Quest progress from other addons", since = "2.0",
               desc = "Quest rows another addon adds (Questie) drawn like the game's own: the quest's name in its difficulty color and a thin bar per objective. A quest the game already lists isn't shown twice.",
-              hidden = function(get) return get("style") ~= "rich" or get("addonLines") == "hidden" end },
+              hidden = function(get) return get("style") ~= "rich" or noAddonLines(get) end },
             { type = "toggle", key = "addonAdapters.prices", label = "Prices from other addons", since = "2.0",
               desc = "Price lines another addon adds (Auctionator, TSM) as a label and Daylight UI's coins.",
-              hidden = function(get) return get("style") ~= "rich" or get("addonLines") == "hidden" end },
+              hidden = function(get) return get("style") ~= "rich" or noAddonLines(get) end },
             { type = "toggle", key = "addonAdapters.score", label = "Scores from other addons", since = "2.0",
               desc = "A score another addon adds (Raider.IO) as a row with the number in your accent color.",
-              hidden = function(get) return get("style") ~= "rich" or get("addonLines") == "hidden" end },
+              hidden = function(get) return get("style") ~= "rich" or noAddonLines(get) end },
             { type = "toggle", key = "addonAdapters.itemtree", label = "ItemTree's advice",
               desc = "ItemTree's lines under a heading of their own, with what it says to do (keep, sell, open) as colored tags.",
               hidden = function(get)
-                  return get("style") ~= "rich" or get("addonLines") == "hidden" or rawget(_G, "ItemTreeAPI") == nil
+                  return get("style") ~= "rich" or noAddonLines(get) or rawget(_G, "ItemTreeAPI") == nil
               end },
         } },
         { label = "Placement", items = {
@@ -86,6 +198,13 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "dpsSize", label = "Damage per second size", min = 9, max = 24, step = 1, since = "2.2",
               desc = "A weapon's damage per second, the big number over its damage and speed.",
               hidden = function(get) return get("style") ~= "rich" end },
+            { type = "dropdown", key = "cardRows", label = "Card row spacing", since = SINCE,
+              values = { roomy = "Roomy", compact = "Compact" }, order = { "roomy", "compact" },
+              desc = "How far apart the rows and lines of a Rich card sit. Compact makes every card shorter.",
+              hidden = notRich },
+            { type = "slider", key = "cardWidth", label = "Card width", min = 0.8, max = 1.3, step = 0.05, unit = "x", since = SINCE,
+              desc = "Makes every Rich card wider or narrower than its usual width. Long lines wrap on a narrow card.",
+              hidden = notRich },
         } },
         { label = "Borders and background", items = lookRows },
         { label = "Look", items = {
@@ -98,6 +217,15 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return get("classBorder") == false end },
             { type = "toggle", key = "qualityBorder", label = "Item quality border",
               desc = "Items that are uncommon or better get a border in their quality color." },
+            { type = "toggle", key = "cardLight", label = "Colored light along the card's top", since = SINCE,
+              desc = "A thin line in the class, reaction or quality color across the top of each Rich card.",
+              hidden = notRich },
+            { type = "toggle", key = "cardWash", label = "Color wash behind the name", since = SINCE,
+              desc = "A soft glow of the same color behind the name at the top of a Rich card.",
+              hidden = notRich },
+            { type = "toggle", key = "cardCut", label = "Cut corner on cards", since = SINCE,
+              desc = "The Rich card's bottom right corner cut at an angle. When off, the card is a plain box.",
+              hidden = notRich },
         } },
         { label = "Health bar", items = DaylightUI.Options.Join({
             { type = "toggle", key = "healthBar", label = "Health bar",
@@ -149,8 +277,7 @@ ns.OPTIONS = { pages = {
               desc = "An Item Level line on weapon and armor tooltips, in soft gold.",
               hidden = function(get) return get("style") == "rich" end },
             { type = "toggle", key = "stackSize", label = "Stack size line",
-              desc = "How many of an item fit in one bag slot (\"Stacks to 20\"), on items that stack.",
-              hidden = function(get) return get("style") == "rich" end },
+              desc = "How many of an item fit in one bag slot (\"Stacks to 20\"), on items that stack. On a Rich card it sits with the small facts." },
             { type = "toggle", key = "compareItems", label = "Compare with what you wear", since = "2.2.3",
               desc = "Pointing at an item shows what you have on beside it, as the game's own compare setting says. When off, it shows only while Shift is held." },
             { type = "toggle", key = "showIDs", label = "Spell and item IDs",

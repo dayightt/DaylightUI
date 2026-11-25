@@ -9,7 +9,15 @@
 -- 1 px (Shift for Strip.NUDGE_BIG).
 --
 -- Samples can offer views (sample.Views / sample.SetView), such as a nameplate
--- in execute range. Each one gets a toggle chip at the top right.
+-- in execute range. Each one gets a toggle chip at the top right; with
+-- sample.viewsExclusive one is always on and picking another switches to it.
+--
+-- A list move (part.move.list) is for pieces in a column, such as the rows of a
+-- tooltip card: they go up or down, not anywhere. While one is dragged it rides
+-- under the cursor in a lifted box, a line in the accent shows the slot it would
+-- land in (part.move.slots()), and letting go calls part.move.place(id); the
+-- arrow keys call part.move.step(dir). Strip.NewTray is a box such a sample can
+-- show its switched-off pieces in.
 
 local _, DUI = ...
 local W = DUI.Widgets
@@ -43,6 +51,8 @@ DUI.WithLanguage(function()
     Strip.ALL = L["Every setting for this piece"]
     Strip.ADD = L["+ Add piece"]
     Strip.DESIGN_TIP = L["Drag to move it, or click for its settings."]
+    Strip.NEW_SECTION = L["New section"]
+    Strip.HIDDEN = L["Hidden"]
 end)
 Strip.DRAG_START = 4     -- px of movement before a press becomes a drag
 Strip.DOT = 5            -- spot dot size; the nearest one is DOT_NEAR
@@ -53,6 +63,176 @@ Strip.NUDGE_BIG = 5      -- px per arrow key with Shift held
 Strip.ZOOM_WIDTH = 190   -- zoom slider including label and number
 Strip.GRIP = 8           -- resize grip size; edge grips are GRIP x GRIP_LONG
 Strip.GRIP_LONG = 14
+-- A list move.
+Strip.LINE = 2           -- the insert line's thickness
+Strip.REACH = 40         -- px either side of the list a drop still counts
+Strip.LIFT_FILL = 0.12   -- the lifted piece's accent wash
+Strip.HOVER_ALPHA = 0.45 -- a list piece's dashed outline under the mouse
+Strip.DASH, Strip.DASH_GAP = 4, 3
+Strip.DOTS_W, Strip.DOTS_H = 6, 12  -- a list piece's grip: two columns of four dots
+-- The tray of hidden pieces.
+Strip.TRAY_MIN = 44
+Strip.TRAY_PAD = 10
+Strip.TRAY_GAP = 6
+Strip.TRAY_ITEM_X, Strip.TRAY_ITEM_Y = 10, 3
+Strip.TRAY_HEAD = 18     -- its heading's row
+
+local Style = DUI.Style
+local WHITE = "Interface\\Buttons\\WHITE8X8"
+
+-- A 1 px dashed outline around a frame, drawn with short pieces laid along
+-- its edges again whenever it changes size. d.Paint(color, alpha).
+function Strip.Dashes(frame, layer)
+    local d = { pieces = {}, frame = frame, count = 0 }
+    local function piece(i)
+        local t = d.pieces[i]
+        if not t then
+            t = frame:CreateTexture(nil, layer or "OVERLAY", nil, 6)
+            t:SetTexture(WHITE)
+            d.pieces[i] = t
+        end
+        t:Show()
+        return t
+    end
+    -- w, h: its size when it isn't laid out yet (just anchored).
+    function d.Layout(w, h)
+        w, h = w or frame:GetWidth(), h or frame:GetHeight()
+        if type(w) ~= "number" or type(h) ~= "number" then return end
+        local one = DUI.Pixel.Px(frame, 1)
+        local step = Strip.DASH + Strip.DASH_GAP
+        local n = 0
+        local function run(len, place)
+            local at = 0
+            while at < len do
+                n = n + 1
+                place(piece(n), at, math.min(Strip.DASH, len - at))
+                at = at + step
+            end
+        end
+        run(w, function(t, at, l)
+            t:ClearAllPoints(); t:SetSize(l, one); t:SetPoint("TOPLEFT", frame, "TOPLEFT", at, 0)
+        end)
+        run(w, function(t, at, l)
+            t:ClearAllPoints(); t:SetSize(l, one); t:SetPoint("BOTTOMLEFT", frame, "BOTTOMLEFT", at, 0)
+        end)
+        run(h, function(t, at, l)
+            t:ClearAllPoints(); t:SetSize(one, l); t:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -at)
+        end)
+        run(h, function(t, at, l)
+            t:ClearAllPoints(); t:SetSize(one, l); t:SetPoint("TOPRIGHT", frame, "TOPRIGHT", 0, -at)
+        end)
+        for i = n + 1, #d.pieces do d.pieces[i]:Hide() end
+        d.count = n
+        if d.color then d.Paint(d.color, d.alpha) end
+        if d.shown == false then d.SetShown(false) end
+    end
+    function d.Paint(c, alpha)
+        d.color, d.alpha = c, alpha
+        for i = 1, d.count do d.pieces[i]:SetVertexColor(c[1], c[2], c[3], alpha or 1) end
+    end
+    function d.SetShown(on)
+        d.shown = on
+        for i = 1, d.count do d.pieces[i]:SetShown(on) end
+    end
+    function d.Shown() return d.shown == true and d.count > 0 end
+    return d
+end
+
+-- A grip: two columns of four dots, the sign that a piece can be dragged.
+function Strip.Grip(parent, layer)
+    local g = CreateFrame("Frame", nil, parent)
+    g:SetSize(Strip.DOTS_W, Strip.DOTS_H)
+    g:EnableMouse(false)
+    g.dots = {}
+    for col = 0, 1 do
+        for row = 0, 3 do
+            local t = g:CreateTexture(nil, layer or "OVERLAY", nil, 7)
+            t:SetTexture(WHITE)
+            t:SetSize(2, 2)
+            t:SetPoint("TOPLEFT", g, "TOPLEFT", col * 4, -row * 3.3)
+            g.dots[#g.dots + 1] = t
+        end
+    end
+    function g.Paint(c, alpha)
+        for _, t in ipairs(g.dots) do t:SetVertexColor(c[1], c[2], c[3], alpha or 1) end
+    end
+    g.Paint(Style.INK.LABEL)
+    return g
+end
+
+-- The tray a sample shows its switched-off pieces in: a heading, then a
+-- dashed box holding one small box per piece, wrapping. tray.Set(labels,
+-- width) lays them out and returns the boxes in order (each a hotspot's
+-- region); tray:GetHeight() is the whole tray's.
+function Strip.NewTray(parent)
+    local tray = CreateFrame("Frame", nil, parent)
+    tray.head = Style.Text(tray, Style.SIZE.small, "LEFT")
+    tray.head:SetPoint("TOPLEFT", tray, "TOPLEFT", 0, 0)
+    tray.box = CreateFrame("Frame", nil, tray)
+    tray.box:SetPoint("TOPLEFT", tray, "TOPLEFT", 0, -Strip.TRAY_HEAD)
+    tray.box:SetPoint("TOPRIGHT", tray, "TOPRIGHT", 0, -Strip.TRAY_HEAD)
+    tray.dashes = Strip.Dashes(tray.box, "BORDER")
+    tray.items = {}
+    local function item(i)
+        local b = tray.items[i]
+        if b then return b end
+        b = CreateFrame("Frame", nil, tray.box)
+        -- A square 1 px outline, as the card's own lines are.
+        b.edge = {}
+        for _, side in ipairs({ { "TOPLEFT", "TOPRIGHT" }, { "BOTTOMLEFT", "BOTTOMRIGHT" },
+            { "TOPLEFT", "BOTTOMLEFT" }, { "TOPRIGHT", "BOTTOMRIGHT" } }) do
+            local t = b:CreateTexture(nil, "BORDER")
+            t:SetTexture(WHITE)
+            t:SetPoint(side[1], b, side[1], 0, 0)
+            t:SetPoint(side[2], b, side[2], 0, 0)
+            b.edge[#b.edge + 1] = t
+        end
+        b.grip = Strip.Grip(b)
+        b.grip:SetPoint("LEFT", b, "LEFT", Strip.TRAY_ITEM_X - 4, 0)
+        b.text = Style.Text(b, Style.SIZE.small, "LEFT")
+        b.text:SetPoint("LEFT", b.grip, "RIGHT", 6, 0)
+        tray.items[i] = b
+        return b
+    end
+    function tray.Set(labels, width)
+        tray:SetWidth(width)
+        tray.head:SetText(Style.Upper(Strip.HIDDEN or "Hidden"))
+        Style.InkText(tray.head, "pop")
+        local inner = width - 2 * Strip.TRAY_PAD
+        local x, y, rowH = 0, 0, 0
+        local out = {}
+        for i, label in ipairs(labels) do
+            local b = item(i)
+            b.text:SetText(label)
+            Style.InkText(b.text, "OFF")
+            local tw = b.text:GetStringWidth()
+            tw = type(tw) == "number" and tw or 0
+            local h = Style.SIZE.small + 4 + 2 * Strip.TRAY_ITEM_Y
+            local w = math.min(inner, tw + Strip.DOTS_W + 6 + 2 * Strip.TRAY_ITEM_X)
+            if x > 0 and x + w > inner then x, y = 0, y + rowH + Strip.TRAY_GAP end
+            b:SetSize(w, h)
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", tray.box, "TOPLEFT", Strip.TRAY_PAD + x, -(Strip.TRAY_PAD + y))
+            local one = DUI.Pixel.Px(b, 1)
+            for k, t in ipairs(b.edge) do
+                if k <= 2 then t:SetHeight(one) else t:SetWidth(one) end
+                W.Tint(t, Style.BAND_LIT)
+            end
+            b:Show()
+            x, rowH = x + w + Strip.TRAY_GAP, math.max(rowH, h)
+            out[i] = b
+        end
+        for i = #labels + 1, #tray.items do tray.items[i]:Hide() end
+        local boxH = math.max(Strip.TRAY_MIN, (#labels > 0 and (y + rowH) or 0) + 2 * Strip.TRAY_PAD)
+        tray.box:SetHeight(boxH)
+        tray:SetHeight(Strip.TRAY_HEAD + boxH)
+        tray.dashes.Layout(width, boxH)
+        tray.dashes.Paint(Style.BAND_LIT, 1)
+        tray.dashes.SetShown(true)
+        return out
+    end
+    return tray
+end
 
 -- Over a FontString, cover just the letters, not the whole line it spans.
 -- scale is the text's frame scale, since hotspots themselves aren't scaled.
@@ -157,6 +337,25 @@ function Strip.New(parent, onJump, onMove, onAll)
     strip.add:SetFrameLevel(strip:GetFrameLevel() + Strip.LAYER + 210)
     strip.add:Hide()
     strip.views = {}     -- view chips, reused
+    -- A list move's insert line, and the box a dragged piece rides in.
+    strip.insert = CreateFrame("Frame", nil, strip.layer)
+    strip.insert:SetHeight(Strip.LINE)
+    strip.insert.line = strip.insert:CreateTexture(nil, "OVERLAY", nil, 6)
+    strip.insert.line:SetAllPoints(strip.insert)
+    strip.insert.line:SetTexture(WHITE)
+    strip.insert.back = strip.insert:CreateTexture(nil, "OVERLAY", nil, 5)
+    strip.insert.back:SetTexture(WHITE)
+    strip.insert.word = Style.Text(strip.insert, Style.SIZE.tiny, "RIGHT")
+    strip.insert.word:SetPoint("RIGHT", strip.insert, "RIGHT", -6, 0)
+    strip.insert.back:SetPoint("TOPLEFT", strip.insert.word, "TOPLEFT", -6, 1)
+    strip.insert.back:SetPoint("BOTTOMRIGHT", strip.insert.word, "BOTTOMRIGHT", 6, -1)
+    strip.insert:Hide()
+    strip.lift = CreateFrame("Frame", nil, strip.layer)
+    strip.lift.shell = Style.Shell(strip.lift, { noBevel = true, borderPx = 1, bgAlpha = 1 })
+    strip.lift.wash = strip.lift:CreateTexture(nil, "ARTWORK", nil, 1)
+    strip.lift.wash:SetTexture(WHITE)
+    strip.lift.wash:SetAllPoints(strip.lift)
+    strip.lift:Hide()
     strip:Hide()
 
     local samples = {}   -- page id -> sample
@@ -189,7 +388,18 @@ function Strip.New(parent, onJump, onMove, onAll)
         for i = #m.dots + 1, #dots do dots[i]:Hide() end
     end
 
+    -- A list piece in Design mode shows a dashed outline and its grip; the
+    -- picked one's dashes are in the accent.
+    local function listed(b) return strip.design and b.part ~= nil and b.part.move ~= nil and b.part.move.list end
     local function lit(b)
+        if listed(b) then
+            b.dashes.Layout()
+            local on = selected == b.part.label
+            b.dashes.Paint(on and { Style.Accent() } or Style.INK.LABEL, on and 1 or Strip.HOVER_ALPHA)
+            b.dashes.SetShown(true)
+            b.grip:Show()
+            return
+        end
         W.TintDaylight(b.outline)
         DUI.Motion.AlphaTo(b.outline, 1, DUI.Motion.FAST)
     end
@@ -291,7 +501,8 @@ function Strip.New(parent, onJump, onMove, onAll)
                 c:SetFrameLevel(strip:GetFrameLevel() + Strip.LAYER + 210)
                 c:SetScript("OnClick", function(self)
                     if not (sample and sample.SetView) then return end
-                    sample.SetView(self.viewKey, not self.viewOn)
+                    -- With one always on, a click picks it (a second click keeps it).
+                    sample.SetView(self.viewKey, sample.viewsExclusive == true or not self.viewOn)
                     -- A view can change the sample's height: relayout the page below it too.
                     if strip.onZoom then strip.onZoom()
                     elseif strip.lastWidth then strip.Redraw(strip.lastWidth, strip.lastRoom) end
@@ -331,6 +542,14 @@ function Strip.New(parent, onJump, onMove, onAll)
         local part = strip.SelectedPart()
         local m = part and part.move
         if not m then return false end
+        if m.list then
+            -- Up and down: one slot at a time.
+            if arrow[2] == 0 or not m.step then return false end
+            local changes = m.step(-arrow[2])
+            if changes and #changes > 0 then onMove(changes) end
+            if strip.lastWidth then strip.Redraw(strip.lastWidth, strip.lastRoom) end
+            return true
+        end
         local step = type(IsShiftKeyDown) == "function" and IsShiftKeyDown() == true and Strip.NUDGE_BIG or 1
         local changes = {}
         local function add(k, by)
@@ -358,7 +577,7 @@ function Strip.New(parent, onJump, onMove, onAll)
         strip.all:SetShown(strip.design == true and selected ~= nil)
         strip.add:SetShown(strip.design == true and sample ~= nil and sample.Adds ~= nil)
         local part = strip.design and strip.SelectedPart()
-        setKeys(part and part.move ~= nil and (part.move.xKey or part.move.yKey) ~= nil)
+        setKeys(part and part.move ~= nil and ((part.move.xKey or part.move.yKey) ~= nil or part.move.step ~= nil))
         placeViews()
         local POINT = { s = "BOTTOMRIGHT", w = "RIGHT", h = "BOTTOM" }
         for kind, g in pairs(grips) do
@@ -398,6 +617,99 @@ function Strip.New(parent, onJump, onMove, onAll)
         return out
     end
 
+    -- Whether the cursor is over a region (a box slot: the tray).
+    local function over(region)
+        local cx, cy = GetCursorPosition()
+        local s = region:GetEffectiveScale()
+        local l, b, w, h = region:GetRect()
+        if not (cx and type(l) == "number" and type(w) == "number" and s and s > 0) then return false end
+        cx, cy = cx / s, cy / s
+        return cx >= l and cx <= l + w and cy >= b and cy <= b + h
+    end
+
+    -- The slot a list piece would land in: a box under the cursor, else the
+    -- nearest line by height while the cursor is over the list (or REACH
+    -- either side of it). nil anywhere else.
+    local function nearestSlot(m)
+        local slots = m.slots()
+        for _, sl in ipairs(slots) do
+            if sl.region and sl.region:IsShown() and over(sl.region) then return sl end
+        end
+        local x, y = cursorIn(m.owner)
+        local w, h = m.owner:GetWidth(), m.owner:GetHeight()
+        if not x or type(w) ~= "number" or x < -Strip.REACH or x > w + Strip.REACH
+            or y < -Strip.REACH or y > h + Strip.REACH then
+            return nil
+        end
+        local best, dist
+        for _, sl in ipairs(slots) do
+            if not sl.region then
+                local d = math.abs(y - sl.y)
+                if not dist or d < dist then best, dist = sl, d end
+            end
+        end
+        return best
+    end
+    strip.NearestSlot = nearestSlot
+
+    -- The insert line on a slot, gliding there from the last one.
+    local function showLine(m, sl)
+        local line = strip.insert
+        if not sl or sl.region then
+            line:Hide()
+            line.at = nil
+            return
+        end
+        local r = m.owner:GetEffectiveScale() / strip.layer:GetEffectiveScale()
+        local was = line:IsShown() and line.at
+        line:ClearAllPoints()
+        line:SetPoint("TOPLEFT", m.owner, "TOPLEFT", sl.x * r, -(sl.y * r - Strip.LINE / 2))
+        line:SetWidth(sl.w * r)
+        line:SetFrameLevel(strip.layer:GetFrameLevel() + 205)
+        Style.PaintAccent(line.line, 1)
+        line.word:SetShown(sl.new == true)
+        line.back:SetShown(sl.new == true)
+        if sl.new then
+            line.word:SetText(Style.Upper(Strip.NEW_SECTION or "New section"))
+            Style.InkText(line.word, "pop")
+            W.Tint(line.back, Style.BACKGROUND)
+        end
+        line:Show()
+        if was and was ~= sl.y then DUI.Motion.Glide(line, 0, (sl.y - was) * r, DUI.Motion.FAST) end
+        line.at = sl.y
+    end
+
+    -- The dragged piece's box: the accent outline, a faint accent wash over
+    -- the background, a shadow; the sample draws the piece inside it.
+    local function lift(b, on)
+        local L = strip.lift
+        local m = b.part.move
+        if not on then
+            if L:IsShown() and m.lift then m.lift(nil) end
+            L:Hide()
+            return
+        end
+        local r = b.part.region
+        local w, h = r:GetWidth(), r:GetHeight()
+        local k = r:GetEffectiveScale() / strip.layer:GetEffectiveScale()
+        L:SetSize((w or 1) * k, (h or 1) * k)
+        L:SetFrameLevel(strip.layer:GetFrameLevel() + 190)
+        local c = { Style.Accent() }
+        Style.SetShellColors(L.shell, c)
+        Style.LayoutShell(L.shell)
+        W.Tint(L.wash, c, Strip.LIFT_FILL)
+        L:Show()
+        if m.lift then m.lift(L) end
+    end
+
+    local function listUpdate(b, cx, cy)
+        local s = strip.layer:GetEffectiveScale()
+        local L = strip.lift
+        L:ClearAllPoints()
+        L:SetPoint("CENTER", UIParent, "BOTTOMLEFT", cx / s + press.gx, cy / s + press.gy)
+        showLine(b.part.move, nearestSlot(b.part.move))
+    end
+
     local function onUpdate()
         if not press then return end
         local b = press.b
@@ -409,14 +721,25 @@ function Strip.New(parent, onJump, onMove, onAll)
             if not (strip.design and b.part.move) then return end
             press.dragging = true
             W.HideTooltip()
+            if b.part.move.list then
+                -- Held where it was grabbed, in the strip's own units.
+                local r = b.part.region
+                local mx, my = r:GetCenter()
+                local k = r:GetEffectiveScale() / strip.layer:GetEffectiveScale()
+                local s = strip.layer:GetEffectiveScale()
+                press.gx = type(mx) == "number" and mx * k - press.x / s or 0
+                press.gy = type(my) == "number" and my * k - press.y / s or 0
+                lift(b, true)
+            end
             -- Grab offset from the piece's center, in its own units.
             local r = b.part.region
             local rs = r:GetEffectiveScale()
             local mx, my = r:GetCenter()
             press.gx = type(mx) == "number" and mx - press.x / rs or 0
             press.gy = type(my) == "number" and my - press.y / rs or 0
-            press.mates = matesOf(b)
+            if not b.part.move.list then press.mates = matesOf(b) end
         end
+        if b.part.move.list then return listUpdate(b, cx or 0, cy or 0) end
         local rs = b.part.region:GetEffectiveScale()
         for _, m in ipairs(press.mates) do
             local r = m.b.part.region
@@ -454,6 +777,19 @@ function Strip.New(parent, onJump, onMove, onAll)
         end
         b.dragged = true   -- so the OnClick that follows is ignored
         local m, label = b.part.move, b.part.label
+        if m.list then
+            -- Dropped on a slot: the sample says what that changes. Anywhere
+            -- else nothing changes.
+            local sl = nearestSlot(m)
+            lift(b, false)
+            strip.insert:Hide()
+            strip.insert.at = nil
+            selected = label
+            local changes = sl and m.place(sl.id)
+            if changes and #changes > 0 and onMove then onMove(changes) end
+            if strip.Redraw and strip.lastWidth then strip.Redraw(strip.lastWidth, strip.lastRoom) end
+            return
+        end
         -- Snap to the dot nearest the piece's center. Each spot anchors the
         -- piece differently (a row's pinned end, a corner...), so after saving
         -- the piece is measured again and the nudge corrected. It ends up where
@@ -497,6 +833,10 @@ function Strip.New(parent, onJump, onMove, onAll)
         b.outline = W.Round(b, "OVERLAY", 7, true)
         b.outline:SetAllPoints(b)
         b.outline:Hide()
+        b.dashes = Strip.Dashes(b)
+        b.grip = Strip.Grip(b)
+        b.grip:SetPoint("LEFT", b, "LEFT", 4, 0)
+        b.grip:Hide()
         b:SetScript("OnEnter", function(self)
             lit(self)
             W.Tooltip(self, DUI.Options.Text(self.part.label), strip.design and self.part.move and Strip.DESIGN_TIP or Strip.TIP)
@@ -505,6 +845,8 @@ function Strip.New(parent, onJump, onMove, onAll)
             if press and press.b == self then return end
             if not (strip.design and selected == self.part.label) then
                 DUI.Motion.AlphaTo(self.outline, 0, DUI.Motion.FAST, true)
+                self.dashes.SetShown(false)
+                self.grip:Hide()
             end
             W.HideTooltip()
         end)
@@ -533,9 +875,11 @@ function Strip.New(parent, onJump, onMove, onAll)
     -- Clears outline and tooltip, since a reused hotspot may now cover
     -- another part.
     local function unlit(b)
-        if b.outline:IsShown() then W.HideTooltip() end
+        if b.outline:IsShown() or b.grip:IsShown() then W.HideTooltip() end
         W.EaseAlpha(b.outline, 1)
         b.outline:Hide()
+        b.dashes.SetShown(false)
+        b.grip:Hide()
     end
 
     -- Later parts get higher frame levels.
@@ -563,18 +907,24 @@ function Strip.New(parent, onJump, onMove, onAll)
     -- released, a held piece is dropped, and OnUpdate stops.
     strip:SetScript("OnHide", function()
         if gripPress then strip.EndGrip(true) end
+        if press and press.dragging and press.b.part.move.list then lift(press.b, false) end
         press = nil
         strip:SetScript("OnUpdate", nil)
         hideDots()
         setKeys(false)
+        strip.insert:Hide()
+        strip.insert.at = nil
     end)
 
     function strip.SetPage(page)
         if sample then sample.frame:Hide() end
         strip.EndGrip(false)
+        if press and press.dragging and press.b.part.move.list then lift(press.b, false) end
         sample, press, selected = nil, nil, nil
         strip:SetScript("OnUpdate", nil)
         hideDots()
+        strip.insert:Hide()
+        strip.insert.at = nil
         setKeys(false)
         if not (page and page.sample) then
             strip:Hide()
@@ -586,6 +936,7 @@ function Strip.New(parent, onJump, onMove, onAll)
             samples[page.id] = sample
         end
         sample.frame:Show()
+        strip.hint:SetText(strip.design and (sample.designHint or Strip.DESIGN_HINT) or Strip.HINT)
         local zooms = sample.SetZoom ~= nil and sample.zoomRange ~= nil
         if zooms then
             local item, r = strip.zoom.item, sample.zoomRange
@@ -604,7 +955,7 @@ function Strip.New(parent, onJump, onMove, onAll)
         if strip.design == on then return end
         strip.design = on
         if not on then selected = nil end
-        strip.hint:SetText(on and Strip.DESIGN_HINT or Strip.HINT)
+        strip.hint:SetText(on and (sample and sample.designHint or Strip.DESIGN_HINT) or Strip.HINT)
         placeGrips()
     end
 
@@ -680,6 +1031,8 @@ function Strip.New(parent, onJump, onMove, onAll)
     function strip.Grips() return grips end
     function strip.GripLabel() return gripLabel end
     function strip.Sample() return sample end
+    function strip.InsertLine() return strip.insert end
+    function strip.Lifted() return strip.lift end
 
     return strip
 end

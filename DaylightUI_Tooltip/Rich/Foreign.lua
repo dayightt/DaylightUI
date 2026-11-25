@@ -11,8 +11,9 @@
 -- the label tan, money as Daylight UI's coins, inline icons cropped, a blank
 -- line a gap.
 --
--- Where they go is a setting: their own area at the bottom of the card after a
--- rule, mixed in with the card's own rows, or not at all.
+-- Where they go on a card is the card's "addons" piece (Rich/Layout.lua): by
+-- default their own area at the bottom after a line, anywhere the player
+-- drags it, or hidden.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -27,11 +28,16 @@ Foreign.GAP = 4 -- a blank line between two of an addon's lines
 
 local function cfg() return ns.Tooltip.Config() or {} end
 
--- "own" (their own area, the default), "mixed" or "hidden".
-function Foreign.Where()
-    local w = cfg().addonLines
-    if w == "mixed" or w == "hidden" then return w end
-    return "own"
+-- Whether other addons' lines show on a card of this kind (Rich/Layout.lua's
+-- kinds). A card with no layout of its own (a mailbox, a node, anything
+-- else) shows them unless every card hides them.
+function Foreign.Shown(kind)
+    local Layout = ns.RichLayout
+    if kind then return Layout.Shown(kind, "addons") end
+    for _, k in ipairs(Layout.KINDS) do
+        if Layout.Shown(k, "addons") then return true end
+    end
+    return false
 end
 
 local function adapterOn(key)
@@ -729,22 +735,21 @@ function Foreign.Blocks(f, taken)
     return f.blocks
 end
 
--- Whether a block goes at this spot: everything where the setting says; a
--- plugin's pieces (Daylight UI's own API) also when other addons are hidden;
--- a quest block not where the card has drawn it with its own quests.
-local function wanted(f, b, spot)
+-- Whether a block is drawn: every one when other addons' lines show; else
+-- only a plugin's pieces (Daylight UI's own API); never a quest block the card
+-- draws with its own quests.
+local function wanted(f, b, all)
     if b.kind == "drop" then return false end
     if b.adapter and b.adapter.quest and f.questsTaken then return false end
-    local where = Foreign.Where()
-    if where == spot then return true end
-    return where == "hidden" and spot == "own" and b.kind == "piece"
+    return all or b.kind == "piece"
 end
 
-function Foreign.Has(p, spot, taken)
+-- Whether there's anything to draw. all: other addons' lines show.
+function Foreign.Has(p, all, taken)
     local f = p.foreign
     if not f then return false end
     for _, b in ipairs(Foreign.Blocks(f, taken)) do
-        if b.kind ~= "gap" and wanted(f, b, spot) then return true end
+        if b.kind ~= "gap" and wanted(f, b, all) then return true end
     end
     return false
 end
@@ -767,22 +772,17 @@ function Foreign.QuestLines(p, taken)
     return notQuest, any
 end
 
--- Draws them at a card's spot: "mixed" (with its own rows, where the card
--- calls it) or "own" (their own area, at the bottom after a rule). Returns
--- whether anything was drawn.
-function Foreign.Place(p, spot, taken)
+-- Draws them where the card puts them. all: other addons' lines show (else
+-- only a plugin's pieces). Returns whether anything was drawn.
+function Foreign.Place(p, all, taken)
     local f = p.foreign
-    if not (f and Foreign.Has(p, spot, taken)) then return false end
+    if not (f and Foreign.Has(p, all, taken)) then return false end
     local Panel = ns.RichPanel
-    if spot == "own" then
-        local last = p.items[p.count]
-        if p.count > 0 and last.kind ~= "rule" then Panel.Rule(p) end
-    end
     local drew, gap, quest = false, false, false
     for _, b in ipairs(f.blocks) do
         if b.kind == "gap" then
             gap = drew
-        elseif wanted(f, b, spot) then
+        elseif wanted(f, b, all) then
             -- A quest block has a rule on each side, as the game's own quests.
             local isQuest = b.adapter ~= nil and b.adapter.quest == true
             if quest and not isQuest then
@@ -808,6 +808,24 @@ function Foreign.Place(p, spot, taken)
         end
     end
     return drew
+end
+
+-- A card's "addons" piece for Rich/Layout.lua. Hidden, it still draws a
+-- Daylight UI plugin's pieces (and the ID line) where the piece sits, so it
+-- decides that itself (keep).
+function Foreign.Part(p, kind, taken)
+    local all = Foreign.Shown(kind)
+    return { keep = true, has = Foreign.Has(p, all, taken), draw = function() Foreign.Place(p, all, taken) end }
+end
+
+-- Other addons' lines at the bottom of a card with no layout of its own,
+-- after a rule.
+function Foreign.Bottom(p)
+    local all = Foreign.Shown()
+    if not Foreign.Has(p, all) then return false end
+    local last = p.items[p.count]
+    if p.count > 0 and last.kind ~= "rule" then ns.RichPanel.Rule(p) end
+    return Foreign.Place(p, all)
 end
 
 -- ---------------------------------------------------------------------

@@ -106,41 +106,49 @@ function Players.Target(unit)
     return { name, r and rgb(r, g, b) or Style.INK.VALUE }
 end
 
--- The rows under the banner. Returns how many it added.
-local function rows(p, unit)
-    local Panel, Tip = ns.RichPanel, ns.Tooltip
+-- The card's pieces under the banner, for Rich/Layout.lua: what each holds
+-- and how it draws.
+local function pieces(p, unit)
+    local Panel, Tip, Layout = ns.RichPanel, ns.Tooltip, ns.RichLayout
     local cfg = Tip.Config()
-    local added = 0
+    local out = {}
     local guild, rank = Tip.GuildOf(unit)
-    if guild then
+    out.guild = { has = guild ~= nil, draw = function()
         local value = guild
         if cfg.guildRank and rank then value = guild .. " " .. hexOf(Style.INK.LABEL) .. "· " .. rank .. "|r" end
         Panel.Row(p, GUILD or L["Guild"], value, Style.INK.TEXT)
-        added = added + 1
-    end
+    end }
     local zone = Tip.ZoneOf(unit)
-    if zone then
-        Panel.Row(p, ZONE or L["Zone"], zone, Style.INK.TEXT)
-        added = added + 1
-    end
+    out.zone = { has = zone ~= nil, draw = function() Panel.Row(p, ZONE or L["Zone"], zone, Style.INK.TEXT) end }
     local level = Players.ItemLevel(unit)
-    if level then
+    out.ilvl = { has = level ~= nil, draw = function()
         Panel.Row(p, L["Item level"], tostring(level), rgb(Style.Accent()))
-        added = added + 1
+    end }
+    local target = Layout.Shown("player", "target") and Players.Target(unit) or nil
+    out.target = { has = target ~= nil, draw = function() Panel.Row(p, L["Targeting"], target[1], target[2]) end }
+    out.health = { has = true, draw = function() Panel.Bar(p, { unit = unit, health = true, h = 7 }) end }
+    local _, power = UnitPowerType(unit)
+    power = plain(power)
+    out.power = { has = type(power) == "string", draw = function()
+        local r, g, b = Style.PowerColor(power)
+        local lo, hi = DUI.Gradients.PairFrom({ r, g, b })
+        Panel.Bar(p, { unit = unit, power = true, h = 4, pair = { lo, hi } })
+    end }
+    local icons, count
+    if cfg.buffs and not InCombatLockdown() and plain(UnitIsFriend("player", unit)) == true then
+        icons, count = Tip.BuffList(unit)
     end
-    local target = cfg.showTarget and Players.Target(unit) or nil
-    if target then
-        Panel.Row(p, L["Targeting"], target[1], target[2])
-        added = added + 1
-    end
-    return added
+    out.buffs = { has = icons ~= nil, draw = function() Panel.Icons(p, icons, count) end }
+    out.addons = ns.RichForeign.Part(p, "player")
+    return out
 end
 
 -- Builds the card. data: the unit's tooltip data (its own lines come first
 -- in the tooltip; anything after them is another addon's, in p.foreign).
 function Players.Card(p, tip, unit, data, n, lines)
-    local Panel, Tip = ns.RichPanel, ns.Tooltip
-    local cfg = Tip.Config()
+    local Panel = ns.RichPanel
+    local Wants = Panel.Wants
+    local cfg = ns.Tooltip.Config()
     local token = plain((select(2, UnitClass(unit))))
     local pair = Players.ClassPair(unit)
     local light = pair and { pair[2], pair[1] } or nil
@@ -150,19 +158,19 @@ function Players.Card(p, tip, unit, data, n, lines)
     local cr, cg, cb
     if token then cr, cg, cb = Style.ClassColor(token) end
     local tags, Tag = {}, ns.RichItems.Tag
-    local spec = Players.SpecOrClass(unit)
+    local spec = Wants("tags.player.class") and Players.SpecOrClass(unit) or nil
     if spec then tags[#tags + 1] = Tag(spec, cr and rgb(cr, cg, cb) or Style.INK.TEXT) end
     -- The level sits big at the right of the name, the same spot as on a
     -- creature's card, in the same colors (RichWorld.Level).
-    local lv, lvInk = ns.RichWorld.Level(unit)
+    local lv, lvInk
+    if Wants("headerLevel") then lv, lvInk = ns.RichWorld.Level(unit) end
     -- The race in its faction's color: the other side reads at a glance.
-    local race = plain((UnitRace(unit)))
+    local race = Wants("tags.player.race") and plain((UnitRace(unit))) or nil
     if type(race) == "string" then
         local faction = plain((UnitFactionGroup(unit)))
         tags[#tags + 1] = Tag(race, Players.FACTION_COLORS[faction] or Style.INK.TEXT)
     end
     local icon, coords
-    local cfg = ns.Tooltip.Config()
     if token and not (cfg and cfg.portraits == false) then icon, coords = Players.Icon(token) end
     Panel.Header(p, { icon = icon, iconCoords = coords, iconSize = Players.ICON, iconInset = Players.ICON_INSET,
         iconTile = icon and pair or nil, title = title, tags = tags, wash = cr and rgb(cr, cg, cb) or nil,
@@ -170,26 +178,6 @@ function Players.Card(p, tip, unit, data, n, lines)
     -- The same room under the banner with or without rows: without it the
     -- health sat right on the banner, inside its wash.
     Panel.Gap(p, Players.AFTER_BANNER)
-    rows(p, unit)
-    -- Other addons' lines mixed in with the rows, when set so (Rich/Foreign.lua).
-    ns.RichForeign.Place(p, "mixed")
-    Panel.Gap(p, Players.BEFORE_BARS)
-    Panel.Bar(p, { unit = unit, health = true, h = 7 })
-    local _, power = UnitPowerType(unit)
-    power = plain(power)
-    if type(power) == "string" then
-        local r, g, b = Style.PowerColor(power)
-        local lo, hi = DUI.Gradients.PairFrom({ r, g, b })
-        Panel.Gap(p, Players.BAR_GAP)
-        Panel.Bar(p, { unit = unit, power = true, h = 4, pair = { lo, hi } })
-    end
-    if cfg.buffs and not InCombatLockdown() and plain(UnitIsFriend("player", unit)) == true then
-        local icons, count = Tip.BuffList(unit)
-        if icons then
-            Panel.Gap(p, Players.BEFORE_BARS)
-            Panel.Icons(p, icons, count)
-        end
-    end
-    ns.RichForeign.Place(p, "own")
+    if not ns.RichLayout.Run(p, "player", pieces(p, unit)) then ns.RichLayout.DropGap(p) end
     Panel.Finish(p)
 end

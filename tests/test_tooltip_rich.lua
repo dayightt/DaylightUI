@@ -3227,7 +3227,7 @@ T.test("other addons: mixed in, or hidden with Daylight UI plugins' lines still 
     local me = DaylightUI.API.For("Notes")
     me.AddTooltipLines("item", function(lines) lines.Row("Fish caught", 12) end)
     items()
-    DaylightUI:Set("Tooltip", "addonLines", "hidden")
+    DaylightUI:Set("Tooltip", "pieces.item.addons", false)
     stub.RunTimers()
     fillItem(GameTooltip, "greaves", GREAVES, function(t) t:AddDoubleLine("AH price", "9") end)
     update()
@@ -3239,11 +3239,19 @@ T.test("other addons: mixed in, or hidden with Daylight UI plugins' lines still 
     end
     T.isnil(labels["AH price"], "another addon's line left out")
     T.eq(labels["Fish caught"], "12", "a plugin's row stays")
-    DaylightUI:Set("Tooltip", "addonLines", "mixed")
+    -- Mixed in: the card's layout puts them with its words, before the foot.
+    DaylightUI:Set("Tooltip", "pieces.item.addons", true)
+    DaylightUI:Set("Tooltip", "layout.item", "numbers,stats|effects,set,facts,quote,addons|made|foot")
     stub.RunTimers()
-    local p2 = withAddon({ "Mailbox", "Your mail." }, function(t) t:AddLine("A note") end)
-    T.eq(#afterRule(p2), 0, "no area of their own")
-    T.eq(stub.Text(p2.items[p2.count].fs), "A note", "right after the card's own lines")
+    fillItem(GameTooltip, "greaves", GREAVES, function(t) t:AddLine("A note") end)
+    update()
+    local p2 = foreignPanel.Get(GameTooltip)
+    T.eq(#afterRule(p2), 1, "no area of their own: only the foot after the last rule")
+    local note
+    for i = 1, p2.count do
+        if p2.items[i].fs and stub.Text(p2.items[i].fs) == "A note" then note = i end
+    end
+    T.truthy(note and p2.items[note - 2].kind ~= "rule", "right after the card's own lines")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

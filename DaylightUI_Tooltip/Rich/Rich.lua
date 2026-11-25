@@ -230,7 +230,10 @@ end
 -- A setting changed: built again before the next draw, or put away.
 function Rich.Refresh(tip)
     if Rich.On(tip) then
-        stateOf(tip).dirty = true
+        local s = stateOf(tip)
+        s.dirty = true
+        -- The same lines no longer mean the same card (a piece moved or hid).
+        if s.seen then s.seen.n = nil end
     else
         Rich.Off(tip)
     end
@@ -473,10 +476,11 @@ end
 -- above, a line with two sides as a row, any other as a sentence, an empty
 -- one as a gap. The colors go through the same rules as the skinned look
 -- (Tips.GameSide). A quest block gets a rule before and after it. skip: lines
--- to pass over (a card that draws them its own way).
-function Rich.Lines(p, n, lines, from, skip)
+-- to pass over (a card that draws them its own way). ruled: the card already
+-- put a line above (a section of its layout), so the first quest gets none.
+function Rich.Lines(p, n, lines, from, skip, ruled)
     local Tips = DUI.Tips
-    local inQuest, quest = false, nil
+    local inQuest, quest = ruled == true, nil
     for i = from, n do
         local line = lines[i]
         local kind = not (skip and skip[i]) and Rich.QuestLine(lines, i, n) or nil
@@ -541,8 +545,7 @@ function Rich.Generic(p, n, lines)
         end
     end
     Rich.Lines(p, own, lines, 2)
-    Foreign.Place(p, "mixed")
-    Foreign.Place(p, "own")
+    Foreign.Bottom(p)
 end
 
 -- How many of the tooltip's n lines are the data's own (the game's): the rest
