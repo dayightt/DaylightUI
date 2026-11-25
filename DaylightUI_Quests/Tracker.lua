@@ -460,7 +460,10 @@ local PAINT_NEW = {}
 function Tracker.Render(animate, ifChanged)
     queued, Tracker.waiting = false, false
     if not content then return end
-    local snap = ns.Data.Snapshot(db.filter)
+    -- Mid-drag only the zone order changes, so the last read of the log is reused:
+    -- reading it again each time the zone passes another made dragging stutter.
+    local snap = Tracker.zoneDrag and Tracker.lastSnap or ns.Data.Snapshot(db.filter)
+    Tracker.lastSnap = snap
     Tracker.zone = snap.realZone   -- ZONE_CHANGED compares against the game's own zone text
     Tracker.groups, Tracker.hereKey = snap.groups, ns.Data.HereKey(snap.here)
     for k in pairs(inTracker) do inTracker[k] = nil end
@@ -470,7 +473,7 @@ function Tracker.Render(animate, ifChanged)
             for _, q in ipairs(g.quests) do inTracker[q.id] = true end
         end
     end
-    Tracker.NoteProgress(snap)
+    if not Tracker.zoneDrag then Tracker.NoteProgress(snap) end
     local blocks, height, readyIDs = ns.Layout.Build(snap, Tracker.Options(), Tracker.Measure)
     if ifChanged and not Tracker.held and ns.Layout.Same(shown, blocks) then
         Tracker.reasons = { enter = {}, leave = {}, far = {}, fold = false }
@@ -519,7 +522,7 @@ function Tracker.Render(animate, ifChanged)
         if f then
             local ev = ns.Rows.Paint(f, b, look, PAINT[animate == true])
             if ev.ready and animate then Tracker.OnReady(b) end
-            if diff.moved[b.key] then
+            if diff.moved[b.key] and not Tracker.Dragged(b.key) then
                 if animate then ns.Animate.Glide(f, b.y) else ns.Animate.Jump(f, b.y) end
             end
         else
@@ -732,10 +735,92 @@ local function cursorY()
     return y / s
 end
 
--- Dragging a zone name, open or folded. The list lays out again each time it
--- passes another zone, so the others glide aside with the usual row motion. Not
--- in a fight: the quest item buttons can't follow their rows then.
+-- Dragging a zone name, open or folded. The zone and its quests ride the mouse on
+-- a lifted card while the other zones dim a little and glide aside each time it
+-- passes one. Not in a fight: the quest item buttons can't follow their rows then.
 Tracker.ZONE_DROP_GRACE = 0.05    -- a click this soon after a drop is its own release
+Tracker.DRAG_DIM = 0.55           -- the other rows' alpha while a zone is dragged
+Tracker.DRAG_EDGE = 2             -- the lifted card's accent edge, in pixels
+Tracker.DRAG_LEVEL = 4            -- how far the dragged rows rise above the others
+Tracker.dragDim = 1
+
+-- The dragged zone's rows, by key: its name and every quest under it.
+function Tracker.Dragged(key)
+    local d = Tracker.zoneDrag
+    return d ~= nil and key ~= nil and d.keys[key] == true
+end
+
+local function dragGroup(name)
+    local keys, list, inside = {}, {}, false
+    for _, b in ipairs(shown) do
+        if b.kind == "zone" or b.kind == "header" then inside = b.kind == "zone" and b.label == name end
+        if inside then keys[b.key] = true; list[#list + 1] = b end
+    end
+    return keys, list
+end
+
+local function setDim(v)
+    Tracker.dragDim = v
+    for _, f in pairs(frames) do
+        local st = ns.Animate.State(f)
+        Tracker.softenBlock(f, st.y, st.a)
+    end
+end
+
+function Tracker.DragCard()
+    local c = Tracker.dragCard
+    if not c then
+        c = CreateFrame("Frame", nil, rowsClip)
+        c.bg = c:CreateTexture(nil, "BACKGROUND")
+        c.bg:SetAllPoints()
+        c.hi = c:CreateTexture(nil, "BORDER")
+        c.hi:SetAllPoints()
+        c.hi:SetTexture(DUI.Win.Parts.WHITE)
+        c.edge = c:CreateTexture(nil, "ARTWORK")
+        c.edge:SetTexture(DUI.Win.Parts.WHITE)
+        c.edge:SetPoint("TOPLEFT")
+        c.edge:SetPoint("BOTTOMLEFT")
+        c:SetAlpha(0)
+        c:Hide()
+        Tracker.dragCard = c
+    end
+    return c
+end
+
+-- Places the dragged rows and their card where the mouse holds them.
+local function placeDragged(d, at)
+    local zb
+    for _, b in ipairs(d.list) do if b.kind == "zone" then zb = b; break end end
+    if not zb then return end
+    local delta = at - (zb.y + zb.h / 2)
+    local top, bottom = math.huge, -math.huge
+    for _, b in ipairs(d.list) do
+        local f = frames[b.key]
+        if f then
+            local st = ns.Animate.State(f)
+            ns.Animate.Jump(f, b.y + delta, st.dx, st.a)
+            top, bottom = math.min(top, b.y), math.max(bottom, b.y + b.h)
+        end
+    end
+    local c = Tracker.dragCard
+    if c and top < bottom then
+        local pad = ns.Rows.HI_PAD
+        c:ClearAllPoints()
+        c:SetPoint("TOPLEFT", content, "TOPLEFT", 0, -(top + delta - pad))
+        c:SetPoint("TOPRIGHT", content, "TOPRIGHT", 0, -(top + delta - pad))
+        c:SetHeight(bottom - top + pad * 2)
+    end
+    if ns.Items then ns.Items.Follow() end
+end
+
+local function liftRows(d, on)
+    local base = (rowsClip:GetFrameLevel() or 0) + 1
+    for key in pairs(d.keys) do
+        local f = frames[key]
+        if f then f:SetFrameLevel(on and base + Tracker.DRAG_LEVEL or base) end
+    end
+end
+
 function Tracker.ZoneDragStart(f)
     local b = f and f.block
     if not (b and b.kind == "zone") or Tracker.zoneDrag then return end
@@ -743,9 +828,22 @@ function Tracker.ZoneDragStart(f)
     local y = cursorY()
     local order = shownZones()
     if not y or #order < 2 then return end
-    Tracker.zoneDrag = { frame = f, name = b.label, order = order, from = order,
+    local keys, list = dragGroup(b.label)
+    Tracker.zoneDrag = { frame = f, name = b.label, order = order, from = order, keys = keys, list = list,
                          startY = y, startAt = b.y + b.h / 2 }
     ns.Rows.Hover(f, true)
+    local c = Tracker.DragCard()
+    local bg = Style.BACKGROUND
+    c.bg:SetColorTexture(bg[1], bg[2], bg[3], 1)   -- solid, so the rows it passes over don't show through
+    local hi = DUI.Win.Parts.HI
+    c.hi:SetVertexColor(hi[1], hi[2], hi[3], hi[4])
+    c.edge:SetWidth(DUI.Pixel.Px(c, Tracker.DRAG_EDGE))
+    Style.PaintAccent(c.edge, 1, "VERTICAL")
+    c:SetFrameLevel((rowsClip:GetFrameLevel() or 0) + Tracker.DRAG_LEVEL - 1)
+    liftRows(Tracker.zoneDrag, true)
+    placeDragged(Tracker.zoneDrag, Tracker.zoneDrag.startAt)
+    DUI.Motion.AlphaTo(c, 1, DUI.Motion.FAST)
+    DUI.Motion.Tween("quests:dragdim", Tracker.dragDim, Tracker.DRAG_DIM, DUI.Motion.FAST, setDim)
     Tracker.dragger = Tracker.dragger or CreateFrame("Frame", nil, holder)
     Tracker.dragger:SetScript("OnUpdate", function() DUI.SafeCall(Tracker.ZoneDragMove) end)
 end
@@ -761,6 +859,10 @@ function Tracker.ZoneDragMove()
     local y = cursorY()
     if not y then return end
     local at = d.startAt + (d.startY - y)
+    at = math.max(0, math.min(at, Tracker.contentHeight or at))
+    -- The rows' own spots changed if the list laid out again since the last frame.
+    d.keys, d.list = dragGroup(d.name)
+    placeDragged(d, at)
     local spans = zoneSpans()
     local over
     for _, s in ipairs(spans) do
@@ -790,6 +892,15 @@ function Tracker.ZoneDragStop()
     if not sameList(d.order, d.from) then
         DUI.DB.Character().questZoneOrder = ns.Layout.MergeZoneOrder(Tracker.ZoneOrder(), d.order)
     end
+    -- The rows settle from where the mouse left them into their place.
+    d.keys = dragGroup(d.name)
+    liftRows(d, false)
+    for _, b in ipairs(shown) do
+        local f = d.keys[b.key] and frames[b.key]
+        if f then ns.Animate.Glide(f, b.y) end
+    end
+    if Tracker.dragCard then DUI.Motion.AlphaTo(Tracker.dragCard, 0, DUI.Motion.FAST, true) end
+    DUI.Motion.Tween("quests:dragdim", Tracker.dragDim, 1, DUI.Motion.FAST, setDim)
     local f = d.frame
     ns.Rows.Hover(f, type(f.IsMouseOver) == "function" and f:IsMouseOver() == true)
     Tracker.Queue(true)
@@ -885,8 +996,10 @@ end
 local function softenBlock(f, y, a)
     local edge = 1
     if ns.Scroll and not pinned(f) then edge = ns.Scroll.EdgeFor(y, f:GetHeight()) end
+    if Tracker.dragDim < 1 and not pinned(f) and not Tracker.Dragged(f.key) then edge = edge * Tracker.dragDim end
     f:SetAlpha(a * edge)
 end
+Tracker.softenBlock = softenBlock
 
 local function placeBlock(f, y, dx, a)
     local top = y

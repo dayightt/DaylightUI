@@ -3412,6 +3412,43 @@ T.test("zone order: a fight starting mid-drag drops the zone where it is", funct
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("zone order: the dragged zone and its quests follow the mouse on a lifted card, the rest dim", function()
+    local Tr, ns, settle = tracker(ZONES3)
+    local zf, qf = Tr.frames["zone:Redridge Mountains"], Tr.frames["quest:3"]
+    local zy, qy = ns.Animate.State(zf).y, ns.Animate.State(qf).y
+    -- 6 px up: not far enough to pass Duskwood, but the rows move with the mouse at once.
+    dragZone(Tr, ns, "Redridge Mountains", 6, settle)
+    T.near(ns.Animate.State(zf).y, zy - 6, 0.01, "the zone name follows the mouse")
+    T.near(ns.Animate.State(qf).y, qy - 6, 0.01, "its quests come along")
+    local card = Tr.dragCard
+    T.truthy(card and card:IsShown(), "a lifted card sits under the dragged zone")
+    for _ = 1, 30 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1 / 30) end
+    T.truthy(card:GetAlpha() > 0.9, "the card is in: " .. tostring(card:GetAlpha()))
+    T.truthy(Tr.frames["zone:Westfall"]:GetAlpha() < 0.8, "the other zones dim")
+    T.truthy(zf:GetAlpha() > 0.99, "the dragged one doesn't")
+    T.truthy(zf:GetFrameLevel() > Tr.frames["zone:Westfall"]:GetFrameLevel(), "the dragged rows ride above the others")
+    zf:GetScript("OnDragStop")(zf)
+    settle()
+    for _ = 1, 30 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1 / 30) end
+    T.near(ns.Animate.State(zf).y, zy, 0.01, "let go where it was: it settles back into its place")
+    T.near(ns.Animate.State(qf).y, qy, 0.01, "its quests too")
+    T.truthy(Tr.frames["zone:Westfall"]:GetAlpha() > 0.99, "the others are back")
+    T.truthy(card:GetAlpha() < 0.01, "the card is gone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("zone order: passing other zones while dragging doesn't read the quest log again", function()
+    local Tr, ns, settle = tracker(ZONES3)
+    local reads, was = 0, ns.Data.Snapshot
+    ns.Data.Snapshot = function(...) reads = reads + 1; return was(...) end
+    local f = dragZone(Tr, ns, "Redridge Mountains", 400, settle)
+    ns.Data.Snapshot = was
+    T.deq(zoneNames(Tr.shown), { "Redridge Mountains", "Westfall", "Duskwood" }, "the list still follows")
+    T.eq(reads, 0, "no log reads mid-drag")
+    f:GetScript("OnDragStop")(f); settle()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("zone order: right-click Quests sorts the zones A to Z, by level, or back to the log's order", function()
     local Tr, ns, settle = tracker(ZONES3)
     local got = {}
