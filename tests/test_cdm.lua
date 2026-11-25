@@ -700,6 +700,81 @@ T.test("cdm profiles: characters of one class share the parked layout's profile;
     T.eq(D.Profile(priest).class, "PRIEST")
 end)
 
+-- A druid's layout as a player's file had it: Moonfire and Demoralizing Roar by
+-- spell, Moonfire again as the game's cooldown 41, Mark of the Wild (a buff any
+-- class can wear) and the trinket slot.
+local function druidPieces()
+    return {
+        ["s8921"] = { shape = "bar", x = 0, y = 0 },
+        ["s99"] = { shape = "bar", parent = "s8921", side = "down", align = "start" },
+        [41] = { shape = "icon", x = 0, y = -80 },
+        ["s1126"] = { shape = "icon", x = 60, y = -80 },
+        [13] = { shape = "icon", x = 120, y = -80 },
+    }
+end
+local function moonfireInfo()
+    _G.C_CooldownViewer = _G.C_CooldownViewer or {}
+    _G.C_CooldownViewer.GetCooldownViewerCooldownInfo = function(id)
+        if id == 41 then return { spellID = 9835 } end
+    end
+end
+
+T.test("cdm profiles: a new warrior sharing a druid's first name gets none of the druid's spells", function()
+    local db = { version = 2, profileData = { ["DPS/Tank"] = {} }, cdmMoved = 2, cdmNextProfile = 1,
+        cdmProfiles = { p1 = { name = "Boopy", class = "DRUID", set = { v = 2, chains = {}, pieces = druidPieces() } } },
+        characters = { ["Boopy Dadoopy-R"] = { profile = "DPS/Tank", install = "installed", class = "DRUID",
+            cdm = { use = { "p1", "p1" } } } } }
+    local DUI, D = boopy("Mcdoopy", "WARRIOR", db)
+    moonfireInfo()
+    local pieces = D.Get(1).pieces
+    T.isnil(D.Use(1), "the druid's layout isn't copied")
+    T.isnil(pieces["s8921"], "Moonfire is a druid's")
+    T.isnil(pieces["s99"], "Demoralizing Roar is a druid's")
+    T.isnil(pieces[41], "the game's Moonfire cooldown too")
+    for _, p in pairs(DaylightUIDB.cdmProfiles) do
+        if p.class == "WARRIOR" then
+            T.isnil(p.set.pieces["s8921"], "no warrior profile holds Moonfire")
+        end
+    end
+    T.eq(DaylightUIDB.cdmProfiles.p1.class, "DRUID", "the druid's own is left as it was")
+    T.truthy(DaylightUIDB.cdmProfiles.p1.set.pieces["s8921"])
+    _G.GetRealmName = nil
+end)
+
+T.test("cdm profiles: an old layout parked from a druid comes back to a warrior without the druid's spells", function()
+    local DUI, D = profileWorld("WARRIOR")
+    moonfireInfo()
+    local root = DUI.DB.Root()
+    root.cdmSaved = { [DUI.DB.DEFAULT] = { [1] = oldSet({ oldBlock("icon") }, inBlock(1, { "s8921", "s99", 11 })) } }
+    D.TakeSaved(true)
+    local pieces = D.Get(1).pieces
+    T.isnil(pieces["s8921"]); T.isnil(pieces["s99"])
+    T.isnil(D.Use(1), "it was the druid's layout: nothing to bring back")
+end)
+
+T.test("cdm profiles: a warrior's saved copy of a druid layout loses the druid's spells, keeps its own", function()
+    local mine = druidPieces()
+    mine["s6673"] = { shape = "bar", parent = "s99", side = "down", align = "start" }   -- Battle Shout, added later
+    local db = { version = 2, profileData = { ["DPS/Tank"] = {} }, cdmMoved = 2, cdmNextProfile = 2,
+        cdmClassCopies = { ["p1|WARRIOR"] = "p2" },
+        cdmProfiles = {
+            p1 = { name = "Boopy", class = "DRUID", set = { v = 2, chains = {}, pieces = druidPieces() } },
+            p2 = { name = "Boopy", class = "WARRIOR", from = "p1", set = { v = 2, chains = {}, pieces = mine } },
+        },
+        characters = { ["Boopy Mcdoopy-R"] = { profile = "DPS/Tank", install = "installed",
+            cdm = { use = { "p2", "p2" }, sharedLooked = true, savedTaken = true } } } }
+    local DUI, D = boopy("Mcdoopy", "WARRIOR", db)
+    moonfireInfo()
+    local pieces = D.Get(1).pieces
+    T.eq(D.Use(1), "p2")
+    T.isnil(pieces["s8921"]); T.isnil(pieces["s99"]); T.isnil(pieces[41])
+    T.truthy(pieces["s6673"], "the warrior's own Battle Shout stays")
+    T.isnil(pieces["s6673"].parent, "and goes free where it was")
+    T.truthy(pieces["s1126"], "a buff any class can wear stays")
+    T.truthy(pieces[13], "the trinket slot stays")
+    _G.GetRealmName = nil
+end)
+
 T.test("cdm data: a set still in the old rows format starts empty", function()
     local DUI, D = profileWorld()
     local set = oldLayout(DUI, D, 1, { rows = { { kind = "icon" } }, buttons = { [11] = { row = 1, order = 1 } }, blocks = { {} } })
