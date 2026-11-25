@@ -283,6 +283,17 @@ function Data.OutputItem(id)
     return s and num(s.outputItemID) or nil
 end
 
+-- The link of the item a recipe makes, the one the game's own result icon hands to
+-- a Shift or Ctrl click: what its tooltip compares with your gear. An enchant makes
+-- no item, so nil.
+function Data.ResultLink(recipe)
+    if type(recipe) ~= "table" or recipe.enchant then return nil end
+    local out = call("GetRecipeOutputItemData", recipe.id)
+    local link = type(out) == "table" and str(out.hyperlink) or str(recipe.link)
+    if link and string.find(link, "|Hitem:", 1, true) then return link end
+    return nil
+end
+
 -- How many one craft makes, on average (some make 1 to 3).
 function Data.Yield(id)
     local s = schematic(id)

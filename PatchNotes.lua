@@ -23,6 +23,7 @@ DUI.PatchNotes = {
         { "Guild", "Clicking a name in the guild roster opens their details again, so you can promote, demote, remove and edit notes" },
         { "Nameplates", "Friendly name left/right and up/down now work on friendly nameplates without a health bar, so you can lower NPC names that float high over their heads" },
         { "Cooldown Manager", "The Cooldown Manager no longer shows another class's spells, like a druid's Moonfire on a warrior, when two of your characters share a first name" },
+        { "Professions", "Holding Shift over a recipe or the item it makes in the profession window compares it with your gear again, and Shift-click and Ctrl-click work there like in the game's own window" },
         { "Flight timer", "The flight timer now shows on the druid flight out of Nighthaven in Moonglade, the one you take by talking to the flight master" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {

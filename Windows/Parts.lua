@@ -59,8 +59,10 @@ function Parts.ItemClick(link)
 end
 
 -- The item compare, the game's way: on with Shift (the COMPAREITEMS modifier)
--- or the "always compare items" setting, off again once neither holds.
-function Parts.Compare(tip)
+-- or the "always compare items" setting, off again once neither holds. link is
+-- the item to compare when the tooltip shows something that isn't the item's
+-- own tooltip (a recipe's result): the game only compares an item tooltip.
+function Parts.Compare(tip, link)
     tip = tip or GameTooltip
     if type(tip) ~= "table" then return end
     local want
@@ -70,7 +72,11 @@ function Parts.Compare(tip)
         want = type(IsModifiedClick) == "function" and IsModifiedClick("COMPAREITEMS")
     end
     if want then
-        if type(GameTooltip_ShowCompareItem) == "function" then GameTooltip_ShowCompareItem(tip) end
+        if link and type(C_TooltipComparison) == "table" and type(C_TooltipComparison.CompareItem) == "function" then
+            C_TooltipComparison.CompareItem({ hyperlink = link }, tip)
+        elseif type(GameTooltip_ShowCompareItem) == "function" then
+            GameTooltip_ShowCompareItem(tip)
+        end
     elseif type(tip.shoppingTooltips) == "table" then
         for _, shop in ipairs(tip.shoppingTooltips) do
             if type(shop) == "table" and shop:IsShown() then shop:Hide() end
@@ -81,12 +87,13 @@ end
 -- Wraps a hover's tooltip so it behaves like the game's own item buttons. The
 -- game's tooltip calls its owner's UpdateTooltip every 0.2 s while it's up, so
 -- the tooltip is drawn again then, and pressing or letting go of Shift
--- mid-hover shows or hides the compare. draw(b) fills GameTooltip for b.
+-- mid-hover shows or hides the compare. draw(b) fills GameTooltip for b; it may
+-- return an item link to compare with (see Parts.Compare).
 function Parts.ItemTip(draw)
     local function show(b)
-        draw(b)
+        local link = draw(b)
         if type(GameTooltip) == "table" and GameTooltip:IsOwned(b) then
-            Parts.Compare(GameTooltip)
+            Parts.Compare(GameTooltip, type(link) == "string" and link ~= "" and link or nil)
             b.UpdateTooltip = show
         end
     end

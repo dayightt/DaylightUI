@@ -1485,21 +1485,133 @@ local function shiftClick(f, shift)
     _G.IsModifiedClick = was
 end
 
+-- The game's modified clicks (IsModifiedClick with its Forever defaults from
+-- Bindings_Camelot.xml, HandleModifiedItemClick from ItemButtonTemplate.lua),
+-- with the keys held in `held` (SHIFT, CTRL).
+local function gameClicks(held)
+    local was = { _G.IsModifiedClick, _G.HandleModifiedItemClick }
+    local keys = { CHATLINK = "SHIFT", DRESSUP = "CTRL", COMPAREITEMS = "SHIFT", RECIPEWATCHTOGGLE = "SHIFT" }
+    local g = { dressed = {} }
+    _G.IsModifiedClick = function(k)
+        if k == nil then return held.SHIFT == true or held.CTRL == true end
+        return held[keys[k] or ""] == true
+    end
+    _G.HandleModifiedItemClick = function(link)
+        if not link then return false end
+        if IsModifiedClick("CHATLINK") and ChatFrameUtil and ChatFrameUtil.InsertLink(link) then return true end
+        if IsModifiedClick("DRESSUP") then g.dressed[#g.dressed + 1] = link; return true end
+        return false
+    end
+    function g.Done() _G.IsModifiedClick, _G.HandleModifiedItemClick = was[1], was[2] end
+    return g
+end
+
 T.test("craft: Shift-click on a recipe, an enchant too, puts the recipe's link in the open chat box", function()
     local profs = PW.Sample()
     profs[1].recipes[2].enchant = true
     local ns = load({ profs = profs })
     open(ns)
     local chat = fakeChat(true)
-    local was = _G.IsModifiedClick
-    _G.IsModifiedClick = function(k) return k == "CHATLINK" end
+    local g = gameClicks({ SHIFT = true })
     for _, b in ipairs(shown(page(ns).list.stack, "lineSpec")) do
         local r = b.lineSpec.recipe
         if r and r.id == 102 then b.lineSpec.onClick(b) end
     end
-    _G.IsModifiedClick = was
+    g.Done()
     chat.Done()
     T.truthy(chat.inserted[1] and chat.inserted[1]:find("Henchant:102", 1, true), "the enchant's link")
+end)
+
+-- The game's list (Blizzard_ProfessionsRecipeList.lua): a modified click goes to
+-- HandleModifiedItemClick with the recipe's link; when nothing took it, Shift
+-- (RECIPEWATCHTOGGLE) tracks or untracks the recipe. A modified click never picks.
+T.test("craft: Shift-click with no chat box tracks the recipe, Ctrl-click tries it on, neither picks", function()
+    local ns = load()
+    open(ns)
+    T.eq(ns.Window.Picked(), 102)
+    local chat = fakeChat(false)
+    local g = gameClicks({ SHIFT = true })
+    ns.List.lines[101]:Click()
+    g.Done()
+    T.eq(ns.Window.Picked(), 102, "Shift-click didn't pick it")
+    local calls = PW.Calls("SetRecipeTracked")
+    T.eq(calls[1] and calls[1][1], 101, "tracked, the game's way")
+    T.eq(calls[1] and calls[1][2], true)
+    g = gameClicks({ CTRL = true })
+    ns.List.lines[101]:Click()
+    g.Done()
+    chat.Done()
+    T.eq(ns.Window.Picked(), 102, "Ctrl-click didn't pick it")
+    T.truthy(g.dressed[1] and g.dressed[1]:find("Henchant:101", 1, true), "the recipe's link went to the game")
+    T.eq(#PW.Calls("SetRecipeTracked"), 1, "Ctrl doesn't track")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game's result icon (Blizzard_ProfessionsRecipeSchematicForm.lua) redraws its
+-- tooltip every frame, so Shift compares the made item with what you wear, and its
+-- click hands the made item's link to HandleModifiedItemClick (Shift links it,
+-- Ctrl tries it on). A recipe result tooltip's data isn't an item's own in this
+-- fake (a guess at why a player saw no compare): the compare must use the made item.
+T.test("craft: Shift compares the made item on a recipe row and the recipe's result, pressed mid-hover too", function()
+    local ns = load()
+    open(ns)
+    local shift, data, compared = false, nil, {}
+    local shop = { shown = false }
+    function shop:IsShown() return self.shown end
+    function shop:Hide() self.shown = false end
+    local was = { _G.GameTooltip, _G.GameTooltip_ShowCompareItem, _G.C_TooltipComparison, _G.TooltipUtil, _G.IsModifiedClick }
+    local owner
+    _G.GameTooltip = { shoppingTooltips = { shop },
+        SetOwner = function(_, o) owner = o end, GetOwner = function() return owner end,
+        IsOwned = function(_, o) return owner == o end, Show = function() end, Hide = function() owner = nil end,
+        SetRecipeResultItem = function() data = { type = "recipe" } end,
+        SetHyperlink = function(_, l) data = { type = "item", hyperlink = l } end,
+        SetItemByID = function(_, id) data = { type = "item", hyperlink = "|Hitem:" .. id .. "|h" } end,
+        GetPrimaryTooltipData = function() return data end }
+    _G.C_TooltipComparison = { CompareItem = function(item)
+        compared[#compared + 1] = item.hyperlink
+        shop.shown = true
+    end }
+    -- The game's: only an item's own tooltip data has something to compare.
+    _G.GameTooltip_ShowCompareItem = function(t)
+        local d = t:GetPrimaryTooltipData()
+        if d and d.type == "item" and d.hyperlink then C_TooltipComparison.CompareItem({ hyperlink = d.hyperlink }, t) end
+    end
+    _G.TooltipUtil = nil
+    _G.IsModifiedClick = function(k) return shift and (k == "COMPAREITEMS" or k == nil) end
+    local function hover(b, what)
+        compared = {}
+        shift = false
+        b:GetScript("OnEnter")(b)
+        T.eq(#compared, 0, what .. ": no compare without Shift")
+        T.eq(type(b.UpdateTooltip), "function", what .. ": the game's tooltip timer has something to call")
+        shift = true
+        b:UpdateTooltip()
+        T.truthy(compared[1] and compared[1]:find("Hitem:9101", 1, true), what .. ": Shift pressed mid-hover compares the hood")
+        shift = false
+        b:UpdateTooltip()
+        T.falsy(shop.shown, what .. ": letting go of Shift takes it away")
+        b:GetScript("OnLeave")(b)
+    end
+    hover(ns.List.lines[101], "a recipe row")
+    ns.List.lines[101]:Click()
+    frame(10)
+    local top = shown(page(ns).recipe.stack, "lineSpec")[1]
+    T.eq(top.lineSpec.recipe.id, 101)
+    hover(top, "the recipe's result")
+    _G.GameTooltip, _G.GameTooltip_ShowCompareItem, _G.C_TooltipComparison, _G.TooltipUtil, _G.IsModifiedClick =
+        was[1], was[2], was[3], was[4], was[5]
+    local g = gameClicks({ CTRL = true })
+    top:Click()
+    g.Done()
+    T.truthy(g.dressed[1] and g.dressed[1]:find("Hitem:9101", 1, true), "Ctrl-click on the result tries the hood on")
+    local chat = fakeChat(true)
+    g = gameClicks({ SHIFT = true })
+    top:Click()
+    g.Done()
+    chat.Done()
+    T.truthy(chat.inserted[1] and chat.inserted[1]:find("Hitem:9101", 1, true), "Shift-click links the made item")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("craft: Shift-click on the profession's name puts its link in the open chat box", function()

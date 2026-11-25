@@ -70,6 +70,7 @@ local function resultTip(b)
     if type(GameTooltip.SetRecipeResultItem) == "function" then GameTooltip:SetRecipeResultItem(r.id)
     elseif r.link and type(GameTooltip.SetHyperlink) == "function" then GameTooltip:SetHyperlink(r.link) end
     GameTooltip:Show()
+    return ns.Data.ResultLink(r)   -- Shift compares the made item
 end
 
 -- Requirements: "Requires Anvil, Blacksmith Hammer", each colored met or not.
@@ -522,7 +523,8 @@ function Recipe.Fill(pane, r, keepScroll)
     local count = r.count > 0 and string.format(L["You can make %d"], r.count) or (not r.free and L["Missing materials"]) or ""
     s:Line({ recipe = r, icon = r.icon, text = r.name, color = name,
         sub = ns.Data.SkillWords(r.difficulty), subColor = ns.Data.Color(r.difficulty),
-        value = count, valueColor = r.count > 0 and { Style.Accent() } or INK.LABEL, tooltip = resultTip })
+        value = count, valueColor = r.count > 0 and { Style.Accent() } or INK.LABEL, tooltip = resultTip,
+        link = function() return ns.Data.ResultLink(r) end })
     Recipe.Acts(s, r)
     local cd = Recipe.CooldownWords(r.id)
     pane.cooldown = cd and s:Text(cd, { color = INK.TEXT, size = Style.SIZE.small, gap = 8 }) or nil

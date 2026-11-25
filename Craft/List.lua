@@ -129,6 +129,7 @@ local function tooltip(b)
         GameTooltip:SetHyperlink(r.link)
     end
     GameTooltip:Show()
+    return ns.Data.ResultLink(r)   -- Shift compares the made item
 end
 
 List.Tip = tooltip   -- also used by the small view window (View.lua)
@@ -160,16 +161,21 @@ function List.Favorite(r, on)
     List.Soon()
 end
 
+-- A modified click, the game's list's way: the recipe's link goes to the game
+-- (Shift links it in chat, Ctrl tries it on); when nothing took it, Shift tracks
+-- or untracks the recipe. Returns true for any modified click, which never picks.
+function List.ModifiedClick(r)
+    if not (type(IsModifiedClick) == "function" and IsModifiedClick()) then return false end
+    if Win.Parts.ItemClick(ns.Data.RecipeLink(r)) then return true end
+    if IsModifiedClick("RECIPEWATCHTOGGLE") and ns.Data.CanTrack(r) then
+        ns.Track.Set(r.id, not ns.Track.Is(r.id))
+    end
+    return true
+end
+
 local function onClick(b)
     local r = b.lineSpec and b.lineSpec.recipe
-    if not r then return end
-    -- Shift-click links the recipe in chat, like the game's list.
-    if IsModifiedClick and IsModifiedClick("CHATLINK") then
-        local link = ns.Data.RecipeLink(r)
-        local insert = ChatFrameUtil and ChatFrameUtil.InsertLink or ChatEdit_InsertLink
-        if link and type(insert) == "function" then insert(link) end
-        return
-    end
+    if not r or List.ModifiedClick(r) then return end
     List.Pick(r.id)
 end
 
