@@ -2173,11 +2173,11 @@ function UF.LayoutPortrait(f, cfg)
     p:SetSize(2 * R, 2 * R)
     f.portraitEdge, f.portraitX = outerRight and "RIGHT" or "LEFT", outerRight and off or -off
     UF.PlacePortrait(f, 1)
-    -- The elite's dragon, centered on the ring, gets an even number of
-    -- pixels: a broken one put both edges on half pixels and one side drew
-    -- a pixel wider (seen at 120%).
-    local function even(v) return 2 * Pixel.Snap(f, v / 2) end
     local art = 2 * Rk / UF.RING_OUTER
+    -- The dragon's opening is cut to the ring's outer edge, so its picture is
+    -- sized from the ring and never rounded on its own: rounding it moved the
+    -- opening a fraction of a pixel off the ring and a sliver of dragon showed
+    -- beside it.
     p.ring:SetSize(art, art)
     if shapeArt then
         -- A square elite wears a gold frame with corner thorns, drawn in the
@@ -2188,13 +2188,13 @@ function UF.LayoutPortrait(f, cfg)
     else
         -- The dragon wraps the outer side. Drawn for a ring on the right, mirrored
         -- for one on the left.
-        local dragon, l, r = even(art / UF.DRAGON_RING), 0, 1
+        local dragon, l, r = art / UF.DRAGON_RING, 0, 1
         if not outerRight then l, r = 1, 0 end
         p.elite:SetTexture(UF.DRAGON_FILE)
         p.elite:SetSize(dragon, dragon)
         p.elite:SetTexCoord(l, r, 0, 1)
     end
-    local dragon = even(art / UF.DRAGON_RING)
+    local dragon = art / UF.DRAGON_RING
     local E = UF.DRAGON_EYE
     local ex, ey = (outerRight and 1 or -1) * E.x * dragon, E.y * dragon
     for _, t in ipairs({ p.eye, p.pulseEye, p.eyeCore }) do

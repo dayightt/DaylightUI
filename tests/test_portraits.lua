@@ -2133,11 +2133,47 @@ T.test("the ring's middle and picture land on whole pixels at any portrait size 
             -- Centered on a whole pixel, the ring's picture draws the same on both sides.
             local rp, rrel, rrp, rx, ry = p.ring:GetPoint(1)
             T.eq(rp, "CENTER"); T.eq(rrel, p); T.eq(rrp, "CENTER"); T.eq(rx, 0); T.eq(ry, 0)
-            -- Seen in game at 120%: the elite's dragon ring drew a pixel wider
-            -- on one side. A picture centered on a whole pixel needs an even
-            -- number of pixels, or both its edges fall on half pixels.
-            if look == "classic" then
-                whole(p.elite:GetWidth() / 2, label .. ": half of the dragon")
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game on elites, rares and bosses: a thin sliver of the dragon showed
+-- between the portrait ring and its glow on one side. The dragon's opening
+-- must sit exactly on the ring's outer edge, on the same whole pixels, at any
+-- Portrait size and UI scale. Rounding the dragon's own size moves its opening
+-- off the ring by a fraction of a pixel.
+T.test("the dragon's opening lands on the ring's own whole pixels at any size and UI scale", function()
+    local DUI, ns = login(function()
+        stub.physW, stub.physH = 2560, 1080
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF, Pixel = ns.UF, DUI.Pixel
+    local f = ns.frames.player
+    local p = f.portrait
+    DUI:Set("UnitFrames", "player.portraitDragon", true)
+    for _, ui in ipairs({ 0.64, 0.71, 0.8, 0.9, 1 }) do
+        UIParent:SetScale(ui)
+        Pixel.Refresh()
+        for _, look in ipairs({ "classic", "socket" }) do
+            DUI:Set("UnitFrames", "player.portraitLook", look)
+            for _, scale in ipairs({ 0.8, 0.9, 0.95, 1, 1.05, 1.1, 1.15, 1.2, 1.3 }) do
+                DUI:Set("UnitFrames", "player.portraitScale", scale)
+                stub.RunTimers()
+                UF.UpdateAll(f, true)
+                local label = look .. " at " .. scale .. ", UI scale " .. ui
+                T.truthy(p.elite:IsShown(), label .. ": the dragon shows")
+                -- Both pictures are centered on the portrait's middle.
+                local ep, erel, erp, ex, ey = p.elite:GetPoint(1)
+                T.eq(ep, "CENTER"); T.eq(erel, p); T.eq(erp, "CENTER"); T.eq(ex, 0); T.eq(ey, 0)
+                local u = Pixel.Unit(f)
+                local ring = p.ring:GetWidth() * UF.RING_OUTER / 2 / u
+                local opening = p.elite:GetWidth() * UF.DRAGON_RING * UF.RING_OUTER / 2 / u
+                T.near(opening, ring, 1e-3, label .. ": the dragon's opening is " .. opening
+                    .. " px from the middle, the ring's edge " .. ring .. " px")
+                if look == "classic" then
+                    T.near(ring, math.floor(ring + 0.5), 1e-3, label .. ": the ring's edge on a whole pixel")
+                end
             end
         end
     end
