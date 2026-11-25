@@ -135,7 +135,7 @@ end
 
 -- Settings
 local DUI = stub.Load({ module = true, actionbars = true, buffs = true, skins = true, bags = true,
-    nameplates = true, tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true })
+    nameplates = true, tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true })
 local defaults = DUI.DB.Fill({})
 local function used(key)
     -- once is the default itself; a name built with a number ("bankLook" .. i) counts by its stem

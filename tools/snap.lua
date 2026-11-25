@@ -15,7 +15,7 @@ T = T or {}   -- tests/stub.lua reads the test helpers' table
 local stub = require("stub")
 
 local ALL = { module = true, actionbars = true, buffs = true, skins = true, bags = true, nameplates = true,
-              tooltip = true, qol = true, chat = true, infopanel = true, quests = true }
+              tooltip = true, procs = true, qol = true, chat = true, infopanel = true, quests = true }
 
 -- Each recipe: before (the test world, optional), open(DUI, arg) -> the frame to crop to (nil = the whole screen).
 -- For --gif, optional film = { open = s, play = s }: how long each part is filmed (1.2 s each by default).
@@ -676,6 +676,16 @@ local RECIPES = {
             both:SetPoint("BOTTOMRIGHT", tip, "BOTTOMRIGHT", shop:GetWidth(), 0)
             return both
         end },
+    procs = { about = "two proc flares up at once (Wings and Sunrise) in the Daylight accent [design,design]", open = function(DUI, arg)
+        local one, two = string.match(arg or "", "^(%a+),(%a+)$")
+        DUI:Set("general", "accent", "gradient")
+        local P = stub.procs
+        P.Alerts.Set("overpower", "design", one or "wings")
+        P.Alerts.Set("victoryrush", "design", two or "sun")
+        P.Flares.Show("overpower")
+        P.Flares.Show("victoryrush")
+        return P.Flares.holder
+    end },
     npc = { about = "the NPC window's sample talk [immersive: the whole screen]", open = function(DUI, look)
         DUI:Set("NPC", "look", look == "immersive" and "immersive" or "window")
         DUI.Npc.Window.Sample()

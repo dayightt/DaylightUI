@@ -19,6 +19,7 @@ move-folders:
   DaylightUI/DaylightUI_Bags: DaylightUI_Bags
   DaylightUI/DaylightUI_Quests: DaylightUI_Quests
   DaylightUI/DaylightUI_AuctionHouse: DaylightUI_AuctionHouse
+  DaylightUI/DaylightUI_Procs: DaylightUI_Procs
 
 ignore:
   - tests

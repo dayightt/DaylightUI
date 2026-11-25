@@ -1358,6 +1358,33 @@ local function newAuraContainer(name, parent, template)
         self.__sortSets = (self.__sortSets or 0) + 1
     end
     function c:SetAuraGroupLayout(key, l) assert(self.__groups[key], key); self.__groups[key].layout = l end
+    -- One aura shown by itself (CustomAuraContainerSharedMixin:AddAuraSlot): a
+    -- non-empty key used once, a filter string, the same display options as a
+    -- group's; its one button is made (initializeFrame run) and handed back. The
+    -- addon anchors it itself. Kept in c.__slots[key] = { filter, opts, button, enabled }.
+    c.__slots = {}
+    function c:AddAuraSlot(key, filter, opts)
+        assert(type(key) == "string" and key ~= "", "slotKey must be a non-empty string.")
+        assert(type(filter) == "string" and filter ~= "", "invalid filter string")
+        assert(not self.__slots[key], string.format("aura slot '%s' already exists with this key.", key))
+        validCandidates(opts and opts.candidateFilters)
+        validSort(opts and opts.sortMethod or 0, opts and opts.sortDirection or 0)
+        local slot = { filter = filter, opts = opts, enabled = true }
+        self.__slots[key] = slot
+        slot.button = newAuraButton(self, opts and opts.initializeFrame or function() end)
+        return slot.button
+    end
+    local function slotOf(self, key)
+        local slot = self.__slots[key]
+        assert(slot, "aura slot was not found with this key.")
+        return slot
+    end
+    function c:SetAuraSlotEnabled(key, enabled)
+        assert(type(enabled) == "boolean", "enabled must be a boolean.")
+        slotOf(self, key).enabled = enabled
+    end
+    function c:IsAuraSlotEnabled(key) return slotOf(self, key).enabled end
+    function c:GetAuraSlotFrame(key) local slot = self.__slots[key]; return slot and slot.button or nil end
     function c:SetFlowLayoutAnchorPoint(p) self.__anchorPoint = p end
     function c:SetFlowLayoutGrowthDirection(h, v) self.__growth = { h, v } end
     function c:SetFlowLayoutMaximumLineSize(n) self.__lineSize = n end
@@ -1369,7 +1396,7 @@ end
 -- Shown for an aura, its shown animations play when it comes up and stop when it
 -- has none. This is the client's own code, so it runs in fights and under
 -- restrictions too.
-function stub.AuraVisible(btn, on)
+function stub.AuraVisible(btn, on, applications)
     local was = btn.__auraShown == true
     btn.__auraShown = on and true or false
     -- The client's own SetShown is never refused, unlike an addon's on a locked
@@ -1381,6 +1408,15 @@ function stub.AuraVisible(btn, on)
     end
     for _, g in ipairs(btn.__shownAnims or {}) do
         if on and not was then g:Play() elseif not on then g:Stop() end
+    end
+    -- ApplyApplicationBar: the bar shows at its least applications OR MORE.
+    local bar = btn.__appBar
+    if bar then
+        local want = on and (applications or 0) >= (btn.__appBarOpts.minApplications or 0)
+        if (rawget(bar, "__shown") and true or false) ~= want then
+            rawset(bar, "__shown", want)
+            if parentsShown(bar) then cascade(bar, want and "OnShow" or "OnHide") end
+        end
     end
 end
 
@@ -1430,6 +1466,19 @@ function newAuraButton(c, initializeFrame)
         inbound(self, g, "AnimationGroup")
         self.__shownAnims = self.__shownAnims or {}
         table.insert(self.__shownAnims, g)
+    end
+    function btn:RemoveAuraShownAnimation(g)
+        for i, x in ipairs(self.__shownAnims or {}) do
+            if x == g then table.remove(self.__shownAnims, i); return end
+        end
+    end
+    function btn:ClearAuraShownAnimations() self.__shownAnims = {} end
+    -- A bar the client fills with the stack count and shows from minApplications
+    -- up (ApplyApplicationBar); it must be a StatusBar inside the button.
+    function btn:SetApplicationBar(bar, opts)
+        inbound(self, bar, "StatusBar")
+        self.__appBar = bar
+        self.__appBarOpts = { minApplications = opts and opts.minApplications or 0, maxApplications = opts and opts.maxApplications or 0 }
     end
     -- Played by the client each time the button is given an aura, also one aura
     -- replacing another on a button already shown. Kept in __assignedAnims.
@@ -3701,6 +3750,45 @@ function stub.ActionSlots(slots)
     _G.C_SpellActivationOverlay = { IsSpellOverlayed = function(id) return stub.overlay[id] == true end }
 end
 
+-- The spell reads Proc Alerts watches, installed by a test that wants them
+-- (other areas' tests keep these missing, as before). As the game's docs say,
+-- none carries a secret flag: stub.secretSpellReads = true makes each answer
+-- secret anyway, the worst case Proc Alerts must survive.
+--   stub.spellUsable[id] = { usable, noPower }   (C_Spell.IsSpellUsable; default false, false)
+--   stub.castTimes[id] = milliseconds             (C_Spell.GetSpellInfo().castTime)
+--   stub.spellCosts[id] = { { cost = n } }        (C_Spell.GetSpellPowerCost, made by Reset)
+--   stub.knownSpells[id] = true                   (IsPlayerSpell, C_SpellBook.IsSpellKnown)
+--   stub.spellCooldowns[id] = true | "gcd"        (C_Spell.GetSpellCooldown's isActive / isOnGCD)
+function stub.SpellReads()
+    stub.spellUsable, stub.castTimes, stub.spellCosts = {}, {}, {}
+    stub.spellCooldowns, stub.secretSpellReads = {}, nil
+    local function maybe(v)
+        if stub.secretSpellReads and v ~= nil then return stub.Secret(v) end
+        return v
+    end
+    C_Spell.IsSpellUsable = function(id)
+        local u = stub.spellUsable[id]
+        return maybe(u ~= nil and u[1] == true), maybe(u ~= nil and u[2] == true)
+    end
+    C_Spell.GetSpellInfo = function(id)
+        local s, ct = stub.spells and stub.spells[id], stub.castTimes[id]
+        if s == nil and ct == nil and not stub.knownSpells[id] then return nil end
+        return { name = s and s.name or tostring(id), castTime = maybe(ct or 0), spellID = id }
+    end
+    C_Spell.GetSpellPowerCost = function(id)
+        local t = stub.spellCosts[id]
+        if t == nil then return nil end
+        return maybe(t)
+    end
+    C_Spell.GetSpellCooldown = function(id)
+        local k = stub.spellCooldowns[id]
+        local plain = stub.inGame > 0 or not stub.AurasRestricted()
+        return { isActive = k ~= nil, isOnGCD = (k == "gcd") or nil, isEnabled = true,
+                 startTime = plain and 100 or stub.Secret(100), duration = plain and 10 or stub.Secret(10) }
+    end
+    _G.IsPlayerSpell = function(id) return stub.knownSpells[id] == true end
+end
+
 -- Globals Reset clears (the addon under test and its saved variables). Another addon that copies this file changes the list.
 stub.RESET_GLOBALS = { "DaylightUIDB", "DaylightUIAuctionDB", "DaylightUI", "SLASH_DAYLIGHTUI1" }
 -- stub.feelOwner is the table whose .Win.Feel FinishFade settles (nil = DaylightUI).
@@ -4148,6 +4236,7 @@ stub.LFG_FILES = { "Defaults.lua", "Data.lua", "Rows.lua", "Browse.lua", "Listin
 stub.MAIL_FILES = { "Defaults.lua", "Ledger.lua", "Inbox.lua", "Send.lua", "LedgerPage.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Detail.lua", "Friends.lua", "Allies.lua", "Requests.lua", "Raid.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.LEGACY_FILES = { "Defaults.lua", "Data.lua", "Progress.lua", "Challenges.lua", "Trees.lua", "Window.lua", "Options.lua", "Module.lua" }
+stub.PROCS_FILES = { "Defaults.lua", "Data.lua", "Alerts.lua", "Flares.lua", "Engine.lua", "Game.lua", "Options.lua", "Module.lua" }
 stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",
                           "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmTether.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",
@@ -4262,6 +4351,12 @@ function stub.Load(opts)
         loadFiles("DaylightUI_Tooltip/", { "Defaults.lua", "Tooltip.lua", "Rich/Read.lua", "Rich/Panel.lua", "Rich/Players.lua", "Rich/Items.lua", "Rich/Spells.lua", "Rich/World.lua", "Rich/Foreign.lua", "Rich/Pill.lua", "Rich/Rich.lua", "Rich/Sample.lua", "Ghost.lua", "Options.lua", "Module.lua" }, "DaylightUI_Tooltip", TT)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_Tooltip")
         stub.tooltip = TT
+    end
+    if opts.procs then
+        local PR = {}
+        loadFiles("DaylightUI_Procs/", stub.PROCS_FILES, "DaylightUI_Procs", PR)
+        stub.FireEvent("ADDON_LOADED", "DaylightUI_Procs")
+        stub.procs = PR
     end
     if opts.qol then
         local Q = {}

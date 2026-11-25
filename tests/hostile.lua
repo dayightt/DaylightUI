@@ -19,7 +19,7 @@ local H = {}
 -- it, listed by where it happened. These are the errors players used to hit first
 -- in battlegrounds.
 
-local ALL = { module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true,
+local ALL = { module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true, procs = true,
               qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true }
 
 local CLASSES = { "WARRIOR", "PRIEST", "MAGE", "ROGUE", "DRUID", "HUNTER", "SHAMAN", "WARLOCK", "PALADIN" }

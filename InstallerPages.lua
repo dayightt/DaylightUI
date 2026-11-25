@@ -32,6 +32,8 @@ Pages.MODULES = {
       pitch = "Dark tooltips with class colors, item quality borders and a health bar." },
     { addon = "DaylightUI_Skins", name = "Skins", label = "Game window skins",
       pitch = "The game's own windows in the DaylightUI look." },
+    { addon = "DaylightUI_Procs", name = "Procs", label = "Proc Alerts",
+      pitch = "A painted flare around your character when a proc like Clearcasting or Overpower is ready." },
     { addon = "DaylightUI_QoL", name = "QoL", label = "Quality of Life",
       pitch = "Small helpers: faster looting, quest automation, trainers and more." },
 }

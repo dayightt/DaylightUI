@@ -2,7 +2,7 @@
 -- and chips, and search results. test_options.lua covers the registry.
 local stub = require("stub")
 
-local ALL = { module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true,
+local ALL = { module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true, procs = true,
               qol = true, chat = true, infopanel = true, skins = true, quests = true }
 
 local function rowFor(pf, key)

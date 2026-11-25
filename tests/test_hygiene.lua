@@ -207,7 +207,7 @@ T.test("hygiene: the tests load every shipped file, in the .toc's order", functi
     local quests = QW.world({ quests = {} })
     stub.ForgetCompiled()
     local ok, err = pcall(stub.Load, { module = true, actionbars = true, buffs = true, skins = true, bags = true,
-        nameplates = true, tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true,
+        nameplates = true, tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true,
         before = function() ABW.world(); quests() end })
     _G.loadfile = realLoadfile
     stub.ForgetCompiled()
@@ -540,6 +540,7 @@ local DAYLIGHT_OK = {
     ["Options/Registry.lua"] = "the options window's Home page (its shared profiles card, in the window's own gradient)",
     ["PatchNotesUI.lua"] = "shown in the options window's look",
     ["Donators.lua"] = "an options page, all in the Daylight gradient on purpose",
+    ["DaylightUI_Procs/Alerts.lua"] = "the starting pair of a proc's Two colors of my own, a saved default the player then changes",
     ["InstallerCards.lua"] = "the setup guide, in the options window's look",
     ["InstallerUI.lua"] = "the setup guide's window, its border lit for a showpiece like the 2.0 welcome",
     ["Welcome.lua"] = "the 2.0 welcome, in the setup guide's window and the options window's look",

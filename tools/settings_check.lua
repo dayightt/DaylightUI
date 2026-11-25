@@ -16,7 +16,7 @@ T = T or {}   -- tests/stub.lua reads the test helpers' table
 local stub = require("stub")
 
 local DUI = stub.Load({ module = true, actionbars = true, buffs = true, skins = true, bags = true,
-    nameplates = true, tooltip = true, qol = true, chat = true, infopanel = true, quests = true })
+    nameplates = true, tooltip = true, procs = true, qol = true, chat = true, infopanel = true, quests = true })
 local defaults = DUI.DB.Fill({})
 
 -- Every word in shipped Lua, to tell a stale key from one read under a built name

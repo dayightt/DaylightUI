@@ -188,7 +188,7 @@ T.test("a value already set on a section stays when its global style goes off", 
 end)
 
 T.test("every section's look is one General's Apply reaches, and starts on the global style", function()
-    local DUI = stub.Load({ buffs = true, skins = true, bags = true, qol = true, chat = true, infopanel = true, quests = true, tooltip = true, auctionhouse = true })
+    local DUI = stub.Load({ buffs = true, skins = true, bags = true, qol = true, chat = true, infopanel = true, quests = true, tooltip = true, procs = true, auctionhouse = true })
     T.truthy(#DUI.DB.LOOKS >= 24, "panels and windows both listed")
     for _, b in ipairs(DUI.DB.LOOKS) do
         local mod = DUI:GetModule(b[1])

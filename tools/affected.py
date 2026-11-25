@@ -27,7 +27,7 @@ MODULE_FLAGS = {
     "DaylightUI_UnitFrames": "module", "DaylightUI_ActionBars": "actionbars", "DaylightUI_Buffs": "buffs",
     "DaylightUI_Skins": "skins", "DaylightUI_Bags": "bags", "DaylightUI_Nameplates": "nameplates",
     "DaylightUI_Tooltip": "tooltip", "DaylightUI_QoL": "qol", "DaylightUI_Chat": "chat",
-    "DaylightUI_InfoPanel": "infopanel", "DaylightUI_Quests": "quests", "DaylightUI_AuctionHouse": "auctionhouse",
+    "DaylightUI_InfoPanel": "infopanel", "DaylightUI_Quests": "quests", "DaylightUI_AuctionHouse": "auctionhouse", "DaylightUI_Procs": "procs",
 }
 # Core windows: a folder -> the word its tests and world file are named by.
 CORE_WINDOWS = {"Book": "book", "Character": "char", "Npc": "npc", "Inspect": "inspect", "Craft": "craft",

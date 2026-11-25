@@ -4,7 +4,7 @@
 local stub = require("stub")
 local K = require("locale_keys")
 
-local ALL = { module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true,
+local ALL = { module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true, procs = true,
               qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true }
 
 local function withLocale(locale, fn)
@@ -126,7 +126,7 @@ T.test("every language draws the options, the setup guide and test mode", functi
     for locale, path in pairs(K.LanguageFiles()) do
         local lines = K.LoadLanguage(path, locale)
         local DUI = stub.Load{ module = true, actionbars = true, buffs = true, bags = true, nameplates = true,
-            tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true,
+            tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true,
             locale = function(L) for k, v in pairs(lines) do L[k] = v end end }
         T.eq(DUI.L["Width"], lines["Width"] or "Width", locale .. " is in")
         for id in DUI.Options.Pages() do DUI.OptionsPanel.Show(id) end
@@ -244,7 +244,7 @@ end
 
 T.test("pseudo sweep: every options page outside NOT_YET draws only translated text", function()
     local DUI = stub.Load{ module = true, actionbars = true, buffs = true, bags = true, nameplates = true,
-        tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true, locale = pseudo }
+        tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true, locale = pseudo }
     local bad = {}
     for id, page in DUI.Options.Pages() do
         if not K.NOT_YET[page.scope] then
@@ -266,7 +266,7 @@ T.test("a picked language reaches text the core reads while loading", function()
     local DUI
     withLocale("deDE", function()
         DUI = stub.Load{ module = true, actionbars = true, buffs = true, bags = true, nameplates = true,
-            tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true,
+            tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true,
             before = function() DaylightUIDB = { language = "xxXX" } end,
             locale = function(_, D) D.AddLanguage("xxXX", pseudo) end }
     end)
@@ -293,7 +293,7 @@ end)
 
 T.test("pseudo sweep: every setup guide page draws only translated text", function()
     local DUI = stub.Load{ module = true, actionbars = true, buffs = true, bags = true, nameplates = true,
-        tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true, locale = pseudo }
+        tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true, locale = pseudo }
     local I = DUI.Installer
     local bad = {}
     I.Show()
@@ -318,7 +318,7 @@ local WORLD_ALLOW = {
 
 T.test("pseudo sweep: our frames in the world draw only translated text", function()
     local DUI = stub.Load{ module = true, actionbars = true, buffs = true, bags = true, nameplates = true,
-        tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true, locale = pseudo }
+        tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true, locale = pseudo }
     local before = {}
     for _, name in ipairs(WORLD_ALLOW) do before[name] = ALLOW[name]; ALLOW[name] = ALLOW[name] or "world sample" end
     DUI.SetTestMode(true)

@@ -190,6 +190,7 @@ return {
         ["DaylightUI_Nameplates/Manager.lua"] = 16,
         ["DaylightUI_Nameplates/Plate.lua"] = 21,
         ["DaylightUI_Nameplates/Range.lua"] = 3,
+        ["DaylightUI_Procs/Game.lua"] = 1,
         ["DaylightUI_QoL/Afk.lua"] = 3,
         ["DaylightUI_QoL/AfkFacts.lua"] = 2,
         ["DaylightUI_QoL/Camera.lua"] = 2,

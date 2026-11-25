@@ -10,7 +10,7 @@ local TOCS = {
     "DaylightUI_Buffs/DaylightUI_Buffs.toc", "DaylightUI_Chat/DaylightUI_Chat.toc",
     "DaylightUI_InfoPanel/DaylightUI_InfoPanel.toc", "DaylightUI_Nameplates/DaylightUI_Nameplates.toc",
     "DaylightUI_QoL/DaylightUI_QoL.toc", "DaylightUI_Quests/DaylightUI_Quests.toc", "DaylightUI_Skins/DaylightUI_Skins.toc",
-    "DaylightUI_Tooltip/DaylightUI_Tooltip.toc", "DaylightUI_UnitFrames/DaylightUI_UnitFrames.toc",
+    "DaylightUI_Tooltip/DaylightUI_Tooltip.toc", "DaylightUI_UnitFrames/DaylightUI_UnitFrames.toc", "DaylightUI_Procs/DaylightUI_Procs.toc",
 }
 
 local function shippedFiles()

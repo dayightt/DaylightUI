@@ -203,7 +203,7 @@ end)
 
 T.test("every module's pages are valid, with nothing reported in chat", function()
     local DUI = stub.Load({ module = true, actionbars = true, buffs = true, skins = true, bags = true, nameplates = true,
-        tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true })
+        tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, quests = true })
     for id, page in DUI.Options.Pages() do
         local errors = DUI.Options.ValidatePage(page)
         T.eq(#errors, 0, id .. ": " .. tostring(errors[1]))
@@ -809,7 +809,7 @@ end)
 -- Every row a player can change or press has hover text saying what it does.
 -- Text and custom rows explain themselves.
 T.test("every setting and button has a description", function()
-    local DUI = stub.Load({ module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true,
+    local DUI = stub.Load({ module = true, actionbars = true, buffs = true, bags = true, nameplates = true, tooltip = true, procs = true,
                             qol = true, chat = true, infopanel = true, skins = true, quests = true })
     local O = DUI.Options
     local missing, seen = {}, {}

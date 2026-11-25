@@ -14,7 +14,7 @@ local K = require("locale_keys")
 
 local function keySet()
     local DUI = stub.Load{ module = true, actionbars = true, buffs = true, bags = true, nameplates = true,
-        tooltip = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true }
+        tooltip = true, procs = true, qol = true, auctionhouse = true, chat = true, infopanel = true, skins = true, quests = true }
     local keys = K.Walk(DUI, K.Scan())
     local list = {}
     for k in pairs(keys) do list[#list + 1] = k end
