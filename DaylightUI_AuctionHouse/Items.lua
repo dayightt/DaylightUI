@@ -7,6 +7,17 @@ local _, ns = ...
 
 ns.Game = ns.Game or {}
 ns.Game.SLICE = 250      -- most replicate rows handled in one frame
+ns.Game.SLICE_MS = 6     -- and at most this many milliseconds of them
+
+-- A frame's reading stops at whichever comes first, SLICE rows or SLICE_MS.
+-- Rows cost very different amounts (an item the game must load, a big house),
+-- so a row count alone let one frame take 50 to 100 ms and the game stutter.
+function ns.Game.Deadline()
+    return debugprofilestop() + ns.Game.SLICE_MS
+end
+function ns.Game.Late(deadline)
+    return debugprofilestop() >= deadline
+end
 ns.Game.ITEM_WAIT = 10   -- seconds to wait for the game to know an item (a full scan: of no item arriving)
 
 -- Now, in seconds: the server's clock when the game has one (prices seen on

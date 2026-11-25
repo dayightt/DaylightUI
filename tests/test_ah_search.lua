@@ -353,6 +353,24 @@ T.test("paging_is_capped", function()
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
 
+-- A frame stops after SLICE_MS of slow rows, not only after SLICE of them.
+T.test("slow_rows_end_the_frame_early", function()
+    local auctions = {}
+    for i = 1, 600 do auctions[i] = { itemID = BLADE, count = 1, buyout = 1000 + i } end
+    local M = load({ page = 600, auctions = auctions })
+    local was = _G.debugprofilestop
+    _G.debugprofilestop = function() return AHW.Calls("GetItemSearchResultInfo") * 1.0 end   -- 1 ms a row
+    AHW.Open()
+    local got = search(M, BLADE)
+    AHW.Step()
+    local first = AHW.Calls("GetItemSearchResultInfo")
+    T.truthy(first >= 1 and first <= M.Game.SLICE_MS + 1, "about SLICE_MS rows the first frame, got " .. first)
+    _G.debugprofilestop = was
+    AHW.Settle()
+    T.eq(got.calls, 1, "every row still read")
+    T.deq(got.rows, { { key = "15210", base = "15210", unit = 1001, qty = 600 } })
+end)
+
 T.test("reads_rows_in_slices", function()
     local auctions = {}
     for i = 1, 600 do auctions[i] = { itemID = BLADE, count = 1, buyout = 1000 + i } end

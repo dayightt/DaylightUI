@@ -142,13 +142,14 @@ local function save(rkey, rows, skipped, total)
             at = ns.Game.Now()
             known = ns.Store.Count(rkey)
         end
-        local last = math.min(i + ns.Game.SLICE - 1, #list)
-        for k = i, last do
-            local r = list[k]
+        local last, stop = math.min(i + ns.Game.SLICE - 1, #list), ns.Game.Deadline()
+        while i <= last do
+            local r = list[i]
             local ok = ns.Store.Record(rkey, r.key, r.unit, r.qty, at)
             if ok and bases[r.key] == r then priced = priced + 1 end
+            i = i + 1
+            if ns.Game.Late(stop) then break end
         end
-        i = last + 1
         savedShare = (i - 1) / math.max(1, #list)
         if i <= #list then return C_Timer.After(0, guarded) end
         ns.Store.MarkFullScan(rkey, at)

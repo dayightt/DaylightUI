@@ -192,6 +192,22 @@ T.test("browse_reads_rows_in_slices", function()
     quiet(M)
 end)
 
+-- A frame stops after SLICE_MS of slow rows, not only after SLICE of them.
+T.test("browse_slow_rows_end_the_frame_early", function()
+    local M = load({ page = 50, auctions = things(30) })
+    local was, clock = _G.debugprofilestop, 0
+    _G.debugprofilestop = function() clock = clock + 1; return clock end   -- every look at the clock: 1 ms later
+    AHW.Open()
+    local got = browse(M)
+    AHW.Step()   -- the answer, and a frame
+    T.eq(got.calls, 0, "30 rows of 1 ms don't fit one frame")
+    _G.debugprofilestop = was
+    AHW.Settle()
+    T.eq(got.calls, 1)
+    T.eq(#got.rows, 30)
+    quiet(M)
+end)
+
 T.test("browse_filters_reach_server", function()
     local M = load({
         auctions = {

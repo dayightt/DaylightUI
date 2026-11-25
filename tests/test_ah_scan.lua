@@ -407,6 +407,27 @@ T.test("slices_per_frame", function()
     T.eq(AHW.Frame(), 0, "nothing scheduled after the end")
 end)
 
+-- Rows that are slow to read (an item the game has to load, a huge house):
+-- a frame stops after SLICE_MS of them, not only after SLICE rows. Reading
+-- 250 a frame whatever they cost made frames of 50 to 100 ms in game.
+T.test("a_slow_row_ends_the_frame_early", function()
+    local M = load(many(600, 300))
+    local was = _G.debugprofilestop
+    _G.debugprofilestop = function() return AHW.Calls("GetReplicateItemInfo") * 1.0 end   -- 1 ms a row
+    AHW.Open()
+    local got
+    T.eq(M.Replicate.Start(function(rows) got = rows end), true)
+    AHW.Step()   -- the list arrives, and the first frame
+    local first = AHW.Calls("GetReplicateItemInfo")
+    T.truthy(first >= 1 and first <= M.Game.SLICE_MS + 1, "about SLICE_MS rows the first frame, got " .. first)
+    AHW.Frame()
+    T.truthy(AHW.Calls("GetReplicateItemInfo") - first <= M.Game.SLICE_MS + 1, "and the next")
+    _G.debugprofilestop = was
+    AHW.Settle()
+    T.truthy(got, "every row still read")
+    T.eq(#got, 300)
+end)
+
 T.test("saving_is_sliced_too", function()
     local M = load(many(600, 600))
     local changes = watchChanges(M)

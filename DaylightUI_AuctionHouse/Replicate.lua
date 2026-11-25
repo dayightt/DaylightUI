@@ -197,13 +197,13 @@ local function settle(j)
 end
 
 -- One frame's work: rows whose item arrived first, then the next new rows,
--- SLICE in all; then the wait for the list to settle.
+-- SLICE rows or SLICE_MS in all (ns.Game.Deadline); then the wait for the list to settle.
 local function slice(j)
     j.scheduled = false
     if job ~= j then return end
     if not ns.AH.IsOpen() then return finish(j, nil, "closed") end
-    local budget = ns.Game.SLICE
-    while budget > 0 do
+    local budget, stop = ns.Game.SLICE, ns.Game.Deadline()
+    while budget > 0 and not (budget < ns.Game.SLICE and ns.Game.Late(stop)) do
         if j.readyHead <= j.readyTail then
             local index = j.ready[j.readyHead]
             j.ready[j.readyHead] = nil

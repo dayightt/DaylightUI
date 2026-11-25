@@ -1081,3 +1081,52 @@ T.test("windows: a menu closes when what opened it goes away, like the game's", 
     stub.RunOnUpdate(menuFrame, 0.016)
     T.falsy(W.menuOwner, "a cursor menu goes with the row that opened it")
 end)
+
+-- The game's tooltip calls its owner's UpdateTooltip every 0.2 s while it's
+-- up. An item hover of ours draws the whole tooltip again only when that
+-- shows something new: Shift pressed or let go (the compare), or the item's
+-- data arriving (TOOLTIP_DATA_UPDATE). Drawing it on every tick made hovering
+-- the Auction House's list stutter, five heavy redraws a second.
+T.test("windows: an item hover redraws its tooltip only when Shift or the item's data changes", function()
+    local DUI = stub.Load()
+    local Parts = DUI.Win.Parts
+    local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    _G.GameTooltip = tip
+    function tip:SetOwner(o) self.__owner = o end
+    function tip:GetOwner() return self.__owner end
+    function tip:IsOwned(o) return self.__owner == o end
+    local shift = false
+    local wasTU, wasMod = _G.TooltipUtil, _G.IsModifiedClick
+    _G.TooltipUtil = nil
+    _G.IsModifiedClick = function(k) return shift and (k == "COMPAREITEMS" or k == nil) end
+    local draws = 0
+    local b = CreateFrame("Button", nil, UIParent)
+    local show = Parts.ItemTip(function(self)
+        draws = draws + 1
+        tip:SetOwner(self, "ANCHOR_RIGHT")
+        tip:Show()
+    end)
+    show(b)
+    T.eq(draws, 1, "drawn on enter")
+    for _ = 1, 25 do b:UpdateTooltip() end   -- five seconds of the game's ticks
+    T.eq(draws, 1, "resting on a row draws nothing again")
+    shift = true
+    b:UpdateTooltip()
+    T.eq(draws, 2, "Shift pressed mid-hover redraws for the compare")
+    b:UpdateTooltip()
+    T.eq(draws, 2, "held Shift doesn't keep redrawing")
+    shift = false
+    b:UpdateTooltip()
+    T.eq(draws, 3, "letting go of Shift redraws")
+    stub.FireEvent("TOOLTIP_DATA_UPDATE", 7)
+    b:UpdateTooltip()
+    T.eq(draws, 4, "the item's data arriving fills the tooltip in")
+    b:UpdateTooltip()
+    T.eq(draws, 4)
+    local live = CreateFrame("Button", nil, UIParent)
+    local liveDraws = 0
+    Parts.ItemTip(function(self) liveDraws = liveDraws + 1; tip:SetOwner(self); tip:Show() end, nil, true)(live)
+    live:UpdateTooltip(); live:UpdateTooltip()
+    T.eq(liveDraws, 3, "a live tooltip (a cooldown counting down) redraws on every tick")
+    _G.TooltipUtil, _G.IsModifiedClick = wasTU, wasMod
+end)

@@ -69,7 +69,7 @@ local function make(id)
             GameTooltip:SetHyperlink(self.link)
             GameTooltip:Show()
         end
-    end))
+    end, nil, true))   -- live: the item's cooldown counts down in its tooltip
     b:SetScript("OnLeave", function() if GameTooltip then GameTooltip:Hide() end end)
     return b
 end

@@ -64,18 +64,18 @@ end
 -- the item to compare when the tooltip shows something that isn't the item's
 -- own tooltip (a recipe's result): the game only compares an item tooltip.
 -- always compares with no Shift, as the game's vendor does for what it sells.
+local function wantsCompare(tip, always)
+    if always then return true end
+    if type(TooltipUtil) == "table" and type(TooltipUtil.ShouldDoItemComparison) == "function" then
+        return TooltipUtil.ShouldDoItemComparison(tip) == true
+    end
+    return type(IsModifiedClick) == "function" and IsModifiedClick("COMPAREITEMS") == true
+end
+
 function Parts.Compare(tip, link, always)
     tip = tip or GameTooltip
     if type(tip) ~= "table" then return end
-    local want
-    if always then
-        want = true
-    elseif type(TooltipUtil) == "table" and type(TooltipUtil.ShouldDoItemComparison) == "function" then
-        want = TooltipUtil.ShouldDoItemComparison(tip)
-    else
-        want = type(IsModifiedClick) == "function" and IsModifiedClick("COMPAREITEMS")
-    end
-    if want then
+    if wantsCompare(tip, always) then
         if link and type(C_TooltipComparison) == "table" and type(C_TooltipComparison.CompareItem) == "function" then
             C_TooltipComparison.CompareItem({ hyperlink = link }, tip)
         elseif type(GameTooltip_ShowCompareItem) == "function" then
@@ -88,18 +88,43 @@ function Parts.Compare(tip, link, always)
     end
 end
 
--- Wraps a hover's tooltip so it behaves like the game's own item buttons. The
--- game's tooltip calls its owner's UpdateTooltip every 0.2 s while it's up, so
--- the tooltip is drawn again then, and pressing or letting go of Shift
--- mid-hover shows or hides the compare. draw(b) fills GameTooltip for b; it may
--- return an item link to compare with (see Parts.Compare). always: compare
--- without Shift too.
-function Parts.ItemTip(draw, always)
-    local function show(b)
+-- Item data the game finished loading. GameTooltip refreshes itself on this
+-- event only when its owner has no UpdateTooltip, so an ItemTip owner redraws
+-- for it instead. Each event bumps the count; an owner redraws when it moved.
+local dataSeen = 0
+DUI.RegisterEvent("TOOLTIP_DATA_UPDATE", function(_, id)
+    local tip = GameTooltip
+    if id ~= nil and type(tip) == "table" and type(tip.HasDataInstanceID) == "function"
+        and not tip:HasDataInstanceID(id) then return end
+    dataSeen = dataSeen + 1
+end)
+
+-- Wraps a hover's tooltip so it behaves like the game's own item buttons:
+-- pressing or letting go of Shift mid-hover shows or hides the compare, and a
+-- tooltip shown before its item loaded fills in once it does. The game's
+-- tooltip calls its owner's UpdateTooltip every 0.2 s; drawing the whole
+-- tooltip again each time made hovering a long list stutter (an item tooltip
+-- with its compare and price lines can take tens of milliseconds), so a
+-- redraw happens only when one of those changed. draw(b) fills GameTooltip
+-- for b; it may return an item link to compare with (see Parts.Compare).
+-- always: compare without Shift too. live: what the tooltip shows changes on
+-- its own (a cooldown counting down), so it is drawn on every tick.
+function Parts.ItemTip(draw, always, live)
+    local show
+    local function update(b)
+        local tip = GameTooltip
+        if not (type(tip) == "table" and tip:IsOwned(b)) then return end
+        if live or b.tipCompare ~= wantsCompare(tip, always) or b.tipData ~= dataSeen then
+            return show(b)
+        end
+    end
+    show = function(b)
         local link = draw(b)
-        if type(GameTooltip) == "table" and GameTooltip:IsOwned(b) then
-            Parts.Compare(GameTooltip, type(link) == "string" and link ~= "" and link or nil, always)
-            b.UpdateTooltip = show
+        local tip = GameTooltip
+        if type(tip) == "table" and tip:IsOwned(b) then
+            Parts.Compare(tip, type(link) == "string" and link ~= "" and link or nil, always)
+            b.tipCompare, b.tipData = wantsCompare(tip, always), dataSeen
+            b.UpdateTooltip = update
         end
     end
     return show

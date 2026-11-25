@@ -856,6 +856,10 @@ end
 -- ---------------------------------------------------------------------
 
 local function install()
+    -- The house's rows cost no time to read: a frame's slice (ns.Game.SLICE_MS)
+    -- ends on the row count alone, the same however busy the computer is. A
+    -- test of slow rows moves this clock itself.
+    _G.debugprofilestop = function() return 0 end
     -- The client's mail subjects for the house's letters (GlobalStrings).
     _G.AUCTION_EXPIRED_MAIL_SUBJECT = _G.AUCTION_EXPIRED_MAIL_SUBJECT or "Auction expired: %s"
     _G.AUCTION_SOLD_MAIL_SUBJECT = _G.AUCTION_SOLD_MAIL_SUBJECT or "Auction successful: %s"

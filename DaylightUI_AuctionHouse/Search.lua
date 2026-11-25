@@ -285,8 +285,13 @@ local function slice(j)
     if j.done then return end
     if not ns.AH.IsOpen() then return finish(j, nil, "closed") end
     local upTo = math.min(j.nextRow + ns.Game.SLICE - 1, j.total)
-    for index = j.nextRow, upTo do readRow(j, index) end
-    j.nextRow = upTo + 1
+    local stop, index = ns.Game.Deadline(), j.nextRow
+    while index <= upTo do
+        readRow(j, index)
+        index = index + 1
+        if ns.Game.Late(stop) then break end
+    end
+    j.nextRow = index
     if j.nextRow <= j.total then return schedule(j) end
     j.afterRead(j)
 end
