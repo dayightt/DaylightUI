@@ -147,7 +147,9 @@ function Parts.Hex(c)
     return string.format("|cff%02x%02x%02x", h(c[1]), h(c[2]), h(c[3]))
 end
 
-local function sound(name) if DUI.Sound then DUI.Sound.Play(name) end end
+-- kit: the game's own sound kit for this click when the player picks the game's
+-- sounds (Sound.Play's gameKit; false = the game's button makes none).
+local function sound(name, kit) if DUI.Sound then DUI.Sound.Play(name, kit) end end
 
 -- ---------------------------------------------------------------------
 -- Stack
@@ -522,7 +524,7 @@ local function makeRow(parent)
         if not spec then return end
         local fn = button == "RightButton" and spec.onRightClick or (button ~= "RightButton" and spec.onClick)
         if fn then
-            sound("click")
+            sound("click", spec.sound)
             fn(self)
         end
     end)
@@ -562,7 +564,8 @@ end
 
 -- spec: text, color, icon (file or id), atlas, iconColor (tint for white art),
 -- key ("1"), dim, onClick, onRightClick, onEnter, onLeave, depth (tree level),
--- chevron ("open" or "closed" for tree nodes), id (stable key for Stack:Ease).
+-- chevron ("open" or "closed" for tree nodes), id (stable key for Stack:Ease),
+-- sound (the game's kit for the click under the game's sounds; false = none).
 function Stack:Row(spec)
     local b = take(self, "row", makeRow)
     b.spec = spec
@@ -977,11 +980,13 @@ function Stack:Why(text)
     return put(self, c, c:GetHeight(), 4)
 end
 
--- Money and experience rewards on one line.
-function Stack:Money(copper, xp)
+-- Money and experience rewards on one line. opts.short: money you don't have
+-- enough of, in red (a quest's required gold).
+function Stack:Money(copper, xp, opts)
     local bits = {}
     if type(copper) == "number" and copper > 0 and DUI.MoneyString then
-        bits[#bits + 1] = Parts.Hex(Style.INK.MONEY) .. DUI.MoneyString(copper) .. "|r"
+        local ink = opts and opts.short and Style.INK.BAD or Style.INK.MONEY
+        bits[#bits + 1] = Parts.Hex(ink) .. DUI.MoneyString(copper) .. "|r"
     end
     if type(xp) == "number" and xp > 0 then
         bits[#bits + 1] = Parts.Hex(Style.INK.VALUE) .. string.format(L["%d experience"], xp) .. "|r"
@@ -1446,7 +1451,7 @@ local function button(foot, i)
     return b
 end
 
--- list: { { text, primary, tone, off, onClick, onRightClick, tip, key, beside } }, left to right,
+-- list: { { text, primary, tone, off, onClick, onRightClick, tip, key, beside, sound } }, left to right,
 -- following the game's layout: the primary action in the left corner, the rest
 -- packed to the right with the last (Goodbye, Decline) in the right corner.
 -- beside places a button right after the previous one instead.
@@ -1489,6 +1494,7 @@ function Footer:Set(list)
     for i = 1, #list do
         local spec = list[i]
         local b = button(self, i)
+        b.gameSound = spec.sound
         local label = spec.text or ""
         if spec.key then label = label .. "  " .. Parts.Hex({ Style.Pop() }) .. spec.key .. "|r" end
         b.text:SetWidth(0)

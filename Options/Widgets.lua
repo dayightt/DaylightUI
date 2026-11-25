@@ -486,8 +486,9 @@ function W.DressButton(b, text)
     b:SetScript("OnMouseDown", function() b.down = true; b.Paint() end)
     b:SetScript("OnMouseUp", function() b.down = false; b.Paint() end)
     -- PostClick, because callers set OnClick and that would drop a hook. A
-    -- template's own PostClick is kept.
-    local function click() if DUI.Sound then DUI.Sound.Play("click") end end
+    -- template's own PostClick is kept. b.gameSound: the game's own kit for this
+    -- button when the player picks the game's sounds (Sound.Play's gameKit).
+    local function click() if DUI.Sound then DUI.Sound.Play("click", b.gameSound) end end
     if b:GetScript("PostClick") then b:HookScript("PostClick", click) else b:SetScript("PostClick", click) end
     function b.SetActive(on)
         b.active = on

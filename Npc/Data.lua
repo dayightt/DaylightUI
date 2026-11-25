@@ -105,15 +105,25 @@ end
 
 -- Gossip
 
+-- "(Quest)" and "(Play Movie)" before an option, both when both flags are set, as
+-- the game's GossipOptionButtonMixin:Setup builds them. The older one-flag strings
+-- are only a fallback for a client without the newer ones.
 local function optionText(o)
     local name = o.name or ""
     local F = Enum and Enum.GossipOptionRecFlags
-    if F and type(o.flags) == "number" and bit and bit.band then
-        if F.QuestLabelPrepend and bit.band(o.flags, F.QuestLabelPrepend) ~= 0 and GOSSIP_QUEST_OPTION_PREPEND then
-            name = GOSSIP_QUEST_OPTION_PREPEND:format(name)
-        elseif F.PlayMovieLabelPrepend and bit.band(o.flags, F.PlayMovieLabelPrepend) ~= 0 and GOSSIP_VIDEO_OPTION_PREPEND then
-            name = GOSSIP_VIDEO_OPTION_PREPEND:format(name)
-        end
+    if not (F and type(o.flags) == "number" and bit and bit.band) then return name end
+    local quest = F.QuestLabelPrepend and bit.band(o.flags, F.QuestLabelPrepend) ~= 0
+    local movie = F.PlayMovieLabelPrepend and bit.band(o.flags, F.PlayMovieLabelPrepend) ~= 0
+    if type(GOSSIP_OPTION_PREPEND) == "string" and (quest or movie) then
+        local pre = {}
+        if quest and QUEST_PREPEND then pre[#pre + 1] = QUEST_PREPEND end
+        if movie and PLAY_MOVIE_PREPEND then pre[#pre + 1] = PLAY_MOVIE_PREPEND end
+        if #pre > 0 then return GOSSIP_OPTION_PREPEND:format(table.concat(pre, " "), name) end
+    end
+    if quest and GOSSIP_QUEST_OPTION_PREPEND then
+        name = GOSSIP_QUEST_OPTION_PREPEND:format(name)
+    elseif movie and GOSSIP_VIDEO_OPTION_PREPEND then
+        name = GOSSIP_VIDEO_OPTION_PREPEND:format(name)
     end
     return name
 end
@@ -145,9 +155,10 @@ end
 function Data.Greeting()
     local t = { text = call(GetGreetingText) or "", quests = {} }
     for i = 1, call(GetNumAvailableQuests) or 0 do
-        local trivial, frequency, repeatable, legendary, questID = call(GetAvailableQuestInfo, i)
+        local trivial, frequency, repeatable, legendary, questID, important, meta, infoID = call(GetAvailableQuestInfo, i)
         t.quests[#t.quests + 1] = { kind = "available", index = i, title = call(GetAvailableTitle, i), trivial = trivial,
-            questID = questID, level = Data.QuestLevel(questID), frequency = frequency, repeatable = repeatable, legendary = legendary }
+            questID = questID, level = Data.QuestLevel(questID), frequency = frequency, repeatable = repeatable, legendary = legendary,
+            important = important, meta = meta, infoID = infoID }
     end
     for i = 1, call(GetNumActiveQuests) or 0 do
         local title, complete = call(GetActiveTitle, i)
@@ -258,6 +269,96 @@ function Data.QuestMoved(d)
     return false
 end
 
+-- The icon the game's gossip and greeting give an offered quest
+-- (QuestUtil.GetQuestIconOfferForQuestID: repeatable, legendary, recurring...), as
+-- asset, isAtlas. Nil for a plain one, which keeps Daylight UI's gold "!".
+Data.PLAIN_OFFER = "Interface/GossipFrame/AvailableQuestIcon"
+function Data.OfferIcon(q)
+    local U = QuestUtil
+    if type(U) ~= "table" or not fn(U.GetQuestIconOfferForQuestID) or type(q.questID) ~= "number" then return nil end
+    local ok, asset, isAtlas = DUI.SafeReturn(U.GetQuestIconOfferForQuestID, q.questID, q.legendary, q.frequency, q.repeatable,
+        q.important, q.meta, q.infoID)
+    if not ok or type(asset) ~= "string" or asset == Data.PLAIN_OFFER then return nil end
+    return asset, isAtlas == true
+end
+
+-- Spell rewards, grouped the way QuestInfo.lua heads them ("You will learn",
+-- "The following will be cast on you"...), in its order. Spells already in the
+-- spellbook are left out, as the game does.
+local SPELL_ORDER = { "Follower", "Companion", "Tradeskill", "Ability", "Aura", "Spell", "Unlock",
+    "QuestlineUnlock", "QuestlineReward", "QuestlineUnlockPart", "PossibleReward" }
+local SPELL_HEADER = { Follower = "REWARD_FOLLOWER", Companion = "REWARD_COMPANION", Tradeskill = "REWARD_TRADESKILL_SPELL",
+    Ability = "REWARD_ABILITY", Aura = "REWARD_AURA", Spell = "REWARD_SPELL", Unlock = "REWARD_UNLOCK",
+    QuestlineUnlock = "REWARD_QUESTLINE_UNLOCK", QuestlineReward = "REWARD_QUESTLINE_REWARD",
+    QuestlineUnlockPart = "REWARD_QUESTLINE_UNLOCK_PART", PossibleReward = "REWARD_POSSIBLE_QUEST_REWARD" }
+
+-- The game's GetRewardSpellBucketType, by the enum's names.
+local function spellKind(info)
+    local T = Enum and Enum.QuestCompleteSpellType or {}
+    if type(info.type) == "number" and info.type ~= (T.LegacyBehavior or 0) then
+        for name, v in pairs(T) do if v == info.type then return name end end
+    end
+    if info.isTradeskill or info.isTradeskillSpell then return "Tradeskill" end
+    if info.isBoostSpell then return "Ability" end
+    if info.garrFollowerID then return "Follower" end
+    if info.isSpellLearned then return "Spell" end
+    if info.genericUnlock then return "Unlock" end
+    return "Aura"
+end
+
+local function known(spellID)
+    if not (C_SpellBook and fn(C_SpellBook.IsSpellInSpellBook)) then return false end
+    local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player or 0
+    local ok, yes = DUI.SafeReturn(C_SpellBook.IsSpellInSpellBook, spellID, bank, true)
+    return ok and yes == true
+end
+
+-- { { header = text or nil, list = { { spell = true, spellID, name, texture } } } }
+function Data.Spells(questID)
+    local S = C_QuestInfoSystem
+    if type(questID) ~= "number" or questID <= 0 or not (S and fn(S.GetQuestRewardSpells) and fn(S.GetQuestRewardSpellInfo)) then return {} end
+    local ok, ids = DUI.SafeReturn(S.GetQuestRewardSpells, questID)
+    if not ok or type(ids) ~= "table" then return {} end
+    local buckets = {}
+    for _, id in ipairs(ids) do
+        local okI, info = false, nil
+        if type(id) == "number" and id > 0 then okI, info = DUI.SafeReturn(S.GetQuestRewardSpellInfo, questID, id) end
+        if okI and type(info) == "table" and info.texture and not known(id)
+            and (not info.isBoostSpell or call(IsCharacterNewlyBoosted) == true) then
+            local kind = spellKind(info)
+            local b = buckets[kind]
+            if not b then
+                local word = _G[SPELL_HEADER[kind] or ""]
+                b = { header = not info.hideSpellLearnText and (type(word) == "string" and word or DUI.L["You'll learn:"]) or nil, list = {} }
+                buckets[kind] = b
+            end
+            b.list[#b.list + 1] = { spell = true, spellID = id, name = info.name, texture = info.texture }
+        end
+    end
+    local out = {}
+    for _, kind in ipairs(SPELL_ORDER) do if buckets[kind] then out[#out + 1] = buckets[kind] end end
+    return out
+end
+
+-- Skill points and honor, the rewards QuestInfo.lua draws beside the items.
+local HONOR_ICON = { Horde = "Interface\\Icons\\PVPCurrency-Honor-Horde", Alliance = "Interface\\Icons\\PVPCurrency-Honor-Alliance" }
+local function extras()
+    local out = {}
+    local skill, icon, points = call(GetRewardSkillPoints)
+    if type(points) == "number" and points > 0 then
+        local name = skill and (type(BONUS_SKILLPOINTS) == "string" and BONUS_SKILLPOINTS:format(skill)
+            or string.format(DUI.L["%s skill points"], skill)) or ""
+        local tip = skill and type(BONUS_SKILLPOINTS_TOOLTIP) == "string" and BONUS_SKILLPOINTS_TOOLTIP:format(points, skill) or nil
+        out[#out + 1] = { extra = "skill", name = name, texture = icon, count = points, tip = tip }
+    end
+    local honor = call(GetRewardHonor)
+    if type(honor) == "number" and honor > 0 then
+        local faction = fn(UnitFactionGroup) and UnitFactionGroup("player") or nil
+        out[#out + 1] = { extra = "honor", name = HONOR or DUI.L["Honor"], texture = HONOR_ICON[faction] or HONOR_ICON.Alliance, count = honor }
+    end
+    return out
+end
+
 -- Vendor value of the whole stack. Currencies have none.
 function Data.SaleOf(it) return (it.sell or 0) * (it.count or 1) end
 
@@ -284,14 +385,30 @@ function Data.Quest(mode)
         t.objective = call(GetObjectiveText) or ""
         t.auto = call(QuestGetAutoAccept) == true
         t.pvp = call(QuestFlagsPVP) == true
+        t.group = call(GetSuggestedGroupSize) or 0
+        local spellID, name, texture = call(GetCriteriaSpell)
+        if type(spellID) == "number" and spellID > 0 then
+            t.criteria = { spell = true, spellID = spellID, name = name, texture = texture }
+        end
     elseif mode == "progress" then
         t.text = call(GetProgressText) or ""
         t.completable = call(IsQuestCompletable) == true
         t.required = {}
-        for i = 1, call(GetNumQuestItems) or 0 do
+        -- As QuestFrameProgressItems_Update: the offer can hide its items, an item
+        -- not loaded yet keeps its slot, and required currencies follow.
+        local hide = C_QuestOffer and call(C_QuestOffer.GetHideRequiredItems) == true
+        for i = 1, not hide and call(GetNumQuestItems) or 0 do
             if call(IsQuestItemHidden, i) ~= 1 then
-                local name, texture, count, quality = call(GetQuestItemInfo, "required", i)
-                if name then t.required[#t.required + 1] = { kind = "required", index = i, name = name, texture = texture, count = count, quality = quality } end
+                local name, texture, count, quality, _, itemID = call(GetQuestItemInfo, "required", i)
+                t.required[#t.required + 1] = { kind = "required", index = i, name = name, texture = texture, count = count,
+                    quality = quality, itemID = itemID, loading = name == nil or nil }
+            end
+        end
+        for i = 1, call(GetNumQuestCurrencies) or 0 do
+            local c = C_QuestOffer and call(C_QuestOffer.GetQuestRequiredCurrencyInfo, i)
+            if type(c) == "table" then
+                t.required[#t.required + 1] = { kind = "required", index = i, currency = true, currencyID = c.currencyID,
+                    name = c.name, texture = c.texture, count = c.requiredAmount, quality = c.quality }
             end
         end
         t.cost = call(GetQuestMoneyToGet) or 0
@@ -305,6 +422,9 @@ function Data.Quest(mode)
         for _, c in ipairs(Data.Currencies(t.questID)) do t.rewards[#t.rewards + 1] = c end
         t.money = call(GetRewardMoney) or 0
         t.xp = call(GetRewardXP) or 0
+        t.spells = Data.Spells(t.questID)
+        t.rewardTitle = call(GetRewardTitle)
+        t.extras = extras()
     end
     t.level = Data.QuestLevel(t.questID)
     t.color = Data.QuestColor(t.questID, t.level)

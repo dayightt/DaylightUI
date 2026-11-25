@@ -32,6 +32,10 @@ Npc.TITLE_SIZE = DUI.Style.SIZE.title
 Npc.COIN = DUI.MEDIA .. "coin-gold.png"   -- marks the reward that sells for the most
 Npc.SAID_GAP = 12    -- extra px between the NPC's text and the quests or choices below
 Npc.BUSY = { 0.95 * 0.85, 0.72 * 0.85, 0.32 * 0.85 }   -- quest in progress: INK.WARN, softened
+-- The game's quest window sounds, heard when the player picks the game's sounds:
+-- the window opening and closing, and its Decline, Goodbye and Cancel buttons.
+Npc.TALK_SOUNDS = { open = "IG_QUEST_LIST_OPEN", close = "IG_QUEST_LIST_CLOSE" }
+Npc.CANCEL_KIT = "IG_QUEST_CANCEL"
 
 Npc.FRAMES = {
     gossip = function() return _G.GossipFrame end,
@@ -158,10 +162,12 @@ function Npc.Accept()
     if S.sample then return Npc.Close() end
     if d.pvp then
         -- The game's own question (CONFIRM_ACCEPT_PVP_QUEST): yes accepts, no declines.
-        DUI.Widgets.Ask({ key = "pvpQuest", text = CONFIRM_ACCEPT_PVP_QUEST or L["Accepting this quest will flag you for PvP. Accept anyway?"],
+        DUI.Widgets.Ask({ key = Npc.PVP_ASK, text = CONFIRM_ACCEPT_PVP_QUEST or L["Accepting this quest will flag you for PvP. Accept anyway?"],
             yes = ACCEPT or L["Accept"], no = CANCEL or L["Cancel"],
-            onYes = function() AcceptQuest() end,
-            onNo = function() if type(DeclineQuest) == "function" then DeclineQuest() end end })
+            onYes = function() if S.mode == "detail" then AcceptQuest() end end,
+            -- Closing the window takes the question away (Npc.Close): the talk is
+            -- already over then, so there is nothing to decline.
+            onNo = function() if S.mode == "detail" and type(DeclineQuest) == "function" then DeclineQuest() end end })
         return
     end
     if not firstPress() then return end
@@ -255,6 +261,14 @@ local function tooltipFor(it)
         GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
         if S.sample then
             GameTooltip:SetText(it.name or "")
+        elseif it.spell then
+            GameTooltip:SetSpellByID(it.spellID)
+        elseif it.extra == "honor" then
+            local C = Constants and Constants.CurrencyConsts
+            if C and C.HONOR_CURRENCY_ID and GameTooltip.SetCurrencyByID then GameTooltip:SetCurrencyByID(C.HONOR_CURRENCY_ID)
+            else GameTooltip:SetText(it.name or "") end
+        elseif it.extra then
+            GameTooltip:SetText(it.tip or it.name or "", 1, 1, 1)
         elseif it.currency then
             if GameTooltip.SetQuestCurrency then GameTooltip:SetQuestCurrency(it.kind, it.index) end
         elseif GameTooltip.SetQuestItem then
@@ -264,8 +278,13 @@ local function tooltipFor(it)
     end
 end
 
--- Shift-click link: a currency has its own, the quest item index means nothing for it.
+-- Shift-click link: a currency or a spell has its own, the quest item index means
+-- nothing for them.
 local function linkOf(it)
+    if it.spell then
+        return C_Spell and type(C_Spell.GetSpellLink) == "function" and C_Spell.GetSpellLink(it.spellID) or nil
+    end
+    if it.extra then return nil end
     if it.currency then
         if it.currencyID and C_CurrencyInfo and type(C_CurrencyInfo.GetCurrencyLink) == "function" then
             return C_CurrencyInfo.GetCurrencyLink(it.currencyID, it.count)
@@ -289,6 +308,8 @@ local function tilesFor(list, choosing, best)
             tint = bad and ns.Shop.BAD_ICON or nil, picked = choosing and S.choice == (it.index or i),
             mark = best and ns.Data.SaleOf(it) == best and Npc.COIN or nil,
             tooltip = tooltipFor(it), link = not S.sample and function() return linkOf(it) end or nil,
+            -- The game compares every quest item with your gear, Shift or not.
+            compare = not (it.currency or it.spell or it.extra) and "always" or nil,
             onClick = choosing and function() Npc.Pick(i) end or nil }
     end
     return out
@@ -296,12 +317,21 @@ end
 
 -- Quest marker beside a quest line: custom art for quests the player has (white, tinted:
 -- gold ? when ready, amber ring in progress), the game's ! for offered ones.
+-- An offered quest the game marks differently (repeatable, legendary) wears the
+-- game's mark; a trivial one is dimmed, as the game's gossip does, in the same
+-- dim as its name.
 local function questIcon(q)
     if q.kind == "active" then
         if q.complete then return DUI.MEDIA .. "quest-ready.png", nil, ns.Data.YELLOW end
         return DUI.MEDIA .. "quest-progress.png", nil, Npc.BUSY
     end
-    return nil, "QuestNormal"
+    local dim = q.trivial and ns.Data.TRIVIAL or nil
+    local asset, isAtlas = ns.Data.OfferIcon(q)
+    if asset then
+        if isAtlas then return nil, asset, dim end
+        return asset, nil, dim
+    end
+    return nil, "QuestNormal", dim
 end
 
 local function keyFor(n)
@@ -323,8 +353,10 @@ local function questRows(s, quests, n, air)
         local color = q.kind == "active" and not q.complete and Npc.BUSY or ns.Data.QuestColor(q.questID, q.level, q.trivial)
         local text = withLevel(q.title, q.level, ns.Data.QuestColor(q.questID, q.level, q.trivial))
         if air > 0 then s:Gap(air) end
+        -- The game's greeting plays IG_QUEST_LIST_SELECT on a pick; its gossip list plays none.
         Npc.rows[n] = s:Row({ text = text, color = color, icon = icon, atlas = atlas, iconColor = iconColor, key = keyFor(n),
-            tag = ns.Data.TagFor(q.questID), onClick = function() pickQuest(q) end })
+            tag = ns.Data.TagFor(q.questID), onClick = function() pickQuest(q) end,
+            sound = S.mode == "greeting" and "IG_QUEST_LIST_SELECT" or false })
     end
     return n
 end
@@ -369,15 +401,27 @@ function Npc.Fill(page)
             s:Section(L["Objectives"])
             s:Text(d.objective)
         end
-        if S.mode == "progress" then
-            if #d.required > 0 then
-                s:Section(L["Required"])
-                s:Items(tilesFor(d.required, false))
+        if S.mode == "detail" then
+            -- QuestInfo_ShowSpecialObjectives and QuestInfo_ShowGroupSize.
+            if d.criteria then
+                s:Text(LEARN_SPELL_OBJECTIVE or L["Learn this spell:"], { size = DUI.Style.SIZE.small, color = DUI.Style.INK.LABEL })
+                s:Items(tilesFor({ d.criteria }, false))
             end
-            if (d.cost or 0) > 0 then s:Money(d.cost) end
+            if (d.group or 0) > 0 then
+                s:Text(string.format(QUEST_SUGGESTED_GROUP_NUM or L["Suggested players: %d"], d.group),
+                    { size = DUI.Style.SIZE.small, color = DUI.Style.INK.WARN })
+            end
+        end
+        if S.mode == "progress" then
+            local cost = d.cost or 0
+            if #d.required > 0 or cost > 0 then s:Section(L["Required"]) end
+            if #d.required > 0 then s:Items(tilesFor(d.required, false)) end
+            -- Red when you can't pay it, as the game's turn-in page.
+            if cost > 0 then s:Money(cost, nil, { short = type(GetMoney) == "function" and GetMoney() < cost }) end
         else
             local choosing = S.mode == "reward"
-            if #d.choices > 0 or #d.rewards > 0 or d.money > 0 or d.xp > 0 then
+            local spells, extras = d.spells or {}, d.extras or {}
+            if #d.choices > 0 or #d.rewards > 0 or d.money > 0 or d.xp > 0 or #spells > 0 or #extras > 0 or d.rewardTitle then
                 s:Section(choosing and #d.choices > 1 and L["Choose your reward"] or L["Rewards"])
             end
             S.stuckShown = choosing and Npc.RewardsStuck()
@@ -391,9 +435,20 @@ function Npc.Fill(page)
                 Npc.tiles = s:Items(tilesFor(d.choices, choosing, best))
                 if not choosing then Npc.tiles = nil end
             end
-            if #d.rewards > 0 then
-                if #d.choices > 0 then s:Text(L["You'll also get:"], { size = DUI.Style.SIZE.small, color = Parts.DIM }) end
-                s:Items(tilesFor(d.rewards, false))
+            -- Spells the quest teaches or casts on you, each kind under the game's own words.
+            for _, group in ipairs(spells) do
+                if group.header then s:Text(group.header, { size = DUI.Style.SIZE.small, color = Parts.DIM }) end
+                s:Items(tilesFor(group.list, false))
+            end
+            if d.rewardTitle then
+                s:Text((REWARD_TITLE or L["Title:"]) .. " " .. Parts.Hex(DUI.Style.INK.VALUE) .. d.rewardTitle .. "|r")
+            end
+            local fixed = {}
+            for _, it in ipairs(d.rewards) do fixed[#fixed + 1] = it end
+            for _, it in ipairs(extras) do fixed[#fixed + 1] = it end
+            if #fixed > 0 then
+                if #d.choices > 0 or #spells > 0 or d.rewardTitle then s:Text(L["You'll also get:"], { size = DUI.Style.SIZE.small, color = Parts.DIM }) end
+                s:Items(tilesFor(fixed, false))
             end
             s:Money(d.money, d.xp)
         end
@@ -422,10 +477,11 @@ function Npc.Buttons()
     elseif m == "detail" then
         if d.auto then return { { text = OKAY or L["Okay"], primary = true, key = ok, onClick = Npc.Accept } } end
         return { { text = L["Accept"], primary = true, key = ok, onClick = Npc.Accept },
-                 { text = L["Decline"], tone = "no", key = esc, onClick = Npc.Goodbye } }
+                 { text = L["Decline"], tone = "no", key = esc, onClick = Npc.Goodbye, sound = Npc.CANCEL_KIT } }
     elseif m == "progress" then
-        return { { text = CONTINUE or L["Continue"], primary = true, off = not d.completable, key = ok, onClick = Npc.Continue },
-                 { text = L["Goodbye"], key = esc, onClick = Npc.Goodbye } }
+        return { { text = CONTINUE or L["Continue"], primary = true, off = not d.completable, key = ok, onClick = Npc.Continue,
+                   sound = "IG_QUEST_LIST_OPEN" },
+                 { text = L["Goodbye"], key = esc, onClick = Npc.Goodbye, sound = Npc.CANCEL_KIT } }
     elseif m == "reward" then
         if Npc.RewardsStuck() then
             return { { text = CLOSE or L["Close"], primary = true, key = ok, onClick = Npc.Goodbye } }
@@ -436,7 +492,7 @@ function Npc.Buttons()
         S.pendingShown = pending
         if S.confirm and (d.cost or 0) > 0 and DUI.MoneyString then text = string.format(L["Pay %s"], DUI.MoneyString(d.cost)) end
         return { { text = text, primary = true, off = off, key = ok, onClick = Npc.Complete },
-                 { text = L["Later"], key = esc, onClick = Npc.Goodbye } }
+                 { text = L["Later"], key = esc, onClick = Npc.Goodbye, sound = Npc.CANCEL_KIT } }
     end
     return {}
 end
@@ -525,13 +581,19 @@ end
 -- The game's quest window shows this when no NPC gives the quest.
 local BOOK = "Interface\\QuestFrame\\UI-QuestLog-BookIcon"
 
-local function header(f)
-    local name = DUI.UnitName("npc")
-    local r, g, b = DUI.Style.ReactionColor(type(UnitReaction) == "function" and UnitReaction("npc", "player") or nil)
+-- The game's quest window is about "questnpc" (who gives the quest: a party member
+-- sharing one, an object), its gossip about "npc".
+function Npc.UnitFor(mode) return Npc.KIND[mode] == "quest" and "questnpc" or "npc" end
+
+local function header(f, unit)
+    unit = unit or "npc"
+    S.unit = unit
+    local name = DUI.UnitName(unit)
+    local r, g, b = DUI.Style.ReactionColor(type(UnitReaction) == "function" and UnitReaction(unit, "player") or nil)
     local zone = (type(GetSubZoneText) == "function" and GetSubZoneText()) or ""
     if zone == "" and type(GetZoneText) == "function" then zone = GetZoneText() or "" end
     Win.SetTitle(f, name or "", { r, g, b }, zone)
-    Win.SetPortrait(f, "npc", BOOK)
+    Win.SetPortrait(f, unit, BOOK)
 end
 
 -- Dragged position (header, Win.Drag), saved per profile in the module's `spot`
@@ -578,7 +640,10 @@ function Npc.Show(mode, data, sample)
     Npc.Watch()
     if mode == "reward" and data.choices and #data.choices == 1 then S.choice = data.choices[1].index or 1 end
     if f == Npc.scene then ns.Scene.Place() else place(f, Npc.KIND[mode]) end
-    if opening and not S.sample then header(f) end
+    if opening and not S.sample then header(f, Npc.UnitFor(mode)) end
+    -- Under the game's sounds the talk pages sound like its quest window; the vendor
+    -- and trainer are heard through their own game windows.
+    f.duiGameSounds = not Npc.PAGE[mode] and Npc.TALK_SOUNDS or nil
     local shop = mode == "merchant"
     if shop and (opening or Npc.lastMode ~= "merchant") then
         ns.Shop.Opened()
@@ -610,10 +675,19 @@ function Npc.Show(mode, data, sample)
     DUI.Pad.Refresh(f)
 end
 
+Npc.PVP_ASK = "pvpQuest"
+
 function Npc.Close()
     local f = Npc.frame
     if not f then return end
+    -- The game's quest window plays its auto-accept sound as an auto quest closes.
+    local auto = S.mode == "detail" and S.data and S.data.auto and not S.sample
     S.mode, S.data = nil, nil
+    if auto and type(PlayAutoAcceptQuestSound) == "function" then DUI.SafeCall(PlayAutoAcceptQuestSound) end
+    -- Its PvP question goes with it (QuestFrame_OnHide hides QuestFrame.dialog).
+    local W = DUI.Widgets
+    local asking = W.Asking and W.Asking()
+    if asking and asking.key == Npc.PVP_ASK then W.Answer(false) end
     for _, w in ipairs({ f, Npc.scene }) do
         Win.KeysOn(w, false)
         Win.Close(w)
@@ -679,6 +753,14 @@ function Npc.Want(mode, event)
 end
 
 function Npc.OnEvent(_, event, ...)
+    if event == "UNIT_PORTRAIT_UPDATE" or event == "PORTRAITS_UPDATED" then
+        -- A portrait that wasn't loaded when the window opened.
+        local f = cur()
+        if S.mode and not S.sample and S.unit and Win.IsOpen(f) and (event == "PORTRAITS_UPDATED" or (...) == S.unit) then
+            Win.SetPortrait(f, S.unit, BOOK)
+        end
+        return
+    end
     if event == "GOSSIP_SHOW" then
         S.closed.gossip = false
         Npc.Want("gossip", event)
@@ -732,12 +814,18 @@ function Npc.OnEvent(_, event, ...)
             Npc.shopSoon = true
             C_Timer.After(0, function() Npc.shopSoon = false; ns.Shop.Refresh() end)
         end
-    elseif event == "QUEST_ITEM_UPDATE" or event == "QUEST_LOG_UPDATE" or event == "GET_ITEM_INFO_RECEIVED" then
+    elseif event == "QUEST_ITEM_UPDATE" or event == "QUEST_LOG_UPDATE" or event == "GET_ITEM_INFO_RECEIVED"
+        or event == "LEARNED_SPELL_IN_SKILL_LINE" then
         -- Late item names or prices, or a quest that became ready: re-read in place, once per
         -- frame with scroll kept (like Shop.Refresh). The pick is a game index, so it holds.
         -- GET_ITEM_INFO_RECEIVED fires on every hover, so it only counts while a price is pending.
-        local again = event == "QUEST_ITEM_UPDATE" or (event == "QUEST_LOG_UPDATE" and S.mode == "gossip")
-            or (event == "GET_ITEM_INFO_RECEIVED" and S.data and S.data.salePending)
+        -- As the game's: the quest log refreshes a greeting, and a gossip only while it
+        -- lists quests; a spell learned refreshes the spell rewards it may drop.
+        local d = S.data
+        local again = event == "QUEST_ITEM_UPDATE"
+            or (event == "QUEST_LOG_UPDATE" and (S.mode == "greeting" or (S.mode == "gossip" and d and #(d.quests or {}) > 0)))
+            or (event == "GET_ITEM_INFO_RECEIVED" and d and d.salePending)
+            or (event == "LEARNED_SPELL_IN_SKILL_LINE" and d and #(d.spells or {}) > 0)
         if again then Npc.RefillSoon() end
     end
 end
@@ -753,10 +841,10 @@ end
 -- always follow. Ask the game to load each one, as its own quest window does, and
 -- refill when it arrives. Each item is asked for once per page.
 function Npc.LoadItems(d)
-    if S.sample or not (d and d.choices) or not (Item and Item.CreateFromItemID) then return end
+    if S.sample or not d or not (Item and Item.CreateFromItemID) then return end
     local waits = S.itemWaits
     if not waits then return end
-    for _, list in ipairs({ d.choices, d.rewards or {} }) do
+    for _, list in ipairs({ d.choices or {}, d.rewards or {}, d.required or {} }) do
         for _, it in ipairs(list) do
             local id = it.loading and it.itemID
             if type(id) == "number" and not waits[id] then
@@ -884,7 +972,8 @@ Npc.LISTEN = { "GOSSIP_SHOW", "GOSSIP_CLOSED", "QUEST_GREETING", "QUEST_DETAIL",
     "QUEST_FINISHED", "QUEST_ITEM_UPDATE", "QUEST_LOG_UPDATE", "MERCHANT_SHOW", "MERCHANT_CLOSED", "MERCHANT_UPDATE",
     "MERCHANT_FILTER_ITEM_UPDATE", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "UPDATE_INVENTORY_DURABILITY", "GET_ITEM_INFO_RECEIVED",
     "CURRENCY_DISPLAY_UPDATE", "GUILDBANK_UPDATE_MONEY", "BAG_SLOT_FLAGS_UPDATED",
-    "TRAINER_SHOW", "TRAINER_CLOSED", "TRAINER_UPDATE", "TRAINER_SERVICE_INFO_NAME_UPDATE" }
+    "TRAINER_SHOW", "TRAINER_CLOSED", "TRAINER_UPDATE", "TRAINER_SERVICE_INFO_NAME_UPDATE",
+    "LEARNED_SPELL_IN_SKILL_LINE", "PORTRAITS_UPDATED" }
 
 -- Created size of a page: talk uses Npc.W, trainer and shop their own widths.
 function Npc.Base(id)
@@ -1179,6 +1268,7 @@ function Npc.Build(mod)
     -- Gear put on or taken off: what you can use and the repair cost (the game's shop
     -- listens too).
     ev:RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player")
+    ev:RegisterUnitEvent("UNIT_PORTRAIT_UPDATE", "npc", "questnpc")
     ev:SetScript("OnEvent", Npc.OnEvent)
     Npc.events = ev
     Npc.follow = Win.Follow({ key = "npc", frames = Npc.frames, aside = Npc.ASIDE, changed = Npc.Changed, onPark = Npc.Parked,

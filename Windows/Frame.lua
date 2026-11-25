@@ -845,9 +845,12 @@ function Win.GoalGrowth(page)
     return f.goalW - now
 end
 
+-- f.duiGameSounds = { open, close }: the game's own kits for a window that stands
+-- in for one of the game's, played when the player picks the game's sounds (as
+-- Motion.Window does). false: the game's window makes no sound there.
 function Win.Open(f)
     if Feel.IsOpen(f) then return end
-    if DUI.Sound then DUI.Sound.Play("open") end
+    if DUI.Sound then DUI.Sound.Play("open", f.duiGameSounds and f.duiGameSounds.open) end
     Feel.Open(f)
     Win.Glow(f)
     local page = f.current and f.pages[f.current]
@@ -856,7 +859,7 @@ end
 
 function Win.Close(f, done)
     if not Feel.IsOpen(f) then if done then done() end return end
-    if DUI.Sound then DUI.Sound.Play("close") end
+    if DUI.Sound then DUI.Sound.Play("close", f.duiGameSounds and f.duiGameSounds.close) end
     Feel.Close(f, done)
 end
 

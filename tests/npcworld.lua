@@ -534,6 +534,8 @@ local function installQuest()
     _G.GetQuestItemInfo = function(kind, i)
         local it = (list(kind) or {})[i]
         if not it then return end
+        -- `loading`: the game knows the slot but not the item yet (no name).
+        if it.loading then return nil, it.texture or 134400, it.count or 1, nil, nil, it.itemID or i end
         return it.name, it.texture or 134400, it.count or 1, it.quality or 1, it.usable ~= false, it.itemID or i
     end
     _G.GetQuestItemLink = function(kind, i)
@@ -567,6 +569,64 @@ local function installQuest()
             end
         end
     end
+    -- The rest of what QuestInfo.lua and QuestFrame.lua read from an offer: spell
+    -- rewards (a quest's `spells`: { spellID, name, texture, type, known, hide }),
+    -- a title, skill points { name, icon, points }, honor, the suggested group size,
+    -- a "learn this spell" objective (`criteria` = { spellID, name, texture }),
+    -- required currencies (`requiredCurrencies`: { name, count, currencyID }) and
+    -- the offer's "hide the required items" flag (`hideRequired`).
+    Enum.QuestCompleteSpellType = { LegacyBehavior = 0, Follower = 1, Tradeskill = 2, Ability = 3, Aura = 4, Spell = 5,
+        Unlock = 6, Companion = 7, QuestlineUnlock = 8, QuestlineReward = 9, QuestlineUnlockPart = 10, PossibleReward = 11 }
+    Enum.SpellBookSpellBank = Enum.SpellBookSpellBank or { Player = 0, Pet = 1 }
+    local function spellOf(id)
+        for _, s in ipairs(Q().spells or {}) do if s.spellID == id then return s end end
+    end
+    _G.C_QuestInfoSystem.GetQuestRewardSpells = function(id)
+        local q = Q()
+        if not q or q.questID ~= id then return {} end
+        local out = {}
+        for i, s in ipairs(q.spells or {}) do out[i] = s.spellID end
+        return out
+    end
+    _G.C_QuestInfoSystem.GetQuestRewardSpellInfo = function(id, spellID)
+        local s = Q().questID == id and spellOf(spellID)
+        if not s then return nil end
+        return { texture = s.texture or 136116, name = s.name, isTradeskill = false, isSpellLearned = s.type == 5,
+            hideSpellLearnText = s.hide == true, isBoostSpell = false, genericUnlock = false, type = s.type or 0 }
+    end
+    _G.C_SpellBook = _G.C_SpellBook or {}
+    _G.C_SpellBook.IsSpellInSpellBook = function(spellID)
+        local s = spellOf(spellID)
+        return s ~= nil and s.known == true
+    end
+    _G.C_Spell = _G.C_Spell or {}
+    _G.C_Spell.GetSpellLink = function(id) return "|Hspell:" .. id .. "|h[" .. tostring(id) .. "]|h" end
+    _G.GetRewardTitle = function() return Q().rewardTitle end
+    _G.GetRewardSkillPoints = function()
+        local s = Q().skill
+        if s then return s.name, s.icon, s.points end
+    end
+    _G.GetRewardHonor = function() return Q().honor or 0 end
+    _G.GetSuggestedGroupSize = function() return Q().group or 0 end
+    _G.GetCriteriaSpell = function()
+        local c = Q().criteria
+        if c then return c.spellID, c.name, c.texture or 136116, false end
+    end
+    _G.GetNumQuestCurrencies = function() return #(Q().requiredCurrencies or {}) end
+    _G.C_QuestOffer = _G.C_QuestOffer or {}
+    _G.C_QuestOffer.GetQuestRequiredCurrencyInfo = function(i)
+        local c = (Q().requiredCurrencies or {})[i]
+        if c then return { texture = c.texture or 133784, name = c.name, currencyID = c.currencyID or 2000 + i, quality = 1, requiredAmount = c.count or 1 } end
+    end
+    _G.C_QuestOffer.GetHideRequiredItems = function() return Q().hideRequired == true end
+    -- The game's quest icons (Blizzard_FrameXMLUtil QuestUtils.lua GetQuestIconOffer): a
+    -- repeatable quest wears the blue "!", a plain one the gold.
+    _G.QuestUtil = _G.QuestUtil or {}
+    _G.QuestUtil.GetQuestIconOfferForQuestID = function(_, isLegendary, frequency, isRepeatable)
+        if isLegendary then return "legendaryavailablequesticon", true end
+        if isRepeatable then return "Interface/GossipFrame/DailyActiveQuestIcon", false end
+        return "Interface/GossipFrame/AvailableQuestIcon", false
+    end
     _G.GetRewardMoney = function() return Q().money or 0 end
     _G.GetRewardXP = function() return Q().xp or 0 end
     _G.GetQuestMoneyToGet = function() return Q().cost or 0 end
@@ -578,7 +638,7 @@ local function installQuest()
     _G.GetAvailableTitle = function(i) return S().greeting.available[i].title end
     _G.GetAvailableQuestInfo = function(i)
         local q = S().greeting.available[i]
-        return q.isTrivial == true, q.frequency, q.repeatable, q.isLegendary, q.questID
+        return q.isTrivial == true, q.frequency, q.repeatable, q.isLegendary, q.questID, q.isImportant, q.isMeta, q.questInfoID
     end
     _G.SelectAvailableQuest = function(i) record("SelectAvailableQuestIndex", i) end
     _G.SelectActiveQuest = function(i)
@@ -618,6 +678,9 @@ function NW.Npc(spec)
     spec = spec or {}
     local units = { player = { name = "Daylight", class = "WARRIOR", level = 60, isPlayer = true } }
     units.npc = { name = spec.name or "William Pestle", reaction = spec.reaction or 5, guid = spec.guid or "Creature-0-1-2-3-253-0" }
+    -- The quest window's unit: the NPC you talk to, unless spec.questnpc says who
+    -- else gives the quest (a party member sharing one), or false for none.
+    if spec.questnpc ~= false then units.questnpc = spec.questnpc or units.npc end
     stub.SetUnits(units)
 end
 
