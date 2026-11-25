@@ -241,6 +241,35 @@ T.test("procs options: the General page's size, opacity and switch reach every a
     T.falsy(ns.Flares.Shown("overpower"), "and shows none")
 end)
 
+-- One switch for every alert, where the page opens: without it at the top,
+-- turning them off looked like ticking off each proc one by one.
+T.test("procs options: the switch for every alert leads the Proc Alerts page, and off dims the rest", function()
+    load()
+    local Options = DaylightUI.Options
+    local p = page("alerts")
+    local first = p.groups[1].items[1]
+    T.eq(first.key, "enabled", "the first row")
+    T.eq(first.type, "toggle")
+    T.eq(first.label, "Show proc alerts")
+    for _, group in ipairs(page("general").groups) do
+        for _, item in ipairs(group.items) do T.falsy(item.key == "enabled", "one place for it") end
+    end
+    for _, group in ipairs(p.groups) do
+        for _, item in ipairs(group.items) do
+            if item ~= first then T.falsy(Options.IsDisabled(p, item), tostring(item.label) .. " usable while on") end
+        end
+    end
+    DaylightUI:Set("Procs", "enabled", false)
+    for _, group in ipairs(p.groups) do
+        for _, item in ipairs(group.items) do
+            if item ~= first and item.type ~= "text" then
+                T.truthy(Options.IsDisabled(p, item), tostring(item.label) .. " dimmed while every alert is off")
+            end
+        end
+    end
+    T.falsy(Options.IsDisabled(p, first), "the switch itself stays usable")
+end)
+
 T.test("procs options: the Show button plays the alert's own sound", function()
     local ns = load()
     local played = {}

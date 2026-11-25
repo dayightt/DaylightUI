@@ -1,6 +1,7 @@
--- The Proc Alerts pages in the options window. The Alerts page edits one proc
--- at a time, picked at its top; its rows read and write that proc's own
--- settings (Alerts.lua). General holds what applies to every alert.
+-- The Proc Alerts pages in the options window. The Alerts page opens on the
+-- switch for every alert, then edits one proc at a time, picked under it; its
+-- rows read and write that proc's own settings (Alerts.lua). General holds the
+-- rest of what applies to every alert.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -63,10 +64,17 @@ end
 local designValues, designOrder = list(ns.Data.DESIGNS, ns.Data.DESIGN_ORDER)
 local animValues, animOrder = list(ns.Data.ANIMS, ns.Data.ANIM_ORDER)
 
-local function off() return ns.Alerts.Get(sel(), "enabled") == false end
+-- Every alert off: the rows below the switch are dimmed.
+local function allOff() return DUI:Get("Procs", "enabled") == false end
+local function off() return allOff() or ns.Alerts.Get(sel(), "enabled") == false end
+
+local EVERY = {
+    { type = "toggle", key = "enabled", label = "Show proc alerts", since = SINCE,
+      desc = "Turns every proc alert on or off at once. When off, no flare shows and Proc Alerts watches nothing." },
+}
 
 local ALERT = {
-    { type = "dropdown", label = "Alert", since = SINCE, search = "proc alert flare clearcasting overpower",
+    { type = "dropdown", label = "Alert", since = SINCE, search = "proc alert flare clearcasting overpower", disabled = allOff,
       desc = "Which proc the settings below change. Your class's procs come first, then the ones from weapons and enchants.",
       choices = choices,
       get = sel,
@@ -75,8 +83,8 @@ local ALERT = {
           refreshPanel()
           if DUI.testMode and DUI.TestPartShown("procs") then ns.Flares.EndTests(); ns.Flares.Test(sel(), false) end
       end },
-    field("enabled", { type = "toggle", label = "Show this alert",
-        desc = "Lights up this proc's flare around your character when it's ready." }),
+    field("enabled", { type = "toggle", label = "Show this alert", disabled = allOff,
+        desc = "Lights up this proc's flare around your character when it's ready. Show proc alerts turns every one off at once." }),
 }
 
 local LOOK = {
@@ -136,22 +144,22 @@ end
 local ACTIONS = {
     { type = "button", label = "Show it now", text = "Show", since = SINCE,
       desc = "Shows this proc's flare for ten seconds, as it looks with these settings.",
+      disabled = allOff,
       func = function() ns.Flares.Test(sel()); ns.Flares.PlaySound(sel()) end },
-    { type = "button", label = "Copy this look to my other alerts", text = "Copy", confirm = true, since = SINCE,
+    { type = "button", label = "Copy this look to my other alerts", text = "Copy", confirm = true, since = SINCE, disabled = allOff,
       desc = "Gives your other alerts this one's animation, colors, size, opacity and sound. Each keeps its own design, so they still look different.",
       func = function() ns.Alerts.CopyToClass(sel()) end },
-    { type = "button", label = "Reset this alert", text = "Reset", confirm = true, since = SINCE,
+    { type = "button", label = "Reset this alert", text = "Reset", confirm = true, since = SINCE, disabled = allOff,
       desc = "Puts this proc's look and sound back to how Daylight UI starts it.",
       func = function() ns.Alerts.Reset(sel()) end },
 }
-
-local function allOff(get) return get("enabled") == false end
 
 ns.OPTIONS = { pages = {
     { id = "alerts", label = "Proc Alerts", preview = { "procs" },
       sample = function(parent) return ns.Sample.New(parent) end,
       desc = "A painted flare around your character when a proc is ready: each one with its own look and sound.",
       groups = {
+          { label = "Every alert", items = EVERY },
           { label = "Alert", items = ALERT },
           { label = "Look", items = LOOK },
           { label = "When it shows", items = WHEN },
@@ -160,8 +168,6 @@ ns.OPTIONS = { pages = {
     { id = "general", label = "General", desc = "What applies to every proc alert.",
       groups = {
           { label = "Every alert", items = {
-              { type = "toggle", key = "enabled", label = "Proc alerts", since = SINCE,
-                desc = "Shows a flare around your character when a proc is ready. When off, Proc Alerts watches nothing." },
               { type = "slider", key = "scale", label = "Size of all alerts", min = 0.5, max = 2, step = 0.05, unit = "x", since = SINCE,
                 disabled = allOff, desc = "Grows or shrinks every flare and the space between them. Each alert's own Size adds to it." },
               { type = "slider", key = "alpha", label = "Opacity of all alerts", min = 0.2, max = 1, step = 0.05, unit = "%", since = SINCE,
