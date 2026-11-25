@@ -378,9 +378,11 @@ end
 function Flares.Restart(key)
     local f = Flares.live[key]
     if not f then return end
-    local info = f.info
+    local info, test = f.info, f.test
     Flares.Hide(key, true)
-    Flares.Show(key, info)
+    local g = Flares.Show(key, info)
+    -- The engine's update may have replaced a test flare's info: it stays a test.
+    if g then g.test = test end
 end
 
 -- Every flare painted and placed again (accent, size, a setting changed).

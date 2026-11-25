@@ -326,3 +326,33 @@ T.test("procs options: the page's preview shows the picked proc's flare and foll
     T.falsy(ns.Flares.lanes.side and ns.Flares.lanes.side[0] == "revenge", "takes no lane")
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)
+
+T.test("procs options: picking a design or animation shows nothing on screen, only the preview", function()
+    local ns = load()
+    pick("overpower")
+    local design, anim = row("Design"), row("Animation")
+    if design.hover then design.hover("crown") end
+    T.falsy(ns.Flares.Shown("overpower"), "hovering a design: nothing on screen")
+    design.set("wave")
+    if design.onPick then design.onPick("wave") end
+    T.falsy(ns.Flares.Shown("overpower"), "picking one: nothing on screen")
+    anim.set("pulse")
+    if anim.onPick then anim.onPick("pulse") end
+    T.falsy(ns.Flares.Shown("overpower"), "an animation too")
+end)
+
+T.test("procs options: a test flare the engine also showed still goes after a look change", function()
+    local ns = load()
+    local now, due = 0, {}
+    local after = C_Timer.After
+    C_Timer.After = function(t, fn) due[#due + 1] = { at = now + t, fn = fn } end
+    ns.Flares.Test("overpower")
+    ns.Flares.Show("overpower", {})   -- the engine's own update, while the test is up
+    ns.Alerts.Set("overpower", "design", "wave")
+    stub.RunTimers()
+    T.truthy(ns.Flares.live.overpower.test, "still the test's flare after it restarts")
+    now = 11
+    for i = #due, 1, -1 do if due[i].at <= now then table.remove(due, i).fn() end end
+    T.falsy(ns.Flares.Shown("overpower"), "and it goes when the test's time is up")
+    C_Timer.After = after
+end)
