@@ -54,10 +54,17 @@ end
 function Camera.Ask()
     if Camera.top or (type(InCombatLockdown) == "function" and InCombatLockdown()) then return end
     Camera.top = Camera.FindTop()
-    if ns.CAMERA_SLIDER then ns.CAMERA_SLIDER.max = Camera.top end
 end
 
 function Camera.Top() return Camera.top or Camera.TOP end
+
+-- The slider's top. Asked here too, while the options window is open: search
+-- results draw the slider without its page ever opening.
+function Camera.SliderTop()
+    local panel = DUI.OptionsPanel
+    if not Camera.top and panel and panel.IsShown and panel.IsShown() then Camera.Ask() end
+    return Camera.Top()
+end
 
 -- Before the client was asked there is no known top: the client clamps the
 -- value itself, so a saved distance past 200% isn't cut short.

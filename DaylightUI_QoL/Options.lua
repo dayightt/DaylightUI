@@ -2,10 +2,12 @@
 
 local _, ns = ...
 
--- Its top end becomes the client's own limit when the page first opens (Camera.lua).
-ns.CAMERA_SLIDER = { type = "slider", key = "cameraZoom", label = "Max camera distance",
-    min = 0.5, max = 2, step = 0.05, unit = "%",
-    desc = "How far the camera can zoom out. 100% is the game's normal limit; the far right end is as far as this client allows. At 100% the game's own setting is left alone." }
+-- Its top end is the client's own limit, read whenever the slider is drawn or
+-- refreshed (Camera.lua), so a slider drawn by a search or in a fight catches up.
+ns.CAMERA_SLIDER = setmetatable({ type = "slider", key = "cameraZoom", label = "Max camera distance",
+    min = 0.5, step = 0.05, unit = "%",
+    desc = "How far the camera can zoom out. 100% is the game's normal limit; the far right end is as far as this client allows. At 100% the game's own setting is left alone." },
+    { __index = function(_, k) if k == "max" then return ns.Camera.SliderTop() end end })
 
 -- The loot feed page's pieces.
 local LOOT_MOVER = "qol.loot"

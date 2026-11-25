@@ -2701,6 +2701,14 @@ function W.Slider(parent, spec)
     end
     local shownV
     function f.Refresh()
+        local lo, hi = s:GetMinMaxValues()
+        if lo ~= item.min or hi ~= item.max then
+            updating = true
+            s:SetMinMaxValues(item.min, item.max)
+            s:SetValueStep(item.step or 1)
+            updating = false
+            shownV = nil
+        end
         local v = get() or item.min
         local from = shownV
         shownV = v
@@ -2761,12 +2769,16 @@ end
 
 -- An options row's slider: W.Slider bound to the page's setting.
 function W.slider(row, page, item)
-    local f = W.Slider(row, { min = item.min, max = item.max, step = item.step, unit = item.unit, snapTo = item.snapTo, free = item.free,
+    -- The range is read from the item each time, so a range that changes
+    -- after the row is drawn reaches the slider on its next refresh.
+    local RANGE = { min = true, max = true, step = true }
+    local f = W.Slider(row, setmetatable({ unit = item.unit, snapTo = item.snapTo, free = item.free,
         onRelease = item.onRelease,
         get = function() return Options.Get(page, item) end,
         set = function(v) Options.Set(page, item, v) end,
         preview = function(v) return Options.Preview(page, item, v) end,
-        disabled = function() return row.disabled == true end })
+        disabled = function() return row.disabled == true end },
+        { __index = function(_, k) if RANGE[k] then return item[k] end end }))
     row.control = f
     W.Hover(row, f.slider)
     W.Hover(row, f.box)

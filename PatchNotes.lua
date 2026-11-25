@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Auction House", "Alt-click an item in your bags to put it on the Sell tab, like right-click; pick either one under Auction > Buying and selling" },
     }, fixed = {
         { "Professions", "Rogues with the Reagent Economy Legacy perk can make poisons in the profession window without the materials, as in the game's own window" },
+        { "Camera", "The Max camera distance slider goes all the way to the game's limit (400%) again, instead of stopping at 200% when you found it through the options search" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {
         { "Cooldown Manager", "Overpower now lights up and plays its sound after your target dodges in any stance, so you know when to switch to Battle Stance for it" },
