@@ -26,7 +26,7 @@ Alerts.FIELDS = {
     y = 0,
     sound = function(p) return p.sound or "file:568016" end,
     combatOnly = function(p) if p.combatOnly == false then return false end return true end,
-    drain = true,
+    drain = false,
     fromStacks = function(p) return p.fromStacks or p.stacks or 1 end,
 }
 

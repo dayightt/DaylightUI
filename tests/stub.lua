@@ -4236,7 +4236,7 @@ stub.LFG_FILES = { "Defaults.lua", "Data.lua", "Rows.lua", "Browse.lua", "Listin
 stub.MAIL_FILES = { "Defaults.lua", "Ledger.lua", "Inbox.lua", "Send.lua", "LedgerPage.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.SOCIAL_FILES = { "Defaults.lua", "Data.lua", "Detail.lua", "Friends.lua", "Allies.lua", "Requests.lua", "Raid.lua", "Window.lua", "Options.lua", "Module.lua" }
 stub.LEGACY_FILES = { "Defaults.lua", "Data.lua", "Progress.lua", "Challenges.lua", "Trees.lua", "Window.lua", "Options.lua", "Module.lua" }
-stub.PROCS_FILES = { "Defaults.lua", "Data.lua", "Alerts.lua", "Flares.lua", "Engine.lua", "Game.lua", "Options.lua", "Module.lua" }
+stub.PROCS_FILES = { "Defaults.lua", "Data.lua", "Alerts.lua", "Flares.lua", "Engine.lua", "Game.lua", "Sample.lua", "Options.lua", "Module.lua" }
 stub.MODULE_DIR = "DaylightUI_UnitFrames/"
 stub.ACTIONBARS_FILES = { "Defaults.lua", "Shape.lua", "Skin.lua", "Hide.lua", "Menus.lua", "Totems.lua", "Park.lua", "Paging.lua", "Buttons.lua", "Ping.lua", "RankUp.lua", "Keys.lua", "Small.lua", "PadSkin.lua", "Bars.lua",
                           "Cooldowns.lua", "BuffBars.lua", "CdmData.lua", "CdmTether.lua", "CdmSpells.lua", "CdmCustom.lua", "CdmEffects.lua", "CdmRows.lua", "CdmOwn.lua",

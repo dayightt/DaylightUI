@@ -5,7 +5,7 @@ local DUI = DaylightUI
 
 DUI:RegisterModule("Procs", {
     ns = ns,
-    parts = { "Data", "Alerts", "Flares", "Engine", "Game", "Options" },
+    parts = { "Data", "Alerts", "Flares", "Engine", "Game", "Sample", "Options" },
     label = "Proc Alerts",
     order = 135,
     defaults = ns.DEFAULTS,

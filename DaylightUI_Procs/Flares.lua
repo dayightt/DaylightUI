@@ -19,7 +19,8 @@ local pool = {}
 local lanes = {}
 Flares.lanes = lanes
 
-Flares.CORE_ALPHA = 0.6        -- the white-hot core, of the flare's opacity
+Flares.CORE_ALPHA = 0.35       -- the hot core, of the flare's opacity
+Flares.CORE_LIFT = 0.3         -- how far the core's colors lean toward white
 Flares.ARRIVE_FROM = 0.9       -- size it grows from as it fades in
 Flares.TEST_SECONDS = 10
 
@@ -185,18 +186,27 @@ end
 -- Painting ----------------------------------------------------------------
 
 -- The light tinted bottom to top with the proc's two colors, the core white.
+local function lighter(c)
+    local k = Flares.CORE_LIFT
+    return { c[1] + (1 - c[1]) * k, c[2] + (1 - c[2]) * k, c[3] + (1 - c[3]) * k }
+end
+
 function Flares.Paint(f)
     local lo, hi = ns.Alerts.Colors(f.key)
     local a = f.dim or 1
     local coreA = Flares.CORE_ALPHA * (f.boost or 1) * a
     if coreA > 1 then coreA = 1 end
     local file, coreFile = Flares.Art(f.design), Flares.Art(f.design, true)
+    local clo, chi = lighter(lo), lighter(hi)
     for _, part in ipairs(f.parts) do
         part.tex:SetTexture(file)
         part.core:SetTexture(coreFile)
         part.tex:SetVertexColor(1, 1, 1, 1)
         Style.Gradient(part.tex, "VERTICAL", lo[1], lo[2], lo[3], a, hi[1], hi[2], hi[3], a)
-        part.core:SetVertexColor(1, 1, 1, coreA)
+        -- The core is the same pair, a little lighter: a white core over the
+        -- whole shape washed every color out to near white.
+        part.core:SetVertexColor(1, 1, 1, 1)
+        Style.Gradient(part.core, "VERTICAL", clo[1], clo[2], clo[3], coreA, chi[1], chi[2], chi[3], coreA)
     end
 end
 
@@ -337,11 +347,9 @@ function Flares.Show(key, info)
     arrive(f)
     startLoop(f)
     drain(f)
-    -- Once as it lands. A test flare stays quiet: the sound row plays its own sample.
-    if not info.test and get("soundOn") ~= false then
-        local sound = ns.Alerts.Get(key, "sound")
-        if sound and sound ~= "none" then DUI.Sound.Alert(sound) end
-    end
+    -- Once as it lands. A test flare stays quiet (test mode shows many at
+    -- once); the Show button plays it itself.
+    if not info.test then Flares.PlaySound(key) end
     return f
 end
 
@@ -393,6 +401,13 @@ end
 -- (seconds = false: until test mode ends). design shows another design on it
 -- for a moment (the Design list's hover).
 local testAsk = 0
+-- A proc's own sound, unless it's None or alert sounds are off.
+function Flares.PlaySound(key)
+    if get("soundOn") == false then return end
+    local sound = ns.Alerts.Get(key, "sound")
+    if sound and sound ~= "none" then DUI.Sound.Alert(sound) end
+end
+
 function Flares.Test(key, seconds, design)
     if not key then return end
     testAsk = testAsk + 1

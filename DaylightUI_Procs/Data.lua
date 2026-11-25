@@ -215,6 +215,20 @@ function Data.Class()
     if type(token) == "string" then return token end
 end
 
+-- Whether this character has what a gear proc comes from: the item worn or
+-- in the bags. An enchant with no buff Daylight UI can watch for counts as
+-- missing, since its alert could never show.
+function Data.Have(p)
+    if p.class ~= "GEAR" then return true end
+    if #(p.buffIds or {}) == 0 then return false end
+    if not p.item then return true end
+    local I = C_Item
+    if not I then return false end
+    if I.IsEquippedItem and I.IsEquippedItem(p.item) == true then return true end
+    local n = I.GetItemCount and I.GetItemCount(p.item)
+    return type(n) == "number" and n > 0
+end
+
 -- The procs Proc Alerts may watch for this character: its class's, then the gear ones.
 function Data.Mine()
     local class, out = Data.Class(), {}

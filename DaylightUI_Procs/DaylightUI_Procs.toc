@@ -13,5 +13,6 @@ Alerts.lua
 Flares.lua
 Engine.lua
 Game.lua
+Sample.lua
 Options.lua
 Module.lua

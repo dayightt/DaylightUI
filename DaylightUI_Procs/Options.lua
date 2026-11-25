@@ -35,18 +35,21 @@ local function field(name, item)
     return item
 end
 
+-- The procs this character can set up: its class's, then the gear it has.
 local function choices()
     local values, order, titles = {}, {}, {}
     local gear = false
     for _, p in ipairs(ns.Data.Mine()) do
-        if p.class == "GEAR" and not gear then
-            gear = true
-            values["head:gear"] = "Weapons and enchants"
-            order[#order + 1] = "head:gear"
-            titles["head:gear"] = true
+        if ns.Data.Have(p) then
+            if p.class == "GEAR" and not gear then
+                gear = true
+                values["head:gear"] = "Weapons and enchants"
+                order[#order + 1] = "head:gear"
+                titles["head:gear"] = true
+            end
+            values[p.key] = ns.Data.Name(p)
+            order[#order + 1] = p.key
         end
-        values[p.key] = ns.Data.Name(p)
-        order[#order + 1] = p.key
     end
     return values, order, titles
 end
@@ -133,7 +136,7 @@ end
 local ACTIONS = {
     { type = "button", label = "Show it now", text = "Show", since = SINCE,
       desc = "Shows this proc's flare for ten seconds, as it looks with these settings.",
-      func = function() ns.Flares.Test(sel()) end },
+      func = function() ns.Flares.Test(sel()); ns.Flares.PlaySound(sel()) end },
     { type = "button", label = "Copy this look to my other alerts", text = "Copy", confirm = true, since = SINCE,
       desc = "Gives your other alerts this one's animation, colors, size, opacity and sound. Each keeps its own design, so they still look different.",
       func = function() ns.Alerts.CopyToClass(sel()) end },
@@ -146,6 +149,7 @@ local function allOff(get) return get("enabled") == false end
 
 ns.OPTIONS = { pages = {
     { id = "alerts", label = "Proc Alerts", preview = { "procs" },
+      sample = function(parent) return ns.Sample.New(parent) end,
       desc = "A painted flare around your character when a proc is ready: each one with its own look and sound.",
       groups = {
           { label = "Alert", items = ALERT },

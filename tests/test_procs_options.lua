@@ -32,6 +32,8 @@ end
 local function pick(key) row("Alert").set(key) end
 
 T.test("procs options: every row on the Alerts page has a default and passes Options.Validate", function()
+    local count = C_Item.GetItemCount
+    C_Item.GetItemCount = function(id) return id == 2243 and 1 or 0 end
     load()
     local Options = DaylightUI.Options
     for _, id in ipairs({ "alerts", "general" }) do
@@ -56,6 +58,7 @@ T.test("procs options: every row on the Alerts page has a default and passes Opt
     T.truthy(head, "a heading before the gear procs")
     T.isnil(values.clearcasting, "only the player's class")
     T.truthy(values.edward, "the gear procs too")
+    C_Item.GetItemCount = count
 end)
 
 T.test("procs options: size, opacity, colors, design, place apply to that proc only", function()
@@ -234,4 +237,61 @@ T.test("procs options: the General page's size, opacity and switch reach every a
     T.falsy(ns.Flares.Shown("overpower"), "off hides every flare")
     ns.Flares.Show("overpower")
     T.falsy(ns.Flares.Shown("overpower"), "and shows none")
+end)
+
+T.test("procs options: the Show button plays the alert's own sound", function()
+    local ns = load()
+    local played = {}
+    local real = DaylightUI.Sound.Alert
+    DaylightUI.Sound.Alert = function(key) played[#played + 1] = key end
+    pick("overpower")
+    row("Show it now").func()
+    T.deq(played, { "file:568016" }, "the click shows the flare and plays its sound")
+    row("Sound").set("none")
+    row("Show it now").func()
+    T.eq(#played, 1, "None stays quiet")
+    row("Sound").set("dui:chime")
+    DaylightUI:Set("Procs", "soundOn", false)
+    row("Show it now").func()
+    T.eq(#played, 1, "Alert sounds off stays quiet")
+    DaylightUI.Sound.Alert = real
+end)
+
+T.test("procs options: weapons and enchants are listed only when the character has them", function()
+    local I = C_Item
+    local count, equipped = I.GetItemCount, I.IsEquippedItem
+    local owned = {}
+    I.GetItemCount = function(id) return owned[id] or 0 end
+    I.IsEquippedItem = function() return false end
+    load()
+    local values, order, titles = row("Alert").choices()
+    T.isnil(values.edward, "no Hand of Edward the Odd: not listed")
+    T.isnil(values.revelation, "an enchant Proc Alerts can't see yet: not listed")
+    T.isnil(values.insight)
+    for _, k in ipairs(order) do T.falsy(titles[k], "no empty Weapons and enchants heading") end
+    owned[2243] = 1
+    values = row("Alert").choices()
+    T.truthy(values.edward, "in the bags or worn: listed")
+    I.GetItemCount, I.IsEquippedItem = count, equipped
+end)
+
+T.test("procs options: the page's preview shows the picked proc's flare and follows each change", function()
+    local ns = load()
+    local p = page("alerts")
+    T.truthy(p.sample, "the Alerts page has a preview")
+    local s = p.sample(UIParent)
+    pick("overpower")
+    local h = s.Refresh(600, 200)
+    T.truthy(h > 0 and h <= 200, "fits the room")
+    local tex = s.flare.parts[1].tex
+    T.truthy(string.find(tex:GetTexture(), "flare%-" .. ns.Alerts.Get("overpower", "design") .. "%.png$"), "its design")
+    row("Design").set("crown")
+    s.Refresh(600, 200)
+    T.truthy(string.find(tex:GetTexture(), "flare%-crown%.png$"), "a new design shows at once")
+    T.falsy(s.flare.parts[2].frame:IsShown(), "a centered design has no right half")
+    pick("revenge")
+    s.Refresh(600, 200)
+    T.eq(s.flare.key, "revenge", "follows the Alert picker")
+    T.falsy(ns.Flares.lanes.side and ns.Flares.lanes.side[0] == "revenge", "takes no lane")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
 end)

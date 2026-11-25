@@ -11,6 +11,7 @@
 -- Samples can offer views (sample.Views / sample.SetView), such as a nameplate
 -- in execute range. Each one gets a toggle chip at the top right; with
 -- sample.viewsExclusive one is always on and picking another switches to it.
+-- sample.hint replaces the line under it, for a sample with nothing to click.
 --
 -- A list move (part.move.list) is for pieces in a column, such as the rows of a
 -- tooltip card: they go up or down, not anywhere. While one is dragged it rides
@@ -936,7 +937,7 @@ function Strip.New(parent, onJump, onMove, onAll)
             samples[page.id] = sample
         end
         sample.frame:Show()
-        strip.hint:SetText(strip.design and (sample.designHint or Strip.DESIGN_HINT) or Strip.HINT)
+        strip.hint:SetText(strip.design and (sample.designHint or Strip.DESIGN_HINT) or sample.hint or Strip.HINT)
         local zooms = sample.SetZoom ~= nil and sample.zoomRange ~= nil
         if zooms then
             local item, r = strip.zoom.item, sample.zoomRange
@@ -955,7 +956,7 @@ function Strip.New(parent, onJump, onMove, onAll)
         if strip.design == on then return end
         strip.design = on
         if not on then selected = nil end
-        strip.hint:SetText(on and (sample and sample.designHint or Strip.DESIGN_HINT) or Strip.HINT)
+        strip.hint:SetText(on and (sample and sample.designHint or Strip.DESIGN_HINT) or (sample and sample.hint) or Strip.HINT)
         placeGrips()
     end
 
