@@ -284,3 +284,90 @@ T.test("bags on a controller: X on a wearable quest starter uses it, as the game
     T.deq(did, { "use 0 1" }, "used by bag and slot: the quest starts, nothing is equipped")
     _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
 end)
+
+-- Ticket: with the controller UI on, X did nothing on an item that only starts a
+-- quest (no use spell, can't be worn). The game's bag footer offers Use on it
+-- (ContainerFrame.lua: useAction when C_Item.IsUsableItem), and a right click
+-- starts the quest through UseContainerItem.
+T.test("bags on a controller: X on an item that starts a quest uses it", function()
+    local ns = login()
+    local did = sashWorld()
+    C_Item.IsEquippableItem = function() return false end
+    padOn()
+    local f = open(ns)
+    local slotButton = ns.Bags.buttons[0][1]
+    T.eq(ns.Window.PadUseLabel(f, slotButton), CONTEXT_ACTION_LABEL_USE or "Use", "X says Use, as the game's footer does")
+    local action = ns.Window.PadUseSecure(f, slotButton)
+    T.truthy(action, "X acts on it")
+    local twin = CreateFrame("Button", nil, UIParent, "SecureActionButtonTemplate")
+    twin:SetAttribute("useOnKeyDown", false)
+    for k, v in pairs(action or {}) do twin:SetAttribute(k, v) end
+    stub.SecureClick(twin, "RightButton", false)
+    T.deq(did, { "use 0 1" }, "used by bag and slot: the quest starts")
+    -- A quest it started already: nothing to use.
+    C_Container.GetContainerItemQuestInfo = function() return { isQuestItem = true, questID = 800, isActive = true } end
+    T.isnil(ns.Window.PadUseLabel(f, slotButton), "a quest already taken: X says nothing")
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
+-- Ticket: a hunter on a controller found no Feed Pet in the bag's More actions,
+-- which the game's own bag has for food the pet eats (ContainerFrame.lua
+-- Gamepad_FeedToPet). Feeding casts a spell, so A on that row must go through a
+-- secure button: the spell, then the food in that slot.
+T.test("bags on a controller: Y's menu feeds the pet the food under the D-pad", function()
+    local ns = login()
+    world.items[0][1].itemID = 117   -- Tough Jerky
+    local cast, used = {}, {}
+    local hand = false
+    local saved = { IsPlayerSpell = _G.IsPlayerSpell, UnitExists = _G.UnitExists, PetInfo = _G.C_PetInfo,
+                    usable = C_Spell.IsSpellUsable, can = _G.SpellCanTargetItem }
+    _G.IsPlayerSpell = function(id) return id == 6991 end
+    _G.UnitExists = function(u) return u == "pet" or u == "player" end
+    _G.C_PetInfo = { CanPetEatItem = function(id) return id == 117 end }
+    C_Spell.IsSpellUsable = function(id) return id == 6991, false end
+    stub.CastSpell = function(spell) cast[#cast + 1] = tonumber(spell); hand = true end
+    _G.SpellCanTargetItem = function() return hand end
+    C_Container.UseContainerItem = function(bag, slot) if hand then used[#used + 1] = bag .. ":" .. slot; hand = false end end
+    stub.FireEvent("SPELLS_CHANGED")
+
+    padOn()
+    local m = _G.GamepadMode.FrameControlsManager
+    function m:HandlePopupShown(frame)
+        local old = self.focused
+        if old and old.UnfocusGamepad then old:UnfocusGamepad() end
+        self:FrameShown(frame)
+    end
+    function m:HandlePopupHide(frame) self:FrameHidden(frame) end
+    local f = open(ns)
+    local W = DaylightUI.Widgets
+    local function feedRow()
+        for i = 1, 10 do
+            local r = W.MenuRow(i)
+            if r and r.key == "feed" then return r end
+        end
+    end
+    _G.SmartNavigation = { GetCurrentButton = function() return feedRow() end }
+    stub.secure = true
+    ns.Window.PadMore(ns.Bags.buttons[0][1])
+    local row = feedRow()
+    T.truthy(row, "a Feed Pet row for food the pet eats")
+    T.eq(row and row.text:GetText(), CONTEXT_ACTION_LABEL_FEED_TO_PET or "Feed Pet")
+    local a = stub.overrides.PAD1
+    T.truthy(a, "A is bound on the Feed Pet row")
+    if a then stub.SecureClick(_G[a.click], a.button or "LeftButton", false) end
+    T.deq(cast, { 6991 }, "Feed Pet is cast")
+    T.deq(used, { "0:1" }, "on the food in that slot")
+    T.falsy(W.menuOwner, "the menu closes")
+
+    -- Food the pet won't eat, or no pet: no row.
+    W.CloseMenu()
+    _G.C_PetInfo = { CanPetEatItem = function() return false end }
+    ns.Window.PadMore(ns.Bags.buttons[0][1])
+    T.isnil(feedRow(), "no row for food the pet won't eat")
+    W.CloseMenu()
+
+    stub.secure, stub.CastSpell = false, nil
+    _G.IsPlayerSpell, _G.UnitExists, _G.C_PetInfo = saved.IsPlayerSpell, saved.UnitExists, saved.PetInfo
+    C_Spell.IsSpellUsable, _G.SpellCanTargetItem = saved.usable, saved.can
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)

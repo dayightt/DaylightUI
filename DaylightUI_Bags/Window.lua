@@ -467,7 +467,7 @@ end
 
 -- What a right click does to this item here, in the game's own words.
 function Window.PadUseLabel(f, b)
-    local info = padItem(b)
+    local info, bag, slot = padItem(b)
     if not info then return nil end
     if f.kind == "bank" then return L["To your bags"] end
     if ns.Bank and ns.Bank.open then return L["To the bank"] end
@@ -478,6 +478,11 @@ function Window.PadUseLabel(f, b)
     local link = info.hyperlink
     if link and C_Item.IsEquippableItem and C_Item.IsEquippableItem(link) then return CONTEXT_ACTION_LABEL_EQUIP or L["Equip"] end
     if C_Item.GetItemSpell and C_Item.GetItemSpell(info.itemID) then return CONTEXT_ACTION_LABEL_USE or L["Use"] end
+    -- An item that starts a quest has no use spell, but using it starts the
+    -- quest. The game's footer offers Use for anything IsUsableItem allows.
+    local quest = C_Container.GetContainerItemQuestInfo and C_Container.GetContainerItemQuestInfo(bag, slot)
+    if type(quest) == "table" and quest.questID and not quest.isActive then return CONTEXT_ACTION_LABEL_USE or L["Use"] end
+    if C_Item.IsUsableItem and C_Item.IsUsableItem(info.itemID) then return CONTEXT_ACTION_LABEL_USE or L["Use"] end
     return nil
 end
 
@@ -509,15 +514,41 @@ function Window.PadSplit(b)
     end)
 end
 
+-- Whether the pet will eat the item in this slot now, as the game's bag asks
+-- before offering Feed Pet (ContainerFrame.lua Gamepad_IsFeedToPetValid).
+Window.FEED_PET = 6991
+function Window.PetEats(info)
+    if not (ns.FeedPet and ns.FeedPet.Known()) or not UnitExists("pet") then return false end
+    local can = C_PetInfo and C_PetInfo.CanPetEatItem
+    if type(can) ~= "function" or not can(info.itemID) then return false end
+    local usable = C_Spell and C_Spell.IsSpellUsable
+    if type(usable) == "function" then
+        local yes = usable(Window.FEED_PET)
+        if issecretvalue and issecretvalue(yes) then return false end
+        return yes == true
+    end
+    return true
+end
+
 function Window.PadMore(b)
-    local info = padItem(b)
+    local info, bag, slot = padItem(b)
     if not info then return end
     local keys, values = {}, {}
+    -- Feeding casts Feed Pet on the food, which only a secure button can do: A
+    -- on the row clicks one (W.OpenMenu's secure rows). The game's bag drops
+    -- the food on the pet instead, but that runs as its own untainted code.
+    local feed = Window.PetEats(info)
+    if feed then
+        keys[#keys + 1] = "feed"
+        values.feed = CONTEXT_ACTION_LABEL_FEED_TO_PET or L["Feed Pet"]
+    end
     if (info.stackCount or 0) > 1 and not info.isLocked then
         keys[#keys + 1] = "split"
         values.split = L["Split stack"]
     end
-    if C_Item.GetItemSpell and C_Item.GetItemSpell(info.itemID) then
+    -- The game offers this for anything IsUsableItem allows, a quest starter too.
+    if (C_Item.GetItemSpell and C_Item.GetItemSpell(info.itemID))
+        or (C_Item.IsUsableItem and C_Item.IsUsableItem(info.itemID)) then
         keys[#keys + 1] = "bind"
         values.bind = CONTEXT_ACTION_LABEL_BIND_TO_GAMEPAD_ACTION_BAR or L["Put on a controller bar"]
     end
@@ -540,7 +571,10 @@ function Window.PadMore(b)
             -- A frame later: the first menu is still closing.
             C_Timer.After(0, function() Window.PadSplit(b) end)
         end
-    end, nil, { confirm = { destroy = true } })
+    end, nil, { confirm = { destroy = true }, secure = feed and function(k)
+        if k ~= "feed" then return nil end
+        return { type = "spell", spell = Window.FEED_PET, ["target-bag"] = bag, ["target-slot"] = slot }
+    end or nil })
 end
 
 -- The groups' headings, as stops LB and RB move the D-pad to.

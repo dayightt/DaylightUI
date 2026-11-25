@@ -2787,6 +2787,9 @@ end
 -- The shared dropdown list: one popup for every dropdown, over a full-screen
 -- catcher that closes it on any click outside.
 local catcher, menu
+-- State while open: the choices and the scroll offset (choices above the
+-- top row).
+local open = {}
 
 local function buildMenu()
     catcher = CreateFrame("Button", nil, UIParent)
@@ -2796,6 +2799,24 @@ local function buildMenu()
     catcher:SetScript("OnClick", function() W.CloseMenu() end)
     catcher:Hide()
     menu = CreateFrame("Frame", nil, catcher)
+    -- A row with a secure action (opts.secure): on a controller, A on it clicks
+    -- a secure button carrying that action, as a row's own click is addon code
+    -- and can't cast. Only while the menu has such rows.
+    menu.padNoDefaults = true
+    menu.padWanted = function() return open.opts ~= nil and open.opts.secure ~= nil end
+    menu.padKeys = { { key = "A",
+        label = function(r) return r and r.text and r.text:GetText() end,
+        secure = function(r)
+            local opts = open.opts
+            if not (opts and opts.secure and type(r) == "table" and r.key ~= nil and r.index) then return nil end
+            if r:GetParent() ~= menu.strip then return nil end
+            return opts.secure(r.key)
+        end,
+        after = function(r)
+            local pick, key = open.onPick, r and r.key
+            W.CloseMenu()
+            if pick then pick(key) end
+        end } }
     DUI.Pad.Popup(menu, function() W.CloseMenu() end)
     menu:SetFrameLevel(catcher:GetFrameLevel() + 5)
     menu:EnableMouse(true)
@@ -2819,9 +2840,6 @@ W.MENU_MAX_ROWS = 12    -- a longer list scrolls with the mouse wheel
 W.MENU_WHEEL = 2        -- rows one notch of the wheel moves
 W.MENU_DROP = 6         -- px a menu drops out of its owner as it opens
 
--- State while open: the choices and the scroll offset (choices above the
--- top row).
-local open = {}
 local drawMenu
 
 -- Row scripts are set once and each fill only updates r.key and r.title, so
@@ -3055,6 +3073,9 @@ end
 --   onRightClick = function(key): a row's right-click.
 --   confirm = { [key] = true }: ask "Click again" first, for deletes.
 --   more = { [key] = true }: the row opens a submenu.
+--   secure = function(key) -> attributes or nil: on a controller, A on that
+--     row runs this secure action (casting a spell on a bag item), then
+--     onPick(key). A mouse click on it only calls onPick.
 local cursorSpot
 function W.OpenMenu(owner, keys, values, current, onPick, width, opts)
     if not menu then

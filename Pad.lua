@@ -1197,9 +1197,18 @@ end
 
 -- A small list over a window (a dropdown) takes the D-pad, and closing it
 -- gives the D-pad back to the window it opened from. Not in combat.
+-- A popup with keys of its own (frame.padKeys, such as a secure A on a row that
+-- casts) binds them while it has the D-pad, as a window does, but only while
+-- frame.padWanted() says this opening needs them: other dropdowns stay as they are.
 function Pad.Popup(frame, close)
     if close then
         frame.SmartNavigationCloseHandler = function() close(); return true end
+    end
+    if frame.padKeys then
+        frame.FocusGamepad = function(self)
+            if not self.padWanted or self.padWanted() then focusGained(self) end
+        end
+        frame.UnfocusGamepad = focusLost
     end
     frame:HookScript("OnShow", function(self)
         local m = manager()
