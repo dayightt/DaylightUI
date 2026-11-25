@@ -175,3 +175,49 @@ T.test("nameplates: the friendly name nudges move a name-only plate's name, and 
     T.falsy(items["friendly.nameX"].disabled and items["friendly.nameX"].disabled(get), "left / right usable without the bar")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- The client only matches a buff by spell id on someone you can help (or a
+-- spell it marks never secret), so the Defensives list showed nothing on an
+-- enemy player: Divine Protection on a paladin in world PvP never came up.
+T.test("nameplates: an enemy player's Divine Protection shows in a fight, its aura data secret", function()
+    login()
+    local shows = require("aura_rules")
+    stub.units.nameplate1 = { name = "Rand Rhobart", reaction = 2, hostile = true, health = 100, maxHealth = 100 }
+    stub.units.nameplate2 = { name = "Tommy Ashbringer", isPlayer = true, class = "PALADIN", reaction = 2, hostile = true,
+        faction = "Horde", pvp = true, health = 100, maxHealth = 100 }
+    stub.EnterCombat()
+    stub.RunTimers()
+    local enemy = { canAssist = false, groupMember = false }
+    -- Divine Protection rank 2, read through secret aura data in a fight.
+    local dp = { spellId = 5573, duration = 8, secret = true }
+    local function showing(p)
+        local c = p.auras.defensives
+        for _, key in ipairs(c.__groupOrder) do
+            local g = c.__groups[key]
+            if (g.max or 0) > 0 and shows({ filter = g.filter, opts = g.opts }, enemy, dp) then return true end
+        end
+        return false
+    end
+    local paladin = added("nameplate2")
+    T.eq(paladin.auras.defensives.__unit, "nameplate2")
+    T.truthy(showing(paladin), "Divine Protection on the enemy paladin's plate")
+    -- A plate set up for a mob first, then handed to the paladin, mid-fight.
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate2")
+    local mob = added("nameplate1")
+    local big = mob.auras.defensives.__groups.big
+    T.eq(big.filter, "HELPFUL", "a mob keeps the named list")
+    T.truthy(big.opts.candidateFilters.includeSpellIDs[642], "Divine Shield on it")
+    T.falsy(showing(mob), "a mob's buffs never fill the slot")
+    stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate1")
+    stub.units.nameplate3, stub.units.nameplate1 = stub.units.nameplate2, nil
+    local reused = added("nameplate3")
+    T.truthy(reused == mob, "the same plate, now the paladin's")
+    T.truthy(showing(reused), "a plate reused from a mob shows it too")
+    -- Setting changes wait for the fight to end.
+    stub.LeaveCombat()
+    DaylightUI:Set("Nameplates", "defensives", false)
+    stub.RunTimers()
+    T.falsy(showing(reused), "switched off: none shown")
+    DaylightUI:Set("Nameplates", "defensives", true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

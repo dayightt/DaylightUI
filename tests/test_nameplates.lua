@@ -1444,17 +1444,21 @@ T.test("nameplates: your debuffs, crowd control and purgeable buffs have their c
     T.eq(p.auras.cc.__groups.cc.filter, "HARMFUL|CROWD_CONTROL")
     T.eq(p.auras.cc.__groups.cc.max, 1, "one round icon")
     -- The client tags none of the classic defensives as BIG_DEFENSIVE (seen in
-    -- game: Divine Shield, Ice Block, Evasion... all false), so the row names them.
+    -- game: Divine Shield, Ice Block, Evasion... all false), so the slot names them.
+    -- The client matches that list only on someone you can help (or a spell it
+    -- marks never secret); an enemy player's plate takes a filter string instead
+    -- (test_nameplates_tickets).
     local big = p.auras.defensives.__groups.big
     T.eq(big.filter, "HELPFUL", "every buff, narrowed by the list")
     local shows = require("aura_rules")
     local group = { filter = big.filter, opts = big.opts }
-    local enemyPlayer = { canAssist = false, groupMember = false, playerControlled = true }
-    local mob = { canAssist = false, groupMember = false, playerControlled = false }
-    T.truthy(shows(group, enemyPlayer, { spellId = 1020 }), "Divine Shield rank 2 on a duel opponent")
-    T.truthy(shows(group, enemyPlayer, { spellId = 11958 }), "Ice Block")
-    T.falsy(shows(group, enemyPlayer, { spellId = 1459 }), "Arcane Intellect is not a big defensive")
-    T.falsy(shows(group, mob, { spellId = 642 }), "a mob: the client won't match buffs by id there")
+    local ally = { canAssist = true, groupMember = true }
+    local enemy = { canAssist = false, groupMember = false }
+    T.truthy(shows(group, ally, { spellId = 1020 }), "Divine Shield rank 2 on someone you can help")
+    T.truthy(shows(group, ally, { spellId = 11958 }), "Ice Block")
+    T.falsy(shows(group, ally, { spellId = 1459 }), "Arcane Intellect is not a big defensive")
+    T.falsy(shows(group, enemy, { spellId = 642 }), "an enemy: the client won't match buffs by id there")
+    T.truthy(shows(group, enemy, { spellId = 642, neverSecret = true }), "unless the spell is never secret")
     T.eq(big.max, 1, "one big defensive icon")
     T.eq(p.auras.defensives.__unit, "nameplate1")
     DaylightUI:Set("Nameplates", "defensives", false)

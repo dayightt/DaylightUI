@@ -622,7 +622,7 @@ ns.OPTIONS = { pages = {
             "Over, under or beside the health bar. In Design mode on the preview, drag it there.")) },
         { label = "Big defensives", items = with({
             { type = "toggle", key = "defensives", label = "Big defensives", since = "1.8.0",
-              desc = "Divine Shield, Ice Block and the like, as a bigger icon by the health bar, so you know not to waste your damage." },
+              desc = "Divine Shield, Ice Block and the like, as a bigger icon by the health bar, so you know not to waste your damage. On enemy players the game doesn't let addons pick out those spells, so it shows their buff that runs out soonest, which is usually the defensive." },
             { type = "slider", key = "defensiveSize", label = "Big defensive size", since = "1.8.0", min = 16, max = 48, step = 1, unit = "px",
               desc = "How big the big defensive icon is.",
               disabled = off("defensives") },

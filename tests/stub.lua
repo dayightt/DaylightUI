@@ -1337,6 +1337,18 @@ local function newAuraContainer(name, parent, template)
         self.__candidateSets = (self.__candidateSets or 0) + 1
         self.__refreshes = (self.__refreshes or 0) + 1
     end
+    -- SetAuraGroupFilterString (Blizzard_CustomAuraContainer.lua): a new filter for a
+    -- group already added; the same string again does nothing, a new one re-reads.
+    function c:SetAuraGroupFilterString(key, filter)
+        assert(self.__groups[key], "aura group was not found with this key.")
+        assert(type(filter) == "string", "invalid filter string")
+        if stub.refuseAuraFilters and stub.refuseAuraFilters[filter] then error("Invalid aura filter: " .. filter) end
+        local g = self.__groups[key]
+        if g.filter == filter then return end
+        g.filter = filter
+        self.__filterSets = (self.__filterSets or 0) + 1
+        self.__refreshes = (self.__refreshes or 0) + 1
+    end
     -- SetAuraGroupSortMethod: a new order for a group already added; the client
     -- re-sorts its buttons on the next refresh.
     function c:SetAuraGroupSortMethod(key, method, dir)

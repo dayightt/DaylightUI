@@ -3,7 +3,8 @@
 -- default:
 -- * your debuffs in a row centered above the name, growing both ways;
 -- * crowd control on the unit as one larger icon beside the bar's right end;
--- * a big defensive (Divine Shield, Ice Block...) as one larger icon past it;
+-- * a big defensive (Divine Shield, Ice Block...) as one larger icon past it
+--   (on an enemy player, the buff of theirs running out soonest);
 -- * buffs you can purge or steal in a row above your debuffs, from the right end,
 --   each with a soft halo;
 -- * friendly plates only: your own buffs and HoTs centered above the name.
@@ -41,9 +42,10 @@ function Auras.DispelColor(key)
     return Auras.DISPEL_COLORS[key]
 end
 -- Big defensives, every rank. The client's BIG_DEFENSIVE filter tags none of
--- these on this client (seen in game), so the row names them. It may match
--- buffs by spell on any player or player's pet, enemies included, which is
--- where they matter: duels, battlegrounds, world PvP.
+-- these on this client (seen in game), so the slot names them. The client only
+-- matches a buff by spell id on someone you can help, or a spell it marks never
+-- secret, so on an enemy player the slot uses a filter string instead
+-- (pickDefensives).
 Auras.BIG_DEFENSIVES = {}
 for _, id in ipairs({
     642, 1020,              -- Divine Shield
@@ -65,7 +67,8 @@ for _, id in ipairs({
 Auras.KINDS = {
     debuffs = { key = "mine", filter = "HARMFUL|PLAYER|!CROWD_CONTROL" },
     cc = { key = "cc", filter = "HARMFUL|CROWD_CONTROL" },
-    defensives = { key = "big", filter = "HELPFUL", candidateFilters = { includeSpellIDs = Auras.BIG_DEFENSIVES } },
+    defensives = { key = "big", filter = "HELPFUL", candidateFilters = { includeSpellIDs = Auras.BIG_DEFENSIVES },
+                   players = "HELPFUL|INCLUDE_NAME_PLATE_ONLY" },
     -- The client picks these from what you (and your group) can remove, so no spell
     -- list here. Use a filter string, never candidateFilters: those read aura data,
     -- which is secret on enemies in PvP, and the row would show nothing.
@@ -263,7 +266,27 @@ local function newContainer(p, what)
         end,
     })
     if not ok2 then DUI.Print(string.format(DUI.L["Nameplate auras (%s): %s"], what, tostring(err))) end
+    c.forPlayer = false
     return c
+end
+
+-- The defensive slot on an enemy player: the client refuses a spell id list
+-- there, so it takes their buffs through a filter string the client judges
+-- itself (it holds up when their aura data is secret in a fight). The one
+-- running out soonest shows: a defensive lasts seconds, a blessing minutes.
+-- Only redone when the plate goes from a player to a mob or back.
+local function pickDefensives(c, unit)
+    local k = Auras.KINDS.defensives
+    local player = UnitIsPlayer(unit) == true
+    if c.forPlayer == player then return end
+    c.forPlayer = player
+    if player then
+        call(c, "SetAuraGroupFilterString", k.key, k.players)
+        call(c, "SetAuraGroupCandidateFilters", k.key, nil)
+    else
+        call(c, "SetAuraGroupCandidateFilters", k.key, k.candidateFilters)
+        call(c, "SetAuraGroupFilterString", k.key, k.filter)
+    end
 end
 
 function Auras.Create(p)
@@ -450,6 +473,7 @@ function Auras.SetUnit(p, unit)
     for what, c in pairs(p.auras or {}) do
         local friendly = Auras.KINDS[what].friendly == true
         if unit and friendly == (p.friendly == true) and (mine or not friendly) then
+            if what == "defensives" then pickDefensives(c, unit) end
             call(c, "SetUnit", unit)
             call(c, "SetEnabled", true)
             c:Show()
