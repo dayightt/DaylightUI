@@ -2638,6 +2638,38 @@ T.test("rich tooltip: a quest objective's long name wraps instead of being cut",
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A quest's tooltip has a gap between its heading and its objectives, and its reward
+-- under a "Rewards" heading in money's own color. The card reads the gap as no section
+-- break, and money isn't read as a yellow description.
+T.test("rich tooltip: a gap between a quest's heading and its objectives is no section, money keeps its color", function()
+    local _, Panel = login("rich")
+    local coins = "5|T" .. "Interface/AddOns/DaylightUI/Media/coin-gold.png:0:0:0:0:64:64:-4:60:0:64|t"
+    fill(99, { "A quest", "Level 29", "The Barrens", " ", "0/3 Honor mark", " ", "Rewards", coins })
+    local p = Panel.Get(GameTooltip)
+    local seq = {}
+    for i = 1, p.count do seq[#seq + 1] = p.items[i].kind end
+    local list = table.concat(seq, ",")
+    T.truthy(list:find("section,row,bar", 1, true), "the zone is the heading right over the objectives: " .. list)
+    T.falsy(list:find("rule,section,rule", 1, true), "no empty section from the gap: " .. list)
+    T.falsy(list:find("section,text,rule,section", 1, true))
+    local money
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "text" and it.fs and stub.Text(it.fs):find("coin-gold", 1, true) then money = it end
+    end
+    T.truthy(money, "the reward's line")
+    T.truthy(stub.Text(money.fs):find(":0:0:0:-3:", 1, true), "its coin sits lower, by the card's font size")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("rich tooltip: a coin is lowered by the text's size, one without coins is left alone", function()
+    local _, Panel = login("rich")
+    T.truthy(Panel.LowerCoins("5|Tx/coin-gold.png:0:0:0:0:64:64:-4:60:0:64|t", 13):find(":0:0:0:-3:", 1, true))
+    T.truthy(Panel.LowerCoins("5|Tx/coin-gold.png:0:0:0:0:64:64:-4:60:0:64|t", 20):find(":0:0:0:-5:", 1, true))
+    T.eq(Panel.LowerCoins("plain text", 13), "plain text")
+    T.truthy(Panel.LowerCoins("|Tx/icon.png:0:0:0:0|t", 13):find(":0:0:0:0|t", 1, true), "another texture is left as it is")
+end)
+
 -- Seen in game: a crawfish showed HUMANOID as a tag and "Humanoid" again as a
 -- small line, its type on a line of its own under "Level 40".
 T.test("rich tooltip: a creature's lines that repeat what the header shows are left out", function()

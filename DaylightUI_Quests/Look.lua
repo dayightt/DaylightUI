@@ -276,9 +276,13 @@ end
 -- "Level 12 · Elwynn Forest": the level in the quest's difficulty color (like the
 -- log), the rest in the line's own color.
 function Look.LevelLine(q)
+    return DUI.L["Level %s · %s"]:format(Look.Level(q), q.zone or "")
+end
+
+-- Just the level number in the quest's difficulty color.
+function Look.Level(q)
     local d = q.diff or { 1, 0.82, 0 }
-    local level = DUI.Win.Parts.Hex({ Style.Soften(d[1], d[2], d[3]) }) .. tostring(q.level or "?") .. "|r"
-    return DUI.L["Level %s · %s"]:format(level, q.zone or "")
+    return DUI.Win.Parts.Hex({ Style.Soften(d[1], d[2], d[3]) }) .. tostring(q.level or "?") .. "|r"
 end
 
 -- r, g, b, and whether the fill is the accent (Look.PaintBar paints it).

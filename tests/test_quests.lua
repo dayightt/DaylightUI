@@ -2055,6 +2055,8 @@ T.test("quests clicks: the tooltip lists objectives and the hint", function()
     local text = table.concat(GameTooltip.lines, "\n")
     T.truthy(text:find("Westfall Stew", 1, true))
     local plain = text:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(GameTooltip.lines[2]:find("|cff", 1, true), "the level in its difficulty color")
+    T.falsy(GameTooltip.lines[2]:find("·", 1, true), "the zone is not on the level's line")
     T.truthy(plain:find("3/6 Goretusk Snout", 1, true), "the count follows the text on one line, so a long objective wraps instead of being cut")
     for _, h in ipairs(ns.Clicks.HINTS) do
         local found
@@ -2138,6 +2140,18 @@ T.test("quests clicks: rowTipKind details puts the quest's story and every rewar
     DaylightUI:Set("Quests", "rowTipKind", "short")
     local O = DaylightUI.Options
     T.eq(O.CountMatches(O.GetPage("Quests.tracker"), "quest tooltip detail"), 1, "options search finds the setting")
+end)
+
+T.test("quests clicks: the tooltip spaces its heading from the objectives and puts the reward under its heading", function()
+    local Tr = tracker({ quests = { STEW } })
+    local f = Tr.frames["quest:1"]
+    f:GetScript("OnEnter")(f)
+    local lines = GameTooltip.lines
+    local function at(pat) for i, l in ipairs(lines) do if l:find(pat, 1, true) then return i end end end
+    T.eq(lines[at("Stringy") - 1], " ", "a gap between the heading and the first objective")
+    local head = at("Rewards")
+    T.truthy(head and not lines[head]:find(" | ", 1, true), "the heading alone on its line")
+    T.truthy(lines[head + 1], "the reward under it")
 end)
 
 T.test("quests clicks: the tooltip's words are calm, a hint's click wears the accent; progress reads amber, done reads green", function()

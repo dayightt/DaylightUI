@@ -272,12 +272,14 @@ function Clicks.QuestTip(q, hints)
             and pcall(GT.SetQuestPartyProgress, GT, q.id, false, false)
     if not party then
         Tips.Title(q.title, ns.Look.TitleColor(look, q))
-        Tips.Sub(L["Level %s · %s"]:format(tostring(q.level or "?"), q.zone or ""))
+        -- The level in its difficulty color, like the log, and the zone on its own line.
+        Tips.Sub(L["Level %s"]:format(ns.Look.Level(q)))
+        if q.zone and q.zone ~= "" then Tips.Sub(q.zone) end
     end
     local story = full and ns.Details.Text(q)
     if story then Tips.Text(story) end
     if not party then
-        if story and #q.objs > 0 then Tips.Gap() end
+        if #q.objs > 0 then Tips.Gap() end
         for _, o in ipairs(q.objs) do
             local right = o.kind == "count" and (o.have .. "/" .. o.need) or (o.kind == "bar" and (o.pct .. "%")) or ""
             -- The count before the text, on one wrapped line, as the game writes it: in its
@@ -301,7 +303,10 @@ function Clicks.QuestTip(q, hints)
         local ok, money = pcall(GetQuestLogRewardMoney, q.id)
         if ok and type(money) == "number" and money > 0 then
             Tips.Gap()
-            Tips.Line(L["Rewards"], DUI.MoneyString(money), Tips.MONEY)
+            -- Under its heading: beside it the value sat far off at the edge, and a long
+            -- reward had no room.
+            Tips.Sub(L["Rewards"])
+            Tips.Text(DUI.MoneyString(money), Tips.MONEY)
         end
     end
     Tips.Gap()

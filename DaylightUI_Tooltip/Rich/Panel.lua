@@ -544,10 +544,20 @@ function Panel.Row(p, label, value, valueColor, labelColor, s, valueSize, wrap)
 end
 
 -- A sentence, wrapped to the card.
+-- The card's font rides an inline coin high; it sits lower by a share of the text's
+-- size (3 px at 13), whatever font and size the player picked.
+function Panel.LowerCoins(sentence, size)
+    if type(sentence) ~= "string" or isSecret(sentence) then return sentence end
+    local lower = math.floor(size * 0.25 + 0.5)
+    if lower <= 0 then return sentence end
+    return (sentence:gsub("(|T[^|]-coin%-%a+%.png:0:0:0:)0(:)", "%1-" .. lower .. "%2"))
+end
+
 function Panel.Text(p, sentence, color, s)
     local item = add(p, { kind = "text" })
-    item.fs = text(p, s or Style.SIZE.body, color or Style.INK.TEXT, true)
-    item.fs:SetText(sentence or "")
+    local size = s or Style.SIZE.body
+    item.fs = text(p, size, color or Style.INK.TEXT, true)
+    item.fs:SetText(Panel.LowerCoins(sentence or "", size))
 end
 
 -- One line that never wraps, cut with "..." at the card's edge, and an

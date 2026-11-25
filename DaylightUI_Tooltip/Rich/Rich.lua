@@ -458,6 +458,19 @@ local function questRow(p, name, have, need, chance, done)
     end
 end
 
+-- An empty line: no text on either side (the game's AddLine(" ")).
+local function isBlank(line)
+    return line ~= nil and not line.right and ns.RichForeign.Blank(line.left)
+end
+
+-- Whether an objective is the next line after i, not counting empty ones: a gap
+-- between a quest's heading and its objectives doesn't part them.
+local function objectiveBelow(lines, i, n)
+    local j = i + 1
+    while j <= n and isBlank(lines[j]) do j = j + 1 end
+    return j <= n and Rich.Objective(lines[j]) ~= nil
+end
+
 -- Whether line i is part of a quest: "title", "objective", "player" (whose
 -- progress it is, in a group) or nil. n: the last line that counts.
 function Rich.QuestLine(lines, i, n)
@@ -465,11 +478,17 @@ function Rich.QuestLine(lines, i, n)
     if not line then return nil end
     if line.type == Rich.QUEST_PLAYER then return "player" end
     if Rich.Objective(line) ~= nil then return "objective" end
-    if line.left and not line.right
-        and (line.type == Rich.QUEST_TITLE or (i < n and Rich.Objective(lines[i + 1]) ~= nil)) then
+    if line.left and not line.right and not isBlank(line)
+        and (line.type == Rich.QUEST_TITLE or objectiveBelow(lines, i, n)) then
         return "title"
     end
     return nil
+end
+
+-- A line with Daylight UI's coins in it (a price, a quest's reward).
+local function hasCoin(line)
+    return line and not line.right and type(line.left) == "string" and not isSecret(line.left)
+        and line.left:find("|T[^|]-coin%-%a+") ~= nil
 end
 
 -- The tooltip's lines from line `from` on, in the card's look: a quest as
@@ -481,8 +500,11 @@ end
 function Rich.Lines(p, n, lines, from, skip, ruled)
     local Tips = DUI.Tips
     local inQuest, quest = ruled == true, nil
+    local afterTitle = false -- the line before was a quest's heading
     for i = from, n do
         local line = lines[i]
+        local gapOK = afterTitle
+        afterTitle = false
         local kind = not (skip and skip[i]) and Rich.QuestLine(lines, i, n) or nil
         local who, title = kind == "player", kind == "title"
         local name, have, need, chance, done
@@ -493,6 +515,9 @@ function Rich.Lines(p, n, lines, from, skip, ruled)
         if title then quest = ns.RichForeign.QuestKey(line.left) end
         if skip and skip[i] then
             -- Drawn elsewhere.
+        elseif gapOK and isBlank(line) and objectiveBelow(lines, i, n) then
+            -- The gap between a quest's heading and its objectives: not a section break.
+            afterTitle = true
         elseif who then
             -- Under a quest's title: a party member's name, small; yours, nothing.
             if not Rich.OwnName(line) then Panel.Text(p, Rich.Bare(line.left), Rich.QuestPlayerInk(line.left), Style.SIZE.small) end
@@ -500,6 +525,7 @@ function Rich.Lines(p, n, lines, from, skip, ruled)
             if not inQuest and p.count > 0 and p.items[p.count].kind ~= "rule" then Panel.Rule(p) end
             inQuest = true
             if title then
+                afterTitle = true
                 Panel.Section(p, Rich.Bare(line.left), Rich.QuestColor(line.id, line.left))
             else
                 questRow(p, name, have, need, chance, done)
@@ -515,6 +541,9 @@ function Rich.Lines(p, n, lines, from, skip, ruled)
                 Panel.Row(p, line.left or "", line.right, valueColor(line))
             elseif Rich.IsFlavor(line) then
                 Rich.Flavor(p, line)
+            elseif hasCoin(line) then
+                -- Money keeps its own color: read as a yellow description its numbers turned green.
+                Panel.Text(p, line.left, line.hasLC and rgb(line.lc) or Style.INK.MONEY)
             else
                 local t, c = Tips.GameSide(line.left, line.hasLC and line.lc or nil)
                 Panel.Text(p, t, c)
