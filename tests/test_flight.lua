@@ -3,13 +3,15 @@ local stub = require("stub")
 -- The flight timer (QoL/Flight.lua): a banner while on a flight path, with the
 -- time left from your own earlier flights or the game's path lengths.
 
-local onTaxi, taken, mapNodes, hops, earlyAsked
+local onTaxi, taken, mapNodes, hops, earlyAsked, mapHere
 
 -- A flight master in Stormwind (slot 1, node 2) with Ironforge (slot 2, node 6)
 -- and Menethil Harbor (slot 3, node 7, by way of Ironforge) reachable.
 -- ids = false means a client without C_TaxiMap (names only).
 local function world(ids)
-    onTaxi, taken, earlyAsked = false, {}, 0
+    onTaxi, taken, earlyAsked, mapHere = false, {}, 0, 1453
+    _G.C_Map = _G.C_Map or {}
+    _G.C_Map.GetBestMapForUnit = function(unit) if unit == "player" then return mapHere end end
     mapNodes = {
         { slotIndex = 1, nodeID = 2, name = "Stormwind, Elwynn", state = 0 },
         { slotIndex = 2, nodeID = 6, name = "Ironforge, Dun Morogh", state = 1 },
@@ -284,6 +286,98 @@ T.test("flight: no take-off within the wait drops the pick", function()
     onTaxi = true
     F.Tick()
     T.falsy(shown(), "a later taxi ride without a pick shows nothing")
+end)
+
+-- The druids' flight out of Nighthaven starts from the flight master's words,
+-- not his map: no TakeTaxiNode, no TAXIMAP_OPENED. Taking it closes the talk
+-- and takes control away; the taxi flag can come a moment after either.
+local function inMoonglade(faction)
+    mapHere = 1450
+    stub.units.player = stub.units.player or { name = "Tester", isPlayer = true }
+    stub.units.player.faction = faction
+end
+
+T.test("flight: the druid flight from Nighthaven to Thunder Bluff shows the timer", function()
+    local F = login()
+    inMoonglade("Horde")
+    stub.FireEvent("GOSSIP_CLOSED", false)
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    F.Tick()
+    T.falsy(shown(), "nothing until the taxi flag is on")
+    onTaxi = true
+    F.Tick()
+    settle()
+    T.truthy(shown(), "the banner is up for a flight started by talking")
+    local box = bar().f
+    T.eq(box.name:GetText(), "Thunder Bluff", "the destination is known without the map")
+    T.eq(box.from:GetText(), "Nighthaven", "and where it left from")
+    T.eq(box.time:GetText(), "9:04", "counts down from the game's own path length")
+    stub.Advance(530)
+    land(F)
+    T.truthy(welcomed(), "welcomed on landing")
+    T.eq(welcome().name:GetText(), "Thunder Bluff")
+    T.eq(F.Routes()["63>22"], 530, "the flight is learned like any other route")
+    leave()
+end)
+
+T.test("flight: the Alliance druid flight from Nighthaven heads for Rut'theran Village", function()
+    local F = login()
+    inMoonglade("Alliance")
+    -- Only the control event this time, with the taxi flag already on.
+    onTaxi = true
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    F.Tick()
+    settle()
+    T.truthy(shown(), "the banner is up")
+    T.eq(bar().f.name:GetText(), "Rut'theran Village")
+    T.eq(bar().f.time:GetText(), "2:32")
+end)
+
+T.test("flight: the druid flight is caught from the talk closing alone", function()
+    local F = login()
+    inMoonglade("Horde")
+    stub.FireEvent("GOSSIP_CLOSED", false)
+    stub.Advance(1)
+    F.Tick()
+    onTaxi = true
+    F.Tick()
+    T.truthy(shown(), "no control event needed")
+    T.eq(bar().f.name:GetText(), "Thunder Bluff")
+end)
+
+T.test("flight: a stun in Moonglade shows nothing and stops watching", function()
+    local F = login()
+    inMoonglade("Horde")
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    F.Tick()
+    stub.Advance(F.START_WAIT + 1)
+    F.Tick()
+    onTaxi = true
+    F.Tick()
+    T.falsy(shown(), "a taxi much later isn't taken for the druid flight")
+end)
+
+T.test("flight: the flight master's map in Moonglade still names the picked point", function()
+    local F = login()
+    inMoonglade("Horde")
+    stub.FireEvent("TAXIMAP_OPENED", 1)
+    TakeTaxiNode(2)
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    onTaxi = true
+    F.Tick()
+    T.truthy(shown())
+    T.eq(bar().f.name:GetText(), "Ironforge", "the map's pick wins over the druid flight")
+end)
+
+T.test("flight: elsewhere a taxi without a pick still shows nothing", function()
+    local F = login()
+    inMoonglade("Horde")
+    mapHere = 1453
+    stub.FireEvent("GOSSIP_CLOSED", false)
+    stub.FireEvent("PLAYER_CONTROL_LOST")
+    onTaxi = true
+    F.Tick()
+    T.falsy(shown())
 end)
 
 T.test("flight: switched off, nothing shows and nothing is learned", function()

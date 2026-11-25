@@ -6,7 +6,8 @@
 -- account), else the game's own path lengths (FlightPaths.lua) added up over
 -- the stops the flight master's map says the flight makes. A route neither
 -- covers is timed on the way and learned on landing.
--- The destination comes from a post-hook on the global TakeTaxiNode.
+-- The destination comes from a post-hook on the global TakeTaxiNode, or for a
+-- flight started by talking to the flight master, from Flight.TALKED.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -47,6 +48,17 @@ local Flight = {
     -- The test-mode sample.
     SAMPLE = { name = L["Stormwind"], from = L["Ironforge"], total = 102, elapsed = 41, stops = { 0.55 },
                names = { L["Thelsamar"] } },
+    -- Flights a flight master starts from his words instead of his map, so the
+    -- game never calls TakeTaxiNode: the druids' flights out of Nighthaven.
+    -- By the map you leave from, then your faction: the two flight points'
+    -- node ids (as in FlightPaths.lua) and their names.
+    TALKED = {
+        [1450] = {   -- Moonglade
+            Horde = { from = 63, to = 22, fromName = L["Nighthaven, Moonglade"], name = L["Thunder Bluff, Mulgore"] },
+            Alliance = { from = 62, to = 27, fromName = L["Nighthaven, Moonglade"],
+                         name = L["Rut'theran Village, Teldrassil"] },
+        },
+    },
 }
 ns.Flight = Flight
 ns.features[#ns.features + 1] = Flight
@@ -827,6 +839,31 @@ function Flight.OnTake(slot)
     startDriver()
 end
 
+-- The flight a flight master's words would start where you stand, or nil.
+function Flight.TalkedRoute()
+    local maps = C_Map
+    if type(maps) ~= "table" or type(maps.GetBestMapForUnit) ~= "function" then return nil end
+    local byFaction = Flight.TALKED[maps.GetBestMapForUnit("player")]
+    if not byFaction or type(UnitFactionGroup) ~= "function" then return nil end
+    return byFaction[UnitFactionGroup("player")]
+end
+
+-- The talk closing or control going away where a talked flight starts: watch
+-- for the taxi as after a pick on the map. The taxi flag can come a moment
+-- after either, and a stun or a closed talk with no flight is dropped after
+-- START_WAIT like an unused pick. A pick on the map is never overwritten.
+function Flight.OnTalked()
+    if not enabled() or flight or pending then return end
+    local r = Flight.TalkedRoute()
+    if not r then return end
+    local from, to = { id = r.from, name = r.fromName }, { id = r.to, name = r.name }
+    pending = { key = Flight.Key(from, to), back = Flight.Key(to, from), name = to.name,
+                from = from.name, guess = Flight.Guess(from, to), at = GetTime() }
+    startDriver()
+    -- Already in the air when the event came: take off now, not a tick later.
+    if onTaxi() then takeOff(pending) end
+end
+
 -- After a /reload (or a login) mid-flight: carry on from the saved take-off.
 -- After a login the time logged out counted as flying, so that flight isn't learned.
 function Flight.Resume(login)
@@ -903,6 +940,8 @@ function Flight.Enable(m)
             hooksecurefunc("TaxiRequestEarlyLanding", function() Flight.OnEarly() end)
         end
         DUI.RegisterEvent("TAXIMAP_OPENED", function() if enabled() then Flight.ReadMap() end end)
+        DUI.RegisterEvent("GOSSIP_CLOSED", Flight.OnTalked)
+        DUI.RegisterEvent("PLAYER_CONTROL_LOST", Flight.OnTalked)
         DUI.RegisterEvent("PLAYER_ENTERING_WORLD", function(_, isLogin)
             -- Enable resumed it already, not knowing yet whether this is a login.
             if isLogin == true and flight and not flight.early then

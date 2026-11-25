@@ -19,6 +19,7 @@ DUI.PatchNotes = {
         { "Camera", "The Max camera distance slider goes all the way to the game's limit (400%) again, instead of stopping at 200% when you found it through the options search" },
         { "Minimap", "Clicking the clock under the minimap or the Time data text opens the alarm and stopwatch again, and stops a ringing alarm" },
         { "Unit Frames", "No more stray colored pixels around class icons in the portrait ring" },
+        { "Flight timer", "The flight timer now shows on the druid flight out of Nighthaven in Moonglade, the one you take by talking to the flight master" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {
         { "Cooldown Manager", "Overpower now lights up and plays its sound after your target dodges in any stance, so you know when to switch to Battle Stance for it" },
