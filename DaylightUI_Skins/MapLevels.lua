@@ -152,15 +152,12 @@ end
 
 -- A dungeon's or raid's range after its line on the entrance's tooltip: the
 -- levels the group finder suggests for the activity of that name (the same ones
--- Lfg shows), or "" for an entrance with no such activity.
+-- Lfg shows), or, for what it doesn't list (the raids), the game's dungeon list.
+-- "" for an entrance neither knows.
 function Levels.InstanceText(name, level)
     local Data = DUI.Lfg and DUI.Lfg.Data
-    local a = Data and Data.ActivityByName(name)
-    if not a then return "" end
-    local low, high = a.minLevelSuggestion or 0, a.maxLevelSuggestion or 0
-    if low == 0 and high == 0 then return "" end
-    if low == 0 then low = high elseif high == 0 then high = low end
-    return Levels.Span({ low, high }, level)
+    local range = Data and Data.LevelsByName(name)
+    return range and Levels.Span(range, level) or ""
 end
 
 local stale -- a level up or a switch: write the name shown again

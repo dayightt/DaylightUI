@@ -113,6 +113,7 @@ end
 -- re-reads them, and so does LFG_LIST_AVAILABILITY_UPDATE (Data.Forget).
 local cats, catsFor
 local byName   -- activity name -> the game's info table, for every available activity
+local legacy   -- instance name -> { low, high } from the older dungeon list
 local function catsStamp()
     local e = Data.Entry()
     return Data.Level() .. "|" .. tostring(filterOff()) .. "|" .. table.concat(e and e.activityIDs or {}, ",")
@@ -120,7 +121,7 @@ end
 
 function Data.Forget()
     Data.activities = {}
-    byName = nil
+    byName, legacy = nil, nil
     cats, catsFor = nil, nil
 end
 
@@ -143,6 +144,47 @@ function Data.ActivityByName(name)
         end
     end
     return byName[name]
+end
+
+-- The group finder has no raids on Forever, but the game's older dungeon list still
+-- knows every instance by id: GetLFGDungeonInfo returns name, type, subtype, then the
+-- levels (minimum, maximum, recommended, recommended range). Read once, by name.
+local function legacyLevels()
+    if legacy then return legacy end
+    legacy = {}
+    if type(GetLFGDungeonInfo) ~= "function" then return legacy end
+    for id = 1, 3000 do
+        local ok, name, _, _, minLevel, maxLevel, _, minRec, maxRec = pcall(GetLFGDungeonInfo, id)
+        name, minLevel, maxLevel, minRec, maxRec = plain(name), plain(minLevel), plain(maxLevel), plain(minRec), plain(maxRec)
+        if ok and type(name) == "string" and name ~= "" and not legacy[name] then
+            local lo, hi = minRec, maxRec
+            if not (type(lo) == "number" and type(hi) == "number" and lo > 0 and hi > 0) then lo, hi = minLevel, maxLevel end
+            if type(lo) == "number" and type(hi) == "number" and lo > 0 and hi > 0 then legacy[name] = { lo, hi } end
+        end
+    end
+    return legacy
+end
+
+-- The suggested levels of the instance with this name: { low, high }, from the group
+-- finder when it has the activity, else from the game's older dungeon list (raids).
+function Data.LevelsByName(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    local a = Data.ActivityByName(name)
+    if a then
+        local lo, hi = a.minLevelSuggestion or 0, a.maxLevelSuggestion or 0
+        if lo == 0 and hi == 0 then return nil end
+        if lo == 0 then lo = hi elseif hi == 0 then hi = lo end
+        return { lo, hi }
+    end
+    local list = legacyLevels()
+    if list[name] then return list[name] end
+    -- The list says "Onyxia" where the zone is "Onyxia's Lair" (Guarida de Onyxia): the
+    -- longest listed name inside the zone's name.
+    local best, bestLen = nil, 3
+    for key, range in pairs(list) do
+        if #key > bestLen and name:find(key, 1, true) then best, bestLen = range, #key end
+    end
+    return best
 end
 
 -- Categories with something to do at the player's level: { id, name, auto }. Cached and
