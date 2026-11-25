@@ -238,6 +238,20 @@ function EditMode.Plausible(layout, presets)
     return true
 end
 
+-- The layout a profile left under its old name when it was renamed at a moment
+-- the layout couldn't be (in a fight, Edit Mode open), as its index in the
+-- merged list and the profile's data. Not when a profile of that old name
+-- exists again: the layout is that one's then.
+local function leftBehind(all, profile)
+    local data = DUI.DB.Root().profileData
+    local p = type(data) == "table" and data[profileOf(profile)]
+    local old = type(p) == "table" and p.layoutFrom
+    if type(old) ~= "string" or type(data[old]) == "table" then return nil end
+    for i, l in ipairs(all) do
+        if i > #presetsRead() and isOurs(l, old) then return i, p end
+    end
+end
+
 -- Sets this character up: makes the profile's layout (the active profile's
 -- when not given) the active one, adding it first if it doesn't exist, in
 -- the same place and way the game adds a new account layout (after the last
@@ -255,6 +269,25 @@ function EditMode.Install(base, profile)
             C_EditMode.SetActiveLayout(i)
             return true
         end
+    end
+    -- A profile renamed while its layout couldn't be (Profiles.Rename) takes its
+    -- old layout over in place, rather than adding a second one beside it.
+    local from, p = leftBehind(all, profile)
+    if from then
+        local layout = all[from]
+        if base then
+            for _, part in ipairs(parts) do DUI.SafeCall(part.fill, base) end
+            base.layoutIndex, base.layoutType = nil, layout.layoutType
+            layout = base
+        end
+        layout.layoutName = EditMode.Name(profile)
+        all[from] = layout
+        info.layouts = all
+        written = true
+        if not DUI.SafeCall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
+        p.layoutFrom = nil
+        C_EditMode.SetActiveLayout(from)
+        return true
     end
     local account = Enum.EditModeLayoutType and Enum.EditModeLayoutType.Account
     local count, highest = 0, nil

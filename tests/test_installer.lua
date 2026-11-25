@@ -1047,6 +1047,25 @@ T.test("installer: when the layout can't be placed, Finish says why, changes not
     T.eq(DUI.Installer.State(), "installed", "Try again")
 end)
 
+T.test("installer: renaming a profile while its layout can't be renamed doesn't leave a second layout", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    choose(DUI, "Healer"); go(DUI)
+    closeGuide()
+    T.eq(#saved.layouts, 1)
+    EditModeManagerFrame:Show()                        -- Edit Mode open: the layout can't be renamed now
+    T.truthy(DUI.Profiles.Rename("Healer", "Mine"))
+    EditModeManagerFrame:Hide()
+    reload()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    T.eq(#saved.layouts, 1, "the old layout renamed, not a new one made beside it")
+    local _, index = layoutNamed("DaylightUI - Mine")
+    T.truthy(index, "named for the new profile")
+    T.isnil(layoutNamed("DaylightUI - Healer"), "the old name gone")
+    T.eq(saved.activeLayout, index, "and in use")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("installer finish: when it can't finish it says why, Try again works, and Back returns", function()
     local DUI = login()
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
@@ -1441,6 +1460,24 @@ T.test("installer tour: picking a layout rebuilds the character's own profile fr
 end)
 
 
+
+T.test("installer tour: a Finish that can't place the layout leaves no new profile behind", function()
+    local DUI = login()
+    stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
+    local I = tourPick(DUI, "Healer")
+    local name = I.SaveAs()
+    EditModeManagerFrame:Show()                        -- Edit Mode open: the game won't take a layout
+    I.ToFinish()
+    T.falsy(I.flow.finished)
+    T.isnil(DaylightUIDB.profileData[name], "the profile Make it mine would save into isn't made")
+    T.isnil(DaylightUIDB.profileData.Healer, "nor the ready-made it was built from")
+    EditModeManagerFrame:Hide()
+    I.Finish()
+    T.truthy(I.flow.finished, "Try again finishes")
+    T.truthy(DaylightUIDB.profileData[name], "and saves it")
+    T.truthy(layoutNamed("DaylightUI - " .. name), "with its layout")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
 
 T.test("installer questions: the bars, plates and calm questions pick their presets through the draft", function()
     local DUI = login({ nameplates = true, module = true })

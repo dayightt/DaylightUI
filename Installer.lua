@@ -1194,6 +1194,8 @@ function Installer.Finish()
     local P, D = DUI.Profiles, DUI.InstallerDraft
     local active = DUI.DB.ActiveName()
     local slot = Installer.CurrentSlot()
+    local had = {}
+    for n in pairs(DUI.DB.Root().profileData) do had[n] = true end
     local target, why, fresh
     if flow.path == "tour" then
         target, why, fresh = saveAs(flow.roles[slot])
@@ -1211,6 +1213,12 @@ function Installer.Finish()
     end
     local ok, written, err = placeLayout(target)
     if not ok then
+        -- Profiles made for this Finish go again: each Try again would leave
+        -- another one behind with no layout of its own.
+        local list = DUI.DB.Root().profileData
+        for n in pairs(list) do
+            if not had[n] and n ~= DUI.DB.ActiveName() then list[n] = nil end
+        end
         return done(false, string.format(L["Couldn't place the layout: %s. Then press Try again."], tostring(err)))
     end
     local reload = written or fresh ~= nil or target ~= active or D.NeedsReload()

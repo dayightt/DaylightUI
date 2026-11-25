@@ -793,10 +793,14 @@ function Profiles.Rename(old, new)
     if not new then return false, why end
     if new == old then return true end
     local p = data()[old]
-    -- Its layout is renamed too. If the game won't rename it now, a copy is kept
-    -- to create the new one from.
+    -- Its layout is renamed too. If the game won't rename it now, the old name
+    -- is kept so the layout is taken over the next time it's put in place
+    -- (EditMode.Install), plus a copy in case it's gone by then.
     local ok = EditMode.RenameLayout(old, new)
-    if not ok and not p.pendingLayout then p.pendingLayout = EditMode.Export(old) end
+    if not ok then
+        if not p.pendingLayout then p.pendingLayout = EditMode.Export(old) end
+        if EditMode.Exists(old) and not p.layoutFrom then p.layoutFrom = old end
+    end
     data()[new], data()[old] = p, nil
     reassign(old, new)
     if DB.activeName == old then DB.activeName = new end
