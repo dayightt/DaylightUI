@@ -284,7 +284,7 @@ T.test("installer questions: every one writes a setting the options have, with a
             if q.look then T.truthy(DUI.InstallerLooks.KINDS[q.look], q.id .. ": a look") end
         end
     end
-    T.eq(n, 14)
+    T.eq(n, 15)
     for _, k in ipairs(P.Keys(P.Questions("quick"))) do T.truthy(P.Find(k[1], k[2]), "quick: " .. k[1] .. " " .. k[2]) end
     T.eq(P.Where("appearance"), "General > Appearance")
     T.eq(P.Module("Bags").addon, "DaylightUI_Bags")

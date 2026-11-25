@@ -147,6 +147,14 @@ Pages.PARTS = {
           ask = "How many bars on screen?",
           what = "Your spells and abilities sit on these. You can add or move bars later." },
     } },
+    { id = "procs", title = "Proc Alerts", needs = "Procs", questions = {
+        { id = "procs", short = "Proc Alerts", look = "procAlerts",
+          labels = { on = "Light them up", off = "Leave them off" },
+          subs = { on = "A flare around you when a proc is ready.", off = "No flares, as before." },
+          new = { on = true },
+          ask = "Light up your procs?",
+          what = "A painted flare around your character when a proc like Clearcasting or Overpower is ready to use." },
+    } },
     { id = "plates", title = "Nameplates", needs = "Nameplates", questions = {
         { id = "plateSize", short = "Nameplate size", draw = "plate", width = 250,
           presets = {

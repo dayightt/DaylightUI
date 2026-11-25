@@ -360,6 +360,43 @@ T.test("welcome: a profile that already had Proc Alerts switched on keeps them o
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("guide: Make it mine asks about Proc Alerts, both drawn, picked through the draft", function()
+    local DUI = stub.Load({ module = true, procs = true, before = function()
+        stub.SetUnits({ player = { name = "Me", class = "MAGE", isPlayer = true } })
+    end })
+    stub.RunTimers()
+    local I, D = DUI.Installer, DUI.InstallerDraft
+    if not I.flow then I.Show() end
+    I.Start("tour")
+    local q = I.QuestionById("procs")
+    T.truthy(q, "the Proc Alerts question")
+    T.eq(q.part, "Proc Alerts", "on a page of its own")
+    T.eq(I.Answer(q), "on", "a new player starts with them on")
+    I.Go("q:procs")
+    local box = I.pages.duel.span
+    T.truthy(box, "both looks drawn across the two columns")
+    T.truthy(box.stages.on.flare.parts[1].tex:GetTexture() ~= nil, "a flare lit in the On look")
+    T.eq(DUI:GetModule("Procs").ns.Data.BY[box.stages.on.flare.key].class, "MAGE", "one of your class's")
+    I.Pick(q, "off")
+    T.eq(DUI:Get("Procs", "enabled"), false)
+    T.truthy(D.Picked("Procs", "enabled"))
+    D.Revert()
+    T.eq(DUI:Get("Procs", "enabled"), true, "closing the guide puts it back")
+    I.Start("quick", "DPS/Tank")
+    T.isnil(I.QuestionById("procs"), "Quick setup leaves it on without asking")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("guide: no Proc Alerts question while the module is switched off", function()
+    local DUI = stub.Load({ module = true })
+    stub.RunTimers()
+    local I = DUI.Installer
+    if not I.flow then I.Show() end
+    I.Start("tour")
+    T.isnil(I.QuestionById("procs"))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chrome: a plaque is as wide as its words and their padding, and spaced capitals skip other alphabets", function()
     local DUI = returning()
     local Chrome = DUI.InstallerChrome
