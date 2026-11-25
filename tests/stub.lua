@@ -1121,8 +1121,14 @@ function Widget:EnableMouse(on)
 end
 
 -- Clicks and hover can also be set apart. EnableMouse sets both.
-function Widget:SetMouseClickEnabled(on) self.__clicks = on and true or false end
-function Widget:SetMouseMotionEnabled(on) self.__motion = on and true or false end
+function Widget:SetMouseClickEnabled(on)
+    guard(self, "SetMouseClickEnabled")
+    self.__clicks = on and true or false
+end
+function Widget:SetMouseMotionEnabled(on)
+    guard(self, "SetMouseMotionEnabled")
+    self.__motion = on and true or false
+end
 function Widget:IsMouseClickEnabled()
     if self.__clicks ~= nil then return self.__clicks end
     return self:IsMouseEnabled()
