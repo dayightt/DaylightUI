@@ -103,6 +103,41 @@ T.test("bridge: one quest's icons grow, the others fade, on both maps, all come 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A player's video: with the mouse still over packed icons in a fight, Questie's
+-- hover went on and off a few times a second. A grown icon took the mouse from
+-- the bare map (where Questie hovers a patrol path) or from the icon it was over,
+-- that hover ended, everything shrank back, and the hover began again.
+T.test("bridge: a grown icon keeps the mouse area it had at rest", function()
+    local B = load(function()
+        questie({ QuestieMap = { questIdFrames = { [1] = { DuiHitMap = "DuiHitMap", DuiHitMini = "DuiHitMini" } } } })
+    end)
+    DaylightUI.DB.General().motion = false
+    local map = CreateFrame("Frame", "DuiHitMap", UIParent)
+    map:SetSize(16, 16)
+    local mini = CreateFrame("Frame", "DuiHitMini", UIParent)
+    mini.miniMapIcon = true
+    mini:SetSize(10, 10)
+    -- How wide the mouse area is on screen, in the parent's units.
+    local function reach(f)
+        local hit = f.__hitRect or { 0, 0, 0, 0 }
+        local s = f:GetScale()
+        return (f:GetWidth() - hit[1] - hit[2]) * s, (f:GetHeight() - hit[3] - hit[4]) * s
+    end
+    B.FocusIcons(1, 0.2, 1.35)
+    T.eq(map:GetScale(), 1.35, "it still grows")
+    local w, h = reach(map)
+    T.near(w, 16, 1e-6, "the map icon's mouse area stays its resting width")
+    T.near(h, 16, 1e-6)
+    w, h = reach(mini)
+    T.eq(mini:GetWidth(), 13.5, "the minimap icon still grows")
+    T.near(w, 10, 1e-6, "the minimap icon's mouse area stays its resting width")
+    T.near(h, 10, 1e-6)
+    B.FocusIcons(nil)
+    T.deq(map.__hitRect or { 0, 0, 0, 0 }, { 0, 0, 0, 0 }, "the whole icon takes the mouse again")
+    T.deq(mini.__hitRect or { 0, 0, 0, 0 }, { 0, 0, 0, 0 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bridge: an icon Questie gave to something else keeps what Questie set", function()
     local mini
     local B = load(function()

@@ -62,15 +62,29 @@ end
 -- the minimap's center (HereBeDragons-Pins: `pin:SetPoint("CENTER", Minimap,
 -- "CENTER", x, y)`), and a frame's scale scales its offset, which would push it
 -- outward, so that one grows by SetSize (its textures fill the frame).
+-- A grown icon keeps the mouse area it had at rest (hit rect insets): grown
+-- under a still mouse, it took the mouse from the icon or the bare map it was
+-- over (where Questie hovers a patrol path), that hover ended, all shrank back,
+-- and the hover began again, a few times a second.
 -- Each one is tracked in `lit` with its state so it's restored when left.
 local lit = {}
 local LIT_KEY = {}
 
+local function keepReach(icon, s)
+    local w, h = icon:GetSize()
+    if type(w) ~= "number" or type(h) ~= "number" or s <= 0 then return end
+    -- The same cut either way: a minimap icon's size is already grown, and a
+    -- map icon's insets are in its own scaled units.
+    local k = 1 - 1 / s
+    icon:SetHitRectInsets(w * k / 2, w * k / 2, h * k / 2, h * k / 2)
+end
+
 -- Questie reused this frame for something else; its draw already reset alpha and
--- size, so only the scale is left to undo.
+-- size, so only the scale and the mouse area are left to undo.
 local function recycled(icon, e)
     if icon.data == e.data then return false end
     icon:SetScale(1)
+    icon:SetHitRectInsets(0, 0, 0, 0)
     lit[icon] = nil
     return true
 end
@@ -86,6 +100,7 @@ local function litStep(t)
             icon:SetAlpha(e.a)
             if e.fromS ~= e.toS then     -- fading icons keep their size
                 if e.w then icon:SetSize(e.w * e.s, e.h * e.s) else icon:SetScale(e.s) end
+                keepReach(icon, e.s)
             end
         end
     end
