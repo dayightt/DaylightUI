@@ -142,6 +142,22 @@ local function keepUnder(tip)
     if s.over then s.over:SetFrameLevel(level + 10) end
 end
 
+-- A clicked link's X, at the same spot as every window's (compact header: level
+-- with the first line). The rich card is pinned to the tooltip's corner at its
+-- own size, which can be smaller than the tooltip: the X goes on the card while
+-- it shows. A hidden card keeps its last size, so then the tooltip it is.
+-- cardShown is given by the card's own OnHide, where it may still say shown.
+function Tip.PlaceClose(tip, cardShown)
+    local close = tip.CloseButton
+    if type(close) ~= "table" then return end
+    if close.IsProtected and close:IsProtected() and InCombatLockdown() then return end
+    local card = ns.RichPanel and ns.RichPanel.Get and ns.RichPanel.Get(tip)
+    if card and cardShown == nil then cardShown = card:IsShown() end
+    if not cardShown then card = nil end
+    close:ClearAllPoints()
+    close:SetPoint("TOPRIGHT", card or tip, "TOPRIGHT", DUI.Win.CLOSE_X, DUI.Win.CloseY(true))
+end
+
 function Tip.Skin(tip)
     if type(tip) ~= "table" or skinned[tip] or type(tip.NineSlice) ~= "table" then return end
     -- Forbidden tooltips refuse any change (a forbidden CreateTexture at login,
@@ -157,7 +173,13 @@ function Tip.Skin(tip)
     skinned[tip] = s
     -- A clicked item's close button (ItemRefTooltip.CloseButton). Done here,
     -- not in Skins, since this module can run without it.
-    if type(tip.CloseButton) == "table" then DUI.Widgets.DressClose(tip.CloseButton) end
+    if type(tip.CloseButton) == "table" then
+        DUI.Widgets.DressClose(tip.CloseButton)
+        Tip.PlaceClose(tip)
+        -- The card re-places it as it comes and goes (Panel.For): a second link
+        -- clicked while the tooltip is open refills it without showing it again.
+        tip:HookScript("OnShow", function() Tip.PlaceClose(tip); C_Timer.After(0, function() Tip.PlaceClose(tip) end) end)
+    end
     -- First: a ghost still fading hands the rich card back before it's built.
     tip:HookScript("OnShow", function(self) Tip.ghostFrom[self] = ns.TipGhost.Cancel(self) end)
     tip:HookScript("OnShow", keepUnder)
