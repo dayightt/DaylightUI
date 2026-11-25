@@ -373,7 +373,7 @@ DUI.WithLanguage(function()
 end)
 
 local function classToken(id)
-    local info = id and type(C_ClassInfo) == "table" and call(C_ClassInfo.GetClassInfo, id)
+    local info = id and type(C_CreatureInfo) == "table" and call(C_CreatureInfo.GetClassInfo, id)
     return type(info) == "table" and str(info.classFile) or nil
 end
 
