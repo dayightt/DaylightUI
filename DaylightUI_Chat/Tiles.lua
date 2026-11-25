@@ -431,7 +431,9 @@ function Tiles.Layout()
         if card then card:SetPoint("BOTTOMLEFT", drawer, "BOTTOMLEFT") end
     end
     drawer:SetAlpha(pc)
-    drawer:SetShown(pc > 0)
+    -- Shown from the moment it starts opening: a hidden reply box can't take the
+    -- keyboard, so the first Whisper click would open the card without typing.
+    drawer:SetShown(pc > 0 or cardSlide.goal > 0)
 end
 
 -- How far the tile row reaches above the chat, gap included. The preview and a

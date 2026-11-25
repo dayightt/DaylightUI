@@ -844,9 +844,12 @@ local function focusScript(box, name)
     local fn = box.__scripts and box.__scripts[name]
     if fn then fn(box) end
 end
+-- A box that isn't on screen (itself or a parent hidden) doesn't take the
+-- keyboard: the chat card's first whisper ignored typing until a second click.
 function Widget:SetFocus()
     local was = stub.focus
     if was == self then return end
+    if type(self.IsVisible) == "function" and not self:IsVisible() then return end
     stub.focus = self
     if was then focusScript(was, "OnEditFocusLost") end
     focusScript(self, "OnEditFocusGained")
