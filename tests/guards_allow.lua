@@ -289,6 +289,7 @@ return {
         ["DaylightUI_Bags/Slots.lua"] = "the bag bar shows the bags already on: nothing to compare them with",
     },
     rules = {
+        ["Motion.lua|special-frames"] = "Motion.EscapeFor, the one Escape stand-in every window of ours uses",
         ["DaylightUI_Bags/Bank.lua|static-popup"] = "the account bank's Withdraw and Deposit: the game's own gold boxes (BANK_MONEY_*), which hold its money entry; a click of the player's opens them",
     },
 }

@@ -145,7 +145,7 @@ end
 
 function View.Build()
     if View.frame then return View.frame end
-    local f = Win.New({ name = View.NAME, back = "Professions", w = View.W, h = View.H, portrait = true })
+    local f = Win.New({ name = View.NAME, escape = false, back = "Professions", w = View.W, h = View.H, portrait = true })
     View.frame = f
     f.onClose = function() ns.Window.Close() end
     Win.AddPage(f, "view", { Build = build, pieces = pieces, w = View.W, h = View.H })

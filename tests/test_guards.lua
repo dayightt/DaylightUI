@@ -70,6 +70,12 @@ local RULES = {
           return l:find("StaticPopup_Show(", 1, true) or l:find("StaticPopup_Queue(", 1, true)
               or l:match("StaticPopupDialogs[%.%[][%w_\"'%]]*%s*=[^=]")
       end },
+    -- The game's Escape and losing control close every frame on UISpecialFrames.
+    -- One maker (Motion.EscapeFor) knows when a window is open and closes it
+    -- through its own close; a second stand-in would close a window twice or
+    -- keep Escape from the game menu while the window fades out.
+    { "special-frames", "Escape for a window of ours goes through Motion.EscapeFor (Win.New and Motion.Window use it)",
+      function(l) return l:find("UISpecialFrames", 1, true) and l:find("insert", 1, true) end },
     { "mouseisover", "MouseIsOver is gone in this client: use frame:IsMouseOver()",
       function(l) return (" " .. l):find("[^%w_:%.]MouseIsOver%(") end },
     { "events-list-remove", "our buttons leave the game's events list by nil in place, never tremove (rule 4)",
@@ -474,4 +480,25 @@ T.test("guards: every item tooltip of a hover redraws for the Shift compare (Par
         end
     end
     if #bad > 0 then error("\n  " .. table.concat(bad, "\n  "), 0) end
+end)
+
+-- A window of the kit closes on the game's Escape through a stand-in (Win.New).
+-- One that follows a game window must leave that to the game: the game closes
+-- its own window and this one follows, and a second close from the stand-in
+-- would run the window's own close (a HideUIPanel from addon code) inside the
+-- game's Escape.
+T.test("guards: every window of the kit that follows a game window leaves Escape to it", function()
+    local bad = {}
+    for _, path in ipairs(shippedFiles()) do
+        local f = io.open(path, "rb")
+        local text = f:read("*a")
+        f:close()
+        local follows = not path:find("^Windows/") and (text:find("Win.Follow", 1, true) or text:find("Followers.", 1, true))
+        if follows then
+            for spec in text:gmatch("Win%.New(%b())") do
+                if not spec:find("escape%s*=%s*false") then bad[#bad + 1] = path .. ": Win.New" .. spec end
+            end
+        end
+    end
+    T.eq(table.concat(bad, "\n"), "", "pass escape = false")
 end)

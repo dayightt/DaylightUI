@@ -194,29 +194,45 @@ local function cancel(frame)
     if DUI.Pad then DUI.Pad.Returning(frame) end
 end
 
--- Wires one of Daylight UI's windows once: it Appears on show (with a `rise` px lift,
--- or fade only), and Escape fades it out. Escape goes through a tiny hidden
--- stand-in frame in UISpecialFrames, shown while the window is. The game
--- hides the stand-in and its OnHide fades the window. With ownEscape the
--- window handles Escape itself (the setup guide), so there's no stand-in.
+-- A tiny hidden stand-in in UISpecialFrames for one of Daylight UI's windows.
+-- The game's Escape hides every shown frame on that list, and so does losing
+-- control of the character (fear, a stun), in a fight too, when a window's own
+-- keys are off. Shown while the window is open; its OnHide calls close() when
+-- the game hid it. Motion.EscapeShown(esc, false) hides it without closing.
 local escapes = 0
+function Motion.EscapeFor(close)
+    escapes = escapes + 1
+    local name = "DaylightUIEscape" .. escapes
+    local esc = CreateFrame("Frame", name, UIParent)
+    esc:SetSize(1, 1)
+    esc:EnableMouse(false)
+    esc:Hide()
+    -- Hidden along with its parent (Alt+Z hides the whole UI) isn't Escape.
+    esc:SetScript("OnHide", function(self)
+        if not self:IsShown() and not self.quiet then close() end
+    end)
+    tinsert(UISpecialFrames, name)
+    return esc
+end
+
+function Motion.EscapeShown(esc, on)
+    if on then esc:Show(); return end
+    esc.quiet = true
+    esc:Hide()
+    esc.quiet = nil
+end
+
+-- Wires one of Daylight UI's windows once: it Appears on show (with a `rise` px lift,
+-- or fade only), and Escape fades it out through a stand-in (Motion.EscapeFor).
+-- With ownEscape the window handles Escape itself (the setup guide), so there's
+-- no stand-in.
 function Motion.Window(frame, rise, ownEscape)
     if frame.__duiWired then return end
     frame.__duiWired = true
     local esc
     if not ownEscape then
-        escapes = escapes + 1
-        local name = "DaylightUIEscape" .. escapes
-        esc = CreateFrame("Frame", name, UIParent)
-        esc:SetSize(1, 1)
-        esc:EnableMouse(false)
-        esc:Hide()
-        -- Hidden along with its parent (Alt+Z hides the whole UI) isn't Escape.
-        esc:SetScript("OnHide", function(self)
-            if not self:IsShown() then Motion.Vanish(frame) end
-        end)
+        esc = Motion.EscapeFor(function() Motion.Vanish(frame) end)
         frame.__duiEsc = esc
-        tinsert(UISpecialFrames, name)
         if frame:IsShown() then esc:Show() end
     end
     if DUI.Pad then DUI.Pad.Follow(frame, function() Motion.Vanish(frame) end) end

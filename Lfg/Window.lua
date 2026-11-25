@@ -346,7 +346,7 @@ end
 function Lfg.Build(mod)
     ns.module = mod
     if Lfg.frame then return Lfg.frame end
-    local f = Win.New({ name = Lfg.NAME, back = "GroupFinder", w = Lfg.W, h = Lfg.H, portrait = true })
+    local f = Win.New({ name = Lfg.NAME, escape = false, back = "GroupFinder", w = Lfg.W, h = Lfg.H, portrait = true })
     Lfg.frame = f
     f.onClose = Lfg.Close
     Lfg.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)

@@ -431,6 +431,15 @@ function Win.New(spec)
     Style.Shell(f, { window = spec.back or true })   -- spec.back: module whose opacity setting applies (Style.WindowBack)
     Win.Header(f, spec)
     DUI.Pad.Follow(f, function() f.close:Click() end)
+    -- The game's Escape and losing control close the window, in a fight too,
+    -- through its own close. A window that follows a game window passes
+    -- escape = false: the game closes its own window, and this one with it.
+    if spec.escape ~= false then
+        local esc = DUI.Motion.EscapeFor(function() if Win.IsOpen(f) then f.close:Click() end end)
+        f.escapeStandIn = esc
+        f:HookScript("OnShow", function() if Win.IsOpen(f) then DUI.Motion.EscapeShown(esc, true) end end)
+        f:HookScript("OnHide", function() DUI.Motion.EscapeShown(esc, false) end)
+    end
     f.host = CreateFrame("Frame", nil, f)
     f.host:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -Win.HEADER - 1)
     f.host:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, 0)

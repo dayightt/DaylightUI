@@ -325,7 +325,7 @@ end
 function Legacy.Build(mod)
     ns.module = mod
     if Legacy.frame then return Legacy.frame end
-    local f = Win.New({ name = Legacy.NAME, back = "Legacy", w = Legacy.W, h = Legacy.H, portrait = true })
+    local f = Win.New({ name = Legacy.NAME, escape = false, back = "Legacy", w = Legacy.W, h = Legacy.H, portrait = true })
     Legacy.frame = f
     f.onClose = Legacy.Close
     Legacy.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)

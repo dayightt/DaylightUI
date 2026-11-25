@@ -358,7 +358,7 @@ end
 function Scene.Build(talk)
     if Scene.frame then return Scene.frame end
     -- Above action bars and unit frames, which fade out but come back on mouseover.
-    local f = Win.New({ name = Scene.NAME, back = "NPC", w = Scene.W, h = Scene.H, portrait = true, strata = "HIGH" })
+    local f = Win.New({ name = Scene.NAME, escape = false, back = "NPC", w = Scene.W, h = Scene.H, portrait = true, strata = "HIGH" })
     Scene.frame = f
     f.onClose = ns.Window.Goodbye
     f:SetIgnoreParentAlpha(true)   -- stays visible while the UI fades

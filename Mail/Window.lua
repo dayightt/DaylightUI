@@ -259,7 +259,7 @@ end
 function Mail.Build(mod)
     ns.module = mod
     if Mail.frame then return Mail.frame end
-    local f = Win.New({ name = Mail.NAME, back = "Mailbox", w = Mail.W, h = Mail.H, portrait = true })
+    local f = Win.New({ name = Mail.NAME, escape = false, back = "Mailbox", w = Mail.W, h = Mail.H, portrait = true })
     Mail.frame = f
     f.onClose = Mail.Close
     Mail.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)

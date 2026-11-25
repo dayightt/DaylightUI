@@ -946,3 +946,138 @@ T.test("windows: Win.Shut closes the window and the tooltip of a row under the m
     Win.Shut(f)
     T.truthy(tip:IsShown(), "someone else's stays")
 end)
+
+-- What the game's Escape does once no dialog or menu of the game's took it:
+-- CloseAllWindows hides every shown UISpecialFrames frame (CloseSpecialWindows,
+-- UIParentPanelManager.lua), and says whether it found one: the game menu
+-- opens only when nothing closed. Losing control (PLAYER_CONTROL_LOST) runs
+-- the same CloseAllWindows.
+local function gameEscape()
+    local hid = false
+    for _, n in ipairs(UISpecialFrames) do
+        local fr = _G[n]
+        if fr and fr:IsShown() then fr:Hide(); hid = true end
+    end
+    return hid
+end
+
+T.test("windows: the game's Escape and losing control close a window of the kit in a fight too, once", function()
+    local DUI = stub.Load()
+    local Win = DUI.Win
+    local f = Win.New({ name = "DaylightUITestEscape" })
+    local closed = 0
+    f.onClose = function() closed = closed + 1; Win.Close(f) end
+    -- Like the standalone windows: their keys take Escape out of a fight.
+    Win.Keys(f, function(key) if key == "ESCAPE" then f.close:Click(); return true end end)
+    Win.AddPage(f, "a", { Build = function() end })
+    Win.ShowPage(f, "a")
+    T.eq(gameEscape(), false, "nothing of it before it opens")
+    Win.Open(f); Win.KeysOn(f, true); settle(Win)
+    stub.EnterCombat()
+    -- In a fight the window's keys are off, so the key goes to the game.
+    T.eq(gameEscape(), true, "the game's Escape finds it, so the game menu stays shut")
+    T.eq(closed, 1, "closed through its own close")
+    T.eq(Win.IsOpen(f), false)
+    settle(Win)
+    T.eq(f:IsShown(), false)
+    T.eq(gameEscape(), false, "nothing of it left")
+    stub.LeaveCombat()
+    -- Opened again, it can be closed again.
+    Win.Open(f); settle(Win)
+    T.eq(gameEscape(), true, "Escape works the second time too")
+    T.eq(closed, 2)
+    settle(Win)
+    -- Closed by its X: Escape mid-fade or after finds nothing, closes nothing twice.
+    Win.Open(f); settle(Win)
+    f.close:Click()
+    T.eq(closed, 3)
+    T.eq(gameEscape(), false, "fading out after its X: Escape is the game menu's again")
+    settle(Win)
+    T.eq(gameEscape(), false)
+    T.eq(closed, 3, "nothing closed twice")
+end)
+
+T.test("windows: a window that follows a game window leaves Escape to that game window", function()
+    local DUI = stub.Load()
+    local Win = DUI.Win
+    local f = Win.New({ name = "DaylightUITestFollows", escape = false })
+    Win.AddPage(f, "a", { Build = function() end })
+    Win.ShowPage(f, "a"); Win.Open(f); settle(Win)
+    T.eq(gameEscape(), false, "the game's own window closes, and this one with it")
+    T.eq(Win.IsOpen(f), true)
+end)
+
+-- The menu above a window of the kit: the window and a button on it.
+local function menuOverWindow(DUI)
+    local Win, W = DUI.Win, DUI.Widgets
+    local f = Win.New({ name = "DaylightUITestMenuHost" })
+    Win.AddPage(f, "a", { Build = function(page) f.pick = W.Button(page, "Pick", 24) end })
+    Win.ShowPage(f, "a"); Win.Open(f); settle(Win)
+    local picked = {}
+    W.OpenMenu(f.pick, { "a", "b" }, { a = "A", b = "B" }, nil, function(k) picked[#picked + 1] = k end)
+    return f, picked
+end
+
+-- The frame holding the open menu's keys (Win.Keys), found from its first row.
+local function menuKeys(W)
+    local c = W.MenuRow(1)
+    while c and not c.keys do c = c:GetParent() end
+    return c and c.keys
+end
+
+T.test("windows: Escape closes an open menu first, and the window under it stays", function()
+    local DUI = stub.Load()
+    local W, Win = DUI.Widgets, DUI.Win
+    local f, picked = menuOverWindow(DUI)
+    T.truthy(W.menuOwner, "the menu is open")
+    local k = menuKeys(W)
+    T.truthy(k, "the open menu listens for Escape")
+    if not k then return end
+    T.eq(k:IsKeyboardEnabled(), true, "its keys are on while it's open")
+    k:GetScript("OnKeyDown")(k, "ESCAPE")
+    T.eq(k.__propagate, false, "Escape is the menu's, the game never sees it")
+    T.falsy(W.menuOwner, "the menu closes")
+    T.eq(Win.IsOpen(f), true, "the window under it stays")
+    T.deq(picked, {}, "nothing picked")
+    -- Any other key goes on to the game (moving, casting).
+    W.OpenMenu(f.pick, { "a" }, { a = "A" }, nil, function() end)
+    k = menuKeys(W)
+    k:GetScript("OnKeyDown")(k, "W")
+    T.eq(k.__propagate, true)
+    T.truthy(W.menuOwner, "still open")
+    -- In a fight the keys are the game's: its Escape still closes the menu.
+    stub.EnterCombat()
+    T.eq(gameEscape(), true)
+    T.falsy(W.menuOwner, "closed by the game's Escape in a fight")
+    T.eq(Win.IsOpen(f), false, "in a fight the window goes with it: only the game's own list could go one at a time")
+    stub.LeaveCombat()
+    settle(Win)
+    Win.Open(f); settle(Win)
+    W.OpenMenu(f.pick, { "a" }, { a = "A" }, nil, function() end)
+    W.CloseMenu()
+    T.eq(gameEscape(), true, "the window is still there for the next Escape")
+    T.eq(gameEscape(), false, "and the closed menu left nothing behind")
+end)
+
+T.test("windows: a menu closes when what opened it goes away, like the game's", function()
+    local DUI = stub.Load()
+    local W, Win = DUI.Widgets, DUI.Win
+    local f = menuOverWindow(DUI)
+    local menuFrame = W.MenuRow(1)
+    while menuFrame:GetParent() and menuFrame:GetParent() ~= UIParent do menuFrame = menuFrame:GetParent() end
+    stub.RunOnUpdate(menuFrame, 0.016)
+    T.truthy(W.menuOwner, "open while its owner shows")
+    Win.Close(f); settle(Win)
+    T.eq(f:IsShown(), false)
+    stub.RunOnUpdate(menuFrame, 0.016)
+    T.falsy(W.menuOwner, "its window closed, the menu with it")
+    T.eq(menuFrame:IsShown(), false, "and the screen-wide catcher no longer takes clicks")
+    -- Opened at the cursor from a row: the row going away closes it too.
+    Win.Open(f); settle(Win)
+    W.OpenMenu(f.pick, { "a" }, { a = "A" }, nil, function() end, nil, { atCursor = true })
+    stub.RunOnUpdate(menuFrame, 0.016)
+    T.truthy(W.menuOwner)
+    f.pick:Hide()
+    stub.RunOnUpdate(menuFrame, 0.016)
+    T.falsy(W.menuOwner, "a cursor menu goes with the row that opened it")
+end)

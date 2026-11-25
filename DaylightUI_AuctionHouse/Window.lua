@@ -504,7 +504,7 @@ end
 function Main.Build(mod)
     ns.module = mod or ns.module
     if Main.frame then return Main.frame end
-    local f = Win.New({ name = Main.NAME, back = "AuctionHouse", w = Main.W, h = Main.H, portrait = true })
+    local f = Win.New({ name = Main.NAME, escape = false, back = "AuctionHouse", w = Main.W, h = Main.H, portrait = true })
     Main.frame = f
     f.onClose = Main.Close
     Main.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)

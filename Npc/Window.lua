@@ -1100,7 +1100,7 @@ end
 function Npc.Build(mod)
     ns.module = mod
     if Npc.frame then return Npc.frame end
-    local f = Win.New({ name = Npc.NAME, back = "NPC", w = Npc.W, h = Npc.H, portrait = true })
+    local f = Win.New({ name = Npc.NAME, escape = false, back = "NPC", w = Npc.W, h = Npc.H, portrait = true })
     Npc.frame = f
     f.onClose = Npc.Goodbye
     Npc.spot = Win.Spot(f, function() return ns.module and ns.module.db end,

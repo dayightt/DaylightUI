@@ -396,7 +396,7 @@ end
 function Social.Build(mod)
     ns.module = mod
     if Social.frame then return Social.frame end
-    local f = Win.New({ name = Social.NAME, back = "Social", w = Social.W, h = Social.H, portrait = true })
+    local f = Win.New({ name = Social.NAME, escape = false, back = "Social", w = Social.W, h = Social.H, portrait = true })
     Social.frame = f
     f.onClose = Social.Close
     Social.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)

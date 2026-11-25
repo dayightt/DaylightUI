@@ -399,7 +399,7 @@ function Book.Build(mod)
     ns.module = mod
     if Book.frame then return Book.frame end
     local S = Book.SIZE
-    local f = Win.New({ name = Book.NAME, back = "Book", w = S.spells[1], h = S.spells[2], portrait = true })
+    local f = Win.New({ name = Book.NAME, escape = false, back = "Book", w = S.spells[1], h = S.spells[2], portrait = true })
     Book.frame = f
     f.onClose = Book.Close
     Book.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)

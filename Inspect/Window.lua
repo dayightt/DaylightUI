@@ -262,7 +262,7 @@ end
 function Insp.Build(mod)
     ns.module = mod
     if Insp.frame then return Insp.frame end
-    local f = Win.New({ name = Insp.NAME, back = "Inspect", w = Insp.W, h = Insp.H, portrait = true })
+    local f = Win.New({ name = Insp.NAME, escape = false, back = "Inspect", w = Insp.W, h = Insp.H, portrait = true })
     Insp.frame = f
     f.onClose = Insp.Close
     Insp.spot = Win.Spot(f, function() return ns.module and ns.module.db end, place)

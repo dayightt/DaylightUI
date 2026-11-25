@@ -2798,6 +2798,21 @@ local function buildMenu()
     catcher:RegisterForClicks("AnyUp")
     catcher:SetScript("OnClick", function() W.CloseMenu() end)
     catcher:Hide()
+    -- Escape closes the menu first and the window under it stays, as with the
+    -- game's menus. Out of a fight the menu's keys take Escape; in a fight they
+    -- are off, and the game's Escape hides the stand-in instead.
+    DUI.Win.Keys(catcher, function(key)
+        if key ~= "ESCAPE" then return false end
+        W.CloseMenu()
+        return true
+    end)
+    catcher.escape = DUI.Motion.EscapeFor(function() W.CloseMenu() end)
+    -- The game's menus close when what opened them stops being visible (a
+    -- window closing, a row scrolled away). Runs only while a menu is open.
+    catcher:SetScript("OnUpdate", function()
+        local o = open.watch
+        if o and not o:IsVisible() then W.CloseMenu() end
+    end)
     menu = CreateFrame("Frame", nil, catcher)
     -- A row with a secure action (opts.secure): on a controller, A on it clicks
     -- a secure button carrying that action, as a row's own click is addon code
@@ -3090,6 +3105,7 @@ function W.OpenMenu(owner, keys, values, current, onPick, width, opts)
     end
     -- On a controller the mouse isn't where the player looks: open at the owner.
     local padded = owner ~= nil and DUI.Pad and DUI.Pad.On()
+    open.watch = owner   -- the real owner, also for a menu placed at the cursor
     if opts and opts.atCursor and not padded then
         cursorSpot = cursorSpot or CreateFrame("Frame", nil, UIParent)
         local x, y = GetCursorPosition()
@@ -3148,6 +3164,8 @@ function W.OpenMenu(owner, keys, values, current, onPick, width, opts)
     -- already open (a menu of switches), it stays put.
     local fresh = not catcher:IsShown() or W.menuOwner ~= owner
     catcher:Show()
+    DUI.Win.KeysOn(catcher, true)
+    DUI.Motion.EscapeShown(catcher.escape, true)
     if fresh then DUI.Motion.SlideIn(menu, 0, up and -W.MENU_DROP or W.MENU_DROP, DUI.Motion.FAST) end
     W.menuOwner = owner
 end
@@ -3161,7 +3179,12 @@ function W.MenuRow(i)
 end
 
 function W.CloseMenu()
-    if catcher then catcher:Hide() end
+    if catcher then
+        catcher:Hide()
+        DUI.Win.KeysOn(catcher, false)
+        DUI.Motion.EscapeShown(catcher.escape, false)
+    end
+    open.watch = nil
     W.menuOwner = nil
 end
 

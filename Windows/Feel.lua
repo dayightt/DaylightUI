@@ -223,6 +223,7 @@ function Feel.IsOpen(frame) return frame:IsShown() and not frame.__feelClosing e
 function Feel.Open(frame)
     if frame.__feelClosing and DUI.Pad then DUI.Pad.Returning(frame) end
     frame.__feelClosing = nil
+    if frame.escapeStandIn then DUI.Motion.EscapeShown(frame.escapeStandIn, true) end
     local from = frame:IsShown() and frame:GetAlpha() or 0
     local dy = frame:IsShown() and Feel.Offset(frame) or -Feel.RISE
     if not frame:IsShown() then
@@ -246,6 +247,8 @@ function Feel.Close(frame, done)
     if not frame:IsShown() then run(done); return end
     if frame.__feelClosing then return end
     frame.__feelClosing = true
+    -- Closing from the first frame: Escape is free for the game menu again.
+    if frame.escapeStandIn then DUI.Motion.EscapeShown(frame.escapeStandIn, false) end
     if DUI.Pad then DUI.Pad.Leaving(frame) end   -- before the Hide, see Pad.Leaving
     local finish = function()
         if not frame.__feelClosing then return end

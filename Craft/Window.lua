@@ -882,7 +882,7 @@ end
 function Craft.Build(mod)
     ns.module = mod
     if Craft.frame then return Craft.frame end
-    local f = Win.New({ name = Craft.NAME, back = "Professions", w = Craft.W, h = Craft.H, portrait = true })
+    local f = Win.New({ name = Craft.NAME, escape = false, back = "Professions", w = Craft.W, h = Craft.H, portrait = true })
     Craft.frame = f
     f.onClose = Craft.Close
     Craft.PadKeys(f)
