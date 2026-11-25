@@ -817,18 +817,28 @@ function Map.WatchButtons()
     if not (area and Map.cfg and Map.cfg.buttons) then return end
     local over = area:IsMouseOver() == true
     for btn, d in pairs(dressed) do
-        local want = (over or btn:IsMouseOver() == true or menuOpen(btn)
-            or (d.kind == "calendar" and invitePending())) and 1 or 0
-        if d.goal ~= want then
-            d.goal = want
-            if want == 1 and d.kind == "calendar" then setDay(d) end
-            DUI.Motion.Tween("infopanel:mapButton:" .. d.kind, d.alpha, want, DUI.Motion.FAST, function(v)
-                d.alpha = v
-                d.frame:SetAlpha(v)
-            end)
+        local invite = d.kind == "calendar" and invitePending()
+        -- At rest (the mouse away from the map, the button gone, unlit, no invite):
+        -- nothing more to ask. The buttons sit on the map, so over one is over the map.
+        if over or invite or d.goal ~= 0 or d.lit then
+            Map.WatchButton(btn, d, over, invite)
         end
-        Map.PaintButton(d)
     end
+end
+
+-- One dressed button: shown while the mouse is on the map or it, its menu is open
+-- or (the calendar) an invite waits.
+function Map.WatchButton(btn, d, over, invite)
+    local want = (over or btn:IsMouseOver() == true or menuOpen(btn) or invite) and 1 or 0
+    if d.goal ~= want then
+        d.goal = want
+        if want == 1 and d.kind == "calendar" then setDay(d) end
+        DUI.Motion.Tween("infopanel:mapButton:" .. d.kind, d.alpha, want, DUI.Motion.FAST, function(v)
+            d.alpha = v
+            d.frame:SetAlpha(v)
+        end)
+    end
+    Map.PaintButton(d)
 end
 
 -- Never nudge the zoom to force the map to redraw: players saw it zoom in and

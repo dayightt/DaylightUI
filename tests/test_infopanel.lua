@@ -3238,9 +3238,13 @@ T.test("info panel: the drawer's corner button is painted only when it lights up
     dot.SetVertexColor = function(...) paints = paints + 1; return set(...) end
     for _ = 1, 5 do D.Watch() end
     T.eq(paints, 0, "nothing changed: no paint")
+    -- The corner button sits inside the map's area: the mouse on it is on the map too.
+    local area = stub.infopanel.Panel.mapArea
+    stub.MouseEnter(area)
     function D.glyph:IsMouseOver() return true end
     for _ = 1, 5 do D.Watch() end
     T.eq(paints, 1, "lit once as the mouse comes")
+    stub.MouseLeave(area)
     function D.glyph:IsMouseOver() return false end
     D.Watch()
     T.eq(paints, 2, "dimmed once as it leaves")

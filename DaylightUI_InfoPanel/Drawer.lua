@@ -425,8 +425,8 @@ end
 -- only scanned at login, the late scan, and on opening.
 local function changed()
     for _, key in ipairs(SOURCES) do
-        local src = _G[key]
-        if not crowded(src) and counts[key] ~= childCount(src) then return true end
+        local n = childCount(_G[key])
+        if n <= Drawer.CROWD and counts[key] ~= n then return true end
     end
     return false
 end
@@ -737,7 +737,11 @@ function Drawer.Watch()
     local g, P = Drawer.glyph, ns.Panel
     if not (g and Drawer.on) then return end
     if changed() then Drawer.Collect() end
-    local over = P.mapArea:IsMouseOver() == true or g:IsMouseOver() == true or menuHeld() or drag ~= nil
+    local over = P.mapArea:IsMouseOver() == true
+    -- At rest (the mouse away, the drawer shut, its corner button gone and unlit):
+    -- nothing more to look at. The corner button sits inside the map's area.
+    if not over and not Drawer.open and g.goal == 0 and not g.lit and drag == nil then return end
+    over = over or g:IsMouseOver() == true or menuHeld() or drag ~= nil
     local now = GetTime()
     if over then Drawer.lastOver = now end
     if Drawer.open and not over and now - (Drawer.lastOver or now) >= Drawer.LINGER then Drawer.Close() end

@@ -38,6 +38,7 @@ Fade.INTRO_FALLBACK = 8 -- after PLAYER_ENTERING_WORLD it starts anyway
 Fade.INTRO_SAFETY = 20 -- and after PLAYER_LOGIN, if the world never arrives
 Fade.DEFAULT = { mode = "never", alpha = 0, mouseover = true, target = false, targetEnemy = false, delay = 4.5, opacity = 1 }
 Fade.REPAINT = 1 -- a faded area at rest is repainted this often (in case of someone else's SetAlpha)
+Fade.REREAD = 1 -- an area's settings are read again at least this often, even with no change heard
 
 Fade.HUSH_OUT = 2.5 -- a hush eases its areas out this slowly (settling in by the fire)
 Fade.WAKE = 1 -- Float: a change shows its area at least this long (even with a delay of 0)
@@ -99,10 +100,30 @@ local function floats(e, s)
     return e.float ~= false and type(s) == "table" and s.mode == "float"
 end
 
+-- Bumped by every setting change: each area's kept choices are read again then.
+local readGen = 0
+
 -- An area's choices, validated: a bad or missing value falls back. opacity is
 -- where it sits while shown, and the faded alpha never goes above it. Float
 -- stands in for the mode as out of combat.
+-- The ticker asks for every area ten times a second, so the answer is kept
+-- until a setting changes. A write that skips DUI:Set (a profile filled in place)
+-- is still picked up within about Fade.REREAD seconds.
+local readFresh
+local stepAt = 0 -- GetTime() at the last tick: the kept choices age by it
 function Fade.Read(e)
+    local c = e.readKept
+    if c and c.gen == readGen and stepAt - c.at < Fade.REREAD then
+        return c[1], c[2], c[3], c[4], c[5], c[6]
+    end
+    c = c or {}
+    e.readKept = c
+    c.gen, c.at = readGen, stepAt
+    c[1], c[2], c[3], c[4], c[5], c[6] = readFresh(e)
+    return c[1], c[2], c[3], c[4], c[5], c[6]
+end
+
+function readFresh(e)
     -- An area with no setting of its own never fades by itself; it only
     -- follows the hushes (a flight path, the campfire).
     local s = e.path and DUI:Get(e.scope, e.path) or nil
@@ -143,10 +164,15 @@ end
 
 -- Inside an instance with "Fades only in the open world" on, every area shows
 -- as if its fade were Never (fights there need everything).
+local asideKept = {}
 function Fade.Aside()
     if not Fade.inInstance then return false end
+    -- Asked for every area each tick: read once a tick (and again after a setting change).
+    local k = asideKept
+    if k.tick == tick and k.gen == readGen then return k.yes end
     local g = DUI.DB and DUI.DB.General and DUI.DB.General()
-    return g ~= nil and g.fadeOpenWorldOnly == true
+    k.tick, k.gen, k.yes = tick, readGen, g ~= nil and g.fadeOpenWorldOnly == true
+    return k.yes
 end
 
 -- Where the player is, checked at login and after each zone change.
@@ -163,12 +189,23 @@ function Fade.CheckInstance()
     return changed
 end
 
+-- The options page on show (nil when the window is closed), read once a tick:
+-- every area asks it on every tick.
+local pageKept = {}
+local function pageShown()
+    local k = pageKept
+    if k.tick == tick then return k.page end
+    local P = DUI.OptionsPanel
+    k.tick, k.page = tick, nil
+    if P ~= nil and P.IsShown() then k.page = P.Current() or false end
+    return k.page
+end
+
 local function forced(e)
     if DUI.Movers and DUI.Movers.unlocked == true then return true end
     if Fade.editMode or DUI.testMode == true then return true end
-    local P = DUI.OptionsPanel
-    if P == nil or not P.IsShown() then return false end
-    local current = P.Current()
+    local current = pageShown()
+    if current == nil then return false end
     if current == Fade.HUB_PAGE then return Fade.HubShows(e) end
     if e.page == nil then return false end
     -- A single page id, or a list (an area shown on several pages).
@@ -224,6 +261,10 @@ function Fade.Goal(e, now)
     -- Leaving (Fade.Leave): invisible no matter what else asks.
     if e.gone then return 0 end
     local mode, alpha, mouseover, delay, opacity, target = Fade.Read(e)
+    -- Never fades and nothing caps or hushes it: shown, whatever else is asked
+    -- below (most areas, ten times a second). Its last-wanted time is left alone,
+    -- as before: switched to a fade later, it fades without waiting the delay again.
+    if mode == "never" and not e.cap and not e.peeking and next(hushes) == nil then return opacity end
     -- Stepped aside: shown, and back in the world the delay runs first.
     if Fade.Aside() then e.lastNear = now; return opacity end
     if Fade.showAll then e.lastNear = now; return opacity end
@@ -495,6 +536,7 @@ Fade.driver = driver
 -- Updates every area's goal and starts the driver if any has to move.
 function Fade.Step()
     local now = GetTime()
+    stepAt = now
     -- The fade-in waits for the loading screen. These start it if that never
     -- reports being gone.
     if loginPhase and ((worldAt and now - worldAt >= Fade.INTRO_FALLBACK)
@@ -1321,6 +1363,7 @@ DUI.RegisterEvent("GLOBAL_MOUSE_UP", function()
 end)
 
 DUI.On("SettingChanged", function(scope, path)
+    readGen = readGen + 1
     if type(path) ~= "string" then return end
     -- "Fades only in the open world": no preview, it applies at once.
     if scope == "general" and path == "fadeOpenWorldOnly" then Fade.Step(); return end

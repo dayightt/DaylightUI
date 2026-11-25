@@ -145,3 +145,69 @@ T.test("no ticker runs faster than the fade's 0.1 s", function()
     T.eq(#fast, 0, "tickers faster than " .. FASTEST_TICKER .. " s:\n  " .. table.concat(fast, "\n  "))
     T.truthy(#stub.tickers > 0, "no tickers at all: the check went hollow")
 end)
+
+-- Lua instructions one call of fn runs, averaged over a few calls.
+local function workOf(fn)
+    if jit then jit.off(); jit.flush() end
+    local ran = 0
+    debug.sethook(function() ran = ran + 1 end, "", 10)
+    for _ = 1, 5 do fn() end
+    debug.sethook()
+    if jit then jit.on() end
+    return ran * 10 / 5
+end
+
+-- The fade ticker runs ten times a second for every area, so at rest it should
+-- cost little: an area's settings only change when the player changes them.
+-- It was about 17,900 instructions a tick before the settings were kept between changes.
+local FADE_TICK_BUDGET = 9500
+
+T.test("idle: the fade ticker's work per tick stays within its budget", function()
+    local DUI = stub.Load(ALL)
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    settle()
+    local work = workOf(DUI.Fade.Step)
+    print(string.format("  (fade tick: %d Lua instructions, budget %d)", work, FADE_TICK_BUDGET))
+    T.truthy(work > 0, "the fade tick ran nothing: the check went hollow")
+    T.truthy(work <= FADE_TICK_BUDGET, string.format("fade tick: %d Lua instructions, budget %d", work, FADE_TICK_BUDGET))
+end)
+
+-- The minimap's addon drawer and its dressed buttons only matter while the mouse is
+-- near the map. With it away and nothing open, each tick asks only whether the mouse
+-- is on the map: no look at the corner button, no repaint of the dressed buttons.
+T.test("idle, mouse away from the map: the drawer and map buttons only ask about the map", function()
+    local PW = require("panelworld")
+    local all = {}
+    for k, v in pairs(ALL) do all[k] = v end
+    all.before = PW.world
+    stub.Load(all)
+    stub.FireEvent("PLAYER_ENTERING_WORLD")
+    settle()
+    local IP = stub.infopanel
+    local Drawer, Map, area = IP.Drawer, IP.Minimap, IP.Panel.mapArea
+    local g = Drawer.glyph
+    local cal = Map.Dressed(GameTimeFrame)
+    T.truthy(g, "the drawer was built")
+    T.truthy(cal, "the map's calendar button was dressed: the check went hollow")
+    Drawer.Watch(); Map.WatchButtons()
+
+    local looks, paints = 0, 0
+    local glyphOver, paint = g.IsMouseOver, Map.PaintButton
+    rawset(g, "IsMouseOver", function(self) looks = looks + 1; return glyphOver(self) end)
+    Map.PaintButton = function(d) paints = paints + 1; return paint(d) end
+    for _ = 1, 10 do Drawer.Watch(); Map.WatchButtons() end
+    T.eq(looks, 0, "the drawer's corner button was asked about the mouse while the mouse was away")
+    T.eq(paints, 0, "the map's buttons were repainted while the mouse was away")
+
+    -- The mouse coming onto the map still brings both up, and leaving lets them go.
+    stub.MouseEnter(area)
+    Drawer.Watch(); Map.WatchButtons()
+    T.eq(g.goal, 1, "the drawer's corner button shows with the mouse on the map")
+    T.eq(cal.goal, 1, "the calendar shows with the mouse on the map")
+    stub.MouseLeave(area)
+    Drawer.Watch(); Map.WatchButtons()
+    T.eq(g.goal, 0, "the corner button goes once the mouse leaves")
+    T.eq(cal.goal, 0, "the calendar goes once the mouse leaves")
+    rawset(g, "IsMouseOver", nil)
+    Map.PaintButton = paint
+end)

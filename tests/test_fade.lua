@@ -804,7 +804,7 @@ T.test("fade: the faded alpha never goes above opacity; a bad opacity falls back
     area(DUI, "tf", { mode = "always", alpha = 0.7, mouseover = true, delay = 0, opacity = 0.4 }, { a })
     settle(F)
     T.near(a:GetAlpha(), 0.4, 1e-6, "faded 70% over opacity 40%: stays at 40%")
-    DUI.DB.General().tf.alpha = 0.2
+    DUI:Set("general", "tf.alpha", 0.2)
     settle(F)
     T.near(a:GetAlpha(), 0.2, 1e-6)
     local _, _, faded, opacity = F.State("tf")
@@ -1576,9 +1576,28 @@ T.test("fade: whole ownership follows list and setting changes while resting at 
     stub.LeaveCombat()
     T.eq(a.buffer, false, "membership was reconciled even without an alpha change")
     T.eq(b.buffer, true)
-    settings.mode = "never"
+    DUI:Set("general", "whole.mode", "never")
     F.Step()
     T.eq(b.buffer, false, "Never releases the request even while already at full opacity")
+end)
+
+-- The ticker keeps each area's settings until a setting changes; a write that skips
+-- DUI:Set (a profile filled in place) is still picked up within Fade.REREAD.
+T.test("fade: kept settings follow DUI:Set at once and a raw write within Fade.REREAD", function()
+    local DUI = stub.Load()
+    local F = DUI.Fade
+    local a = frame()
+    local s = { mode = "never", alpha = 0, mouseover = true, delay = 0 }
+    area(DUI, "tf", s, { a })
+    settle(F)
+    T.eq(a:GetAlpha(), 1, "Never: shown")
+    DUI:Set("general", "tf.mode", "always")
+    settle(F)
+    T.eq(a:GetAlpha(), 0, "a DUI:Set change is read on the next tick")
+    s.mode = "never"
+    stub.Advance(F.REREAD + 0.1)
+    settle(F)
+    T.eq(a:GetAlpha(), 1, "a raw write is picked up within Fade.REREAD")
 end)
 
 T.test("fade: re-registering an area releases old frames and keeps an independent range request", function()
