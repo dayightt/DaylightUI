@@ -36,8 +36,9 @@ QA.LIST = {
     -- Daylight UI's quest lines in NPC tooltips (Quests GiverTips.lua, on unless turned off).
     { key = "showQuestsInNpcTooltip", ours = function() return questsOn() and DUI:Get("Quests", "mapQuests.tooltip") ~= false end },
     -- Untracked quests off the maps. Not with the "whole log" filter: it lists
-    -- every quest without watching any, so Questie would hide them all.
-    { key = "hideUntrackedQuestsMapIcons", value = true, icons = true, ours = function()
+    -- every quest without watching any, so Questie would hide them all. Turned
+    -- on once (`once`): a player who turns it off again in Questie keeps it off.
+    { key = "hideUntrackedQuestsMapIcons", value = true, icons = true, once = true, ours = function()
         return questsOn() and DUI.questsOwnTracker == true and DUI:Get("Quests", "tracker") ~= false
             and DUI:Get("Quests", "filter") ~= "log"
     end },
@@ -151,21 +152,29 @@ function QA.Run()
     root.questieOff = root.questieOff or {}
     local off = root.questieOff
     local redraw = false
+    -- A `once` setting set before is the player's from then on. One noted in
+    -- questieOff was set by an earlier version, so it counts as set too.
+    root.questieSet = root.questieSet or {}
+    local set = root.questieSet
     for _, a in ipairs(QA.LIST) do
         local want = a.value == true
         if a.ours() then
-            if db[a.key] ~= want then
+            local setBefore = a.once and (set[a.key] or off[a.key])
+            if not setBefore and db[a.key] ~= want then
                 db[a.key] = want
                 off[a.key] = true
                 redraw = redraw or a.icons
             end
+            if a.once then set[a.key] = true end
         elseif off[a.key] then
             db[a.key] = not want
             off[a.key] = nil
+            set[a.key] = nil
             redraw = redraw or a.icons
         end
     end
     if next(off) == nil then root.questieOff = nil end
+    if next(set) == nil then root.questieSet = nil end
     if redraw then DUI.AfterCombat(function() DUI.SafeCall(QA.RedrawIcons) end, "questie icons") end
     icons(q, db, root)
     return true

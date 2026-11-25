@@ -248,6 +248,42 @@ T.test("aside: untracked quests leave Questie's maps while ours tracks, not with
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A player's ask: Questie's "Hide icons of untracked quests" came back on after
+-- every reload. Daylight UI turns it on once, then the player's own change stays.
+T.test("aside: untracked quests' icons are hidden once; turned off in Questie, they stay off over a reload", function()
+    local profile
+    local function start(sv)
+        load(function()
+            questie({})
+            if profile then Questie.db.profile = profile end   -- Questie's own saved profile
+            if sv then DaylightUIDB = sv end
+            -- The game's tracker, which Quests switches off as its file loads.
+            ObjectiveTrackerManager = {}
+        end)
+        profile = Questie.db.profile
+        DaylightUI.Fire("QuestMapsChanged")
+    end
+    start()
+    T.eq(profile.hideUntrackedQuestsMapIcons, true, "turned on the first time")
+    -- The player turns it off in Questie's options, then reloads.
+    profile.hideUntrackedQuestsMapIcons = false
+    DaylightUI.Fire("QuestMapsChanged")
+    T.eq(profile.hideUntrackedQuestsMapIcons, false, "a settings change leaves it off")
+    start(DaylightUIDB)
+    T.eq(profile.hideUntrackedQuestsMapIcons, false, "a reload leaves it off")
+    -- A player from before this: it was forced on (noted in questieOff), then turned off.
+    profile.hideUntrackedQuestsMapIcons = false
+    start({ questieOff = { hideUntrackedQuestsMapIcons = true } })
+    T.eq(profile.hideUntrackedQuestsMapIcons, false, "an earlier player's Questie setting stays as it is")
+    -- The whole-log filter hands it back; taking charge again turns it on once more.
+    DaylightUI:Set("Quests", "filter", "log")
+    T.eq(profile.hideUntrackedQuestsMapIcons, false)
+    DaylightUI:Set("Quests", "filter", "zone")
+    T.eq(profile.hideUntrackedQuestsMapIcons, true, "set once again after being handed back")
+    DaylightUI.questsOwnTracker = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("aside: a newly tracked quest's icons draw in a few frames, not Questie's slow queue", function()
     local drawn = 0
     local map = { ProcessQueue = function() drawn = drawn + 1 end }
