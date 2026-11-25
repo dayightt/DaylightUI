@@ -114,23 +114,124 @@ function Keep.SkippedText()
     return string.format(L["Skips %s."], table.concat(names, ", "))
 end
 
--- The game's bag windows hold this switch, and they stay parked, so this menu
--- is the only way to see or change it: one row a bag, ticked when Clean Up
--- leaves that bag alone (a right-click on the bag slots strip).
-function Keep.CleanupMenu(owner)
-    local keys, values, titles = { "head" }, { head = L["Clean Up skips"] }, { head = true }
-    for _, bag in ipairs(Keep.CleanupBags()) do
-        local k = "bag" .. bag
-        keys[#keys + 1] = k
-        values[k] = Keep.BagName(bag)
+-- Sell Junk leaving a bag alone, the same flag the game's bag menu sets (read
+-- by Junk.BagSkipped).
+function Keep.SetSellSkipped(bag, on)
+    local C = C_Container
+    on = on == true
+    if bag == 0 then
+        if type(C.SetBackpackSellJunkDisabled) == "function" then DUI.SafeCall(C.SetBackpackSellJunkDisabled, on) end
+        return
     end
-    local function bagOf(k) return tonumber(string.match(k, "^bag(%d+)$")) end
+    local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ExcludeJunkSell
+    if flag ~= nil and type(C.SetBagSlotFlag) == "function" then DUI.SafeCall(C.SetBagSlotFlag, bag, flag, on) end
+end
+
+-- What a bag holds: the game's sort puts these kinds in it first. The game's own
+-- list and order (ContainerFrameUtil_EnumerateBagGearFilters), each with its word.
+Keep.HOLDS = { "ClassEquipment", "ClassConsumables", "ClassProfessionGoods", "ClassJunk", "ClassQuestItems", "ClassReagents" }
+Keep.HOLDS_WORD = { ClassEquipment = "BAG_FILTER_EQUIPMENT", ClassConsumables = "BAG_FILTER_CONSUMABLES",
+    ClassProfessionGoods = "BAG_FILTER_PROFESSION_GOODS", ClassJunk = "BAG_FILTER_JUNK",
+    ClassQuestItems = "BAG_FILTER_QUEST_ITEMS", ClassReagents = "BAG_FILTER_REAGENTS" }
+Keep.HOLDS_FALLBACK = { ClassEquipment = L["Equipment"], ClassConsumables = L["Consumables"],
+    ClassProfessionGoods = L["Trade Goods"], ClassJunk = L["Junk"], ClassQuestItems = L["Quest Items"],
+    ClassReagents = L["Reagents"] }
+
+function Keep.HoldsWord(name) return _G[Keep.HOLDS_WORD[name]] or Keep.HOLDS_FALLBACK[name] end
+
+-- Only an equipped plain bag holds what the player picks: not the backpack, nor
+-- a profession bag (the game's ContainerFrame_CanContainerUseFilterMenu).
+function Keep.CanHold(bag)
+    local Bags = ns.Bags
+    if type(bag) ~= "number" or bag < 1 or bag > Bags.NumBags() or Bags.NumSlots(bag) <= 0 then return false end
+    local inv = C_Container.ContainerIDToInventoryID and C_Container.ContainerIDToInventoryID(bag)
+    if inv and type(IsInventoryItemProfessionBag) == "function" and IsInventoryItemProfessionBag("player", inv) then
+        return false
+    end
+    return true
+end
+
+function Keep.Holds(bag, name)
+    local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags[name]
+    local get = C_Container.GetBagSlotFlag
+    return flag ~= nil and type(get) == "function" and get(bag, flag) == true
+end
+
+function Keep.SetHolds(bag, name, on)
+    local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags[name]
+    local set = C_Container.SetBagSlotFlag
+    if flag ~= nil and type(set) == "function" then DUI.SafeCall(set, bag, flag, on == true) end
+end
+
+-- "Equipment, Junk", or nil when the bag holds anything.
+function Keep.HoldsText(bag)
+    if not Keep.CanHold(bag) then return nil end
+    local words = {}
+    for _, name in ipairs(Keep.HOLDS) do
+        if Keep.Holds(bag, name) then words[#words + 1] = Keep.HoldsWord(name) end
+    end
+    if #words == 0 then return nil end
+    return table.concat(words, LIST_DELIMITER or ", ")
+end
+
+-- The game's bag windows hold these switches, and they stay parked, so these
+-- menus are the only way to see or change them. The Clean Up button's lists
+-- every bag, backpack first: ticked when Clean Up, then Sell junk, leaves it alone.
+function Keep.CleanupMenu(owner)
+    local keys, values, titles = { "head" }, { head = L["Clean Up skips"] }, { head = true, sellhead = true }
+    local bags = Keep.CleanupBags()
+    for _, bag in ipairs(bags) do
+        keys[#keys + 1] = "bag" .. bag
+        values["bag" .. bag] = Keep.BagName(bag)
+    end
+    keys[#keys + 1] = "sellhead"
+    values.sellhead = L["Sell junk skips"]
+    for _, bag in ipairs(bags) do
+        keys[#keys + 1] = "sell" .. bag
+        values["sell" .. bag] = Keep.BagName(bag)
+    end
+    local function read(k)
+        local kind, n = string.match(k, "^(%a+)(%d+)$")
+        return kind, tonumber(n)
+    end
     DUI.Widgets.OpenMenu(owner, keys, values, nil, function(k)
-        local bag = bagOf(k)
-        if bag then Keep.SetSkipped(bag, not skipped(bag)) end
+        local kind, bag = read(k)
+        if kind == "bag" then Keep.SetSkipped(bag, not skipped(bag))
+        elseif kind == "sell" then Keep.SetSellSkipped(bag, not ns.Junk.BagSkipped(bag)) end
     end, nil, { titles = titles, keepOpen = true, checked = function(k)
-        local bag = bagOf(k)
-        return bag ~= nil and skipped(bag)
+        local kind, bag = read(k)
+        if kind == "bag" then return skipped(bag) end
+        if kind == "sell" then return ns.Junk.BagSkipped(bag) end
+        return false
+    end })
+end
+
+-- One bag's menu (a right-click on it in the strip), as the game's per-bag menu:
+-- what it holds (a plain bag only), then whether Clean Up and Sell junk skip it.
+function Keep.BagMenu(owner, bag)
+    if ns.Bags.NumSlots(bag) <= 0 then return end
+    local name = Keep.BagName(bag)
+    local keys, values, titles = {}, {}, { holds = true, skips = true }
+    if Keep.CanHold(bag) then
+        keys[1], values.holds = "holds", string.format(L["%s holds"], name)
+        for _, hold in ipairs(Keep.HOLDS) do
+            keys[#keys + 1] = hold
+            values[hold] = Keep.HoldsWord(hold)
+        end
+    end
+    keys[#keys + 1] = "skips"
+    values.skips = string.format(L["%s is skipped by"], name)
+    keys[#keys + 1], values.clean = "clean", BAG_FILTER_CLEANUP or L["Clean Up"]
+    keys[#keys + 1], values.sell = "sell", L["Sell junk"]
+    DUI.Widgets.OpenMenu(owner, keys, values, nil, function(k)
+        if k == "clean" then Keep.SetSkipped(bag, not skipped(bag))
+        elseif k == "sell" then Keep.SetSellSkipped(bag, not ns.Junk.BagSkipped(bag))
+        elseif Keep.HOLDS_WORD[k] then Keep.SetHolds(bag, k, not Keep.Holds(bag, k)) end
+    end, nil, { titles = titles, keepOpen = true, checked = function(k)
+        if k == "clean" then return skipped(bag) end
+        if k == "sell" then return ns.Junk.BagSkipped(bag) end
+        if Keep.HOLDS_WORD[k] then return Keep.Holds(bag, k) end
+        return false
     end })
 end
 

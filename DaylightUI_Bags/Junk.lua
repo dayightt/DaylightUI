@@ -23,10 +23,22 @@ end
 Junk.PriceOf = priceOf
 
 -- Every junk slot that sells for something: { bag, slot, value }.
+-- A bag the game's Sell Junk is told to leave alone (its bag menu's "Ignore"
+-- Sell Junk, saved by the game). The game's sale skips it, so Daylight UI's
+-- own sales do too.
+function Junk.BagSkipped(bag)
+    local C = C_Container
+    if bag == 0 then
+        return type(C.GetBackpackSellJunkDisabled) == "function" and C.GetBackpackSellJunkDisabled() == true
+    end
+    local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ExcludeJunkSell
+    return flag ~= nil and type(C.GetBagSlotFlag) == "function" and C.GetBagSlotFlag(bag, flag) == true
+end
+
 function Junk.Items()
     local out = {}
     for _, s in ipairs(ns.Bags.Slots()) do
-        if s.section ~= "keyring" then
+        if s.section ~= "keyring" and not Junk.BagSkipped(s.bag) then
             local slot = s.button:GetID()
             local info = ns.Items.InfoAt(s.bag, slot)
             if info and not info.hasNoValue then
@@ -50,7 +62,7 @@ end
 function Junk.Grays()
     local out, kept = {}, false
     for _, s in ipairs(ns.Bags.Slots()) do
-        if s.section ~= "keyring" then
+        if s.section ~= "keyring" and not Junk.BagSkipped(s.bag) then
             local slot = s.button:GetID()
             local info = ns.Items.InfoAt(s.bag, slot)
             if info and info.quality == 0 and not info.hasNoValue then

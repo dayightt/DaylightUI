@@ -133,6 +133,31 @@ local function paint(b)
     local inv = invSlot(b.bag)
     local tex = inv and GetInventoryItemTexture and GetInventoryItemTexture("player", inv)
     Slots.Paint(b, tex, tex and GetInventoryItemQuality and GetInventoryItemQuality("player", inv))
+    -- Gray while the bag is on the cursor, as the game's bag slot shows it.
+    local locked = tex ~= nil and type(IsInventoryItemLocked) == "function" and IsInventoryItemLocked(inv) == true
+    b.icon:SetDesaturated(locked)
+end
+
+-- A bag on the cursor lights the slots it can go in, as the game's bag slots do.
+function Slots.LightFits()
+    local strip = Slots.strip
+    if not strip or not strip:IsVisible() then return end
+    local fits = C_PaperDollInfo and C_PaperDollInfo.CursorCanGoInSlot
+    for _, b in ipairs(strip.slots) do
+        if not b.keyring then
+            local inv = invSlot(b.bag)
+            if inv and type(fits) == "function" and fits(inv) == true then b:LockHighlight() else b:UnlockHighlight() end
+        end
+    end
+end
+
+-- An equipped item's lock (no slot): a bag picked up or put back.
+local function lockChanged(_, inv, slot)
+    local strip = Slots.strip
+    if slot ~= nil or not strip or not strip:IsVisible() then return end
+    for _, b in ipairs(strip.slots) do
+        if not b.keyring and invSlot(b.bag) == inv then paint(b) end
+    end
 end
 
 local function slotButton(strip, bag, profession)
@@ -147,7 +172,7 @@ local function slotButton(strip, bag, profession)
     end
     local b = Slots.NewButton(strip, { pick = pick, put = put, slots = function() return ns.Bags.Slots() end,
         lit = function() return bag end,
-        menu = function(self) ns.Keep.CleanupMenu(self) end,
+        menu = function(self) ns.Keep.BagMenu(self, bag) end,
         tip = function()
             local inv = invSlot(bag)
             if not (inv and GameTooltip:SetInventoryItem("player", inv)) then
@@ -159,14 +184,18 @@ local function slotButton(strip, bag, profession)
     return b
 end
 
--- Under a bag's tooltip: whether Clean Up skips it, or skips the backpack
--- (which has no button here), and where to change that.
+-- Under a bag's tooltip: what it holds, as the game's bag slot says; whether
+-- Clean Up or Sell junk skips it, or Clean Up skips the backpack (which has no
+-- button here); and where to change that.
 function Slots.CleanupTip(bag)
     local Tips, Keep = DUI.Tips, ns.Keep
     Tips.Clear()
+    local holds = Keep.HoldsText(bag)
+    if holds then Tips.Text(string.format(BAG_FILTER_ASSIGNED_TO or L["Holds %s"], holds)) end
     if bag and Keep.Skipped(bag) then Tips.Text(L["Clean Up skips this bag."], Style.INK.WARN) end
     if bag ~= 0 and Keep.Skipped(0) then Tips.Text(L["Clean Up skips your backpack."], Style.INK.WARN) end
-    Tips.Hint(L["Right-click: choose bags Clean Up skips"])
+    if bag and ns.Junk.BagSkipped(bag) then Tips.Text(L["Sell junk skips this bag."], Style.INK.WARN) end
+    Tips.Hint(L["Right-click: what this bag holds and what skips it"])
     Tips.Flush(GameTooltip)
 end
 
@@ -223,6 +252,8 @@ function Slots.Create(window)
     for _, e in ipairs({ "BAG_UPDATE_DELAYED", "BAG_CONTAINER_UPDATE", "PLAYER_EQUIPMENT_CHANGED" }) do
         DUI.RegisterEvent(e, Slots.Refresh)
     end
+    DUI.RegisterEvent("ITEM_LOCK_CHANGED", lockChanged)
+    DUI.RegisterEvent("CURSOR_CHANGED", Slots.LightFits)
     Slots.strip = strip
     Slots.Layout()
     Slots.Apply()
@@ -249,6 +280,7 @@ function Slots.Refresh()
             if enter then enter(b) end
         end
     end
+    Slots.LightFits()
 end
 
 function Slots.Apply()

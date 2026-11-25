@@ -284,7 +284,7 @@ end)
 -- backpack was set to be skipped by clean up, and with the game's bag windows
 -- parked nothing showed it or could change it: a right-click on the bag slots
 -- strip did nothing.
-T.test("bags: a right-click on a strip bag lists the bags Clean Up skips, the backpack too", function()
+T.test("bags: the Clean Up button's right-click lists the bags Clean Up skips, the backpack too", function()
     local ns = shelf()
     local flags, backpack = {}, false
     C_Container.GetBackpackAutosortDisabled = function() return backpack end
@@ -298,12 +298,13 @@ T.test("bags: a right-click on a strip bag lists the bags Clean Up skips, the ba
     DaylightUI.Widgets.OpenMenu = function(owner, keys, values, current, onPick, width, opts)
         menu = { owner = owner, keys = keys, values = values, pick = onPick, opts = opts }
     end
-    local bag1 = ns.Slots.strip.slots[1]
-    T.eq(bag1.bag, 1)
-    bag1:GetScript("OnClick")(bag1, "RightButton")
+    local sort = ns.window.sort
+    sort:GetScript("OnClick")(sort, "RightButton")
     DaylightUI.Widgets.OpenMenu = openMenu
     T.truthy(menu, "a menu opens")
-    T.deq(menu.keys, { "head", "bag0", "bag1" }, "a heading, the backpack, then each equipped bag")
+    T.eq(menu.owner, sort)
+    T.deq(menu.keys, { "head", "bag0", "bag1", "sellhead", "sell0", "sell1" },
+        "a heading, the backpack, then each equipped bag; the same for Sell junk")
     T.truthy(menu.opts.titles.head and menu.opts.keepOpen, "a menu of switches under a heading")
     T.falsy(menu.opts.checked("bag0"))
     menu.pick("bag0")
@@ -314,7 +315,9 @@ T.test("bags: a right-click on a strip bag lists the bags Clean Up skips, the ba
     T.truthy(flags["1:1"], "a bag uses the game's own flag")
     menu.pick("bag0")
     T.falsy(backpack, "and back")
-    -- Its tooltip says so too (bag 1 is still skipped).
+    -- A strip bag's tooltip says so too (bag 1 is still skipped).
+    local bag1 = ns.Slots.strip.slots[1]
+    T.eq(bag1.bag, 1)
     local lines = {}
     local tip = GameTooltip
     _G.GameTooltip = { Hide = function() end, SetOwner = function() end, Show = function() end,
@@ -327,14 +330,6 @@ T.test("bags: a right-click on a strip bag lists the bags Clean Up skips, the ba
     local said = table.concat(lines, " / ")
     T.truthy(said:find("Clean Up skips this bag.", 1, true), said)
     T.truthy(said:find("Right-click", 1, true), "and where to change it")
-    -- The Clean Up button names what it skips and opens the same menu, so the
-    -- backpack is reachable with the strip hidden too.
     T.eq(ns.Keep.SkippedText(), "Skips Bag 1.")
-    local sort = ns.window.sort
-    DaylightUI.Widgets.OpenMenu = function(owner, keys) menu = { owner = owner, keys = keys } end
-    sort:GetScript("OnClick")(sort, "RightButton")
-    DaylightUI.Widgets.OpenMenu = openMenu
-    T.eq(menu.owner, sort)
-    T.deq(menu.keys, { "head", "bag0", "bag1" })
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

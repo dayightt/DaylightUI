@@ -1402,6 +1402,20 @@ function Items.FillLocked(btn)
     if btn.dluiTwin and btn.dluiTwin:IsShown() then Items.FillLocked(btn.dluiTwin) end
 end
 
+-- The game's junk coin shows only while a vendor's window is open (its
+-- UpdateJunkItem reads MerchantFrame), so it's asked again when one opens or
+-- closes. A slot filled while the bag was shut kept no coin at the vendor.
+function Items.FillJunk(btn)
+    local holder = btn:GetParent()
+    local bag = holder and holder:GetID()
+    if type(bag) ~= "number" or ns.Saved.Is(bag) then return end
+    local info = Items.InfoAt(bag, btn:GetID())
+    if not info then return end
+    local marked = ns.Categories.IsMarkedJunk(info.itemID)
+    call(btn, "UpdateJunkItem", marked and 0 or info.quality, info.hasNoValue)
+    if btn.dluiTwin and btn.dluiTwin:IsShown() then Items.FillJunk(btn.dluiTwin) end
+end
+
 -- The cooldown sweep, and the dimmed icon of an item that can't be used yet, drawn
 -- the way the button's own UpdateCooldown does (see Items.Fill for why not by it).
 function Items.Cooldown(btn, bag, slot, has)

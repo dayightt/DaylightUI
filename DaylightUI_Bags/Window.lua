@@ -326,6 +326,11 @@ function Window.Create(spec)
     f.money = text(f, Window.TEXT_SIZE, "RIGHT")
     f.money:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -E, E)
     if spec.kind == "bag" then
+        -- A click on the gold picks some up for a trade or a letter, as the
+        -- game's backpack money does.
+        f.moneyButton = CreateFrame("Button", nil, f)
+        f.moneyButton:SetAllPoints(f.money)
+        f.moneyButton:SetScript("OnClick", function() Window.PickUpMoney(f) end)
         -- Shown only at a vendor with something to sell (Window.UpdateSell).
         f.sellJunk = Window.TextButton(f, L["Sell junk"])
         -- On the bar's row, away from the money and currencies below.
@@ -472,7 +477,11 @@ function Window.PadUseLabel(f, b)
     if f.kind == "bank" then return L["To your bags"] end
     if ns.Bank and ns.Bank.open then return L["To the bank"] end
     local merchant = _G.MerchantFrame
-    if merchant and merchant:IsShown() and not info.hasNoValue then return CONTEXT_ACTION_LABEL_SELL or L["Sell"] end
+    if merchant and merchant:IsShown() then
+        -- The buyback tab: the game's right click does nothing there.
+        if merchant.selectedTab == 2 then return nil end
+        if not info.hasNoValue then return CONTEXT_ACTION_LABEL_SELL or L["Sell"] end
+    end
     if info.hasLoot then return CONTEXT_ACTION_LABEL_OPEN or L["Open"] end
     if info.isReadable then return CONTEXT_ACTION_LABEL_READ or L["Read"] end
     local link = info.hyperlink
@@ -698,6 +707,10 @@ function Window.PadSetup(f)
           after = Window.PadUsed },
         { key = "Y", label = CONTEXT_ACTION_LABEL_MORE_ACTIONS or L["More"],
           when = function(b) return padItem(b) ~= nil end, run = Window.PadMore },
+        -- An item held: B puts it back before it closes anything, as the game's bag.
+        { key = "B", follow = true, label = FRAME_ACTION_BACK or BACK or L["Back"],
+          when = function() return type(CursorHasItem) == "function" and CursorHasItem() == true end,
+          run = function() ClearCursor() end },
     }
     f.padTabs = function() return padGroups(f) end
     f.padTabsLabel = L["Groups"]
@@ -990,6 +1003,24 @@ function Window.PortraitMenu(f, spec)
     tip(b, spec.title, nil, spec.hint)
     f.portraitButton = b
     return b
+end
+
+-- How much gold to pick up, asked over the money in Daylight UI's own box (the
+-- game asks in its PICKUP_MONEY pop-up, never opened from addon code), then on
+-- the cursor as the game's MoneyInputFrame_PickupPlayerMoney does it.
+function Window.PickUpMoney(f)
+    if type(PickupPlayerMoney) ~= "function" then return end
+    DUI.Widgets.Ask({ key = "pickUpMoney", text = L["Pick up how much?"],
+        yes = L["Pick up"], no = CANCEL or L["Cancel"], money = { initial = 0 }, owner = f.money,
+        width = DUI.Widgets.COINS.gold + 2 * DUI.Widgets.COINS.small + 2 * DUI.Widgets.COINS.gap
+            + DUI.Widgets.COINS.glyph + 2 * DUI.Win.EDGE,
+        onYes = function(copper)
+            if copper > (GetMoney() or 0) then
+                DUI.ShowError(ERR_NOT_ENOUGH_MONEY or L["You don't have enough money."])
+                return
+            end
+            PickupPlayerMoney(copper)
+        end })
 end
 
 function Window.Sort()
@@ -1539,6 +1570,17 @@ local function registerEvents()
         end
     end)
     DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", soon(fillCooldowns))
+    -- The junk coin follows the vendor's window, read a frame later so the
+    -- window has opened or closed by then.
+    local junkAgain = soon(function()
+        for _, f in ipairs(ns.windows) do
+            if not f.spec.still then
+                for _, s in ipairs(f.set.Slots()) do ns.Items.FillJunk(s.button) end
+            end
+        end
+    end)
+    DUI.RegisterEvent("MERCHANT_SHOW", junkAgain)
+    DUI.RegisterEvent("MERCHANT_CLOSED", junkAgain)
     -- A fight needs the bag right at once: a cleanup still held lands now, and
     -- anything still gliding or fading lands where it was going.
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function()
@@ -1588,7 +1630,7 @@ local function bagWindow()
         tools = {
             { key = "sort", icon = Window.SORT_ICON, title = BAG_CLEANUP_BAGS or L["Clean Up Bags"], onClick = function() Window.Sort() end,
               desc = function() return ns.Keep.SkippedText() end,
-              hint = L["Right-click: choose bags Clean Up skips"],
+              hint = L["Right-click: choose bags Clean Up and Sell junk skip"],
               onRightClick = function(w) ns.Keep.CleanupMenu(w.sort) end },
             { key = "slotsButton", icon = Window.SLOTS_ICON, title = L["Bag slots"], desc = L["Show your bag slots: drag a bag out, or drop one in."],
               onClick = function(w)

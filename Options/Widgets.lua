@@ -1510,6 +1510,53 @@ function W.Input(parent, opts)
     return e
 end
 
+-- An amount of money to type: gold, silver and copper boxes in a row, each with
+-- its coin, as the game's own money boxes. c.Copper() reads the total, c.Set(copper)
+-- fills them, c.Focus() starts in the gold box; Tab steps through them.
+-- opts.onEnter and opts.onEscape answer the boxes' Enter and Escape.
+W.COINS = { gold = 64, small = 40, gap = 26, glyph = 20 }
+
+function W.Coins(parent, opts)
+    opts = opts or {}
+    local c = CreateFrame("Frame", nil, parent)
+    local boxes, x = {}, 0
+    local worth = { gold = 10000, silver = 100, copper = 1 }
+    for i, key in ipairs({ "gold", "silver", "copper" }) do
+        local w = key == "gold" and W.COINS.gold or W.COINS.small
+        local e = W.Input(c, { numeric = true, maxLetters = key == "gold" and 6 or 2, justify = "RIGHT" })
+        e:SetSize(w, W.INPUT_H)
+        e:SetPoint("TOPLEFT", c, "TOPLEFT", x, 0)
+        local coin = Style.Text(c, SIZE.small, "LEFT")
+        coin:SetPoint("LEFT", e, "RIGHT", 4, 0)
+        coin:SetText((DUI.MoneyString(worth[key]):gsub("^1", "")))
+        x = x + w + W.COINS.gap
+        c[key], boxes[i] = e, e
+    end
+    for i, e in ipairs(boxes) do
+        e:SetScript("OnTabPressed", function() boxes[i % #boxes + 1]:SetFocus() end)
+        if opts.onEnter then e:SetScript("OnEnterPressed", function() opts.onEnter() end) end
+        if opts.onEscape then e:SetScript("OnEscapePressed", function() opts.onEscape() end) end
+    end
+    c:SetSize(x - W.COINS.gap + W.COINS.glyph, W.INPUT_H)
+    local function n(e) return tonumber(e:GetText()) or 0 end
+    function c.Copper() return n(c.gold) * 10000 + n(c.silver) * 100 + n(c.copper) end
+    function c.Set(copper)
+        copper = math.max(0, math.floor(tonumber(copper) or 0))
+        local g, s, k = math.floor(copper / 10000), math.floor(copper / 100) % 100, copper % 100
+        c.gold:SetText(g > 0 and tostring(g) or "")
+        c.silver:SetText(s > 0 and tostring(s) or "")
+        c.copper:SetText(k > 0 and tostring(k) or "")
+    end
+    function c.Focus()
+        c.gold:SetFocus()
+        c.gold:HighlightText()
+    end
+    function c.Unfocus()
+        for _, e in ipairs(boxes) do e:ClearFocus() end
+    end
+    return c
+end
+
 -- Multi-line text box: scrollable text to select and copy or paste into,
 -- in W.Input's box with our scroll bar. The caller places the area (a
 -- ScrollFrame); the edit box is area.edit.
@@ -4522,6 +4569,10 @@ end
 -- input = { initial, hint, empty, locked }: a text box. onYes gets its trimmed
 --   text and isn't called when it's empty unless `empty`; `locked` keeps the
 --   text as given, selected, for copying.
+-- money = { initial, empty }: gold, silver and copper boxes (W.Coins) instead.
+--   onYes gets the copper and isn't called for none unless `empty`.
+-- owner: the box sits over this region (the money it asks about) instead of
+--   the middle of the screen. width: narrower or wider than W.ASK_W.
 -- preview = { height, show(holder), hide(holder) }: something to look at under
 --   the question (a live sample), full width; show fills the holder each time
 --   the question shows, hide runs when it goes.
@@ -4564,6 +4615,7 @@ local function askLetGo(f)
     f.shownPreview = nil
     f.spec = nil
     f.input:ClearFocus()
+    f.coins.Unfocus()
     askHideReload()
     DUI.Win.KeysOn(f, false)
     DUI.Win.Close(f)
@@ -4578,9 +4630,12 @@ local function askAnswer(yes)
     if not spec then return end
     local value
     if spec.input then value = strtrim(f.input:GetText() or "") end
+    if spec.money then value = f.coins.Copper() end
     askLetGo(f)
     if yes then
-        if not (spec.input and value == "" and not spec.input.empty) and spec.onYes then
+        local none = (spec.input and value == "" and not spec.input.empty)
+            or (spec.money and value == 0 and not spec.money.empty)
+        if not none and spec.onYes then
             DUI.SafeCall(spec.onYes, value)
         end
         -- Pressed without the secure button (a controller, or it couldn't be
@@ -4645,6 +4700,8 @@ local function askBuild()
     f.input = W.Input(f.host)
     f.input:SetScript("OnEnterPressed", function() askAnswer(true) end)
     f.input:SetScript("OnEscapePressed", function() askAnswer(false) end)
+    f.coins = W.Coins(f.host, { onEnter = function() askAnswer(true) end, onEscape = function() askAnswer(false) end })
+    f.coins:Hide()
     f.foot = Win.Parts.Footer(f.host)
     Win.Drag(f, {})
     Win.Keys(f, function(key)
@@ -4663,6 +4720,8 @@ askShow = function(spec)
     local f = askBox
     f.spec = spec
     f.title:SetText(spec.title or "Daylight UI")
+    local width = spec.width or W.ASK_W
+    f.text:SetWidth(width - 2 * Win.EDGE)
     f.text:SetText(spec.text or "")
     local textH = f.text:GetStringHeight()
     local h = Win.COMPACT + W.ASK_TOP + (type(textH) == "number" and math.ceil(textH) or SIZE.body) + W.ASK_FOOT
@@ -4693,17 +4752,29 @@ askShow = function(spec)
         if input.locked then f.input.Lock(input.initial or "") end
         h = h + W.ASK_GAP + W.INPUT_H
     end
+    local money = spec.money
+    f.coins:SetShown(money ~= nil)
+    if money then
+        f.coins:ClearAllPoints()
+        f.coins:SetPoint("TOPLEFT", spec.preview and f.preview or f.text, "BOTTOMLEFT", 0, -W.ASK_GAP)
+        f.coins.Set(money.initial)
+        h = h + W.ASK_GAP + W.INPUT_H
+    end
     local list = { { text = spec.yes or YES or L["Yes"], primary = true, onClick = function() askAnswer(true) end } }
     if spec.no ~= false then
         list[2] = { text = spec.no or NO or L["No"], onClick = function() askAnswer(false) end }
     end
     f.foot:Set(list)
     if Win.IsOpen(f) then
-        Win.Feel.Size(f, W.ASK_W, h)
+        Win.Feel.Size(f, width, h)
     else
-        f:SetSize(W.ASK_W, h)
+        f:SetSize(width, h)
         f:ClearAllPoints()
-        f:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+        if spec.owner then
+            f:SetPoint("BOTTOMRIGHT", spec.owner, "TOPRIGHT", Win.EDGE, Win.EDGE)
+        else
+            f:SetPoint("CENTER", UIParent, "CENTER", 0, 120)
+        end
         f:SetScale(Win.Scale(1))
         Win.Open(f)
         Win.KeysOn(f, true)
@@ -4713,6 +4784,7 @@ askShow = function(spec)
         f.input:SetFocus()
         f.input:HighlightText()
     end
+    if money then f.coins.Focus() end
     if spec.reload then askShowReload(f) else askHideReload() end
 end
 

@@ -394,20 +394,9 @@ function Send.Build(page)
     page.subject:SetScript("OnTabPressed", function() page.body:SetFocus() end)
     y = y + Send.LETTER_H + (Send.ROW - W().INPUT_H) + 4
     page.goldLabel = label(page, L["Gold"], y)
-    local x = Send.EDGE + Send.LABEL_W
-    local function coin(key, w, glyph)
-        local e = W().Input(page, { numeric = true, maxLetters = key == "gold" and 6 or 2, justify = "RIGHT" })
-        e:SetSize(w, W().INPUT_H)
-        e:SetPoint("TOPLEFT", page, "TOPLEFT", x, -y)
-        local g = Style.Text(page, Style.SIZE.small, "LEFT")
-        g:SetPoint("LEFT", e, "RIGHT", 4, 0)
-        g:SetText(glyph)
-        x = x + w + 26
-        page[key] = e
-    end
-    coin("gold", 64, DUI.MoneyString(10000):gsub("^1", ""))
-    coin("silver", 40, DUI.MoneyString(100):gsub("^1", ""))
-    coin("copper", 40, DUI.MoneyString(1):gsub("^1", ""))
+    local coins = W().Coins(page)
+    coins:SetPoint("TOPLEFT", page, "TOPLEFT", Send.EDGE + Send.LABEL_W, -y)
+    page.gold, page.silver, page.copper = coins.gold, coins.silver, coins.copper
     page.cod = W().Switch(page)
     page.cod:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Send.EDGE, -y - 5)
     page.cod:SetScript("OnClick", function() S.cod = not S.cod; Send.PaintCod(page) end)

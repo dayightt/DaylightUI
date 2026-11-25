@@ -98,9 +98,14 @@ function Currency.Build(page)
     ns.List.AddToggle(P, L["Show in the backpack"], function(t)
         if P.currency then C_CurrencyInfo.SetCurrencyBackpack(P.currency.index, not t.on) end
         ns.Window.Refresh()
+        -- No event comes for it: the bag's footer is told.
+        DUI.Fire("BackpackCurrencyChanged")
     end)
     P.button:SetScript("OnClick", function() Currency.Transfer() end)
 end
+
+-- A currency taken off the bag's footer (Shift-click there) unticks it here.
+DUI.On("BackpackCurrencyChanged", function() ns.Window.Refresh() end)
 
 function Currency.Place(page)
     local E, W = ns.List.EDGE, ns.Window.Width()
