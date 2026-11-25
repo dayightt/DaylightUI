@@ -2090,6 +2090,67 @@ T.test("info panel: faded out, the minimap goes see-through, never hidden (its i
     T.truthy(Minimap:IsShown())
 end)
 
+T.test("info panel: faded out, the minimap's quest areas go with it and come back with it", function()
+    login()
+    -- The client draws the quest areas (their fill and glowing edge) whatever
+    -- the map's alpha, as it does the arrow; they stay inside the map's mask.
+    -- A player saw the outlines float in the corner with the map faded away.
+    local Map = stub.infopanel.Minimap
+    local function areasShow() return Minimap:IsVisible() and Minimap.__mask ~= Map.ERASE end
+    local F = DaylightUI.Fade
+    local function settle()
+        F.Step()
+        for _ = 1, 120 do stub.RunOnUpdate(F.driver, 1 / 60) end
+    end
+    local own = Minimap.__mask
+    T.truthy(own and own ~= Map.ERASE, "at rest: the map's own mask")
+    T.truthy(areasShow(), "at rest: quest areas show")
+    DaylightUI:Set("InfoPanel", "fade.mode", "ooc")
+    DaylightUI:Set("InfoPanel", "fade.delay", 0)
+    stub.Advance(3)
+    settle()
+    T.eq(Minimap:GetAlpha(), 0, "faded: map gone")
+    T.falsy(areasShow(), "faded: its quest areas gone too")
+    -- The panel laid out again meanwhile (a setting, a loading screen) keeps them away.
+    Map.Apply(Map.cfg)
+    settle()
+    T.falsy(areasShow(), "a refresh while faded doesn't bring them back")
+    stub.EnterCombat()
+    settle()
+    T.eq(Minimap:GetAlpha(), 1, "in a fight: map back")
+    T.eq(Minimap.__mask, own, "with its own mask")
+    T.truthy(areasShow(), "and its quest areas")
+    stub.LeaveCombat()
+    stub.Advance(3)
+    settle()
+    T.falsy(areasShow(), "faded again: gone again")
+    -- A round map gets its round mask back, not the square one.
+    DaylightUI:Set("InfoPanel", "map.shape", "round")
+    settle()
+    T.falsy(areasShow(), "shape changed while faded: still gone")
+    DaylightUI:Set("InfoPanel", "fade.mode", "never")
+    stub.Advance(3)
+    settle()
+    T.eq(Minimap.__mask, Map.ROUND_MASK, "back: the round mask")
+    T.truthy(areasShow())
+    -- Faded only part way, the map still shows: so do they.
+    DaylightUI:Set("InfoPanel", "fade.mode", "ooc")
+    DaylightUI:Set("InfoPanel", "fade.alpha", 0.3)
+    stub.Advance(3)
+    settle()
+    T.near(Minimap:GetAlpha(), 0.3, 0.01, "part faded")
+    T.truthy(areasShow(), "part faded: still in sight")
+    -- The AFK screen and the NPC scene take the map away: the areas too.
+    DaylightUI:Set("InfoPanel", "fade.mode", "never")
+    stub.Advance(3)
+    settle()
+    F.MapAway("test", true)
+    T.falsy(areasShow(), "map away: quest areas away")
+    F.MapAway("test", false)
+    T.truthy(areasShow(), "map back: quest areas back")
+    DaylightUI:Set("InfoPanel", "map.shape", "square")
+end)
+
 T.test("info panel: the minimap comes back when something else dims the whole screen and lets go", function()
     login()
     local F = DaylightUI.Fade

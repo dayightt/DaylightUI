@@ -920,6 +920,23 @@ end
 
 DUI.RegisterEvent("LOADING_SCREEN_DISABLED", redrawSoon)
 
+-- The quest areas the client draws on the map (their fill and glowing edge)
+-- ignore its alpha, as the arrow does, but stay inside its mask. So while the
+-- map is fully out of sight it wears a see-through mask, and its own shape
+-- comes back with it.
+Map.areasAway = false
+function Map.PutMask(mm)
+    if type(mm) ~= "table" or type(mm.SetMaskTexture) ~= "function" then return end
+    local mask = Map.areasAway and Map.ERASE or (Map.Round() and Map.ROUND_MASK or Map.MASK)
+    if Map.maskSet == mask then return end
+    if InCombatLockdown() and mm.IsProtected and mm:IsProtected() then
+        DUI.AfterCombat(function() Map.PutMask(Minimap) end, "infopanel:mapMask")
+        return
+    end
+    mm:SetMaskTexture(mask)
+    Map.maskSet = mask
+end
+
 -- The game stops updating the minimap's picture while it's even slightly
 -- see-through: walk indoors meanwhile and it stays empty, at full alpha
 -- again too, until its zoom changes. So the map ignores the panel's opacity
@@ -956,6 +973,9 @@ function Map.Follow()
     if type(was) ~= "number" or math.abs(was - want) > 0.0001 then mm:SetAlpha(want) end
     -- Its arrow and dots ignore its alpha: fully out of sight, they go too.
     DUI.Fade.MapDots(want > 0)
+    -- So do the quest areas, which stay inside its mask.
+    Map.areasAway = want == 0
+    Map.PutMask(mm)
     if want < 1 then
         Map.dim = true
     elseif Map.dim then
@@ -1043,11 +1063,7 @@ function Map.Apply(cfg)
         Map.ParentTo(f, area)
         Map.PlaceAt(f, "TOPLEFT", area, "TOPLEFT")
         Map.SizeTo(f, size, size)
-        local mask = Map.Round() and Map.ROUND_MASK or Map.MASK
-        if f.SetMaskTexture and Map.maskSet ~= mask then
-            f:SetMaskTexture(mask)
-            Map.maskSet = mask
-        end
+        Map.PutMask(f)
     end)
     -- The map's layer first: the ring (+2) and texts (+TEXT_LIFT) go over it.
     Map.LevelTo(mm, area:GetFrameLevel() + 1)
