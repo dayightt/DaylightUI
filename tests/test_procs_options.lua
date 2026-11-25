@@ -188,7 +188,9 @@ T.test("procs options: a profile switch rebuilds every flare from the new settin
     ns.Alerts.Set("overpower", "design", "wings")
     local saved = _G.DaylightUIDB
     local key = DaylightUI.DB.CharKey()
-    saved.profileData.Other = { modules = { Procs = { scale = 1.5, alerts = { overpower = { design = "sun", alpha = 0.4 } } } } }
+    -- Made since Proc Alerts came out, so the step that starts older profiles
+    -- with them off leaves it alone.
+    saved.profileData.Other = { procsOff1 = true, modules = { Procs = { scale = 1.5, alerts = { overpower = { design = "sun", alpha = 0.4 } } } } }
     saved.characters[key].profile = "Other"
     ns = load({ saved = saved })
     T.eq(DaylightUI.DB.ActiveName(), "Other")

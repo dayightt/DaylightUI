@@ -715,6 +715,14 @@ function DB.KeepSimpleTips(p)
     if p.modules.Tooltip.style == nil then p.modules.Tooltip.style = "simple" end
 end
 
+-- Proc Alerts came after these profiles were made: they start off, and the
+-- welcome offers them with a preview. One already switched on stays on.
+function DB.ProcsOff(p)
+    if type(p.modules) ~= "table" then p.modules = {} end
+    if type(p.modules.Procs) ~= "table" then p.modules.Procs = {} end
+    if p.modules.Procs.enabled == nil then p.modules.Procs.enabled = false end
+end
+
 local function migrate(sv)
     if type(sv.profileData) ~= "table" then sv.profileData = {} end
     local pd = sv.profileData
@@ -771,6 +779,10 @@ local function migrate(sv)
         if type(p) == "table" and not p.tipStyle1 then
             p.tipStyle1 = true
             DB.KeepSimpleTips(p)
+        end
+        if type(p) == "table" and not p.procsOff1 then
+            p.procsOff1 = true
+            DB.ProcsOff(p)
         end
         if type(p) == "table" and not p.localFont1 then
             p.localFont1 = true
@@ -856,7 +868,7 @@ local function point()
     if type(pd[DB.activeName]) ~= "table" then DB.activeName = DB.Fallback() end
     if type(pd[DB.activeName]) ~= "table" then
         -- The account's first profile. Whatever the setup guide saves comes from this.
-        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, tagLetters1 = true, tipStyle1 = true, unsaved = true,
+        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, tagLetters1 = true, tipStyle1 = true, procsOff1 = true, unsaved = true,
                               general = {},
                               modules = DB.StandardStart() }
         pd[DB.activeName].general.localFont = DB.NonLatinClient() or nil

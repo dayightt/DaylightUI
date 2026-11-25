@@ -739,6 +739,7 @@ function Profiles.Build(shared, from, keep)
     p.backs1 = true
     p.tagLetters1 = true   -- a new profile starts on the player's own letters (a copy keeps the pick it copied)
     p.tipStyle1 = true     -- and in Rich tooltips, the default
+    p.procsOff1 = true     -- and with Proc Alerts on, the default
     -- A shared or blank profile picks up this client's font now, like a brand
     -- new profile does (DB.lua). A copy keeps the pick of the one it copies.
     if shared and DB.NonLatinClient() and p.general.localFont == nil then p.general.localFont = true end

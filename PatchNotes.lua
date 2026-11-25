@@ -12,7 +12,7 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
-        { "Proc Alerts", "A new module lights up a painted flare around your character when a proc is ready, like Clearcasting or Overpower. Each one has its own look, colors, size and sound in the options." },
+        { "Proc Alerts", "A new module lights up a painted flare around your character when a proc is ready, like Clearcasting or Overpower. Each one has its own look, colors, size and sound in the options. If you already use Daylight UI, they start off and a welcome page shows you one so you can turn them on" },
         { "Quests", "Drag a zone's name in the quest tracker to put your zones in your own order, or right-click Quests to sort them A to Z or by level" },
         { "Auction House", "Alt-click an item in your bags to put it on the Sell tab, like right-click; pick either one under Auction > Buying and selling" },
         { "Tooltips", "Turn on Design mode on the Tooltips page to drag the pieces of a tooltip card into your own order and sections, or hide them" },

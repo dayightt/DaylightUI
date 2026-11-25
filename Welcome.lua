@@ -1,7 +1,8 @@
 -- Welcome to Daylight UI 2.0: shown once per account to players who had
 -- Daylight UI before, in the setup guide's window. The first slide is the
 -- sunrise banner with what's new; then one slide per new look (portraits,
--- tooltips) where both are drawn side by side and the player picks one.
+-- tooltips, Proc Alerts) where both are drawn side by side and the player
+-- picks one. A player who saw it before gets only the slides added since.
 -- Nothing is written until Finish; closing it early asks again next login.
 -- A brand-new account never sees it: the setup guide asks the same things.
 --
@@ -18,7 +19,7 @@ local C = W.COLORS
 local Welcome = {}
 DUI.Welcome = Welcome
 
-Welcome.VERSION = 2
+Welcome.VERSION = 3
 Welcome.LOGIN_DELAY = 2  -- after the plugins' guides look (1 s), before the portrait question would (3 s)
 Welcome.WAIT = 5         -- while the guide's window is busy, look again this often
 Welcome.TRIES = 24       -- for about two minutes
@@ -45,7 +46,10 @@ Welcome.STAGGER = 0.1      -- between one card and the next
 Welcome.AFTER_SUN = 0.3    -- the words wait this long for the sunrise to start
 
 -- The slides after the news, one per new look (InstallerLooks.KINDS).
-Welcome.CHOICES = { "portraitLook", "tooltipStyle", "plateClassIcon" }
+Welcome.CHOICES = { "portraitLook", "tooltipStyle", "plateClassIcon", "procAlerts" }
+-- A look added after the 2.0 welcome: the version it came with. A player who
+-- saw an earlier one gets only these, without the news.
+Welcome.SINCE = { procAlerts = 3 }
 
 -- What's new: the first one is the tall card. go = a choice slide the card
 -- opens; hue = its icon's spot along the Daylight sweep.
@@ -70,16 +74,40 @@ function Welcome.Running() return run ~= nil end
 function Welcome.Slide() return run and run.slides[run.at] end
 function Welcome.Page() return run and run.pages[run.at] end
 
+local function seen() return tonumber(DUI.DB.Root().welcome) or 0 end
+
+-- The slides: the news, then each look that can show. After an earlier
+-- welcome (seen), only the looks added since; all of them for /dui welcome.
+local function slides(after)
+    local out = {}
+    if not after or after < 2 then
+        out[1] = "news"
+        after = 0
+    end
+    for _, kind in ipairs(Welcome.CHOICES) do
+        if (Welcome.SINCE[kind] or 2) > after and DUI.InstallerLooks.Available(kind) then out[#out + 1] = kind end
+    end
+    return out
+end
+Welcome.Slides = slides
+
 -- Due on an account that had Daylight UI before, on a character that's set up.
 function Welcome.Due()
     local DB = DUI.DB
     local root = DB.Root()
-    if (tonumber(root.welcome) or 0) >= Welcome.VERSION then return false end
+    local was = seen()
+    if was >= Welcome.VERSION then return false end
     if DB.fresh then
         root.welcome = Welcome.VERSION
         return false
     end
-    return DUI.Installer.State() == "installed"
+    if DUI.Installer.State() ~= "installed" then return false end
+    -- Nothing new that can show here (its module is off): nothing to ask.
+    if #slides(was) == 0 then
+        root.welcome = Welcome.VERSION
+        return false
+    end
+    return true
 end
 
 function Welcome.MarkSeen()
@@ -87,15 +115,6 @@ function Welcome.MarkSeen()
     root.welcome = Welcome.VERSION
     -- It asked the portrait question, so the module's own never comes.
     root.portraitLookAsked = true
-end
-
--- The slides: the news, then each look that can show.
-local function slides()
-    local out = { "news" }
-    for _, kind in ipairs(Welcome.CHOICES) do
-        if DUI.InstallerLooks.Available(kind) then out[#out + 1] = kind end
-    end
-    return out
 end
 
 local function nextText(i)
@@ -432,9 +451,12 @@ function Welcome.Go(i)
         UI.SetPage(page, { full = true, veil = true, still = true, dir = dir })
     else
         local spec = Looks.KINDS[kind]
+        -- A lone slide (only Proc Alerts are new) needs no "Step 1 of 1".
+        local first = run.slides[1] == "news" and 1 or 0
+        local total = #run.slides - first
         UI.SetPage(page, {
-            dir = dir, rail = true, veil = true, still = true, step = i - 1, total = #run.slides - 1,
-            title = L[spec.title], desc = L[spec.desc], later = Looks.Later(kind), back = true,
+            dir = dir, rail = true, veil = true, still = true, step = total > 1 and i - first or nil, total = total,
+            title = L[spec.title], desc = L[spec.desc], later = Looks.Later(kind), back = i > 1,
             next = run.picks[kind] ~= nil and nextText(i) or nil,
         })
         local steps = {}
@@ -484,16 +506,20 @@ function Welcome.OnClosed()
     run = nil
 end
 
--- False when the guide's window is busy with something else.
-function Welcome.Show()
+-- False when the guide's window is busy with something else. after = the
+-- welcome this account saw, to show only what came since (at login); nil
+-- shows every slide (/dui welcome).
+function Welcome.Show(after)
     if run then return true end
     if InCombatLockdown() then
-        DUI.AfterCombat(Welcome.Show, "welcome")
+        DUI.AfterCombat(function() Welcome.Show(after) end, "welcome")
         return true
     end
     local UI = DUI.InstallerUI
     if UI.IsShown() then return false end
-    run = { slides = slides(), picks = {}, pages = {}, visited = {} }
+    local list = slides(after)
+    if #list == 0 then return true end
+    run = { slides = list, picks = {}, pages = {}, visited = {} }
     UI.Open({
         width = Welcome.WIDTH, height = Welcome.HEIGHT, lit = true,
         close = Welcome.OnClosed,
@@ -510,7 +536,7 @@ local function atLogin()
     if not Welcome.Due() then return end
     -- The welcome asks about portraits itself.
     DUI.DB.Root().portraitLookAsked = true
-    if Welcome.Show() then return end
+    if Welcome.Show(seen()) then return end
     tries = tries + 1
     if tries < Welcome.TRIES then C_Timer.After(Welcome.WAIT, atLogin) end
 end
@@ -523,4 +549,4 @@ DUI.RegisterEvent("PLAYER_LOGIN", function()
 end)
 
 DUI.RegisterCommand("welcome", function() Welcome.Show() end,
-    function() return L["/dui welcome - what's new in Daylight UI 2.0, and the new portraits and tooltips to pick from"] end)
+    function() return L["/dui welcome - what's new in Daylight UI 2.0, and the new looks and Proc Alerts to pick from"] end)

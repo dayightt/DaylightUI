@@ -292,6 +292,36 @@ T.test("tooltips default to Rich, existing profiles keep the look they had", fun
     T.isnil(pd.Old.modules.Tooltip.style, "only once")
 end)
 
+-- Proc Alerts came later: profiles from before start with them off (the welcome
+-- offers them), once; new installs and new profiles have them on.
+T.test("Proc Alerts start off in profiles from before them, on in new ones", function()
+    local DUI = stub.Load({ procs = true, before = function()
+        DaylightUIDB = { version = 2, profileData = {
+            Old = { modules = { Tooltip = { textSize = 13 } } },
+            On = { modules = { Procs = { enabled = true } } } } }
+    end })
+    local pd = DaylightUIDB.profileData
+    T.eq(pd.Old.modules.Procs.enabled, false, "an existing profile starts with them off")
+    T.eq(pd.On.modules.Procs.enabled, true, "one switched on stays on")
+    T.eq(pd.Old.procsOff1, true)
+    pd.Old.modules.Procs.enabled = true
+    DUI.DB.Init()
+    T.eq(pd.Old.modules.Procs.enabled, true, "only once")
+    DUI.Profiles.Create("Fresh")
+    T.eq(pd.Fresh.procsOff1, true, "a new profile is marked")
+end)
+
+T.test("a fresh install starts with Proc Alerts on, and stays so on the next load", function()
+    local DUI = stub.Load({ procs = true })
+    local first = DaylightUIDB.profileData[DUI.DB.DEFAULT]
+    T.eq(first.procsOff1, true)
+    T.eq(DUI:Get("Procs", "enabled"), true)
+    DUI.DB.Init()
+    T.eq(DUI:Get("Procs", "enabled"), true, "not off on the next load")
+    DUI.Profiles.Create("Blank", { general = {}, modules = {}, positions = {} })
+    T.eq(DaylightUIDB.profileData.Blank.modules.Procs.enabled, true, "a shared profile starts on too")
+end)
+
 T.test("a fresh install and a new profile start in Rich tooltips with nothing saved", function()
     local DUI = stub.Load({ tooltip = true })
     local first = DaylightUIDB.profileData[DUI.DB.DEFAULT]

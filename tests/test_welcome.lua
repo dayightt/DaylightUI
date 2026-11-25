@@ -254,6 +254,112 @@ T.test("guide: the class icons question picks through the draft", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Proc Alerts came after the 2.0 welcome. An account that saw it (welcome = 2)
+-- updates with its profile from before: Proc Alerts start off there, and the
+-- welcome comes back with only their slide.
+local function sawWelcome(opts)
+    opts = opts or {}
+    local DUI = stub.Load({ module = true, tooltip = true, procs = opts.procs ~= false, before = function()
+        stub.SetUnits({ player = { name = "Me", class = opts.class or "WARRIOR", isPlayer = true } })
+        DaylightUIDB = { version = "2.2.7", notesSeen = "2.2.7", installerSeen = true, barFxAsked = true,
+                         portraitLookAsked = true, welcome = opts.welcome or 2,
+                         profileData = { ["DPS/Tank"] = { general = {}, positions = {},
+                             modules = { UnitFrames = { groupFrames = 20 }, Procs = opts.procsSaved } } } }
+    end })
+    DUI.Installer.Mark("installed")
+    DUI.Installer.MarkSeen()
+    stub.Dismiss()
+    return DUI
+end
+
+T.test("welcome: after the 2.0 welcome, an update brings only the Proc Alerts slide, with them off until picked", function()
+    local DUI = sawWelcome()
+    T.eq(DUI:Get("Procs", "enabled"), false, "a profile from before starts with Proc Alerts off")
+    T.truthy(DUI.Welcome.Due(), "the welcome is due again")
+    stub.RunTimers()
+    T.truthy(DUI.Welcome.Running(), "shown at login")
+    T.eq(#DUI.Welcome.Slides(2), 1, "one slide")
+    T.eq(DUI.Welcome.Slide(), "procAlerts", "no news, no looks picked before")
+    T.isnil(stub.Asked(), "no second question on top of it")
+    local picker = DUI.Welcome.Page().picker
+    local box = picker.box
+    T.eq(box.stages.on.portrait.__portraitUnit, "player", "your portrait in the On card")
+    T.eq(box.stages.off.portrait.__portraitUnit, "player", "and in the Off card")
+    local flare = box.stages.on.flare
+    T.truthy(flare and flare.key, "a flare in the On card")
+    T.eq(DUI:GetModule("Procs").ns.Data.BY[flare.key].class, "WARRIOR", "one of your class's procs")
+    T.truthy(flare.parts[1].tex:GetTexture() ~= nil, "drawn")
+    T.isnil(box.stages.off.flare, "none in the Off card")
+    T.falsy(DUI.InstallerUI.Frame().back:IsShown(), "no Back on the only slide")
+    T.falsy(nextShown(DUI), "Next waits for a pick")
+    T.truthy(picker.cards.on.tag and picker.cards.on.tag:IsShown(), "On wears the New tag")
+    press(picker.cards.on)
+    T.eq(DUI.InstallerUI.Frame().next.text:GetText(), "Finish")
+    T.eq(DUI:Get("Procs", "enabled"), false, "not written yet")
+    DUI.Welcome.Next()
+    T.falsy(DUI.Welcome.Running(), "done")
+    T.eq(DUI:Get("Procs", "enabled"), true, "On turns them on")
+    T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION)
+    T.falsy(DUI.Welcome.Due(), "once per account")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome: Off keeps Proc Alerts off; closing it early writes nothing and asks again", function()
+    local DUI = sawWelcome()
+    DUI.Welcome.Show(2)
+    press(DUI.Welcome.Page().picker.cards.on)
+    closeWindow()
+    T.eq(DUI:Get("Procs", "enabled"), false, "nothing written")
+    T.truthy(DUI.Welcome.Due(), "asks again next time")
+    DUI.Welcome.Show(2)
+    press(DUI.Welcome.Page().picker.cards.off)
+    DUI.Welcome.Next()
+    T.eq(DUI:Get("Procs", "enabled"), false, "Off keeps them off")
+    T.falsy(DUI.Welcome.Due())
+    -- /dui welcome shows everything again, news first, Proc Alerts last.
+    SlashCmdList.DAYLIGHTUI("welcome")
+    T.eq(DUI.Welcome.Slide(), "news")
+    local list = DUI.Welcome.Slides()
+    T.eq(list[#list], "procAlerts")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome: an update from before 2.0 gets the news, every look, then Proc Alerts", function()
+    local DUI = sawWelcome({ welcome = 0 })
+    stub.RunTimers()
+    T.eq(DUI.Welcome.Slide(), "news")
+    DUI.Welcome.Next()
+    press(DUI.Welcome.Page().picker.cards.classic)
+    DUI.Welcome.Next()
+    press(DUI.Welcome.Page().picker.cards.simple)
+    DUI.Welcome.Next()
+    T.eq(DUI.Welcome.Slide(), "procAlerts")
+    T.truthy(DUI.InstallerUI.Frame().back:IsShown(), "Back to the looks")
+    press(DUI.Welcome.Page().picker.cards.on)
+    DUI.Welcome.Next()
+    T.falsy(DUI.Welcome.Running())
+    T.eq(DUI:Get("Procs", "enabled"), true)
+    T.eq(DUI:Get("Tooltip", "style"), "simple")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome: with Proc Alerts switched off in the AddOns list, nothing comes after the 2.0 welcome", function()
+    local DUI = sawWelcome({ procs = false })
+    stub.RunTimers()
+    T.falsy(DUI.Welcome.Running(), "nothing to show")
+    T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION, "and nothing left due")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome: a profile that already had Proc Alerts switched on keeps them on", function()
+    local DUI = sawWelcome({ procsSaved = { enabled = true } })
+    T.eq(DUI:Get("Procs", "enabled"), true)
+    stub.RunTimers()
+    local picker = DUI.Welcome.Page().picker
+    T.falsy(picker.cards.off.selected, "nothing picked for them")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("chrome: a plaque is as wide as its words and their padding, and spaced capitals skip other alphabets", function()
     local DUI = returning()
     local Chrome = DUI.InstallerChrome

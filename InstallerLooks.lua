@@ -91,6 +91,21 @@ Looks.KINDS = {
             end
         end,
     },
+    -- Players who had Daylight UI before Proc Alerts start with them off
+    -- (DB.ProcsOff), so the welcome offers them with a live flare.
+    procAlerts = {
+        title = "Proc Alerts",
+        desc = "New: a painted flare lights up around your character when a proc like Clearcasting or Overpower is ready. Want them on?",
+        keys = { "on", "off" }, new = "on",
+        ref = { "Procs", "enabled" },
+        shown = function(v) return v == false and "off" or "on" end,
+        available = function()
+            local ns = moduleNs("Procs")
+            return type(ns) == "table" and type(ns.Sample) == "table" and type(ns.Sample.Looks) == "function"
+        end,
+        box = function(parent) return moduleNs("Procs").Sample.Looks(parent) end,
+        apply = function(k, set) set("Procs", "enabled", k == "on") end,
+    },
 }
 
 -- The nameplates' preview: a few friendly players' names over the world, in
