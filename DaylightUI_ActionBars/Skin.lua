@@ -218,6 +218,10 @@ Skin.KEYBIND_POS = {
     topright = { "TOPRIGHT", -2, -3 }, topleft = { "TOPLEFT", 3, -3 }, bottom = { "BOTTOM", 0, 3 },
 }
 Skin.COUNT_POS = { bottomright = { "BOTTOMRIGHT", -2, 3 }, bottomleft = { "BOTTOMLEFT", 3, 3 } }
+Skin.COST_POS = {
+    topleft = { "TOPLEFT", 3, -3 }, topright = { "TOPRIGHT", -2, -3 }, bottom = { "BOTTOM", 0, 3 },
+    bottomleft = { "BOTTOMLEFT", 3, 3 }, bottomright = { "BOTTOMRIGHT", -2, 3 },
+}
 
 -- Shorter keybinds: modifiers as one letter, mouse buttons and the number pad as a
 -- letter and number.
@@ -273,7 +277,7 @@ end
 
 -- A look's text colors and the swipe color, as the settings hold them.
 Skin.LOOK_COLORS = { "pressed", "highlight", "checkedColor", "checkedBorderColor", "procColor", "rangeColor", "borderCustom",
-    "swipeColor", "edgeColor", "keybindColor", "countColor", "macroColor", "cooldownTextColor" }
+    "swipeColor", "edgeColor", "keybindColor", "countColor", "macroColor", "costColor", "cooldownTextColor" }
 
 -- The look a bar wears: db.look with the bar's own changes on top (key nil or no
 -- changes = db.look itself). Cached until the next Configure.
@@ -1043,6 +1047,9 @@ applyLook = function(btn)
         if not (type(over) == "table" and over.CreateFontString) then over = btn end
         parts.key = over:CreateFontString(nil, "OVERLAY")
         if type(btn.HotKey) == "table" and btn.HotKey.SetAlpha then btn.HotKey:SetAlpha(0) end
+
+        -- The spell's mana cost (Buttons' cost painter fills it).
+        parts.cost = over:CreateFontString(nil, "OVERLAY")
         -- The game's own mask rounds the icon's corners for its art. Without it the
         -- icon is square in the border. The controller buttons' two masks too, left
         -- on the game's special icons.
@@ -1146,6 +1153,16 @@ applyLook = function(btn)
         end
         local mc = L.macroColor
         if not Skin.Owned(btn, "macro") then btn.Name:SetTextColor(mc[1], mc[2], mc[3]) end
+    end
+    local cost = parts.cost
+    if cost then
+        styleText(cost, L.costSize)
+        local at = Skin.COST_POS[L.costPos] or Skin.COST_POS.bottomleft
+        cost:ClearAllPoints()
+        cost:SetPoint(at[1], btn, at[1], at[2] + L.costX, at[3] + L.costY)
+        local cc = L.costColor
+        cost:SetTextColor(cc[1], cc[2], cc[3])
+        cost:SetAlpha(L.cost == true and 1 or 0)
     end
     local hl, pushed, checked, flash = paintWashes(btn, L, icon)
     local pc = L.pressed

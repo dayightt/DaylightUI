@@ -128,6 +128,7 @@ ns.DEFAULTS = {
         cooldownAlpha = 0.7,
         keybindPos = "topright", countPos = "bottomright",
         macroSize = 9,
+        cost = false, costSize = 10, costPos = "bottomleft",   -- a spell's mana cost (Skin.COST_POS)
         cooldownNumbers = true, cooldownSize = 14,
         shortKeys = true,
         tooltips = "always",                 -- "nocombat" or "never"
@@ -144,10 +145,11 @@ ns.DEFAULTS = {
         keybindColor = { 0.86, 0.82, 0.74 }, -- warm, a touch brighter than INK.LABEL (Skin.HOTKEY)
         countColor = { 1, 1, 1 },
         macroColor = { 1, 1, 1 },
+        costColor = { 0.22, 0.42, 0.86 },    -- Style.POWER.MANA
         cooldownTextColor = { 1, 1, 1 },
         -- Text offsets in px from their default spot.
         keybindX = 0, keybindY = 0, countX = 0, countY = 0,
-        macroX = 0, macroY = 0, cooldownX = 0, cooldownY = 0,
+        macroX = 0, macroY = 0, cooldownX = 0, cooldownY = 0, costX = 0, costY = 0,
         -- A panel behind the whole bar (Bars.PaintBack).
         -- The border lit while hovered / pressed, in the accent, your class color
         -- or a custom color (hoverBorderColor / pressBorderColor).

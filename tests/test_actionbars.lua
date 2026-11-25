@@ -2545,6 +2545,73 @@ T.test("action bars: a bar swap's burst of slot changes rebuilds the flyout keys
     T.eq(calls, 1, "once, the frame after")
 end)
 
+T.test("action bars: mana cost on a button, off by default, placed and colored by the look", function()
+    local DUI = login()
+    local Skin, B = stub.actionbars.Skin, stub.actionbars.Buttons
+    local b = _G.DaylightUIBar1Button2
+    local slot = B.SlotOf(b)
+    stub.slots[slot] = { texture = "tex123", spellID = 123 }
+    stub.spellCosts = { [123] = { { type = 0, name = "MANA", cost = 50 } } }
+    B.Paint(b)
+    local cost = Skin.GetParts(b).cost
+    T.truthy(cost, "every button has a cost label")
+    T.eq(cost:GetAlpha(), 0, "hidden by default")
+    DUI:Set("ActionBars", "look.cost", true)
+    B.Paint(b)
+    T.eq(tostring(cost:GetText()), "50", "the spell's mana cost")
+    T.eq(cost:GetAlpha(), 1)
+    T.eq(select(1, cost:GetPoint(1)), "BOTTOMLEFT", "bottom left by default")
+    DUI:Set("ActionBars", "look.costPos", "topleft")
+    DUI:Set("ActionBars", "look.costX", 4)
+    local p, _, _, x = cost:GetPoint(1)
+    T.eq(p, "TOPLEFT")
+    T.eq(x, Skin.COST_POS.topleft[2] + 4, "nudged")
+    DUI:Set("ActionBars", "look.costColor", { 0.1, 0.2, 0.3 })
+    T.eq(cost.__textColor and cost.__textColor[1] or select(1, cost:GetTextColor()), 0.1)
+    -- A macro casts its spell; rage and free spells show nothing.
+    stub.slots[slot] = { texture = "texm", macro = 7 }
+    stub.macroSpells[7] = 123
+    B.Paint(b)
+    T.eq(tostring(cost:GetText()), "50", "a macro's spell")
+    stub.slots[slot] = { texture = "texm", macroSpell = 123 }   -- the client names the spell itself
+    B.Paint(b)
+    T.eq(tostring(cost:GetText()), "50", "a macro slot given as its spell")
+    stub.spellCosts = { [123] = { { type = 1, name = "RAGE", cost = 15 } } }
+    B.Paint(b)
+    T.eq(cost:GetText(), "", "no mana in the cost")
+    stub.spellCosts = { [123] = { { type = 0, name = "MANA", cost = 0 } } }
+    B.Paint(b)
+    T.eq(cost:GetText(), "", "free")
+    stub.spellCosts = { [123] = { { type = 0, name = "MANA", cost = 50 } } }
+    stub.slots[slot] = nil
+    B.Paint(b)
+    T.eq(cost:GetText(), "", "an empty slot")
+    -- In a fight the cost can be secret: it goes to the text whole, never compared.
+    stub.slots[slot] = { texture = "tex123", spellID = 123 }
+    stub.spellCosts = { [123] = { { type = 0, name = "MANA", cost = stub.Secret(80) } } }
+    local errs = #stub.errors
+    B.Paint(b)
+    T.eq(#stub.errors, errs, "no error")
+    T.truthy(DUI.IsSecret(cost:GetText()), "the secret cost is shown")
+    stub.spellCosts, stub.macroSpells[7] = nil, nil
+end)
+
+T.test("action bars: mana costs repaint when spells change", function()
+    local DUI = login()
+    local Skin, B = stub.actionbars.Skin, stub.actionbars.Buttons
+    DUI:Set("ActionBars", "look.cost", true)
+    local b = _G.DaylightUIBar1Button2
+    local slot = B.SlotOf(b)
+    stub.slots[slot] = { texture = "tex123", spellID = 123 }
+    stub.spellCosts = { [123] = { { type = 0, name = "MANA", cost = 50 } } }
+    B.Paint(b)
+    stub.spellCosts = { [123] = { { type = 0, name = "MANA", cost = 65 } } }   -- a new rank
+    stub.FireEvent("SPELLS_CHANGED")
+    stub.RunTimers()
+    T.eq(tostring(Skin.GetParts(b).cost:GetText()), "65")
+    stub.spellCosts = nil
+end)
+
 T.test("action bars: a painter that fails is reported and the rest still paint", function()
     login()
     local B = stub.actionbars.Buttons

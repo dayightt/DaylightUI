@@ -257,6 +257,28 @@ local function spellOf(slot)
 end
 Buttons.SpellOf = spellOf
 
+-- A spell's mana cost, or nil when it costs none. A secret cost is returned
+-- whole, for the text only.
+function Buttons.ManaCost(spellID)
+    local api = C_Spell and C_Spell.GetSpellPowerCost
+    if type(api) ~= "function" or type(spellID) ~= "number" then return nil end
+    local costs = api(spellID)
+    if type(costs) ~= "table" then return nil end
+    local mana = Enum and Enum.PowerType and Enum.PowerType.Mana or 0
+    for _, c in ipairs(costs) do
+        if type(c) == "table" and not DUI.IsSecret(c.type) and c.type == mana then
+            local aura, has = c.requiredAuraID, c.hasRequiredAura
+            local needsAura = not DUI.IsSecret(aura) and type(aura) == "number" and aura ~= 0
+            if not (needsAura and not DUI.IsSecret(has) and has ~= true) then
+                local n = c.cost
+                if DUI.IsSecret(n) then return n end
+                if type(n) == "number" and n > 0 then return n end
+            end
+        end
+    end
+    return nil
+end
+
 -- The blink runs on the events frame's OnUpdate only while something blinks,
 -- which is almost never (auto attack, auto shot).
 local flashing = {}
@@ -336,6 +358,15 @@ Buttons.PAINTERS = {
         text(btn.Count, c)
     end },
     { name = "name", fn = function(btn, slot) text(btn.Name, GetActionText(slot)) end },
+    { name = "cost", fn = function(btn, slot)
+        local parts = ns.Skin.GetParts(btn)
+        if not (parts and parts.cost) then return end
+
+        -- A macro slot can name its spell directly (subtype "spell"), not its macro index.
+        local kind, id, sub = GetActionInfo(slot)
+        local spell = (kind == "macro" and sub == "spell") and id or spellOf(slot)
+        text(parts.cost, Buttons.ManaCost(spell))
+    end },
     { name = "checked", fn = function(btn, slot)
         local current, auto = IsCurrentAction(slot) == true, IsAutoRepeatAction(slot) == true
         btn:SetChecked(current or auto)
@@ -542,6 +573,7 @@ local function only(...)
 end
 local USABLE = only("usable")
 local TARGET = only("usable", "range")
+local COST = only("cost")
 
 -- What each event repaints: a set of painter names, "all" (everything, next frame),
 -- or a function of the event's arguments.
@@ -550,7 +582,8 @@ Buttons.EVENTS = {
         Buttons.ForgetCharges(slot)
         if type(slot) ~= "number" or slot == 0 then Buttons.PaintAll() else Buttons.PaintSlot(slot) end
     end,
-    SPELLS_CHANGED = function() Buttons.ForgetCharges() end,
+    SPELLS_CHANGED = function() Buttons.ForgetCharges(); Buttons.QueuePaint(COST) end,
+    PLAYER_TALENT_UPDATE = only("cost"),
     ACTIONBAR_UPDATE_STATE = only("checked", "flash"),
     START_AUTOREPEAT_SPELL = only("checked", "flash"),
     STOP_AUTOREPEAT_SPELL = only("checked", "flash"),

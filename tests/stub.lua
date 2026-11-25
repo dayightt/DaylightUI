@@ -3617,6 +3617,7 @@ function stub.ActionSlots(slots)
         local s = S(slot)
         if not s then return nil end
         if s.flyout then return "flyout", s.flyout end
+        if s.macroSpell then return "macro", s.macroSpell, "spell" end
         if s.macro then return "macro", s.macro end
         if s.item then return "item", s.item end
         return "spell", s.spellID
