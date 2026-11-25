@@ -11,7 +11,8 @@
 -- Settings (module "Bags"): groupOrder (keys, nil = default), groupNames
 -- (key -> name), groupColors (key -> { r, g, b }), customGroups (list of { key, name, search? }), collapsed
 -- (key -> true), pins (item ID -> key), removedGroups (built-in key -> true,
--- see Cat.Delete), recentMinutes.
+-- see Cat.Delete), recentMinutes. groupSets and groupSet keep named sets of the
+-- group settings (see Group sets below).
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -367,6 +368,145 @@ function Cat.ClearPins()
     changed()
 end
 
+-- Group sets: named copies of every group setting (Cat.SET_KEYS), one in use,
+-- switched like profiles. The set in use lives in the keys above, so the rest of
+-- this file never asks which set it is; the others keep a copy in .groups.
+-- Saved in module "Bags": groupSets (id -> { name, groups? }), groupSet (the id
+-- in use). With none saved yet, the groups as they are become "My groups".
+
+Cat.SET_KEYS = { "groupOrder", "groupNames", "groupColors", "customGroups", "removedGroups", "pins", "collapsed" }
+
+local function deepCopy(v)
+    if type(v) ~= "table" then return v end
+    local out = {}
+    for k, x in pairs(v) do out[k] = deepCopy(x) end
+    return out
+end
+
+local function trim(s) return (tostring(s or ""):gsub("^%s+", ""):gsub("%s+$", "")) end
+
+local function liveGroups()
+    local d, out = db(), {}
+    for _, k in ipairs(Cat.SET_KEYS) do out[k] = deepCopy(d[k]) end
+    return out
+end
+
+local function loadGroups(groups)
+    local d = db()
+    for _, k in ipairs(Cat.SET_KEYS) do d[k] = deepCopy(groups and groups[k]) end
+end
+
+local function freeId(list)
+    local n = 1
+    while list["s" .. n] ~= nil do n = n + 1 end
+    return "s" .. n
+end
+
+-- A name no other set uses: name, else "name 2", "name 3"...
+local function freeName(list, name, except)
+    local taken = {}
+    for id, s in pairs(list) do
+        if id ~= except and type(s.name) == "string" then taken[s.name:lower()] = true end
+    end
+    local try, n = name, 1
+    while taken[try:lower()] do n = n + 1; try = string.format("%s %d", name, n) end
+    return try
+end
+
+local function sets()
+    local d = db()
+    if type(d.groupSets) ~= "table" then d.groupSets = {} end
+    local list = d.groupSets
+    for id, s in pairs(list) do
+        if type(s) ~= "table" then list[id] = nil end
+    end
+    if list[d.groupSet] == nil then
+        local id = freeId(list)
+        list[id] = { name = freeName(list, L["My groups"]) }
+        d.groupSet = id
+    end
+    return list
+end
+
+function Cat.CurrentSet()
+    sets()
+    return db().groupSet
+end
+
+function Cat.SetName(id)
+    local s = id ~= nil and sets()[id]
+    return s and tostring(s.name) or nil
+end
+
+-- Every set by name: { { id, name } }.
+function Cat.Sets()
+    local out = {}
+    for id, s in pairs(sets()) do out[#out + 1] = { id = id, name = tostring(s.name) } end
+    table.sort(out, function(a, b)
+        local x, y = a.name:lower(), b.name:lower()
+        if x ~= y then return x < y end
+        return a.id < b.id
+    end)
+    return out
+end
+
+-- Puts set id in use: the groups in use go back into their set first.
+function Cat.SwitchSet(id)
+    local list = sets()
+    local d = db()
+    if type(list[id]) ~= "table" then return false end
+    if id == d.groupSet then return true end
+    list[d.groupSet].groups = liveGroups()
+    loadGroups(list[id].groups)
+    list[id].groups = nil
+    d.groupSet = id
+    changed()
+    return true
+end
+
+-- A new set with groups (Daylight UI's own when nil), put in use. Returns its id.
+function Cat.NewSet(name, groups)
+    local list = sets()
+    local id = freeId(list)
+    name = trim(name)
+    if name == "" then name = L["My groups"] end
+    list[id] = { name = freeName(list, name), groups = groups or {} }
+    Cat.SwitchSet(id)
+    return id
+end
+
+-- A copy of set id's groups as they are now, put in use. Returns its id.
+function Cat.CopySet(id, name)
+    local list = sets()
+    local s = list[id]
+    if type(s) ~= "table" then return nil end
+    local groups = id == db().groupSet and liveGroups() or deepCopy(s.groups or {})
+    return Cat.NewSet(name or s.name, groups)
+end
+
+function Cat.RenameSet(id, name)
+    local list = sets()
+    name = trim(name)
+    if type(list[id]) ~= "table" or name == "" then return false end
+    list[id].name = freeName(list, name, id)
+    changed()
+    return true
+end
+
+-- The last set can't go. Deleting the one in use puts the first other in use.
+function Cat.DeleteSet(id)
+    local list = sets()
+    if type(list[id]) ~= "table" or #Cat.Sets() < 2 then return false end
+    if id == db().groupSet then
+        for _, s in ipairs(Cat.Sets()) do
+            if s.id ~= id then Cat.SwitchSet(s.id); break end
+        end
+    end
+    list[id] = nil
+    changed()
+    return true
+end
+
 -- Sharing custom groups: each group's name, search and moved items, packed into
 -- text (DUI.Profiles.Pack) to paste on another character or give to a friend.
 
@@ -645,14 +785,142 @@ function Cat.ReadShared(text)
     return out
 end
 
+-- A new imported group that brings no color takes the closest built-in group's:
+-- the one its name or search words name, else the one most of the bag items it
+-- holds would go to. Several groups may share a color.
+
+-- Search keywords that name a built-in group. Aliases and translations share the
+-- keyword's test (Search.KEYWORDS), so they count too.
+Cat.KEYWORD_GROUP = {
+    weapon = "weapon", armor = "armor", consumable = "consumable", food = "consumable", potion = "consumable",
+    reagent = "reagent", tradegoods = "tradegoods", recipe = "recipe", key = "key", container = "container",
+    open = "container", quest = "quest", junk = "junk", set = "sets",
+}
+
+-- English words no keyword or game name settles. false: never a hint.
+Cat.WORD_GROUP = {
+    pot = "consumable", hearth = "hearthstone", hearthstone = "hearthstone",
+    ore = "tradegoods", metal = "tradegoods", stone = "tradegoods", cloth = "tradegoods",
+    leather = "tradegoods", enchant = "tradegoods", gem = "tradegoods", mat = "tradegoods",
+    pattern = "recipe", plan = "recipe", formula = "recipe", schematic = "recipe",
+    ammo = "ammo", arrow = "ammo", bullet = "ammo", shirt = "armor", tabard = "armor",
+    misc = "misc", miscellaneous = "misc", gray = "junk", grey = "junk",
+    other = false, fishing = false,
+}
+
+local keywordGroup = {}
+for word, key in pairs(Cat.KEYWORD_GROUP) do
+    if K[word] then keywordGroup[K[word]] = key end
+end
+
+-- The built-in group an item's facts land in, not counting Recent.
+local function landing(f)
+    for _, key in ipairs(Cat.PRIORITY) do
+        if key ~= "recent" and Cat.TESTS[key](f) then return key end
+    end
+end
+
+-- Most votes wins; a tie goes to the first in Cat.PRIORITY.
+local function winner(votes)
+    local best, most = nil, 0
+    for _, key in ipairs(Cat.PRIORITY) do
+        if (votes[key] or 0) > most then best, most = key, votes[key] end
+    end
+    return best
+end
+
+-- Where a game type name's items land: one item of each class and subclass the
+-- search reads, tried against the name's test.
+local function probe(test)
+    local S, votes = ns.Search, {}
+    for classID = 0, S.CLASS_COUNT - 1 do
+        for _, sub in ipairs(S.SUBCLASSES[classID] or { 0 }) do
+            local f = { classID = classID, subClassID = sub, quality = 1 }
+            local key = test(f) and landing(f)
+            if key then votes[key] = (votes[key] or 0) + 1 end
+        end
+    end
+    return winner(votes)
+end
+
+-- A built-in key for one word, false when the word is known but names none, nil
+-- when unknown.
+local function wordGroup(word)
+    local own = Cat.WORD_GROUP[word]
+    if own ~= nil then return own end
+    word = ns.Search.SYNDICATOR[word] or word
+    if K[word] then return keywordGroup[K[word]] or false end
+    local test = ns.Search.GameWord(word)
+    if test then return probe(test) or false end
+end
+
+-- The built-in group a name or search names, or nil. The name decides first
+-- (whole, then word by word, then without a plural s); else the search's
+-- terms vote.
+function Cat.WordGroup(name, search)
+    if type(name) == "string" then
+        local key = wordGroup(ns.Search.CleanWord(name))
+        if key then return key end
+        for w in string.gmatch(string.lower(name), "[^%s%p%d]+") do
+            key = wordGroup(w) or (#w > 3 and string.sub(w, -1) == "s" and wordGroup(string.sub(w, 1, -2)))
+            if key then return key end
+        end
+    end
+    if type(search) ~= "string" then return nil end
+    local votes = {}
+    for piece in string.gmatch(string.lower(search) .. "|", "([^|&;]*)[|&;]") do
+        local word = string.match(piece, "^%s*#?(.-)%s*$")
+        if word ~= "" and not string.find(word, "[!<>=]") then
+            local key = wordGroup(word)
+            if key then votes[key] = (votes[key] or 0) + 1 end
+        end
+    end
+    return winner(votes)
+end
+
+-- Facts for every item in the bags, read once per import.
+function Cat.BagFacts()
+    local out = {}
+    local B = ns.Bags
+    for _, s in ipairs(B and B.Slots and B.Slots() or NONE) do
+        if s.section ~= "keyring" then
+            local slot = s.button:GetID()
+            local info = ns.Items.InfoAt(s.bag, slot)
+            if info and type(info.itemID) == "number" then
+                local f = Cat.Facts(s.bag, slot, info)
+                f.recent = false
+                out[#out + 1] = f
+            end
+        end
+    end
+    return out
+end
+
+-- The built-in group most bag items a search or item list takes would go to.
+function Cat.VoteGroup(search, items, facts)
+    local match = type(search) == "string" and ns.Search.Parse(search) or nil
+    local listed = {}
+    for _, id in ipairs(type(items) == "table" and items or NONE) do listed[id] = true end
+    local votes = {}
+    for _, f in ipairs(facts) do
+        if listed[f.itemID] or (match and match(f)) then
+            local key = landing(f)
+            if key then votes[key] = (votes[key] or 0) + 1 end
+        end
+    end
+    return winner(votes)
+end
+
 -- Adds shared groups. One with the same name as an existing custom group updates
--- it (search, items and color); others are added. Returns how many groups, and
--- how many items went to each built-in group (key -> count).
+-- it (search, items and color); others are added, and a Baganator one takes the
+-- closest built-in group's color. Returns how many groups, and how many items went
+-- to each built-in group (key -> count).
 function Cat.ImportShared(list)
     local byName = {}
     for _, g in ipairs(Cat.Custom()) do byName[tbl("groupNames")[g.key] or g.name] = g end
     local pins = tbl("pins")
     local count, moved = 0, {}
+    local facts
     for _, sg in ipairs(list) do
         local g = sg.name and byName[sg.name]
         local key
@@ -671,6 +939,15 @@ function Cat.ImportShared(list)
             list2[#list2 + 1] = { key = key, name = sg.name, search = sg.search }
             byName[sg.name] = list2[#list2]
             count = count + 1
+            -- Baganator carries no colors. A Daylight UI group without one keeps the default.
+            if not sg.color and list.baganator then
+                local near = Cat.WordGroup(sg.name, sg.search)
+                if not near then
+                    facts = facts or Cat.BagFacts()
+                    near = Cat.VoteGroup(sg.search, sg.items, facts)
+                end
+                if near then tbl("groupColors")[key] = { Cat.DefaultColor(near) } end
+            end
         end
         if key then
             for _, id in ipairs(sg.items) do pins[id] = key end
@@ -680,6 +957,24 @@ function Cat.ImportShared(list)
     end
     changed()
     return count, moved
+end
+
+-- Shared groups as a set of their own, named for where they came from, and put
+-- in use. It has only those groups: every built-in group is deleted except
+-- Other, Empty, Recent, Keyring and any the shared items were moved to.
+-- Returns the set's id and what Cat.ImportShared returns.
+Cat.IMPORT_KEEP = { recent = true, keyring = true }
+
+function Cat.ImportAsSet(list)
+    local gone = {}
+    for _, g in ipairs(Cat.BUILTIN) do
+        if not (Cat.KEEP[g.key] or Cat.IMPORT_KEEP[g.key]) then gone[g.key] = true end
+    end
+    for _, sg in ipairs(list) do
+        if sg.builtin then gone[sg.builtin] = nil end
+    end
+    local id = Cat.NewSet(list.baganator and "Baganator" or L["Imported groups"], { removedGroups = gone })
+    return id, Cat.ImportShared(list)
 end
 
 -- What an import did, as chat lines. Junk is said on its own: the next vendor

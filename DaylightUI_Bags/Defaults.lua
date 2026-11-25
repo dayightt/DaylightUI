@@ -43,7 +43,7 @@ ns.DEFAULTS = {
     shardsKeepRaid = 0,     -- the same while in a raid
     showKeyring = false,    -- keyring slots, if the game has a keyring (Bags.HasKeyring)
     emptyGroups = false,    -- always show empty custom groups (otherwise only while Shift is held with an item on the cursor)
-    -- groupOrder, groupNames, customGroups, removedGroups, collapsed, pins and locks are saved as the player sets them
+    -- groupOrder, groupNames, customGroups, removedGroups, collapsed, pins, locks, groupSets and groupSet are saved as the player sets them
     showCurrency = true,    -- tracked currencies in the footer next to the money
     moneyRoll = true,       -- tween the footer gold to its new amount
     -- Bank (Bank.lua): its own columns and bag slot row. Everything else follows

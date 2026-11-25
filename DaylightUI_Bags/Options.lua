@@ -158,6 +158,47 @@ local groupList = {
     height = function(row) return (row.count or #ns.Categories.Order()) * LINE + 8 end,
 }
 
+-- Group sets (Categories.lua): pick one, or make, copy, rename or delete one. The
+-- buttons act on the set in use.
+local function setName()
+    local Cat = ns.Categories
+    return Cat.SetName(Cat.CurrentSet()) or ""
+end
+local groupSets = {
+    { type = "dropdown", key = "groupSets.pick", label = "Group set", disabled = off,
+      desc = "Your groups, their order, colors and moved items, saved as a set. Switch sets like profiles; each keeps its own.",
+      choices = function()
+          local values, order = {}, {}
+          for _, s in ipairs(ns.Categories.Sets()) do values[s.id] = s.name; order[#order + 1] = s.id end
+          return values, order
+      end,
+      get = function() return ns.Categories.CurrentSet() end,
+      set = function(id) ns.Categories.SwitchSet(id) end },
+    { type = "button", key = "groupSets.new", label = "New group set", text = "New", disabled = off,
+      desc = "A set with Daylight UI's own groups and nothing moved, put in use. The set you were on stays as it is.",
+      func = function()
+          prompt(L["Name for the new group set:"], "", function(name) ns.Categories.NewSet(name) end)
+      end },
+    { type = "button", key = "groupSets.copy", label = "Copy group set", text = function() return string.format(L["Copy %s"], setName()) end, disabled = off,
+      desc = "A copy of the set in use, put in use, to change without losing the first.",
+      func = function()
+          local Cat = ns.Categories
+          local id = Cat.CurrentSet()
+          prompt(L["Name for the copy:"], setName(), function(name) Cat.CopySet(id, name) end)
+      end },
+    { type = "button", key = "groupSets.rename", label = "Rename group set", text = function() return string.format(L["Rename %s"], setName()) end, disabled = off,
+      desc = "A new name for the set in use.",
+      func = function()
+          local Cat = ns.Categories
+          local id = Cat.CurrentSet()
+          prompt(string.format(L["Rename %s:"], setName()), setName(), function(name) Cat.RenameSet(id, name) end)
+      end },
+    { type = "button", key = "groupSets.delete", label = "Delete group set", text = function() return string.format(L["Delete %s"], setName()) end, confirm = true,
+      desc = "Deletes the set in use, with its groups and moved items, and puts another in use. The last set can't be deleted.",
+      disabled = function(get) return off(get) or #ns.Categories.Sets() < 2 end,
+      func = function() ns.Categories.DeleteSet(ns.Categories.CurrentSet()) end },
+}
+
 -- New custom group: just a name. It sits in the bag waiting for items, and its
 -- line above takes a search.
 local addGroup = {
@@ -212,15 +253,17 @@ local shareGroups = {
                 P.Wrap(text))
         end)
         tooltip(out, L["Export groups"], L["Your own groups as text to copy: paste it on another character, or give it to a friend."])
-        local inn = W.Button(row, L["Import groups"], 26)
-        row.inn = inn
-        inn:SetWidth(140)
-        inn:SetPoint("LEFT", out, "RIGHT", 10, 0)
-        inn:SetScript("OnClick", function()
+        -- Import makes a new group set; Add to this set merges into the one in use.
+        local function openImport(asSet)
             local typed, lost
+            local Cat = ns.Categories
+            local hint = asSet
+                and L["Paste bag groups (Ctrl+V), from Daylight UI or Baganator. They become a new group set with only their own groups, put in use. Your sets stay as they are."]
+                or string.format(L["Paste bag groups (Ctrl+V), from Daylight UI or Baganator. They're added to %s. A group with the same name as one of yours is updated; the others are added."],
+                    Cat.SetName(Cat.CurrentSet()))
             local box = P.ShowPaste({
                 title = L["Import bag groups"],
-                hint = L["Paste bag groups (Ctrl+V), from Daylight UI or Baganator. A group with the same name as one of yours is updated; the others are added."],
+                hint = hint,
                 read = function(text)
                     local list, why = ns.Categories.ReadShared(ns.Categories.Unwrapped(text, typed))
                     if not list then return nil, why end
@@ -236,7 +279,7 @@ local shareGroups = {
                         said = string.format(L["%d groups: %s%s."], #names, table.concat(names, ", ", 1, math.min(5, #names)), more)
                     end
                     if list.notes and #list.notes > 0 then
-                        said = said .. " " .. L["Some Baganator rules have no match here. Chat lists them after you import."]
+                        said = said .. " " .. L["Some Baganator rules have no match here, so they're left out."]
                     end
                     if lost and list.baganator then
                         said = said .. " " .. L["Editing the text here took out its spaces, so paste it again to keep them."]
@@ -244,8 +287,7 @@ local shareGroups = {
                     return list, said
                 end,
                 go = function(list)
-                    local n, moved = ns.Categories.ImportShared(list)
-                    for _, line in ipairs(ns.Categories.ImportLines(n, moved, list.notes)) do DUI.Print(line) end
+                    if asSet then Cat.ImportAsSet(list) else Cat.ImportShared(list) end
                 end,
             })
             -- The box takes spaces out of long pasted text, and Unwrapped puts them
@@ -265,8 +307,19 @@ local shareGroups = {
                     check(self, user)
                 end)
             end
-        end)
-        tooltip(inn, L["Import groups"], L["Bag groups someone shared, or your Baganator categories, added to yours."])
+        end
+        local inn = W.Button(row, L["Import groups"], 26)
+        row.inn = inn
+        inn:SetWidth(140)
+        inn:SetPoint("LEFT", out, "RIGHT", 10, 0)
+        inn:SetScript("OnClick", function() openImport(true) end)
+        tooltip(inn, L["Import groups"], L["Bag groups someone shared, or your Baganator categories, as a new group set. Switch back to yours any time."])
+        local add = W.Button(row, L["Add to this set"], 26)
+        row.add = add
+        add:SetWidth(140)
+        add:SetPoint("LEFT", inn, "RIGHT", 10, 0)
+        add:SetScript("OnClick", function() openImport(false) end)
+        tooltip(add, L["Add to this set"], L["Bag groups someone shared, or your Baganator categories, added to the group set in use."])
     end,
     update = function(row)
         if row.out then row.out.SetOff(ns.Categories.ShareTable() == nil) end
@@ -470,6 +523,7 @@ ns.OPTIONS = { pages = {
               desc = "A new item shows both in Recent and in the group it belongs to, so you can find it either way." },
         } },
         { label = "Groups", desc = "Listed in bag order. An item that fits several groups goes to the most specific one (a gray weapon goes to Junk). Your own groups are checked first.", items = {
+            groupSets[1], groupSets[2], groupSets[3], groupSets[4], groupSets[5],
             groupList,
         } },
         { label = "Your own groups", desc = "A new group starts empty. Hold Shift while dragging an item to see your empty groups in the bag, and drop it on one's name. Or click the search beside it here to fill it by itself.", items = {

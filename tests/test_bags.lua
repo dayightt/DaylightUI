@@ -4180,7 +4180,7 @@ T.test("bags: Import groups in the options takes a Baganator export, spaces and 
     T.falsy(box.edit:GetText():find("Toys and Pets", 1, true), "wrapped in the box")
     local status = box.status.__text
     T.truthy(status:find("Toys and Pets", 1, true), status)
-    T.truthy(status:find("Some Baganator rules have no match here.", 1, true), status)
+    T.truthy(status:find("Some Baganator rules have no match here, so they're left out.", 1, true), status)
     -- Typing in the wrapped text can't bring the spaces back: say so.
     box.edit.__text = string.gsub(box.edit:GetText(), "Keepers", "Keeper")
     changed(box.edit, true)
@@ -4192,12 +4192,328 @@ T.test("bags: Import groups in the options takes a Baganator export, spaces and 
     local names = {}
     for _, g in ipairs(Cat.Custom()) do names[g.name] = true end
     T.truthy(names["Toys and Pets"], "its spaces kept")
-    local said = table.concat(printed, "\n")
-    T.truthy(said:find("Imported 4 bag groups.", 1, true), said)
-    T.truthy(said:find("marked as junk", 1, true), said)
-    T.truthy(said:find("Not brought over from Baganator:", 1, true), said)
+    T.eq(#printed, 0, "nothing in chat")
     DaylightUI.Print = print0
     _G.C_EncodingUtil = nil
+end)
+
+-- Group sets: named snapshots of every group setting, one in use.
+
+local function setNames(Cat)
+    local out = {}
+    for _, s in ipairs(Cat.Sets()) do out[#out + 1] = s.name end
+    return table.concat(out, ",")
+end
+
+local function customNames(Cat)
+    local out = {}
+    for _, g in ipairs(Cat.Custom()) do out[#out + 1] = g.name end
+    return table.concat(out, ",")
+end
+
+T.test("bags: group sets: the groups you have become My groups, once", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local keep = Cat.AddCustom("Keepers", "potion")
+    Cat.Pin(6948, keep)
+    Cat.Delete("weapon")
+    Cat.Rename("armor", "Gear")
+    Cat.ToggleCollapsed("junk")
+    T.eq(setNames(Cat), "My groups")
+    local id = Cat.CurrentSet()
+    T.eq(Cat.SetName(id), "My groups")
+    T.eq(setNames(Cat), "My groups", "asked again: still one")
+    T.eq(Cat.CurrentSet(), id)
+    T.eq(customNames(Cat), "Keepers", "nothing lost")
+    T.eq(Cat.PinOf(6948), keep)
+    T.isnil(Cat.Get("weapon"))
+    T.eq(Cat.Get("armor").name, "Gear")
+    T.truthy(Cat.IsCollapsed("junk"))
+end)
+
+T.test("bags: group sets: switching keeps each set's groups as they were", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local keep = Cat.AddCustom("Keepers", "potion")
+    Cat.Pin(6948, keep)
+    Cat.Delete("weapon")
+    Cat.SetColor("armor", { 1, 0, 0 })
+    Cat.Move("junk", -1)
+    local order = table.concat(Cat.Order(), ",")
+    local a = Cat.CurrentSet()
+    local b = Cat.NewSet("Raid")
+    T.eq(Cat.CurrentSet(), b, "a new set is put in use")
+    T.eq(customNames(Cat), "", "a new set starts from the defaults")
+    T.isnil(Cat.PinOf(6948))
+    T.truthy(Cat.Get("weapon"), "every built-in group")
+    T.falsy(Cat.HasOwnColor("armor"))
+    Cat.AddCustom("Flasks", "flask")
+    Cat.Delete("recipe")
+    Cat.SwitchSet(a)
+    T.eq(Cat.CurrentSet(), a)
+    T.eq(customNames(Cat), "Keepers")
+    T.eq(Cat.PinOf(6948), keep)
+    T.isnil(Cat.Get("weapon"))
+    T.truthy(Cat.Get("recipe"))
+    T.truthy(Cat.HasOwnColor("armor"))
+    T.eq(table.concat(Cat.Order(), ","), order)
+    Cat.SwitchSet(b)
+    T.eq(customNames(Cat), "Flasks")
+    T.isnil(Cat.Get("recipe"))
+    T.truthy(Cat.Get("weapon"))
+    -- The bag follows at once: the gray weapon's group is gone in A, so it's sorted again.
+    T.eq(groupOf(ns, ns.Bags.buttons[0][1]), "weapon")
+    Cat.SwitchSet(a)
+    T.eq(groupOf(ns, ns.Bags.buttons[0][1]), "other", "Weapons deleted in this set")
+    T.falsy(Cat.SwitchSet("nope"), "no such set")
+    T.eq(Cat.CurrentSet(), a)
+end)
+
+T.test("bags: group sets: new, copy, rename and delete", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    Cat.AddCustom("Keepers")
+    local a = Cat.CurrentSet()
+    local b = Cat.NewSet("My groups")
+    T.eq(Cat.SetName(b), "My groups 2", "a name in use gets a number")
+    local c = Cat.CopySet(a, "Copy")
+    T.eq(Cat.CurrentSet(), c, "the copy is put in use")
+    T.eq(customNames(Cat), "Keepers", "the copy has the same groups")
+    Cat.AddCustom("Only in the copy")
+    Cat.SwitchSet(a)
+    T.eq(customNames(Cat), "Keepers", "the first one keeps its own")
+    -- Copying the set in use copies its groups as they are now.
+    Cat.AddCustom("Fresh")
+    local d = Cat.CopySet(a)
+    T.eq(Cat.SetName(d), "My groups 3", "no name: its own, numbered")
+    T.eq(customNames(Cat), "Keepers,Fresh")
+    T.truthy(Cat.RenameSet(d, "Copy"))
+    T.eq(Cat.SetName(d), "Copy 2")
+    T.truthy(Cat.RenameSet(d, "Copy 2"), "its own name again")
+    T.eq(Cat.SetName(d), "Copy 2")
+    T.falsy(Cat.RenameSet(d, "   "), "no empty name")
+    T.eq(Cat.SetName(d), "Copy 2")
+    T.eq(setNames(Cat), "Copy,Copy 2,My groups,My groups 2", "by name")
+    -- Deleting the set in use puts another in use.
+    Cat.SwitchSet(c)
+    T.truthy(Cat.DeleteSet(c))
+    T.isnil(Cat.SetName(c))
+    T.truthy(Cat.CurrentSet() ~= c)
+    T.truthy(Cat.SetName(Cat.CurrentSet()))
+    T.falsy(string.find(customNames(Cat), "Only in the copy", 1, true), "its groups went with it")
+    T.truthy(Cat.DeleteSet(b))
+    T.truthy(Cat.DeleteSet(Cat.CurrentSet() == a and d or a))
+    T.eq(#Cat.Sets(), 1)
+    T.falsy(Cat.DeleteSet(Cat.CurrentSet()), "the last set stays")
+    T.eq(#Cat.Sets(), 1)
+end)
+
+T.test("bags: group sets: a Baganator import is a set of its own, without doubles", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    Cat.AddCustom("Keepers", "potion")
+    local mine = Cat.CurrentSet()
+    local list = Cat.ReadShared(BAGANATOR)
+    local id, n, moved = Cat.ImportAsSet(list)
+    T.eq(Cat.SetName(id), "Baganator")
+    T.eq(Cat.CurrentSet(), id, "put in use")
+    T.eq(n, 4)
+    T.eq(moved.junk, 1)
+    T.eq(customNames(Cat), "My Gear,Shinies,Toys and Pets,Keepers", "only Baganator's groups")
+    local builtins = {}
+    for _, key in ipairs(Cat.Order()) do if Cat.BY_KEY[key] then builtins[#builtins + 1] = key end end
+    T.eq(table.concat(builtins, ","), "recent,other,junk,empty,keyring", "Recent, Other, Empty and Keyring, and Junk for its moved item")
+    T.eq(Cat.PinOf(4306), "junk")
+    T.eq(Cat.PinOf(6948), Cat.Custom()[4].key, "Keepers' items")
+    -- Your own set is untouched.
+    Cat.SwitchSet(mine)
+    T.eq(customNames(Cat), "Keepers")
+    T.isnil(Cat.PinOf(4306))
+    T.truthy(Cat.Get("weapon"))
+    -- Imported again: a second set.
+    local again = Cat.ImportAsSet(Cat.ReadShared(BAGANATOR))
+    T.eq(Cat.SetName(again), "Baganator 2")
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: group sets: a Daylight UI string becomes Imported groups", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local store = {}
+    _G.C_EncodingUtil = {
+        SerializeCBOR = function(v) store[#store + 1] = v; return "cbor" .. #store end,
+        DeserializeCBOR = function(s) local v = store[tonumber(string.match(s, "^cbor(%d+)$") or "")]
+            if not v then error("bad cbor") end; return v end,
+        CompressString = function(s) return s end, DecompressString = function(s) return s end,
+        EncodeBase64 = function(s) return s end, DecodeBase64 = function(s) return s end,
+    }
+    local keep = Cat.AddCustom("Keepers", "potion")
+    Cat.Pin(6948, keep)
+    local text = Cat.Export()
+    local id, n = Cat.ImportAsSet(Cat.ReadShared(text))
+    T.eq(n, 1)
+    T.eq(Cat.SetName(id), "Imported groups")
+    T.eq(customNames(Cat), "Keepers")
+    T.eq(Cat.PinOf(6948), Cat.Custom()[1].key)
+    T.eq(table.concat(Cat.Removed(), ","),
+        "hearthstone,consumable,quest,sets,weapon,armor,reagent,tradegoods,recipe,ammo,container,quiver,key,misc,junk")
+    T.eq(#Cat.Sets(), 2)
+    _G.C_EncodingUtil = nil
+end)
+
+-- Imported groups without a color take the closest built-in group's.
+local function colorOf(Cat, key)
+    if not Cat.HasOwnColor(key) then return "none" end
+    return string.format("%.2f,%.2f,%.2f", Cat.Color(key))
+end
+
+local function builtinColor(Cat, key) return string.format("%.2f,%.2f,%.2f", Cat.DefaultColor(key)) end
+
+local function customKey(Cat, name)
+    for _, g in ipairs(Cat.Custom()) do if g.name == name then return g.key end end
+end
+
+local WORDS = '{"version":1,"categories":[{"name":"Weapon","search":"#weapon|#shields"},'
+    .. '{"name":"Pot","search":"#potion"},{"name":"Herb","search":"#herb|#alchemy"},'
+    .. '{"name":"Recipe","search":"#recipe"},{"name":"Projectile","search":""},'
+    .. '{"name":"Stuff","search":"#metal stone|#parts"},{"name":"Rubbish","search":"#junk"},'
+    .. '{"name":"Tradeable","search":"bread|apple"},{"name":"Keepers","search":"zzz"}]}'
+
+T.test("bags: group sets: imported groups take the closest built-in group's color", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    Cat.ImportAsSet(Cat.ReadShared(WORDS))
+    local function is(name, key, why)
+        T.eq(colorOf(Cat, customKey(Cat, name)), builtinColor(Cat, key), why or name)
+    end
+    is("Weapon", "weapon", "the name settles it before Shields' Armor")
+    is("Pot", "consumable")
+    is("Herb", "tradegoods")
+    is("Recipe", "recipe")
+    is("Projectile", "ammo", "the name alone")
+    is("Stuff", "tradegoods", "the game's kind names in its search")
+    is("Rubbish", "junk")
+    T.truthy(builtinColor(Cat, "junk") ~= builtinColor(Cat, "other"), "Junk's quality color, not plain")
+    is("Tradeable", "consumable", "no word to go by: the bread and apples it holds vote")
+    T.eq(colorOf(Cat, customKey(Cat, "Keepers")), "none", "nothing to go by: no color")
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: group sets: an import's own color and a group's set color stay", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local mine = Cat.AddCustom("Weapon", "#weapon")
+    Cat.SetColor(mine, { 1, 0, 0 })
+    local plain = Cat.AddCustom("Pot", "#potion")
+    Cat.ImportShared(Cat.ReadShared(WORDS))
+    T.eq(colorOf(Cat, mine), "1.00,0.00,0.00", "merged into a group with its own color")
+    T.eq(colorOf(Cat, plain), "none", "a group that was already there keeps its look")
+    T.eq(colorOf(Cat, customKey(Cat, "Herb")), builtinColor(Cat, "tradegoods"), "a new one gets one")
+    _G.C_EncodingUtil = nil
+
+    local store = {}
+    _G.C_EncodingUtil = {
+        SerializeCBOR = function(v) store[#store + 1] = v; return "cbor" .. #store end,
+        DeserializeCBOR = function(s) local v = store[tonumber(string.match(s, "^cbor(%d+)$") or "")]
+            if not v then error("bad cbor") end; return v end,
+        CompressString = function(s) return s end, DecompressString = function(s) return s end,
+        EncodeBase64 = function(s) return s end, DecodeBase64 = function(s) return s end,
+    }
+    local text = Cat.Export()
+    Cat.ImportAsSet(Cat.ReadShared(text))
+    T.eq(colorOf(Cat, customKey(Cat, "Weapon")), "1.00,0.00,0.00", "a Daylight UI string's color as sent")
+    T.eq(colorOf(Cat, customKey(Cat, "Herb")), builtinColor(Cat, "tradegoods"))
+    _G.C_EncodingUtil = nil
+end)
+
+-- The share row in the options (Categories > Your own groups).
+local function shareRow(ns)
+    local share
+    for _, page in ipairs(ns.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            for _, item in ipairs(card.items) do if item.label == "Share your groups" then share = item end end
+        end
+    end
+    local row = CreateFrame("Frame")
+    share.build(row)
+    return row
+end
+
+T.test("bags: group sets: Import groups makes a set; Add to this set merges as before", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    _G.C_EncodingUtil = { DeserializeJSON = readJSON }
+    local print0 = DaylightUI.Print
+    DaylightUI.Print = function() end
+    Cat.AddCustom("Shinies", "q=1")
+    local mine = Cat.CurrentSet()
+    local row = shareRow(ns)
+    row.add:GetScript("OnClick")(row.add)
+    local box = _G.DaylightUIProfileBox
+    box.edit.__text = BAGANATOR
+    box.edit:GetScript("OnTextChanged")(box.edit, true)
+    box.go:GetScript("OnClick")()
+    T.eq(#Cat.Sets(), 1, "no new set")
+    T.eq(Cat.CurrentSet(), mine)
+    T.eq(customNames(Cat), "Shinies,My Gear,Toys and Pets,Keepers", "merged: Shinies updated, not doubled")
+    T.truthy(Cat.Get("weapon"), "the built-in groups stay")
+    row.inn:GetScript("OnClick")(row.inn)
+    box.edit.__text = BAGANATOR
+    box.edit:GetScript("OnTextChanged")(box.edit, true)
+    box.go:GetScript("OnClick")()
+    T.eq(#Cat.Sets(), 2)
+    T.eq(Cat.SetName(Cat.CurrentSet()), "Baganator")
+    T.isnil(Cat.Get("weapon"))
+    DaylightUI.Print = print0
+    _G.C_EncodingUtil = nil
+end)
+
+T.test("bags: group sets: picked from the Groups card", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    local items = {}
+    for _, page in ipairs(ns.OPTIONS.pages) do
+        for _, card in ipairs(page.groups or {}) do
+            if card.label == "Groups" then
+                for _, item in ipairs(card.items) do if item.key then items[item.key] = item end end
+            end
+        end
+    end
+    local pick = items["groupSets.pick"]
+    T.truthy(pick, "a Group set dropdown")
+    local prompt0 = DaylightUI.Widgets.Prompt
+    DaylightUI.Widgets.Prompt = function(_, _, accept) accept("Raid") end
+    items["groupSets.new"].func()
+    T.eq(Cat.SetName(Cat.CurrentSet()), "Raid")
+    local values, order = pick.choices()
+    T.eq(#order, 2)
+    T.eq(values[order[1]], "My groups")
+    T.eq(pick.get(), Cat.CurrentSet())
+    pick.set(order[1])
+    T.eq(Cat.SetName(Cat.CurrentSet()), "My groups")
+    T.truthy(string.find(items["groupSets.rename"].text(), "My groups", 1, true))
+    T.truthy(items["groupSets.delete"].confirm)
+    items["groupSets.delete"].func()
+    T.eq(setNames(Cat), "Raid")
+    T.truthy(items["groupSets.delete"].disabled(function() return true end), "the last one can't go")
+    DaylightUI.Widgets.Prompt = prompt0
+end)
+
+T.test("bags: group sets: a copied UI profile carries them", function()
+    local ns = catLogin()
+    local Cat = ns.Categories
+    Cat.AddCustom("Keepers")
+    Cat.NewSet("Raid")
+    T.eq(DaylightUI.Profiles.Create("Copy"), "Copy")
+    local bags = DaylightUIDB.profileData.Copy.modules.Bags
+    local names = {}
+    for _, s in pairs(bags.groupSets) do names[#names + 1] = s.name end
+    table.sort(names)
+    T.eq(table.concat(names, ","), "My groups,Raid")
+    T.eq(bags.groupSets[bags.groupSet].name, "Raid", "the same one in use")
 end)
 
 T.test("bags: an empty group of yours can wait only in the bag, never in the bank or a saved copy", function()
