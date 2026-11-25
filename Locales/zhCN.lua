@@ -3886,7 +3886,7 @@ L["With both on, it shows only when you're in a group and in combat. The second 
 L["With no portrait and no name tab, the role, marker, crown and dispel icons sit in the frame's corners."] = "没有头像和名字标签时，职责、标记、皇冠和驱散图标位于框体的角落。"
 L["Withdraw"] = "提取"
 L["Withdraw gold"] = "提取金币"
-L["Within each zone. Most recent progress moves a quest up when a kill, item or objective counts. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight."] = "在每个地区内。最近进度：击杀、物品或目标计数时将任务上移。最近优先：移动时每隔几秒重新检查，战斗或地下城中不会。战斗中不会移动任何任务。"
+L["Within each zone. Most recent progress moves a quest up when a kill, item or objective counts. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight."] = "在每个地区内。最近的进度：击杀、物品或目标计数时将任务上移。最近的优先：移动时每隔几秒重新检查，战斗或地下城中不会。战斗中不会移动任何任务。"
 L["Wood pop"] = "木质轻响"
 L["World"] = "世界"
 L["World map"] = "世界地图"
@@ -7298,7 +7298,7 @@ L["The mouseover border's color when Mouseover border color is One color."] = "�
 L["The name's color when Name color is One color."] = "“名字颜色”设为“单一颜色”时名字的颜色。"
 L["The numbers over what your pet or totems hit."] = "你的宠物或图腾击中目标时显示的数字。"
 L["The off hand bar fills from the right. Only when detached on its own."] = "副手计时条从右侧开始填充。仅在单独分离时有效。"
-L["The order of the quests within each zone. Most recent progress moves a quest and its zone to the top when a kill, item or objective counts. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight."] = "每个区域内任务的排列顺序。“最近进展”会在击杀、拾取或目标计数时将该任务及其区域移到顶部。“最近优先”会随你移动每隔几秒重新排序，战斗中或地下城内不会重排。战斗中任何内容都不会移动。"
+L["The order of the quests within each zone. Most recent progress moves a quest and its zone to the top when a kill, item or objective counts. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight."] = "每个区域内任务的排列顺序。“最近的进度”会在击杀、拾取或目标计数时将该任务及其区域移到顶部。“最近的优先”会随你移动每隔几秒重新排序，战斗中或地下城内不会重排。战斗中任何内容都不会移动。"
 L["The outline's color when Target outline color is One color."] = "“目标轮廓颜色”设为“单一颜色”时轮廓的颜色。"
 L["The overshield's color when Overshield color is One color."] = "“溢出护盾颜色”设为“单一颜色”时溢出护盾的颜色。"
 L["The pressed border's color when Pressed border color is One color."] = "“按下边框颜色”设为“单一颜色”时按下边框的颜色。"
@@ -8968,7 +8968,7 @@ L["Zone you're in at the top"] = "当前所在区域置顶"
 
 L["Sort zones A to Z"] = "按 A 到 Z 排序区域"
 L["Sort zones by level"] = "按等级排序区域"
-L["The order of the quests within each zone. Most recent progress moves a quest and its zone to the top when a kill, item or objective counts. Level, across zones also puts the zone with the lowest quest first, and with zone names off makes one list by level. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight. Drag a zone's name to put the zones in your own order, or right-click Quests to sort them A to Z or by level: your order then wins over this one."] = "每个区域内任务的排列顺序。“最近进展”会在击杀、拾取或目标计数时将该任务及其区域移到顶部。“等级（跨区域）”还会将包含最低等级任务的区域排在首位，且在关闭区域名称时生成一份按等级排列的单一列表。“最近优先”会随你移动每隔几秒重新排序，战斗中或地下城内不会重排。战斗中任何内容都不会移动。拖动区域名称可按你自己的顺序排列各区域，或右键点击“任务”按 A 到 Z 或按等级对其排序：你的自定义顺序将优先于此设置。"
+L["The order of the quests within each zone. Most recent progress moves a quest and its zone to the top when a kill, item or objective counts. Level, across zones also puts the zone with the lowest quest first, and with zone names off makes one list by level. Nearest first looks again every few seconds as you move, never in a fight or a dungeon. Nothing moves in a fight. Drag a zone's name to put the zones in your own order, or right-click Quests to sort them A to Z or by level: your order then wins over this one."] = "每个区域内任务的排列顺序。“最近的进度”会在击杀、拾取或目标计数时将该任务及其区域移到顶部。“等级，跨区域”还会将包含最低等级任务的区域排在首位，且在关闭区域名称时生成一份按等级排列的单一列表。“最近的优先”会随你移动每隔几秒重新排序，战斗中或地下城内不会重排。战斗中任何内容都不会移动。拖动区域名称可按你自己的顺序排列各区域，或右键点击“任务”按 A 到 Z 或按等级对其排序：你的自定义顺序将优先于此设置。"
 L["Zones in the usual order"] = "区域按常规顺序"
 
 end)
