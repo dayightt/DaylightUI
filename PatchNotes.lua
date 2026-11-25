@@ -55,6 +55,8 @@ DUI.PatchNotes = {
         { "Chat", "Whisper buttons in the friends and group finder windows open Daylight UI's whisper card, and no longer leave the chat box throwing errors every time you open it" },
         { "Chat", "A chat tab's Whispers switch now covers Battle.net whispers too, so a friend's whispers land on the tabs you picked" },
         { "Flight timer", "The flight timer now shows on the druid flight out of Nighthaven in Moonglade, the one you take by talking to the flight master" },
+        { "Tooltips", "The X on a link you click in chat sits on the corner of the tooltip card, and stays there when you click one link after another (thanks Ángel)" },
+        { "Translations", "The newest settings in Simplified Chinese (thanks Levis)" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {
         { "Cooldown Manager", "Overpower now lights up and plays its sound after your target dodges in any stance, so you know when to switch to Battle Stance for it" },
