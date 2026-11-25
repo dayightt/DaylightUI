@@ -280,6 +280,27 @@ T.test("action bars: empty slots hide until a drag, or show see-through when ask
     T.eq(empty.back:GetAlpha(), 0)
 end)
 
+-- The game hides an empty pet slot itself (ActionBar.lua UpdateShownButtons: shown
+-- only with an action or while a pet action is dragged), so Show empty buttons can't
+-- reach the pet bar. When the game does show one, it's a drop target and must be seen.
+T.test("pet bar: Show empty buttons is not offered for it; a slot the game shows is always seen", function()
+    local DUI = login()
+    local Skin = stub.actionbars.Skin
+    local empty = Skin.GetParts(_G.PetActionButton2)
+    T.truthy(empty, "the pet buttons are dressed")
+    T.eq(empty.back:GetAlpha(), Skin.EMPTY_ALPHA, "an empty pet slot the game shows (a drag) is see-through, not gone")
+    DUI:Set("ActionBars", "hideEmpty", false)
+    T.eq(empty.back:GetAlpha(), Skin.EMPTY_ALPHA, "the setting changes nothing on the pet bar")
+    local row
+    for _, page in ipairs(stub.actionbars.OPTIONS.pages) do
+        for _, g in ipairs(page.groups) do
+            for _, it in ipairs(g.items) do if it.key == "hideEmpty" then row = it end end
+        end
+    end
+    T.truthy(row, "the row is still there for the action bars")
+    T.truthy(row.desc:find("pet bar", 1, true), "its description says the pet bar isn't covered")
+end)
+
 T.test("action bars: short of power fades like out of range (never blue); a proc colors the backing", function()
     login()
     local Skin = stub.actionbars.Skin
@@ -462,7 +483,8 @@ T.test("action bars: pet and stance bars are skinned; totems move to our player 
     T.truthy(Skin.IsSkinned(_G.StanceButton1)); T.truthy(Skin.IsSkinned(_G.PetActionButton1))
     DaylightUI:Set("ActionBars", "hideEmpty", true)
     T.eq(Skin.GetParts(_G.PetActionButton1).back:GetAlpha(), 1, "a pet ability shows")
-    T.eq(Skin.GetParts(_G.PetActionButton5).back:GetAlpha(), 0, "an empty pet slot hides")
+    T.eq(Skin.GetParts(_G.PetActionButton5).back:GetAlpha(), Skin.EMPTY_ALPHA,
+        "an empty pet slot: the game hides it, and shows it only as a drop target")
     T.eq(TotemFrame:GetParent(), UIParent, "out from under the hidden player frame")
     local _, rel = TotemFrame:GetPoint(1)
     T.eq(rel, _G.DaylightUIFrame_player, "above our player frame")

@@ -14,6 +14,8 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Quests", "Drag a zone's name in the quest tracker to put your zones in your own order, or right-click Quests to sort them A to Z or by level" },
         { "Auction House", "Alt-click an item in your bags to put it on the Sell tab, like right-click; pick either one under Auction > Buying and selling" },
+    }, changed = {
+        { "Action bars", "Show empty buttons now covers the action bars only: the game hides the pet bar's empty slots itself, so it never worked there" },
     }, fixed = {
         { "Professions", "Rogues with the Reagent Economy Legacy perk can make poisons in the profession window without the materials, as in the game's own window" },
         { "Camera", "The Max camera distance slider goes all the way to the game's limit (400%) again, instead of stopping at 200% when you found it through the options search" },

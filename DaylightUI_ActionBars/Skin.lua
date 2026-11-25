@@ -577,7 +577,9 @@ function Skin.UpdateEmpty(btn, snap)
     if not parts then return end
     local empty = not dragging and not hasAction(btn)
     -- A controller's crosses keep their shape, since those buttons are always there.
-    local hidden = empty and Skin.hideEmpty and not padButtons[btn]
+    -- The game hides an empty pet slot itself and shows it only while a pet action is
+    -- dragged, so one that shows is a drop target and keeps its see-through backing.
+    local hidden = empty and Skin.hideEmpty and not padButtons[btn] and not petButtons[btn]
     local back = hidden and 0 or empty and Skin.EMPTY_ALPHA or 1
     local key = (hidden or parts.L.keybind == false) and 0 or 1
     local hl = hidden and 0 or 1

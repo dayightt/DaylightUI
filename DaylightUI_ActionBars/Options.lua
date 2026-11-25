@@ -189,7 +189,7 @@ end
 local look = {
     { label = "Buttons", tab = "Basics", items = {
         { type = "toggle", key = "hideEmpty", invert = true, label = "Show empty buttons",
-          desc = "Slots with nothing on them show as empty frames. When off, they disappear and show again while you drag a spell or item." },
+          desc = "Slots with nothing on them show as empty frames. When off, they disappear and show again while you drag a spell or item. Not the pet bar: the game hides its empty slots itself." },
         { type = "toggle", key = "readyPing", label = "Ping when ready", disabled = motionOff,
           desc = "A spell's icon pops and lights up once when it comes off a real cooldown (never for the global cooldown). Needs Motion effects (General > Appearance)." },
         { type = "toggle", key = "rankUp", label = "New ranks on your bars",
