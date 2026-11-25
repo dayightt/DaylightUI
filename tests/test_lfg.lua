@@ -440,6 +440,73 @@ T.test("lfg: the client refuses a new listing without a playstyle (never sent by
     T.isnil(ns.Data.Entry())
 end)
 
+-- Seen in game: right after List me the server's search can come back without the
+-- listing just made, so Find showed everyone but you until Refresh. Your own listing
+-- is known without asking the server, so it shows at once, once.
+local function mineRows(ns)
+    local out = {}
+    for _, b in ipairs(rows(ns.Browse.page.stack, "group")) do
+        if b.spec.result and b.spec.result.mine then out[#out + 1] = b end
+    end
+    return out
+end
+
+T.test("lfg: a new listing shows on Find even when the game's search missed it", function()
+    local ns = load({ lag = true })
+    open(ns)
+    tab(ns, "list")
+    local L = ns.Listing
+    local acts = rows(L.page.stack, "act")
+    local listed = acts[1].name:GetText()
+    acts[1]:GetScript("OnClick")(acts[1], "LeftButton")
+    L.PickStyle(2)
+    stub.Key(L.Post)
+    frame(20)
+    T.eq(ns.Window.page, "find", "the window went to Find a group")
+    local mine = mineRows(ns)
+    T.eq(#mine, 1, "your listing is on the list without a Refresh")
+    T.truthy(mine[1].spec.text:find(listed, 1, true), "it names the activity you listed")
+    T.truthy(mine[1].spec.sub:find(DaylightUI.UnitName("player"), 1, true), "it names you")
+    T.truthy(mine[1].spec.sub:find("Barrens", 1, true), "and where you are")
+    -- Its card still offers Edit and Unlist.
+    click(mine[1])
+    frame(20)
+    local _, buttons = card(ns.Browse.page.detail)
+    T.eq(table.concat(buttons, ","), "Edit listing,Unlist", "the card offers Edit and Unlist")
+    -- The server catches up: a Refresh brings the real one, never two.
+    LW.state.lag = false
+    tab(ns, "list")
+    stub.Key(L.Post)   -- an update puts it in the server's results
+    frame(20)
+    tab(ns, "find")
+    stub.Key(function() ns.Browse.page.refresh:GetScript("OnClick")(ns.Browse.page.refresh) end)
+    frame(20)
+    T.eq(#mineRows(ns), 1, "one row for your listing after the real one arrives")
+    -- Unlisted: gone at once.
+    stub.Key(L.Unlist)
+    frame(20)
+    T.eq(#mineRows(ns), 0, "no row once you unlist")
+end)
+
+T.test("lfg: a new listing shows on Find even when the game's search never answers", function()
+    local ns = load({ lag = true })
+    open(ns)
+    tab(ns, "list")
+    local L = ns.Listing
+    local acts = rows(L.page.stack, "act")
+    acts[1]:GetScript("OnClick")(acts[1], "LeftButton")
+    L.PickStyle(1)
+    local fire = stub.FireEvent
+    stub.FireEvent = function(e, ...) if e ~= "LFG_LIST_SEARCH_RESULTS_RECEIVED" then return fire(e, ...) end end
+    stub.Key(L.Post)
+    frame(20)
+    stub.FireEvent = fire
+    stub.Advance(ns.Browse.WAIT + 1)
+    frame(5)
+    T.falsy(ns.Browse.searching, "gave up waiting")
+    T.eq(#mineRows(ns), 1, "your listing shows anyway")
+end)
+
 -- After a new listing the game searches only that listing's activities, and an
 -- addon can't search without a click. Find says so, and one click on its button
 -- shows every group of the category. In game it showed "All activities" over only

@@ -301,6 +301,20 @@ end
 
 -- Search results
 
+-- A listing's size (the largest among its activities,
+-- LFGBrowseUtil_GetBestDisplayTypeForActivityIDs) and the names of its activities.
+local function named(out)
+    local size, names = 0, {}
+    for _, aid in ipairs(out.acts) do
+        local a = Data.Activity(aid)
+        if a and (a.maxNumPlayers or 0) > size then size = a.maxNumPlayers end
+        names[#names + 1] = Data.ActivityName(aid)
+    end
+    out.size = size
+    out.text = #names == 1 and names[1] or table.concat(names, ", ")
+    return out
+end
+
 -- One listing as the window shows it, or nil (gone, or its basics are secret).
 -- { id, acts (ids), text (activity), leader { name, class, level },
 -- members { { name, class, level, role, leader } }, solo, size (activity's max, 0 none),
@@ -334,16 +348,56 @@ function Data.Result(id)
     out.leader = { name = lead.name or plain(r.leaderName), class = lead.class, level = lead.level, zone = lead.zone }
     local c = ask("GetSearchResultMemberCounts", id)
     out.counts = type(c) == "table" and c or {}
-    -- Largest group size among its activities (LFGBrowseUtil_GetBestDisplayTypeForActivityIDs).
-    local size, names = 0, {}
-    for _, aid in ipairs(acts) do
-        local a = Data.Activity(aid)
-        if a and (a.maxNumPlayers or 0) > size then size = a.maxNumPlayers end
-        names[#names + 1] = Data.ActivityName(aid)
+    return named(out)
+end
+
+-- The player's own listing as a result, read from the listing itself. A search made
+-- right after listing can come back without it (the server hasn't caught up), and the
+-- player should never have to Refresh to see that they're listed. nil when not listed.
+function Data.Mine()
+    local e = Data.Entry()
+    if not e then return nil end
+    local acts = {}
+    for _, aid in ipairs(e.activityIDs) do
+        local v = plain(aid)
+        if type(v) == "number" then acts[#acts + 1] = v end
     end
-    out.size = size
-    out.text = #names == 1 and names[1] or table.concat(names, ", ")
-    return out
+    if #acts == 0 then return nil end
+    local style = plain(e.generalPlaystyle)
+    local out = { id = "mine", acts = acts, mine = true, note = plain(e.comment), newcomers = plain(e.newPlayerFriendly) == true,
+        style = Data.PlaystyleWord(style), styleInk = Data.PlaystyleInk(style), members = {}, counts = {} }
+    if type(out.note) ~= "string" or out.note == "" then out.note = nil end
+    if type(Data.listedAt) == "number" then out.age = math.max(0, GetTime() - Data.listedAt) end
+    -- The home group, the way the game lists it; alone, just the player.
+    local units = { "player" }
+    if Data.Grouped() then
+        local n = Data.GroupSize()
+        local raid = IsInRaid and IsInRaid() == true
+        for i = 1, raid and n or n - 1 do units[#units + 1] = (raid and "raid" or "party") .. i end
+    end
+    local seen = {}
+    for _, unit in ipairs(units) do
+        if unit == "player" or (plain(UnitExists(unit)) == true and plain(UnitIsUnit(unit, "player")) ~= true) then
+            local name = plain(DUI.UnitName(unit))
+            local _, class = UnitClass(unit)
+            local role = plain(UnitGroupRolesAssigned(unit))
+            local m = { name = name, class = plain(class), level = plain(UnitLevel(unit)), role = role,
+                leader = plain(UnitIsGroupLeader(unit)) == true }
+            if unit == "player" then
+                local zone = plain(GetRealZoneText())
+                m.zone = (type(zone) == "string" and zone ~= "") and zone or nil
+            end
+            out.members[#out.members + 1] = m
+            if type(role) == "string" then seen[role] = (seen[role] or 0) + 1 end
+        end
+    end
+    for _, role in ipairs(Data.ROLES) do out.counts[role] = seen[role] or 0 end
+    out.solo = #out.members <= 1
+    if out.solo then out.roles = Data.Roles() end
+    local lead = out.members[1]
+    for _, m in ipairs(out.members) do if m.leader then lead = m; break end end
+    out.leader = { name = lead.name, class = lead.class, level = lead.level, zone = lead.zone }
+    return named(out)
 end
 
 -- How many of each role a group has and still wants: { have = {}, open = {} }. For

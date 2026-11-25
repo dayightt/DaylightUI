@@ -368,6 +368,16 @@ function Browse.Render(page, keep)
     local mine, groups, solo = {}, {}, {}
     -- Delisted: the last search still includes the player's listing until the next one.
     local listed = Data().Entry() ~= nil
+    -- Listed but missing from the search's answer (made a moment before it): read it from
+    -- the listing itself.
+    if listed and not Browse.searching then
+        local found = false
+        for _, r in ipairs(list) do if r.mine then found = true; break end end
+        local r = not found and Data().Mine()
+        if r then
+            list = { r, unpack(list) }
+        end
+    end
     for _, r in ipairs(list) do
         if Browse.act and not tContains(r.acts, Browse.act) then
             -- not the selected activity

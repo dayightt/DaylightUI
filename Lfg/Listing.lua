@@ -161,6 +161,7 @@ function Listing.EntryChanged(created)
     -- two it only plays after its own button (PENDING_LISTING_UPDATE).
     if was == "update" and Data().Entry() then DUI.Sound.Kit("PVP_ENTER_QUEUE", "confirms")
     elseif was == "remove" and not Data().Entry() then DUI.Sound.Kit("LFG_DENIED", "confirms") end
+    if created == true then Data().listedAt = GetTime() end
     if Data().Entry() then
         Listing.Load()
         if created == true and ns.Window then return ns.Window.Listed() end

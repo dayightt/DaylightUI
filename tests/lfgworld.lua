@@ -216,7 +216,8 @@ local function setEntry(t, created)
     local me = { id = 99, activityIDs = S().entry.activityIDs, age = 0, comment = S().entry.comment, hasSelf = true, generalPlaystyle = style,
         members = { { name = "Sunwalker", classFilename = "SHAMAN", level = 14, assignedRole = "DAMAGER", lfgRoles = S().roles } } }
     for i, r in ipairs(S().results) do if r.id == 99 then table.remove(S().results, i); break end end
-    table.insert(S().results, me)
+    -- lag: the server's search hasn't caught up with a listing made a moment ago.
+    if not S().lag then table.insert(S().results, me) end
     C_Timer.After(0, function()
         stub.FireEvent("LFG_LIST_ACTIVE_ENTRY_UPDATE", created)
         -- The game's own listing page on a new listing (LFGParentFrame_SearchActiveEntry
@@ -235,6 +236,7 @@ end
 local function install()
     _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); f:Show() end
     _G.HideUIPanel = function(f) record("HideUIPanel", f:GetName()); f:Hide() end
+    _G.GetRealZoneText = function() return "Barrens" end
     -- The player's level and group are the test's only while it sets them
     -- (LW.Group); otherwise they're the world's (the hostile sweep's battleground).
     local level, inGroup, members, leader = keep(_G, "UnitLevel"), keep(_G, "IsInGroup"), keep(_G, "GetNumGroupMembers"), keep(_G, "UnitIsGroupLeader")
@@ -395,12 +397,13 @@ local function install()
 end
 
 -- spec: results (default LW.Sample()), level (14), roles, enabled (the module's
--- switch, default true here since the tests are about Daylight UI's window).
+-- switch, default true here since the tests are about Daylight UI's window), lag (a
+-- search right after you list leaves your listing out).
 function LW.world(spec)
     spec = spec or {}
     return function()
         LW.state = { calls = {}, results = spec.results or LW.Sample(), level = (spec.level == nil) and 14 or (spec.level or nil),
-            roles = spec.roles or { tank = false, healer = false, dps = true }, cvars = {} }
+            roles = spec.roles or { tank = false, healer = false, dps = true }, cvars = {}, lag = spec.lag == true }
         _G.LFGParentFrame, _G.LFGListingFrame, _G.LFGBrowseFrame, _G.LFGWhoListFrame, _G.LFGListingComment = nil, nil, nil, nil, nil
         install()
         DaylightUIDB = { profileData = { ["DPS/Tank"] = { modules = { GroupFinder = { enabled = spec.enabled ~= false } } } } }
