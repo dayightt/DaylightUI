@@ -3128,6 +3128,55 @@ T.test("skins: the guild window: its side tabs, guild cards and roster rows ours
     T.eq(Kit.RowOf(card).fill:GetAlpha(), 0, "and clear again")
 end)
 
+-- Clicking a guild member opens their card (GuildRoster.lua DisplayMember). On
+-- the way the game resizes the card, shows or hides the rank menu and enables or
+-- disables Remove, then reads the member's details, which can be secret: only
+-- the game's own untainted code may compare them. Daylight UI code on any piece
+-- inside the card ran first and tainted the rest, so the card never opened and
+-- promote, demote and remove were out of reach.
+T.test("skins: no Daylight UI code runs inside the guild member card while the game fills it", function()
+    local f, memberCard
+    login(function()
+        f = guildWindow()
+        memberCard = f.GuildMemberDetailFrame
+        -- GuildRoster.xml: CommunitiesGuildMemberDetailFrameTemplate's pieces.
+        memberCard.CloseButton = CreateFrame("Button", nil, memberCard)
+        local xArt = memberCard.CloseButton:CreateTexture()
+        function memberCard.CloseButton:GetNormalTexture() return xArt end
+        memberCard.RemoveButton = button(nil, memberCard)
+        memberCard.RemoveButton:GetFontString():SetText("Remove")
+        memberCard.GroupInviteButton = button(nil, memberCard)
+        memberCard.GroupInviteButton:GetFontString():SetText("Group Invite")
+        local dd = CreateFrame("Button", nil, memberCard)
+        dd:SetSize(120, 24)
+        dd.Text = dd:CreateFontString()
+        dd.Arrow, dd.Background = dd:CreateTexture(), dd:CreateTexture()
+        memberCard.RankDropdown = dd
+        memberCard.OfficerNoteBackground = CreateFrame("Frame", nil, memberCard)
+        memberCard.Name = memberCard:CreateFontString()
+        memberCard:Hide()
+        stub.loadedAddOns.Blizzard_Communities = true
+    end)
+    f:Show()
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    local Kit = stub.skins.Kit
+    T.truthy(Kit.ShellOf(memberCard), "the card still a panel of ours")
+    T.truthy(Kit.ButtonOf(memberCard.RemoveButton), "Remove still our button")
+    T.truthy(Kit.ButtonOf(memberCard.GroupInviteButton), "Group Invite still our button")
+    local inside = stub.AddonScriptsInside(memberCard, { "OnShow", "OnHide", "OnSizeChanged", "OnEnable", "OnDisable" })
+    T.eq(#inside, 0, "Daylight UI code inside the member card: " .. table.concat(inside, ", "))
+    local own = memberCard:GetScript("OnSizeChanged")
+    T.falsy(own and stub.IsAddonHandler(own), "nor on the card's own resize")
+
+    -- The quiet buttons still follow the game while the card is up.
+    memberCard:Show()
+    memberCard.RemoveButton:Disable()
+    Kit.quietPoller:GetScript("OnUpdate")(Kit.quietPoller, 0.016)
+    T.truthy(Kit.ButtonOf(memberCard.RemoveButton).off, "Remove grays out when the game disables it")
+    memberCard:Hide()
+end)
+
 -- The collections journal's lists (Blizzard_MountCollection.xml,
 -- Classic/Blizzard_PetCollection.xml, Shared/Blizzard_Wardrobe_Sets.xml). Each
 -- row has a gray bar atlas background under its icon and name.
