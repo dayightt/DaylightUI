@@ -9,7 +9,7 @@
 ## Notes-deDE: Die Aktionsleisten des Spiels im DaylightUI-Stil: gerahmte Tasten, eine mittige Anordnung mit verblassenden Seitenrastern, im Entsperrmodus verschiebbar.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.2.7
+## Version: 2.3.0
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 
