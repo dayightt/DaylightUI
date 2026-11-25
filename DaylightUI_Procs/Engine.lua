@@ -392,7 +392,7 @@ local function knownEach(lists)
     return out
 end
 
--- fresh = spells or talents changed: the usual speeds and costs are learned again.
+-- fresh = talents changed: the usual speeds and costs are learned again.
 function Engine.Learn(fresh)
     learned = true
     for k in pairs(castRoles) do castRoles[k] = nil end
@@ -586,9 +586,16 @@ function Engine.Start(mod)
                          "UPDATE_SHAPESHIFT_FORM", "PLAYER_ENTERING_WORLD" }) do
         DUI.RegisterEvent(e, soon)
     end
-    for _, e in ipairs({ "SPELLS_CHANGED", "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED" }) do
+    -- A new rank only changes which spell is read. The usual speeds and costs
+    -- are learned again on a talent change alone: the spells-changed event can
+    -- come with the proc itself (a buff that changes a cast time), and forgetting
+    -- them then would learn the boosted speed as the usual one.
+    DUI.RegisterEvent("SPELLS_CHANGED", function() learned = false; soon() end)
+    for _, e in ipairs({ "PLAYER_TALENT_UPDATE", "CHARACTER_POINTS_CHANGED" }) do
         DUI.RegisterEvent(e, function() learned, fresh = false, true; soon() end)
     end
+    -- The proc's buff landing out of a fight, when nothing polls.
+    DUI.RegisterUnitEvent("UNIT_AURA", soon, "player")
     DUI.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", onCast, "player")
     DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_SHOW", onOverlay)
     DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_HIDE", onOverlay)

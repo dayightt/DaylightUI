@@ -449,3 +449,36 @@ T.test("procs: the module puts the game's alert setting back when it is turned o
     step()
     T.eq(cvars.displaySpellActivationOverlays, "0", "a player who had it off keeps it off")
 end)
+
+local HOLYLIGHT, FLASHLIGHT = 635, 19750
+
+T.test("procs: Infusion of Light shows when the proc comes with a spells-changed event", function()
+    local ns = load("PALADIN", { HOLYLIGHT, FLASHLIGHT })
+    stub.EnterCombat()
+    stub.castTimes[HOLYLIGHT], stub.castTimes[FLASHLIGHT] = 2500, 1500
+    step()
+    step(0.2)
+    T.falsy(ns.Flares.Shown("infusion"))
+    -- The buff changes Holy Light's cast time, and the client also says the
+    -- spells changed: the usual speed must not be forgotten for that.
+    stub.castTimes[HOLYLIGHT] = 1500
+    stub.FireEvent("SPELLS_CHANGED")
+    step(0.2)
+    step(0.2)
+    T.truthy(ns.Flares.Shown("infusion"), "faster Holy Light")
+    stub.castTimes[HOLYLIGHT] = 2500
+    step(0.2)
+    T.falsy(ns.Flares.Shown("infusion"), "used up")
+end)
+
+T.test("procs: with Only in combat off, Infusion of Light shows out of a fight when the buff lands", function()
+    local ns = load("PALADIN", { HOLYLIGHT, FLASHLIGHT })
+    ns.Alerts.Set("infusion", "combatOnly", false)
+    stub.castTimes[HOLYLIGHT], stub.castTimes[FLASHLIGHT] = 2500, 1500
+    step()
+    T.falsy(polling(), "idle out of a fight")
+    stub.castTimes[HOLYLIGHT] = 1500
+    stub.FireEvent("UNIT_AURA", "player")
+    step()
+    T.truthy(ns.Flares.Shown("infusion"), "seen at once")
+end)
