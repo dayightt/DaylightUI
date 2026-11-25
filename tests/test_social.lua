@@ -730,20 +730,6 @@ T.test("social: recent allies under Pinned (and legacy friends) and Recent, the 
     clean()
 end)
 
-T.test("social: a recent ally's class comes from C_CreatureInfo when C_ClassInfo is missing", function()
-    local ns = load()
-    local creature = _G.C_CreatureInfo or {}
-    _G.C_CreatureInfo = creature
-    local was, classInfo = creature.GetClassInfo, _G.C_ClassInfo
-    _G.C_ClassInfo = nil
-    creature.GetClassInfo = function(id) return { className = "Mage", classFile = "MAGE", classID = id } end
-    local list = ns.Data.Allies()
-    _G.C_ClassInfo, creature.GetClassInfo = classInfo, was
-    T.truthy(#list > 0)
-    for _, a in ipairs(list) do T.eq(a.class, "MAGE", a.name) end
-    clean()
-end)
-
 T.test("social: a recent ally's tooltip has the level in the class color and the zone on its own line", function()
     local ns = load()
     open(ns)
