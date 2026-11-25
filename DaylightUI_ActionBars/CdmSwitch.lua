@@ -157,22 +157,25 @@ local function itemIDs(info)
     return ids
 end
 
--- Does the buff land as an aura the game's item can't match? Its auras are the
--- game data's (CdmCustom.Fact) and those seen from its casts (CdmOwn.AuraOf).
--- Such a buff never lights in the game's row, so the aura holder keeps it.
+-- Does the buff have known auras, none of which the game's item can match? Its
+-- auras are the game data's (CdmCustom.Fact) and those seen from its casts
+-- (CdmOwn.AuraOf). Such a buff never lights in the game's row, so the aura holder
+-- keeps it.
 local function unseenAura(info)
     local C, Own = ns.CdmCustom, ns.CdmOwn
-    local ids = itemIDs(info)
+    local ids, known = itemIDs(info), false
     for s in pairs(ids) do
         local fact = C and C.Fact and C.Fact(s)
         for _, a in ipairs(fact and fact.auras or {}) do
-            if not ids[a] then return true end
+            if ids[a] then return false end
+            known = true
         end
         for a in pairs(Own and Own.AuraOf and Own.AuraOf(s) or {}) do
-            if not ids[a] then return true end
+            if ids[a] then return false end
+            known = true
         end
     end
-    return false
+    return known
 end
 
 -- Every game cooldown id placed in a Daylight UI layout of this class whose game row
@@ -350,13 +353,15 @@ function Switch.Run()
         local added = type(char.cdmSwitched) == "table" and char.cdmSwitched or {}
         local unhid = type(char.cdmUnhid) == "table" and char.cdmUnhid or {}
         local placed = Switch.Placed()
-        -- A buff brought out of a hidden row that no longer qualifies goes back there.
-        local stale, staleAdded = {}, {}
+        -- A buff brought out of a hidden row whose info fails the check goes back
+        -- there. Its record goes only once it was moved in this spec's layout.
+        local back = 0
         for id, from in pairs(unhid) do
-            if not placed[id] then stale[id], staleAdded[id] = from, added[id] end
+            if not placed[id] and Data.Info(id) then
+                local moved = Switch.Remove(t, tag, { [id] = added[id] }, { [id] = from })
+                if moved > 0 then added[id], unhid[id], back = nil, nil, back + moved end
+            end
         end
-        local back = next(stale) ~= nil and Switch.Remove(t, tag, staleAdded, stale) or 0
-        for id in pairs(stale) do added[id], unhid[id] = nil, nil end
         n = back + Switch.Apply(t, tag, Switch.Hidden(), added, layoutName(classID, spec), placed, unhid)
         if n > 0 then
             char.cdmSwitched = added

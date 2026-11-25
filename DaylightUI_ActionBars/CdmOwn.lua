@@ -283,9 +283,10 @@ end
 -- DB.Character().cdmAuraIDs[cast spell id] = { [aura spell id] = true }. The game's
 -- data has no aura id for some spells (a totem's buff comes from the totem, a
 -- trinket's from its use), so a placed spell's cast where auras can be read looks
--- for it, by id and by name. These ids only widen what a buff button watches
--- (CdmAuras.SpellIDs) and tell a totem's icon its buff is known. They never decide
--- what a spell shows or who draws it.
+-- for it, by id and by name. These ids widen what a buff button watches
+-- (CdmAuras.SpellIDs) and tell a totem's icon its buff is known. They also decide
+-- whether a placed buff stays hidden in the game's row for the aura holder to draw
+-- (CdmSwitch.Placed).
 local function auraBook()
     local c = DUI.DB and DUI.DB.Character()
     if type(c) ~= "table" then return {} end

@@ -235,6 +235,41 @@ T.test("cdm switch: a placed buff whose aura the game's item can't see stays hid
     done()
 end)
 
+-- A spell can list several auras (Vanish lists three), and the learned list grows.
+-- One the item sees is enough for the game's icon to show it.
+T.test("cdm switch: a placed buff with one aura the item sees and one it can't comes back", function()
+    world({ placed = { 34 }, learned = { [1034] = { [1034] = true, [2034] = true } }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32, 34 } } } } }, { [1] = "Mine" } })
+    end })
+    T.deq(saved()[3][TAG][1][2][-2], { 32 })
+    T.deq(DaylightUI.DB.Character().cdmUnhid, { [34] = -2 })
+    done()
+end)
+
+-- Only a buff whose info is there and fails the check goes back to its hidden row.
+T.test("cdm switch: a buff brought out stays out while the game has no answer for it, or its layout isn't this spec's", function()
+    -- 35: the game has no info for it yet.
+    world({ placed = { 34, 35 }, switched = { [34] = 2, [35] = 2 }, unhid = { [34] = -2, [35] = -2 }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32 }, [2] = { 31, 33, 34, 35 } } } } }, { [1] = "Mine" } })
+    end })
+    local rows = saved()[3][TAG][1][2]
+    T.deq(rows[-2], { 32 }, "nothing sent back")
+    T.deq(rows[2], { 31, 33, 34, 35 })
+    T.deq(DaylightUI.DB.Character().cdmUnhid, { [34] = -2, [35] = -2 })
+    T.eq(DaylightUI.DB.Character().cdmSwitched[35], 2)
+    done()
+    -- 34 fails the check, but it was brought out in another spec's layout.
+    world({ placed = { 34 }, learned = { [1034] = { [2034] = true } },
+            switched = { [34] = 2 }, unhid = { [34] = -2 }, saved = function(encode)
+        return encode({ 5, { [TAG] = 1, [TAG + 1] = 1 }, { [TAG] = { [1] = { {}, { [-2] = { 32 } } } },
+            [TAG + 1] = { [2] = { {}, { [2] = { 34 } } } } }, { [1] = "Mine", [2] = "Other" } })
+    end })
+    T.deq(saved()[3][TAG + 1][2][2][2], { 34 }, "the other spec's layout is untouched")
+    T.deq(DaylightUI.DB.Character().cdmUnhid, { [34] = -2 }, "its record is kept")
+    T.eq(DaylightUI.DB.Character().cdmSwitched[34], 2)
+    done()
+end)
+
 T.test("cdm switch: the game's default picked on purpose gets a layout while there's room, none when all five are used", function()
     world({ saved = function(encode)
         return encode({ 5, { [TAG] = 0 }, { [TAG] = { [2] = { {}, { [2] = { 31 } } } } }, { [2] = "Old" } })
