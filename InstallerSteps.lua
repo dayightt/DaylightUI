@@ -390,6 +390,10 @@ Steps.FINISH = {
     tagPad = 10, tagH = 24, tagSlant = 7, tagWordGap = 8,
     -- The pieces rise in after the sunrise (seconds).
     at = 1.2, step = 0.1, screenAt = 1.45, tagsAt = 1.5, tagStep = 0.08, goAt = 2.1, lineAt = 2.2, lift = 10,
+    -- The game's list of account layouts full: the two lines saying so, the list
+    -- (a section, then rows 40 apart), the hint under it and the button lower.
+    full = { say = 250, sayGap = 18, list = 290, x = 230, w = 440, h = 224, rowGap = 2, edge = 3,
+        hintGap = 6, go = 548, sayW = 640 },
 }
 
 -- A tag: a small spaced label and the pick after it, in a slanted pill.
@@ -458,6 +462,98 @@ builders.finish = function(parent)
     page.back:SetPoint("LEFT", page, "TOPLEFT", DUI.InstallerDuel.FOOT.side, -row)
     page.back:SetScript("OnClick", function() I.Back() end)
 
+    -- When the game has no room for another account layout: the list of them,
+    -- each but the one in use with an X, in place of your screen.
+    local FL = F.full
+    local Parts = DUI.Win.Parts
+    page.say = W.Font(page, W.BODY, SIZE.body, Style.INK.WARN, "CENTER")
+    page.say:SetPoint("TOP", page, "TOP", 0, -FL.say)
+    page.say:SetWidth(FL.sayW)
+    page.say2 = W.Font(page, W.BODY, SIZE.body, Style.INK.TEXT, "CENTER")
+    page.say2:SetPoint("TOP", page, "TOP", 0, -(FL.say + FL.sayGap))
+    page.say2:SetWidth(FL.sayW)
+    page.full = CreateFrame("Frame", nil, page)
+    page.full:SetPoint("TOPLEFT", page, "TOPLEFT", FL.x, -FL.list)
+    page.full:SetSize(FL.w, FL.h)
+    page.layouts = Parts.Stack(page.full, { top = 0, bottom = 0, side = 0 })
+    page.hint = W.Font(page.full, W.BODY, SIZE.small, Style.INK.LABEL, "LEFT")
+    page.hint:SetPoint("TOPLEFT", page.full, "BOTTOMLEFT", 0, -FL.hintGap)
+    page.hint:SetText(L["A layout is only deleted when you click its X twice."])
+    page.layoutRows = {}
+    for _, piece in ipairs({ page.say, page.say2, page.full }) do piece:Hide() end
+
+    local function deleteLayout(index)
+        local ok, why = DUI.EditMode.DeleteLayout(index)
+        page.deleteWhy = not ok and why or nil
+        page.Refresh()
+    end
+
+    -- A Stack line as a layout row. It has no icon: its edge becomes the accent
+    -- mark on Daylight UI's leftovers, and the X sits at its end.
+    local function dressRow(b, l)
+        b.layoutName, b.leftover = l.name, l.leftover
+        b.icon:SetTexture(nil)
+        b.edge:SetSize(FL.edge, Parts.LINE)
+        if l.leftover then
+            local r, g, bl = Style.Accent()
+            b.edge:SetVertexColor(r, g, bl, 1)
+        end
+        b.edge:SetShown(l.leftover == true)
+        if not b.del then
+            b.del = W.DeleteButton(b)
+            b.del:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+            -- W.Confirm writes its "Click again" here, left of the X.
+            b.del.text = W.Font(b, W.BODY, SIZE.small, Style.INK.WARN, "RIGHT")
+            b.del.text:SetPoint("RIGHT", b.del, "LEFT", -8, 0)
+        end
+        b.del:SetShown(not l.active)
+        b.del.text:SetShown(not l.active)
+        W.Confirm(b.del, "", function() deleteLayout(l.index) end, L["Click again to delete"])
+    end
+
+    -- The list, and the two lines over it for where it stands. Returns
+    -- whether there's room for the layout now.
+    local function fillLayouts()
+        local E = DUI.EditMode
+        local list = E.AccountLayouts()
+        local max = E.MaxLayouts() or #list
+        local full = #list >= max
+        local s = page.layouts
+        s:Begin()
+        s:Section(L["Account layouts"], { value = Parts.Hex(full and Style.INK.WARN or Style.INK.GOOD)
+            .. string.format("%d / %d", #list, max) .. "|r" })
+        page.layoutRows = {}
+        for i, l in ipairs(list) do
+            if i > 1 then s:Gap(FL.rowGap) end
+            local sub, subColor
+            if l.active then
+                sub = L["In use on this character"]
+            elseif l.leftover then
+                sub, subColor = L["Daylight UI's, no profile uses it"], { Style.Accent() }
+            elseif l.profile then
+                sub = string.format(L["Daylight UI's, profile %s"], l.profile)
+            else
+                sub = L["Your own"]
+            end
+            local b = s:Line({ text = l.name, color = Style.INK.TEXT, sub = sub, subColor = subColor, id = l.name })
+            W.Stripe(b, i % 2 == 1)
+            dressRow(b, l)
+            page.layoutRows[#page.layoutRows + 1] = b
+        end
+        s:End()
+        if page.deleteWhy then
+            page.say:SetText(string.format(L["Couldn't delete it: %s."], page.deleteWhy))
+            W.TextColor(page.say, Style.INK.WARN)
+        elseif full then
+            page.say:SetText(string.format(L["The game allows %d account layouts, and all %d are taken."], max, max))
+            W.TextColor(page.say, Style.INK.WARN)
+        else
+            page.say:SetText(L["There's room for the layout now."])
+            W.TextColor(page.say, Style.INK.GOOD)
+        end
+        page.say2:SetText(full and L["Delete one here, then press Try again."] or L["Press Try again to finish."])
+    end
+
     -- The tags, centered in rows that wrap inside the page's sides.
     local function layTags(list)
         for i, spec in ipairs(list) do
@@ -501,6 +597,7 @@ builders.finish = function(parent)
         local flow = I.flow
         if not flow then return end
         if not flow.finished then
+            page.deleteWhy = nil
             I.Finish()
             page.Refresh()
             if flow.finished then reloadOver() end
@@ -543,6 +640,13 @@ builders.finish = function(parent)
             W.TextColor(page.line, Style.INK.WARN)
             page.back:Show()
         end
+        -- No room for the layout: the list of layouts takes the screen's place.
+        local full = flow.full == true and not flow.finished
+        if full then fillLayouts() end
+        for _, piece in ipairs({ page.say, page.say2, page.full }) do piece:SetShown(full) end
+        for _, piece in ipairs({ page.holder, page.tagRow, page.line }) do piece:SetShown(not full) end
+        page.go:ClearAllPoints()
+        page.go:SetPoint("TOP", page, "TOP", 0, -(full and FL.go or F.go))
         page.go:SetWidth(F.goW)
         if flow.screen then page.screen.Set(flow.screen, true) end
         layTags(flow.tags or {})
@@ -564,6 +668,11 @@ builders.finish = function(parent)
         end
         Feel.Piece(page.go, F.goAt, slow, F.lift)
         Feel.Piece(page.line, F.lineAt, slow, F.lift / 2)
+        if page.full:IsShown() then
+            Feel.Piece(page.say, F.screenAt, slow, F.lift / 2)
+            Feel.Piece(page.say2, F.screenAt, slow, F.lift / 2)
+            Feel.Piece(page.full, F.screenAt + F.step, slow, F.lift)
+        end
         if page.back:IsShown() then Feel.Piece(page.back, F.goAt, slow, 0) end
         local wait = M.On() and (F.goAt + slow) or 0
         C_Timer.After(wait, reloadOver)

@@ -257,7 +257,8 @@ end
 -- the same place and way the game adds a new account layout (after the last
 -- account layout, else after the presets, then notifying the game, which
 -- makes it active). base is the layout a new one starts from (default
--- EditMode.Base()). Returns true, or false and a reason.
+-- EditMode.Base()). Returns true, or false and a reason, plus "full" when
+-- the game has no room for another account layout.
 function EditMode.Install(base, profile)
     local why = notReady()
     if why then return false, why end
@@ -297,9 +298,9 @@ function EditMode.Install(base, profile)
             highest = i
         end
     end
-    local max = Constants and Constants.EditModeConsts and Constants.EditModeConsts.EditModeMaxLayoutsPerType
-    if type(max) == "number" and count >= max then
-        return false, L["you have the most account layouts the game allows; delete one in Edit Mode first"]
+    local max = EditMode.MaxLayouts()
+    if max and count >= max then
+        return false, L["you have the most account layouts the game allows; delete one in Edit Mode first"], "full"
     end
     local layout = base or EditMode.Base()
     if not layout then return false, L["the game has no layout to start from"] end
@@ -324,6 +325,62 @@ function EditMode.Install(base, profile)
     else
         C_EditMode.SetActiveLayout(index)
     end
+    return true
+end
+
+-- How many layouts of one kind (account, or this character's) the game keeps,
+-- or nil when it doesn't say.
+function EditMode.MaxLayouts()
+    local max = Constants and Constants.EditModeConsts and Constants.EditModeConsts.EditModeMaxLayoutsPerType
+    return type(max) == "number" and max or nil
+end
+
+-- The account layouts as the setup guide lists them when the game's list is
+-- full: { name, index (as the game counts, presets first), active, profile
+-- (the profile it belongs to), leftover (Daylight UI's, but no profile has it) }.
+function EditMode.AccountLayouts()
+    local out = {}
+    local info = C_EditMode and C_EditMode.GetLayouts and C_EditMode.GetLayouts()
+    if not (info and type(info.layouts) == "table") then return out end
+    local account = Enum.EditModeLayoutType and Enum.EditModeLayoutType.Account
+    local first = #presetsRead()
+    local profiles = DUI.DB.Root().profileData or {}
+    for i, l in ipairs(info.layouts) do
+        if l.layoutType == account then
+            local owner
+            if isAnyOurs(l) then
+                for name in pairs(profiles) do
+                    if isOurs(l, name) then owner = name end
+                end
+            end
+            out[#out + 1] = { name = l.layoutName, index = first + i, active = info.activeLayout == first + i,
+                profile = owner, leftover = isAnyOurs(l) and owner == nil }
+        end
+    end
+    return out
+end
+
+-- Deletes an account layout the way Edit Mode's own Delete does: the entry
+-- out of the list, the list saved, then the game told which one went. Never the
+-- layout this character is on. Returns true, or false and a reason.
+function EditMode.DeleteLayout(index)
+    local why = notReady()
+    if why then return false, why end
+    local info = C_EditMode.GetLayouts()
+    if not (info and type(info.layouts) == "table") then return false, L["the game hasn't given its layouts yet"] end
+    local all = merged(info)
+    local l = type(index) == "number" and all[index] or nil
+    local account = Enum.EditModeLayoutType and Enum.EditModeLayoutType.Account
+    if not l or index <= #presetsRead() or l.layoutType ~= account then
+        return false, L["that layout can't be deleted here"]
+    end
+    if index == info.activeLayout then return false, L["it's the layout this character is using"] end
+    table.remove(all, index)
+    info.layouts = all
+    -- A write leaves Edit Mode tainted until the reload, like any other.
+    written = true
+    if not DUI.SafeCall(C_EditMode.SaveLayouts, info) then return false, L["the game refused the layout"] end
+    if C_EditMode.OnLayoutDeleted then C_EditMode.OnLayoutDeleted(index) end
     return true
 end
 
@@ -359,9 +416,9 @@ function EditMode.UseProfile(profile)
         local current = activeSaved()
         if isAnyOurs(current) then base = CopyTable(current) end
     end
-    local ok, why = EditMode.Install(base, profile)
+    local ok, why, code = EditMode.Install(base, profile)
     if ok and type(data) == "table" then data.pendingLayout = nil end
-    return ok, why
+    return ok, why, code
 end
 
 -- Swaps a profile's layout (the active profile's when not given) for a

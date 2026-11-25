@@ -33,9 +33,9 @@ DUI.PatchNotes = {
         { "Bags", "On a controller, Y on food offers Feed Pet again, and X uses items that start a quest" },
         { "Quests", "Questie icons on the world map no longer jump and flicker when you rest the mouse on them" },
         { "Tooltips", "Comparing an item with what you wear no longer makes the tooltips twitch sideways while you hover it" },
-        { "Setup guide", "Renaming a setup no longer leaves a spare Edit Mode layout behind, and a setup guide that couldn't finish no longer leaves half-made setups in your list" },
         { "Nameplates", "The Big defensives icon now works on enemy players in PvP, so you see Divine Protection, Divine Shield and the like before wasting your damage" },
         { "Quests", "With Daylight UI's quest tracker, turning off Questie's Hide icons of untracked quests option now stays off after a reload" },
+        { "Setup guide", "When the game's list of Edit Mode layouts is full, the setup guide shows them and lets you delete one right there, instead of getting stuck at every login; renaming a setup or a guide that couldn't finish no longer leaves spare layouts or half-made setups behind" },
         { "Flight timer", "The flight timer now shows on the druid flight out of Nighthaven in Moonglade, the one you take by talking to the flight master" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {

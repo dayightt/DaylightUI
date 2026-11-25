@@ -1088,16 +1088,16 @@ end
 
 -- Installs the profile's Edit Mode layout (the standard one for DPS / Tank,
 -- the profile's own for the rest). Returns ok, whether it wrote anything, and
--- a reason on failure.
+-- a reason on failure (and "full" when the game has no room for another layout).
 local function placeLayout(target)
     if target == DUI.DB.ActiveName() and EditMode.IsActive(target) then return true, false end
-    local ok, why
+    local ok, why, code
     if target == "DPS/Tank" then
-        ok, why = EditMode.Install(nil, target)
+        ok, why, code = EditMode.Install(nil, target)
     else
-        ok, why = EditMode.UseProfile(target)
+        ok, why, code = EditMode.UseProfile(target)
     end
-    if not ok then return false, false, why end
+    if not ok then return false, false, why, code end
     return true, true
 end
 
@@ -1211,7 +1211,10 @@ function Installer.Finish()
         D.CopyInto(fresh)
         P.Replace(target, fresh)
     end
-    local ok, written, err = placeLayout(target)
+    local ok, written, err, code = placeLayout(target)
+    -- The game's list of account layouts is full: the Finish page lists them
+    -- to delete one from (InstallerSteps.lua).
+    flow.full = code == "full" or nil
     if not ok then
         -- Profiles made for this Finish go again: each Try again would leave
         -- another one behind with no layout of its own.

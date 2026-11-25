@@ -13,7 +13,7 @@ function M.world()
     Enum.EditModeActionBarSetting = { Orientation = 0, NumRows = 1, NumIcons = 2, IconSize = 3, IconPadding = 4, VisibleSetting = 5, HideBarArt = 6, HideBarScrolling = 7 }
     Enum.ActionBarVisibleSetting = { Always = 0 }
     Enum.ActionBarOrientation = { Horizontal = 0 }
-    Enum.EditModeLayoutType = { Preset = 0, Account = 1 }
+    Enum.EditModeLayoutType = { Preset = 0, Account = 1, Character = 2, Override = 3 }
     Enum.EditModePresetLayouts = { Modern = 0, Classic = 1 }
     _G.CopyTable = function(t)
         local c = {}
@@ -75,6 +75,13 @@ function M.world()
         end,
         SetActiveLayout = function(i) saved.activeLayout = i end,
         OnLayoutAdded = function(i, activate) saved.added = i; if activate then saved.activeLayout = i end end,
+        -- Edit Mode's own DeleteLayout removes the entry, saves the list, then
+        -- tells the game which one went; the character stays on the layout it was
+        -- on, which now counts one lower when it came after.
+        OnLayoutDeleted = function(i)
+            saved.deleted = i
+            if saved.activeLayout > i then saved.activeLayout = saved.activeLayout - 1 end
+        end,
     }
     -- The small bars, and the totem timers under the game's player frame.
     for _, spec in ipairs({ { "StanceBar", "StanceButton", 10 }, { "PetActionBar", "PetActionButton", 10 } }) do
