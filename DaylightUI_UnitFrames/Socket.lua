@@ -27,6 +27,7 @@ Socket.RING_OUTER = 0.60      -- the line's outside, as a share of its image's h
 Socket.RING_WIDTHS = { thin = 0.918, normal = 0.897, thick = 0.858 }
 Socket.PICTURE = 0.755
 Socket.HAIR = 0.03
+Socket.GAP_PX = 2             -- the black between picture and line never narrower than this, in screen pixels
 Socket.SIZE = 1.2             -- drawn this much bigger than Classic at the same Portrait size
 Socket.TAG_AT = 0.7           -- the level tag's middle, past the ring's middle toward the bar
 Socket.SHADOW_FILL = 0.85     -- the shadow art's solid part, as a share of its half-size

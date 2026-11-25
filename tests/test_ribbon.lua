@@ -163,7 +163,9 @@ T.test("Ribbon: the ring spans the whole ribbon, centered on it", function()
     local H = f:GetHeight() + f.hitTop + f.foot
     -- Set into the frame the ring is built out from that radius (Socket.lua).
     local S = ns.Socket
-    T.near(p.mask:GetWidth() / 2, S.PICTURE * DaylightUI.Pixel.Snap(f, H * ns.STYLES.ribbon.ring * S.SIZE), 1e-6)
+    local Rb = DaylightUI.Pixel.Snap(f, H * ns.STYLES.ribbon.ring * S.SIZE)
+    local gap = DaylightUI.Pixel.Px(f, S.GAP_PX)
+    T.near(p.mask:GetWidth() / 2, math.min(S.PICTURE * Rb, (S.PICTURE + S.HAIR) * Rb - gap), 1e-6)
     T.near(f.portraitY, DaylightUI.Pixel.Snap(f, (f.hitTop - f.foot) / 2), 1e-6, "centered, on a whole pixel")
     local _, _, _, _, y = p:GetPoint(1)
     T.near(y, f.portraitY)

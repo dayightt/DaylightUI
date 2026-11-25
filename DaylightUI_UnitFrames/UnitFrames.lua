@@ -2158,6 +2158,12 @@ function UF.LayoutPortrait(f, cfg)
     if socket then
         Rk, ratio, inner = ns.Socket.RingSize(Rb, cfg.portraitRingWidth)
         f.ringFile, f.ringLitFile = ns.Socket.RingFiles(cfg.portraitRingWidth, shapeArt)
+        -- The black gap between the picture and the line is a share of the
+        -- ring, under a pixel at normal sizes: the picture's soft edge then
+        -- lay over it and bright art showed there as loose specks. Keep it
+        -- whole screen pixels wide.
+        local gap = Pixel.Px(f.portraitFree and holder or f, ns.Socket.GAP_PX) / (shapeArt and UF.SQUARE or 1)
+        inner = math.min(inner, Rk * ratio - gap)
     else
         Rk = R
         f.ringFile, f.ringLitFile, ratio = UF.RingFiles(cfg.portraitRingWidth, cfg.portraitRingLine, shapeArt)

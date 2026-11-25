@@ -1555,7 +1555,10 @@ T.test("socket: by default the ring's outer band is part of the frame's border",
     local S = ns.Socket
     local Rb = DaylightUI.Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * S.SIZE / 2)
     local outside = (S.PICTURE + S.HAIR) * Rb / S.RING_WIDTHS.normal
-    T.near(p.mask:GetWidth() / 2, S.PICTURE * Rb, 1e-6, "the picture is Classic's size, 0.755 of its radius")
+    -- Classic's size, 0.755 of its radius, less what keeps the black gap
+    -- inside the line whole pixels wide.
+    local picture = math.min(S.PICTURE * Rb, (S.PICTURE + S.HAIR) * Rb - Pixel.Px(f, S.GAP_PX))
+    T.near(p.mask:GetWidth() / 2, picture, 1e-6, "the picture")
     T.near(p.ring:GetWidth() * S.RING_OUTER / 2, outside, 1e-6, "the line's outside")
     T.near(outside - (S.PICTURE + S.HAIR) * Rb, 0.09 * Rb, 0.002 * Rb, "the line is 0.09 of the radius thick")
     T.near(p:GetWidth() / 2, outside + T_, 1e-6, "then the frame's whole border")
@@ -2020,7 +2023,7 @@ T.test("socket: with a border as thin as the mock-up's the measurements are its 
     local p, S = f.portrait, ns.Socket
     local Rb = DUI.Pixel.Snap(f, f:GetHeight() * ns.UF.PORTRAIT_SIZE * S.SIZE / 2)
     local one = DUI.Pixel.Px(f, 1)
-    T.near(p.mask:GetWidth() / 2, 0.755 * Rb, 1e-6, "the picture")
+    T.near(p.mask:GetWidth() / 2, math.min(0.755 * Rb, 0.785 * Rb - DUI.Pixel.Px(f, S.GAP_PX)), 1e-6, "the picture")
     T.near(p.ring:GetWidth() * S.RING_OUTER / 2, 0.875 * Rb, 0.002 * Rb, "the line's outside")
     local T_ = DUI.Pixel.Px(f, DUI.Style.BorderPx(f))
     T.near(p:GetWidth() / 2, 0.875 * Rb + T_, 0.002 * Rb, "the line, then the frame's whole border")
@@ -2135,6 +2138,46 @@ T.test("the ring's middle and picture land on whole pixels at any portrait size 
             -- number of pixels, or both its edges fall on half pixels.
             if look == "classic" then
                 whole(p.elite:GetWidth() / 2, label .. ": half of the dragon")
+            end
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Seen in game: specks of bright color sat in the socket's black gap round
+-- many class icons. The gap was a share of the ring's size, under one screen
+-- pixel at normal sizes, so the picture's soft cut edge lay over it and the
+-- bright parts of the art showed there. The gap must be whole pixels wide.
+T.test("socket: the picture keeps two screen pixels of black from the ring's line", function()
+    local DUI, ns = login(function()
+        stub.physW, stub.physH = 2560, 1080
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+    end)
+    local UF, Pixel, Socket = ns.UF, DUI.Pixel, ns.Socket
+    Pixel.Refresh()
+    local function gapPx(f, what)
+        local p = f.portrait
+        T.truthy(f.socketOn, what .. ": the socket look is on")
+        local s = p.shapeArt and UF.SQUARE or 1
+        local ratio = Socket.RING_WIDTHS[DUI:Get("UnitFrames", "player.portraitRingWidth")]
+        local lineInside = p.ring:GetWidth() / 2 * UF.RING_OUTER * ratio * s
+        local picture = p.mask:GetWidth() / 2
+        local gap = (lineInside - picture) / Pixel.Unit(f)
+        T.truthy(gap >= 2 - 1e-3, what .. ": the black gap is " .. gap .. " px")
+    end
+    for _, ui in ipairs({ 0.71, 1 }) do
+        UIParent:SetScale(ui)
+        for _, shape in ipairs({ "round", "square" }) do
+            for _, width in ipairs({ "thin", "normal", "thick" }) do
+                for _, size in ipairs({ 0.6, 1, 1.5 }) do
+                    DUI:Set("UnitFrames", "player.portraitShape", shape)
+                    DUI:Set("UnitFrames", "player.portraitRingWidth", width)
+                    DUI:Set("UnitFrames", "player.portraitScale", size)
+                    stub.RunTimers()
+                    local f = ns.frames.player
+                    UF.UpdateAll(f, true)
+                    gapPx(f, "player, " .. shape .. ", " .. width .. " at " .. size .. ", UI scale " .. ui)
+                end
             end
         end
     end
