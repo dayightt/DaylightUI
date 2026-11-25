@@ -3,6 +3,14 @@ local LW = require("lfgworld")
 
 -- The group finder window.
 
+-- Whisper buttons ask in Daylight UI's own box (Pad.Whisper, no chat module
+-- here) and never open the game's chat box. The questions asked, in order.
+local function whispers()
+    local asked = {}
+    DaylightUI.Widgets.Prompt = function(text) asked[#asked + 1] = text end
+    return asked
+end
+
 local function load(spec)
     stub.Load({ before = LW.world(spec) })
     return stub.lfg
@@ -519,8 +527,10 @@ T.test("lfg: a click opens the group's card beside the list: Whisper the leader,
     T.eq(lines.Playstyle, "Relaxed")
     T.truthy(lines.Note and lines.Note:find("need dps", 1, true), "the leader's note")
     T.eq(table.concat(buttons, ","), "Whisper", "only a player listed alone can be invited: no Invite here")
+    local asked = whispers()
     d.buttons[1]:GetScript("OnClick")(d.buttons[1])
-    T.eq(LW.Calls("SendTell")[1][1], "Gorrak Stonefist")
+    T.eq(asked[1], "Whisper Gorrak Stonefist", "Daylight UI's own box asks for the words")
+    T.eq(#LW.Calls("SendTell"), 0, "the game's chat box is never opened from here")
     T.truthy(row.pick:IsShown(), "the row is the picked one")
     -- Clicked again: the card closes and the window goes back.
     click(row)
@@ -898,8 +908,10 @@ T.test("lfg: Who asks who's your level and lists them; Whisper the one picked", 
     T.eq(lines.Zone, "Agama'gor")
     T.falsy(lines.Guild, "no guild, no line for it")
     T.eq(table.concat(buttons, ","), "Whisper,Invite")
+    local asked = whispers()
     d.buttons[1]:GetScript("OnClick")(d.buttons[1])
-    T.eq(LW.Calls("SendTell")[1][1], "Daemon Process")
+    T.eq(asked[1], "Whisper Daemon Process")
+    T.eq(#LW.Calls("SendTell"), 0, "the game's chat box is never opened from here")
     list = rows(ns.Who.page.stack, "person")
     click(list[2])
     T.eq(d.frame.title:GetText(), "Lava Flows")
@@ -1208,8 +1220,9 @@ T.test("lfg: on a controller X presses the card's main button on Find a group an
     local x = entry("X")
     T.truthy(x, "X with the card open")
     T.eq(x.label(), "Whisper", "it says what it does")
+    local asked = whispers()
     stub.Key(function() x.run() end)
-    T.eq(LW.Calls("SendTell")[1][1], "Gorrak Stonefist")
+    T.eq(asked[1], "Whisper Gorrak Stonefist")
     -- A player listed alone: Invite is the main button.
     click(rows(ns.Browse.page.stack, "group")[3])
     T.eq(entry("X").label(), "Invite")
@@ -1220,7 +1233,8 @@ T.test("lfg: on a controller X presses the card's main button on Find a group an
     click(rows(ns.Who.page.stack, "person")[1])
     T.eq(entry("X").label(), "Whisper")
     stub.Key(function() entry("X").run() end)
-    T.eq(LW.Calls("SendTell")[2][1], "Daemon Process")
+    T.eq(asked[2], "Whisper Daemon Process")
+    T.eq(#LW.Calls("SendTell"), 0)
     click(rows(ns.Who.page.stack, "person")[1])
     T.isnil(entry("X"), "card closed: X gone")
     tab(ns, "list")

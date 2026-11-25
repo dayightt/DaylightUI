@@ -289,7 +289,6 @@ return {
         ["DaylightUI_Bags/Slots.lua"] = "the bag bar shows the bags already on: nothing to compare them with",
     },
     rules = {
-        ["Pad.lua|open-chat"] = "Pad.Whisper and Pad.Share, the one place: they open the game's chat box only with the controller UI off",
         ["DaylightUI_Bags/Bank.lua|static-popup"] = "the account bank's Withdraw and Deposit: the game's own gold boxes (BANK_MONEY_*), which hold its money entry; a click of the player's opens them",
     },
 }

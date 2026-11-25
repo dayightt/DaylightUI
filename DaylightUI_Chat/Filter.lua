@@ -33,7 +33,7 @@ Filter.LIST_TOP = Filter.TOP + Filter.ROW + 18
 -- Columns of Kinds.ORDER kinds. The channels column grows with the channels you've
 -- joined (Filter.Fill).
 Filter.COLUMNS = {
-    { title = L["Chat"], kinds = { "say", "yell", "emote", "whisper", "bnet", "bnalert", "party", "instance",
+    { title = L["Chat"], kinds = { "say", "yell", "emote", "whisper", "bnalert", "party", "instance",
                                    "raid", "warning", "icons", "pvp", "guild", "officer" } },
     { title = L["Channels"], kinds = { "general", "trade", ns.Kinds.SERVICES, ns.Kinds.TRADE_LOCAL,
                                        "lfg", "defense", "channel" } },
@@ -202,9 +202,14 @@ end
 -- The rows of the short tags list in the options: chat kinds, then channels.
 function Filter.TagItems()
     local chat, channels = {}, {}
-    for _, kind in ipairs(Filter.COLUMNS[1].kinds) do
+    local function add(kind)
         local standard = ns.Tags.CHAT_TAGS[kind] and ns.Tags.Default(kind)
         if standard then chat[#chat + 1] = { kind = kind, words = ns.Tabs.KIND_WORDS[kind] or kind, standard = standard } end
+    end
+    for _, kind in ipairs(Filter.COLUMNS[1].kinds) do
+        add(kind)
+        -- Battle.net whispers share the Whispers switch but keep a tag of their own.
+        if kind == "whisper" then add("bnet") end
     end
     for _, item in ipairs(Filter.ChannelList()) do
         if item.standard then channels[#channels + 1] = item end

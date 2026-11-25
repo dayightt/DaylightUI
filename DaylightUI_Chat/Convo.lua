@@ -237,6 +237,19 @@ function Convo.Open(key)
     ns.Tiles.Refresh()
 end
 
+-- A Whisper button in Daylight UI's own windows (friends, group finder) opens the
+-- card with that person, so the game's chat box is never opened from addon code.
+-- who = { name } or { bn = account id, name }. False when there's no card to show
+-- (the Classic style, or whispers kept in the chat only).
+function Convo.WhisperTo(who)
+    if not ns.Talk.On() or type(who) ~= "table" then return false end
+    local c = ns.Talk.Start(who.name, who.bn)
+    if not c then return false end
+    Convo.Open(c.key)
+    return Convo.Showing(c.key)
+end
+DUI.ChatWhisper = Convo.WhisperTo
+
 function Convo.Close()
     if not open then return end
     open = false

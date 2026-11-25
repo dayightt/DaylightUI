@@ -239,8 +239,11 @@ T.test("social: a friend picked: Invite (their game account) and Whisper (Battle
     T.eq(panel(page), "Invite, Whisper")
     stub.Key(function() page.detail.buttons[1]:Click() end)
     T.eq(SW.Calls("InviteFriend")[1][1], 100 + #"Thessaly Moor")
+    local asked = {}
+    DaylightUI.Widgets.Prompt = function(text) asked[#asked + 1] = text end
     stub.Key(function() page.detail.buttons[2]:Click() end)
-    T.eq(SW.Calls("SendBNetTell")[1][1], "Kit")
+    T.eq(asked[1], "Whisper Kit", "Daylight UI's own box asks for the words")
+    T.eq(#SW.Calls("SendBNetTell"), 0, "the game's chat box is never opened from here")
     -- Sol plays another game: no invite.
     local sol = rows(page.stack, "friend")[6]
     stub.Key(function() sol:Click() end)

@@ -1354,13 +1354,36 @@ T.test("pad chat: on a controller a whisper never opens the game's chat box; it'
     done(); clear()
 end)
 
-T.test("pad chat: without a controller a whisper opens the game's box as before", function()
+-- With a mouse too: opening the game's box from addon code leaves its last and
+-- active box tainted for the session, and once a reply to a hidden name sticks,
+-- every Enter then errors in the game's UpdateHeader. With no chat card to open,
+-- Daylight UI's own box asks for the words.
+T.test("pad chat: without a controller a whisper never opens the game's box either; Daylight UI's box asks", function()
     local DUI = stub.Load()
     controller(false)
-    local calls, _, done = chatWorld()
+    local calls, opened, done = chatWorld()
+    local W = DUI.Widgets
+    local prompt = W.Prompt
+    local asked, accept
+    W.Prompt = function(text, _, onAccept) asked, accept = text, onAccept end
     DUI.Pad.Whisper({ name = "Arthas" })
+    T.falsy(opened(), "the game's box stays shut")
+    T.truthy(asked and asked:find("Arthas", 1, true), "asked for the message to Arthas")
+    accept("hi")
+    T.deq(calls[#calls], { "SendChatMessage", "hi", "WHISPER", nil, "Arthas" })
     DUI.Pad.Whisper({ bn = 7, name = "Jaina" })
-    T.deq(calls, { { "SendTell", "Arthas" }, { "SendBNetTell", "Jaina" } })
+    accept("hey")
+    T.deq(calls[#calls], { "BNSendWhisper", 7, "hey" })
+    T.falsy(opened())
+    -- The chat module's card takes it when it can.
+    local to
+    DUI.ChatWhisper = function(who) to = who; return true end
+    asked = nil
+    DUI.Pad.Whisper({ name = "Thrall" })
+    T.eq(to and to.name, "Thrall", "the chat card got it")
+    T.isnil(asked, "and no box asked")
+    DUI.ChatWhisper = nil
+    W.Prompt = prompt
     done(); clear()
 end)
 
@@ -1387,12 +1410,21 @@ T.test("pad chat: sharing on a controller with no box open picks a channel inste
     done(); clear()
 end)
 
-T.test("pad chat: sharing with a mouse and no box open opens one with the link, as the game does", function()
+T.test("pad chat: sharing with a mouse and no box open picks a channel too, never opening the game's box", function()
     local DUI = stub.Load()
     controller(false)
-    local calls, _, done = chatWorld()
+    local calls, opened, done = chatWorld()
+    local W = DUI.Widgets
+    local openMenu = W.OpenMenu
+    local keys, pick, opts
+    W.OpenMenu = function(_, k, _, _, onPick, _, o) keys, pick, opts = k, onPick, o end
     DUI.Pad.Share("|Hitem:6948|h[Hearthstone]|h")
-    T.deq(calls[#calls], { "OpenChat", "|Hitem:6948|h[Hearthstone]|h" })
+    T.falsy(opened(), "the game's box stays shut")
+    T.eq(keys and keys[1], "SAY")
+    T.truthy(opts and opts.atCursor, "with no owner it opens at the mouse")
+    pick("SAY")
+    T.deq(calls[#calls], { "SendChatMessage", "|Hitem:6948|h[Hearthstone]|h", "SAY" })
+    W.OpenMenu = openMenu
     done(); clear()
 end)
 

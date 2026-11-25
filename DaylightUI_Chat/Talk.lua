@@ -210,6 +210,16 @@ end
 
 local function nameKey(name) return "w:" .. name end
 
+-- The conversation to start with someone (a Whisper button elsewhere): the one
+-- you already have with them, else a new empty one, saved only once something
+-- is said. bn = their Battle.net account id.
+function Talk.Start(name, bn)
+    if type(name) ~= "string" or secret(name) or name == "" then return nil end
+    if bn == nil then return make(nameKey(name), name) end
+    if type(bn) ~= "number" or secret(bn) then return nil end
+    return make("bn:" .. bn, name, bn)
+end
+
 Talk.EVENTS = { CHAT_MSG_WHISPER = true, CHAT_MSG_WHISPER_INFORM = true,
                 CHAT_MSG_BN_WHISPER = true, CHAT_MSG_BN_WHISPER_INFORM = true }
 

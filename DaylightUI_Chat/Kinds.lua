@@ -62,7 +62,7 @@ Kinds.CHANNELS = {
 Kinds.RENAMED = { ["ch:tradelocal"] = Kinds.TRADE_LOCAL }
 
 -- Every kind, in tab editor order.
-Kinds.ORDER = { "say", "yell", "emote", "whisper", "bnet", "bnalert", "party", "instance", "raid", "warning",
+Kinds.ORDER = { "say", "yell", "emote", "whisper", "bnalert", "party", "instance", "raid", "warning",
                 "icons", "pvp", "guild", "officer", "general", "trade", "lfg", "defense", "channel", "loot",
                 "currency", "money", "tradeskill", "opening", "progress", "reputation", "skill", "achievement",
                 "pet", "misc", "npc", "boss", "system" }
@@ -80,8 +80,18 @@ Kinds.SPLIT = {
             system = { "pvp", "pet", "misc", "icons", "bnalert" } },
     [7] = {}, -- not a split, see Kinds.LEFT_OUT
     [8] = {}, -- not a split, see Kinds.EVERYTHING_LEAVES
+    [9] = {}, -- not a split, see Kinds.MERGED
 }
-Kinds.VERSION = 8
+Kinds.VERSION = 9
+
+-- Kinds whose switch went into another's at that tab version: kind -> the one
+-- that now decides it. Battle.net whispers follow Whispers: with two switches a
+-- friend's Battle.net whispers skipped a tab that had Whispers on. A tab shows
+-- the merged kind if either was on. The lines keep their own kind for tags.
+Kinds.MERGED = {
+    [9] = { bnet = "whisper" },
+}
+Kinds.SAME = { bnet = "whisper" }
 
 -- Kinds a saved tab stops showing at that tab version. Crafting reached every
 -- tab that showed everything, and loot tabs through the split above, so a busy
@@ -125,6 +135,18 @@ function Kinds.Upgrade(tab)
             for _, k in ipairs(Kinds.EVERYTHING_LEAVES[v] or {}) do
                 tab.kinds = type(tab.kinds) == "table" and tab.kinds or {}
                 tab.kinds[k] = false
+            end
+        end
+        if type(tab.kinds) == "table" then
+            for old, into in pairs(Kinds.MERGED[v] or {}) do
+                local a, b = tab.kinds[old], tab.kinds[into]
+                if tab.all then
+                    -- An everything tab shows a kind unless it's switched off: off only if both were.
+                    if a == false and b == false then tab.kinds[into] = false else tab.kinds[into] = nil end
+                else
+                    tab.kinds[into] = (a == true or b == true) or nil
+                end
+                tab.kinds[old] = nil
             end
         end
     end
@@ -436,6 +458,7 @@ end
 -- "Other channels". An everything tab shows all but the kinds switched off in it.
 function Kinds.Shows(tab, kind)
     if type(tab) ~= "table" then return false end
+    kind = Kinds.SAME[kind] or kind
     if tab.all then return not (type(tab.kinds) == "table" and tab.kinds[kind] == false) end
     if type(tab.kinds) ~= "table" then return false end
     local on = tab.kinds[kind]

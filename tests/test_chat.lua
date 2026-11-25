@@ -4286,32 +4286,60 @@ T.test("chat daylight: the channel list's TradeLocal is Trade (Local), one row, 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("chat daylight: Battle.net whispers have their own switch; a tab with whispers keeps them, only once", function()
-    local Box = daylight()
+-- A player missed their Battle.net friend's whispers on a tab with Whispers on,
+-- and kept seeing them on one with Whispers off: Battle.net whispers had a switch
+-- of their own. One Whispers switch covers both now.
+T.test("chat daylight: one Whispers switch covers Battle.net whispers too; saved tabs keep whispers if either was on", function()
+    local Box, box = daylight(function()
+        ChatTypeInfo.WHISPER = { id = 7, r = 1, g = 0.5, b = 1 }
+        ChatTypeInfo.BN_WHISPER = { id = 9, r = 0, g = 1, b = 1 }
+    end)
     local CH = stub.chatModule
     local Kinds = CH.Kinds
-    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_BN_WHISPER")), "bnet")
-    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_BN_WHISPER_INFORM")), "bnet")
-    T.eq(select(2, Kinds.Of(nil, "CHAT_MSG_WHISPER")), "whisper")
     DaylightUI:Set("Chat", "tabs", {
+        { name = "Both", kinds = { whisper = true, bnet = false }, v = 8 },
+        { name = "Bnet only", kinds = { bnet = true }, v = 8 },
+        { name = "All, whispers off", all = true, kinds = { whisper = false }, v = 8 },
+        { name = "All, both off", all = true, kinds = { whisper = false, bnet = false }, v = 8 },
         { name = "Old", kinds = { whisper = true }, v = 2 },
         { name = "None", kinds = { party = true }, v = 2 },
+        { name = "Old all", all = true, v = 2 },
     })
     stub.RunTimers()
-    T.truthy(Box.Tabs()[1].kinds.bnet, "whispers brought Battle.net whispers along")
-    T.falsy(Box.Tabs()[2].kinds.bnet, "nothing it didn't show")
-    T.falsy(Box.Tabs()[2].kinds.instance, "an older split isn't run again: instance off stays off")
-    CH.Tabs.SetKind(1, "bnet", false)
-    stub.RunTimers()
-    T.falsy(Box.Tabs()[1].kinds.bnet, "off stays off")
-    T.truthy(Box.Tabs()[1].kinds.whisper, "whispers stay")
-    CH.Filter.Open(1)
-    local row
-    for _, b in ipairs(CH.Filter.Rows()) do
-        if b.kind == "bnet" then row = b end
+    local tabs = Box.Tabs()
+    T.eq(tabs[1].kinds.whisper, true, "on and off: on")
+    T.eq(tabs[2].kinds.whisper, true, "only Battle.net on: whispers on")
+    T.isnil(tabs[3].kinds.whisper, "an everything tab with Battle.net still on shows whispers")
+    T.eq(tabs[4].kinds.whisper, false, "both off: off")
+    T.eq(tabs[5].kinds.whisper, true, "a tab saved long ago keeps its whispers")
+    T.falsy(tabs[6].kinds.whisper, "nothing it didn't show")
+    T.falsy(tabs[6].kinds.instance, "an older split isn't run again: instance off stays off")
+    T.isnil(tabs[7].kinds and tabs[7].kinds.whisper, "an old everything tab shows them all")
+    for i, tab in ipairs(tabs) do
+        T.isnil(tab.kinds and tab.kinds.bnet, "no Battle.net switch left on tab " .. i)
+        T.eq(tab.v, Kinds.VERSION)
     end
-    T.truthy(row, "the Show window has its row")
-    T.eq(CH.Filter.TypeOf("bnet"), "BN_WHISPER", "in its own color")
+    T.truthy(Kinds.Shows(tabs[1], "bnet"), "Whispers on: Battle.net whispers show")
+    T.falsy(Kinds.Shows(tabs[4], "bnet"), "Whispers off: they don't")
+    -- A Battle.net whisper lands where Whispers is on, and only there.
+    DaylightUI:Set("Chat", "tabs", {
+        { name = "Gen", all = true, kinds = { whisper = false }, v = Kinds.VERSION },
+        { name = "G/I", kinds = { whisper = true, say = true }, v = Kinds.VERSION },
+    })
+    stub.RunTimers()
+    Box.Pick(1)
+    ChatFrame1:AddMessage("[Kira]: hey", 0, 1, 1, 9, nil, nil, "CHAT_MSG_BN_WHISPER", { "hey", "Kira", n = 14 })
+    T.eq(#boxTexts(box), 0, "not on the tab with Whispers off")
+    Box.Pick(2)
+    T.eq(table.concat(boxTexts(box), "|"), "[Kira]: hey", "on the tab with Whispers on")
+    CH.Filter.Open(2)
+    local whisperRow, bnetRow
+    for _, b in ipairs(CH.Filter.Rows()) do
+        if b.kind == "whisper" then whisperRow = b end
+        if b.kind == "bnet" then bnetRow = b end
+    end
+    T.truthy(whisperRow, "the Whispers switch")
+    T.falsy(bnetRow, "no Battle.net whispers row")
     CH.Filter.Close()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
@@ -4561,6 +4589,54 @@ T.test("chat whispers: shown in their window only, or the chat only", function()
     whisper("hi", "Lephoque")
     T.falsy(DaylightUIChatTiles:IsShown(), "no tiles")
     T.truthy(CH.Talk.Get("w:Lephoque"), "still kept for the hub")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A Whisper button in Daylight UI's own windows (friends, group finder) opens the
+-- card with that person. Opening the game's chat box from addon code left it
+-- tainted, and a later reply to a hidden name errored every time it opened.
+T.test("chat whispers: a Whisper button elsewhere opens the card with that person, never the game's box", function()
+    local sent, opened = {}, {}
+    daylight(function()
+        _G.C_ChatInfo = _G.C_ChatInfo or {}
+        _G.C_ChatInfo.SendChatMessage = function(text, kind, _, to) sent[#sent + 1] = { text, kind, to } end
+        _G.BNSendWhisper = function(id, text) sent[#sent + 1] = { text, "BN", id } end
+    end)
+    local CH = stub.chatModule
+    for _, k in ipairs({ "OpenChat", "SendTell", "SendBNetTell" }) do
+        _G.ChatFrameUtil[k] = function() opened[#opened + 1] = k end
+    end
+    DaylightUI.Pad.Whisper({ name = "Arthas" })
+    T.eq(#opened, 0, "the game's chat box stays shut")
+    T.truthy(CH.Convo.Showing("w:Arthas"), "the card opens with Arthas")
+    local t = CH.Convo.Thread()
+    T.truthy(t.input:HasFocus(), "ready to type")
+    t.input:SetText("lfg?")
+    t.input:GetScript("OnEnterPressed")(t.input)
+    T.deq(sent[#sent], { "lfg?", "WHISPER", "Arthas" }, "sent to Arthas")
+    -- A Battle.net friend: their own conversation, by account.
+    DaylightUI.Pad.Whisper({ bn = 7, name = "Jaina" })
+    T.truthy(CH.Convo.Showing("bn:7"), "a Battle.net friend's card")
+    t.input:SetText("hey")
+    t.input:GetScript("OnEnterPressed")(t.input)
+    T.deq(sent[#sent], { "hey", "BN", 7 })
+    -- Someone already talking to you: the conversation you have, lines and all.
+    whisper("hi", "Lephoque")
+    DaylightUI.Pad.Whisper({ name = "Lephoque" })
+    T.truthy(CH.Convo.Showing("w:Lephoque"), "the conversation you already have")
+    T.eq(#CH.Talk.Get("w:Lephoque").msgs, 1, "with its line")
+    -- No card with whispers kept in the chat only: Daylight UI's small box asks.
+    CH.Convo.Close()
+    DaylightUI:Set("Chat", "whispersIn", "chat")
+    stub.RunTimers()
+    local W = DaylightUI.Widgets
+    local prompt, asked = W.Prompt, nil
+    W.Prompt = function(text) asked = text end
+    DaylightUI.Pad.Whisper({ name = "Thrall" })
+    W.Prompt = prompt
+    T.truthy(asked and asked:find("Thrall", 1, true), "the small box asks instead")
+    T.falsy(CH.Convo.Showing("w:Thrall"))
+    T.eq(#opened, 0, "still never the game's box")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
