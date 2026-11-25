@@ -11,18 +11,14 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", new = {
-        { "Mailbox", "Space collects all your mail, like it moves quest talk along (Dialogue keys, NPC window options)" },
-        { "Plugins", "Other addons can follow your proc alerts and light flares of their own: daylightui.com/plugins" },
-    }, fixed = {
-        { "Auction House", "No more stutter when hovering items, while search results come in, or during a full scan" },
-        { "Group finder", "Your new listing shows on Find a group right away, without pressing Refresh" },
-    } },
+    { version = "Unreleased" },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
         { "Proc Alerts", "A painted flare around your character when a proc like Clearcasting or Overpower is ready. If you already use Daylight UI, a welcome page shows you one to turn on" },
         { "Quests", "Drag zones in the quest tracker into your own order, or sort them A to Z" },
         { "Tooltips", "Design mode on the Tooltips page: arrange, group or hide a card's pieces, plus more card choices" },
         { "Auction House", "Alt-click a bag item to put it on the Sell tab" },
+        { "Mailbox", "Space collects all your mail when the dialogue keys are on" },
+        { "Plugins", "Other addons can follow your proc alerts and light flares of their own: daylightui.com/plugins" },
     }, changed = {
         { "Action bars", "Show empty buttons covers the action bars only: the game always hid the pet bar's empty slots" },
     }, fixed = {
@@ -40,6 +36,8 @@ DUI.PatchNotes = {
         { "Setup guide", "A full list of Edit Mode layouts no longer stops the setup guide at every login" },
         { "Minimap", "The clock opens the alarm and stopwatch again, and quest areas fade away with the minimap" },
         { "Guild", "Clicking a name in the guild roster opens their details again" },
+        { "Auction House", "No more stutter when hovering items, while search results come in, or during a full scan" },
+        { "Group finder", "Your new listing shows on Find a group right away, without pressing Refresh" },
         { "General", "Little touches: Nighthaven flight timer, steady item compares, full camera distance, clean portrait rings, link X on the card (thanks Ángel)" },
         { "Translations", "The newest settings in Simplified Chinese (thanks Levis)" },
     } },
