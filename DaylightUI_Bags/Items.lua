@@ -1382,6 +1382,10 @@ function Items.Fits(bag, slot, info, w, quest)
     if fits and w and w == ns.window and ns.Disenchant and ns.Disenchant.on then
         fits = ns.Disenchant.Takes(bag, slot, info)
     end
+    -- At the bank: what can't go into the bank shown dims, as the game's bags do.
+    if fits and info and w and w == ns.window and ns.Bank and ns.Bank.Refuses(bag, slot) then
+        fits = false
+    end
     return fits
 end
 

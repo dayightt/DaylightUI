@@ -156,13 +156,15 @@ end
 
 -- gameKit: the SOUNDKIT name the game's own window plays here, for a window
 -- that takes the place of one of the game's (the bags). With soft sounds off
--- the game's window never opens, so this one plays its sound instead.
+-- the game's window never opens, so this one plays its sound instead. false:
+-- the game's window makes no sound of its own here (the bank), so none plays.
 function Sound.Play(name, gameKit)
     local file = Sound.FILES[name]
     if not file then return end
     local mode = Sound.Mode(name)
     if mode == "none" then return end
     if mode == "game" then
+        if gameKit == false then return end
         -- Daylight UI's windows and buttons play the game's matching kit, but only while the
         -- master switch is on, unless the window stands in for one of the game's.
         local kit = (gameKit or Sound.On()) and type(SOUNDKIT) == "table"

@@ -36,6 +36,8 @@ DUI.PatchNotes = {
         { "Bags", "Click a tracked currency at the bottom of the bag to open your currencies; Shift-click links it in chat or stops tracking it" },
         { "Bags", "With the gold coin on junk turned on, the coins show as soon as you reach a vendor and go when you leave" },
         { "Bags", "A bag picked up from the bag slots turns gray, and the slots it fits in light up" },
+        { "Bank", "At the account bank your bags dim what can't go in it; a locked or empty account bank says why; a tab you can't afford shows its price in red; the character bank shows your gold; Clean Up makes its sound; the bank's bag slots no longer start with a slot that can't hold a bag" },
+        { "Bank", "Deposit and Withdraw ask in Daylight UI's own gold box, close on a second click, and close when you walk away from the banker" },
         { "Windows", "Escape closes Daylight UI's small windows (the damage meter breakdown, whispers, chat filters, questions) in a fight too, and they close when you're feared or stunned, like the game's own; Escape closes an open dropdown first, a dropdown closes with its window, and closing one without picking makes the game's soft click" },
         { "Quests", "Questie icons on the world map no longer jump and flicker when you rest the mouse on them" },
         { "Tooltips", "Comparing an item with what you wear no longer makes the tooltips twitch sideways while you hover it" },

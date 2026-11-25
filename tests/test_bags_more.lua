@@ -1005,11 +1005,236 @@ T.test("bank: the bank bag strip shows its tabs and hovering one lights its slot
     local b = strip.slots[1]
     T.eq(b.icon:GetTexture(), ns.Slots.EMPTY_ICON, "no bag in it: the empty slot")
     b:GetScript("OnEnter")(b)
-    local slot = ns.Bank.set.buttons[6][1]
+    local slot = ns.Bank.set.buttons[7][1]
     local r = DaylightUI.Style.Accent()
     T.eq(ns.Items.Parts(slot).shell.opts.borderColor[1], r, "the tab's slots outlined in the accent")
     b:GetScript("OnLeave")(b)
     T.eq(ns.Items.Parts(slot).shell.opts.borderColor, ns.Items.Parts(slot).color, "back to its own outline")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- ---------------------------------------------------------------------
+-- What the game's own Forever bank does (Camelot/BankFrame.lua, Mainline
+-- BankFrameTemplates.lua) that Daylight UI's bank must do too. The game's
+-- BankPanel never shows here (writing its bank type tainted every bag
+-- right-click), so none of its OnShow, OnHide or events run.
+-- ---------------------------------------------------------------------
+
+local function pickBank(f, bankType)
+    for _, t in ipairs(f.bankTabs) do
+        if t.bankType == bankType then t:GetScript("OnClick")(t) end
+    end
+    stub.RunTimers()
+end
+
+local function atBank(ns)
+    stub.FireEvent("BANKFRAME_OPENED")
+    stub.RunTimers()
+    return ns.bank
+end
+
+-- The game's bag row starts at the second tab: "We skip the first bag as we
+-- start with the first bag purchased" (Camelot BankFrame.lua RefreshBagButtons).
+-- The first tab is the bank's own slots, not a bag slot.
+T.test("bank game: the bag strip starts at the second tab, the first is the bank itself", function()
+    local ns = bankLogin()
+    DaylightUI:Set("Bags", "bank.showSlots", true)
+    atBank(ns)
+    local strip = ns.Bank.strip
+    T.eq(#strip.slots, 5, "tabs 2 to 6: one button per bag slot")
+    T.eq(strip.slots[1].index, 2)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A bank bag swapped: the game's bag buttons refresh on BAG_CONTAINER_UPDATE.
+T.test("bank game: a bank bag swapped shows at once on the strip", function()
+    local ns = bankLogin()
+    DaylightUI:Set("Bags", "bank.showSlots", true)
+    atBank(ns)
+    local b = ns.Bank.strip.slots[1]
+    T.eq(b.icon:GetTexture(), ns.Slots.EMPTY_ICON)
+    world.items[-8] = { [2] = { iconFileID = 77, stackCount = 1, quality = 1, hyperlink = "|Hitem:77|h", itemID = 77 } }
+    stub.FireEvent("BAG_CONTAINER_UPDATE")
+    T.eq(b.icon:GetTexture(), 77, "the new bag's icon")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- BankAutoSortButtonMixin: UI_BAG_SORTING_01, and nothing to sort with no tab.
+T.test("bank game: Clean Up plays the sorting sound, and sorts nothing with no tab bought", function()
+    local ns, bank = bankLogin()
+    local played = {}
+    _G.SOUNDKIT = { UI_BAG_SORTING_01 = 55 }
+    _G.PlaySound = function(kit) played[#played + 1] = kit end
+    local f = atBank(ns)
+    f.sort:GetScript("OnClick")(f.sort, "LeftButton")
+    T.eq(bank.calls.sort, 0, "the character bank sorted")
+    T.deq(played, { 55 }, "the game's sorting sound")
+    bank.calls.sort = nil
+    bank.tabs[0] = {}
+    f.sort:GetScript("OnClick")(f.sort, "LeftButton")
+    T.isnil(bank.calls.sort, "no tab: nothing to sort")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The account bank's gold: Daylight UI's own gold box (never the game's
+-- BANK_MONEY_* pop-ups, opened from addon code they taint), a second click on
+-- the same button closes it, and leaving the bank closes it
+-- (BankPanelMixin:CloseAllBankPopups).
+T.test("bank game: Deposit and Withdraw ask in Daylight UI's gold box, toggle, and close with the bank", function()
+    local ns, bank = bankLogin()
+    local W = DaylightUI.Widgets
+    local moved, errors = {}, {}
+    C_Bank.DepositMoney = function(t, c) moved[#moved + 1] = { "in", t, c } end
+    C_Bank.WithdrawMoney = function(t, c) moved[#moved + 1] = { "out", t, c } end
+    local showError = DaylightUI.ShowError
+    DaylightUI.ShowError = function(text) errors[#errors + 1] = text end
+    _G.GetMoney = function() return 50000 end
+    local f = atBank(ns)
+    pickBank(f, 2)
+    stub.popup = nil
+    f.deposit:GetScript("OnClick")(f.deposit, "LeftButton")
+    stub.RunTimers()
+    T.isnil(stub.popup, "not the game's pop-up")
+    local spec = W.Asking()
+    T.truthy(spec and spec.money, "Daylight UI's gold box")
+    local box = _G.DaylightUIAsk
+    box.coins.gold:SetText("2")
+    W.Answer(true)
+    T.deq(moved, { { "in", 2, 20000 } }, "2 gold into the account bank")
+    -- More than you carry: the game's error, nothing moved.
+    f.deposit:GetScript("OnClick")(f.deposit, "LeftButton")
+    stub.RunTimers()
+    box.coins.gold:SetText("9")
+    W.Answer(true)
+    T.eq(#moved, 1); T.eq(#errors, 1, "said why")
+    -- Withdraw: more than the bank holds (5000) is refused too.
+    f.withdraw:GetScript("OnClick")(f.withdraw, "LeftButton")
+    stub.RunTimers()
+    box.coins.silver:SetText("60")
+    W.Answer(true)
+    T.eq(#moved, 1); T.eq(#errors, 2)
+    f.withdraw:GetScript("OnClick")(f.withdraw, "LeftButton")
+    stub.RunTimers()
+    box.coins.silver:SetText("40")
+    W.Answer(true)
+    T.deq(moved[2], { "out", 2, 4000 })
+    -- A second click on the same button closes the box.
+    f.withdraw:GetScript("OnClick")(f.withdraw, "LeftButton")
+    stub.RunTimers()
+    T.truthy(W.Asking())
+    f.withdraw:GetScript("OnClick")(f.withdraw, "LeftButton")
+    T.isnil(W.Asking(), "closed by the second click")
+    -- Walking away with it open closes it, nothing moved.
+    f.deposit:GetScript("OnClick")(f.deposit, "LeftButton")
+    stub.RunTimers()
+    T.truthy(W.Asking())
+    stub.FireEvent("BANKFRAME_CLOSED")
+    stub.RunTimers()
+    T.isnil(W.Asking(), "gone with the bank")
+    T.eq(#moved, 2)
+    DaylightUI.ShowError = showError
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- BankPanelLockPromptMixin: a locked bank says why instead of an empty window,
+-- and the gold buttons say why they're off.
+T.test("bank game: a locked bank says why", function()
+    local ns = bankLogin()
+    _G.Enum.BankLockedReason = { None = 0, BankDisabled = 1, BankConversionFailed = 2, NoAccountInventoryLock = 3 }
+    _G.BANK_LOCKED_REASON_NO_ACCOUNT_INVENTORY_LOCK = "Needs an authenticator."
+    C_Bank.FetchBankLockedReason = function(t) if t == 2 then return 3 end end
+    C_Bank.CanDepositMoney = function() return false end
+    local f = atBank(ns)
+    T.falsy(f.bankNote and f.bankNote:IsShown(), "the character bank isn't locked")
+    pickBank(f, 2)
+    T.truthy(f.bankNote and f.bankNote:IsShown(), "the reason shows")
+    T.truthy(string.find(f.bankNote:GetText() or "", "Needs an authenticator.", 1, true))
+    T.eq(ns.Bank.WhyOff(), "Needs an authenticator.", "the gold buttons say why they're off")
+    pickBank(f, 0)
+    T.falsy(f.bankNote:IsShown(), "gone on the character bank")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- BankPanelPurchasePromptMixin: an account bank with no tab bought explains
+-- itself with the game's own title and text, its cost red when you're short.
+T.test("bank game: the account bank with no tab says what it is; a cost you can't pay is red", function()
+    local ns, bank = bankLogin()
+    bank.tabs[2] = {}
+    C_Bank.CanPurchaseBankTab = function() return true end
+    local afford = true
+    C_Bank.FetchNextPurchasableBankTabData = function()
+        return { tabCost = 10000, canAfford = afford, purchasePromptTitle = "Warband Bank",
+                 purchasePromptBody = "Share items between characters." }
+    end
+    local f = atBank(ns)
+    T.falsy(f.bankNote and f.bankNote:IsShown(), "the character bank has tabs")
+    local red = DaylightUI.Win.Parts.Hex(DaylightUI.Style.INK.BAD)
+    T.falsy(string.find(f.buyTab.text:GetText(), red, 1, true), "you can pay: not red")
+    afford = false
+    stub.FireEvent("PLAYER_MONEY")
+    T.truthy(string.find(f.buyTab.text:GetText(), red, 1, true), "short of gold: the cost in red")
+    pickBank(f, 2)
+    T.truthy(f.bankNote:IsShown(), "the account bank explains itself")
+    T.truthy(string.find(f.bankNote:GetText(), "Share items between characters.", 1, true))
+    T.truthy(string.find(f.bankNote:GetText(), "Warband Bank", 1, true))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- BankPanelMoneyFrameMoneyDisplayMixin: the character bank shows your own gold
+-- (type PLAYER), the account bank its own. Title by the bank shown
+-- (RequestTitleRefresh: BANK or ACCOUNT_BANK_PANEL_TITLE).
+T.test("bank game: the character bank shows your gold, and the title names the bank", function()
+    local ns = bankLogin()
+    _G.BANK, _G.ACCOUNT_BANK_PANEL_TITLE = "Bank", "Warband Bank"
+    local f = atBank(ns)
+    local d = DaylightUI.Motion.Driver()
+    if d then stub.RunOnUpdate(d, 1) end
+    local sum = 0
+    for n in f.money:GetText():gmatch("money:(%d+)") do sum = sum + tonumber(n) end
+    T.eq(sum, 9592, "your own gold")
+    T.eq(f.title:GetText(), "Bank")
+    pickBank(f, 2)
+    if d then stub.RunOnUpdate(d, 1) end
+    T.eq(f.money:GetText(), "money:5000", "the account's gold")
+    T.eq(f.title:GetText(), "Warband Bank")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- ItemButtonUtil.GetItemContext: with the bank open the bags dim what can't go
+-- into the bank shown (BankDepositing, C_Bank.IsItemAllowedInBankType).
+T.test("bank game: at the account bank the bags dim what can't go there", function()
+    local ns = bankLogin()
+    local made = _G.ItemLocation
+    _G.ItemLocation = { CreateFromBagAndSlot = function(_, bag, slot) return { bag = bag, slot = slot } end }
+    C_Bank.IsItemAllowedInBankType = function(t, loc) return not (t == 2 and loc.bag == 0 and loc.slot == 1) end
+    local f = atBank(ns)
+    local one = ns.Bags.buttons[0][1]
+    T.truthy(ns.window:IsShown())
+    T.eq(one.calls.SetMatchesSearch[1], true, "the character bank takes it")
+    pickBank(f, 2)
+    T.eq(one.calls.SetMatchesSearch[1], false, "soulbound: dimmed at the account bank")
+    T.eq(ns.Bags.buttons[0][2].calls.SetMatchesSearch[1], true, "the rest stays lit")
+    stub.FireEvent("BANKFRAME_CLOSED")
+    stub.RunTimers()
+    T.eq(one.calls.SetMatchesSearch[1], true, "lit again once the bank closes")
+    _G.ItemLocation = made
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The game's bank window makes no sound of its own: the bags it opens play
+-- theirs. Under the game's sounds Daylight UI's bank played the character
+-- window's.
+T.test("bank game: under the game's window sounds the bank plays none of its own", function()
+    local ns = bankLogin()
+    DaylightUI:Set("general", "soundKinds.windows", "game")
+    stub.RunTimers()
+    local kits = {}
+    _G.SOUNDKIT = { IG_CHARACTER_INFO_OPEN = 1, IG_CHARACTER_INFO_CLOSE = 2, IG_BACKPACK_OPEN = 3, IG_BACKPACK_CLOSE = 4 }
+    _G.PlaySound = function(kit) kits[#kits + 1] = kit end
+    stub.Advance(1)
+    atBank(ns)
+    for _, k in ipairs(kits) do T.truthy(k ~= 1, "never the character window's open") end
+    T.truthy(#kits > 0 and kits[#kits] == 3, "the bags opening with it play theirs")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

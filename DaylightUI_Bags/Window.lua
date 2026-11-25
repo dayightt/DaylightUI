@@ -1338,6 +1338,8 @@ function Window.Relayout(f, synced, moved)
         end
         wipe(countBefore)
     end
+    -- Room for something shown in place of the slots (the bank's note).
+    if f.spec.itemsMin then h = math.max(h, f.spec.itemsMin(f) or 0) end
     local E = Window.EDGE
     f.items:SetSize(w, math.max(h, 1))
     -- Header, tool row, filters (when shown), slots and footer, a gap between
