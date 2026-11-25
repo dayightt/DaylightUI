@@ -102,7 +102,7 @@ T.test("trainer: a click only picks a line (spells cost real gold); Train learns
     NW.Trainer()
     frame()
     local foot = page(N).foot
-    T.eq(foot.buttons[1].spec.off, true, "nothing picked: Train is off")
+    T.eq(#NW.Calls("BuyTrainerService"), 0, "opening never spends")
     line(N, "Blizzard"):Click()
     T.eq(#NW.Calls("BuyTrainerService"), 0, "a click never spends")
     T.eq(line(N, "Blizzard").pick:IsShown(), true, "highlighted")
@@ -120,9 +120,10 @@ T.test("trainer: a click only picks a line (spells cost real gold); Train learns
     T.eq(n, 1, "the chime")
     frame(3)
     T.eq(line(N, "Frostbolt"), nil, "learned: off the list")
-    T.eq(foot.buttons[1].spec.off, true, "the pick is gone with it: no second spend")
+    T.eq(line(N, "Blizzard").pick:IsShown(), true, "the pick moves on to the next, as the game's trainer")
+    T.eq(#NW.Calls("BuyTrainerService"), 1, "and nothing more is spent by itself")
     line(N, "Fireball"):Click()
-    T.eq(page(N).foot.buttons[1].spec.off, true, "Coming up lines can't be picked")
+    T.eq(line(N, "Fireball").pick:IsShown(), false, "Coming up lines can't be picked")
 end)
 
 -- Ranks share a name: picking one rank lights only that line, and Train learns that rank.
@@ -416,4 +417,62 @@ T.test("trainer: in combat the page still learns by mouse; nothing protected is 
     T.noerror(function() line(N, "Frostbolt"):Click(); page(N).foot:Press(1); frame(3) end)
     T.eq(#NW.Calls("BuyTrainerService"), 1)
     stub.LeaveCombat()
+end)
+
+-- The game's own trainer (Blizzard_TrainerUI.lua), behavior by behavior.
+
+-- ClassTrainer_SelectNearestLearnableSkill on show: Train works without a click first.
+-- The selection stays on its spot as the list shifts, so after a purchase the next
+-- line is picked. Nothing is ever bought without a press.
+T.test("trainer game: opening picks the first line you can learn; after training the pick moves on", function()
+    local N = load()
+    NW.Trainer()
+    frame()
+    local foot = page(N).foot
+    T.eq(line(N, "Frostbolt").pick:IsShown(), true, "the first learnable line")
+    T.eq(foot.buttons[1].spec.off, false, "Train works at once")
+    T.truthy(foot.buttons[1].text:GetText():find(DaylightUI.MoneyString(9000), 1, true), "and says the cost")
+    T.eq(#NW.Calls("BuyTrainerService"), 0, "nothing spent")
+    line(N, "Evocation"):Click()
+    foot:Press(1)
+    frame(3)
+    T.deq(NW.Calls("BuyTrainerService"), { { 3, "Evocation" } })
+    T.eq(line(N, "Fire Ward").pick:IsShown(), true, "the line that took its spot")
+    line(N, "Remove Lesser Curse"):Click()
+    stub.FireEvent("TRAINER_UPDATE")
+    frame(3)
+    T.eq(line(N, "Remove Lesser Curse").pick:IsShown(), true, "a line you picked yourself stays picked over a refill")
+    T.eq(#NW.Calls("BuyTrainerService"), 1, "still nothing more spent")
+end)
+
+T.test("trainer game: nothing to learn: nothing picked, Train off", function()
+    local N = load()
+    NW.Trainer({ services = { { name = "Fireball", sub = "Rank 5", kind = "unavailable", level = 22, cost = 12000 } } })
+    frame()
+    T.eq(page(N).foot.buttons[1].spec.off, true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- ClassTrainerFrame_InitServiceButton lists GetTrainerServiceAbilityReq too, red while unmet.
+T.test("trainer game: a spell that needs another first says which", function()
+    local N = load()
+    local list = NW.Spells()
+    list[#list + 1] = { name = "Frostbolt", sub = "Rank 5", kind = "unavailable", level = 20, cost = 11000, needs = "Frostbolt Rank 4" }
+    NW.Trainer({ services = list })
+    frame()
+    local rank5
+    for _, l in ipairs(lines(N)) do if l.lineSpec.service.sub == "Rank 5" and l.lineSpec.service.name == "Frostbolt" then rank5 = l end end
+    T.truthy(rank5, "listed")
+    local sub = rank5.sub:GetText():gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(sub:find("Rank 5", 1, true), "its rank: " .. sub)
+    T.truthy(sub:find("Frostbolt Rank 4", 1, true), "and what it needs first: " .. sub)
+    T.eq(line(N, "Blizzard").sub:GetText(), "Rank 1", "a line that needs nothing keeps its rank alone")
+end)
+
+-- TRADESKILL_RANK_WITH_MODIFIER: a racial or gear bonus shows beside the rank.
+T.test("trainer game: the skill bar shows a bonus to the skill", function()
+    local N = load()
+    NW.Trainer({ services = NW.Recipes(), rank = 118, maxRank = 150, modifier = 15, type = 2 })
+    frame()
+    T.eq(page(N).skill.value:GetText(), "118 (+15) / 150")
 end)

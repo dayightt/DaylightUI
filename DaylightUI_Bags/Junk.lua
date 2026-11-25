@@ -25,15 +25,9 @@ Junk.PriceOf = priceOf
 -- Every junk slot that sells for something: { bag, slot, value }.
 -- A bag the game's Sell Junk is told to leave alone (its bag menu's "Ignore"
 -- Sell Junk, saved by the game). The game's sale skips it, so Daylight UI's
--- own sales do too.
-function Junk.BagSkipped(bag)
-    local C = C_Container
-    if bag == 0 then
-        return type(C.GetBackpackSellJunkDisabled) == "function" and C.GetBackpackSellJunkDisabled() == true
-    end
-    local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ExcludeJunkSell
-    return flag ~= nil and type(C.GetBagSlotFlag) == "function" and C.GetBagSlotFlag(bag, flag) == true
-end
+-- own sales do too, and so does the NPC window's Sell junk count (the core's
+-- DUI.JunkSkipsBag).
+function Junk.BagSkipped(bag) return DUI.JunkSkipsBag(bag) end
 
 function Junk.Items()
     local out = {}

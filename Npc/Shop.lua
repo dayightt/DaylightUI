@@ -23,6 +23,7 @@ Shop.CONFIRM = DUI.Widgets.CONFIRM
 Shop.BAD = Style.INK.BAD          -- unaffordable or unusable (text)
 Shop.PRICE = Style.INK.MONEY       -- affordable price
 Shop.BAD_ICON = { 0.95, 0.15, 0.12 } -- unusable, tinted over the icon (a softer tint disappears on the art; the game uses 0.9, 0, 0)
+Shop.GONE_ICON = Style.INK.OFF        -- sold out: dimmed, as the game grays it
 Shop.ROLL = 0.45                    -- s for the money to roll to its new value
 Shop.DOWN = Style.INK.TEXT         -- money going down
 Shop.UP = Style.INK.GOOD           -- money going up
@@ -68,8 +69,14 @@ function Shop.Items()
         local info = C_MerchantFrame and fn(C_MerchantFrame.GetItemInfo) and C_MerchantFrame.GetItemInfo(i)
         if type(info) == "table" and info.name then
             local link = call(GetMerchantItemLink, i)
-            out[#out + 1] = { index = i, name = info.name, texture = info.texture, price = info.price or 0,
-                stack = info.stackCount or 1, available = info.numAvailable or -1, usable = info.isUsable ~= false,
+            local name, texture, available = info.name, info.texture, info.numAvailable
+            -- A currency sold in a container shows the container, as the game's shop does.
+            if info.currencyID and type(CurrencyContainerUtil) == "table" and fn(CurrencyContainerUtil.GetCurrencyContainerInfo) then
+                name, texture, available = CurrencyContainerUtil.GetCurrencyContainerInfo(info.currencyID, available, name, texture, nil)
+            end
+            out[#out + 1] = { index = i, name = name or info.name, texture = texture or info.texture, price = info.price or 0,
+                stack = info.stackCount or 1, available = available or -1, usable = info.isUsable ~= false,
+                purchasable = info.isPurchasable ~= false, quest = info.isQuestStartItem == true,
                 extended = info.hasExtendedCost == true, link = link, quality = qualityOf(link) }
         end
     end
@@ -89,6 +96,18 @@ function Shop.Buyback()
     return out
 end
 
+-- A bag the game's Sell Junk leaves alone: the backpack's or a bag's "Ignore"
+-- Sell Junk in its bag menu, saved by the game. The bags window's own sales ask it too.
+function DUI.JunkSkipsBag(bag)
+    local C = C_Container
+    if type(C) ~= "table" then return false end
+    if bag == 0 then
+        return fn(C.GetBackpackSellJunkDisabled) and C.GetBackpackSellJunkDisabled() == true
+    end
+    local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.ExcludeJunkSell
+    return flag ~= nil and fn(C.GetBagSlotFlag) and C.GetBagSlotFlag(bag, flag) == true
+end
+
 -- Gray items in the bags and what they sell for. Cached until the bags change
 -- (Shop.BagsChanged on BAG_UPDATE_DELAYED), since money and item-info events refill the
 -- shelf often. Prices that haven't loaded aren't cached, so they get read again.
@@ -98,7 +117,7 @@ function Shop.Junk()
     local n, value, whole = 0, 0, true
     if not (C_Container and fn(C_Container.GetContainerNumSlots) and fn(C_Container.GetContainerItemInfo)) then return 0, 0 end
     for bag = 0, Shop.BAGS do
-        for slot = 1, C_Container.GetContainerNumSlots(bag) or 0 do
+        for slot = 1, DUI.JunkSkipsBag(bag) and 0 or C_Container.GetContainerNumSlots(bag) or 0 do
             local info = C_Container.GetContainerItemInfo(bag, slot)
             if type(info) == "table" and info.quality == 0 and not info.hasNoValue
                 and not (DUI.ItemLocked and DUI.ItemLocked(info.itemID)) then
@@ -122,6 +141,20 @@ DUI.On("ItemLockChanged", function()
     Shop.junk = nil
     if ns.Window.state.mode == "merchant" then Shop.Refresh() end
 end)
+
+-- An item from the bags on the cursor: a click or drop anywhere on the shop sells
+-- it, as on the game's own (the vendor frame's OnMouseUp and OnReceiveDrag call
+-- PickupMerchantItem(0)). True when the click was taken. A refundable item is left
+-- to the game's bags, which ask before refunding (MerchantFrame.refundItem, set by
+-- the bag slot it came from): a guess that this is where the game would ask, and
+-- harmless if not, since the item just stays on the cursor.
+function Shop.SellCursor()
+    if ns.Window.state.sample or not fn(GetCursorInfo) or GetCursorInfo() ~= "item" then return false end
+    local m = _G.MerchantFrame
+    if type(m) == "table" and m.refundItem then return true end
+    call(PickupMerchantItem, 0)
+    return true
+end
 
 function Shop.Repair()
     if not call(CanMerchantRepair) then return 0 end
@@ -243,8 +276,8 @@ end
 -- The game's shop only shows tokens at the bottom; this shows every cost, items too.
 -- list: the shelf Shop.Items() already read, or nil to read it here.
 function Shop.Wallet(list)
-    if ns.Window.state.sample or not fn(GetMerchantItemCostItem) then return "" end
-    local parts, seen = {}, {}
+    if ns.Window.state.sample or not fn(GetMerchantItemCostItem) then return "", {} end
+    local parts, links, seen = {}, {}, {}
     for _, it in ipairs(list or Shop.Items()) do
         if it.extended then
             for i = 1, MAX_ITEM_COST or 3 do
@@ -260,19 +293,75 @@ function Shop.Wallet(list)
                     end
                     if type(have) == "number" then
                         parts[#parts + 1] = have .. " |T" .. texture .. ":0:0:0:0:64:64:5:59:5:59|t"
+                        links[#links + 1] = link
                     end
                 end
             end
         end
     end
-    return table.concat(parts, "  ")
+    return table.concat(parts, "  "), links, parts
+end
+
+Shop.WALLET_SEP = "  "
+
+-- A hover spot over each piece of the wallet, with that item's or currency's
+-- tooltip (the game's shop shows each currency's, MerchantFrame_ShowCurrencyTooltip).
+-- The text is one right-aligned string, so each spot is placed by measuring
+-- what follows it.
+local function walletHit(f, i)
+    f.walletHits = f.walletHits or {}
+    local b = f.walletHits[i]
+    if b then return b end
+    b = CreateFrame("Button", nil, f)
+    b:SetScript("OnEnter", Parts.ItemTip(function(self)
+        if not (GameTooltip and self.link) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOM")
+        GameTooltip:SetHyperlink(self.link)
+        GameTooltip:Show()
+    end))
+    b:SetScript("OnLeave", function(self)
+        self.UpdateTooltip = nil
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
+    f.walletHits[i] = b
+    return b
 end
 
 function Shop.PaintWallet(list)
-    local fs = ns.Window.frame and ns.Window.frame.wallet
+    local f = ns.Window.frame
+    local fs = f and f.wallet
     if not fs then return end
-    fs:SetText(Shop.Wallet(list))
+    local text, links, parts = Shop.Wallet(list)
+    fs:SetText(text)
     Style.InkText(fs, "pop")
+    f.walletMeasure = f.walletMeasure or Style.Text(f, Style.SIZE.body, "RIGHT")
+    local m = f.walletMeasure
+    m:Hide()
+    local function width(s)
+        if s == "" then return 0 end
+        m:SetText(s)
+        local w = m:GetStringWidth()
+        return type(w) == "number" and w or 0
+    end
+    local h = fs:GetStringHeight()
+    if type(h) ~= "number" or h <= 0 then h = Style.SIZE.body + 4 end
+    parts = parts or {}
+    for i = 1, math.max(#parts, f.walletHits and #f.walletHits or 0) do
+        local link = links[i]
+        if link then
+            local after = table.concat(parts, Shop.WALLET_SEP, i + 1)
+            if after ~= "" then after = Shop.WALLET_SEP .. after end
+            local b = walletHit(f, i)
+            b.link = link
+            b:ClearAllPoints()
+            b:SetPoint("RIGHT", fs, "RIGHT", -width(after), 0)
+            b:SetSize(math.max(1, width(parts[i])), h)
+            b:SetShown(fs:IsShown())
+        elseif f.walletHits and f.walletHits[i] then
+            f.walletHits[i].link = nil
+            f.walletHits[i]:Hide()
+        end
+    end
 end
 
 -- n: amount from the quantity box; nil = one lot (plain click).
@@ -294,7 +383,7 @@ function Shop.Buy(it, tile, n)
         BuybackItem(it.index)
         return
     end
-    if cost > money() then
+    if cost > money() or Shop.SoldOut(it) or it.purchasable == false then
         if tile and DUI.Motion then DUI.Motion.Bump(tile, 0.97) end
         return
     end
@@ -456,7 +545,11 @@ local function askFollow(tiles)
     Shop.AskClose()
 end
 
+-- Sold out: the vendor has none left (the game grays it).
+function Shop.SoldOut(it) return not it.buyback and it.available == 0 end
+
 function Shop.Click(it, tile)
+    if Shop.SellCursor() then return end
     if not it.buyback and IsShiftKeyDown and IsShiftKeyDown() then return Shop.Ask(it, tile) end
     Shop.Buy(it, tile)
 end
@@ -472,6 +565,30 @@ function Shop.SellJunk()
     -- The game's sale takes every gray item; a locked one is just skipped.
     if DUI.SellJunkAroundLocks and DUI.SellJunkAroundLocks() then return end
     if C_MerchantFrame and fn(C_MerchantFrame.SellAllJunkItems) then C_MerchantFrame.SellAllJunkItems() end
+end
+
+-- The game's "Repair an Item" (MerchantRepairItemButton_OnClick): the repair cursor,
+-- for one piece of gear in the bags or on the character; again puts it away.
+function Shop.RepairOne()
+    if ns.Window.state.sample then return end
+    if call(InRepairMode) then call(HideRepairCursor) else call(ShowRepairCursor) end
+end
+
+-- The guild pays for repairs (the game's third repair button).
+function Shop.GuildCan() return not ns.Window.state.sample and call(CanGuildBankRepair) == true end
+
+-- What the guild covers today, the game's tooltip math: GetGuildBankWithdrawMoney
+-- is -1 for the guild master, who can use it all.
+function Shop.GuildFunds()
+    local amount, bank = call(GetGuildBankWithdrawMoney) or 0, call(GetGuildBankMoney) or 0
+    if amount == -1 then return bank end
+    return math.min(amount, bank)
+end
+
+function Shop.GuildRepair()
+    if not Shop.GuildCan() or Shop.Repair() <= 0 then return end
+    RepairAllItems(true)
+    DUI.Sound.Kit("ITEM_REPAIR", "confirms")
 end
 
 function Shop.RepairAll()
@@ -569,12 +686,19 @@ local function tiles(list)
             local sub = it.buyback and (it.price > 0 and short(it.price) or "") or Shop.CostText(it)
             local stock = Shop.StockText(it)
             if stock then sub = sub ~= "" and sub .. "   " .. stock or stock end
+            -- Red: not for you, or not for sale to you; grayed: sold out (MerchantFrame_UpdateMerchantInfo).
+            local red = not it.usable or it.purchasable == false
+            local gone = Shop.SoldOut(it)
             out[#out + 1] = { index = it.index, name = it.name, texture = it.texture, count = it.stack, quality = it.quality,
-                sub = sub, subColor = (dear or not it.usable) and Shop.BAD or (it.price > 0 and Shop.PRICE) or nil,
-                tint = not it.usable and Shop.BAD_ICON or nil, nameColor = not it.usable and Shop.BAD or nil,
-                tooltip = tooltip(it), leave = function() call(ResetCursor) end, link = it.link and function() return it.link end or nil,
-                onClick = function(b) Shop.Click(it, b) end, shopItem = it,
-                onDrag = not it.buyback and not ns.Window.state.sample and function() call(PickupMerchantItem, it.index) end or nil }
+                sub = sub, subColor = (dear or red) and Shop.BAD or (it.price > 0 and Shop.PRICE) or nil,
+                tint = red and Shop.BAD_ICON or gone and Shop.GONE_ICON or nil,
+                nameColor = red and Shop.BAD or gone and Style.INK.OFF or nil, quest = it.quest,
+                tooltip = tooltip(it), compare = not it.buyback and "always" or nil,
+                leave = function() call(ResetCursor) end, link = it.link and function() return it.link end or nil,
+                onClick = function(b) Shop.Click(it, b) end, onReceive = Shop.SellCursor, shopItem = it,
+                onDrag = not ns.Window.state.sample and function()
+                    if it.buyback then BuybackItem(it.index) else call(PickupMerchantItem, it.index) end
+                end or nil }
         end
     end
     return out
@@ -676,6 +800,10 @@ function Shop.Build(page)
     page.stack = Parts.Stack(page, { top = 8 + TAB_H + 8 + W.INPUT_H + 6, bottom = ns.Window.FOOT })
     page.last = lastStrip(page)
     page.foot = Parts.Footer(page)
+    -- A bag item dropped or clicked anywhere on the shop sells it (Shop.SellCursor).
+    page:EnableMouse(true)
+    page:SetScript("OnMouseUp", function() Shop.SellCursor() end)
+    page:SetScript("OnReceiveDrag", function() Shop.SellCursor() end)
     page:HookScript("OnHide", function()
         Shop.AskClose()
         if DUI.APIReport then DUI.APIReport.ListClear("shoptile") end
@@ -740,18 +868,83 @@ function Shop.List()
     return DUI.APIReport.FilterShop(Shop.Items())
 end
 
+-- Sell junk asks a second click first, as the game's own button asks
+-- (SELL_ALL_JUNK_ITEMS_POPUP). A double-click doesn't count as the answer.
+function Shop.AskJunk()
+    local at = S.junkAsk
+    if not (at and GetTime() - at < Shop.CONFIRM) then
+        local now = GetTime()
+        S.junkAsk = now
+        Shop.PaintFooter()
+        C_Timer.After(Shop.CONFIRM, function()
+            if S.junkAsk == now then
+                S.junkAsk = nil
+                Shop.PaintFooter()
+            end
+        end)
+        return
+    end
+    if GetTime() - at < DUI.Widgets.CONFIRM_GAP then return end
+    S.junkAsk = nil
+    Shop.SellJunk()
+    Shop.PaintFooter()
+end
+
+local function repairTip(repair)
+    local T = DUI.Tips
+    T.Title(REPAIR_ALL_ITEMS or L["Repair all items"])
+    if repair > 0 then
+        T.Line(REPAIR_COST or L["Costs"], short(repair), repair > Shop.MoneyNow() and T.BAD or T.MONEY)
+        if repair > Shop.MoneyNow() then T.Text(L["You don't have enough money."], T.BAD) end
+    end
+    T.Hint(L["Right-click: repair one item"])
+end
+
+-- The game's guild repair tooltip: what the guild covers, and what you pay on top
+-- or that it isn't enough.
+local function guildTip(repair)
+    local T = DUI.Tips
+    T.Title(REPAIR_ALL_ITEMS or L["Repair all items"])
+    T.Line(REPAIR_COST or L["Costs"], short(repair), T.MONEY)
+    local funds = Shop.GuildFunds()
+    T.Line(L["The guild covers"], short(funds), T.MONEY)
+    if repair > funds then
+        local rest = repair - funds
+        if Shop.MoneyNow() >= rest then
+            T.Line(L["You pay the rest"], short(rest), T.MONEY)
+        else
+            T.Text(L["The guild and your own money aren't enough."], T.BAD)
+        end
+    end
+end
+
 function Shop.PaintFooter(page)
+    page = page or (ns.Window.frame and ns.Window.frame.pages.shop)
+    if not (page and page.foot) then return end
     local sample = ns.Window.state.sample
     local junkN, junkV
     if sample then junkN, junkV = (Shop.sampleJunk or 0), (Shop.sampleJunk or 0) > 0 and 67 or 0 else junkN, junkV = Shop.Junk() end
     local repair = sample and (Shop.sampleRepair or 0) or Shop.Repair()
     local esc = ns.Setting("keys") ~= false and L["Esc"] or nil
-    local list = { { text = junkN > 0 and string.format(L["Sell junk · %s"], short(junkV)) or L["Sell junk"],
-        off = junkN == 0, onClick = Shop.SellJunk } }
+    local list = {}
+    -- Hidden while the game hides its own (C_MerchantFrame.IsSellAllJunkEnabled).
+    local junkOn = sample or not (C_MerchantFrame and fn(C_MerchantFrame.IsSellAllJunkEnabled))
+        or C_MerchantFrame.IsSellAllJunkEnabled() ~= false
+    if junkOn then
+        local asking = junkN > 0 and S.junkAsk ~= nil
+        list[#list + 1] = { text = asking and L["Click again to sell junk"]
+            or junkN > 0 and string.format(L["Sell junk · %s"], short(junkV)) or L["Sell junk"],
+            off = junkN == 0, onClick = Shop.AskJunk }
+    end
     local canRepair = sample or call(CanMerchantRepair)
     if canRepair then
         list[#list + 1] = { text = repair > 0 and string.format(L["Repair · %s"], short(repair)) or L["Repair"],
-            off = repair == 0 or repair > Shop.MoneyNow(), onClick = Shop.RepairAll }
+            off = repair == 0 or repair > Shop.MoneyNow(), onClick = Shop.RepairAll,
+            onRightClick = Shop.RepairOne, tip = function() repairTip(repair) end }
+        if Shop.GuildCan() then
+            list[#list + 1] = { text = L["Guild repair"], off = repair == 0, onClick = Shop.GuildRepair,
+                tip = function() guildTip(repair) end }
+        end
     end
     list[#list + 1] = { text = L["Goodbye"], key = esc, onClick = ns.Window.Goodbye }
     page.foot:Set(list)

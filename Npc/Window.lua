@@ -591,6 +591,7 @@ function Npc.Show(mode, data, sample)
     if f.money then
         f.money:SetShown(shop or mode == "trainer")
         f.wallet:SetShown(shop)
+        for _, b in ipairs(f.walletHits or {}) do b:SetShown(shop and b.link ~= nil) end
     end
     Npc.lastMode = mode
     Win.ShowPage(f, Npc.PAGE[mode] or "talk")
@@ -726,7 +727,7 @@ function Npc.OnEvent(_, event, ...)
     elseif S.mode == "merchant" then
         -- Money, bags, durability or stock changed: refresh shelf and footer, once per frame.
         if event == "PLAYER_MONEY" then ns.Shop.RollMoney() end
-        if event == "BAG_UPDATE_DELAYED" then ns.Shop.BagsChanged() end
+        if event == "BAG_UPDATE_DELAYED" or event == "BAG_SLOT_FLAGS_UPDATED" then ns.Shop.BagsChanged() end
         if not Npc.shopSoon then
             Npc.shopSoon = true
             C_Timer.After(0, function() Npc.shopSoon = false; ns.Shop.Refresh() end)
@@ -882,7 +883,7 @@ end
 Npc.LISTEN = { "GOSSIP_SHOW", "GOSSIP_CLOSED", "QUEST_GREETING", "QUEST_DETAIL", "QUEST_PROGRESS", "QUEST_COMPLETE",
     "QUEST_FINISHED", "QUEST_ITEM_UPDATE", "QUEST_LOG_UPDATE", "MERCHANT_SHOW", "MERCHANT_CLOSED", "MERCHANT_UPDATE",
     "MERCHANT_FILTER_ITEM_UPDATE", "PLAYER_MONEY", "BAG_UPDATE_DELAYED", "UPDATE_INVENTORY_DURABILITY", "GET_ITEM_INFO_RECEIVED",
-    "CURRENCY_DISPLAY_UPDATE",
+    "CURRENCY_DISPLAY_UPDATE", "GUILDBANK_UPDATE_MONEY", "BAG_SLOT_FLAGS_UPDATED",
     "TRAINER_SHOW", "TRAINER_CLOSED", "TRAINER_UPDATE", "TRAINER_SERVICE_INFO_NAME_UPDATE" }
 
 -- Created size of a page: talk uses Npc.W, trainer and shop their own widths.
@@ -984,9 +985,18 @@ function Npc.PadKeys()
     }
 end
 
+-- LB and RB step through the shop's Shop and Buy back tabs, as the game's vendor
+-- (its TabIndicators). Other pages have none.
+function Npc.PadTabs()
+    local page = S.mode == "merchant" and Npc.frame and Npc.frame.pages.shop
+    if not page then return {}, nil end
+    return { page.tabShop, page.tabBack }, ns.Shop.state.tab == "back" and 2 or 1
+end
+
 local function padSetup(f)
     f.padSelect = Npc.PadSelect
     f.padKeys = Npc.PadKeys()
+    f.padTabs = Npc.PadTabs
 end
 
 -- Daylight UI's window or the game's own ones (Win.Swap): one pick, the "enabled"
@@ -1166,6 +1176,9 @@ function Npc.Build(mod)
     Win.Keys(f, Npc.OnKey)
     local ev = CreateFrame("Frame")
     for _, e in ipairs(Npc.LISTEN) do pcall(ev.RegisterEvent, ev, e) end
+    -- Gear put on or taken off: what you can use and the repair cost (the game's shop
+    -- listens too).
+    ev:RegisterUnitEvent("UNIT_INVENTORY_CHANGED", "player")
     ev:SetScript("OnEvent", Npc.OnEvent)
     Npc.events = ev
     Npc.follow = Win.Follow({ key = "npc", frames = Npc.frames, aside = Npc.ASIDE, changed = Npc.Changed, onPark = Npc.Parked,

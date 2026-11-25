@@ -249,7 +249,22 @@ local function installTrainer()
     end
     _G.GetTrainerTradeskillRankValues = function()
         if not TR().rank then return nil end
-        return TR().rank, TR().maxRank or 75, 0
+        return TR().rank, TR().maxRank or 75, TR().modifier or 0
+    end
+    -- Another spell a service needs first: its `needs` ("Frostbolt Rank 3"), met
+    -- once that one is known (Blizzard_TrainerUI.lua's ability requirements).
+    _G.GetTrainerServiceNumAbilityReq = function(i)
+        local s = trainerList()[i]
+        return s and s.needs and 1 or 0
+    end
+    _G.GetTrainerServiceAbilityReq = function(i, n)
+        local s = trainerList()[i]
+        if not (s and s.needs and n == 1) then return nil end
+        local met = false
+        for _, t in ipairs(TR().services) do
+            if t.name .. " " .. (t.sub or "") == s.needs and t.kind == "used" then met = true end
+        end
+        return s.needs, met
     end
     _G.GetTrainerServiceTypeFilter = function(kind) return TR().filter[kind] == true end
     _G.SetTrainerServiceTypeFilter = function(kind, on)
@@ -291,7 +306,7 @@ end
 function NW.Trainer(spec)
     spec = spec or {}
     S().trainer = { services = spec.services or NW.Spells(), rank = spec.rank, maxRank = spec.maxRank,
-        type = spec.type, open = true, filter = S().trainer.filter }
+        modifier = spec.modifier, type = spec.type, open = true, filter = S().trainer.filter }
     if stub.units and stub.units.player then stub.units.player.level = spec.level or 20 end
     local f = trainerFrame()
     ShowUIPanel(f)
@@ -336,12 +351,48 @@ local function installMerchant()
             local it = M().items[i]
             if not it then return nil end
             return { name = it.name, texture = it.texture or 134400, price = it.price or 0, stackCount = it.stack or 1,
-                numAvailable = it.available or -1, isPurchasable = true, isUsable = it.usable ~= false, hasExtendedCost = it.extended == true }
+                numAvailable = it.available or -1, isPurchasable = it.purchasable ~= false, isUsable = it.usable ~= false,
+                hasExtendedCost = it.extended == true, isQuestStartItem = it.quest == true, currencyID = it.currencyID }
         end,
         GetNumJunkItems = function() return M().junk end,
-        IsSellAllJunkEnabled = function() return true end,
+        IsSellAllJunkEnabled = function() return M().sellAllJunk ~= false end,
         SellAllJunkItems = function() record("SellAllJunkItems") end,
     }
+    -- A currency sold in a container shows the container's name, icon and amount
+    -- (the game's CurrencyContainerUtil, from the merchant item's `container`).
+    _G.CurrencyContainerUtil = { GetCurrencyContainerInfo = function(id, amount, name, texture)
+        for _, it in ipairs(M().items) do
+            if it.currencyID == id and it.container then
+                return it.container.name, it.container.texture, it.container.amount
+            end
+        end
+        return name, texture, amount
+    end }
+    -- The bags, for junk: NW.Merchant's `bags` = { [bag] = { { quality, sell, count } } },
+    -- `skip` = { [bag] = true } for a bag set to "Ignore" Sell Junk (the game's flag).
+    _G.Enum.BagSlotFlags = _G.Enum.BagSlotFlags or { DisableAutoSort = 1, ClassEquipment = 2, ExcludeJunkSell = 64 }
+    local function bagItem(bag, slot) return ((M().bags or {})[bag] or {})[slot] end
+    _G.C_Container = {
+        GetContainerNumSlots = function(bag) return #((M().bags or {})[bag] or {}) end,
+        GetContainerNumFreeSlots = function() return 16 end,
+        GetContainerItemInfo = function(bag, slot)
+            local it = bagItem(bag, slot)
+            if not it then return nil end
+            return { quality = it.quality or 0, itemID = 7000 + bag * 100 + slot, stackCount = it.count or 1,
+                hyperlink = "|Hitem:" .. (7000 + bag * 100 + slot) .. "|h[Junk]|h" }
+        end,
+        GetBackpackSellJunkDisabled = function() return (M().skip or {})[0] == true end,
+        GetBagSlotFlag = function(bag, flag)
+            return flag == Enum.BagSlotFlags.ExcludeJunkSell and (M().skip or {})[bag] == true
+        end,
+    }
+    -- The game's repair cursor (MerchantRepairItemButton_OnClick) and guild repairs.
+    _G.ShowRepairCursor = function() record("ShowRepairCursor"); S().repairMode = true end
+    _G.HideRepairCursor = function() record("HideRepairCursor"); S().repairMode = false end
+    _G.InRepairMode = function() return S().repairMode == true end
+    _G.CanGuildBankRepair = function() return M().guild ~= nil end
+    _G.GetGuildBankWithdrawMoney = function() return M().guild and M().guild.allowance or 0 end
+    _G.GetGuildBankMoney = function() return M().guild and M().guild.money or 0 end
     _G.GetMerchantItemLink = function(i) local it = M().items[i]; return it and ("|Hitem:" .. i .. "|h[" .. it.name .. "]|h") end
     _G.GetMerchantItemCostItem = function(i, n)
         local c = (M().items[i].costs or {})[n]
@@ -356,7 +407,7 @@ local function installMerchant()
     _G.BuybackItem = function(i) record("BuybackItem", i) end
     _G.CanMerchantRepair = function() return M().canRepair ~= false end
     _G.GetRepairAllCost = function() return M().repair or 0, (M().repair or 0) > 0 end
-    _G.RepairAllItems = function() record("RepairAllItems") end
+    _G.RepairAllItems = function(guild) record("RepairAllItems", guild) end
     _G.CloseMerchant = function()
         record("CloseMerchant")
         C_Timer.After(0, function() stub.FireEvent("MERCHANT_CLOSED") end)
@@ -374,7 +425,8 @@ end
 function NW.Merchant(spec)
     spec = spec or {}
     S().merchant = { items = spec.items or NW.Goods(), junk = spec.junk or 0, repair = spec.repair or 0,
-        buyback = spec.buyback or {}, canRepair = spec.canRepair }
+        buyback = spec.buyback or {}, canRepair = spec.canRepair, bags = spec.bags, skip = spec.skip,
+        guild = spec.guild, sellAllJunk = spec.sellAllJunk }
     stub.FireEvent("MERCHANT_SHOW")
 end
 
@@ -502,6 +554,16 @@ local function installQuest()
         for _, s in ipairs(trainerList()) do
             if s.link and s.link == key and s.useLevel then
                 return s.name, s.link, 2, nil, s.useLevel
+            end
+        end
+        -- A gray item in the bags (C_Container above): its vendor price.
+        if type(key) == "string" then
+            local id = tonumber(key:match("Hitem:(%d+)"))
+            local m = S().merchant
+            if id and id >= 7000 and m and m.bags then
+                local bag, slot = math.floor((id - 7000) / 100), (id - 7000) % 100
+                local it = (m.bags[bag] or {})[slot]
+                if it then return "Junk", key, it.quality or 0, nil, nil, nil, nil, nil, nil, nil, it.sell or 0 end
             end
         end
     end

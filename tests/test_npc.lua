@@ -2037,3 +2037,272 @@ T.test("npc: with Immersion talking to NPCs, gossip and quests are left to it; t
     T.eq(N.state.mode, "merchant")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+
+-- The game's own vendor (Mainline/MerchantFrame.lua), behavior by behavior.
+
+local function tilesOf(N)
+    local out = {}
+    for _, p in ipairs(shop(N).pieces) do if p.spec and p.spec.shopItem then out[#out + 1] = p end end
+    return out
+end
+
+-- The game's tooltip (the NPC world has none of its own).
+local function gameTip()
+    if not _G.GameTooltip then
+        local tip = stub.CompareTooltip("GameTooltip")
+        function tip:SetOwner(o) self.__owner = o end
+        function tip:GetOwner() return self.__owner end
+        function tip:IsOwned(o) return self.__owner == o end
+        _G.GameTooltip = tip
+    end
+    return _G.GameTooltip
+end
+
+-- What a hover writes on GameTooltip, as one string.
+local function hoverText(b)
+    gameTip()
+    local lines, was = {}, { GameTooltip.AddLine, GameTooltip.AddDoubleLine }
+    GameTooltip.AddLine = function(_, t) lines[#lines + 1] = tostring(t) end
+    GameTooltip.AddDoubleLine = function(_, a, c) lines[#lines + 1] = tostring(a) .. " " .. tostring(c) end
+    b:GetScript("OnEnter")(b)
+    GameTooltip.AddLine, GameTooltip.AddDoubleLine = was[1], was[2]
+    local shown = GameTooltip:IsShown()
+    b:GetScript("OnLeave")(b)
+    return table.concat(lines, " / "), shown
+end
+
+-- MerchantItemButton_OnClick picks the shelf item up with PickupMerchantItem, which
+-- sells what the cursor holds; the frame's OnMouseUp and OnReceiveDrag do the same
+-- with PickupMerchantItem(0). Held aside, the game's frame can't be reached.
+T.test("npc shop game: a click or drop with a bag item on the cursor sells it, never buys", function()
+    local N = load()
+    NW.Merchant()
+    frame(); settle()
+    local water = tilesOf(N)[1]
+    stub.cursor = { "item", 2589 }
+    water:Click("LeftButton")
+    T.eq(#NW.Calls("BuyMerchantItem"), 0, "holding an item, a click on a tile doesn't buy")
+    T.deq(NW.Calls("PickupMerchantItem"), { { 0 } }, "it sells what's held")
+    water:GetScript("OnReceiveDrag")(water)
+    T.eq(#NW.Calls("PickupMerchantItem"), 2, "dropped on a tile")
+    local page = shop(N)
+    T.truthy(page:GetScript("OnReceiveDrag"), "the page takes a drop")
+    page:GetScript("OnReceiveDrag")(page)
+    page:GetScript("OnMouseUp")(page, "LeftButton")
+    T.eq(#NW.Calls("PickupMerchantItem"), 4, "dropped or clicked anywhere on the shop")
+    stub.cursor = { "spell", 133 }
+    page:GetScript("OnMouseUp")(page, "LeftButton")
+    T.eq(#NW.Calls("PickupMerchantItem"), 4, "a spell on the cursor isn't sold")
+    stub.cursor = nil
+    water:Click("LeftButton")
+    T.deq(NW.Calls("BuyMerchantItem"), { { 1 } }, "an empty cursor buys as before")
+end)
+
+-- A refundable item is the game's own business (its bags ask before refunding).
+T.test("npc shop game: a refundable item on the cursor isn't sold by a drop", function()
+    local N = load()
+    NW.Merchant()
+    frame(); settle()
+    MerchantFrame.refundItem = 5
+    stub.cursor = { "item", 2589 }
+    tilesOf(N)[1]:Click("LeftButton")
+    MerchantFrame.refundItem = nil
+    stub.cursor = nil
+    T.eq(#NW.Calls("PickupMerchantItem"), 0)
+    T.eq(#NW.Calls("BuyMerchantItem"), 0)
+end)
+
+-- MerchantItemButton_OnEnter: SetMerchantItem, then GameTooltip_ShowCompareItem with no
+-- Shift (it compares whatever the tooltip shows). The Buy back tab doesn't compare.
+T.test("npc shop game: the shelf's items compare with what you wear, no Shift needed", function()
+    local N = load()
+    NW.Merchant({ buyback = { { name = "Broken Fang", price = 12 } } })
+    frame(); settle()
+    gameTip()
+    local was = { _G.GameTooltip_ShowCompareItem, _G.IsModifiedClick, GameTooltip.SetMerchantItem, GameTooltip.SetBuybackItem }
+    local compared = 0
+    _G.GameTooltip_ShowCompareItem = function() compared = compared + 1 end
+    _G.IsModifiedClick = function() return false end
+    GameTooltip.SetMerchantItem = function() end
+    GameTooltip.SetBuybackItem = function() end
+    local t = tilesOf(N)[1]
+    t:GetScript("OnEnter")(t)
+    T.eq(compared, 1, "compared at once")
+    t:UpdateTooltip()
+    T.eq(compared, 2, "and on the tooltip's redraw")
+    t:GetScript("OnLeave")(t)
+    shop(N).tabBack:Click()
+    frame()
+    local b = tilesOf(N)[1]
+    b:GetScript("OnEnter")(b)
+    T.eq(compared, 2, "a buy-back item doesn't, as the game's")
+    b:GetScript("OnLeave")(b)
+    _G.GameTooltip_ShowCompareItem, _G.IsModifiedClick, GameTooltip.SetMerchantItem, GameTooltip.SetBuybackItem = unpack(was)
+end)
+
+local function footButton(N, word)
+    for _, b in ipairs(shop(N).foot.buttons) do
+        if b:IsShown() and b.text:GetText():find(word, 1, true) then return b end
+    end
+end
+
+-- MerchantRepairItemButton_OnClick: the repair cursor for one item, a second press puts it away.
+T.test("npc shop game: right-click Repair repairs one item; its hover says so", function()
+    local N = load()
+    NW.Merchant({ repair = 160 })
+    frame(); settle()
+    local b = footButton(N, "Repair")
+    b:Click("RightButton")
+    T.eq(#NW.Calls("ShowRepairCursor"), 1, "the game's repair cursor")
+    T.eq(#NW.Calls("RepairAllItems"), 0, "not a repair-all")
+    b:Click("RightButton")
+    T.eq(#NW.Calls("HideRepairCursor"), 1, "a second right-click puts it away")
+    local text, shown = hoverText(b)
+    T.truthy(shown, "a hover")
+    T.truthy(text:find("repair one item", 1, true), "it says so: " .. text)
+    T.truthy(text:find(DaylightUI.MoneyString(160), 1, true), "and what it all costs: " .. text)
+end)
+
+-- MerchantGuildBankRepairButton: shown while the guild pays, RepairAllItems(true).
+T.test("npc shop game: Guild repair shows only when the guild pays, and repairs with its money", function()
+    local N = load()
+    NW.Merchant({ repair = 160 })
+    frame(); settle()
+    T.falsy(footButton(N, "Guild repair"), "no guild: no button")
+    NW.Merchant({ repair = 160, guild = { allowance = 100, money = 5000 } })
+    frame(); settle()
+    local b = footButton(N, "Guild repair")
+    T.truthy(b, "the guild pays")
+    local words = {}
+    for _, x in ipairs(shop(N).foot.buttons) do
+        if x:IsShown() then words[#words + 1] = x.text:GetText():match("^(%a[%a ]-)%s*[·|]") or x.text:GetText() end
+    end
+    T.deq(words, { "Sell junk", "Repair", "Guild repair", "Goodbye" }, "beside Repair, as in the picked mock-up")
+    b:Click("LeftButton")
+    T.deq(NW.Calls("RepairAllItems"), { { true } })
+    local text = hoverText(b)
+    T.truthy(text:find(DaylightUI.MoneyString(100), 1, true), "the hover tells what the guild covers: " .. text)
+    T.truthy(text:find(DaylightUI.MoneyString(60), 1, true), "and what you pay on top: " .. text)
+end)
+
+-- MerchantFrame_OnSellAllJunkButtonClicked asks first (SELL_ALL_JUNK_ITEMS_POPUP).
+T.test("npc shop game: Sell junk asks a second click first", function()
+    local N = load()
+    NW.Merchant({ junk = 2, bags = { [0] = { { quality = 0, sell = 30 }, { quality = 0, sell = 20 } } } })
+    frame(); settle()
+    local b = footButton(N, "Sell junk")
+    T.truthy(b and not b.spec.off, "there's junk")
+    b:Click("LeftButton")
+    T.eq(#NW.Calls("SellAllJunkItems"), 0, "the first click only asks")
+    T.truthy(footButton(N, "Click again"), "and says so")
+    footButton(N, "Click again"):Click("LeftButton")
+    T.eq(#NW.Calls("SellAllJunkItems"), 0, "a double-click isn't the answer")
+    stub.Advance(DaylightUI.Widgets.CONFIRM_GAP + 0.05)
+    footButton(N, "Click again"):Click("LeftButton")
+    T.eq(#NW.Calls("SellAllJunkItems"), 1, "the second click sells")
+    b = footButton(N, "Sell junk")
+    b:Click("LeftButton")
+    stub.Advance(DaylightUI.Widgets.CONFIRM + 0.1)
+    stub.RunTimers()
+    T.truthy(footButton(N, "Sell junk"), "asking ends on its own")
+end)
+
+T.test("npc shop game: Sell junk's value leaves out bags set to ignore Sell Junk; hidden when the game turns it off", function()
+    local N = load()
+    NW.Merchant({ junk = 2, bags = { [0] = { { quality = 0, sell = 30 } }, [1] = { { quality = 0, sell = 500 } } }, skip = { [1] = true } })
+    frame(); settle()
+    local b = footButton(N, "Sell junk")
+    T.eq(b.text:GetText(), string.format(DaylightUI.L["Sell junk · %s"], DaylightUI.MoneyString(30)), "only the backpack's")
+    NW.Merchant({ junk = 2, sellAllJunk = false, bags = { [0] = { { quality = 0, sell = 30 } } } })
+    frame(); settle()
+    T.falsy(footButton(N, "Sell junk"), "the game hides it, so does Daylight UI")
+end)
+
+T.test("npc shop game: a quest-starting item wears the !, one you can't buy is red, a sold-out one grayed", function()
+    local N = load()
+    NW.Merchant({ items = { { name = "Old Map", price = 10, quest = true }, { name = "Locked Box", price = 10, purchasable = false },
+        { name = "Smallfish", price = 10, available = 0 }, { name = "Jerky", price = 10 } } })
+    frame(); settle()
+    local t = tilesOf(N)
+    T.truthy(t[1].quest and t[1].quest:IsShown(), "the quest mark")
+    T.falsy(t[4].quest and t[4].quest:IsShown(), "only there")
+    local r, g = t[2].icon:GetVertexColor()
+    T.truthy(r > 0.85 and g < 0.25, "not purchasable: red like not usable")
+    local sr, sg, sb = t[3].icon:GetVertexColor()
+    T.truthy(sr < 0.7 and sg < 0.7 and sb < 0.7 and sr - sg < 0.1, "sold out: dimmed, not red")
+    t[3]:Click("LeftButton")
+    T.eq(#NW.Calls("BuyMerchantItem"), 0, "and a click doesn't try")
+end)
+
+T.test("npc shop game: a currency sold in a container shows the container", function()
+    local N = load()
+    NW.Merchant({ items = { { name = "Raw", price = 10, currencyID = 42, container = { name = "Pouch of Marks", texture = 99, amount = 3 } } } })
+    frame(); settle()
+    T.eq(tilesOf(N)[1].name:GetText(), "Pouch of Marks")
+end)
+
+-- MerchantFrame_ShowCurrencyTooltip: each currency at the bottom has its tooltip.
+T.test("npc shop game: hovering what you hold of a cost shows its tooltip", function()
+    local N = load()
+    local count = C_Item.GetItemCount
+    C_Item.GetItemCount = function() return 7 end
+    NW.Merchant({ items = { { name = "Pattern", price = 0, extended = true,
+        costs = { { texture = 132889, value = 3, link = "|Hitem:2589|h[Linen Cloth]|h" } } } } })
+    frame(); settle()
+    C_Item.GetItemCount = count
+    gameTip()
+    local hits = N.frame.walletHits or {}
+    T.truthy(hits[1] and hits[1]:IsShown(), "a hover spot over the piece")
+    local was, linked = GameTooltip.SetHyperlink, nil
+    GameTooltip.SetHyperlink = function(_, l) linked = l end
+    hits[1]:GetScript("OnEnter")(hits[1])
+    GameTooltip.SetHyperlink = was
+    T.eq(linked, "|Hitem:2589|h[Linen Cloth]|h")
+    hits[1]:GetScript("OnLeave")(hits[1])
+end)
+
+T.test("npc shop game: dragging a buy-back item buys it back", function()
+    local N = load()
+    NW.Merchant({ buyback = { { name = "Broken Fang", price = 12 } } })
+    frame(); settle()
+    shop(N).tabBack:Click()
+    frame()
+    local b = tilesOf(N)[1]
+    b:GetScript("OnDragStart")(b)
+    T.deq(NW.Calls("BuybackItem"), { { 1 } })
+end)
+
+T.test("npc shop game: a gear change refills the shelf (UNIT_INVENTORY_CHANGED)", function()
+    local N = load()
+    NW.Merchant()
+    frame(); settle()
+    NW.state.merchant.items[1].usable = false
+    stub.FireEvent("UNIT_INVENTORY_CHANGED", "player")
+    frame()
+    local r, g = tilesOf(N)[1].icon:GetVertexColor()
+    T.truthy(r > 0.85 and g < 0.25, "the water now reads unusable")
+end)
+
+T.test("npc shop game: on a controller LB and RB switch Shop and Buy back", function()
+    local N = load()
+    NW.Merchant({ buyback = { { name = "Broken Fang", price = 12 } } })
+    frame(); settle()
+    T.eq(type(N.frame.padTabs), "function", "the window lists its tabs")
+    local list, at = N.frame.padTabs()
+    T.eq(#list, 2)
+    T.eq(at, 1)
+    list[2]:Click()
+    T.eq(stub.npc.Shop.state.tab, "back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("npc shop game: setting a bag to ignore Sell Junk at the vendor updates the value at once", function()
+    local N = load()
+    NW.Merchant({ junk = 2, bags = { [0] = { { quality = 0, sell = 30 } }, [1] = { { quality = 0, sell = 500 } } } })
+    frame(); settle()
+    NW.state.merchant.skip = { [1] = true }
+    stub.FireEvent("BAG_SLOT_FLAGS_UPDATED", 1)
+    frame()
+    T.eq(footButton(N, "Sell junk").text:GetText(), string.format(DaylightUI.L["Sell junk · %s"], DaylightUI.MoneyString(30)))
+end)

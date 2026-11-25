@@ -22,6 +22,7 @@ Parts.ICON = 18
 Parts.ITEM = 44             -- item tile height
 Parts.ITEM_ICON = 34
 Parts.ITEM_MARK = 16        -- small mark at a tile's right end (the NPC window's coin)
+Parts.QUEST_BANG = "Interface\\ContainerFrame\\UI-Icon-QuestBang"   -- the game's TEXTURE_ITEM_QUEST_BANG
 Parts.GAP = 6
 Parts.WHEEL = 40            -- px per wheel notch
 Parts.SAY = Style.INK.TEXT       -- NPC speech
@@ -62,11 +63,14 @@ end
 -- or the "always compare items" setting, off again once neither holds. link is
 -- the item to compare when the tooltip shows something that isn't the item's
 -- own tooltip (a recipe's result): the game only compares an item tooltip.
-function Parts.Compare(tip, link)
+-- always compares with no Shift, as the game's vendor does for what it sells.
+function Parts.Compare(tip, link, always)
     tip = tip or GameTooltip
     if type(tip) ~= "table" then return end
     local want
-    if type(TooltipUtil) == "table" and type(TooltipUtil.ShouldDoItemComparison) == "function" then
+    if always then
+        want = true
+    elseif type(TooltipUtil) == "table" and type(TooltipUtil.ShouldDoItemComparison) == "function" then
         want = TooltipUtil.ShouldDoItemComparison(tip)
     else
         want = type(IsModifiedClick) == "function" and IsModifiedClick("COMPAREITEMS")
@@ -88,12 +92,13 @@ end
 -- game's tooltip calls its owner's UpdateTooltip every 0.2 s while it's up, so
 -- the tooltip is drawn again then, and pressing or letting go of Shift
 -- mid-hover shows or hides the compare. draw(b) fills GameTooltip for b; it may
--- return an item link to compare with (see Parts.Compare).
-function Parts.ItemTip(draw)
+-- return an item link to compare with (see Parts.Compare). always: compare
+-- without Shift too.
+function Parts.ItemTip(draw, always)
     local function show(b)
         local link = draw(b)
         if type(GameTooltip) == "table" and GameTooltip:IsOwned(b) then
-            Parts.Compare(GameTooltip, type(link) == "string" and link ~= "" and link or nil)
+            Parts.Compare(GameTooltip, type(link) == "string" and link ~= "" and link or nil, always)
             b.UpdateTooltip = show
         end
     end
@@ -829,9 +834,14 @@ local function makeTile(parent)
     b.mark:SetSize(Parts.ITEM_MARK, Parts.ITEM_MARK)
     b.mark:SetPoint("RIGHT", b, "RIGHT", -8, 0)
     b.mark:Hide()
+    -- The game's "starts a quest" mark over the icon (ItemButton's IconQuestTexture).
+    b.quest = b:CreateTexture(nil, "OVERLAY", nil, 2)
+    b.quest:SetAllPoints(b.well)
+    b.quest:SetTexture(TEXTURE_ITEM_QUEST_BANG or Parts.QUEST_BANG)
+    b.quest:Hide()
     b:SetScript("OnEnter", function(self)
         self.bg:SetVertexColor(1, 1, 1, 0.07)
-        if self.spec and self.spec.tooltip then Parts.ItemTip(self.spec.tooltip)(self) end
+        if self.spec and self.spec.tooltip then Parts.ItemTip(self.spec.tooltip, self.spec.compare == "always")(self) end
     end)
     b:SetScript("OnLeave", function(self)
         self.bg:SetVertexColor(1, 1, 1, 0.03)
@@ -869,7 +879,8 @@ function Parts.PaintPick(b, on, pop)
 end
 
 -- Each item: name, texture, count, quality, sub, subColor, nameColor, tint,
--- mark (small texture at the right end), picked, tooltip(b), leave(b), link(),
+-- mark (small texture at the right end), quest (the game's "starts a quest" mark),
+-- picked, tooltip(b), compare ("always": no Shift needed), leave(b), link(),
 -- onClick(b, button), onDouble, onDrag, onReceive.
 function Stack:Items(items)
     local w = self:Width()
@@ -889,6 +900,7 @@ function Stack:Items(items)
         local t = it.tint
         if t then b.icon:SetVertexColor(t[1], t[2], t[3]) else b.icon:SetVertexColor(1, 1, 1) end
         b.count:SetText((it.count or 0) > 1 and tostring(it.count) or "")
+        b.quest:SetShown(it.quest == true)
         Parts.PaintPick(b, it.picked == true)
         -- Text stops short of the mark. The mark fades in, but hides instantly
         -- when the tile is reused for an item without one.
@@ -1407,6 +1419,20 @@ local function button(foot, i)
     if b then return b end
     b = DUI.Widgets.Button(foot.frame, "", 28)
     b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    -- spec.tip() adds DUI.Tips rows for a hover (what it does, a second action on
+    -- right-click), drawn again on each hover so a cost stays current.
+    b:HookScript("OnEnter", function(self)
+        local spec = self.spec
+        if not (spec and spec.tip and GameTooltip) then return end
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        DUI.Tips.Clear()
+        spec.tip()
+        DUI.Tips.Flush(GameTooltip)
+        GameTooltip:Show()
+    end)
+    b:HookScript("OnLeave", function(self)
+        if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+    end)
     b:SetScript("OnClick", function(self, mouse)
         local spec = self.spec
         if not spec or spec.off then return end
@@ -1420,7 +1446,7 @@ local function button(foot, i)
     return b
 end
 
--- list: { { text, primary, tone, off, onClick, onRightClick, key, beside } }, left to right,
+-- list: { { text, primary, tone, off, onClick, onRightClick, tip, key, beside } }, left to right,
 -- following the game's layout: the primary action in the left corner, the rest
 -- packed to the right with the last (Goodbye, Decline) in the right corner.
 -- beside places a button right after the previous one instead.

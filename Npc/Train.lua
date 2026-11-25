@@ -66,10 +66,30 @@ function Train.Services()
             out[#out + 1] = { index = i, name = name, kind = kind, icon = icon, level = level or 0,
                 sub = sub ~= "" and sub or nil, cost = type(cost) == "number" and cost or 0, profession = profession == true,
                 skill = skill, skillRank = rank, skillMet = met, step = step == i,
-                useLevel = useLevel, quality = ns.Shop.QualityOf(link) }
+                useLevel = useLevel, quality = ns.Shop.QualityOf(link), needs = Train.AbilityNeeds(i) }
         end
     end
     return out
+end
+
+-- Other spells a service needs first that aren't known yet (the game's trainer
+-- lists them under "Requires", red while unmet: GetTrainerServiceAbilityReq).
+function Train.AbilityNeeds(i)
+    local n = call(GetTrainerServiceNumAbilityReq, i)
+    if type(n) ~= "number" or n <= 0 then return nil end
+    local out = {}
+    for k = 1, n do
+        local ability, met = call(GetTrainerServiceAbilityReq, i, k)
+        if type(ability) == "string" and ability ~= "" and not met then out[#out + 1] = ability end
+    end
+    return #out > 0 and out or nil
+end
+
+-- The sub text with what a line still needs added, in soft red.
+local function withNeeds(sub, s)
+    if not s.needs then return sub end
+    local need = Parts.Hex(Style.INK.BAD) .. string.format(L["Needs %s"], table.concat(s.needs, ", ")) .. "|r"
+    return sub and (sub .. " · " .. need) or need
 end
 
 -- A profession line's sub text, as the game's trainer lists it: the level it's for
@@ -85,14 +105,14 @@ function Train.Needs(s)
     return table.concat(bits, " · ")
 end
 
--- Profession skill: name, rank, max (nil at a class trainer).
+-- Profession skill: name, rank, max, bonus (a race's or gear's; nil at a class trainer).
 function Train.Skill(list)
     if sample() then return Train.sampleSkill and Train.sampleSkill.name, Train.sampleSkill and Train.sampleSkill.rank, Train.sampleSkill and Train.sampleSkill.max end
-    local rank, max = call(GetTrainerTradeskillRankValues)
+    local rank, max, bonus = call(GetTrainerTradeskillRankValues)
     if type(rank) ~= "number" or rank <= 0 then return nil end
     local name
     for _, s in ipairs(list) do if s.skill then name = s.skill; break end end
-    return name, rank, max
+    return name, rank, max, type(bonus) == "number" and bonus > 0 and bonus or nil
 end
 
 function Train.Money() return ns.Shop.MoneyNow() end
@@ -204,8 +224,18 @@ function Train.Pick(s)
     if S.pick ~= key then S.confirm = nil end
     S.pick = key
     local page = ns.Window.frame and ns.Window.frame.pages.train
+    -- Its spot among the lines you can learn (they come first, in order): once it's
+    -- learned, the line that takes that spot is picked next.
+    local at = 0
     for _, p in ipairs(page and page.pieces or {}) do
-        if p.lineSpec and p.lineSpec.service then Parts.PickLine(p, Train.Key(p.lineSpec.service) == key) end
+        local svc = p.lineSpec and p.lineSpec.service
+        if svc then
+            Parts.PickLine(p, Train.Key(svc) == key)
+            if svc.kind == "available" then
+                at = at + 1
+                if Train.Key(svc) == key then S.pickAt = at end
+            end
+        end
     end
     Train.PaintFooter(page)
 end
@@ -274,7 +304,7 @@ local function tooltip(s)
 end
 
 local function lineFor(s, cash, noSlot, prof)
-    local spec = { service = s, icon = s.icon, text = s.name, sub = prof and Train.Needs(s) or s.sub,
+    local spec = { service = s, icon = s.icon, text = s.name, sub = withNeeds(prof and Train.Needs(s) or s.sub, s),
         value = costText(s.cost), tooltip = tooltip(s) }
     if s.kind ~= "available" then
         spec.dim = true
@@ -328,7 +358,7 @@ function Train.Build(page)
     page.foot = Parts.Footer(page)
 end
 
-local function paintSkill(page, name, rank, max)
+local function paintSkill(page, name, rank, max, bonus)
     local f = page.skill
     local on = rank ~= nil
     f:SetShown(on)
@@ -336,7 +366,9 @@ local function paintSkill(page, name, rank, max)
     page.stack.scroll:SetPoint("TOPLEFT", page, "TOPLEFT", Parts.EDGE, -(on and (10 + Train.SKILL_H) or 10))
     if not on then return end
     f.text:SetText(name or L["Skill"])
-    f.value:SetText(string.format("%d / %d", rank, max or rank))
+    -- With a bonus, as the game's TRADESKILL_RANK_WITH_MODIFIER: "118 (+15) / 150".
+    if bonus then f.value:SetText(string.format(L["%d (+%d) / %d"], rank, bonus, max or rank))
+    else f.value:SetText(string.format("%d / %d", rank, max or rank)) end
     DUI.Style.InkText(f.value, "pop")   -- skill numbers pop
     -- Same as the profession window's skill bar: set the range, glide to the rank (instant
     -- while the window isn't open yet), accent read at paint time.
@@ -346,12 +378,27 @@ local function paintSkill(page, name, rank, max)
     DUI.Widgets.BarAccent(f.bar)
 end
 
+-- The pick after a refill, as the game's trainer keeps it: a line you picked stays
+-- picked (one for later too); one learned or gone hands the pick to the line now in
+-- its spot, else the last; on opening, the first you can learn
+-- (ClassTrainer_SelectNearestLearnableSkill). Picking never spends: Train does.
+-- A line just bought and not yet answered by the server is never picked again.
+local function keepPick(list, nowList)
+    local cur
+    for _, svc in ipairs(list) do if S.pick and Train.Key(svc) == S.pick then cur = svc end end
+    if cur and cur.kind == "available" then return end
+    S.confirm = nil
+    local open = {}
+    for _, svc in ipairs(nowList) do if not S.asked[Train.Key(svc)] then open[#open + 1] = svc end end
+    local next = open[math.min(S.pickAt or 1, #open)]
+    S.pick = next and Train.Key(next) or nil
+end
+
 function Train.Fill(page)
     local list = Train.Services()
     local cash, noSlot = Train.Money(), Train.NoSlot()
-    if not Train.Picked(list) then S.pick, S.confirm = nil, nil end   -- learned, or gone
-    local skillName, skillRank, skillMax = Train.Skill(list)
-    paintSkill(page, skillName, skillRank, skillMax)
+    local skillName, skillRank, skillMax, skillBonus = Train.Skill(list)
+    paintSkill(page, skillName, skillRank, skillMax, skillBonus)
     local prof = skillRank ~= nil   -- a profession trainer: each line says its level and skill
     local s = page.stack
     s:Begin()
@@ -367,6 +414,7 @@ function Train.Fill(page)
         return a.index < b.index
     end
     table.sort(nowList, stepFirst)
+    keepPick(list, nowList)
     s:Section(string.format(L["Learn now · %d"], #nowList))
     if #nowList == 0 then
         s:Text(L["Nothing new to learn right now."], { color = Parts.DIM })
@@ -448,7 +496,7 @@ end
 -- Trainer opened: list every kind. These are the game's own type filters, saved by
 -- the game, and its window would show the same with them on.
 function Train.Opened()
-    S.pick, S.confirm, S.busy, S.knownOpen, S.asked = nil, nil, false, false, {}
+    S.pick, S.pickAt, S.confirm, S.busy, S.knownOpen, S.asked = nil, nil, nil, false, false, {}
     if sample() then return end
     for _, kind in ipairs({ "available", "unavailable", "used" }) do
         if fn(GetTrainerServiceTypeFilter) and not GetTrainerServiceTypeFilter(kind) then
