@@ -2154,6 +2154,25 @@ T.test("quests clicks: the tooltip spaces its heading from the objectives and pu
     T.truthy(lines[head + 1], "the reward under it")
 end)
 
+T.test("quests clicks: a dungeon or PvP quest's tooltip carries its tag after the level, in the tag's color", function()
+    local dungeon = QW.quest(3, "Deep Work", { tagID = 81, level = 28, zone = "Gnomeregan", objs = { { text = "Gnome part", have = 0, need = 2, kind = "count" } } })
+    local pvp = QW.quest(4, "Hold the Line", { tagID = 41 })
+    local plain = QW.quest(5, "Plain Job")
+    local Tr = tracker({ quests = { dungeon, pvp, plain } })
+    local function level(key)
+        local f = Tr.frames[key]
+        f:GetScript("OnEnter")(f)
+        for _, l in ipairs(GameTooltip.lines) do if l:find("Level", 1, true) then return l end end
+    end
+    local d = level("quest:3")
+    T.truthy(d:find(" · ", 1, true) and d:find("|cff%x%x%x%x%x%x[^|]+|r$"), "the tag's word in its color, after the level: " .. tostring(d))
+    T.truthy(level("quest:4"):find(" · ", 1, true), "PvP too")
+    T.falsy(level("quest:5"):find(" · ", 1, true), "no tag, nothing after the level")
+    DaylightUI:Set("Quests", "questTags", false)
+    T.falsy(level("quest:3"):find(" · ", 1, true), "the Quest tags switch turns it off here too")
+    DaylightUI:Set("Quests", "questTags", true)
+end)
+
 T.test("quests clicks: the tooltip's words are calm, a hint's click wears the accent; progress reads amber, done reads green", function()
     local done = QW.quest(2, "Done Deal", { objs = { { text = "6/6 Thing", have = 6, need = 6, done = true } } })
     local Tr, ns = tracker({ quests = { STEW, done } })

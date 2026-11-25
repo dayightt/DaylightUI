@@ -273,7 +273,9 @@ function Clicks.QuestTip(q, hints)
     if not party then
         Tips.Title(q.title, ns.Look.TitleColor(look, q))
         -- The level in its difficulty color, like the log, and the zone on its own line.
-        Tips.Sub(L["Level %s"]:format(ns.Look.Level(q)))
+        -- Its tag (dungeon, PvP, elite, raid) after the level, in the tag's color, as in the tracker.
+        local tag = DUI:Get("Quests", "questTags") ~= false and ns.Look.TagText(look, q.tag) or nil
+        Tips.Sub(L["Level %s"]:format(ns.Look.Level(q)) .. (tag and (" · " .. tag) or ""))
         if q.zone and q.zone ~= "" then Tips.Sub(q.zone) end
     end
     local story = full and ns.Details.Text(q)

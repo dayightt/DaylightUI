@@ -203,6 +203,14 @@ function Look.PaintTag(tag, look, kind, whole)
     return true
 end
 
+-- A tag's word in its own color, for a line of text (the quest tooltip): "DUNGEON"
+-- or nil for a quest with no tag.
+function Look.TagText(look, kind)
+    local text = Look.TagWord(kind, true)
+    if not text then return nil end
+    return DUI.Win.Parts.Hex({ Look.Color(look, kind) }) .. text .. "|r"
+end
+
 -- Party members on this quest: a small people icon and a count at the end of the
 -- quest's line (tracker and journal), in the accent. Not "[2]" before the title
 -- like the game does, since there it reads as the quest's level. The caller
