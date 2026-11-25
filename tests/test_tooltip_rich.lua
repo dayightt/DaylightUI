@@ -2624,6 +2624,20 @@ T.test("rich tooltip: a row's value is never squeezed: it keeps its own width at
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game on a quest's tooltip: an objective with a long name was cut ("Marca de
+-- honor de la Cuenc...  0 / 3"). It wraps onto another line, the count staying at the edge.
+T.test("rich tooltip: a quest objective's long name wraps instead of being cut", function()
+    local _, Panel = login("rich")
+    fill(99, { "A quest", "Zone", "0/3 " .. string.rep("Honor mark of the Arathi Basin ", 4) })
+    local p = Panel.Get(GameTooltip)
+    local row
+    for _, it in ipairs(kinds(p, "row")) do if stub.Text(it.value) == "0 / 3" then row = it end end
+    T.truthy(row, "the objective is a row with its count")
+    T.truthy(row.label.__wordWrap == true, "its name may wrap")
+    T.truthy(row.label:GetWidth() > 0, "held to the room before the count")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: a crawfish showed HUMANOID as a tag and "Humanoid" again as a
 -- small line, its type on a line of its own under "Level 40".
 T.test("rich tooltip: a creature's lines that repeat what the header shows are left out", function()

@@ -280,7 +280,14 @@ function Clicks.QuestTip(q, hints)
         if story and #q.objs > 0 then Tips.Gap() end
         for _, o in ipairs(q.objs) do
             local right = o.kind == "count" and (o.have .. "/" .. o.need) or (o.kind == "bar" and (o.pct .. "%")) or ""
-            Tips.Line(o.text, right, objColor(o))
+            -- The count before the text, on one wrapped line, as the game writes it: in its
+            -- own column it cut a long objective short ("Marca de honor de la Cuenc...").
+            local c = objColor(o)
+            if right ~= "" and c then
+                Tips.Text(DUI.Win.Parts.Hex(c) .. right .. "|r " .. o.text)
+            else
+                Tips.Text((right ~= "" and (right .. " ") or "") .. o.text)
+            end
         end
     end
     if full then
