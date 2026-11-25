@@ -1049,8 +1049,6 @@ L["Went out"] = "Ausgaben"
 
 -- Machine draft below this line: not yet checked by a native speaker.
 -- New texts since #82: draft written with AI help, not yet checked by a native speaker.
-L["Dungeon and raid levels"] = "Dungeon- und Schlachtzugsstufen"
-L["Hover a dungeon or raid entrance on the world map to see the levels it is meant for, colored by how hard it is for you."] = "Zeige auf der Weltkarte mit der Maus auf einen Dungeon- oder Schlachtzugseingang, um die vorgesehenen Stufen zu sehen, gefärbt danach, wie schwer er für dich ist."
 L["Zone levels"] = "Zonenstufen"
 L["Hover a zone on the world map to see its level range after its name, colored by how hard it is for you: green is easy, yellow is right for you, red is too high."] = "Zeige auf der Weltkarte mit der Maus auf eine Zone, dann steht ihr Stufenbereich hinter dem Namen. Die Farbe sagt, wie schwer sie für dich ist: Grün ist leicht, Gelb passt, Rot ist zu hoch."
 L["%s is back the way it comes."] = "%s ist wieder im Originalzustand."

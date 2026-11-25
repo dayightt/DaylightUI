@@ -1,4 +1,5 @@
 local stub = require("stub")
+local LW = require("lfgworld")
 
 -- The game's NPC windows, as far as the skins touch them.
 local function window(name)
@@ -2966,28 +2967,34 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
 end)
 
 -- A dungeon's or raid's levels after its line on the entrance's tooltip
--- (MapLevels.InstanceText), colored for your level, with its own switch.
-T.test("skins: an entrance's tooltip line gets its dungeon's level range", function()
-    login()
+-- (MapLevels.InstanceText): the group finder's suggested levels for the activity
+-- of that name, colored for your level.
+T.test("skins: an entrance's tooltip line gets the group finder's level range", function()
+    local unitLevel = _G.UnitLevel
+    login(function() LW.world({ level = 15 })() end)
     local Levels = stub.skins.MapLevels
     local function plain(t) return (t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
-    T.eq(plain(Levels.InstanceText(389, 15)), " (13-18)", "Ragefire Chasm")
-    T.eq(plain(Levels.InstanceText(309, 60)), " (60)", "a raid for one level")
-    T.eq(Levels.InstanceText(2998, 15), "", "a dungeon with no range here is left as it was")
+    T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "read from the group finder")
+    T.eq(plain(Levels.InstanceText("Molten Core", 60)), " (60)", "a raid for one level")
+    T.eq(Levels.InstanceText("Ruins of Lordaeron", 15), "", "no matching activity: left as it was")
     T.eq(Levels.InstanceText(nil, 15), "")
-    T.truthy(Levels.InstanceText(389, 15):find("|c%x%x%x%x%x%x%x%x"), "colored")
+    T.truthy(Levels.InstanceText("Ragefire Chasm", 15):find("|c%x%x%x%x%x%x%x%x"), "colored")
     -- The game's own color for a level (not in the stub): red below the range, yellow inside it.
     local get = _G.GetQuestDifficultyColor
     _G.GetQuestDifficultyColor = function() return QuestDifficultyColors.impossible end
-    T.truthy(Levels.InstanceText(389, 5) ~= Levels.InstanceText(389, 15), "by how hard it is for you")
+    T.truthy(Levels.InstanceText("Ragefire Chasm", 5) ~= Levels.InstanceText("Ragefire Chasm", 15), "by how hard it is for you")
     _G.GetQuestDifficultyColor = get
-    -- Its own switch, apart from the zone levels one.
+    -- Whatever the game suggests, not a list of ours.
+    LW.ACTIVITIES[798].minLevelSuggestion, LW.ACTIVITIES[798].maxLevelSuggestion = 14, 20
+    stub.lfg.Data.Forget()
+    T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (14-20)", "follows the group finder")
+    LW.ACTIVITIES[798].minLevelSuggestion, LW.ACTIVITIES[798].maxLevelSuggestion = 13, 18
+    stub.lfg.Data.Forget()
+    -- No switch of its own: the zone levels one leaves it alone.
     DaylightUI:Set("Skins", "mapLevels", false)
-    T.eq(plain(Levels.InstanceText(389, 15)), " (13-18)", "the zone levels switch leaves it alone")
+    T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "the zone levels switch leaves it alone")
     DaylightUI:Set("Skins", "mapLevels", true)
-    DaylightUI:Set("Skins", "mapDungeonLevels", false)
-    T.eq(Levels.InstanceText(389, 15), "", "off with its own switch")
-    DaylightUI:Set("Skins", "mapDungeonLevels", true)
+    _G.UnitLevel = unitLevel   -- the group finder's fake game is gone
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

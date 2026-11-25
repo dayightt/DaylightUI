@@ -112,6 +112,7 @@ end
 -- What the categories were read for: level, level filter, listed activities. Any change
 -- re-reads them, and so does LFG_LIST_AVAILABILITY_UPDATE (Data.Forget).
 local cats, catsFor
+local byName   -- activity name -> the game's info table, for every available activity
 local function catsStamp()
     local e = Data.Entry()
     return Data.Level() .. "|" .. tostring(filterOff()) .. "|" .. table.concat(e and e.activityIDs or {}, ",")
@@ -119,7 +120,29 @@ end
 
 function Data.Forget()
     Data.activities = {}
+    byName = nil
     cats, catsFor = nil, nil
+end
+
+-- The activity with this name (full or short, as the game words it in this language),
+-- whatever the player's level: how an outside list, like a map's dungeon entrances,
+-- finds the suggested levels. Read once, again after Data.Forget.
+function Data.ActivityByName(name)
+    if type(name) ~= "string" or name == "" then return nil end
+    if not byName then
+        byName = {}
+        for _, cat in ipairs(ask("GetAvailableCategories") or {}) do
+            for _, id in ipairs(ask("GetAvailableActivities", cat) or {}) do
+                local a = Data.Activity(id)
+                if a then
+                    for _, n in ipairs({ plain(a.fullName), plain(a.shortName) }) do
+                        if type(n) == "string" and n ~= "" and not byName[n] then byName[n] = a end
+                    end
+                end
+            end
+        end
+    end
+    return byName[name]
 end
 
 -- Categories with something to do at the player's level: { id, name, auto }. Cached and

@@ -228,7 +228,7 @@ local function onEnter(b)
         if i > 1 then Tips.Gap() end
         Tips.Title(line[1])
         -- An instance's level range, colored for your level, read now so a level up shows.
-        local range = line[3] and ns.MapLevels and ns.MapLevels.InstanceText(line[3]) or ""
+        local range = line[3] and ns.MapLevels and ns.MapLevels.InstanceText(line[1]) or ""
         if line[2] then Tips.Sub(line[2] .. range) end
     end
     Tips.Flush(GameTooltip)

@@ -150,11 +150,17 @@ function Levels.Text(name, level)
     return name .. Levels.Span(range, level)
 end
 
--- A dungeon's or raid's range after its line on the entrance's tooltip, or
--- "" with it off or for an instance with no range here.
-function Levels.InstanceText(mapID, level)
-    local range = cfg ~= nil and cfg.mapDungeonLevels ~= false and Levels.INSTANCES[mapID]
-    return range and Levels.Span(range, level) or ""
+-- A dungeon's or raid's range after its line on the entrance's tooltip: the
+-- levels the group finder suggests for the activity of that name (the same ones
+-- Lfg shows), or "" for an entrance with no such activity.
+function Levels.InstanceText(name, level)
+    local Data = DUI.Lfg and DUI.Lfg.Data
+    local a = Data and Data.ActivityByName(name)
+    if not a then return "" end
+    local low, high = a.minLevelSuggestion or 0, a.maxLevelSuggestion or 0
+    if low == 0 and high == 0 then return "" end
+    if low == 0 then low = high elseif high == 0 then high = low end
+    return Levels.Span({ low, high }, level)
 end
 
 local stale -- a level up or a switch: write the name shown again
