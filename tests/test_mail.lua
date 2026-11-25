@@ -1250,3 +1250,50 @@ T.test("inbox: a receipt uses the game's invoice words, and a COD letter says CO
         T.falsy(all:find("Sold for", 1, true), "ours is only the fallback")
     end)
 end)
+
+-- The NPC window's dialogue keys reach the mailbox: Space collects, as the button's
+-- hint says. It never steals Space from the game when the keys are off, on the Send
+-- page, or in a fight.
+T.test("inbox: Space collects all with dialogue keys on, and only then", function()
+    local ns = load({ money = 0, letters = { LETTERS[1], LETTERS[2] } })
+    MW.Open()
+    frame(20)
+    local f = ns.Window.frame
+    local k = f.keys
+    T.truthy(k and k:IsKeyboardEnabled(), "the mailbox listens for keys while open")
+    T.truthy(stub.Text(button(ns, "Collect all").text):find("Space", 1, true), "the button shows its key")
+    k:GetScript("OnKeyDown")(k, "SPACE")
+    T.eq(k:GetPropagateKeyboardInput(), false, "Space is taken, so the character doesn't jump")
+    settle()
+    T.eq(GetMoney(), 48500 + 15000, "Space collected everything")
+    k:GetScript("OnKeyUp")(k, "SPACE")
+    k:GetScript("OnKeyDown")(k, "W")
+    T.eq(k:GetPropagateKeyboardInput(), true, "other keys stay the game's")
+
+    ns.Window.ShowTab("send")
+    k:GetScript("OnKeyDown")(k, "SPACE")
+    T.eq(k:GetPropagateKeyboardInput(), true, "on the Send page Space is the game's")
+    ns.Window.ShowTab("inbox")
+
+    DaylightUI:Set("NPC", "keys", false)
+    MW.Leave(); frame(20); MW.Open(); frame(20)
+    k:GetScript("OnKeyDown")(k, "SPACE")
+    T.eq(k:GetPropagateKeyboardInput(), true, "keys off: Space is the game's")
+    T.falsy(stub.Text(button(ns, "Collect all").text):find("Space", 1, true), "and no hint")
+    DaylightUI:Set("NPC", "keys", true)
+end)
+
+T.test("inbox: Space after a fight starts goes to the game, and closing gives keys back", function()
+    local ns = load({ money = 0, letters = { LETTERS[1] } })
+    MW.Open()
+    frame(20)
+    local k = ns.Window.frame.keys
+    stub.EnterCombat()
+    k:GetScript("OnKeyDown")(k, "SPACE")
+    frame(5)
+    T.falsy(ns.Inbox.state.collecting, "nothing collected by a key in combat")
+    stub.LeaveCombat()
+    MW.Leave()
+    frame(20)
+    T.falsy(k:IsKeyboardEnabled(), "closed: no keys held")
+end)

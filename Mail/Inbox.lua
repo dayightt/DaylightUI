@@ -635,6 +635,32 @@ end
 
 -- Footer
 
+-- Keys
+
+-- The mailbox follows the NPC window's dialogue keys: its Accept key collects, the
+-- same key that accepts and completes quests there. Off with a controller, which
+-- has its own button for it.
+local function npcKey(key) return DUI:Get("NPC", key) end
+
+function Inbox.KeyName()
+    if npcKey("keys") == false or (DUI.Pad and DUI.Pad.On()) then return nil end
+    return npcKey("acceptKey") == "enter" and L["Enter"] or L["Space"]
+end
+
+-- Space is taken on the inbox even with nothing to collect, so the character
+-- never jumps at the mailbox. Every other key, and every key on the other pages
+-- where Space and Enter are typing, goes to the game.
+function Inbox.OnKey(key)
+    if not Inbox.KeyName() or ns.Window.page ~= "inbox" then return false end
+    local want = npcKey("acceptKey") or "space"
+    local accept = (key == "ENTER" and want ~= "space") or (key == "SPACE" and want ~= "enter")
+    if accept and Inbox.list and Inbox.list.foot then
+        Inbox.list.foot:Press(1)
+        return true
+    end
+    return key == "SPACE"
+end
+
 -- Painted from the letters Render last read (`Inbox.read`). It runs on every Collect
 -- all step and click, while the inbox itself is only re-read on its update event.
 function Inbox.PaintFooter(pane)
@@ -658,7 +684,8 @@ function Inbox.PaintFooter(pane)
         if S.collecting then collect = L["Collecting..."]
         elseif ticks > 0 then collect = string.format(L["Collect ticked (%d)"], ticks) end
         Inbox.list.foot:Set({
-            { text = collect, primary = true, off = busy or (ticks == 0 and not anyGold), onClick = Inbox.Collect },
+            { text = collect, primary = true, off = busy or (ticks == 0 and not anyGold), onClick = Inbox.Collect,
+              key = Inbox.KeyName() },
         })
     end
     pane.foot:Set({

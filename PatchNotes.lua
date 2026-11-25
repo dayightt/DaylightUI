@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", new = {
+        { "Mailbox", "Space collects all your mail, like it moves quest talk along (Dialogue keys, NPC window options)" },
+    }, fixed = {
         { "Auction House", "No more stutter when hovering items, while search results come in, or during a full scan" },
     } },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
