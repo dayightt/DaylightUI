@@ -2145,6 +2145,27 @@ T.test("info panel: minimap clock shows local or server time, 12/24-hour", funct
     T.truthy(not Map.clock:IsShown())
 end)
 
+T.test("info panel: clicking the minimap clock opens the game's Clock, or stops a ringing alarm", function()
+    login()
+    local opened, ringing = {}, false
+    _G.ToggleTimeManager = function() opened[#opened + 1] = "clock" end
+    _G.TimeManager_IsAlarmFiring = function() return ringing end
+    _G.TimeManager_TurnOffAlarm = function() ringing = false; opened[#opened + 1] = "alarm off" end
+    local Map = stub.infopanel.Minimap
+    Map.UpdateClock()
+    local c = Map.clock
+    T.truthy(c:GetScript("OnClick"), "the clock takes a click")
+    -- In a fight (no secure button laid over it) the clock's own click runs.
+    stub.EnterCombat()
+    c:GetScript("OnClick")(c, "LeftButton")
+    T.deq(opened, { "clock" }, "the alarm and stopwatch window opens")
+    ringing = true
+    c:GetScript("OnClick")(c, "LeftButton")
+    T.deq(opened, { "clock", "alarm off" }, "a ringing alarm stops")
+    stub.LeaveCombat()
+    _G.ToggleTimeManager, _G.TimeManager_IsAlarmFiring, _G.TimeManager_TurnOffAlarm = nil, nil, nil
+end)
+
 T.test("info panel: the minimap's rotate switch is the game's own rotateMinimap setting", function()
     login()
     local item

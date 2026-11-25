@@ -836,6 +836,59 @@ T.test("data texts: on a controller nothing opens a game window from addon code,
     clearGameWindows()
 end)
 
+-- The game's minimap clock (Blizzard_TimeManager, loaded at login): a click
+-- turns a ringing alarm off, else opens or closes the Clock window.
+local function gameClock()
+    local clock = { ringing = false }
+    _G.ToggleTimeManager = function() stub.opened[#stub.opened + 1] = "clock" end
+    _G.TimeManager_IsAlarmFiring = function() return clock.ringing end
+    _G.TimeManager_TurnOffAlarm = function()
+        clock.ringing = false
+        stub.opened[#stub.opened + 1] = "alarm off"
+    end
+    local b = CreateFrame("Button", "TimeManagerClockButton", UIParent)
+    b:SetScript("OnClick", function()
+        if clock.ringing then _G.TimeManager_TurnOffAlarm() else _G.ToggleTimeManager() end
+    end)
+    b:Hide()   -- its minimap cluster is hidden under Daylight UI's map
+    return clock
+end
+local function clearGameClock()
+    _G.ToggleTimeManager, _G.TimeManager_IsAlarmFiring, _G.TimeManager_TurnOffAlarm = nil, nil, nil
+    _G.TimeManagerClockButton = nil
+end
+
+T.test("data texts: a click on the time opens the game's Clock, or turns a ringing alarm off", function()
+    local DUI = login()
+    gameWindows()
+    local clock = gameClock()
+    DUI:Set("InfoPanel", "data.slot3", "time")
+    stub.RunTimers()
+    stub.opened = {}
+    playerClick(3, "LeftButton")
+    T.deq(stub.opened, { "clock" }, "the alarm and stopwatch window opens")
+    hover(3)
+    T.truthy(tipText():find("Click: alarm and stopwatch", 1, true), "the tooltip says so: " .. tipText())
+    DT().slots[3]:GetScript("OnLeave")(DT().slots[3])
+    clock.ringing = true
+    hover(3)
+    T.truthy(tipText():find("Click: turn the alarm off", 1, true), "ringing: " .. tipText())
+    DT().slots[3]:GetScript("OnLeave")(DT().slots[3])
+    stub.opened = {}
+    playerClick(3, "LeftButton")
+    T.deq(stub.opened, { "alarm off" }, "a ringing alarm stops, the window stays as it was")
+    -- In a fight no secure button is laid: the text's own click opens it (the
+    -- Clock isn't a protected window).
+    stub.EnterCombat()
+    stub.opened = {}
+    playerClick(3, "LeftButton")
+    T.deq(stub.opened, { "clock" }, "opens in a fight too")
+    stub.LeaveCombat()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    clearGameClock()
+    clearGameWindows()
+end)
+
 T.test("data texts: clicks open the matching window; character and social wait out combat", function()
     socialIn4(login())
     local S = DT().slots

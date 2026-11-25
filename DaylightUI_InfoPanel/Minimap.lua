@@ -232,13 +232,16 @@ local function clockOnEnter(self)
     Tips.Title(L["Time"])
     Tips.Line(L["Local"], formatClock(lh, lm, cfg.twentyFour, ls))
     Tips.Line(L["Server"], formatClock(sh, sm, cfg.twentyFour, ls))
+    ns.DataTexts.ClockHint()
     Tips.Flush(GameTooltip)
     GameTooltip:Show()
+    -- The game's own clock button takes the click out of a fight, laid over this.
+    DUI.SafeCall(ns.DataTexts.WindowOver, self)
 end
 
 local function ensureClock(mm)
     if Map.clock then return Map.clock end
-    local f = CreateFrame("Frame", nil, mm)
+    local f = CreateFrame("Button", nil, mm)
     f:SetFrameLevel(mm:GetFrameLevel() + Map.TEXT_LIFT)   -- over the ring and the map's dots
     f:SetSize(70, 12)
     f:EnableMouse(true)
@@ -247,8 +250,13 @@ local function ensureClock(mm)
     -- Left and right only: the text keeps its own height, so a big or tall
     -- font isn't cropped by its frame (tall letters got their tops cut off).
     f.text:SetPoint("LEFT", f, "LEFT"); f.text:SetPoint("RIGHT", f, "RIGHT")
+    -- A click opens the game's alarm and stopwatch window, as its own clock does.
+    f:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+    f.key = "time"   -- the data texts' secure button opens what the Time text opens
     f:SetScript("OnEnter", clockOnEnter)
     f:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    f:SetScript("OnClick", function() ns.DataTexts.ClockClick() end)
+    f.enter, f.leave = clockOnEnter, f:GetScript("OnLeave")
     Map.clock = f
     return f
 end
