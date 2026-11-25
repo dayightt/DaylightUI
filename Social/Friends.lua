@@ -112,6 +112,21 @@ function Friends.Who(c)
     return ((c.level and string.format(L["Level %s"], c.level) .. " ") or "") .. (c.race and (c.race .. " ") or "") .. Rows().ClassWord(c.class)
 end
 
+-- A character's tooltip lines under its name, each short enough to never be cut: "Level 46 Hunter"
+-- with only the number in the class color (r, g, b), and "Tauren (Horde)" with the faction in
+-- parentheses. Either is nil when it has nothing to say. The Friends and recent allies
+-- tooltips both use it.
+function Friends.Identity(c, r, g, b)
+    local who = Rows().ClassWord(c.class)
+    if c.level then who = string.format(L["Level %s"], Win.Parts.Hex({ r, g, b }) .. c.level .. "|r") .. " " .. who end
+    local faction = c.faction and (c.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+    local race
+    if c.race or faction then
+        race = (c.race or "") .. ((c.race and faction) and " " or "") .. (faction and ("(" .. faction .. ")") or "")
+    end
+    return who, race
+end
+
 -- The card's lines for a friend's other game accounts: each character in its class
 -- color with what it is, and where, or the other game they're in.
 function Friends.Others(f)
@@ -141,15 +156,9 @@ function Friends.Tip(owner, f)
             -- The zone on its own line: beside the name it cut a long character name short.
             T.Person(c.char, nil, { r, g, b })
             -- Level (its number in the class color) and class, then the race with its faction, then where.
-            local class = Rows().ClassWord(c.class)
-            if c.level then
-                class = string.format(L["Level %s"], DUI.Win.Parts.Hex({ r, g, b }) .. c.level .. "|r") .. " " .. class
-            end
-            T.Text(class, Style.INK.LABEL)
-            local faction = c.faction and (c.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
-            if c.race or faction then
-                T.Text((c.race or "") .. ((c.race and faction) and " " or "") .. (faction and ("(" .. faction .. ")") or ""), Style.INK.LABEL)
-            end
+            local who, race = Friends.Identity(c, r, g, b)
+            T.Text(who, Style.INK.LABEL)
+            if race then T.Text(race, Style.INK.LABEL) end
             if c.zone then T.Text(c.zone) end
         elseif c.game and f.status ~= "off" then
             T.Text(string.format(L["Playing %s"], c.game))
