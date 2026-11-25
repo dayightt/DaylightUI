@@ -1270,7 +1270,7 @@ end
 function Panel.Chrome(p)
     Panel.Begin(p, p.kind, p.lightPair, p.lightFade)
     p.chrome = true
-    p.wantW, p.wantH = nil, nil
+    p.wantW, p.wantH, p.padded = nil, nil, nil
     if p.pinned then Panel.Stretch(p, p.tip) end
     Panel.PaintLight(p)
     Panel.PaintWash(p)
@@ -1294,15 +1294,34 @@ function Panel.Fit(p)
     -- The card's size in the tooltip's own units.
     local k = p:GetScale() or 1
     local dw, dh = p.wantW * k - w, p.wantH * k - h
-    if math.abs(dw) < 0.5 and math.abs(dh) < 0.5 then return true end
+    local r, b, l, t = tip:GetPadding()
+    r, b, l, t = tonumber(r) or 0, tonumber(b) or 0, tonumber(l) or 0, tonumber(t) or 0
+    if math.abs(dw) < 0.5 and math.abs(dh) < 0.5 then
+        p.padded = { r, b }
+        return true
+    end
     -- Tried once already this fill and it didn't move: the client won't take
     -- that padding. Leave it rather than ask every frame.
     if p.fitTried and math.abs(p.fitTried[1] - w) < 0.5 and math.abs(p.fitTried[2] - h) < 0.5 then return true end
-    local r, b, l, t = tip:GetPadding()
-    r, b, l, t = tonumber(r) or 0, tonumber(b) or 0, tonumber(l) or 0, tonumber(t) or 0
     tip:SetPadding(r + dw, b + dh, l, t)
     p.fitTried = { w, h }
+    p.padded = { r + dw, b + dh }
     return true
+end
+
+-- The tooltip was hidden and shown again in one frame (an owner's refill
+-- starts with SetOwner, which hides it), and the game cleared its padding on
+-- the way. The client takes a new padding only when it lays the frame out,
+-- so the size read back is still the old one and measuring finds nothing to
+-- fix: the cleared padding would win and draw the tooltip at its bare lines'
+-- size for a frame, its compare tooltips jumping with its edge. The padding it
+-- had goes back first; the fit then corrects it if the content changed.
+function Panel.KeepSize(p)
+    local kept = p and p.padded
+    if not kept then return end
+    local tip = p.tip
+    local _, _, l, t = tip:GetPadding()
+    tip:SetPadding(kept[1], kept[2], tonumber(l) or 0, tonumber(t) or 0)
 end
 
 -- ---------------------------------------------------------------------
@@ -1400,7 +1419,8 @@ end
 function Panel.Release(p)
     if not p then return end
     Panel.Unmute(p)
-    if p.fitTried then
+    -- p.padded stays: a show in the same frame puts it back (Panel.KeepSize).
+    if p.fitTried or p.padded then
         local tip = p.tip
         local _, _, l, t = tip:GetPadding()
         tip:SetPadding(0, 0, tonumber(l) or 0, tonumber(t) or 0)

@@ -1302,6 +1302,88 @@ T.test("rich tooltip: the card is its own size at once, pinned where the tooltip
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen by a player: with an item and its compares up, the compares jumped
+-- sideways five times a second. A bag slot refills its tooltip every 0.2 s
+-- (ContainerFrameItemButtonMixin:OnUpdate) starting with SetOwner, which hides
+-- a shown tooltip, and the game's OnHide and OnShow clear the padding
+-- (GameTooltip_CalculatePadding, ClearPadding). Modeled here, a guess that
+-- fits the video: the client takes a new padding when it lays the frame out,
+-- so until then the tooltip reads back its old size. The card measured
+-- nothing to fix, the cleared padding won, and for one frame the tooltip was
+-- its bare lines' width with the compares hanging off its moved edge.
+T.test("rich tooltip: a refill that hides and shows the tooltip keeps its size, so its compares stay put", function()
+    local _, Panel = login("rich")
+    items()
+    local layouts = {}
+    local function lagging(tip)
+        local set, pending = tip.SetPadding, nil
+        tip.SetPadding = function(self, r, b, l, t) pending = { r, b, l or 0, t or 0 } end
+        local get = tip.GetPadding
+        tip.GetPadding = function(self)
+            if pending then return unpack(pending) end
+            return get(self)
+        end
+        layouts[#layouts + 1] = function()
+            if pending then set(tip, unpack(pending)) end
+            pending = nil
+        end
+    end
+    local function layout() for _, f in ipairs(layouts) do f() end end
+    local tip, shop = GameTooltip, ShoppingTooltip1
+    lagging(tip)
+    lagging(shop)
+    local function refresh(first)
+        if not first then
+            -- SetOwner on the shown tooltip: it hides, and its compares with it.
+            tip:Hide()
+            shop:Hide()
+        end
+        fillItem(tip, "greaves", GREAVES)
+        compare(shop, CHANGES)
+        update()
+        layout()
+    end
+    refresh(true)
+    stub.Advance(0.02)
+    update()
+    layout()
+    local function size(t) local p = Panel.Get(t); return p.wantW * p:GetScale() end
+    T.near(tip:GetWidth(), size(tip), 0.5, "first show: the tooltip is the card's width")
+    T.near(shop:GetWidth(), size(shop), 0.5, "and the compare's")
+    for i = 1, 3 do
+        stub.Advance(0.2)
+        refresh()
+        T.near(tip:GetWidth(), size(tip), 0.5, "refill " .. i .. ": the tooltip keeps the card's width")
+        T.near(shop:GetWidth(), size(shop), 0.5, "refill " .. i .. ": the compare keeps it too")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A player switched equipment sets and the compares still showed the old
+-- set's items. The game picks what to compare (TooltipComparisonManager);
+-- the card is read from the compare tooltip's own lines on every fill, so a
+-- refill with the newly worn item shows that item, with nothing kept.
+T.test("rich tooltip: after an equipment set switch the compare card shows what is worn now", function()
+    local _, Panel = login("rich")
+    items()
+    fillItem(GameTooltip, "greaves", GREAVES)
+    compare(ShoppingTooltip1, CHANGES)
+    update()
+    local p = Panel.Get(ShoppingTooltip1)
+    T.eq(stub.Text(kinds(p, "header")[1].title), "Tarnished Legplates", "worn before the switch")
+    -- The set switched; the hovered item's 0.2 s refill compares the new one.
+    stub.Advance(0.2)
+    fillItem(GameTooltip, "greaves", GREAVES)
+    local shop = ShoppingTooltip1
+    shop:SetOwner(GameTooltip, "ANCHOR_NONE")
+    shop.CompareHeader:Show()
+    shop.CompareHeader.Label:SetText("Equipped")
+    fillItem(shop, "sword", { { "Runed Blade", nil, { 0, 0.439, 0.867 } }, { "Legs", "Plate" }, "512 Armor" })
+    update()
+    T.eq(stub.Text(kinds(p, "header")[1].title), "Runed Blade", "the newly worn item")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: something new in a showing card fades its words in; a refill doesn't", function()
     local _, Panel = login("rich")
     items()

@@ -30,6 +30,7 @@ DUI.PatchNotes = {
         { "Controller", "With a controller and the game's party targeting turned off, the D-pad moves between party and raid members again" },
         { "Bags", "On a controller, Y on food offers Feed Pet again, and X uses items that start a quest" },
         { "Quests", "Questie icons on the world map no longer jump and flicker when you rest the mouse on them" },
+        { "Tooltips", "Comparing an item with what you wear no longer makes the tooltips twitch sideways while you hover it" },
         { "Flight timer", "The flight timer now shows on the druid flight out of Nighthaven in Moonglade, the one you take by talking to the flight master" },
     } },
     { version = "2.2.7", date = "2026-11-24", summary = "Overpower lights up after a dodge in any stance, cast bars for mob channels, and item tooltips show every line again.", new = {

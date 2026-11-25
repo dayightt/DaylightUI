@@ -142,6 +142,11 @@ function Rich.Shown(tip)
     if not Rich.On(tip) then return Rich.Off(tip) end
     Rich.Hook(tip)
     local s = state[tip]
+    -- Hidden and shown in one frame (an owner's refill): the same kind of card
+    -- comes back, so the tooltip keeps the size it had (Panel.KeepSize).
+    if s and s.hiddenAt == GetTime() and s.kind ~= "unit" and Rich.Kind(s.data) == s.kind then
+        Panel.KeepSize(Panel.Get(tip))
+    end
     if s and s.dirty then Rich.Build(tip) end
     local p = Panel.Get(tip)
     if p and p:IsShown() then Panel.Fit(p) end
@@ -215,6 +220,7 @@ function Rich.Hidden(tip)
     if s then
         s.dirty = s.dirty or s.data ~= nil
         s.lines, s.unit, s.world, s.swept, s.key, s.spell = nil, nil, nil, nil, nil, nil
+        s.hiddenAt = GetTime()
     end
     Panel.Release(Panel.Get(tip))
     ns.Tooltip.ShowShell(tip, true)
