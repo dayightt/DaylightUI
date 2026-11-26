@@ -315,7 +315,7 @@ local function release(item)
     if claimed[item] or faded[item] or sizes[item] then
         claimed[item], faded[item], sizes[item] = nil, nil, nil
         item:SetAlpha(1)
-        item:EnableMouse(true)
+        Fx.GameMouse(item)
         return true
     end
 end
@@ -744,7 +744,7 @@ local function claim(item)
         faded[item] = nil
         claimed[item] = id
         item:SetAlpha(1)
-        item:EnableMouse(true)
+        Fx.GameMouse(item)
         hook(item)
         mine[id] = item
     else

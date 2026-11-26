@@ -2688,6 +2688,65 @@ T.test("rich tooltip: a row's value is never squeezed: it keeps its own width at
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game on a quest's tooltip: an objective with a long name was cut ("Marca de
+-- honor de la Cuenc...  0 / 3"). It wraps onto another line, the count staying at the edge.
+T.test("rich tooltip: a quest objective's long name wraps instead of being cut", function()
+    local _, Panel = login("rich")
+    fill(99, { "A quest", "Zone", "0/3 " .. string.rep("Honor mark of the Arathi Basin ", 4) })
+    local p = Panel.Get(GameTooltip)
+    local row
+    for _, it in ipairs(kinds(p, "row")) do if stub.Text(it.value) == "0 / 3" then row = it end end
+    T.truthy(row, "the objective is a row with its count")
+    T.truthy(row.label.__wordWrap == true, "its name may wrap")
+    T.truthy(row.label:GetWidth() > 0, "held to the room before the count")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A quest's tooltip has a gap between its heading and its objectives, and its reward
+-- under a "Rewards" heading in money's own color. The card reads the gap as no section
+-- break, and money isn't read as a yellow description.
+T.test("rich tooltip: a gap between a quest's heading and its objectives is no section, money keeps its color", function()
+    local _, Panel = login("rich")
+    local coins = "5|T" .. "Interface/AddOns/DaylightUI/Media/coin-gold.png:0:0:0:0:64:64:-4:60:0:64|t"
+    fill(99, { "A quest", "Level 29", "The Barrens", " ", "0/3 Honor mark", " ", "Rewards", coins })
+    local p = Panel.Get(GameTooltip)
+    local seq = {}
+    for i = 1, p.count do seq[#seq + 1] = p.items[i].kind end
+    local list = table.concat(seq, ",")
+    T.truthy(list:find("section,row,bar", 1, true), "the zone is the heading right over the objectives: " .. list)
+    T.falsy(list:find("rule,section,rule", 1, true), "no empty section from the gap: " .. list)
+    T.falsy(list:find("section,text,rule,section", 1, true))
+    local money
+    for i = 1, p.count do
+        local it = p.items[i]
+        if it.kind == "text" and it.fs and stub.Text(it.fs):find("coin-gold", 1, true) then money = it end
+    end
+    T.truthy(money, "the reward's line")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A tooltip line with two sides (an objective and its count, written by Daylight UI's
+-- quest tracker) had its long left side cut. It wraps now, and the row grows with it;
+-- the count keeps its own color at the edge.
+T.test("rich tooltip: a two-sided line's long left side wraps and the row grows, the value keeps its color", function()
+    local _, Panel = login("rich")
+    local long = string.rep("Honor mark of the Arathi Basin ", 4)
+    fill(99, { "A quest", { long, "0/3", 1, 1, 1, 1, 0.3, 0.3 }, { "Short", "1/2", 1, 1, 1, 1, 0.8, 0.2 } })
+    local p = Panel.Get(GameTooltip)
+    local rows = kinds(p, "row")
+    local tall, short
+    for _, it in ipairs(rows) do
+        if stub.Text(it.value) == "0/3" then tall = it elseif stub.Text(it.value) == "1/2" then short = it end
+    end
+    T.truthy(tall and short, "both lines are rows")
+    T.truthy(tall.label.__wordWrap == true, "the long name may wrap")
+    local ty = select(5, tall.label:GetPoint(1))
+    local sy = select(5, short.label:GetPoint(1))
+    T.truthy(ty - sy > 2 * DaylightUI.Style.SIZE.body, "the next row sits under both lines of the wrapped one: " .. tostring(ty - sy))
+    T.rgb({ tall.value:GetTextColor() }, { 1, 0.3, 0.3 }, "the count keeps the line's own color")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- Seen in game: a crawfish showed HUMANOID as a tag and "Humanoid" again as a
 -- small line, its type on a line of its own under "Level 40".
 T.test("rich tooltip: a creature's lines that repeat what the header shows are left out", function()

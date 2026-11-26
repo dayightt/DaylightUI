@@ -56,5 +56,6 @@ TestMode.lua
 Sample.lua
 PageSample.lua
 Sweep.lua
+Layers.lua
 Options.lua
 Module.lua

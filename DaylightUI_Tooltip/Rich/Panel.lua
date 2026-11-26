@@ -531,9 +531,12 @@ end
 
 -- A label on the left, its value on the right. s: their text size (body);
 -- valueSize lets the value stand out bigger than its label (a sell price).
-function Panel.Row(p, label, value, valueColor, labelColor, s, valueSize)
-    local item = add(p, { kind = "row" })
-    item.label = text(p, s or Style.SIZE.body, labelColor or Style.INK.LABEL)
+-- wrap: a label too long for its room wraps onto more lines instead of being cut
+-- (not a secret one, which can't be measured).
+function Panel.Row(p, label, value, valueColor, labelColor, s, valueSize, wrap)
+    wrap = wrap and type(label) == "string" and not isSecret(label)
+    local item = add(p, { kind = "row", wrap = wrap or nil, words = label })
+    item.label = text(p, s or Style.SIZE.body, labelColor or Style.INK.LABEL, wrap)
     item.label:SetText(label or "")
     if value and value ~= "" then
         item.value = text(p, valueSize or s or Style.SIZE.body, valueColor or Style.INK.VALUE)
@@ -961,7 +964,19 @@ function place.row(p, item, y, inner)
     if item.value then
         item.value:SetPoint("TOPRIGHT", p, "TOPRIGHT", -padX(p), -y)
         local room = inner - widthOf(item.value) - Panel.ROW_GAP_X
-        if widthOf(item.label) > room + 1 then item.label:SetWidth(math.max(1, room)) end
+        if widthOf(item.label) > room + 1 then
+            item.label:SetWidth(math.max(1, room))
+            -- A secret label can't be measured or split into words: it stays cut.
+            if item.wrap and type(item.words) == "string" and not isSecret(item.words) then
+                local sh = item.label:GetStringHeight()
+                if type(sh) == "number" and not isSecret(sh) and sh > h then
+                    h = sh
+                else
+                    local lines = wrappedLines(item.label, item.words, room)
+                    h = lines * h + (lines - 1) * Panel.LINE_SPACING
+                end
+            end
+        end
         -- A bigger value: the label sits on the same baseline, not up at its top.
         local vh = lineHeight(item.value.size, item.value.slot)
         if vh > h then drop, h = vh - h, vh end

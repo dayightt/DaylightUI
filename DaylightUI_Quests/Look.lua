@@ -203,6 +203,14 @@ function Look.PaintTag(tag, look, kind, whole)
     return true
 end
 
+-- A tag's word in its own color, for a line of text (the quest tooltip): "DUNGEON"
+-- or nil for a quest with no tag.
+function Look.TagText(look, kind)
+    local text = Look.TagWord(kind, true)
+    if not text then return nil end
+    return DUI.Win.Parts.Hex({ Look.Color(look, kind) }) .. text .. "|r"
+end
+
 -- Party members on this quest: a small people icon and a count at the end of the
 -- quest's line (tracker and journal), in the accent. Not "[2]" before the title
 -- like the game does, since there it reads as the quest's level. The caller
@@ -276,9 +284,13 @@ end
 -- "Level 12 · Elwynn Forest": the level in the quest's difficulty color (like the
 -- log), the rest in the line's own color.
 function Look.LevelLine(q)
+    return DUI.L["Level %s · %s"]:format(Look.Level(q), q.zone or "")
+end
+
+-- Just the level number in the quest's difficulty color.
+function Look.Level(q)
     local d = q.diff or { 1, 0.82, 0 }
-    local level = DUI.Win.Parts.Hex({ Style.Soften(d[1], d[2], d[3]) }) .. tostring(q.level or "?") .. "|r"
-    return DUI.L["Level %s · %s"]:format(level, q.zone or "")
+    return DUI.Win.Parts.Hex({ Style.Soften(d[1], d[2], d[3]) }) .. tostring(q.level or "?") .. "|r"
 end
 
 -- r, g, b, and whether the fill is the accent (Look.PaintBar paints it).
