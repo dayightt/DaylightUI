@@ -301,7 +301,10 @@ function Socket.Layout(f, geo)
 
     -- The picture's shading, both on the frame and on its own.
     if not p.vignette then makeVignette(p) end
-    local open = 2 * geo.opening
+    -- It reaches past the picture into the black gap. Cut at the picture's own
+    -- edge, its soft edge pixels were shaded less than the ones just inside and
+    -- showed as a ring of bright specks round the art.
+    local open = 2 * geo.opening + 2 * Pixel.Px(m, Socket.GAP_PX)
     p.vignette:SetSize(open, open)
     p.vignetteMask:SetTexture(solid, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
     p.vignetteMask:SetSize(open, open)

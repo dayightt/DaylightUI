@@ -2200,6 +2200,16 @@ T.test("socket: the picture keeps two screen pixels of black from the ring's lin
         local picture = p.mask:GetWidth() / 2
         local gap = (lineInside - picture) / Pixel.Unit(f)
         T.truthy(gap >= 2 - 1e-3, what .. ": the black gap is " .. gap .. " px")
+        -- Seen in game after that: a ring of bright specks still sat on the
+        -- picture's edge. The dark shading over the picture was cut by the
+        -- same round mask, so the picture's soft edge pixels were shaded
+        -- less than the pixels just inside them. The shading reaches past the
+        -- picture's edge into the black, and never onto the line.
+        local shade = p.vignetteMask:GetWidth() / 2
+        T.near(p.vignette:GetWidth() / 2, shade, 1e-6, what .. ": the shading fills its mask")
+        local past = (shade - picture) / Pixel.Unit(f)
+        T.truthy(past >= 2 - 1e-3, what .. ": the shading reaches " .. past .. " px past the picture")
+        T.truthy(shade <= lineInside + 1e-6, what .. ": the shading stays inside the line")
     end
     for _, ui in ipairs({ 0.71, 1 }) do
         UIParent:SetScale(ui)
