@@ -77,6 +77,7 @@ local function lookGetter(get)
     end
 end
 -- The Cooldown Manager shows keys by its own switch, not the bars'.
+local function costsOff(get) return get("look.costs") ~= true end
 local function keysOff(get)
     if lookFor == "cdm" then return get("cdmKeybinds") ~= true end
     return get("look.keybind") ~= true
@@ -269,7 +270,7 @@ local look = {
           disabled = keysOff },
     } }),
     perLook({ label = "Text", items = {
-        DaylightUI.Options.FontRow("media.font", "Button font", "Keybinds, stack counts, macro names and cooldown numbers on every bar, the Cooldown Manager and totems",
+        DaylightUI.Options.FontRow("media.font", "Button font", "Keybinds, stack counts, macro names, spell costs and cooldown numbers on every bar, the Cooldown Manager and totems",
             nil, { cdm = true }),
         { type = "slider", key = "look.countSize", label = "Stack count size", min = 6, max = 20, step = 1, cdm = true,
           desc = "Text size of the count on a button, like charges or how many of an item you carry." },
@@ -302,6 +303,23 @@ local look = {
           values = { always = "Always", nocombat = "Out of combat only", never = "Never" },
           order = { "always", "nocombat", "never" },
           desc = "When hovering a button shows its spell or item tooltip." },
+    } }),
+    perLook({ label = "Spell costs", tab = "Text", items = {
+        { type = "toggle", key = "look.costs", label = "Show spell costs",
+          desc = "Shows how much mana, rage or energy each spell costs, right on its button. Turns red while you don't have enough." },
+        { type = "slider", key = "look.costSize", label = "Spell cost size", min = 6, max = 20, step = 1,
+          desc = "Text size of the cost on each button.", disabled = costsOff },
+        { type = "dropdown", key = "look.costPos", label = "Spell cost position",
+          values = { bottomleft = "Bottom left", topleft = "Top left", bottom = "Bottom" }, order = { "bottomleft", "topleft", "bottom" },
+          desc = "Where on the button its cost shows.", disabled = costsOff },
+        { type = "dropdown", key = "look.costColor", label = "Spell cost color",
+          values = { power = "Power color", custom = "One color" }, order = { "power", "custom" },
+          desc = "Power color shows mana in blue, rage in red and energy in yellow. It turns red either way while you're short.",
+          disabled = costsOff },
+        { type = "color", key = "look.costCustom", label = "Custom spell cost color",
+          desc = "The cost's color when Spell cost color is One color.",
+          hidden = custom("look.costColor"), disabled = costsOff },
+        nudge("costX", "Spell cost X offset", nil, "look.costs"), nudge("costY", "Spell cost Y offset", nil, "look.costs"),
     } }),
     perLook({ label = "Bar background", tab = "Extras", desc = "A panel behind the whole bar.", items = {
         { type = "toggle", key = "look.back", label = "Bar background",

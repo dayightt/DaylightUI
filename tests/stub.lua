@@ -3806,7 +3806,14 @@ function stub.ActionSlots(slots)
         local s = S(slot)
         if not s then return nil end
         if s.flyout then return "flyout", s.flyout end
-        if s.macro then return "macro", s.macro end
+        -- The game hands a macro's spell straight back with subType "spell"
+        -- (ActionButton.lua's spell alerts read it that way). A macro with no
+        -- spell: what the client gives is a guess here.
+        if s.macro then
+            local sid = stub.macroSpells[s.macro]
+            if sid then return "macro", sid, "spell" end
+            return "macro", s.macro, ""
+        end
         if s.item then return "item", s.item end
         return "spell", s.spellID
     end

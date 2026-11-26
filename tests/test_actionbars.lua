@@ -2824,3 +2824,96 @@ T.test("new ranks: a learned rank takes the place of the one before it, in rank 
     T.truthy(RU, "its part is there")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Spell costs on the buttons (look.costs): off until switched on, the game's own
+-- cost of the slot's spell, in its power's color, soft red while short of it.
+T.test("action bars: spell costs show on the buttons, red while you're short", function()
+    local DUI = login()
+    local Skin = stub.actionbars.Skin
+    local Style = DUI.Style
+    local b = _G.DaylightUIBar1Button2
+    stub.ActionSlots()     -- spells 2 and 3 in slots 2 and 3
+    stub.SpellReads()      -- the cost read that can be made secret
+    stub.spellCosts = {
+        [2] = { { type = 0, name = "MANA", cost = 275, minCost = 275, requiredAuraID = 0, hasRequiredAura = false } },
+        [3] = { { type = 0, name = "MANA", cost = 1250, minCost = 1250, requiredAuraID = 0, hasRequiredAura = false } },
+    }
+    stub.FireEvent("ACTIONBAR_SLOT_CHANGED", 0); stub.RunTimers()
+    local fs = Skin.GetParts(b).cost
+    T.truthy(not fs or not fs:IsShown() or (fs:GetText() or "") == "", "off by default: nothing on the button")
+
+    DUI:Set("ActionBars", "look.costs", true)
+    stub.RunTimers()
+    fs = Skin.GetParts(b).cost
+    T.truthy(fs and fs:IsShown(), "on: the cost text shows")
+    T.eq(fs:GetText(), "275")
+    T.eq(select(1, fs:GetPoint(1)), "BOTTOMLEFT", "bottom left by default")
+    local r, g, bl = fs:GetTextColor()
+    local pr, pg, pb = Style.PowerColor("MANA")
+    local mr, mg, mb = Style.Lighten(pr, pg, pb, Skin.COST_LIFT)
+    T.near(r, mr, 0.01); T.near(g, mg, 0.01); T.near(bl, mb, 0.01)
+    T.eq(Skin.GetParts(_G.DaylightUIBar1Button3).cost:GetText(), AbbreviateNumbers(1250), "big costs shortened")
+
+    -- Short of mana: soft red, and back when it isn't.
+    stub.slots[2].noMana = true
+    stub.FireEvent("ACTION_USABLE_CHANGED", { { slot = 2, usable = false, noMana = true } })
+    stub.RunTimers(); settle()
+    r, g, bl = fs:GetTextColor()
+    T.near(r, Style.INK.BAD[1], 0.01); T.near(g, Style.INK.BAD[2], 0.01)
+    stub.slots[2].noMana = nil
+    stub.FireEvent("ACTION_USABLE_CHANGED", { { slot = 2, usable = true, noMana = false } })
+    stub.RunTimers(); settle()
+    r = fs:GetTextColor()
+    T.near(r, mr, 0.01, "back to mana blue")
+
+    -- A free spell shows nothing; a new rank's cost comes in on SPELLS_CHANGED.
+    stub.spellCosts[2] = {}
+    stub.FireEvent("SPELLS_CHANGED"); stub.RunTimers()
+    T.eq(fs:GetText() or "", "", "free: blank")
+    stub.spellCosts[2] = { { type = 1, name = "RAGE", cost = 15, minCost = 15, requiredAuraID = 0, hasRequiredAura = false } }
+    stub.FireEvent("SPELLS_CHANGED"); stub.RunTimers(); settle()
+    T.eq(fs:GetText(), "15")
+    r = fs:GetTextColor()
+    pr, pg, pb = Style.PowerColor("RAGE")
+    T.near(r, (Style.Lighten(pr, pg, pb, Skin.COST_LIFT)), 0.01, "rage in its own color")
+
+    -- A cost tied to an aura you don't have (a druid form's) is skipped.
+    stub.spellCosts[2] = {
+        { type = 3, name = "ENERGY", cost = 40, minCost = 40, requiredAuraID = 768, hasRequiredAura = false },
+        { type = 0, name = "MANA", cost = 90, minCost = 90, requiredAuraID = 0, hasRequiredAura = false },
+    }
+    stub.FireEvent("SPELLS_CHANGED"); stub.RunTimers()
+    T.eq(fs:GetText(), "90", "the cost that applies now")
+
+    -- A macro: the spell it casts.
+    stub.slots[2] = { texture = "m", macro = 4 }
+    stub.macroSpells[4] = 3
+    stub.FireEvent("ACTIONBAR_SLOT_CHANGED", 2); stub.RunTimers()
+    T.eq(fs:GetText(), AbbreviateNumbers(1250), "a macro shows its spell's cost")
+
+    -- Spot and nudge, size.
+    DUI:Set("ActionBars", "look.costPos", "topleft")
+    DUI:Set("ActionBars", "look.costX", 2)
+    stub.RunTimers()
+    local p, _, _, x = fs:GetPoint(1)
+    T.eq(p, "TOPLEFT"); T.eq(x, 3 + 2)
+
+    -- A custom color.
+    DUI:Set("ActionBars", "look.costColor", "custom")
+    DUI:Set("ActionBars", "look.costCustom", { 0.1, 0.9, 0.2 })
+    stub.RunTimers(); settle()
+    r, g = fs:GetTextColor()
+    T.near(r, 0.1, 0.01); T.near(g, 0.9, 0.01)
+
+    -- In a fight with every spell read secret: no error, the text still drawn.
+    stub.secretSpellReads = true
+    stub.combat = true
+    stub.FireEvent("SPELLS_CHANGED"); stub.RunTimers()
+    stub.combat, stub.secretSpellReads = nil, nil
+
+    -- Off again: gone.
+    DUI:Set("ActionBars", "look.costs", false)
+    stub.RunTimers()
+    T.falsy(fs:IsShown(), "off: hidden")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

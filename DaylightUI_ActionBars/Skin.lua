@@ -218,6 +218,8 @@ Skin.KEYBIND_POS = {
     topright = { "TOPRIGHT", -2, -3 }, topleft = { "TOPLEFT", 3, -3 }, bottom = { "BOTTOM", 0, 3 },
 }
 Skin.COUNT_POS = { bottomright = { "BOTTOMRIGHT", -2, 3 }, bottomleft = { "BOTTOMLEFT", 3, 3 } }
+Skin.COST_LIFT = 0.4           -- how much lighter a spell cost is than its power bar
+Skin.COST_POS = { bottomleft = { "BOTTOMLEFT", 3, 3 }, topleft = { "TOPLEFT", 3, -3 }, bottom = { "BOTTOM", 0, 3 } }
 
 -- Shorter keybinds: modifiers as one letter, mouse buttons and the number pad as a
 -- letter and number.
@@ -273,7 +275,7 @@ end
 
 -- A look's text colors and the swipe color, as the settings hold them.
 Skin.LOOK_COLORS = { "pressed", "highlight", "checkedColor", "checkedBorderColor", "procColor", "rangeColor", "borderCustom",
-    "swipeColor", "edgeColor", "keybindColor", "countColor", "macroColor", "cooldownTextColor" }
+    "swipeColor", "edgeColor", "keybindColor", "countColor", "macroColor", "cooldownTextColor", "costCustom" }
 
 -- The look a bar wears: db.look with the bar's own changes on top (key nil or no
 -- changes = db.look itself). Cached until the next Configure.
@@ -689,6 +691,96 @@ function Skin.UpdateRange(btn, has)
     end)
 end
 
+-- Spell costs (look.costs): the game's cost of the slot's spell, in its power's
+-- color, soft red while you're short of it. Only Daylight UI's own action buttons
+-- carry one. The amount may be secret, so it only ever goes whole to SetText
+-- through AbbreviateNumbers; a plain 0 shows nothing.
+function Skin.CostOf(slot)
+    local id = ns.Buttons and ns.Buttons.SpellOf(slot)
+    local api = C_Spell and C_Spell.GetSpellPowerCost
+    if isSecret(id) or type(id) ~= "number" or type(api) ~= "function" then return nil end
+    local costs = api(id)
+    if isSecret(costs) or type(costs) ~= "table" then return nil end
+    for _, c in ipairs(costs) do
+        if type(c) == "table" then
+            -- A cost tied to an aura (a druid form's) counts only while you have it.
+            local aura, has = c.requiredAuraID, c.hasRequiredAura
+            local tied = not isSecret(aura) and type(aura) == "number" and aura ~= 0
+            if not (tied and not isSecret(has) and has ~= true) then return c.cost, c.name end
+        end
+    end
+    return nil
+end
+
+local function costColor(parts)
+    local L = parts.L
+    if parts.noPower then return Style.INK.BAD end
+    if L.costColor == "custom" then return L.costCustom end
+    -- The power bars' colors are dark for small text on an icon (mana's blue
+    -- read as a smudge), so the text takes a lighter shade of the same color.
+    local r, g, b = Style.PowerColor(parts.costPower)
+    return { Style.Lighten(r, g, b, Skin.COST_LIFT) }
+end
+
+-- Glides FAST into red and back, from the last color written (never read back).
+function Skin.PaintCostColor(btn, parts, snap)
+    local fs = parts.cost
+    if not fs then return end
+    local c = costColor(parts)
+    local r, g, b = c[1], c[2], c[3]
+    if parts.costR == r and parts.costG == g and parts.costB == b then return end
+    local r0, g0, b0 = parts.costR, parts.costG, parts.costB
+    parts.costR, parts.costG, parts.costB = r, g, b
+    if snap or not r0 or not DUI.Motion.On() then
+        DUI.Motion.Tween(fs, 0, 0, 0)
+        fs:SetTextColor(r, g, b)
+        return
+    end
+    DUI.Motion.Tween(fs, 0, 1, DUI.Motion.FAST, function(p)
+        fs:SetTextColor(lerp(r0, r, p), lerp(g0, g, p), lerp(b0, b, p))
+    end, function() fs:SetTextColor(r, g, b) end)
+end
+
+-- Makes, places and sizes the text from the look. Run by Skin.Apply.
+local function styleCost(btn, parts, L)
+    if not ownButtons[btn] then return end
+    local fs = parts.cost
+    if not fs then
+        if L.costs ~= true then return end
+        local over = btn.TextOverlayContainer
+        if not (type(over) == "table" and over.CreateFontString) then over = btn end
+        fs = over:CreateFontString(nil, "OVERLAY")
+        parts.cost = fs
+    end
+    styleText(fs, L.costSize)
+    local at = Skin.COST_POS[L.costPos] or Skin.COST_POS.bottomleft
+    fs:ClearAllPoints()
+    fs:SetPoint(at[1], btn, at[1], at[2] + L.costX, at[3] + L.costY)
+    fs:SetJustifyH(at[1] == "BOTTOM" and "CENTER" or "LEFT")
+    parts.costR = nil
+    Skin.UpdateCost(btn)
+end
+
+-- slot = the button's slot, when the caller (the Buttons painter) has it.
+function Skin.UpdateCost(btn, slot)
+    local parts = skinned[btn]
+    local fs = parts and parts.cost
+    if not fs then return end
+    if parts.L.costs ~= true then fs:Hide(); return end
+    slot = slot or actionOf(btn)
+    local cost, power
+    if slot and hasAction(btn, slot) then cost, power = Skin.CostOf(slot) end
+    if type(cost) == "nil" or (not isSecret(cost) and (type(cost) ~= "number" or cost <= 0)) then
+        fs:SetText("")
+        fs:Hide()
+        return
+    end
+    fs:SetText(AbbreviateNumbers(cost))
+    if parts.costPower ~= power then parts.costPower, parts.costR = power, nil end
+    fs:Show()
+    Skin.PaintCostColor(btn, parts, parts.costR == nil)
+end
+
 -- The border: the accent on a proc, else the shell's own. Short of power, the icon
 -- fades as it does out of range (Skin.UpdateRange). a, usable and noMana are the
 -- slot and IsUsableAction's answer, when the caller (the Buttons painter) already
@@ -704,6 +796,7 @@ function Skin.UpdateState(btn, a, usable, noMana)
     local has = hasAction(btn, a)
     parts.noPower = noMana == true
     parts.unusable = ownButtons[btn] == true and usable == false and noMana ~= true and has
+    if parts.cost then Skin.PaintCostColor(btn, parts) end
     Skin.UpdateRange(btn, has)
     Skin.PaintBorder(btn, parts)
 end
@@ -1149,6 +1242,7 @@ applyLook = function(btn)
         local mc = L.macroColor
         if not Skin.Owned(btn, "macro") then btn.Name:SetTextColor(mc[1], mc[2], mc[3]) end
     end
+    styleCost(btn, parts, L)
     local hl, pushed, checked, flash = paintWashes(btn, L, icon)
     local pc = L.pressed
     parts.press:SetColorTexture(pc[1], pc[2], pc[3], L.pressedAlpha)

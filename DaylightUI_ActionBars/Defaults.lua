@@ -148,6 +148,11 @@ ns.DEFAULTS = {
         -- Text offsets in px from their default spot.
         keybindX = 0, keybindY = 0, countX = 0, countY = 0,
         macroX = 0, macroY = 0, cooldownX = 0, cooldownY = 0,
+        -- Each spell's cost on its button (Skin.UpdateCost): off until switched on.
+        costs = false, costSize = 12, costPos = "bottomleft",
+        costColor = "power",                 -- the power's own color, or "custom"
+        costCustom = { 0.55, 0.7, 1 },
+        costX = 0, costY = 0,
         -- A panel behind the whole bar (Bars.PaintBack).
         -- The border lit while hovered / pressed, in the accent, your class color
         -- or a custom color (hoverBorderColor / pressBorderColor).

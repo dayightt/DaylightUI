@@ -250,10 +250,12 @@ function Buttons.ForgetCharges(slot)
 end
 
 -- The spell a slot casts, directly or through a macro.
+-- A macro slot already names its spell (subType "spell"), the way the game's own
+-- buttons read it; its id is the spell, not the macro.
 local function spellOf(slot)
-    local kind, id = GetActionInfo(slot)
+    local kind, id, sub = GetActionInfo(slot)
     if kind == "spell" then return id end
-    if kind == "macro" and type(GetMacroSpell) == "function" then return GetMacroSpell(id) end
+    if kind == "macro" and sub == "spell" then return id end
 end
 Buttons.SpellOf = spellOf
 
@@ -336,6 +338,7 @@ Buttons.PAINTERS = {
         text(btn.Count, c)
     end },
     { name = "name", fn = function(btn, slot) text(btn.Name, GetActionText(slot)) end },
+    { name = "cost", fn = function(btn, slot) ns.Skin.UpdateCost(btn, slot) end },
     { name = "checked", fn = function(btn, slot)
         local current, auto = IsCurrentAction(slot) == true, IsAutoRepeatAction(slot) == true
         btn:SetChecked(current or auto)
@@ -426,7 +429,7 @@ local function paintFrom(btn, slot, names, from)
 end
 -- Painters that change what the button shows: plugins (DaylightUI.API's Paint)
 -- paint after any of these. The rest tell the skin, which asks when it changed.
-local CONTENTS = { icon = true, count = true, name = true, checked = true, equipped = true }
+local CONTENTS = { icon = true, count = true, name = true, cost = true, checked = true, equipped = true }
 local function shows(names)
     if not names then return true end
     for n in pairs(names) do if CONTENTS[n] then return true end end
@@ -541,6 +544,7 @@ local function only(...)
     return t
 end
 local USABLE = only("usable")
+local COST = only("cost")
 local TARGET = only("usable", "range")
 
 -- What each event repaints: a set of painter names, "all" (everything, next frame),
@@ -550,7 +554,7 @@ Buttons.EVENTS = {
         Buttons.ForgetCharges(slot)
         if type(slot) ~= "number" or slot == 0 then Buttons.PaintAll() else Buttons.PaintSlot(slot) end
     end,
-    SPELLS_CHANGED = function() Buttons.ForgetCharges() end,
+    SPELLS_CHANGED = function() Buttons.ForgetCharges(); Buttons.QueuePaint(COST) end,
     ACTIONBAR_UPDATE_STATE = only("checked", "flash"),
     START_AUTOREPEAT_SPELL = only("checked", "flash"),
     STOP_AUTOREPEAT_SPELL = only("checked", "flash"),
@@ -558,7 +562,7 @@ Buttons.EVENTS = {
     PLAYER_LEAVE_COMBAT = only("checked", "flash"),
     TRADE_SKILL_SHOW = only("checked"),
     TRADE_SKILL_CLOSE = only("checked"),
-    PLAYER_EQUIPMENT_CHANGED = only("equipped", "icon", "count"),
+    PLAYER_EQUIPMENT_CHANGED = only("equipped", "icon", "count", "cost"),
     SPELL_UPDATE_ICON = only("icon"),
     BAG_UPDATE_DELAYED = only("count", "usable"),
     ACTIONBAR_UPDATE_COOLDOWN = only("cooldown"),

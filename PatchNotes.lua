@@ -14,6 +14,9 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Nameplates", "Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick" },
         { "Proc Alerts", "Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, Strike is a new one, and each alert can turn its embers off" },
+        { "Action bars", "Spell costs on your buttons: each spell's mana, rage or energy cost, turning red when you're short. Turn it on under Action Bars > Text" },
+    }, fixed = {
+        { "Action bars", "A spell cast through a macro lights up its button when it procs" },
     } },
     { version = "2.4.0", date = "2026-11-26", summary = "Seven new bar animations, choose which part of a unit frame draws on top, bar ends that lean either way, and new speech bubbles.", new = {
         { "Bar animations", "Seven new bar animations: Daybreak, Pixel Sparks, Pixel Blaze, Pixel Arc, Slosh, Molten and Cinders" },
