@@ -475,7 +475,9 @@ function Flares.Layout(f, k)
         local yy = (sp.y + (sp.step or 0) * f.lane) * scale + y
         local a = sp.anchor == "bottom" and "BOTTOM" or "CENTER"
         left.frame:SetPoint(a, holder, "CENTER", x, yy)
+        -- The hidden right piece is still laid out below, so it needs spots too.
         left.origin, left.corner = a, "BOTTOM"
+        right.origin, right.corner = a, "BOTTOM"
         right.frame:Hide()
     end
     for i, part in ipairs(f.parts) do

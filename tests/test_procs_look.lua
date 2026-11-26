@@ -717,3 +717,13 @@ T.test("procs look: the options preview starts its loops again when the window o
     T.truthy(part.live:IsPlaying(), "the flicker plays again")
     T.truthy(part.beat:IsPlaying(), "and Pulse's beat")
 end)
+
+T.test("procs look: a one-piece design lays out its hidden right piece without an error", function()
+    local ns = load()
+    for _, design in ipairs({ "ring", "wings", "ring" }) do
+        local f = show(ns, design, "breathe")
+        settle()
+        T.truthy(f.parts[1].frame:IsShown(), design .. ": shows")
+        ns.Flares.Layout(f)
+    end
+end)

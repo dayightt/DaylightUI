@@ -82,7 +82,7 @@ T.test("api promise: a big plugin uses every promised call", function()
     -- Named things.
     local mine = CreateFrame("Frame", nil, UIParent)
     mine:SetSize(50, 20)
-    me.RegisterMover(mine, "box", "Box", { point = "CENTER", x = 0, y = 0 })
+    me.RegisterMover(mine, "box", "Box", { "CENTER", UIParent, "CENTER", 0, 0 })
     me.RegisterFade({ key = "box", frames = { mine } })
     me.RegisterTestPart("box", "Box", function() return true end)
     local ran

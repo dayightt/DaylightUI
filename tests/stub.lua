@@ -612,6 +612,10 @@ local function checkAnchor(self, rel)
 end
 function Widget:SetPoint(...)
     guard(self, "SetPoint")
+    -- As in game: the point itself is required.
+    if type((...)) ~= "string" then
+        error('Usage: ("point" [, region or nil] [, "relativePoint"] [, offsetX, offsetY]', 2)
+    end
     checkAnchor(self, select(2, ...))
     local rel = select(2, ...)
     if type(rel) == "table" then

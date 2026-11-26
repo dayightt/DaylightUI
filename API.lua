@@ -1314,6 +1314,9 @@ end
 -- Movers.Register and Fade.Register return nothing else.
 function View.RegisterMover(v, frame, key, label, default)
     if type(frame) ~= "table" or not str(key) then return false end
+    -- The default is a SetPoint list; anything else would only fail later, when
+    -- the mover places the frame.
+    if type(default) == "table" and not str(default[1]) then return false end
     return DUI.SafeCallAs(v.name, DUI.Movers.Register, frame, prefixed(v, key), label, default)
 end
 

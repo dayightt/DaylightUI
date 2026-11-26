@@ -28,7 +28,7 @@ T.test("api more: frames by name, the mover's frame, unlock and previews, motion
     local me = API.For("Boxes")
     local f = CreateFrame("Frame", nil, UIParent)
     f:SetSize(40, 20)
-    me.RegisterMover(f, "box", "Box", { point = "CENTER", x = 0, y = 0 })
+    me.RegisterMover(f, "box", "Box", { "CENTER", UIParent, "CENTER", 0, 0 })
     me.RegisterTestPart("box", "Box")
     T.eq(me.IsPreviewing("box"), false)
     DUI.Movers.Unlock()
