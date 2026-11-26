@@ -8,6 +8,7 @@ local _, ns = ...
 local DUI = DaylightUI
 local Style = DUI.Style
 local Motion = DUI.Motion
+local Pixel = DUI.Pixel
 
 local Bubbles = {}
 ns.Bubbles = Bubbles
@@ -15,6 +16,14 @@ ns.Bubbles = Bubbles
 -- Wrap width at text size 12; it grows with the size.
 Bubbles.WRAP = 240
 Bubbles.PAD = 8
+-- Square corners with the bottom-right one cut at 45 degrees, as on the rich
+-- tooltip's cards. The accent band runs along the bottom, and the tail hangs
+-- under it a little left of the middle, away from the cut.
+Bubbles.CUT = 0.29 -- of the bubble's height, so a bigger bubble keeps the same look
+Bubbles.BAND = 4
+Bubbles.TAIL_W = 10
+Bubbles.TAIL_H = 10
+Bubbles.TAIL_AT = 0.17
 
 local WEAK = { __mode = "k" }
 local overlay = setmetatable({}, WEAK)  -- the game's bubble -> the frame drawing it
@@ -85,8 +94,15 @@ function Bubbles.PayBack()
     for child in pairs(owed) do giveBack(child) end
 end
 
+local function setting(key, fallback)
+    local db = ns.module and ns.module.db
+    local v = db and db[key]
+    if v == nil then return fallback end
+    return v
+end
+
 local function face(f)
-    local size = (ns.module and ns.module.db and ns.module.db.bubbleSize) or 12
+    local size = setting("bubbleSize", 12)
     Style.SetFace(f.text, Style.FontFile(ns.MEDIA.font), size, Style.Outline())
     return size
 end
@@ -102,8 +118,64 @@ local function newOverlay()
     -- The client refuses words on a font string that has no font yet.
     face(f)
     f:Hide()
-    Style.Shell(f)
+    -- A hairline of its own: the General border width is made for bars and
+    -- windows, and at a bubble's size a heavy one swallows the box.
+    f.look = { borderPx = 1, cornerPx = 0, flat = true, noBevel = true, shadowAlpha = 0, bgAlpha = setting("bubbleAlpha", 0.92),
+        borderColor = { 0.29, 0.27, 0.25 } }
+    Style.Shell(f, f.look)
+    -- The band lives in the shell, over the background but under the hairline,
+    -- so the outline along the cut corner is always drawn on top of it.
+    local shell = Style.GetShell(f)
+    local bg = shell.bg
+    f.band = shell:CreateTexture(nil, "BACKGROUND", nil, 7)
+    f.band:SetTexture("Interface\\Buttons\\WHITE8x8")
+    f.band:SetPoint("BOTTOMLEFT", bg, "BOTTOMLEFT")
+    f.band:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT")
+    -- The tail is a small square with its corner cut away at 45 degrees,
+    -- leaving a triangle that points down at the speaker. It is dark like the
+    -- bubble, and the band's color runs down its two edges.
+    f.tail = CreateFrame("Frame", nil, f)
+    f.tail.tex = f.tail:CreateTexture(nil, "ARTWORK")
+    f.tail.tex:SetTexture("Interface\\Buttons\\WHITE8x8")
+    f.tail.tex:SetAllPoints()
+    f.tail.side = f.tail:CreateLine(nil, "OVERLAY")
+    f.tail.slope = f.tail:CreateLine(nil, "OVERLAY")
     return f
+end
+
+-- The speaker's class pair, its dark end lifted as the class accent does so
+-- the line still reads on the dark bubble. nil when it isn't known.
+local function classPair(token)
+    local G = DUI.Gradients
+    if type(token) ~= "string" or not G or not G.Has(token) then return nil end
+    local lo, hi = G.RGB(token)
+    local k = Style.CLASS_LIFT
+    return { lo[1] + (hi[1] - lo[1]) * k, lo[2] + (hi[2] - lo[2]) * k, lo[3] + (hi[3] - lo[3]) * k }, hi
+end
+
+-- Read the accent when painting, not at load: the player can change it any time.
+local function paint(f)
+    local lo, hi
+    if setting("bubbleColor", "accent") == "class" then lo, hi = classPair(f.class) end
+    local r, g, b
+    if lo then
+        f.band:SetVertexColor(1, 1, 1, 1)
+        f.band:SetGradient("HORIZONTAL", CreateColor(lo[1], lo[2], lo[3], 1), CreateColor(hi[1], hi[2], hi[3], 1))
+        local t = Bubbles.TAIL_AT
+        r, g, b = lo[1] + (hi[1] - lo[1]) * t, lo[2] + (hi[2] - lo[2]) * t, lo[3] + (hi[3] - lo[3]) * t
+    else
+        Style.PaintAccent(f.band)
+        r, g, b = Style.AccentAt(Bubbles.TAIL_AT)
+    end
+    local bg = Style.BACKGROUND
+    f.tail.tex:SetVertexColor(bg[1], bg[2], bg[3], f.look.bgAlpha)
+    -- With the line taken away, the tail's edges are the bubble's own hairline.
+    if not f.band:IsShown() then
+        local c = f.look.borderColor
+        r, g, b = c[1], c[2], c[3]
+    end
+    f.tail.side:SetColorTexture(r, g, b, 1)
+    f.tail.slope:SetColorTexture(r, g, b, 1)
 end
 
 -- A measurement can be refused or secret while the client places the bubble.
@@ -141,7 +213,37 @@ local function layout(f)
     f.text:SetWidth(width)
     local h = positive(f.text, f.text.GetStringHeight, size)
     if not h then return false end
-    f:SetSize(width + 2 * Bubbles.PAD, h + 2 * Bubbles.PAD)
+    local alpha = setting("bubbleAlpha", 0.92)
+    if f.look.bgAlpha ~= alpha then
+        f.look.bgAlpha = alpha
+        Style.Shell(f, f.look)
+    end
+    local band = Pixel.Snap(f, setting("bubbleBand", Bubbles.BAND))
+    local height = h + 2 * Bubbles.PAD + band
+    local cut = setting("bubbleCut", true) and Pixel.Snap(f, height * Bubbles.CUT) or 0
+    local total = width + 2 * Bubbles.PAD
+    f:SetSize(total, height)
+    -- Centered over the band, so the words sit in the middle of the dark part.
+    f.text:ClearAllPoints()
+    f.text:SetPoint("CENTER", f, "CENTER", 0, band / 2)
+    f.band:SetHeight(math.max(band, 1))
+    f.band:SetShown(band > 0)
+    -- The band lies on the cut corner too, so it takes the same mask.
+    Style.CutShell(f, cut)
+    Style.CutCorner(f, cut, f.band)
+    local tw, th = Pixel.Snap(f, Bubbles.TAIL_W), Pixel.Snap(f, Bubbles.TAIL_H)
+    f.tail:SetSize(tw, th)
+    f.tail:ClearAllPoints()
+    f.tail:SetPoint("TOPLEFT", f, "BOTTOMLEFT", Pixel.Snap(f, total * Bubbles.TAIL_AT), 0)
+    Style.CutCorner(f.tail, tw, f.tail.tex)
+    local edge = Pixel.Px(f, band > 0 and 2 or 1)
+    f.tail.side:SetThickness(edge)
+    f.tail.side:SetStartPoint("TOPLEFT", f.tail, edge / 2, 0)
+    f.tail.side:SetEndPoint("BOTTOMLEFT", f.tail, edge / 2, 0)
+    f.tail.slope:SetThickness(edge)
+    f.tail.slope:SetStartPoint("TOPRIGHT", f.tail, 0, 0)
+    f.tail.slope:SetEndPoint("BOTTOMLEFT", f.tail, edge / 2, 0)
+    paint(f)
     return true
 end
 
@@ -161,6 +263,27 @@ end
 local function hide(f)
     f:Hide()
     f:ClearAllPoints()
+end
+
+-- The class of whoever last said each line, so a bubble can wear its speaker's
+-- color: the bubble itself doesn't say who is talking. Only a few lines are
+-- kept, and only plain ones (chat lockdown makes them secret).
+Bubbles.SPEAKERS = 20
+local spoken, spokenOrder = {}, {}
+
+function Bubbles.Heard(text, guid)
+    if DUI.IsSecret(text) or DUI.IsSecret(guid) then return end
+    if type(text) ~= "string" or text == "" or type(guid) ~= "string" or guid == "" then return end
+    if type(GetPlayerInfoByGUID) ~= "function" then return end
+    local _, class = GetPlayerInfoByGUID(guid)
+    if DUI.IsSecret(class) or type(class) ~= "string" then return end
+    if spoken[text] == nil then
+        spokenOrder[#spokenOrder + 1] = text
+        if #spokenOrder > Bubbles.SPEAKERS then
+            spoken[table.remove(spokenOrder, 1)] = nil
+        end
+    end
+    spoken[text] = class
 end
 
 -- Gives the game its bubble back and lets the stand-in fade away.
@@ -198,6 +321,7 @@ local function draw(outer)
     local was = shown[outer] and f:IsShown()
     if was and f.said == text and childOf[outer] == child then return end
     f.said = text
+    f.class = spoken[text]
     f.text:SetText(text)
     -- The game colors a bubble by its kind of chat; keep that color.
     local okC, r, g, b = pcall(fs.GetTextColor, fs)
@@ -284,7 +408,8 @@ function Bubbles.Build(mod)
     -- A burst of lines in one frame (a whole group talking) looks once, the next
     -- frame; a line in a later frame checks again.
     local queuedAt
-    local function onMessage()
+    local function onMessage(event, text, _, _, _, _, _, _, _, _, _, _, guid)
+        if event ~= "CHAT_MSG_MONSTER_SAY" and event ~= "CHAT_MSG_MONSTER_YELL" then Bubbles.Heard(text, guid) end
         -- With the skin off, still look when balloons are owed their alpha.
         if not on() and (inside or not next(owed)) then return end
         local now = GetTime()

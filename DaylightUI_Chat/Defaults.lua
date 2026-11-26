@@ -73,6 +73,10 @@ ns.DEFAULTS = {
     sideTextSize = 14, -- used when sideTextSizeOwn is on
     bubbles = true, -- restyle speech bubbles too
     bubbleSize = 12,        -- the bubbles' font size
+    bubbleBand = 4,         -- the accent line along a bubble's bottom, 0 = none
+    bubbleAlpha = 0.92,     -- how solid a bubble's background is
+    bubbleCut = true,       -- the bottom-right corner cut at 45 degrees; off = four square corners
+    bubbleColor = "accent", -- the line's color: "accent" or "class" (the speaker's)
     -- Daylight chat box filters and alerts (Extras.lua)
     spamRepeats = true, -- drop the same message from the same person within a minute (public channels)
     spamAds = true, -- drop gold-seller spam in public channels

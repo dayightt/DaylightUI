@@ -771,16 +771,16 @@ T.test("chat: a speech bubble is drawn by a frame of Daylight UI's own, the game
     stub.SetBubbles({ b1, b2 })
     -- The client refuses text on a font string with no font yet.
     stub.FontRule = true
-    local errs = 0
+    local errs, last = 0, nil
     local onError = DaylightUI.SafeCall
     DaylightUI.SafeCall = function(fn, ...)
-        local ok = pcall(fn, ...)
-        if not ok then errs = errs + 1 end
+        local ok, e = pcall(fn, ...)
+        if not ok then errs, last = errs + 1, e end
     end
     stub.FireEvent("CHAT_MSG_SAY")
     stub.RunTimers()
     DaylightUI.SafeCall, stub.FontRule = onError, nil
-    T.eq(errs, 0, "no error drawing a new bubble")
+    T.eq(errs, 0, "no error drawing a new bubble: " .. tostring(last))
     local mine = Bubbles.OverlayOf(b1)
     T.truthy(mine, "drawn")
     T.eq(mine:GetParent(), UIParent, "on UIParent, outside the world layer")
@@ -794,6 +794,81 @@ T.test("chat: a speech bubble is drawn by a frame of Daylight UI's own, the game
     T.isnil(DaylightUI.Style.GetShell(art), "nothing built on the game's frame")
     T.eq(select(2, mine:GetPoint(1)), art, "follows the balloon")
     T.isnil(Bubbles.OverlayOf(b2), "forbidden (an instance): left alone")
+end)
+
+T.test("chat: a speech bubble has square corners with the bottom-right one cut, an accent band and a tail", function()
+    login()
+    local Style = DaylightUI.Style
+    local Bubbles = stub.chatModule.Bubbles
+    local outer = makeBubble("Anyone for Deadmines?")
+    stub.SetBubbles({ outer })
+    Bubbles.DressAll()
+    local mine = Bubbles.OverlayOf(outer)
+    T.truthy(Style.GetCut(mine) > 0, "the corner cut")
+    T.isnil(Style.GetSlant(mine), "no angled ends")
+    T.truthy(mine.band and mine.band:IsShown(), "an accent band along the bottom")
+    T.eq(select(1, mine.band:GetPoint(1)), "BOTTOMLEFT", "at the bottom")
+    T.truthy(mine.band:GetNumMaskTextures() > 0, "the band cut with the corner")
+    T.truthy(mine.tail and mine.tail:IsShown(), "a tail")
+    T.eq(select(3, mine.tail:GetPoint(1)), "BOTTOMLEFT", "hung under the bubble")
+end)
+
+T.test("chat: a bubble's line can wear its speaker's class; the tail stays dark with colored edges", function()
+    login()
+    local Style = DaylightUI.Style
+    local Bubbles = stub.chatModule.Bubbles
+    stub.units.party1 = { name = "Jaina", class = "MAGE", guid = "Player-1-0000JAIN", isPlayer = true }
+    DaylightUI:Set("Chat", "bubbleColor", "class")
+    local said = makeBubble("Anyone for Deadmines?")
+    local npc = makeBubble("You no take candle!")
+    local locked = makeBubble("Hush now")
+    stub.SetBubbles({ said, npc, locked })
+    stub.FireEvent("CHAT_MSG_SAY", "Anyone for Deadmines?", "Jaina", "", "", "", "", 0, 0, "", 0, 1, "Player-1-0000JAIN")
+    stub.FireEvent("CHAT_MSG_MONSTER_SAY", "You no take candle!", "Kobold", "", "", "", "", 0, 0, "", 0, 2, "Creature-0-1")
+    -- Chat lockdown: the line and its sender come as secrets.
+    stub.FireEvent("CHAT_MSG_SAY", stub.Secret("Hush now"), "Jaina", "", "", "", "", 0, 0, "", 0, 3, stub.Secret("Player-1-0000JAIN"))
+    stub.RunTimers()
+    local mine, theirs, hushed = Bubbles.OverlayOf(said), Bubbles.OverlayOf(npc), Bubbles.OverlayOf(locked)
+    local lo, hi = DaylightUI.Gradients.RGB("MAGE")
+    local g = mine.band.__gradient
+    T.truthy(g, "a gradient line")
+    T.near(g[3].r, hi[1], 0.01, "the mage pair's light end")
+    T.isnil(theirs.class, "an NPC has no class")
+    T.isnil(hushed.class, "a secret line teaches nothing")
+    local accentHi = select(2, Style.AccentPair())
+    if accentHi then T.near(theirs.band.__gradient[3].r, accentHi[1], 0.01, "the NPC keeps the accent") end
+    -- The tail: the bubble's dark, with the line's color only on its edges.
+    local bg = Style.BACKGROUND
+    T.near(select(1, mine.tail.tex:GetVertexColor()), bg[1], 0.01, "the tail is dark")
+    T.truthy(mine.tail.side:IsShown() and mine.tail.slope:IsShown(), "edged")
+    local t = Bubbles.TAIL_AT
+    T.near(mine.tail.side.__color[1], lo[1] + (hi[1] - lo[1]) * t, 0.2, "its edges in the mage colors")
+    DaylightUI:Set("Chat", "bubbleColor", "accent")
+end)
+
+T.test("chat: the bubble options take the accent line away, square the corner and thin the background", function()
+    login()
+    local Style = DaylightUI.Style
+    local Bubbles = stub.chatModule.Bubbles
+    local outer = makeBubble("Anyone for Deadmines?")
+    stub.SetBubbles({ outer })
+    Bubbles.DressAll()
+    local mine = Bubbles.OverlayOf(outer)
+    local h = mine:GetHeight()
+    DaylightUI:Set("Chat", "bubbleBand", 0)
+    DaylightUI:Set("Chat", "bubbleCut", false)
+    DaylightUI:Set("Chat", "bubbleAlpha", 0.5)
+    stub.RunTimers()
+    T.falsy(mine.band:IsShown(), "no accent line")
+    T.truthy(mine:GetHeight() < h, "the bubble shrinks by the line")
+    T.eq(Style.GetCut(mine), 0, "four square corners")
+    T.eq(Style.GetShell(mine).opts.bgAlpha, 0.5, "the background as set")
+    T.truthy(mine.tail:IsShown(), "the tail stays")
+    DaylightUI:Set("Chat", "bubbleBand", 6)
+    DaylightUI:Set("Chat", "bubbleCut", true)
+    stub.RunTimers()
+    T.truthy(mine.band:IsShown(), "the line back")
+    T.truthy(Style.GetCut(mine) > 0, "cut again")
 end)
 
 T.test("chat: a zero unbounded width falls back to the measured speech line", function()

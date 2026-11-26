@@ -21,7 +21,7 @@ DaylightUI:RegisterModule("Chat", {
     OnSettingChanged = function(mod, path)
         -- The bubbles live apart from the chat. Re-fonting every chat window reflows
         -- its whole history, and on each step of the bubble size slider that made the drag hitch.
-        if path ~= "bubbles" and path ~= "bubbleSize" then ns.Chat.Refresh(mod) end
+        if not (type(path) == "string" and path:find("^bubble")) then ns.Chat.Refresh(mod) end
         ns.Bubbles.Refresh()
     end,
     OnStyleChanged = function() ns.Bubbles.Refresh() end,
