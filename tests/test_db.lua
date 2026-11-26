@@ -367,3 +367,24 @@ T.test("a fresh install and a new profile are not set to English chat tags", fun
     T.truthy(p, "a profile is made")
     T.eq(p.tagLetters1, true, "a new profile is marked too")
 end)
+
+T.test("bar ends: one switch for both ends is split so every end looks as it did", function()
+    stub.Load({ before = function()
+        DaylightUIDB = { version = 2, profileData = {
+            Off = { modules = { InfoPanel = { databar = { angled = false } }, QoL = { lootFeedSlant = false, lootFeedSlantSide = "left" } } },
+            Left = { modules = { QoL = { lootFeedSlantSide = "left" } } },
+            Right = { modules = { QoL = { lootFeedSlantSide = "right" } } },
+            Plain = { modules = { InfoPanel = { databar = { height = 30 } } } } } }
+    end })
+    local pd = DaylightUIDB.profileData
+    T.eq(pd.Off.modules.InfoPanel.databar.angledRight, false, "the data bar's right end straight as before")
+    T.eq(pd.Off.modules.QoL.lootFeedLeft, false); T.eq(pd.Off.modules.QoL.lootFeedRight, false)
+    T.isnil(pd.Off.modules.QoL.lootFeedSlant, "the old keys go")
+    T.isnil(pd.Off.modules.QoL.lootFeedSlantSide)
+    T.isnil(pd.Left.modules.QoL.lootFeedLeft, "angled on the left: the default")
+    T.eq(pd.Left.modules.QoL.lootFeedRight, false)
+    T.eq(pd.Right.modules.QoL.lootFeedLeft, false)
+    T.isnil(pd.Right.modules.QoL.lootFeedRight)
+    T.isnil(pd.Plain.modules.InfoPanel.databar.angledRight, "untouched: nothing written")
+    T.eq(pd.Plain.barEnds1, true)
+end)

@@ -70,6 +70,12 @@ local ALL = { meter = true, threat = true, summary = true }
 -- so only a window of the player's own grays its rows while switched off.
 local function off(get) return MO.picked ~= "main" and get("win.enabled") ~= true end
 
+-- The bars' two end menus (Options.EndRows), on meter and threat windows: the
+-- right end is angled by angled, the left by angledLeft.
+local endRows = DUI.Options.EndRows({ name = "Bar",
+    left = { on = "win.angledLeft", flip = "win.flipLeft" }, right = { on = "win.angled", flip = "win.flipRight" } })
+for _, row in ipairs(endRows) do row.kinds = BARS end
+
 -- The mode names, from the meter's own list.
 local function modeChoices()
     local names, order = {}, {}
@@ -412,8 +418,9 @@ function MO.Page()
         win({ type = "color", key = "win.barCustom", label = "Custom bar color", kinds = BARS,
               hidden = function(get) return get("win.barColor") ~= "custom" end,
               desc = "The bars' color when Bar color is One color." }),
-        win({ type = "toggle", key = "win.angled", label = "Angled bar ends", kinds = BARS, since = "1.7.0",
-              desc = "The bars' filled part ends in a slanted edge. When off, it ends square." }),
+        -- Each end of the bars on its own: the right end is where the filled part ends.
+        win(endRows[1]),
+        win(endRows[2]),
         win({ type = "toggle", key = "win.gradient", label = "Bar gradient", kinds = BARS,
               desc = "The bars shade from dark to bright instead of one flat color. The color pairs are on General > Gradients." }),
         win({ type = "toggle", key = "win.classText", label = "Class-colored names and numbers", kinds = METER,

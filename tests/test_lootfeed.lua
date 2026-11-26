@@ -459,10 +459,12 @@ T.test("loot feed: angled ends can be turned off (straight ribbons, narrower)", 
     local r = live(F)[1]
     T.truthy(DaylightUI.Style.GetSlant(r).cut > 0, "angled by default")
     local w = r:GetWidth()
-    DaylightUI:Set("QoL", "lootFeedSlant", false)
+    DaylightUI:Set("QoL", "lootFeedLeft", false)
+    DaylightUI:Set("QoL", "lootFeedRight", false)
     T.eq(DaylightUI.Style.GetSlant(r).cut, 0, "straight ends")
     T.truthy(r:GetWidth() < w, "no room kept for the cut")
-    DaylightUI:Set("QoL", "lootFeedSlant", true)
+    DaylightUI:Set("QoL", "lootFeedLeft", true)
+    DaylightUI:Set("QoL", "lootFeedRight", true)
     T.truthy(DaylightUI.Style.GetSlant(r).cut > 0, "angled again")
 end)
 
@@ -473,14 +475,15 @@ T.test("loot feed: angled on one end only, either side, the other straight", fun
     local Style = DaylightUI.Style
     local w = r:GetWidth()
     T.eq(Style.GetSlant(r).side, "both", "both ends by default")
-    DaylightUI:Set("QoL", "lootFeedSlantSide", "right")
+    DaylightUI:Set("QoL", "lootFeedLeft", false)
     local sl = Style.GetSlant(r)
     T.eq(sl.side, "right", "the right end alone"); T.isnil(sl.under, "top corner out, as in the pair")
     T.truthy(r:GetWidth() < w, "no room kept for the straight end")
-    DaylightUI:Set("QoL", "lootFeedSlantSide", "left")
+    DaylightUI:Set("QoL", "lootFeedLeft", true)
+    DaylightUI:Set("QoL", "lootFeedRight", false)
     sl = Style.GetSlant(r)
     T.eq(sl.side, "left"); T.eq(sl.under, "left", "leaning under, as in the pair")
-    DaylightUI:Set("QoL", "lootFeedSlantSide", "both")
+    DaylightUI:Set("QoL", "lootFeedRight", true)
     T.eq(Style.GetSlant(r).side, "both")
     T.near(r:GetWidth(), w, 0.5, "as wide as before")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -734,4 +737,39 @@ T.test("loot feed log: its options are on the loot page, the clear button and fa
     DaylightUI:Set("QoL", "lootFeedStyle", "log")
     T.falsy(DaylightUI.Options.IsHidden(page, clear))
     T.falsy(DaylightUI.Options.IsHidden(page, fade))
+end)
+
+T.test("bar ends: each loot feed end leans either way on its own; the menus show the shape, mirrored too", function()
+    local F = login()
+    loot("You receive loot: " .. FANG .. ".")
+    local r = live(F)[1]
+    local Style, O = DaylightUI.Style, DaylightUI.Options
+    local page = O.GetPage("QoL.loot")
+    local rows = {}
+    for _, g in ipairs(page.groups) do
+        for _, it in ipairs(g.items) do rows[it.label] = it end
+    end
+    local left, right = rows["Loot feed left end"], rows["Loot feed right end"]
+    T.truthy(left and right, "two end menus")
+    T.eq(O.Get(page, left), "slash", "/--/ by default: parallel ends")
+    T.eq(O.Get(page, right), "slash")
+    T.truthy(O.IsDefault(page, left))
+    -- \--/ : the left end turned round.
+    O.Set(page, left, "backslash")
+    local sl = Style.GetSlant(r)
+    T.eq(sl.side, "both"); T.isnil(sl.under, "both ends top corner out")
+    T.eq(DaylightUI:Get("QoL", "lootFeedFlipLeft"), true)
+    -- /--\
+    O.Set(page, left, "slash")
+    O.Set(page, right, "backslash")
+    T.eq(Style.GetSlant(r).under, "both")
+    -- Mirrored, the feed's lean turns round and the menus say so.
+    O.Set(page, right, "slash")
+    DaylightUI:Set("QoL", "lootFeedFlip", true)
+    settle()
+    T.eq(O.Get(page, left), "backslash"); T.eq(O.Get(page, right), "backslash")
+    T.eq(Style.GetSlant(live(F)[1]).under, "right")
+    O.Set(page, left, "straight")
+    T.eq(Style.GetSlant(live(F)[1]).side, "right")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -273,26 +273,35 @@ local function qualityColor(e)
     return { DUI.Win.Parts.QualityColor(e.quality) }
 end
 
--- Which ends are angled (lootFeedSlantSide): "both", "left" or "right".
-local function slantSide()
-    local s = db("lootFeedSlantSide")
-    return (s == "left" or s == "right") and s or "both"
+-- Each end on its own: lootFeedLeft / lootFeedRight angle it. Both lean with
+-- the side the feed lines up on (parallel ends), and lootFeedFlipLeft /
+-- lootFeedFlipRight lean that end the other way.
+local function angledAt(end_) return db(end_ == "left" and "lootFeedLeft" or "lootFeedRight") ~= false end
+
+-- Whether an end leans under (its bottom corner out): its usual lean in the
+-- pair, turned round by its flip.
+function Feed.FlipsAt(end_, mirrored, flip)
+    local usual = (mirrored and "right" or "left") == end_
+    return usual ~= (flip == true)
+end
+local function underAt(end_)
+    return Feed.FlipsAt(end_, flipped(), db(end_ == "left" and "lootFeedFlipLeft" or "lootFeedFlipRight"))
 end
 
 -- The cut of the angled ends, 0 for straight ends. With end_ ("left" or
 -- "right") it returns that end's cut only.
 local function cutOf(row, end_)
-    if db("lootFeedSlant") == false then return 0 end
-    local side = slantSide()
-    if end_ and side ~= "both" and side ~= end_ then return 0 end
+    if end_ then
+        if not angledAt(end_) then return 0 end
+    elseif not (angledAt("left") or angledAt("right")) then
+        return 0
+    end
     return Pixel.Snap(row, Feed.ROW_H * Feed.SLANT)
 end
 
--- The angled ends, parallel, leaning with the side the feed lines up on;
--- one end alone keeps the lean it has in the pair.
 local function slant(row)
-    local side, under = slantSide(), flipped() and "right" or "left"
-    Style.Slant(row, side, cutOf(row), nil, (side == "both" or side == under) and under or nil)
+    local ends, under = Style.EndsOf(angledAt("left"), underAt("left"), angledAt("right"), underAt("right"))
+    Style.Slant(row, ends, ends and cutOf(row) or 0, nil, under)
 end
 
 -- Where the rows' border, shadow and background come from (Style.LookOf).

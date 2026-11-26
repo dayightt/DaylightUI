@@ -723,6 +723,24 @@ function DB.ProcsOff(p)
     if p.modules.Procs.enabled == nil then p.modules.Procs.enabled = false end
 end
 
+-- Bar ends became one setting per end. Where one switch covered both ends,
+-- the saved choice is split so each end looks as it did: the data bar's
+-- angled (now its left end) gives its right end the same, and the loot
+-- feed's lootFeedSlant / lootFeedSlantSide become lootFeedLeft / lootFeedRight.
+function DB.SplitBarEnds(p)
+    local mods = type(p.modules) == "table" and p.modules or nil
+    local info = mods and type(mods.InfoPanel) == "table" and mods.InfoPanel or nil
+    local bar = info and type(info.databar) == "table" and info.databar or nil
+    if bar and bar.angled == false and bar.angledRight == nil then bar.angledRight = false end
+    local qol = mods and type(mods.QoL) == "table" and mods.QoL or nil
+    if qol and (qol.lootFeedSlant ~= nil or qol.lootFeedSlantSide ~= nil) then
+        local on, side = qol.lootFeedSlant ~= false, qol.lootFeedSlantSide
+        if not on or side == "right" then qol.lootFeedLeft = false end
+        if not on or side == "left" then qol.lootFeedRight = false end
+        qol.lootFeedSlant, qol.lootFeedSlantSide = nil, nil
+    end
+end
+
 local function migrate(sv)
     if type(sv.profileData) ~= "table" then sv.profileData = {} end
     local pd = sv.profileData
@@ -783,6 +801,10 @@ local function migrate(sv)
         if type(p) == "table" and not p.procsOff1 then
             p.procsOff1 = true
             DB.ProcsOff(p)
+        end
+        if type(p) == "table" and not p.barEnds1 then
+            p.barEnds1 = true
+            DB.SplitBarEnds(p)
         end
         if type(p) == "table" and not p.localFont1 then
             p.localFont1 = true

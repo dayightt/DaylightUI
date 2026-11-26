@@ -51,6 +51,8 @@ ns.DEFAULTS = {
               -- own row in view.
               rank = false, icons = "class", showTotal = true, showRate = true, showShare = true, showMe = true,
               rowGap = 1, angled = true,   -- angled: the fill's leading edge cut at an angle
+              -- angledLeft: the bars' left end cut too; flipLeft/flipRight: that end leans the other way.
+              angledLeft = false, flipLeft = false, flipRight = false,
               -- header is "always" or "hover" (only on mouseover).
               header = "always", headerTotal = false,
               numbers = "short",   -- short (12.3K) | full (12,345), used everywhere amounts show
@@ -120,6 +122,10 @@ ns.DEFAULTS = {
     databar = { enabled = false, widthPct = 60, height = 24, textSize = 12, icons = true, labels = false, line = true,
                 -- No border by default: on a strip this thin the top accent line is enough.
                 frameStyle = DaylightUI.Style.LookDefaults({ borderAlpha = 0, heavyBorder = false }), angled = true,
+                -- Each end on its own: angled is the left end, angledRight the right one
+                -- (a core step split the old one switch, DB.SplitBarEnds); flipLeft and
+                -- flipRight lean that end the other way, its bottom corner out.
+                angledRight = true, flipLeft = false, flipRight = false,
                 left1 = "location", left2 = "coords", left3 = "xp", left4 = "durability",
                 center = "time", numberColor = "accent", numberCustom = ink(INK.VALUE),
                 right1 = "bags", right2 = "social", right3 = "gold", right4 = "system",

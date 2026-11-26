@@ -1155,8 +1155,10 @@ T.test("data bar: angled ends are a switch, the border a slider from none", func
     T.eq(shell.opts.noBorder, false, "a border")
     T.near(shell.border.LEFT.__vertex[4], 0.4)
     barOn(DUI, "databar.angled", false)
+    barOn(DUI, "databar.angledRight", false)
     T.eq(DUI.Style.GetSlant(bar().body).side, nil, "straight ends")
     barOn(DUI, "databar.angled", true)
+    barOn(DUI, "databar.angledRight", true)
     T.eq(DUI.Style.GetSlant(bar().body).side, "both", "angled again")
 end)
 
@@ -1739,4 +1741,16 @@ T.test("data texts: with no equipment sets the text says so and a click does not
     T.isnil(DUI.Widgets.menuOwner, "no empty menu")
     hover(4)
     T.truthy(tipText():find("No equipment sets yet.", 1, true), tipText())
+end)
+
+T.test("bar ends: the data bar's ends each on their own; the tab leans the same way", function()
+    local DUI = login()
+    barOn(DUI)
+    local S = DUI.Style
+    T.eq(S.GetSlant(bar().body).side, "both")
+    barOn(DUI, "databar.flipLeft", true)
+    T.eq(S.GetSlant(bar().body).under, "left", "/--/")
+    T.eq(S.GetSlant(bar().tab).under, "left", "the tab too")
+    barOn(DUI, "databar.angledRight", false)
+    T.eq(S.GetSlant(bar().body).side, "left", "the right end straight on its own")
 end)

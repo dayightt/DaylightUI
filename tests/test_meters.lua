@@ -2211,3 +2211,31 @@ T.test("meter rows: the class icon follows the unit frames' icon set, sheet cell
     T.eq(icon.__texture, "Pack\\WARRIOR.tga", "the picked set's file")
     T.eq(select(1, icon:GetTexCoord()), 0.125, "and its cell")
 end)
+
+T.test("bar ends: meter and threat rows take both ends, each leaning either way on its own", function()
+    local DUI = login()
+    local S = DUI.Style
+    local M = stub.infopanel.Meter
+    stub.meter.sources = { { name = "A", classFilename = "MAGE", totalAmount = 10 } }
+    DUI:Set("InfoPanel", "meter.angledLeft", true)
+    DUI:Set("InfoPanel", "meter.flipLeft", true)
+    DUI:Set("InfoPanel", "meter.flipRight", true)
+    stub.RunTimers()
+    M.Draw()
+    local bar = M.rows[1].bar
+    local sl = S.GetSlant(bar)
+    T.eq(sl.side, "left"); T.eq(sl.under, "left", "the left end flipped: /")
+    local edge, _, under = S.GetFillAngle(bar)
+    T.eq(edge, "right"); T.eq(under, true, "the right end flipped: \\")
+    for _, tex in ipairs({ bar:GetStatusBarTexture(), S.BarBack(bar) }) do
+        T.truthy(#(tex.__masks or {}) <= 3)
+    end
+    DUI:Set("InfoPanel", "threat.angledLeft", true)
+    stub.RunTimers()
+    local TM = stub.infopanel.ThreatMeter
+    T.eq(S.GetSlant(TM.rows[1].bar).side, "left", "the threat meter's too")
+    DUI:Set("InfoPanel", "meter.angledLeft", false)
+    stub.RunTimers()
+    M.Draw()
+    T.isnil(S.GetSlant(M.rows[1].bar).side, "straight again on the left")
+end)

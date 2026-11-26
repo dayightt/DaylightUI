@@ -133,8 +133,10 @@ ns.DEFAULTS = {
     lootFeedNameColor = "quality", -- quality | white
     lootFeedBack = true,    -- the ribbon's background
     lootFeedFrame = DaylightUI.Style.LookDefaults(), -- border, shadow and opacity, or General's
-    lootFeedSlant = true,   -- the ribbons' angled ends; off = straight
-    lootFeedSlantSide = "both", -- which ends are angled: both | left | right
+    -- Each end of the ribbons on its own: angled or straight, and flipped
+    -- against the lean it has (parallel ends, leaning with the side the feed
+    -- lines up on). A core step split the old lootFeedSlant / lootFeedSlantSide.
+    lootFeedLeft = true, lootFeedRight = true, lootFeedFlipLeft = false, lootFeedFlipRight = false,
     lootFeedBorderColor = "normal", -- normal | quality | accent | custom
     lootFeedBorderCustom = { DaylightUI.Style.ACCENT[1], DaylightUI.Style.ACCENT[2], DaylightUI.Style.ACCENT[3] },
     lootFeedShine = true,   -- the light that runs across a new line

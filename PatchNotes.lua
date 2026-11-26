@@ -14,7 +14,7 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Other addons", "When another addon does the same job as part of Daylight UI (Platynator, Baganator, Prat, Leatrix Plus...), one box at login lets you pick which to keep and turns the other off" },
         { "Test mode", "A new Auras tick in the test mode box hides all the sample buffs and debuffs, so you can see the frames themselves" },
-        { "Unit frames", "Each end of a frame, raid tile, cast bar, swing timer, power bar and the personal display can be straight or lean either way, so a bar can be shaped /--/, \\--/, /--\\ or \\--\\. Heals, shields, cast bars and everything inside follow, and bars hung under a flipped end lean back in" },
+        { "Angled bars", "Each end of an angled bar can now be straight or lean either way, on its own, so a bar can be shaped /--/, \\--/, /--\\ or \\--\\: unit frames, raid tiles, cast bars, swing timers, power bars, the personal display, meters, the data bar, the loot feed and the breath bar. Heals, shields and everything inside the bars follow, and bars hung under a flipped end lean back in" },
     }, fixed = {
         { "Setup guide", "Picking EllesmereUI Cooldown Manager or Minimap no longer turns off all of your action bars or info panel" },
         { "Chat", "Whisper from the group finder or friends list lets you type right away, no second click" },

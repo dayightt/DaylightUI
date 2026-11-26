@@ -89,6 +89,34 @@ local flightLook = DaylightUI.Options.LookRows("flightFrame", flightOff, nil, {
       disabled = function(get) return get("flightBorderColor") ~= "custom" end },
 })
 
+-- A loot feed end's menu (straight, / or \). Its lean is kept against the
+-- lean it has in the pair, which follows Flip the loot feed, so a mirrored
+-- feed keeps its look; the menu shows the shape it has now.
+local function lootEnd(end_)
+    local on = end_ == "left" and "lootFeedLeft" or "lootFeedRight"
+    local flip = end_ == "left" and "lootFeedFlipLeft" or "lootFeedFlipRight"
+    local function get(k) return DaylightUI:Get("QoL", k) end
+    local function glyph(isOn, isFlip, mirrored)
+        return DaylightUI.Style.EndGlyph(end_, isOn ~= false, ns.LootFeed.FlipsAt(end_, mirrored == true, isFlip))
+    end
+    return { type = "dropdown", key = on, alsoKeys = { flip }, label = "Loot feed " .. end_ .. " end",
+        values = DaylightUI.Options.END_VALUES, order = DaylightUI.Options.END_ORDER,
+        desc = "Straight, or angled either way. On the right end / puts the top corner out and \\ the bottom one; on the left end it's the other way round. Each end is set on its own.",
+        disabled = function(g) return g("lootFeed") ~= true end,
+        get = function() return glyph(get(on), get(flip), get("lootFeedFlip")) end,
+        set = function(v)
+            local isOn, under = DaylightUI.Style.EndFromGlyph(end_, v)
+            -- Kept against the usual lean: flipped when it differs from it.
+            local usual = ns.LootFeed.FlipsAt(end_, get("lootFeedFlip") == true, false)
+            DaylightUI:Set("QoL", flip, isOn and (under ~= usual) or false)
+            DaylightUI:Set("QoL", on, isOn)
+        end,
+        default = function()
+            local d = ns.DEFAULTS
+            return glyph(d[on], d[flip], d.lootFeedFlip)
+        end }
+end
+
 ns.OPTIONS = { pages = {
     { id = "qol", label = "Quality of Life",
       desc = "Small helpers for looting, quests, trainers and more.",
@@ -274,12 +302,8 @@ ns.OPTIONS = { pages = {
         { label = "Background and border", items = {
             { type = "toggle", key = "lootFeedBack", label = "Loot feed background", disabled = lootOff,
               desc = "The dark ribbon behind each line. When off, only the icon and text show." },
-            { type = "toggle", key = "lootFeedSlant", label = "Loot feed angled ends", disabled = lootOff,
-              desc = "Cuts the ends of each line at an angle. When off, the ends are straight." },
-            { type = "dropdown", key = "lootFeedSlantSide", label = "Loot feed angled side",
-              values = { both = "Both ends", left = "Left end", right = "Right end" }, order = { "both", "left", "right" },
-              desc = "Which ends of each line are cut at an angle. The other end stays straight.",
-              disabled = function(get) return get("lootFeed") ~= true or get("lootFeedSlant") == false end },
+            lootEnd("left"),
+            lootEnd("right"),
             { type = "toggle", key = "lootFeedShine", label = "Light across new loot feed lines", disabled = lootOff,
               desc = "A soft light in the line's color runs across it as it comes in or adds up." },
         } },

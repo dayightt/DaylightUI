@@ -5119,3 +5119,26 @@ T.test("skins: a traced game button with a secret size hides and tweens without 
     T.eq(tr.p, 1)
     T.truthy(tr.right:IsShown(), "traced all round")
 end)
+
+T.test("bar ends: the breath bar's ends each on their own, its fill leans with the right end", function()
+    local t
+    local S = login(function()
+        local c = CreateFrame("Frame", "MirrorTimerContainer", UIParent)
+        t = CreateFrame("Frame", nil, c)
+        t.StatusBar = CreateFrame("StatusBar", nil, t)
+        t.Text = t:CreateFontString()
+        t.Setup = function() end
+        c.mirrorTimers = { t }
+    end)
+    local Style = DaylightUI.Style
+    local h = S.Breath.holders[t]
+    DaylightUI:Set("Skins", "breathSlantLeft", true)
+    DaylightUI:Set("Skins", "breathUnder", true)
+    local sl = Style.GetSlant(h)
+    T.eq(sl.side, "both"); T.eq(sl.under, "right", "both ends angled, the right one flipped")
+    local _, _, under = Style.GetFillAngle(h.bar)
+    T.eq(under, true, "the fill leans like the right end")
+    DaylightUI:Set("Skins", "breathSlant", false)
+    T.eq(Style.GetSlant(h).side, "left", "the left end alone")
+    T.falsy(Style.GetFillAngle(h.bar), "the fill square toward a straight end")
+end)

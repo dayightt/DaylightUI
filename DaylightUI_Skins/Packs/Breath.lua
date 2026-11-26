@@ -60,9 +60,15 @@ local function layout(h)
     -- small UI scale (8 px at 0.65 showed a black bar).
     local height = Pixel.Snap(h, Breath.HEIGHT) + 2 * T
     h:SetSize(2 * Pixel.Snap(h, Breath.WIDTH / 2), height)
-    local cut = DUI:Get("Skins", "breathSlant") == false and 0 or Pixel.Snap(h, height * Breath.SLANT)
-    Style.Slant(h, "right", cut)
-    Style.AngleFill(h.bar, "right", cut * (height - 2 * T) / height)
+    -- Each end on its own, flipped or not (its bottom corner out). The fill runs
+    -- toward the right end and takes its shape.
+    local function get(k) return DUI:Get("Skins", k) end
+    local ends, under = Style.EndsOf(get("breathSlantLeft") == true, get("breathUnderLeft"),
+        get("breathSlant") ~= false, get("breathUnder"))
+    local cut = ends and Pixel.Snap(h, height * Breath.SLANT) or 0
+    Style.Slant(h, ends, cut, nil, under)
+    local edge = (ends == "both" or ends == "right") and "right" or nil
+    Style.AngleFill(h.bar, edge, cut * (height - 2 * T) / height, (under == "right" or under == "both") and edge ~= nil)
     h.bar:ClearAllPoints()
     h.bar:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
     h.bar:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
@@ -113,7 +119,8 @@ Engine.Register({ key = "breath", pack = "system", apply = function(Kit)
         for _, h in pairs(Breath.holders) do layout(h) end
     end)
     DUI.On("SettingChanged", function(scope, path)
-        if scope ~= "Skins" or path ~= "breathSlant" then return end
+        if scope ~= "Skins" or not (path == "breathSlant" or path == "breathSlantLeft"
+            or path == "breathUnder" or path == "breathUnderLeft") then return end
         for _, h in pairs(Breath.holders) do layout(h) end
     end)
 end })

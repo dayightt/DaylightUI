@@ -240,7 +240,11 @@ function Bar.Apply(db)
     Bar.on = c.enabled == true
     DUI.Movers.Suspend(Bar.KEY, not Bar.on)
     P.Look(body, Bar.LOOK)
-    if c.angled == true then Style.Slant(body, "both", Bar.TAB_CUT) else Style.Slant(body, nil, 0) end
+    -- Each end on its own, flipped or not; the tab in the middle keeps both ends
+    -- angled and leans each the way that end does.
+    local ends, under = Style.EndsOf(c.angled == true, c.flipLeft, c.angledRight ~= false, c.flipRight)
+    Style.Slant(body, ends, ends and Bar.TAB_CUT or 0, nil, under)
+    Style.Slant(Bar.tab, "both", Bar.TAB_CUT, nil, select(2, Style.EndsOf(true, c.flipLeft, true, c.flipRight)))
     Bar.tab.fill:SetColorTexture(1, 1, 1, 1)
     Style.PaintAccent(Bar.tab.fill, Bar.TAB_ALPHA)
     f:SetHeight(c.height)

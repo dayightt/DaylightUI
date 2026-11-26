@@ -62,6 +62,11 @@ function Rows.New(parent, textSize, font)
     row.name:SetPoint("RIGHT", row.amount, "LEFT", -4, 0)
     row.name:SetWordWrap(false)
     row.amount:SetWordWrap(false)
+    -- The left end can be cut too (Rows.Layout): the fill's start and the
+    -- track's start, on the bar's own outline.
+    Style.Clip(bar, bar:GetStatusBarTexture(), "outer", nil, "left")
+    Style.Clip(bar, Style.BarBack(bar), "outer", nil, "left")
+    Style.Slant(bar, nil, 0)
     return row
 end
 
@@ -94,13 +99,21 @@ function Rows.Layout(row, cfg)
     row.bar:ClearAllPoints()
     row.bar:SetPoint("TOPLEFT", row, "TOPLEFT", x, -T)
     row.bar:SetPoint("BOTTOMRIGHT", row, "BOTTOMRIGHT", -T, T)
-    -- The fill's angled leading edge, and the track's end at the same angle,
-    -- unless switched off (cfg.angled).
-    local cut = cfg.angled ~= false and math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5)) or nil
-    Style.AngleFill(row.bar, cut and "right", cut)
-    Style.AngleBack(row.bar, cut and "right", cut)
-    -- The amount ends where the slant crosses the middle of the bar.
+    -- Each end on its own: the right one is the fill's angled leading edge
+    -- with the track's end at the same angle (cfg.angled), the left one the
+    -- fill's and track's start (cfg.angledLeft); either can lean the other
+    -- way (cfg.flipRight, cfg.flipLeft: its bottom corner out).
+    local full = math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5))
+    local cut = cfg.angled ~= false and full or nil
+    local flipRight = cut ~= nil and cfg.flipRight == true
+    Style.AngleFill(row.bar, cut and "right", cut, flipRight)
+    Style.AngleBack(row.bar, cut and "right", cut, flipRight)
+    local left = cfg.angledLeft == true
+    Style.Slant(row.bar, left and "left" or nil, left and full or 0, nil, (left and cfg.flipLeft == true) and "left" or nil)
+    -- The amount ends where the slant crosses the middle of the bar, and the
+    -- name starts there at an angled left end.
     row.amount:SetPoint("RIGHT", row.bar, "RIGHT", -4 - (cut and math.floor(cut / 2) or 0), 0)
+    row.name:SetPoint("LEFT", row.bar, "LEFT", 4 + (left and math.floor(full / 2) or 0), 0)
 end
 
 -- How solid the empty track is (0: the fill alone).
