@@ -241,9 +241,14 @@ CHECKS.free = function(p, g, now)
         return
     end
     g.seenAt = now
-    -- Missile Barrage: not while Clearcasting explains the free spell.
+    -- Missile Barrage: Clearcasting frees every spell, so while it's up the cost
+    -- can't tell. One already seen stays until its spell is cast (a "spend"
+    -- cast clears g.on) or its usual length is over; a new one isn't claimed.
     local other = p.unless and state[p.unless]
-    if on and other and other.on then on = false end
+    if on and other and other.on then
+        on = g.on == true and g.freeAt ~= nil and now - g.freeAt < p.dur
+    end
+    if on and not g.on then g.freeAt = now end
     -- Searing Light: not when another spell is free too (Inner Focus frees any spell).
     for _, id in ipairs(g.others or {}) do
         if cheap(g, id, 0) then on = false end
@@ -413,6 +418,13 @@ function Engine.Learn(fresh)
                 for _, id in ipairs(p.also or {}) do mapCast(id, p, "used") end
             end
             for _, id in ipairs(p.openCast or {}) do mapCast(id, p, "open") end
+            -- A free proc that can hide behind another (Missile Barrage under
+            -- Clearcasting) is spent by a cast of its own spell.
+            if p.mode == "free" and p.unless then
+                for _, list in ipairs(p.watch or {}) do
+                    for _, id in ipairs(list) do mapCast(id, p, "spend") end
+                end
+            end
             if p.mode == "reset" then
                 for _, id in ipairs(p.cast) do mapCast(id, p, "reset") end
             elseif p.mode == "casts" then
@@ -565,6 +577,8 @@ local function onCast(_, unit, _, spellID)
                 g.wait, g.castAt = true, now
             elseif r.role == "open" then
                 g.openCastAt = now
+            elseif r.role == "spend" then
+                g.on, g.freeAt = false, nil
             elseif r.role == "reset" then
                 g.on, g.resetCastAt = false, now
             elseif r.role == "stack" then

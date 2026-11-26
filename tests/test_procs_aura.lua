@@ -50,12 +50,48 @@ T.test("procs aura: a buff-only proc gets a game-shown flare built inside the au
     local _, _, _, _, y = part.frame:GetPoint(1)
     T.near(y, -118, 0.01)
     T.eq(c.__slots["DaylightUIProcs_redoubt_1"].filter, "HELPFUL")
-    T.deq(c.__slots["DaylightUIProcs_redoubt_1"].opts.candidateFilters.includeSpellIDs, { 20128, 20131, 20132, 20133, 20134 })
+    T.deq(c.__slots["DaylightUIProcs_redoubt_1"].opts.candidateFilters.includeSpellIDs,
+        { [20128] = true, [20131] = true, [20132] = true, [20133] = true, [20134] = true })
     -- Its lane is held, since Daylight UI can't see when the game shows it.
     local held = {}
     for _, k in pairs(ns.Flares.lanes.side or {}) do held[k] = true end
     T.truthy(held.vengeance and held.reckoning and held.sealecho, "every game-shown side flare holds a lane")
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
+
+-- The client's includeSpellIDs is a map of id -> true (Blizzard_AuraContainerUtil
+-- DoesAuraPassCandidateFilters reads includeSpellIDs[auraData.spellId]); a plain
+-- list of ids matches no real buff, so no game-shown flare could ever come up.
+T.test("procs aura: every buff a game-shown proc lists passes its slot's filter, by the client's rule", function()
+    local shows = require("aura_rules")
+    local you = { groupMember = true, canAssist = true }
+    for _, class in ipairs({ "PALADIN", "DRUID", "PRIEST", "ROGUE", "HUNTER" }) do
+        local ns = load(class)
+        local c = _G.DaylightUIProcsAuras
+        for _, p in ipairs(ns.Data.Mine()) do
+            if p.mode == "aura" and #(p.buffIds or {}) > 0 then
+                for n = 1, p.stacks or 1 do
+                    local slot = c.__slots[string.format("DaylightUIProcs_%s_%d", p.key, n)]
+                    T.truthy(slot, p.key .. " slot " .. n)
+                    for _, id in ipairs(p.buffIds) do
+                        T.truthy(shows(slot, you, { spellId = id }), p.key .. " shows on buff " .. id)
+                    end
+                    T.falsy(shows(slot, you, { spellId = 1 }), p.key .. " ignores other buffs")
+                end
+            end
+        end
+    end
+end)
+
+-- Unsealed Wrath stores an Echo of the seal that's up (the client's Cooldown
+-- Manager catalogue links these six to it; Seal of the Crusader has none).
+T.test("procs aura: Unsealed Wrath watches every seal's Echo", function()
+    local ns = load()
+    local want = { 1311701, 1311703, 1311704, 1311705, 1328198, 1328206 }
+    local got = {}
+    for _, id in ipairs(ns.Data.BY.sealecho.buffIds) do got[#got + 1] = id end
+    table.sort(got)
+    T.deq(got, want)
 end)
 
 T.test("procs aura: the flare's loop is added as the button's shown animation", function()

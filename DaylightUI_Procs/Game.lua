@@ -32,6 +32,14 @@ end
 
 local function moduleOn() return DUI:Get("Procs", "enabled") ~= false end
 
+-- The client looks a buff up by its id as a key (includeSpellIDs[spellId]),
+-- so a plain list of ids would match no buff at all.
+local function idSet(list)
+    local out = {}
+    for _, id in ipairs(list) do out[id] = true end
+    return out
+end
+
 -- A slot's brightness: the lowest one shown carries the stack count's whole
 -- look; each one above adds what one more stack brings, so the pile the
 -- client shows reads as the current count.
@@ -166,7 +174,7 @@ local function setup()
                 list[n] = slot
                 local ok = DUI.SafeCall(container.AddAuraSlot, container, slot.skey, "HELPFUL", {
                     initializeFrame = function(btn) DUI.SafeCall(build, p, n, btn) end,
-                    candidateFilters = { includeSpellIDs = p.buffIds },
+                    candidateFilters = { includeSpellIDs = idSet(p.buffIds) },
                 })
                 if not ok then list[n] = nil end
             end
