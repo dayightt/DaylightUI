@@ -1994,7 +1994,12 @@ function Style.Slant(frame, side, cut, ref, under)
     if not sl then
         sl = { clips = {} }
         slantOf[frame] = sl
+    end
+    -- A piece clipped (Style.Clip) before the first slant leaves the table made
+    -- already; the shell still needs its own clips then, or its ends stay square.
+    if not sl.shelled then
         local s = shellOf[frame]
+        sl.shelled = s ~= nil
         if s then
             -- Pieces at one end (a side edge, its corners) never reach the other end's
             -- cut, so they skip its mask. A masked texture is the slow kind of drawing
