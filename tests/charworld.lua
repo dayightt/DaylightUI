@@ -591,6 +591,8 @@ local function installPet()
     }
     _G.PET_HAPPINESS1, _G.PET_HAPPINESS2, _G.PET_HAPPINESS3 = "Unhappy", "Content", "Happy"
     _G.PET_DAMAGE_PERCENTAGE = "Pet is doing %d%% damage"
+    _G.PET_DIET_TEMPLATE, _G.PET_FOOD_DELIMIT = "Diet: %s", ", "
+    _G.GAINING_LOYALTY, _G.LOSING_LOYALTY = "Gaining loyalty", "Losing loyalty"
     _G.CAMERA_TRANSITION_TYPE_IMMEDIATE, _G.CAMERA_MODIFICATION_TYPE_DISCARD = 1, 1
 end
 

@@ -3,7 +3,8 @@
 -- over its model (ns.PetModel, the same glow and drag as yours), a thin XP
 -- bar under it while it can still level, the stats pane on the right as on
 -- the Character page (the game's pet rows, ns.Stats.PET_GROUPS), and in the
--- footer a hunter pet's mood and what it does to its damage.
+-- footer a hunter pet's mood and what it does to its damage, whether it gains or
+-- loses loyalty, its diet, and its XP.
 
 local _, DUI = ...
 DUI.Char = DUI.Char or {}   -- the character window's own namespace
@@ -19,12 +20,13 @@ PetPage.NAME_SIZE, PetPage.SUB_SIZE, PetPage.FOOT_SIZE = Style.SIZE.head, Style.
 PetPage.GAP = 20             -- the model's room to the stats pane
 PetPage.XP_H = 4             -- the XP bar
 PetPage.XP_GAP = 10          -- under the model
-PetPage.FACE = 18            -- the mood face in the footer
--- The game's mood faces (PetHappiness.lua) and the colors for them.
+PetPage.FOOT_GAP = 24        -- between the footer's text and the XP
+PetPage.PART_GAP = string.rep(" ", 8)   -- the same room between the mood, the loyalty and the diet
+-- The colors of the game's moods (PetHappiness.lua).
 PetPage.MOOD = {
-    [1] = { atlas = "UI-PetMad", color = Style.INK.BAD },
-    [2] = { atlas = "UI-PetNeutral", color = Style.INK.WARN },
-    [3] = { atlas = "UI-PetHappiness", color = Style.INK.GOOD },
+    [1] = { color = Style.INK.BAD },
+    [2] = { color = Style.INK.WARN },
+    [3] = { color = Style.INK.GOOD },
 }
 
 local isSecret = DUI.IsSecret
@@ -65,6 +67,15 @@ function PetPage.Read()
             d.mood = mood
             d.damage = plain(damage, "number") and damage or nil
             d.loyaltyRate = plain(rate, "number") and rate or nil
+        end
+    end
+    if C_PetInfo and type(C_PetInfo.GetPetFoodTypes) == "function" then
+        local ok, diet = pcall(C_PetInfo.GetPetFoodTypes)
+        if ok and type(diet) == "table" then
+            d.diet = {}
+            for _, food in ipairs(diet) do
+                if plain(food, "string") then d.diet[#d.diet + 1] = food end
+            end
         end
     end
     return d
@@ -119,45 +130,18 @@ function PetPage.Place(page)
     ns.PetModel.Spread(0)
 end
 
--- What the game's own mood face says on hover (PetHappiness.lua): the mood,
--- the damage it does, loyalty rising or falling, what it eats.
-function PetPage.MoodTip(owner)
-    local d = PetPage.Read()
-    if not (d and d.mood) or type(GameTooltip) ~= "table" then return end
-    local Tips, c = DUI.Tips, PetPage.MOOD[d.mood].color
-    GameTooltip:SetOwner(owner, "ANCHOR_RIGHT")
-    Tips.Clear()
-    Tips.Title(_G["PET_HAPPINESS" .. d.mood] or L["Happiness"], c[1], c[2], c[3])
-    if d.damage and PET_DAMAGE_PERCENTAGE then Tips.Sub(string.format(PET_DAMAGE_PERCENTAGE, d.damage)) end
-    if d.loyaltyRate and d.loyaltyRate < 0 and LOSING_LOYALTY then Tips.Text(LOSING_LOYALTY, Tips.BAD)
-    elseif d.loyaltyRate and d.loyaltyRate > 0 and GAINING_LOYALTY then Tips.Text(GAINING_LOYALTY, Tips.GOOD) end
-    local ok, diet = pcall(C_PetInfo.GetPetFoodTypes)
-    if ok and type(diet) == "table" and PET_DIET_TEMPLATE then
-        local list = #diet > 0 and table.concat(diet, PET_FOOD_DELIMIT or ", ") or (NONE or L["None"])
-        Tips.Sub(string.format(PET_DIET_TEMPLATE, list))
-    end
-    Tips.Flush(GameTooltip)
-    GameTooltip:Show()
-end
-
-local function hideTip() if type(GameTooltip) == "table" then GameTooltip:Hide() end end
-
 function PetPage.BuildFooter(page)
     local CP = ns.CharacterPage
     local foot = CreateFrame("Frame", nil, page)
     CP.FootLine(foot)
-    foot.mood = CreateFrame("Frame", nil, foot)
-    foot.mood:SetHeight(PetPage.FACE)
-    foot.mood:SetPoint("LEFT", foot, "LEFT", 0, 0)
-    foot.mood:EnableMouse(true)
-    foot.mood:SetScript("OnEnter", PetPage.MoodTip)
-    foot.mood:SetScript("OnLeave", hideTip)
-    foot.face = foot.mood:CreateTexture(nil, "ARTWORK")
-    foot.face:SetSize(PetPage.FACE, PetPage.FACE)
-    foot.face:SetPoint("LEFT", foot.mood, "LEFT", 0, 0)
-    foot.moodText = Style.Text(foot.mood, PetPage.FOOT_SIZE, "LEFT")
-    foot.moodText:SetPoint("LEFT", foot.face, "RIGHT", 6, 0)
-    foot.xpText = Style.Text(foot, PetPage.FOOT_SIZE, "LEFT")
+    -- One line for the mood, the loyalty and the diet, so they share a baseline; a long
+    -- diet is cut short, never over the XP.
+    foot.xpText = Style.Text(foot, PetPage.FOOT_SIZE, "RIGHT")
+    foot.xpText:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
+    foot.infoText = Style.Text(foot, PetPage.FOOT_SIZE, "LEFT")
+    foot.infoText:SetWordWrap(false)
+    foot.infoText:SetPoint("LEFT", foot, "LEFT", 0, 0)
+    foot.infoText:SetPoint("RIGHT", foot.xpText, "LEFT", -PetPage.FOOT_GAP, 0)
     foot.xpText:SetTextColor(CP.DIM[1], CP.DIM[2], CP.DIM[3])
     return foot
 end
@@ -184,30 +168,36 @@ function PetPage.Open()
     ns.PetModel.SetUp(0)
 end
 
+-- The footer's words, as the game's own pet tooltip says them: the mood and its damage,
+-- loyalty rising or falling, the diet; and the XP at the right.
 function PetPage.PaintFooter(page, d)
-    local foot = page.foot
+    local foot, C = page.foot, ns.Colors
+    local lab = Style.INK.LABEL
+    local parts = {}
     local mood = d.mood and PetPage.MOOD[d.mood]
-    foot.mood:SetShown(mood ~= nil)
     if mood then
-        foot.face:SetAtlas(mood.atlas)
-        local word = _G["PET_HAPPINESS" .. d.mood] or ""
-        local text = ns.Colors.Wrap(word, mood.color[1], mood.color[2], mood.color[3])
+        local text = C.Wrap(_G["PET_HAPPINESS" .. d.mood] or "", mood.color[1], mood.color[2], mood.color[3])
         if d.damage then
-            local c = Style.INK.LABEL
-            text = text .. ns.Colors.Wrap("  " .. string.format(L["%s damage"], ns.Colors.Wrap(d.damage .. "%", Style.Pop())), c[1], c[2], c[3])
+            text = text .. C.Wrap("  " .. string.format(L["%s damage"], C.Wrap(d.damage .. "%", Style.Pop())), lab[1], lab[2], lab[3])
         end
-        foot.moodText:SetText(text)
-        foot.mood:SetWidth(PetPage.FACE + 6 + math.ceil(foot.moodText:GetStringWidth() or 0))
+        parts[#parts + 1] = text
     end
-    foot.xpText:ClearAllPoints()
-    if mood then foot.xpText:SetPoint("LEFT", foot.mood, "RIGHT", 24, 0)
-    else foot.xpText:SetPoint("LEFT", foot, "LEFT", 0, 0) end
-    if d.xp then
-        foot.xpText:SetText(string.format(L["Experience %s / %s"],
-            ns.Colors.Wrap(ns.List.Number(d.xp), Style.Pop()), ns.List.Number(d.xpNeed)))
-    else
-        foot.xpText:SetText("")
+    if d.loyaltyRate and d.loyaltyRate < 0 and LOSING_LOYALTY then
+        local c = Style.INK.BAD
+        parts[#parts + 1] = C.Wrap(LOSING_LOYALTY, c[1], c[2], c[3])
+    elseif d.loyaltyRate and d.loyaltyRate > 0 and GAINING_LOYALTY then
+        local c = Style.INK.GOOD
+        parts[#parts + 1] = C.Wrap(GAINING_LOYALTY, c[1], c[2], c[3])
     end
+    -- The diet, as the game words it ("Diet: Meat, Fish") but in our colors, not its own.
+    if d.diet and PET_DIET_TEMPLATE then
+        local list = #d.diet > 0 and table.concat(d.diet, PET_FOOD_DELIMIT or ", ") or (NONE or L["None"])
+        local diet = string.format(PET_DIET_TEMPLATE, list):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        parts[#parts + 1] = C.Wrap(diet, lab[1], lab[2], lab[3])
+    end
+    foot.infoText:SetText(table.concat(parts, PetPage.PART_GAP))
+    foot.xpText:SetText(d.xp and string.format(L["Experience %s / %s"],
+        C.Wrap(ns.List.Number(d.xp), Style.Pop()), ns.List.Number(d.xpNeed)) or "")
 end
 
 function PetPage.Refresh(page)

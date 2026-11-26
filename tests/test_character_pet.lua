@@ -67,21 +67,23 @@ T.test("pet page: a hunter's pet shows its name, level, family, loyalty, XP and 
     T.truthy(sub:find("Loyalty Level 3", 1, true), sub)
     T.eq(page.xp:IsShown(), true)
     T.eq(select(2, page.xp:GetMinMaxValues()), 5000)
-    T.eq(page.foot.mood:IsShown(), true)
-    T.eq(page.foot.face.__atlas, "UI-PetHappiness")
-    T.truthy(page.foot.moodText:GetText():find("Happy", 1, true))
-    T.truthy(page.foot.moodText:GetText():find("125%", 1, true))
+    T.truthy(page.foot.infoText:GetText():find("Happy", 1, true))
+    T.truthy(page.foot.infoText:GetText():find("125%", 1, true))
+    T.truthy(page.foot.infoText:GetText():find("Gaining loyalty", 1, true), "loyalty rising")
+    T.truthy(page.foot.infoText:GetText():find("Diet: Meat, Fish", 1, true), page.foot.infoText:GetText())
+    T.falsy(page.foot.infoText:GetText():find("\194\183", 1, true), "spaces between the parts, not dots")
     T.truthy(page.foot.xpText:GetText():find("1,200", 1, true), page.foot.xpText:GetText())
 end)
 
-T.test("pet page: an unhappy pet's face and color", function()
+T.test("pet page: an unhappy pet's word, and a loyalty it is losing", function()
     local pet = {}
     for k, v in pairs(HUNTER_PET) do pet[k] = v end
-    pet.mood, pet.damage = 1, 75
+    pet.mood, pet.damage, pet.rate = 1, 75, -1
     local ns = load({ class = "HUNTER", pet = pet })
     local page = openPet(ns)
-    T.eq(page.foot.face.__atlas, "UI-PetMad")
-    T.truthy(page.foot.moodText:GetText():find("Unhappy", 1, true))
+    T.truthy(page.foot.infoText:GetText():find("Unhappy", 1, true))
+    T.truthy(page.foot.infoText:GetText():find("Losing loyalty", 1, true))
+    T.falsy(page.foot.infoText:GetText():find("Gaining", 1, true))
 end)
 
 T.test("pet page: a pet at the top level shows no XP bar", function()
@@ -102,7 +104,7 @@ T.test("pet page: a warlock's demon has no mood, loyalty or XP", function()
     T.truthy(page.sub:GetText():find("Imp", 1, true))
     T.falsy(page.sub:GetText():find("(", 1, true), "no loyalty")
     T.eq(page.xp:IsShown(), false)
-    T.eq(page.foot.mood:IsShown(), false)
+    T.eq(page.foot.infoText:GetText(), "", "a demon has no mood, loyalty or diet")
 end)
 
 T.test("pet page: the game's pet rows, read for the pet; zero spell power left out", function()
