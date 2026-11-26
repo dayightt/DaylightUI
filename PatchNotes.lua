@@ -32,6 +32,7 @@ DUI.PatchNotes = {
         { "Bags", "Class reagents like Fish Oil, Shiny Fish Scales, runes and candles sit in the Reagents group instead of Miscellaneous" },
         { "Bags", "Blue squares no longer stay in bag slots after selling or moving items" },
         { "Bags", "Empty spots left in your bags after selling close up as soon as you leave the vendor" },
+        { "Quests", "With Match the minimap's width on, the quest list lines up with the minimap's frame, border included" },
     } },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
         { "Proc Alerts", "A painted flare around your character when a proc like Clearcasting or Overpower is ready. If you already use Daylight UI, a welcome page shows you one to turn on" },

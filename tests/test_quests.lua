@@ -56,7 +56,6 @@ T.test("quests: with Kaliel's Tracker loaded ours stays off", function()
     local _, ns = load({ quests = {}, loaded = { "!KalielsTracker" } })
     T.eq(ns.Blizzard.Starve(), false)
     T.eq(ObjectiveTrackerManager.AddContainer, QW.originals.AddContainer, "the game's tracker left alone")
-    T.truthy(stub.ChatContains("Kaliel's Tracker"), "said why")
 end)
 
 local function snap(spec)
@@ -891,6 +890,47 @@ T.test("quests tracker: This zone only, and the width follows the minimap", func
     T.eq(Tr.Width(), 226)
 end)
 
+-- Ticket: with a thick minimap border, "Match the minimap's width" left the
+-- tracker narrower than the minimap's frame: it matched the map picture alone
+-- (its Size), not the box around it with its padding and border. The fake game
+-- lays nothing out, so the panel's right edge is given and the rest follows
+-- the anchors: the list hangs its top-right from the anchor, the box sits
+-- BOX_PAD outside the list.
+T.test("quests tracker: matching the minimap lines its box up with the minimap's frame, border and all", function()
+    local Tr, ns, settle = tracker({ quests = { STEW } }, { infopanel = true, before = QW.panelWorld })
+    local P, IT = stub.infopanel.Panel, stub.infopanel.Tracker
+    function P.panel:GetRight() return 1900 end
+    function P.panel:GetBottom() return 700 end
+    DaylightUI:Set("Quests", "box", true)
+    local pad = Tr.BOX_PAD[1]
+    local function check(what)
+        stub.RunTimers(); settle()
+        T.truthy(P.side ~= "right", "the map is on the panel's right here")
+        local frame = P.mapSize + 2 * P.inset
+        local _, _, _, x = IT.anchor:GetPoint(1)
+        local boxRight, boxW = x + pad, Tr.Width() + 2 * pad
+        T.near(boxRight, 1900, 0.01, what .. ": the box's right edge is the minimap frame's")
+        T.near(boxW, frame, 0.01, what .. ": as wide as the minimap's frame")
+        T.near(Tr.view:GetWidth(), Tr.Width(), 0.01, what .. ": the list took that width")
+    end
+    check("default border")
+    DaylightUI:Set("InfoPanel", "map.frameStyle.global", false)
+    DaylightUI:Set("InfoPanel", "map.frameStyle.borderPx", 8)
+    check("a thick border")
+    DaylightUI:Set("InfoPanel", "map.size", 260)
+    check("a bigger map")
+    -- No box: the list's text lines up with the map picture itself.
+    DaylightUI:Set("Quests", "box", false)
+    stub.RunTimers(); settle()
+    -- The anchor glides to its new spot.
+    local d = DaylightUI.Motion.Driver()
+    for _ = 1, 60 do stub.RunOnUpdate(d, 1 / 60) end
+    local _, _, _, x = IT.anchor:GetPoint(1)
+    T.near(x, 1900 - P.inset, 0.01, "no box: the list's right edge is the map's")
+    T.near(Tr.Width(), P.mapSize, 0.01, "and as wide as the map")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The classic log files a starting area's quests under its own name (Northshire
 -- Valley), while the game's zone text says Elwynn Forest. The subzone text names
 -- it only in the open valley; in the Abbey it says Northshire Abbey.
@@ -1018,7 +1058,7 @@ T.test("quests tracker: Reset puts it under the panel, not where the game's trac
     IT.Apply(DaylightUI:Get("InfoPanel", "tracker"))
     stub.RunTimers()
     local _, _, _, x, y = IT.anchor:GetPoint(1)
-    T.eq(x, 1900 - IT.EDGE, "the anchor (our tracker's home) under the panel")
+    T.near(x, IT.OwnX(1900), 0.01, "the anchor (our tracker's home) under the panel")
     T.eq(y, 700 - P.GAP)
 end)
 

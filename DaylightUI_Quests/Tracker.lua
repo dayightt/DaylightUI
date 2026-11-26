@@ -113,12 +113,47 @@ function Tracker.ForgetProgress(id)
     seen[id] = nil
 end
 
+-- Matching the minimap: with the box on, the box's edges sit on the minimap
+-- frame's outer edges (its padding and border count, whatever their size);
+-- without one, the list lines up with the map picture.
+function Tracker.Matching()
+    return db and db.matchMap and DUI:Get("InfoPanel", "map.enabled") == true or false
+end
+
+-- Info panel units (UIParent's) to the list's.
+local function toList(v)
+    local ref = view or holder
+    local s = ref and ref:GetEffectiveScale()
+    if type(s) ~= "number" or s <= 0 then return v end
+    return v * UIParent:GetEffectiveScale() / s
+end
+
 function Tracker.Width()
-    if db.matchMap and DUI:Get("InfoPanel", "map.enabled") == true then
+    if Tracker.Matching() then
+        local boxLeft, boxRight, mapLeft, mapRight
+        if DUI.MinimapSpan then boxLeft, boxRight, mapLeft, mapRight = DUI.MinimapSpan() end
+        if boxLeft then
+            if db.box == true then return toList(boxRight - boxLeft) - 2 * Tracker.BOX_PAD[1] end
+            return toList(mapRight - mapLeft)
+        end
         local w = DUI:Get("InfoPanel", "map.size")
         if type(w) == "number" and w > 0 then return w end
     end
     return db.width
+end
+
+-- For the info panel, which hangs the list under the minimap: whether its box
+-- or the list itself lines up there, and how far that edge is from the list's
+-- top-right corner, in UIParent units. nil when not matching.
+function DUI.QuestTrackerFit()
+    if not (Tracker.built and Tracker.Matching()) then return nil end
+    local box = db.box == true
+    local pad = 0
+    if box then
+        local s = holder and holder:GetEffectiveScale()
+        pad = Tracker.BOX_PAD[1] * ((type(s) == "number" and s > 0) and s / UIParent:GetEffectiveScale() or 1)
+    end
+    return { box = box, pad = pad }
 end
 
 function Tracker.Options()
@@ -1283,6 +1318,9 @@ function Tracker.Build(mod)
     DUI.On("SettingChanged", function(scope, path)
         if scope == "InfoPanel" and (path == "map.size" or path == "map.enabled") and db.matchMap then Tracker.Apply() end
     end)
+    -- Its frame's border or padding changed too: the info panel says so once it
+    -- has laid the map out again.
+    DUI.On("MinimapSpanChanged", function() if db.matchMap then Tracker.Apply() end end)
     Tracker.built = true
     Tracker.Render(false)
     Tracker.hoverTicker = C_Timer.NewTicker(0.1, function()
