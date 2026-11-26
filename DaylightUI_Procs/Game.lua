@@ -50,13 +50,6 @@ local function dimOf(p, n)
     return 0.55 / p.stacks
 end
 
-local function loopsOf(part, anim)
-    if anim == "breathe" or anim == "flash" then return { part.breathe } end
-    if anim == "pulse" then return { part.pulse } end
-    if anim == "impact" then return { part.impact } end
-    return {}
-end
-
 -- Places, paints and hands the client the loop of one slot. Only inside
 -- initializeFrame or once restrictions have lifted.
 local function style(p, slot)
@@ -71,7 +64,7 @@ local function style(p, slot)
     local shown = ns.Data.SPOTS[slot.spot].mirrored and 2 or 1
     local anim = DUI.Motion.On() and ns.Alerts.Get(p.key, "anim") or "still"
     for i = 1, shown do
-        for _, g in ipairs(loopsOf(slot.parts[i], anim)) do btn:AddAuraShownAnimation(g) end
+        for _, g in ipairs(ns.Flares.LoopsOf(slot.parts[i], anim)) do btn:AddAuraShownAnimation(g) end
     end
     slot.body:SetAlpha(ns.Flares.Opacity(p.key))
 end

@@ -137,24 +137,66 @@ T.test("procs look: with motion off a flare shows at once and has no loop playin
     T.near(f:GetAlpha(), 1, 0.001, "full at once")
     T.near(f.parts[1].frame:GetWidth(), 256, 0.01, "full size at once")
     for _, part in ipairs(f.parts) do
-        T.falsy(part.pulse:IsPlaying()); T.falsy(part.breathe:IsPlaying()); T.falsy(part.impact:IsPlaying())
+        for _, g in ipairs(ns.Flares.AllLoops(part)) do T.falsy(g:IsPlaying()) end
     end
     ns.Flares.Hide("overpower")
     T.falsy(f:IsShown(), "gone at once")
 end)
 
-T.test("procs look: each animation plays its own loop, and a hide stops it", function()
+-- Every loop a part can play, by its field name.
+local LOOPS = { "breathe", "pulse", "echo", "swell", "glint" }
+
+local function playing(part)
+    local on = {}
+    for _, name in ipairs(LOOPS) do
+        if part[name] and part[name]:IsPlaying() then on[#on + 1] = name end
+    end
+    return table.concat(on, "+")
+end
+
+T.test("procs look: each animation keeps moving its own way, and a hide stops it", function()
     local ns = load()
     ns.Alerts.Set("overpower", "design", "wings")
+    local seen = {}
     for _, anim in ipairs({ "breathe", "pulse", "impact", "flash" }) do
         ns.Alerts.Set("overpower", "anim", anim)
         ns.Flares.Show("overpower")
-        local part = ns.Flares.live.overpower.parts[1]
-        local want = anim == "flash" and "breathe" or anim
-        T.truthy(part[want]:IsPlaying(), anim)
+        local f = ns.Flares.live.overpower
+        for i = 1, 2 do
+            local part = f.parts[i]
+            local on = playing(part)
+            T.truthy(on ~= "", anim .. " plays a loop")
+            if i == 1 then
+                T.falsy(seen[on], anim .. " looks like " .. tostring(seen[on]))
+                seen[on] = anim
+            end
+            -- A one-shot stops moving a moment after it shows: every group loops.
+            for _, name in ipairs(LOOPS) do
+                if part[name] and part[name]:IsPlaying() then
+                    T.truthy(part[name].__looping == "REPEAT" or part[name].__looping == "BOUNCE", anim .. " " .. name .. " loops")
+                end
+            end
+        end
         ns.Flares.Hide("overpower", true)
-        T.falsy(part[want]:IsPlaying(), anim .. " stops")
+        for _, part in ipairs(f.parts) do T.eq(playing(part), "", anim .. " stops") end
     end
+end)
+
+T.test("procs look: the shockwave and glint copies follow the flare's art, colors and drain", function()
+    local ns = load()
+    ns.Alerts.Set("overpower", "design", "wings")
+    ns.Flares.Show("overpower", { left = 2.5, dur = 5 })
+    local f = ns.Flares.live.overpower
+    f.frac = 0.5
+    ns.Flares.Cut(f, f.parts[2], 2)
+    local part = f.parts[2]
+    T.eq(part.echoTex:GetTexture(), part.tex:GetTexture(), "the shockwave is the light")
+    T.eq(part.glintTex:GetTexture(), part.core:GetTexture(), "the glint is the core")
+    T.near(part.echoTex:GetHeight(), part.tex:GetHeight(), 0.01, "shortened with the drain")
+    T.near(part.glintTex:GetHeight(), part.core:GetHeight(), 0.01)
+    T.deq({ part.echoTex:GetTexCoord() }, { part.tex:GetTexCoord() }, "mirrored like the light")
+    T.near(part.echoFrame:GetAlpha(), 0, 0.001, "hidden between waves")
+    T.near(part.glintFrame:GetAlpha(), 0, 0.001, "hidden between glints")
 end)
 
 T.test("procs look: a flare fades in and out, and its frame is reused", function()

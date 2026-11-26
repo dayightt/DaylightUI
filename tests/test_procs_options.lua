@@ -100,7 +100,7 @@ T.test("procs options: each proc's animation can be changed and the flare restar
     local ns = load()
     pick("overpower")
     ns.Flares.Show("overpower")
-    T.truthy(ns.Flares.live.overpower.parts[1].impact:IsPlaying(), "Overpower lands with Impact")
+    T.truthy(ns.Flares.live.overpower.parts[1].echo:IsPlaying(), "Overpower sends out Impact's shockwave")
     for _, anim in ipairs({ "pulse", "breathe", "still" }) do
         row("Animation").set(anim)
         local f = ns.Flares.live.overpower
@@ -108,7 +108,8 @@ T.test("procs options: each proc's animation can be changed and the flare restar
         local part = f.parts[1]
         T.eq(part.pulse:IsPlaying(), anim == "pulse", anim .. " pulse")
         T.eq(part.breathe:IsPlaying(), anim == "breathe", anim .. " breathe")
-        T.falsy(part.impact:IsPlaying(), anim .. " no impact")
+        T.falsy(part.echo:IsPlaying(), anim .. " no shockwave")
+        T.falsy(part.swell:IsPlaying(), anim .. " no swell")
     end
 end)
 

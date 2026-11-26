@@ -22,6 +22,7 @@ DUI.PatchNotes = {
         { "Proc Alerts", "Infusion of Light now lights up when your next Holy Light is faster" },
         { "Proc Alerts", "Alerts for buffs like Redoubt, Vengeance, Nature's Grace and Unsealed Wrath now light up: before they never showed" },
         { "Proc Alerts", "The Missile Barrage alert no longer goes away when Clearcasting procs too" },
+        { "Proc Alerts", "Each alert animation now looks different and keeps moving while the alert is up: Breathe dims slowly, Pulse beats, Impact sends out a shockwave and Flash glints. Before, Impact and Flash stopped moving after a moment and they all looked alike" },
         { "Tooltips", "Rich tooltips no longer hide TSM's vendor buy and sell prices or show them in place of the item's own vendor price" },
         { "Chat", "With a controller, the button hints under the chat box show once, not twice" },
         { "Loot rolls", "Loot roll cards no longer pile on top of each other when three or more items drop, so Need and Greed can always be clicked" },

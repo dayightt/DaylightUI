@@ -11,12 +11,6 @@ ns.Sample = Sample
 
 Sample.STAGE = 640   -- the holder's size: the real flare's places, scaled to fit
 
-local function loops(part, anim)
-    if anim == "breathe" or anim == "flash" then return part.breathe end
-    if anim == "pulse" then return part.pulse end
-    if anim == "impact" then return part.impact end
-end
-
 function Sample.New(parent)
     local s = { hint = DUI.L["The picked alert, as it lights up around your character."] }
     local f = CreateFrame("Frame", nil, parent)
@@ -24,7 +18,7 @@ function Sample.New(parent)
     local stage = CreateFrame("Frame", nil, f)
     stage:SetSize(Sample.STAGE, Sample.STAGE)
     stage:SetPoint("CENTER", f, "CENTER", 0, 0)
-    local flare = { rel = stage, lane = 0, frac = 1, dim = 1, boost = 1 }
+    local flare = { rel = stage, lane = 0, frac = 1, dim = 1 }
     flare.parts = { ns.Flares.NewPart(stage), ns.Flares.NewPart(stage) }
     s.flare = flare
 
@@ -40,13 +34,7 @@ function Sample.New(parent)
         stage:SetAlpha(ns.Flares.Opacity(key))
         -- Its loop, kept running across redraws so a slider drag doesn't stutter.
         local anim = DUI.Motion.On() and ns.Alerts.Get(key, "anim") or "still"
-        for _, part in ipairs(flare.parts) do
-            local g = part.frame:IsShown() and loops(part, anim)
-            for _, other in ipairs({ part.breathe, part.pulse, part.impact }) do
-                if other ~= g then other:Stop() end
-            end
-            if g and not g:IsPlaying() then g:Play() end
-        end
+        ns.Flares.PlayLoops(flare, anim)
         local h = math.min(maxHeight or 220, 220)
         local k = h / Sample.STAGE
         stage:SetScale(k)
@@ -98,7 +86,7 @@ function Sample.Looks(parent)
         stage.portrait:SetSize(Sample.PORTRAIT, Sample.PORTRAIT)
         stage.portrait:SetPoint("CENTER", stage, "CENTER", 0, 0)
         if look.key == "on" then
-            stage.flare = { rel = stage, lane = 0, frac = 1, dim = 1, boost = 1 }
+            stage.flare = { rel = stage, lane = 0, frac = 1, dim = 1 }
             stage.flare.parts = { ns.Flares.NewPart(stage), ns.Flares.NewPart(stage) }
         end
         box.stages[look.key] = stage
@@ -132,13 +120,7 @@ function Sample.Looks(parent)
                 ns.Flares.Layout(flare, 1)
                 ns.Flares.Paint(flare)
                 local anim = DUI.Motion.On() and ns.Alerts.Get(key, "anim") or "still"
-                for _, part in ipairs(flare.parts) do
-                    local g = part.frame:IsShown() and loops(part, anim)
-                    for _, other in ipairs({ part.breathe, part.pulse, part.impact }) do
-                        if other ~= g then other:Stop() end
-                    end
-                    if g and not g:IsPlaying() then g:Play() end
-                end
+                ns.Flares.PlayLoops(flare, anim)
             end
             local name, line = box.names[look.key], box.lines[look.key]
             Style.InkText(name, "VALUE")

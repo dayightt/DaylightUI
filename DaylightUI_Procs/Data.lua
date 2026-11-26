@@ -39,9 +39,9 @@ Data.SPOTS = {
     feet   = { w = 304, h = 304, y = -118, grow = 1.34, anchor = "center" },
 }
 
--- While a flare is up. breathe: alpha 1 to 0.7 and back; pulse: the game's own
--- (scale 1 to 1.08 each second); impact: lands big and settles; flash: arrives
--- bright, then breathes; still: nothing moves.
+-- While a flare is up (Flares.NewPart has the numbers). breathe: dims deep
+-- and slow; pulse: beats bigger and brighter; impact: sends out a shockwave;
+-- flash: glints from its core; still: nothing moves.
 Data.ANIMS = {
     breathe = { name = L["Breathe"] },
     pulse   = { name = L["Pulse"] },

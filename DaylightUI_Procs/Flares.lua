@@ -63,37 +63,144 @@ end
 -- One painted piece: its frame (placed, and what the loops move), the light
 -- and the core over it. Both textures sit on the piece's bottom edge, so the
 -- time drain can shorten them from the top.
+-- The loops' numbers. Each animation moves its own way, so two procs with
+-- different animations never look alike: breathe dims, pulse beats, impact
+-- sends out a shockwave, flash glints from its core.
+Flares.BREATHE = { to = 0.4, time = 1.6 }
+Flares.PULSE = { to = 1.16, time = 0.5 }
+Flares.IMPACT = { every = 1.4, wave = 0.75, waveTo = 1.45, waveAlpha = 0.5, swell = 1.06 }
+Flares.GLINT = { every = 1.6, rise = 0.15, fall = 0.45, stretch = 1.2 }
+
+local function anim(g, kind, smoothing, duration, delay)
+    local a = g:CreateAnimation(kind)
+    a:SetSmoothing(smoothing)
+    a:SetDuration(duration)
+    if delay then a:SetStartDelay(delay) end
+    return a
+end
+
+-- A copy of a light layer in a frame of its own, hidden between its loops.
+-- Its frame's alpha is what animates: the texture's own alpha is carried in
+-- its gradient.
+local function copy(pf, sub)
+    local cf = CreateFrame("Frame", nil, pf)
+    cf:SetAllPoints(pf)
+    cf:SetAlpha(0)
+    local t = layer(cf, sub)
+    t:SetPoint("BOTTOMLEFT", cf, "BOTTOMLEFT")
+    t:SetPoint("BOTTOMRIGHT", cf, "BOTTOMRIGHT")
+    return cf, t
+end
+
 function Flares.NewPart(f)
     local pf = CreateFrame("Frame", nil, f)
     local part = { frame = pf, tex = layer(pf, 0), core = layer(pf, 1) }
+    part.echoFrame, part.echoTex = copy(pf, 2)
+    part.glintFrame, part.glintTex = copy(pf, 3)
     for _, t in ipairs({ part.tex, part.core }) do
         t:SetPoint("BOTTOMLEFT", pf, "BOTTOMLEFT")
         t:SetPoint("BOTTOMRIGHT", pf, "BOTTOMRIGHT")
     end
+
+    local B = Flares.BREATHE
     local g = pf:CreateAnimationGroup()
     g:SetLooping("BOUNCE")
-    local a = g:CreateAnimation("Alpha")
+    local a = anim(g, "Alpha", "IN_OUT", B.time)
     a:SetFromAlpha(1)
-    a:SetToAlpha(0.7)
-    a:SetDuration(1.3)
-    a:SetSmoothing("IN_OUT")
+    a:SetToAlpha(B.to)
     part.breathe = g
+
+    -- Pulse beats: it grows and brightens a little at once.
+    local P = Flares.PULSE
     g = pf:CreateAnimationGroup()
     g:SetLooping("BOUNCE")
-    local s = g:CreateAnimation("Scale")
+    local s = anim(g, "Scale", "IN_OUT", P.time)
     s:SetScaleFrom(1, 1)
-    s:SetScaleTo(1.08, 1.08)
-    s:SetDuration(0.5)
-    s:SetSmoothing("IN_OUT")
+    s:SetScaleTo(P.to, P.to)
+    a = anim(g, "Alpha", "IN_OUT", P.time)
+    a:SetFromAlpha(0.85)
+    a:SetToAlpha(1)
     part.pulse, part.pulseScale = g, s
+
+    -- Impact: a ghost of the light swells out and fades, while the flare
+    -- swells a little and settles. The ghost is hidden when its loop starts
+    -- over, so its size never visibly jumps back.
+    local I = Flares.IMPACT
+    g = part.echoFrame:CreateAnimationGroup()
+    g:SetLooping("REPEAT")
+    s = anim(g, "Scale", "OUT", I.wave)
+    s:SetScaleFrom(1, 1)
+    s:SetScaleTo(I.waveTo, I.waveTo)
+    s:SetEndDelay(I.every - I.wave)
+    a = anim(g, "Alpha", "OUT", 0.1)
+    a:SetFromAlpha(0)
+    a:SetToAlpha(I.waveAlpha)
+    a = anim(g, "Alpha", "OUT", I.wave - 0.1, 0.1)
+    a:SetFromAlpha(I.waveAlpha)
+    a:SetToAlpha(0)
+    part.echo, part.echoScale = g, s
+    -- The swell steps up then back down by the same factor, as the game's own
+    -- proc pulse does, so the flare ends each loop at its own size.
     g = pf:CreateAnimationGroup()
-    s = g:CreateAnimation("Scale")
-    s:SetScaleFrom(1.5, 1.5)
-    s:SetScaleTo(1, 1)
-    s:SetDuration(0.16)
-    s:SetSmoothing("OUT")
-    part.impact, part.impactScale = g, s
+    g:SetLooping("REPEAT")
+    local up = anim(g, "Scale", "IN_OUT", 0.2)
+    up:SetScale(I.swell, I.swell)
+    up:SetOrder(1)
+    local down = anim(g, "Scale", "IN_OUT", 0.35)
+    down:SetScale(1 / I.swell, 1 / I.swell)
+    down:SetOrder(2)
+    down:SetEndDelay(I.every - 0.55)
+    part.swell, part.swellScales = g, { up, down }
+
+    -- Flash: the core flares brighter and a little taller, then fades back.
+    local G = Flares.GLINT
+    g = part.glintFrame:CreateAnimationGroup()
+    g:SetLooping("REPEAT")
+    s = anim(g, "Scale", "OUT", G.rise + G.fall)
+    s:SetScaleFrom(1, 1)
+    s:SetScaleTo(1, G.stretch)
+    s:SetEndDelay(G.every - G.rise - G.fall)
+    a = anim(g, "Alpha", "IN_OUT", G.rise)
+    a:SetFromAlpha(0)
+    a:SetToAlpha(1)
+    a = anim(g, "Alpha", "OUT", G.fall, G.rise)
+    a:SetFromAlpha(1)
+    a:SetToAlpha(0)
+    part.glint, part.glintScale = g, s
     return part
+end
+
+-- Plays a flare's loop on its shown pieces and stops every other. One already
+-- playing keeps going, so a redraw (the options' preview) doesn't stutter.
+function Flares.PlayLoops(f, anim)
+    for _, part in ipairs(f.parts) do
+        local want = {}
+        if part.frame:IsShown() then
+            for _, g in ipairs(Flares.LoopsOf(part, anim)) do want[g] = true end
+        end
+        for _, g in ipairs(Flares.AllLoops(part)) do
+            if not want[g] then g:Stop() end
+        end
+        -- Impact's two groups start together, or the swell drifts off its wave.
+        local all = true
+        for g in pairs(want) do if not g:IsPlaying() then all = false end end
+        if not all then
+            for g in pairs(want) do g:Stop(); g:Play() end
+        end
+    end
+end
+
+function Flares.AllLoops(part)
+    return { part.breathe, part.pulse, part.echo, part.swell, part.glint }
+end
+
+-- The groups each animation plays on one part.
+function Flares.LoopsOf(part, anim)
+    if anim == "breathe" then return { part.breathe } end
+    if anim == "pulse" then return { part.pulse } end
+    if anim == "impact" then return { part.echo, part.swell } end
+    if anim == "flash" then return { part.glint } end
+    return {}
 end
 
 local function acquire()
@@ -103,17 +210,14 @@ local function acquire()
     f:SetAllPoints(Flares.holder)
     f:EnableMouse(false)
     f.parts = { Flares.NewPart(f), Flares.NewPart(f) }
-    f.fade, f.flashKey, f.drainKey = {}, {}, {}
+    f.fade, f.drainKey = {}, {}
     return f
 end
 
 local function stopLoops(f)
     for _, part in ipairs(f.parts) do
-        part.breathe:Stop()
-        part.pulse:Stop()
-        part.impact:Stop()
+        for _, g in ipairs(Flares.AllLoops(part)) do g:Stop() end
     end
-    Motion.Tween(f.flashKey, 0, 0, 0)
     Motion.Tween(f.drainKey, 0, 0, 0)
 end
 
@@ -164,8 +268,12 @@ function Flares.Layout(f, k)
         right.frame:Hide()
     end
     for i, part in ipairs(f.parts) do
-        part.pulseScale:SetOrigin(part.origin or "CENTER", 0, 0)
-        part.impactScale:SetOrigin(part.origin or "CENTER", 0, 0)
+        local o = part.origin or "CENTER"
+        part.pulseScale:SetOrigin(o, 0, 0)
+        part.echoScale:SetOrigin(o, 0, 0)
+        for _, sc in ipairs(part.swellScales) do sc:SetOrigin(o, 0, 0) end
+        -- The core sits on the piece's bottom edge: it stretches up from there.
+        part.glintScale:SetOrigin("BOTTOM", 0, 0)
         Flares.Cut(f, part, i)
     end
 end
@@ -177,7 +285,7 @@ function Flares.Cut(f, part, i)
     local l, r = 0, 1
     if i == 2 then l, r = 1, 0 end
     local h = (part.h or 0) * frac
-    for _, t in ipairs({ part.tex, part.core }) do
+    for _, t in ipairs({ part.tex, part.core, part.echoTex, part.glintTex }) do
         t:SetTexCoord(l, r, 1 - frac, 1)
         t:SetHeight(math.max(h, 0.01))
     end
@@ -194,8 +302,7 @@ end
 function Flares.Paint(f)
     local lo, hi = ns.Alerts.Colors(f.key)
     local a = f.dim or 1
-    local coreA = Flares.CORE_ALPHA * (f.boost or 1) * a
-    if coreA > 1 then coreA = 1 end
+    local coreA = Flares.CORE_ALPHA * a
     local file, coreFile = Flares.Art(f.design), Flares.Art(f.design, true)
     local clo, chi = lighter(lo), lighter(hi)
     for _, part in ipairs(f.parts) do
@@ -207,6 +314,13 @@ function Flares.Paint(f)
         -- whole shape washed every color out to near white.
         part.core:SetVertexColor(1, 1, 1, 1)
         Style.Gradient(part.core, "VERTICAL", clo[1], clo[2], clo[3], coreA, chi[1], chi[2], chi[3], coreA)
+        -- The shockwave is the light itself, the glint the core at full strength.
+        part.echoTex:SetTexture(file)
+        part.echoTex:SetVertexColor(1, 1, 1, 1)
+        Style.Gradient(part.echoTex, "VERTICAL", lo[1], lo[2], lo[3], a, hi[1], hi[2], hi[3], a)
+        part.glintTex:SetTexture(coreFile)
+        part.glintTex:SetVertexColor(1, 1, 1, 1)
+        Style.Gradient(part.glintTex, "VERTICAL", clo[1], clo[2], clo[3], a, chi[1], chi[2], chi[3], a)
     end
 end
 
@@ -220,25 +334,7 @@ end
 local function startLoop(f)
     stopLoops(f)
     if not Motion.On() then return end
-    local anim = f.anim
-    local shown = ns.Data.SPOTS[f.spot].mirrored and 2 or 1
-    if anim == "flash" then
-        f.boost = 1 / Flares.CORE_ALPHA
-        Motion.Tween(f.flashKey, f.boost, 1, Motion.SLOW, function(v)
-            f.boost = v
-            Flares.Paint(f)
-        end)
-    end
-    for i = 1, shown do
-        local part = f.parts[i]
-        if anim == "breathe" or anim == "flash" then
-            part.breathe:Play()
-        elseif anim == "pulse" then
-            part.pulse:Play()
-        elseif anim == "impact" then
-            part.impact:Play()
-        end
-    end
+    Flares.PlayLoops(f, f.anim)
 end
 
 local function arrive(f)
@@ -351,7 +447,7 @@ function Flares.Show(key, info)
     f = acquire()
     f.key, f.design, f.spot, f.anim, f.info = key, design, d.spot, ns.Alerts.Get(key, "anim"), info
     f.lane = Flares.TakeLane(d.spot, key)
-    f.dim, f.boost, f.frac, f.drainA, f.stackDim = stackDim, 1, 1, 1, stackDim
+    f.dim, f.frac, f.drainA, f.stackDim = stackDim, 1, 1, stackDim
     f.test = info.test
     f.endsAt = info.left and GetTime() + info.left or nil
     Flares.live[key] = f
