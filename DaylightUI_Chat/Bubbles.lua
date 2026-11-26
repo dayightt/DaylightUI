@@ -18,12 +18,12 @@ Bubbles.WRAP = 240
 Bubbles.PAD = 8
 -- Square corners with the bottom-right one cut at 45 degrees, as on the rich
 -- tooltip's cards. The accent band runs along the bottom, and the tail hangs
--- under it a little left of the middle, away from the cut.
+-- under it, its tip over the speaker, kept clear of the cut.
 Bubbles.CUT = 0.29 -- of the bubble's height, so a bigger bubble keeps the same look
 Bubbles.BAND = 4
 Bubbles.TAIL_W = 10
 Bubbles.TAIL_H = 10
-Bubbles.TAIL_AT = 0.17
+Bubbles.TAIL_AT = 0.17 -- where along the line the tail's edge color is taken
 
 local WEAK = { __mode = "k" }
 local overlay = setmetatable({}, WEAK)  -- the game's bubble -> the frame drawing it
@@ -199,6 +199,19 @@ local function matchScale(f)
     f:SetScale(k / ui)
 end
 
+-- How far the speaker is from the balloon's middle, read from the game's own
+-- tail. The stand-in shares the balloon's scale and center, so the offset
+-- carries over as it is. Without a plain reading the balloon is taken to be
+-- centered over the speaker.
+local function speakerOffset(child)
+    local tail = child and child.Tail
+    if type(tail) ~= "table" then return 0 end
+    local tx = positive(tail, tail.GetCenter)
+    local cx = positive(child, child.GetCenter)
+    if not tx or not cx then return 0 end
+    return tx - cx
+end
+
 local function layout(f)
     matchScale(f)
     local size = face(f)
@@ -234,7 +247,10 @@ local function layout(f)
     local tw, th = Pixel.Snap(f, Bubbles.TAIL_W), Pixel.Snap(f, Bubbles.TAIL_H)
     f.tail:SetSize(tw, th)
     f.tail:ClearAllPoints()
-    f.tail:SetPoint("TOPLEFT", f, "BOTTOMLEFT", Pixel.Snap(f, total * Bubbles.TAIL_AT), 0)
+    -- The tip sits under the speaker, kept inside the bubble and off the cut.
+    local tip = total / 2 + speakerOffset(f.balloon)
+    tip = math.max(0, math.min(tip, total - cut - tw))
+    f.tail:SetPoint("TOPLEFT", f, "BOTTOMLEFT", Pixel.Snap(f, tip), 0)
     Style.CutCorner(f.tail, tw, f.tail.tex)
     local edge = Pixel.Px(f, band > 0 and 2 or 1)
     f.tail.side:SetThickness(edge)

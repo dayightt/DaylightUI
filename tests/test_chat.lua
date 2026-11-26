@@ -813,6 +813,48 @@ T.test("chat: a speech bubble has square corners with the bottom-right one cut, 
     T.eq(select(3, mine.tail:GetPoint(1)), "BOTTOMLEFT", "hung under the bubble")
 end)
 
+-- The tail's tip is where the tail's left edge meets the bubble's bottom.
+local function tailTip(mine)
+    local _, rel, relPoint, x = mine.tail:GetPoint(1)
+    assert(rel == mine and relPoint == "BOTTOMLEFT")
+    return x
+end
+
+T.test("chat: a long bubble's tail still points at the speaker, where the game's own tail is", function()
+    login()
+    local Bubbles = stub.chatModule.Bubbles
+    -- A whole sentence, wide enough to wrap: the old tail sat a sixth of the
+    -- way along and slid far left of the speaker's head.
+    local long = string.rep("i made the jump hugeeeee ", 6)
+    local outer, art = makeBubble(long)
+    art.__center = { 500, 300 }
+    -- The game's tail sits under the speaker, here 10 px left of the balloon's middle.
+    art.Tail = art:CreateTexture()
+    art.Tail.__center = { 490, 270 }
+    stub.SetBubbles({ outer })
+    Bubbles.DressAll()
+    local mine = Bubbles.OverlayOf(outer)
+    local w = mine:GetWidth()
+    T.truthy(w > 200, "a wide bubble: " .. tostring(w))
+    T.near(tailTip(mine), w / 2 - 10, 1, "the tip under the game's tail")
+    -- A few words: the tip still follows the game's tail.
+    local outer2, art2 = makeBubble("i made the jump")
+    art2.__center = { 500, 300 }
+    art2.Tail = art2:CreateTexture()
+    art2.Tail.__center = { 500, 270 }
+    stub.SetBubbles({ outer2 })
+    Bubbles.DressAll()
+    local small = Bubbles.OverlayOf(outer2)
+    T.near(tailTip(small), small:GetWidth() / 2, 1, "short: under the middle")
+    -- No game tail to read (or a secret one): the balloon sits centered over
+    -- the speaker, so the tip goes to the middle.
+    local outer3 = makeBubble(long)
+    stub.SetBubbles({ outer3 })
+    Bubbles.DressAll()
+    local plain = Bubbles.OverlayOf(outer3)
+    T.near(tailTip(plain), plain:GetWidth() / 2, 1, "no game tail: the middle")
+end)
+
 T.test("chat: a bubble's line can wear its speaker's class; the tail stays dark with colored edges", function()
     login()
     local Style = DaylightUI.Style
