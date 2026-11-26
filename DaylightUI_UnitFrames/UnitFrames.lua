@@ -2165,9 +2165,12 @@ end
 
 -- A hit rect is protected on a secure button, so in combat (a party button made
 -- mid-fight) it waits until combat ends. Ribbon's row above and line below are
--- clickable like the frame too (f.hitTop, f.foot from UF.Layout).
+-- clickable like the frame too (f.hitTop, f.foot from UF.Layout). Nested
+-- raid or party tiles give up f.nestInset at each end (Group:LayoutButton).
 function UF.SetHitRect(f, l, r)
     local t, b = -(f.hitTop or 0), -(f.foot or 0)
+    local nest = tonumber(f.nestInset) or 0
+    l, r = l + nest, r + nest
     if InCombatLockdown() then
         DUI.AfterCombat(function() f:SetHitRectInsets(l, r, t, b) end, "hitrect:" .. tostring(f))
         return

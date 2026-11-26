@@ -66,6 +66,67 @@ T.test("Group.PerLine, Group.Direction and Group.Footprint read the settings", f
     T.eq(w, 2 * 60 + 6); T.eq(h, 5 * 50 + 4 * 4)
 end)
 
+-- Raid tiles shaped like a slanted box: both ends angled the same way (/ and /).
+local function slantedBox(DUI, extra)
+    local raid = { slant = true, slantUnder = false, slantOuter = true, slantUnderOuter = true,
+                   width = 79, height = 37, spacing = 10, groupSpacing = 0 }
+    for k, v in pairs(extra or {}) do raid[k] = v end
+    for k, v in pairs(raid) do DUI:Set("UnitFrames", "raid." .. k, v) end
+    stub.RunTimers()
+    DUI.SetTestMode(true)
+    stub.RunTimers()
+end
+
+T.test("slanted-box raid tiles side by side: a spacing of 0 lets the angled edges meet", function()
+    local DUI, ns = login()
+    slantedBox(DUI)
+    local g, cfg = ns.Raid.group, DUI:Get("UnitFrames", "raid")
+    local b1, b6 = ns.Raid.preview[1], ns.Raid.preview[6]
+    local cut = b1.cut
+    T.truthy(cut > 0, "the tile is angled")
+    local w = g.holder.tileW
+    -- Columns: a group per column, so the line spacing sits between the angled edges.
+    T.eq(g.header:GetAttribute("columnSpacing"), -cut, "the game's header steps the next group back by the cut")
+    for i, gh in ipairs(g.headers) do
+        local _, _, _, x = gh:GetPoint(1)
+        T.near(x, (i - 1) * (w - cut), 0.01, "group header " .. i .. " sits a cut closer each line")
+    end
+    local _, _, _, x1 = b1:GetPoint(1)
+    local _, _, _, x6 = b6:GetPoint(1)
+    T.near(x6 - x1, w - cut, 0.01, "test mode's second group nests into the first")
+    local fw = ns.Group.Footprint(cfg, 10, false, w, g.holder.tileH, cut)
+    T.near(fw, 2 * w - cut, 0.01, "the holder is as wide as what's drawn")
+    T.near(g.holder:GetWidth(), ns.Group.Footprint(cfg, ns.Raid.PreviewCount(cfg), false, w, g.holder.tileH, cut), 0.01)
+    -- Rows: the frame spacing sits between the angled edges instead.
+    DUI:Set("UnitFrames", "raid.direction", "rows")
+    stub.RunTimers()
+    T.eq(g.header:GetAttribute("xOffset"), 10 - cut, "frames in a row step back by the cut")
+    T.eq(g.header:GetAttribute("columnSpacing"), 0, "rows stack straight edges: no change")
+    local _, _, _, a = ns.Raid.preview[1]:GetPoint(1)
+    local _, _, _, b = ns.Raid.preview[2]:GetPoint(1)
+    T.near(b - a, w + 10 - cut, 0.01)
+end)
+
+T.test("nested tiles split the click at the angled edge, not by who sits on top", function()
+    local DUI, ns = login()
+    slantedBox(DUI)
+    local b = CreateFrame("Button", "DaylightUIRaidHeaderUnitButton1", ns.Raid.header)
+    b:SetAttribute("unit", "raid2")
+    stub.units.raid2 = { name = "Lift", isPlayer = true, class = "PRIEST", health = 5, maxHealth = 10 }
+    ns.Raid.header.initialConfigFunction(ns.Raid.header, b:GetName())
+    DUI:Set("UnitFrames", "raid.groupSpacing", 1)
+    stub.RunTimers()
+    local l, r = b.__hitRect[1], b.__hitRect[2]
+    T.near(l, b.cut / 2, 0.01, "half the cut off the left")
+    T.near(r, b.cut / 2, 0.01, "and off the right, so neighbours never overlap")
+    -- Ends that don't lean the same way (/ and \) meet at a corner already.
+    DUI:Set("UnitFrames", "raid.slantUnderOuter", false)
+    stub.RunTimers()
+    T.eq(ns.Raid.header:GetAttribute("columnSpacing"), 1, "a trapezoid keeps the plain spacing")
+    l, r = b.__hitRect[1], b.__hitRect[2]
+    T.eq(l, 0); T.eq(r, 0)
+end)
+
 T.test("an angled tile: the dispel highlight stops at the cut", function()
     local DUI, ns = login()
     DUI:Set("UnitFrames", "raid.slant", true)

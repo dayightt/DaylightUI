@@ -339,7 +339,7 @@ function Raid.Pin(cfg)
         local ht = 2 * DUI.Pixel.Snap(holder, cfg.height / 2)
         local up, down = Raid.group:Pads(cfg)
         local fw, fh = ns.Group.Footprint(cfg, ns.Group.GroupsShown(cfg, Raid.GROUPS) * Raid.PER_GROUP,
-            ns.Group.Direction(cfg) == "rows", w, ht)
+            ns.Group.Direction(cfg) == "rows", w, ht, Raid.group:Nest(cfg))
         holder:SetSize(fw, fh + up + down)
     end
     Movers.SetPin(KEY, at)

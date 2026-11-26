@@ -589,7 +589,8 @@ local function refreshParty(s, width, maxH)
     g:LayoutSamples(s.members, s.holder, cfg, text, w, h)
     g:FillSamples(s.members, #s.members, cfg)
     for _, b in ipairs(s.members) do b:SetAlpha(cfg.enabled == false and PageSample.OFF_ALPHA or 1) end
-    local fw, fh = ns.Group.Footprint(cfg, #s.members, g:PreviewRows(cfg), w, h)
+    local fw, fh = ns.Group.Footprint(cfg, #s.members, g:PreviewRows(cfg), w, h,
+        ns.Group.NestCut(cfg, g.opts.spec, s.holder))
     s.holder:SetSize(fw, fh)
     local out, up, down = reach(first)
     local gUp, gDown, gLeft, gRight = PageSample.GroupReach(cfg, first)
@@ -710,7 +711,7 @@ local function refreshRaid(s, width, maxH)
     g:LayoutSamples(s.members, s.holder, line, text, w, h)
     g:FillSamples(s.members, #s.members, cfg)
     for _, b in ipairs(s.members) do b:SetAlpha(d.raid.enabled == false and PageSample.OFF_ALPHA or 1) end
-    local fw, fh = ns.Group.Footprint(line, #s.members, true, w, h)
+    local fw, fh = ns.Group.Footprint(line, #s.members, true, w, h, ns.Group.NestCut(line, g.opts.spec, s.holder))
     s.holder:SetSize(fw, fh)
     local up, down, left, right = PageSample.GroupReach(cfg, first)
     return fit(s.frame, s.holder, fw, fh, left, false, up, down, width, maxH, right, s.Zoom())

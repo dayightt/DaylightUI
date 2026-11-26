@@ -156,16 +156,32 @@ end
 
 -- How much room count members take, laid out per cfg in rows or columns. w, h
 -- are the button's size (defaults to the settings'). Returns width, height.
-function Group.Footprint(cfg, count, rows, w, h)
-    w, h = w or cfg.width, h or cfg.height
+-- nest: Group.NestCut, how much closer tiles side by side sit.
+function Group.Footprint(cfg, count, rows, w, h, nest)
+    w, h, nest = w or cfg.width, h or cfg.height, nest or 0
     local per = Group.PerLine(cfg)
     local lines = math.max(1, math.ceil(count / per))
     per = math.min(per, count)
-    local long = per * (rows and w or h) + (per - 1) * cfg.spacing
-    local across = lines * (rows and h or w) + (lines - 1) * cfg.groupSpacing
+    local long = per * (rows and w or h) + (per - 1) * (cfg.spacing - (rows and nest or 0))
+    local across = lines * (rows and h or w) + (lines - 1) * (cfg.groupSpacing - (rows and 0 or nest))
     if rows then return long, across end
     return across, long
 end
+
+-- Tiles shaped like a slanted box (both ends angled the same way, / and / or
+-- \ and \) leave a strip as wide as the angled end between two of them side
+-- by side, even with no spacing: one tile's edge leans in at the bottom, the
+-- next one's at the top. Returns that width, so tiles side by side can step
+-- that much closer and the spacing is measured between the angled edges.
+-- 0 for any other shape, whose ends already meet at a corner.
+function Group.NestCut(cfg, spec, region)
+    if type(cfg) ~= "table" or type(spec) ~= "table" or not spec.slant then return 0 end
+    local side, under = UF.FrameEnds({ spec = spec }, cfg)
+    if side ~= "both" or (under ~= "left" and under ~= "right") then return 0 end
+    return Pixel.Snap(region or UIParent, (tonumber(cfg.height) or 0) * UF.SLANT)
+end
+
+function Group:Nest(cfg) return Group.NestCut(cfg, self.opts.spec, self.holder) end
 
 -- The style's reach (UF.StyleReach): the first frame's name row reaches above
 -- the holder and the last one's power line below it, so the holder (the unlock
@@ -293,8 +309,13 @@ end
 -- header may create a button mid-fight, see Group:Dress).
 function Group:LayoutButton(b, cfg, text, range, noAuras)
     b.rangeFade, b.rangeAlpha = range.enabled, UF.RangeAlpha(range, true)
+    -- Nested tiles overlap by the cut, so each gives up half of it at both
+    -- ends: a click lands on the tile whose angled edge it's on (UF.SetHitRect).
+    b.nestInset = self:Nest(cfg) / 2
     self:WearIcons(b)
     UF.Layout(b, cfg, text, true)
+    -- A frame with a portrait sets its hit rect with the ring (UF.LayoutPortrait).
+    if not b.spec.portrait then UF.SetHitRect(b, 0, 0) end
     GP.LayoutTargetMark(b, cfg)
     GP.UpdateTargetMark(b)
     if not noAuras then self:LayoutAuras(b, cfg, text) end
@@ -376,17 +397,23 @@ function Group:ApplyDirection(cfg)
     local h = self.header
     local rows = Group.Direction(cfg) == "rows"
     local up, left, s = cfg.growUp == true, cfg.growLeft == true, cfg.spacing
+    -- Side by side (frames in a row, or columns of them), slanted boxes nest.
+    local nest = self:Nest(cfg)
+    local across = cfg.groupSpacing - (rows and 0 or nest)
     -- The game's header steps each member by the offset's own sign past the
     -- point's other side (see its group header code), so up and left are
     -- positive y and negative x.
     local point, xo, yo, anchor = up and "BOTTOM" or "TOP", 0, up and s or -s, left and "RIGHT" or "LEFT"
-    if rows then point, xo, yo, anchor = left and "RIGHT" or "LEFT", left and -s or s, 0, up and "BOTTOM" or "TOP" end
+    if rows then
+        s = s - nest
+        point, xo, yo, anchor = left and "RIGHT" or "LEFT", left and -s or s, 0, up and "BOTTOM" or "TOP"
+    end
     for _, hh in ipairs({ h, unpack(self.headers) }) do
         hh:SetAttribute("point", point)
         hh:SetAttribute("xOffset", xo)
         hh:SetAttribute("yOffset", yo)
         hh:SetAttribute("columnAnchorPoint", anchor)
-        hh:SetAttribute("columnSpacing", cfg.groupSpacing)
+        hh:SetAttribute("columnSpacing", across)
     end
     -- Tiles per line: by group (five), or members listed in order.
     local per = Group.PerLine(cfg)
@@ -435,7 +462,7 @@ function Group:PlaceGroupHeaders(cfg, w, ht, rows)
         if rows then
             gh:SetPoint(corner, self.holder, corner, 0, y0 + sy * (i - 1) * (ht + cfg.groupSpacing))
         else
-            gh:SetPoint(corner, self.holder, corner, sx * (i - 1) * (w + cfg.groupSpacing), y0)
+            gh:SetPoint(corner, self.holder, corner, sx * (i - 1) * (w + cfg.groupSpacing - self:Nest(cfg)), y0)
         end
     end
 end
@@ -453,7 +480,7 @@ function Group:Resize(cfg)
         rows = Group.Direction(cfg) == "rows"
         count = self.opts.count(cfg)
     end
-    local fw, fh = Group.Footprint(cfg, count, rows, holder.tileW, holder.tileH)
+    local fw, fh = Group.Footprint(cfg, count, rows, holder.tileW, holder.tileH, self:Nest(cfg))
     holder:SetSize(fw, fh + (holder.padUp or 0) + (holder.padDown or 0))
 end
 
@@ -664,14 +691,15 @@ function Group:LayoutSamples(list, holder, cfg, text, w, h, top, down)
     local corner = Group.Corner(cfg)
     local sx, sy = cfg.growLeft == true and -1 or 1, cfg.growUp == true and 1 or -1
     local y0 = cfg.growUp == true and down or -top
+    local nest = Group.NestCut(cfg, self.opts.spec, holder)
     for i, b in ipairs(list) do
         local line = math.floor((i - 1) / per)
         local member = (i - 1) % per
         local x, y
         if rows then
-            x, y = member * (w + cfg.spacing), line * (h + cfg.groupSpacing)
+            x, y = member * (w + cfg.spacing - nest), line * (h + cfg.groupSpacing)
         else
-            x, y = line * (w + cfg.groupSpacing), member * (h + cfg.spacing)
+            x, y = line * (w + cfg.groupSpacing - nest), member * (h + cfg.spacing)
         end
         b:ClearAllPoints()
         b:SetSize(w, h)
