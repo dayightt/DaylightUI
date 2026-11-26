@@ -29,6 +29,13 @@ local function returning(uf)
 end
 
 local function nextShown(DUI) return DUI.InstallerUI.Frame().next:IsShown() end
+-- Past the last pick: the bar animations slide comes last and needs none.
+local function toEnd(DUI)
+    for _ = 1, 5 do
+        if not DUI.Welcome.Running() then return end
+        DUI.Welcome.Next()
+    end
+end
 
 T.test("welcome: a returning player gets it at login, and the portrait question stays away", function()
     local DUI = returning()
@@ -92,8 +99,8 @@ T.test("welcome: each look must be picked, both are drawn, and nothing is writte
     T.truthy(DUI:GetModule("Tooltip").ns.RichPanel.Get(rich):IsShown(), "the rich card is drawn by the card's own code")
     T.truthy(#picker.box.cards.simple.card.lines > 4, "the simple one has the game's lines")
     press(picker.cards.rich)
-    T.eq(DUI.InstallerUI.Frame().next.text:GetText(), "Finish")
-    DUI.Welcome.Next()
+    T.truthy(nextShown(DUI), "picked: Next")
+    toEnd(DUI)
     T.falsy(DUI.Welcome.Running(), "done")
     for _, id in ipairs({ "player", "target", "focus", "party" }) do
         T.eq(DUI:Get("UnitFrames", id .. ".portraitLook"), "socket", id)
@@ -111,7 +118,7 @@ T.test("welcome: the new portraits leave a frame with its portrait off alone; th
     press(DUI.Welcome.Page().picker.cards.socket)
     DUI.Welcome.Next()
     press(DUI.Welcome.Page().picker.cards.simple)
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.eq(DUI:Get("UnitFrames", "player.portraitLook"), "socket")
     T.eq(DUI:Get("UnitFrames", "focus.portraitLook"), "classic", "no portrait there, so nothing changed")
     T.eq(DUI:Get("Tooltip", "style"), "simple")
@@ -122,7 +129,7 @@ T.test("welcome: the new portraits leave a frame with its portrait off alone; th
     press(DUI.Welcome.Page().picker.cards.classic)
     DUI.Welcome.Next()
     press(DUI.Welcome.Page().picker.cards.simple)
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.eq(DUI:Get("UnitFrames", "player.portraitLook"), "classic")
     T.falsy(DUI.Welcome.Due())
 end)
@@ -216,9 +223,9 @@ T.test("welcome: class icons on friendly nameplates, both drawn, picked like the
     T.falsy(crowd.none.people[1].icon:IsShown(), "the other is names only")
     T.falsy(nextShown(DUI), "Next waits for a pick")
     press(picker.cards.above)
-    T.eq(DUI.InstallerUI.Frame().next.text:GetText(), "Finish")
+    T.truthy(nextShown(DUI), "picked: Next")
     T.eq(DUI:Get("Nameplates", "friendly.classIcon"), "none", "not written yet")
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.falsy(DUI.Welcome.Running())
     T.eq(DUI:Get("Nameplates", "friendly.classIcon"), "above", "Class icons puts them above the name")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -228,12 +235,12 @@ T.test("welcome: an icon already placed keeps its spot; Names only turns it off"
     local DUI = returningWithPlates({ friendly = { classIcon = "before" } })
     local picker = throughToPlates(DUI)
     press(picker.cards.above)
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.eq(DUI:Get("Nameplates", "friendly.classIcon"), "before", "kept before the name")
     DUI = returningWithPlates({ friendly = { classIcon = "after" } })
     picker = throughToPlates(DUI)
     press(picker.cards.none)
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.eq(DUI:Get("Nameplates", "friendly.classIcon"), "none")
 end)
 
@@ -272,13 +279,13 @@ local function sawWelcome(opts)
     return DUI
 end
 
-T.test("welcome: after the 2.0 welcome, an update brings only the Proc Alerts slide, with them off until picked", function()
+T.test("welcome: after the 2.0 welcome, an update brings Proc Alerts first, with them off until picked", function()
     local DUI = sawWelcome()
     T.eq(DUI:Get("Procs", "enabled"), false, "a profile from before starts with Proc Alerts off")
     T.truthy(DUI.Welcome.Due(), "the welcome is due again")
     stub.RunTimers()
     T.truthy(DUI.Welcome.Running(), "shown at login")
-    T.eq(#DUI.Welcome.Slides(2), 1, "one slide")
+    T.eq(#DUI.Welcome.Slides(2), 2, "Proc Alerts, then the bar animations")
     T.eq(DUI.Welcome.Slide(), "procAlerts", "no news, no looks picked before")
     T.isnil(stub.Asked(), "no second question on top of it")
     local picker = DUI.Welcome.Page().picker
@@ -294,9 +301,9 @@ T.test("welcome: after the 2.0 welcome, an update brings only the Proc Alerts sl
     T.falsy(nextShown(DUI), "Next waits for a pick")
     T.truthy(picker.cards.on.tag and picker.cards.on.tag:IsShown(), "On wears the New tag")
     press(picker.cards.on)
-    T.eq(DUI.InstallerUI.Frame().next.text:GetText(), "Finish")
+    T.truthy(nextShown(DUI), "picked: Next")
     T.eq(DUI:Get("Procs", "enabled"), false, "not written yet")
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.falsy(DUI.Welcome.Running(), "done")
     T.eq(DUI:Get("Procs", "enabled"), true, "On turns them on")
     T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION)
@@ -313,14 +320,15 @@ T.test("welcome: Off keeps Proc Alerts off; closing it early writes nothing and 
     T.truthy(DUI.Welcome.Due(), "asks again next time")
     DUI.Welcome.Show(2)
     press(DUI.Welcome.Page().picker.cards.off)
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.eq(DUI:Get("Procs", "enabled"), false, "Off keeps them off")
     T.falsy(DUI.Welcome.Due())
-    -- /dui welcome shows everything again, news first, Proc Alerts last.
+    -- /dui welcome shows everything again, news first, the bar animations last.
     SlashCmdList.DAYLIGHTUI("welcome")
     T.eq(DUI.Welcome.Slide(), "news")
     local list = DUI.Welcome.Slides()
-    T.eq(list[#list], "procAlerts")
+    T.eq(list[#list - 1], "procAlerts")
+    T.eq(list[#list], "barFx")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -336,18 +344,18 @@ T.test("welcome: an update from before 2.0 gets the news, every look, then Proc 
     T.eq(DUI.Welcome.Slide(), "procAlerts")
     T.truthy(DUI.InstallerUI.Frame().back:IsShown(), "Back to the looks")
     press(DUI.Welcome.Page().picker.cards.on)
-    DUI.Welcome.Next()
+    toEnd(DUI)
     T.falsy(DUI.Welcome.Running())
     T.eq(DUI:Get("Procs", "enabled"), true)
     T.eq(DUI:Get("Tooltip", "style"), "simple")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("welcome: with Proc Alerts switched off in the AddOns list, nothing comes after the 2.0 welcome", function()
+T.test("welcome: with Proc Alerts switched off in the AddOns list, only the bar animations come after the 2.0 welcome", function()
     local DUI = sawWelcome({ procs = false })
     stub.RunTimers()
-    T.falsy(DUI.Welcome.Running(), "nothing to show")
-    T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION, "and nothing left due")
+    T.eq(DUI.Welcome.Slide(), "barFx", "no Proc Alerts slide")
+    T.eq(#DUI.Welcome.Slides(2), 1)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -410,5 +418,94 @@ T.test("chrome: a plaque is as wide as its words and their padding, and spaced c
     t.Set("Good evening")
     T.eq(t.ruleL:GetWidth(), 200)
     T.eq(DUI.InstallerUI.SHOW_W, 900); T.eq(DUI.InstallerUI.SHOW_H, 625)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The bar animations that came after the last welcome (Welcome.BAR_STYLES):
+-- an account that saw it (welcome = 3) gets one slide showing each of them
+-- moving on a sample health bar, and where to pick one. Nothing to pick there.
+local function sawProcs(opts)
+    opts = opts or {}
+    local DUI = stub.Load({ module = opts.frames ~= false, tooltip = true, procs = true, before = function()
+        stub.SetUnits({ player = { name = "Me", class = "PRIEST", isPlayer = true } })
+        DaylightUIDB = { version = "2.3.0", notesSeen = "2.3.0", installerSeen = true, barFxAsked = true,
+                         portraitLookAsked = true, welcome = opts.welcome or 3,
+                         profileData = { ["DPS/Tank"] = { general = {}, positions = {},
+                             modules = { UnitFrames = { groupFrames = 20 }, Procs = { enabled = true } } } } }
+    end })
+    DUI.Installer.Mark("installed")
+    DUI.Installer.MarkSeen()
+    stub.Dismiss()
+    return DUI
+end
+
+T.test("welcome: an update shows each new bar animation moving in your accent, and where to pick one", function()
+    local DUI = sawProcs()
+    DUI:Set("general", "accent", "custom")
+    DUI:Set("general", "accentColor", { 0.2, 0.8, 0.4 })
+    local before = DUI:Get("UnitFrames", "player.barFx.health.style")
+    T.truthy(DUI.Welcome.Due(), "due after the update")
+    stub.RunTimers()
+    T.truthy(DUI.Welcome.Running(), "shown at login")
+    T.eq(DUI.Welcome.Slide(), "barFx", "only the new slide")
+    local page = DUI.Welcome.Page()
+    local shown = DUI.Welcome.BarStyles()
+    T.truthy(#shown >= 4, "Daybreak and the three pixel styles at least")
+    T.eq(#page.cards, #shown, "a card for each one")
+    for i, key in ipairs(shown) do
+        local c = page.cards[i]
+        T.eq(DUI.BarFx.StyleOf(c.sample.bars[1].bar), key, "each card's bar wears its own animation: " .. key)
+        T.truthy(c.title:GetText() ~= nil and c.title:GetText() ~= "", "named")
+        T.truthy(c.text:GetText() ~= nil and c.text:GetText() ~= "", "and a line about it")
+        T.falsy(c:IsMouseEnabled(), "nothing to click")
+        local lo = DUI.Style.FillColors(c.sample.bars[1].bar:GetStatusBarTexture())
+        T.truthy(lo and math.abs(lo[1] - 0.2) < 0.01 and math.abs(lo[2] - 0.8) < 0.01, "filled with your accent: " .. key)
+    end
+    local frame = DUI.InstallerUI.Frame()
+    T.truthy(frame.later:IsShown(), "a link to where they're picked")
+    T.truthy(string.find(frame.later.text:GetText() or "", "Bars tab", 1, true), frame.later.text:GetText())
+    press(frame.later)
+    local Panel = DUI.OptionsPanel
+    T.truthy(Panel.IsShown and Panel.IsShown() or DaylightUIOptions and DaylightUIOptions:IsShown(), "the link opens the options")
+    T.eq(frame.next.text:GetText(), "Finish", "no pick needed")
+    DUI.Welcome.Next()
+    T.falsy(DUI.Welcome.Running(), "done")
+    T.eq(DUI:Get("UnitFrames", "player.barFx.health.style"), before, "nothing written")
+    T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION)
+    T.falsy(DUI.Welcome.Due(), "once per account")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome: the bar animations come after Proc Alerts for an account that missed both", function()
+    local DUI = sawProcs({ welcome = 2 })
+    stub.RunTimers()
+    T.eq(DUI.Welcome.Slide(), "procAlerts")
+    press(DUI.Welcome.Page().picker.cards.on)
+    T.eq(DUI.InstallerUI.Frame().next.text:GetText(), NEXT or "Next")
+    DUI.Welcome.Next()
+    T.eq(DUI.Welcome.Slide(), "barFx")
+    T.truthy(DUI.InstallerUI.Frame().back:IsShown(), "Back to Proc Alerts")
+    DUI.Welcome.Next()
+    T.falsy(DUI.Welcome.Running())
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome: with the unit frames switched off, no bar animations slide", function()
+    local DUI = sawProcs({ frames = false })
+    stub.RunTimers()
+    T.falsy(DUI.Welcome.Running(), "nothing to show")
+    T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION, "and nothing left due")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome: closing the bar animations early brings them back; /dui whatsnew opens them", function()
+    local DUI = sawProcs()
+    stub.RunTimers()
+    closeWindow()
+    T.truthy(DUI.Welcome.Due(), "asks again next login")
+    SlashCmdList.DAYLIGHTUI("whatsnew")
+    T.eq(DUI.Welcome.Slide(), "barFx", "the command opens just the newest slide")
+    DUI.Welcome.Next()
+    T.falsy(DUI.Welcome.Due())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -251,7 +251,9 @@ local function buildFooter()
     local later = W.Link(f)
     later:SetPoint("LEFT", f, "BOTTOMLEFT", UI.PAD, row)
     later:SetScript("OnClick", function()
-        if frame.laterPage and DUI.OptionsPanel then DUI.OptionsPanel.Show(frame.laterPage) end
+        if not (frame.laterPage and DUI.OptionsPanel) then return end
+        DUI.OptionsPanel.Show(frame.laterPage)
+        if frame.laterKey then DUI.OptionsPanel.JumpTo({ frame.laterKey }) end
     end)
     frame.later = later
     frame.next = W.Button(f, NEXT or L["Next"], UI.BUTTON_H)
@@ -456,7 +458,8 @@ end
 -- banner = { height, crop, shift } puts the sunrise over it), rail, veil,
 -- step and total ("Step 2 of 6"), over (a
 -- plugin's name before the step), title, desc,
--- later (an options page for "Change it later"), back (show Back), next
+-- later (an options page for "Change it later"; laterSay = other words for
+-- it, laterKey = a setting on that page to open on), back (show Back), next
 -- (Next's text, nil hides it), dir (1 forward, -1 back).
 function UI.SetPage(page, opts)
     if not frame then build() end
@@ -507,9 +510,9 @@ function UI.SetPage(page, opts)
     say(h.step, step)
     say(h.title, T(opts.title or ""))
     say(h.desc, T(opts.desc or ""))
-    frame.laterPage = opts.later
+    frame.laterPage, frame.laterKey = opts.later, opts.laterKey
     local where = opts.later and DUI.InstallerPages.Where(opts.later)
-    frame.later.SetLabel(where and string.format(L["Change it later: /dui > %s"], where) or "")
+    frame.later.SetLabel(where and (opts.laterSay or string.format(L["Change it later: /dui > %s"], where)) or "")
     frame.later:SetShown(where ~= nil)
     button(frame.back, opts.back == true)
     button(frame.next, opts.next ~= nil)
