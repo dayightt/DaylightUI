@@ -1027,7 +1027,8 @@ function Window.Sort()
     if InCombatLockdown and InCombatLockdown() then return end
     if type(PlaySound) == "function" and SOUNDKIT and SOUNDKIT.UI_BAG_SORTING_01 then DUI.SafeCall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01) end
     local f = ns.window
-    if ns.Keep.Any() or ns.Keep.AnyMarkedJunk(f) then
+    ns.Keep.TellGame()
+    if ns.Keep.Any() or ns.Keep.ToEnd() or ns.Keep.AnyMarkedJunk(f) then
         -- Its own rounds: held until they're done, or SORT_MAX at most.
         local hold = Window.BeginSort(f, false, true)
         return ns.Keep.Sort(function() if hold then Window.EndSort(f, nil, hold) end end)

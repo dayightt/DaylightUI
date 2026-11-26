@@ -455,6 +455,7 @@ function Bank.Build()
                       DUI.SafeCall(PlaySound, SOUNDKIT.UI_BAG_SORTING_01)
                   end
                   W.BeginSort(w)
+                  ns.Keep.TellGame()
                   if C_Container.SortBank and Bank.bankType then DUI.SafeCall(C_Container.SortBank, Bank.bankType)
                   elseif C_Container.SortBankBags then DUI.SafeCall(C_Container.SortBankBags) end
               end },

@@ -37,6 +37,7 @@ ns.DEFAULTS = {
     recentMinutes = 15,     -- minutes a new item stays in Recent
     recentInGroup = false,  -- a new item also shows in its own group while in Recent
     autoStack = true,       -- merge partial stacks when the bag opens (Stack.lua)
+    sortToEnd = false,      -- Clean Up packs items into the last slots (Keep.ToEnd)
     combineStacks = true,   -- show stacks of one item as one (split again while trading, mailing, at the AH)
     stackShards = true,     -- show Soul Shards as one pile with a count (Layout.PILES)
     shardsKeep = 0,         -- warlocks: offer to delete Soul Shards past this many (0 = never)

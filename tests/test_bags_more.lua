@@ -1076,6 +1076,27 @@ T.test("bank game: Clean Up plays the sorting sound, and sorts nothing with no t
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The bank's Clean Up is the game's (SortBank), which reads the same direction
+-- flag as its bag sort. The flag didn't hold in game, so it's written right
+-- before each Clean Up from the switch, both ways (EllesmereUI does the same).
+T.test("bank game: Clean Up tells the game the switch's direction right before it sorts", function()
+    local ns, bank = bankLogin()
+    local flag, atSort = true, {}
+    C_Container.GetSortBagsRightToLeft = function() return flag end
+    C_Container.SetSortBagsRightToLeft = function(v) flag = v end
+    C_Container.SortBank = function(t) bank.calls.sort = t; atSort[#atSort + 1] = flag end
+    local f = atBank(ns)
+    DaylightUI:Set("Bags", "sortToEnd", true)
+    flag = true   -- the game lost it
+    f.sort:GetScript("OnClick")(f.sort, "LeftButton")
+    T.eq(atSort[1], false, "toward the end: right to left off as the bank sorts")
+    DaylightUI:Set("Bags", "sortToEnd", false)
+    f.sort:GetScript("OnClick")(f.sort, "LeftButton")
+    T.eq(atSort[2], true, "switch off: the game's normal fill")
+    C_Container.GetSortBagsRightToLeft, C_Container.SetSortBagsRightToLeft = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The account bank's gold: Daylight UI's own gold box (never the game's
 -- BANK_MONEY_* pop-ups, opened from addon code they taint), a second click on
 -- the same button closes it, and leaving the bank closes it
@@ -2477,12 +2498,12 @@ T.test("bags: Clean Up puts items marked as junk at the end, with the gray junk"
     ns.Categories.ToggleJunk(10, "Apple")
 end)
 
-T.test("bags: with the game's clean up toward the end on, kept-slot Clean Up fills from the last slot back", function()
+T.test("bags: with Clean up toward the end on, kept-slot Clean Up fills from the last slot back", function()
     local ns = login({ view = "grid" })
     keepWorld()
-    -- The game's right-to-left flag off is what packs toward the end.
-    local rev = false
-    C_Container.GetSortBagsRightToLeft = function() return rev end
+    DaylightUI:Set("Bags", "sortToEnd", true)
+    -- The game's flag says the normal fill: the switch decides, not this.
+    C_Container.GetSortBagsRightToLeft = function() return true end
     local f = open(ns)
     ns.Keep.Toggle(0, 3, 30)
     f.sort:GetScript("OnClick")(f.sort)
@@ -2493,6 +2514,32 @@ T.test("bags: with the game's clean up toward the end on, kept-slot Clean Up fil
     T.eq(world.items[1][last - 1].itemName, "Banana")
     T.isnil(world.items[0][1], "the front left empty")
     C_Container.GetSortBagsRightToLeft = nil
+end)
+
+-- Ticket (2.4.0): with the switch on, "Clean Up in bags: it doesn't work". In
+-- game the game's direction flag didn't hold what was written, so its sort
+-- can't be trusted to pack toward the end: Daylight UI's own moves do it.
+T.test("bags: Clean up toward the end packs every item into the last slots, nothing kept", function()
+    local ns = login({ view = "grid" })
+    keepWorld()
+    local writes = {}
+    C_Container.GetSortBagsRightToLeft = function() return true end
+    C_Container.SetSortBagsRightToLeft = function(v) writes[#writes + 1] = v end
+    DaylightUI:Set("Bags", "sortToEnd", true)
+    local f = open(ns)
+    T.falsy(ns.Keep.Any(), "no kept slots")
+    f.sort:GetScript("OnClick")(f.sort)
+    for _ = 1, 10 do stub.RunTimers() end
+    local last = ns.Bags.NumSlots(1)
+    T.eq(world.sorted, 0, "not left to the game's sort")
+    T.eq(world.items[1][last].itemName, "Apple", "the first item in the very last slot")
+    T.eq(world.items[1][last - 1].itemName, "Banana")
+    T.eq(world.items[1][last - 2].itemName, "Cherry")
+    T.eq(world.items[1][last - 3].itemName, "Date")
+    for slot = 1, ns.Bags.NumSlots(0) do T.isnil(world.items[0][slot], "the backpack left empty") end
+    T.eq(writes[#writes], false, "the game is told too, for anything that reads it")
+    C_Container.GetSortBagsRightToLeft, C_Container.SetSortBagsRightToLeft = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: a kept item that wandered off comes back; a kept slot with its item gone stays free", function()

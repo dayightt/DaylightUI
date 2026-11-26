@@ -4,8 +4,8 @@
 -- everything belongs and swaps items into place in rounds a short beat apart.
 -- A kept item that wandered off goes back to its slot, and a kept slot whose
 -- item is gone stays free for it. Items marked as junk by hand need it too: the
--- game's sort only knows gray junk, and this one puts both at the end. With no
--- kept slots and no marked junk, Clean Up is the game's.
+-- game's sort only knows gray junk, and this one puts both at the end. So does
+-- Clean up toward the end (Keep.ToEnd). Otherwise Clean Up is the game's.
 -- Saved per character since bags differ. Moves stay inside the plain bags or
 -- inside one special bag (only its own item type fits), and bags the player
 -- told the game to skip during cleanup are skipped here too.
@@ -83,6 +83,25 @@ function Keep.SetSkipped(bag, on)
     end
     local flag = Enum and Enum.BagSlotFlags and Enum.BagSlotFlags.DisableAutoSort
     if flag ~= nil and type(C.SetBagSlotFlag) == "function" then DUI.SafeCall(C.SetBagSlotFlag, bag, flag, on) end
+end
+
+-- Clean up toward the end (Bags > Layout). Daylight UI keeps it as its own
+-- setting: the game's direction flag (C_Container.GetSortBagsRightToLeft) didn't
+-- hold what was written to it in game, so reading it back flipped the switch
+-- off again. With it on, the bags' Clean Up is this file's sort, which packs
+-- toward the end itself.
+function Keep.ToEnd() return ns.Setting("sortToEnd") == true end
+
+-- The game's own sorts (SortBags, SortBank) read that flag, so it's written
+-- right before each one. The game names it the other way round: right to left
+-- is its normal fill from the first slot, so toward the end is the flag off.
+function Keep.TellGame()
+    local C = C_Container
+    if not C or type(C.SetSortBagsRightToLeft) ~= "function" then return end
+    local want = not Keep.ToEnd()
+    local get = C.GetSortBagsRightToLeft
+    if type(get) == "function" and get() == want then return end
+    DUI.SafeCall(C.SetSortBagsRightToLeft, want)
 end
 
 -- The bags a clean up can skip, in order: the backpack, then each equipped bag.
@@ -318,11 +337,8 @@ local function plan(list)
         end
     end
     table.sort(loose, before)
-    -- The game's clean up direction. Right to left is its normal fill, from the
-    -- backpack's first slot on. Turned off, its own sort packs toward the end of
-    -- the last bag, so fill from the last open slot back to match it.
-    local rev = C_Container and C_Container.GetSortBagsRightToLeft
-    if type(rev) == "function" and rev() == false then
+    -- Clean up toward the end: fill from the last open slot back.
+    if Keep.ToEnd() then
         for i = 1, math.floor(#targets / 2) do
             targets[i], targets[#targets + 1 - i] = targets[#targets + 1 - i], targets[i]
         end
