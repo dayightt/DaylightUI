@@ -1,3 +1,33 @@
+# DaylightUI 2.4.0
+
+Seven new bar animations, choose which part of a unit frame draws on top, bar ends that lean either way, and new speech bubbles.
+
+## New
+- Bar animations: Seven new bar animations: Daybreak, Pixel Sparks, Pixel Blaze, Pixel Arc, Slosh, Molten and Cinders
+- Info Panel: The experience and reputation bars can wear a bar animation too
+- Unit frames: Layers: choose which part of a unit frame draws on top, or Bring forward and Send back in unlock mode (thanks Blukraken)
+- Angled bars: Each end of an angled bar can be straight or lean either way, on every angled bar
+- Speech bubbles: A sleek new look with a cut corner and a colored line
+- Other addons: When another addon does a job Daylight UI does (Platynator, Baganator, Prat...), one box at login lets you pick which to keep
+- Proc Alerts: An animation speed slider for each alert
+- Test mode: An Auras tick hides the sample buffs and debuffs
+
+## Fixed
+- Proc Alerts: Infusion of Light, Redoubt, Vengeance, Nature's Grace and Unsealed Wrath light up, and Missile Barrage stays when Clearcasting procs
+- Proc Alerts: Every alert animation looks different and keeps moving, instead of Impact and Flash going still
+- Cooldown Manager: Buffs set to show only when missing stay hidden when another player's copy is on you
+- Cooldown Manager: Placed proc buffs show again, and the game's own icons no longer block clicks
+- Loot rolls: Loot roll cards no longer pile on top of each other when three or more items drop
+- Bags: Class reagents sort into Reagents, and no blue squares or gaps stay behind after selling
+- Chat: Whispers from the group finder or friends list type right away, and controller hints show once
+- Quests: Dragging a zone is smooth, the list lines up with the minimap's frame, and long objectives wrap in tooltips
+- Tooltips: Rich tooltips no longer hide TSM's vendor prices
+- Unit frames: Bar animations show your chosen bar texture, and the personal display comes back after an attack dismounts you
+- Party frames: Picking party members with the D-pad no longer shows an empty box
+- Nameplates: Big defensives no longer shows ordinary buffs like Blessing of Kings on enemy players
+- Little touches: No bright squares on the dimmed map, the map's quest count no longer hides under the search box, the friends window status row stays in place, no guild window error in dungeons, recent allies in class colors, cleaner portrait edges, and leader chat tags in Chinese and other non-Latin languages (thanks Levis)
+- Translations: The newest settings in Simplified Chinese (thanks Levis)
+
 # DaylightUI 2.3.0
 
 Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.
