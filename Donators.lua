@@ -78,6 +78,7 @@ Donators.LIST = {
     "Brian",
     "Owen",
     "Reghas",
+    "Scandalari",
     "HappyS",
     "ramnokri",
     "Shady",
