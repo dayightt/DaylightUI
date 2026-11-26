@@ -1621,7 +1621,6 @@ function UF.Layout(f, cfg, text, keepSize)
         local reserve = band.w + band.gap + (band.cut or 0)
         if band.side == "left" then insetL = T + reserve else insetR = T + reserve end
     end
-    f.health:SetPoint("TOPLEFT", f, "TOPLEFT", insetL, -T)
     -- Tiles can optionally fill health bottom to top instead of across.
     f.health:SetOrientation(cfg.fillVertical == true and "VERTICAL" or "HORIZONTAL")
     -- The player's power bar may stand on its own, and in Ribbon every power
@@ -1641,22 +1640,63 @@ function UF.Layout(f, cfg, text, keepSize)
             UF.UpdatePower(f, true)
         end
     end
-    if showPower and where == "inside" then
-        f.power:ClearAllPoints()
-        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T)
-        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
-        -- A tile sized by its header can't grow, so a tall power bar stops
-        -- where it would leave less than UF.MIN_HEALTH of health.
-        local room = f:GetHeight() - 2 * T - Pixel.Px(f, Style.SEPARATOR_PX) - Pixel.Snap(f, UF.MIN_HEALTH)
-        f.power:SetHeight(math.max(Pixel.Px(f, 1), math.min(Pixel.Snap(f, cfg.powerHeight), Pixel.Snap(f, room))))
-        f.separator:ClearAllPoints()
-        f.separator:SetPoint("BOTTOMLEFT", f.power, "TOPLEFT", 0, 0)
-        f.separator:SetPoint("BOTTOMRIGHT", f.power, "TOPRIGHT", 0, 0)
-        f.separator:SetHeight(Pixel.Px(f, Style.SEPARATOR_PX))
-        f.health:SetPoint("BOTTOMRIGHT", f.separator, "TOPRIGHT", 0, 0)
-    else
-        f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T)
+    local inside = showPower and where == "inside"
+    -- A tile sized by its header can't grow, so a tall power bar stops where
+    -- it would leave less than UF.MIN_HEALTH of health.
+    local sep = Pixel.Px(f, Style.SEPARATOR_PX)
+    local powerH = 0
+    if inside then
+        local room = f:GetHeight() - 2 * T - sep - Pixel.Snap(f, UF.MIN_HEALTH)
+        powerH = math.max(Pixel.Px(f, 1), math.min(Pixel.Snap(f, cfg.powerHeight), Pixel.Snap(f, room)))
     end
+    -- A portrait on the frame sits over the outer end, and a bar running on
+    -- under it hid the last tenth of its range (a centered text sat off the
+    -- middle of what shows). Each bar starts where the ring's outline crosses
+    -- the bar's edge farthest from the ring's middle: a full bar still meets
+    -- the ring with no dark sliver, and a round ring hides only the sliver its
+    -- curve takes off a straight end. The empty part and the line between the
+    -- bars still run on under the ring, so the frame looks the same.
+    -- A ring sized on the frame with its power line (Ribbon) needs the line's
+    -- room now, which PowerBar.LayoutLine sets again further down.
+    if hung and showPower then
+        local lineH, gap = ns.PowerBar.LineSize(f, cfg)
+        f.foot = gap + lineH
+    end
+    local ring = f.portrait and not f.backdropOn and UF.RingShape(f, cfg) or nil
+    if ring and (ring.mode == "none" or ring.free) then ring = nil end
+    f.ringShape = ring
+    local outerIn = (ring and ring.outerRight) and insetR or insetL
+    local function clear(y0, y1)
+        if not ring then return 0 end
+        return math.max(0, math.min(UF.RingEdge(f, ring, y0), UF.RingEdge(f, ring, y1)) - outerIn)
+    end
+    f.healthRing = clear(T + (inside and (powerH + sep) or 0), f:GetHeight() - T)
+    f.powerRing = inside and clear(T, T + powerH) or 0
+    local function sides(more)
+        if ring and ring.outerRight then return insetL, insetR + more end
+        return insetL + more, insetR
+    end
+    local hL, hR = sides(f.healthRing)
+    f.health:SetPoint("TOPLEFT", f, "TOPLEFT", hL, -T)
+    if inside then
+        local pL, pR = sides(f.powerRing)
+        f.power:ClearAllPoints()
+        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", pL, T)
+        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -pR, T)
+        f.power:SetHeight(powerH)
+        f.separator:ClearAllPoints()
+        f.separator:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T + powerH)
+        f.separator:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T + powerH)
+        f.separator:SetHeight(sep)
+        f.health:SetPoint("BOTTOMRIGHT", f.separator, "TOPRIGHT", insetR - hR, 0)
+    else
+        f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -hR, T)
+    end
+    -- Under the ring the empty part runs on to the border, as it did before
+    -- the bars stepped clear of it.
+    UF.BackToBorder(f.health, ring, f.healthRing)
+    local ownPower = type(f.insidePower) == "table" and f.insidePower.power or f.power
+    if ownPower then UF.BackToBorder(ownPower, ring, inside and f.powerRing or 0) end
     -- With a backdrop the health is a strip along the foot, over the power,
     -- and the art takes the rest (UF.LayoutBackdrop).
     if f.backdropOn then
@@ -2178,6 +2218,84 @@ function UF.SetHitRect(f, l, r)
     f:SetHitRectInsets(l, r, t, b)
 end
 
+-- The portrait's size and place, from the settings and the frame's size alone,
+-- so UF.Layout can keep the bars clear of it before the portrait itself is
+-- laid out. A portrait on its own takes its holder's scale here, since the
+-- socket's border is measured in the holder's pixels.
+-- Returns { mode, free, outerRight, socket, portraitScale, R, Rb, off, half,
+-- shapeArt, y }; only mode and free when there's no portrait to show.
+function UF.RingShape(f, cfg)
+    local mode = UF.PortraitMode(f, cfg)
+    local holder = f.portraitHolder
+    local free = UF.PORTRAIT_FREE[f.spec.unit] and cfg.portraitAt == "free"
+    -- An options preview has no holder, so a portrait on its own leaves it,
+    -- as a power bar on its own does.
+    if free and not holder then mode = "none" end
+    free = (free and mode ~= "none" and cfg.enabled ~= false) and true or false
+    local ring = { mode = mode, free = free }
+    if mode == "none" then return ring end
+    local outerRight = f.spec.slant == "left"
+    local portraitScale = tonumber(cfg.portraitScale) or 1
+    local socket = ns.Socket.Wanted(f, cfg, mode)
+    -- The socket's portrait is drawn a size bigger at the same Portrait size.
+    local scale = portraitScale * (socket and ns.Socket.SIZE or 1)
+    local R, y
+    if f.ringShare then
+        -- As tall as the whole frame with its row and line, centered on it.
+        local up, down = f.hitTop or 0, f.foot or 0
+        R = Pixel.Snap(f, (f:GetHeight() + up + down) * f.ringShare * scale)
+        y = Pixel.Snap(f, (up - down) / 2)
+    else
+        R = Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * scale / 2)
+        y = 0
+    end
+    if free then
+        y = 0
+        holder:SetScale(DUI.Movers.Scale(holder.key))
+    end
+    -- Its middle sits where the classic ring's does, on a whole pixel: half a
+    -- pixel off, the ring drew a pixel wider on one side.
+    local off = Pixel.Snap(f, R * UF.PORTRAIT_OUT)
+    local shapeArt = UF.ShapeArt(cfg.portraitShape, outerRight)
+    -- Set into the frame, the ring is built from the inside out on the classic
+    -- ring's radius: the picture keeps its size and the frame's border goes
+    -- round the socket's thin line, so a thicker border makes the whole ring a
+    -- little bigger, as it makes the bar heavier. R becomes its outer edge.
+    local Rb = R
+    if socket then R = ns.Socket.Outer(f, Rb, cfg.portraitRingWidth, shapeArt, free) end
+    ring.outerRight, ring.socket, ring.portraitScale = outerRight, socket, portraitScale
+    ring.R, ring.Rb, ring.off, ring.shapeArt, ring.y = R, Rb, off, shapeArt, y
+    -- A square's half-side, or the ring's radius: how far it reaches each way.
+    ring.half = shapeArt and R * UF.SQUARE or R
+    return ring
+end
+
+-- How far in from the frame's outer end the ring's outline is on the row y
+-- (up from the frame's bottom). A square or angled portrait's inner side is
+-- straight. 0 where the ring doesn't reach that row.
+function UF.RingEdge(f, ring, y)
+    local dy = math.abs(y - (f:GetHeight() / 2 + ring.y))
+    if dy >= ring.half then return 0 end
+    if ring.shapeArt then return ring.half - ring.off end
+    return math.sqrt(ring.half * ring.half - dy * dy) - ring.off
+end
+
+-- A bar's empty part, reaching more past the bar's outer end (the end under
+-- the portrait), or just the bar.
+function UF.BackToBorder(bar, ring, more)
+    local back = Style.BarBack(bar)
+    if not back then return end
+    back:ClearAllPoints()
+    if not ring or more <= 0 then
+        back:SetAllPoints(bar)
+        return
+    end
+    local l, r = -more, 0
+    if ring.outerRight then l, r = 0, more end
+    back:SetPoint("TOPLEFT", bar, "TOPLEFT", l, 0)
+    back:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", r, 0)
+end
+
 -- The hit rect waits for combat to end (UF.SetHitRect).
 function UF.LayoutPortrait(f, cfg)
     local p = f.portrait
@@ -2191,13 +2309,10 @@ function UF.LayoutPortrait(f, cfg)
         ns.Socket.Layout(f, nil)
         return
     end
-    local mode = UF.PortraitMode(f, cfg)
     local holder = f.portraitHolder
-    local free = UF.PORTRAIT_FREE[f.spec.unit] and cfg.portraitAt == "free"
-    -- An options preview has no holder, so a portrait on its own leaves it,
-    -- as a power bar on its own does.
-    if free and not holder then mode = "none" end
-    f.portraitFree = (free and mode ~= "none" and cfg.enabled ~= false) and true or false
+    local ring = UF.RingShape(f, cfg)
+    local mode = ring.mode
+    f.portraitFree = ring.free
     f.iconsStay = f.portraitFree and cfg.portraitIconsStay == true
     UF.HomePortrait(f)
     if holder then
@@ -2213,40 +2328,14 @@ function UF.LayoutPortrait(f, cfg)
         return
     end
     f.ringColor = cfg.portraitRing
-    local outerRight = f.spec.slant == "left"
-    f.portraitScale = tonumber(cfg.portraitScale) or 1
-    local socket = ns.Socket.Wanted(f, cfg, mode)
-    -- The socket's portrait is drawn a size bigger at the same Portrait size.
-    local scale = f.portraitScale * (socket and ns.Socket.SIZE or 1)
-    local R
-    if f.ringShare then
-        -- As tall as the whole frame with its row and line, centered on it.
-        local up, down = f.hitTop or 0, f.foot or 0
-        R = Pixel.Snap(f, (f:GetHeight() + up + down) * f.ringShare * scale)
-        f.portraitY = Pixel.Snap(f, (up - down) / 2)
-    else
-        R = Pixel.Snap(f, f:GetHeight() * UF.PORTRAIT_SIZE * scale / 2)
-        f.portraitY = 0
-    end
-    if f.portraitFree then
-        f.portraitY = 0
-        holder:SetScale(DUI.Movers.Scale(holder.key))
-    end
-    -- Its middle sits where the classic ring's does, on a whole pixel: half a
-    -- pixel off, the ring drew a pixel wider on one side.
-    local off = Pixel.Snap(f, R * UF.PORTRAIT_OUT)
-    local shapeArt = UF.ShapeArt(cfg.portraitShape, outerRight)
-    -- Set into the frame, the ring is built from the inside out on the classic
-    -- ring's radius: the picture keeps its size and the frame's border goes
-    -- round the socket's thin line, so a thicker border makes the whole ring a
-    -- little bigger, as it makes the bar heavier. R becomes its outer edge.
-    local Rb = R
-    if socket then R = ns.Socket.Outer(f, Rb, cfg.portraitRingWidth, shapeArt) end
+    local outerRight = ring.outerRight
+    f.portraitScale = ring.portraitScale
+    local socket = ring.socket
+    local R, Rb, off, shapeArt, half = ring.R, ring.Rb, ring.off, ring.shapeArt, ring.half
+    f.portraitY = ring.y
     if f.portraitFree then holder:SetSize(2 * R, 2 * R) end
     p.shapeArt = shapeArt
     p.corners = UF.ShapeCorners(shapeArt)
-    -- A square's half-side, or the ring's radius: how far it reaches each way.
-    local half = shapeArt and R * UF.SQUARE or R
     f.portraitOverlap = half - off  -- how far the ring reaches over the bar
     local Rk, ratio, inner
     if socket then
@@ -2702,7 +2791,8 @@ function UF.PlaceBarName(f)
     local p = f.portrait
     local pad = 4
     if p and p:IsShown() then
-        pad = pad + math.max(0, f.portraitOverlap or 0)
+        -- The bar already starts at the ring (f.healthRing), so only what's left.
+        pad = pad + math.max(0, (f.portraitOverlap or 0) - (f.healthRing or 0))
     end
     local markerW = f.markerShown and not f.markerSpot and ((f.markerSize or UF.MARKER_SIZE) + 4) or 0
     if f.marker and not f.markerSpot then

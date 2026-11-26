@@ -667,8 +667,9 @@ function CB.Layout(h, cfg, parentCfg)
     local leftPad = CB.PAD + contentLead + (clearLeft and endCut or 0)
     local rightPad = CB.PAD + ((slant == "right" or slant == "both") and endCut or 0)
     if h.into then
-        -- The frame's portrait ring sits over the outer end.
-        local ring = h.attached.ringInset or 0
+        -- The frame's portrait ring sits over the outer end; the power bar
+        -- already starts at it (powerRing), so only what's left.
+        local ring = math.max(0, (h.attached.ringInset or 0) - (h.attached.powerRing or 0))
         if slant == "left" then rightPad = rightPad + ring elseif slant == "right" then leftPad = leftPad + ring end
     elseif hang and side == "left" then
         -- The target's ring hangs over the bar's right end, so the time stays clear.

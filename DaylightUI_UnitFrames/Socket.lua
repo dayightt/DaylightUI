@@ -95,11 +95,14 @@ end
 
 -- The socket's outer edge, built out from the classic radius R: the line, then
 -- the frame's whole border (its inner black line is the gap). A shape's is
--- worked out on its half-side and given back as a radius like R.
-function Socket.Outer(f, R, width, shapeArt)
+-- worked out on its half-side and given back as a radius like R. free says
+-- where it will sit, since the frame may not know yet.
+function Socket.Outer(f, R, width, shapeArt, free)
     local s = shapeArt and ns.UF.SQUARE or 1
     local line = Socket.RingSize(R, width)
-    local T = Pixel.Px(measure(f), Style.BorderPx(f))
+    local m = measure(f)
+    if free ~= nil then m = (free and f.portraitHolder) or f end
+    local T = Pixel.Px(m, Style.BorderPx(f))
     return (line * s + T) / s
 end
 

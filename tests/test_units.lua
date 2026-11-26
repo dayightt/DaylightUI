@@ -296,7 +296,9 @@ T.test("target cast text stops short of the portrait ring", function()
     local DUI, ns = login()
     local h, target = ns.targetCastbar, ns.frames.target
     local _, _, _, x = h.time:GetPoint(1)
-    T.truthy(-x > target.ringInset, "time clears the ring")
+    -- Measured from the frame's end: the power bar itself starts past the ring.
+    local _, _, _, bx = target.power:GetPoint(2)
+    T.truthy(-x - bx > target.ringInset, "time clears the ring")
     DUI:Set("UnitFrames", "target.portrait", "none")
     _, _, _, x = h.time:GetPoint(1)
     T.truthy(-x < 10)

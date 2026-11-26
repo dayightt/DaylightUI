@@ -19,6 +19,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Nameplates", "New profiles put nameplates lower, right over heads instead of floating high above them. Your own profiles keep their height (Nameplates > Plates up / down, which now goes lower too)" },
     }, fixed = {
+        { "Unit frames", "With a portrait on, the health and power bars no longer run under it, so a nearly empty bar looks nearly empty and centered health text sits in the middle" },
         { "Action bars", "A spell cast through a macro lights up its button when it procs" },
     } },
     { version = "2.4.0", date = "2026-11-26", summary = "Seven new bar animations, choose which part of a unit frame draws on top, bar ends that lean either way, and new speech bubbles.", new = {

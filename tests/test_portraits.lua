@@ -2271,3 +2271,100 @@ T.test("a portrait on its own targets and opens the unit's menu, and follows its
     T.falsy(b:IsShown(), "back on the frame, the frame's own click is enough")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- How far in from the frame's outer end a bar's side starts, following its
+-- anchors back to the frame (the target's health hangs off the separator).
+local function sideGap(f, region, side)
+    for i = 1, region:GetNumPoints() do
+        local pt, rel, rp, x = region:GetPoint(i)
+        if pt:find(side) and rp:find(side) then
+            local gap = side == "LEFT" and x or -x
+            if rel == f then return gap end
+            return gap + sideGap(f, rel, side)
+        end
+    end
+    error("no " .. side .. " point")
+end
+
+-- The ring's outline, measured from the frame's outer end, on the row y up from
+-- the frame's bottom. A square or angled portrait has a straight inner side.
+local function ringEdge(f, y, square)
+    local half = (f.ringInset + f.ringReach) / 2
+    local off = (f.ringReach - f.ringInset) / 2
+    local dy = math.abs(y - (f:GetHeight() / 2 + (f.portraitY or 0)))
+    if dy >= half then return 0 end
+    if square then return half - off end
+    return math.sqrt(half * half - dy * dy) - off
+end
+
+T.test("a portrait never hides the end of the health or power bar", function()
+    local DUI, ns = login(function()
+        stub.units.player = { name = "Stabby", isPlayer = true, class = "ROGUE", health = 5, maxHealth = 10 }
+        stub.units.target = { name = "Wolf", reaction = 2, health = 5, maxHealth = 10, power = 1, maxPower = 2 }
+        stub.units.focus = { name = "Wolf", reaction = 2, health = 5, maxHealth = 10, power = 1, maxPower = 2 }
+    end)
+    for _, look in ipairs({ "socket", "classic" }) do
+        for _, shape in ipairs({ "round", "square", "angled" }) do
+            for _, id in ipairs({ "player", "target", "focus" }) do
+                DUI:Set("UnitFrames", id .. ".portraitLook", look)
+                DUI:Set("UnitFrames", id .. ".portraitShape", shape)
+                DUI:Set("UnitFrames", id .. ".healthTextPos", "center")
+                stub.RunTimers()
+                local f = ns.frames[id]
+                local what = look .. " " .. shape .. " " .. id
+                T.truthy(f.portrait:IsShown() and f.ringInset > 0, what .. ": the ring sits on the frame")
+                local side = f.spec.slant == "left" and "RIGHT" or "LEFT"
+                local H, T0 = f:GetHeight(), -select(5, f.health:GetPoint(1))
+                local ph = f.power:GetHeight() + f.separator:GetHeight()
+                -- Each bar starts where the ring's outline crosses the bar's
+                -- edge farthest from the ring's middle: its empty end is the
+                -- first thing past the ring, and a full bar still meets it.
+                local sq = shape ~= "round"
+                local function starts(y0, y1)
+                    return math.max(T0, math.min(ringEdge(f, y0, sq), ringEdge(f, y1, sq)))
+                end
+                T.near(sideGap(f, f.health, side), starts(T0 + ph, H - T0), 0.6,
+                    what .. ": the health bar starts at the ring")
+                T.near(sideGap(f, f.power, side), starts(T0, T0 + f.power:GetHeight()), 0.6,
+                    what .. ": the power bar starts at the ring")
+                -- Less than a few pixels of either bar is left under the ring.
+                T.truthy(ringEdge(f, (T0 + ph + H - T0) / 2, sq) - sideGap(f, f.health, side) < 4.5,
+                    what .. ": next to nothing of the health bar hides under the ring")
+                -- Centered health text sits on the bar, so it is centered on
+                -- what shows.
+                local pt, rel = f.percentText:GetPoint(1)
+                T.eq(pt, "CENTER"); T.eq(rel, f.health)
+                -- The empty part still reaches the border under the ring, so
+                -- the frame looks as it did.
+                T.near(sideGap(f, DUI.Style.BarBack(f.health), side), T0, 0.01,
+                    what .. ": the health bar's empty part runs on under the ring")
+                T.near(sideGap(f, f.separator, side), T0, 0.01, what .. ": the line between the bars runs on under the ring")
+            end
+        end
+    end
+    -- Ribbon: the ring covers the power line under the frame too.
+    DUI:Set("UnitFrames", "player.portraitLook", "socket")
+    DUI:Set("UnitFrames", "player.portraitShape", "round")
+    ns.SetStyle("look.style", "ribbon")
+    stub.RunTimers()
+    local f = ns.frames.player
+    local line = f.line
+    T.truthy(line:IsShown(), "Ribbon hangs the power line")
+    local _, _, _, lx, ly = line.set.power:GetPoint(1)
+    -- The line hangs gap below the frame: its top and bottom rows in the frame's terms.
+    local gap = -select(5, line:GetPoint(1))
+    local edge = math.min(ringEdge(f, -gap + ly, false), ringEdge(f, -gap - line:GetHeight() - ly, false))
+    T.truthy(edge > -ly, "the ring reaches over the line's end")
+    T.near(lx, edge, 0.6, "Ribbon's power line starts at the ring")
+    local T0 = -select(5, f.health:GetPoint(1))
+    T.near(sideGap(f, f.health, "LEFT"), math.min(ringEdge(f, f:GetHeight() - T0, false), ringEdge(f, T0, false)), 0.6,
+        "Ribbon's health starts at the ring")
+    T.near(sideGap(f, DUI.Style.BarBack(line.set.power), "LEFT"), -ly, 0.01, "the line's empty part runs on under the ring")
+    ns.SetStyle("look.style", "daylight")
+    stub.RunTimers()
+    -- On its own, the portrait leaves the bars their whole length.
+    DUI:Set("UnitFrames", "player.portraitAt", "free")
+    stub.RunTimers()
+    T.near(sideGap(f, f.health, "LEFT"), -select(5, f.health:GetPoint(1)), 0.01, "a portrait on its own")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

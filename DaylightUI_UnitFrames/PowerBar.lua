@@ -182,6 +182,14 @@ end
 -- frame's top corner down through the line (like a hung cast bar), so the two
 -- can't drift apart. side/cut are the frame's. Sets f.foot, the space the line
 -- takes under the frame (0 while off). The caller is protected.
+-- The line's height and the gap above it: what it takes under the frame.
+function PB.LineSize(f, cfg)
+    local h = f.line
+    local T = Pixel.Px(h, Style.BorderPx(h))
+    return Pixel.Snap(f, tonumber(cfg.powerHeight) or 4) + 2 * T,
+        Pixel.Snap(f, tonumber(cfg.ribbonGap) or ns.UF.LINE_GAP), T
+end
+
 function PB.LayoutLine(f, cfg, text, side, cut, show)
     local h = f.line
     f.foot = 0
@@ -190,9 +198,7 @@ function PB.LayoutLine(f, cfg, text, side, cut, show)
         h:Hide()
         return
     end
-    local T = Pixel.Px(h, Style.BorderPx(h))
-    local H = Pixel.Snap(f, tonumber(cfg.powerHeight) or 4) + 2 * T
-    local gap = Pixel.Snap(f, tonumber(cfg.ribbonGap) or ns.UF.LINE_GAP)
+    local H, gap, T = PB.LineSize(f, cfg)
     h:ClearAllPoints()
     h:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, -gap)
     h:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", 0, -gap)
@@ -209,9 +215,19 @@ function PB.LayoutLine(f, cfg, text, side, cut, show)
     if not ns.UF.HasEnd(ends, side) then side = nil end
     local innerCut = side and lineCut * (total - (ref.drop[side] or 0)) / total or 0
     local p = h.set.power
+    -- A portrait on the frame reaches down over the line's outer end too: the
+    -- bar starts where the ring's outline crosses its bottom edge, as the
+    -- frame's own bars do (UF.Layout's f.ringShape).
+    local ring = f.ringShape
+    local edge = ring and math.min(ns.UF.RingEdge(f, ring, -gap - T), ns.UF.RingEdge(f, ring, -gap - H + T))
+    local more = ring and math.max(0, edge - T) or 0
+    f.powerRing = more
+    local l, r = T, T
+    if ring and ring.outerRight then r = T + more else l = T + more end
     p:ClearAllPoints()
-    p:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
-    p:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
+    p:SetPoint("TOPLEFT", h, "TOPLEFT", l, -T)
+    p:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -r, T)
+    ns.UF.BackToBorder(p, ring, more)
     p:SetReverseFill(f.growLeft == true)
     -- The fill's moving edge takes the angle of the end it runs toward.
     local toward = f.growLeft == true and "left" or "right"
