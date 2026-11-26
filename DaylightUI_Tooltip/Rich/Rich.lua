@@ -538,7 +538,9 @@ function Rich.Lines(p, n, lines, from, skip, ruled)
             if not line.left and not line.right then
                 Panel.Gap(p, 4)
             elseif line.right then
-                Panel.Row(p, line.left or "", line.right, valueColor(line))
+                -- A long left side wraps rather than being cut: the game's tooltip
+                -- can't wrap it, so this is where a long objective gets its room.
+                Panel.Row(p, line.left or "", line.right, valueColor(line), nil, nil, nil, true)
             elseif Rich.IsFlavor(line) then
                 Rich.Flavor(p, line)
             elseif hasCoin(line) then

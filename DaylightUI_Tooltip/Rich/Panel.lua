@@ -531,9 +531,11 @@ end
 
 -- A label on the left, its value on the right. s: their text size (body);
 -- valueSize lets the value stand out bigger than its label (a sell price).
--- wrap: a label too long for its room wraps onto more lines instead of being cut.
+-- wrap: a label too long for its room wraps onto more lines instead of being cut
+-- (not a secret one, which can't be measured).
 function Panel.Row(p, label, value, valueColor, labelColor, s, valueSize, wrap)
-    local item = add(p, { kind = "row", wrap = wrap and true or nil, words = label })
+    wrap = wrap and type(label) == "string" and not isSecret(label)
+    local item = add(p, { kind = "row", wrap = wrap or nil, words = label })
     item.label = text(p, s or Style.SIZE.body, labelColor or Style.INK.LABEL, wrap)
     item.label:SetText(label or "")
     if value and value ~= "" then
@@ -544,20 +546,10 @@ function Panel.Row(p, label, value, valueColor, labelColor, s, valueSize, wrap)
 end
 
 -- A sentence, wrapped to the card.
--- The card's font rides an inline coin high; it sits lower by a share of the text's
--- size (3 px at 13), whatever font and size the player picked.
-function Panel.LowerCoins(sentence, size)
-    if type(sentence) ~= "string" or isSecret(sentence) then return sentence end
-    local lower = math.floor(size * 0.25 + 0.5)
-    if lower <= 0 then return sentence end
-    return (sentence:gsub("(|T[^|]-coin%-%a+%.png:0:0:0:)0(:)", "%1-" .. lower .. "%2"))
-end
-
 function Panel.Text(p, sentence, color, s)
     local item = add(p, { kind = "text" })
-    local size = s or Style.SIZE.body
-    item.fs = text(p, size, color or Style.INK.TEXT, true)
-    item.fs:SetText(Panel.LowerCoins(sentence or "", size))
+    item.fs = text(p, s or Style.SIZE.body, color or Style.INK.TEXT, true)
+    item.fs:SetText(sentence or "")
 end
 
 -- One line that never wraps, cut with "..." at the card's edge, and an
@@ -974,13 +966,14 @@ function place.row(p, item, y, inner)
         local room = inner - widthOf(item.value) - Panel.ROW_GAP_X
         if widthOf(item.label) > room + 1 then
             item.label:SetWidth(math.max(1, room))
-            if item.wrap then
+            -- A secret label can't be measured or split into words: it stays cut.
+            if item.wrap and type(item.words) == "string" and not isSecret(item.words) then
                 local sh = item.label:GetStringHeight()
                 if type(sh) == "number" and not isSecret(sh) and sh > h then
                     h = sh
-                elseif type(item.words) == "string" then
+                else
                     local lines = wrappedLines(item.label, item.words, room)
-                    h = lines * (item.label.size + Panel.LINE_EXTRA) + (lines - 1) * Panel.LINE_SPACING
+                    h = lines * h + (lines - 1) * Panel.LINE_SPACING
                 end
             end
         end

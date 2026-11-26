@@ -2658,16 +2658,29 @@ T.test("rich tooltip: a gap between a quest's heading and its objectives is no s
         if it.kind == "text" and it.fs and stub.Text(it.fs):find("coin-gold", 1, true) then money = it end
     end
     T.truthy(money, "the reward's line")
-    T.truthy(stub.Text(money.fs):find(":0:0:0:-3:", 1, true), "its coin sits lower, by the card's font size")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("rich tooltip: a coin is lowered by the text's size, one without coins is left alone", function()
+-- A tooltip line with two sides (an objective and its count, written by Daylight UI's
+-- quest tracker) had its long left side cut. It wraps now, and the row grows with it;
+-- the count keeps its own color at the edge.
+T.test("rich tooltip: a two-sided line's long left side wraps and the row grows, the value keeps its color", function()
     local _, Panel = login("rich")
-    T.truthy(Panel.LowerCoins("5|Tx/coin-gold.png:0:0:0:0:64:64:-4:60:0:64|t", 13):find(":0:0:0:-3:", 1, true))
-    T.truthy(Panel.LowerCoins("5|Tx/coin-gold.png:0:0:0:0:64:64:-4:60:0:64|t", 20):find(":0:0:0:-5:", 1, true))
-    T.eq(Panel.LowerCoins("plain text", 13), "plain text")
-    T.truthy(Panel.LowerCoins("|Tx/icon.png:0:0:0:0|t", 13):find(":0:0:0:0|t", 1, true), "another texture is left as it is")
+    local long = string.rep("Honor mark of the Arathi Basin ", 4)
+    fill(99, { "A quest", { long, "0/3", 1, 1, 1, 1, 0.3, 0.3 }, { "Short", "1/2", 1, 1, 1, 1, 0.8, 0.2 } })
+    local p = Panel.Get(GameTooltip)
+    local rows = kinds(p, "row")
+    local tall, short
+    for _, it in ipairs(rows) do
+        if stub.Text(it.value) == "0/3" then tall = it elseif stub.Text(it.value) == "1/2" then short = it end
+    end
+    T.truthy(tall and short, "both lines are rows")
+    T.truthy(tall.label.__wordWrap == true, "the long name may wrap")
+    local ty = select(5, tall.label:GetPoint(1))
+    local sy = select(5, short.label:GetPoint(1))
+    T.truthy(ty - sy > 2 * DaylightUI.Style.SIZE.body, "the next row sits under both lines of the wrapped one: " .. tostring(ty - sy))
+    T.rgb({ tall.value:GetTextColor() }, { 1, 0.3, 0.3 }, "the count keeps the line's own color")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- Seen in game: a crawfish showed HUMANOID as a tag and "Humanoid" again as a

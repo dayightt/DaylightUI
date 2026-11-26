@@ -259,6 +259,23 @@ local function objColor(o)
     if o.done then return Tips.GOOD end
 end
 
+-- One objective and its count in a tooltip. The game's tooltip never wraps the left
+-- side of a two-sided line, so a long objective was cut short ("Marca de honor de la
+-- Cuenc..."): there the count goes first on one line that wraps, as the game writes it.
+-- The Rich card wraps a row's label by itself, so it keeps the two sides, and with them
+-- the count's progress color; written count first it would read the line as a quest
+-- objective and draw it as one.
+function Clicks.Objective(text, count, color)
+    local Tips = DUI.Tips
+    if DUI.API.TooltipStyle() == "rich" then
+        Tips.Line(text, count, color)
+    elseif count ~= "" and color then
+        Tips.Text(DUI.Win.Parts.Hex(color) .. count .. "|r " .. text)
+    else
+        Tips.Text((count ~= "" and (count .. " ") or "") .. text)
+    end
+end
+
 -- Same look as every DUI.Tips tooltip, with the clicks in the accent.
 -- hints: the clicks for the row it belongs to (the tracker's by default).
 -- With rowTipKind "details" it also carries the quest's story and every reward,
@@ -275,7 +292,8 @@ function Clicks.QuestTip(q, hints)
         -- The level in its difficulty color, like the log, and the zone on its own line.
         -- Its tag (dungeon, PvP, elite, raid) after the level, in the tag's color, as in the tracker.
         local tag = DUI:Get("Quests", "questTags") ~= false and ns.Look.TagText(look, q.tag) or nil
-        Tips.Sub(L["Level %s"]:format(ns.Look.Level(q)) .. (tag and (" · " .. tag) or ""))
+        local level = ns.Look.Level(q)
+        Tips.Sub(tag and L["Level %s · %s"]:format(level, tag) or L["Level %s"]:format(level))
         if q.zone and q.zone ~= "" then Tips.Sub(q.zone) end
     end
     local story = full and ns.Details.Text(q)
@@ -284,14 +302,7 @@ function Clicks.QuestTip(q, hints)
         if #q.objs > 0 then Tips.Gap() end
         for _, o in ipairs(q.objs) do
             local right = o.kind == "count" and (o.have .. "/" .. o.need) or (o.kind == "bar" and (o.pct .. "%")) or ""
-            -- The count before the text, on one wrapped line, as the game writes it: in its
-            -- own column it cut a long objective short ("Marca de honor de la Cuenc...").
-            local c = objColor(o)
-            if right ~= "" and c then
-                Tips.Text(DUI.Win.Parts.Hex(c) .. right .. "|r " .. o.text)
-            else
-                Tips.Text((right ~= "" and (right .. " ") or "") .. o.text)
-            end
+            Clicks.Objective(o.text, right, objColor(o))
         end
     end
     if full then
@@ -321,7 +332,7 @@ function Clicks.AchievementTip(a)
     Tips.Clear()
     Tips.Title(a.title)
     for _, o in ipairs(a.objs) do
-        if o.kind == "count" then Tips.Line(o.text, o.have .. "/" .. o.need, objColor(o)) else Tips.Sub(o.text) end
+        if o.kind == "count" then Clicks.Objective(o.text, o.have .. "/" .. o.need, objColor(o)) else Tips.Sub(o.text) end
     end
     Tips.Gap()
     for _, h in ipairs(Clicks.ACH_HINTS) do Tips.Hint(h) end

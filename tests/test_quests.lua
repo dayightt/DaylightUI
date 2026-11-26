@@ -2154,6 +2154,30 @@ T.test("quests clicks: the tooltip spaces its heading from the objectives and pu
     T.truthy(lines[head + 1], "the reward under it")
 end)
 
+-- The Rich card wraps a row's long left side itself, so there an objective keeps its
+-- two sides and the count its progress color; written count first, the card read the
+-- tracker's tooltip as a game quest (accent counts, bars, the level line as a heading).
+T.test("quests clicks: with the Rich look an objective keeps its count on the right, in its progress color", function()
+    local Tr, ns = tracker({ quests = { STEW } })
+    local API = DaylightUI.API
+    local was = API.TooltipStyle
+    API.TooltipStyle = function() return "rich" end
+    local f = Tr.frames["quest:1"]
+    f:GetScript("OnEnter")(f)
+    API.TooltipStyle = was
+    local plain = table.concat(GameTooltip.lines, "\n"):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(plain:find("Goretusk Snout | 3/6", 1, true), "name on the left, count on the right: " .. plain)
+    T.falsy(plain:find("3/6 Goretusk Snout", 1, true), "not written count first")
+end)
+
+T.test("quests clicks: a long achievement criterion is one wrapped line, count first", function()
+    local Tips = DaylightUI.Tips
+    local Tr, ns = tracker({ quests = { STEW } })
+    ns.Clicks.AchievementTip({ title = "Explorer", objs = { { kind = "count", text = "Honor mark of the Arathi Basin", have = 1, need = 3 } } })
+    local plain = table.concat(GameTooltip.lines, "\n"):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+    T.truthy(plain:find("1/3 Honor mark of the Arathi Basin", 1, true), plain)
+end)
+
 T.test("quests clicks: a dungeon or PvP quest's tooltip carries its tag after the level, in the tag's color", function()
     local dungeon = QW.quest(3, "Deep Work", { tagID = 81, level = 28, zone = "Gnomeregan", objs = { { text = "Gnome part", have = 0, need = 2, kind = "count" } } })
     local pvp = QW.quest(4, "Hold the Line", { tagID = 41 })
