@@ -73,12 +73,17 @@ function Rows.Get(kind, parent)
     local f = list and table.remove(list)
     if f then f:SetParent(parent) else f = newBlock(kind, parent) end
     f.key, f.block, f.painted, f.state, f.lift, f.hovered = nil, nil, nil, nil, nil, nil
-    -- A header's count may have been making room for the list's controls (Tracker.lua),
-    -- so a reused one starts plain at full alpha.
+    -- A header's count and title may have been making room for the list's controls
+    -- (Tracker.lua), so a reused one starts plain at full alpha.
     if f.countGoal ~= nil then
         f.countGoal = nil
         DUI.Motion.Tween(f.count, 1, 1, 0)
         f.count:SetAlpha(1)
+    end
+    if f.labelGoal ~= nil then
+        f.labelGoal = nil
+        DUI.Motion.Tween(f.label, 1, 1, 0)
+        f.label:SetAlpha(1)
     end
     f:SetAlpha(1)
     f:Show()
@@ -315,6 +320,64 @@ local function turnChevron(f, b)
     end
 end
 
+-- The Quests header's filter, when the option puts it under the line: All / This zone
+-- side by side on the right, as Daylight UI's own words. A word is a W.Link (quiet, the
+-- accent and a growing line on hover); the one showing is a W.Tab (lit, its line grown
+-- in when picked). Made when a header first has one; a header without it hides them.
+Rows.FILTER_PAD = 4   -- each side of a word
+Rows.FILTER_SEP = 8   -- the slash between the two
+local function filterWord(parent, text, id)
+    local w = { id = id, text = text }
+    w.link = DUI.Widgets.Link(parent, 10)
+    w.link.SetLabel(text)
+    w.link:SetScript("OnClick", function() ns.Tracker.PickFilter(id) end)
+    w.tab = DUI.Widgets.Tab(parent, text, { size = 10, under = 2 })
+    w.tab:SetScript("OnClick", function() ns.Tracker.PickFilter(id) end)
+    return w
+end
+
+local function paintFilter(f, b, look)
+    local words = f.filterWords
+    if not b.filter then
+        if words then for _, w in ipairs(words) do w.link:Hide(); w.tab:Hide() end; f.sep:Hide() end
+        return
+    end
+    if not words then
+        words = { filterWord(f, ALL or DUI.L["All"], "all"), filterWord(f, DUI.L["This zone"], "zone") }
+        f.filterWords = words
+        f.sep = Style.Text(f, 10, "CENTER", ns.MEDIA.font)
+        f.sep:SetText("/")
+        f.sep:SetTextColor(Style.INK.OFF[1], Style.INK.OFF[2], Style.INK.OFF[3])
+    end
+    local size, wordH = look.s.zone, look.s.zone + 4
+    Style.SetTextSize(f.sep, size)
+    f.sep:SetWidth(Rows.FILTER_SEP)
+    f.sep:ClearAllPoints()
+    f.sep:Show()
+    local y = b.textH + Layout.HEADER_PAD + Layout.HEADER_LINE + 3
+    local right = f
+    for i = #words, 1, -1 do
+        local w = words[i]
+        Style.SetTextSize(w.link.text, size)
+        Style.SetTextSize(w.tab.text, size)
+        w.link.SetLabel(w.text)
+        w.tab.FitWidth(0, 1)
+        for _, h in ipairs({ w.link, w.tab }) do
+            h:SetHeight(wordH)
+            h:ClearAllPoints()
+            if i == #words then h:SetPoint("TOPRIGHT", f, "TOPRIGHT", -Rows.FILTER_PAD, -y)
+            else h:SetPoint("RIGHT", f.sep, "LEFT", 0, 0) end
+        end
+        local picked = b.filter == w.id
+        w.link:SetShown(not picked)
+        w.tab:SetShown(picked)
+        -- The line grows in when the player picks it, not when a row is repainted.
+        w.tab.Pick(picked, picked and f.painted == true and w.shown == false)
+        w.shown = picked
+    end
+    f.sep:SetPoint("RIGHT", words[#words].link, "LEFT", 0, 0)
+end
+
 local function paintHeader(f, b, look)
     local s = look.s
     Style.SetTextSize(f.label, s.header)
@@ -336,6 +399,7 @@ local function paintHeader(f, b, look)
     f.rule:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -y)
     f.rule:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, -y)
     f.rule:SetHeight(Layout.HEADER_LINE)
+    paintFilter(f, b, look)
 end
 
 local function paintZone(f, b, look)
