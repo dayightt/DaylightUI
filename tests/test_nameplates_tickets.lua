@@ -177,9 +177,11 @@ T.test("nameplates: the friendly name nudges move a name-only plate's name, and 
 end)
 
 -- The client only matches a buff by spell id on someone you can help (or a
--- spell it marks never secret), so the Defensives list showed nothing on an
--- enemy player: Divine Protection on a paladin in world PvP never came up.
-T.test("nameplates: an enemy player's Divine Protection shows in a fight, its aura data secret", function()
+-- spell it marks never secret), so an enemy player's Divine Protection shows
+-- only when the client lets the list match it. The slot keeps the list on
+-- every enemy: no filter string narrows their buffs to defensives (the next
+-- test).
+T.test("nameplates: an enemy player's Divine Protection shows only as the client allows", function()
     login()
     local shows = require("aura_rules")
     stub.units.nameplate1 = { name = "Rand Rhobart", reaction = 2, hostile = true, health = 100, maxHealth = 100 }
@@ -200,7 +202,11 @@ T.test("nameplates: an enemy player's Divine Protection shows in a fight, its au
     end
     local paladin = added("nameplate2")
     T.eq(paladin.auras.defensives.__unit, "nameplate2")
-    T.truthy(showing(paladin), "Divine Protection on the enemy paladin's plate")
+    T.eq(paladin.auras.defensives.__groups.big.filter, "HELPFUL", "an enemy player keeps the named list")
+    T.falsy(showing(paladin), "the client won't match it by id on an enemy")
+    dp.neverSecret = true
+    T.truthy(showing(paladin), "unless it marks the spell never secret")
+    dp.neverSecret = nil
     -- A plate set up for a mob first, then handed to the paladin, mid-fight.
     stub.FireEvent("NAME_PLATE_UNIT_REMOVED", "nameplate2")
     local mob = added("nameplate1")
@@ -212,12 +218,49 @@ T.test("nameplates: an enemy player's Divine Protection shows in a fight, its au
     stub.units.nameplate3, stub.units.nameplate1 = stub.units.nameplate2, nil
     local reused = added("nameplate3")
     T.truthy(reused == mob, "the same plate, now the paladin's")
-    T.truthy(showing(reused), "a plate reused from a mob shows it too")
+    T.eq(reused.auras.defensives.__groups.big.filter, "HELPFUL", "a plate reused from a mob keeps the list")
+    dp.neverSecret = true
+    T.truthy(showing(reused), "and shows it as the client allows")
     -- Setting changes wait for the fight to end.
     stub.LeaveCombat()
     DaylightUI:Set("Nameplates", "defensives", false)
     stub.RunTimers()
     T.falsy(showing(reused), "switched off: none shown")
     DaylightUI:Set("Nameplates", "defensives", true)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A player's report: with Big defensives on, enemy players' plates showed
+-- Blessing of Kings, Mark of the Wild and the like in the defensive spot. The
+-- game's HELPFUL|INCLUDE_NAME_PLATE_ONLY is every buff (the game's own enemy
+-- buff list uses it, then narrows in Lua by spell), and with no defensive up
+-- the one running out soonest was a blessing.
+T.test("nameplates: an enemy player's long buffs never take the big defensive spot", function()
+    login()
+    local shows = require("aura_rules")
+    stub.units.nameplate2 = { name = "Final Mercy", isPlayer = true, class = "PALADIN", reaction = 2, hostile = true,
+        faction = "Horde", pvp = true, health = 100, maxHealth = 100 }
+    local enemy = { canAssist = false, groupMember = false }
+    local buffs = {
+        { spellId = 20217, duration = 1800, name = "Blessing of Kings" },
+        { spellId = 1126, duration = 1800, name = "Mark of the Wild" },
+        { spellId = 21562, duration = 3600, name = "Power Word: Fortitude" },
+        { spellId = 2983, duration = 15, name = "Sprint" },
+    }
+    local p = added("nameplate2")
+    local c = p.auras.defensives
+    T.eq(c.__unit, "nameplate2")
+    for _, fight in ipairs({ false, true }) do
+        if fight then stub.EnterCombat() stub.RunTimers() end
+        for _, a in ipairs(buffs) do
+            local aura = { spellId = a.spellId, duration = a.duration, secret = fight }
+            for _, key in ipairs(c.__groupOrder) do
+                local g = c.__groups[key]
+                T.falsy((g.max or 0) > 0 and shows({ filter = g.filter, opts = g.opts }, enemy, aura),
+                    a.name .. (fight and " in a fight" or " out of a fight") .. " is no big defensive")
+            end
+        end
+    end
+    stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

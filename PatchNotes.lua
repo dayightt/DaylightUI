@@ -34,6 +34,7 @@ DUI.PatchNotes = {
         { "Bags", "Empty spots left in your bags after selling close up as soon as you leave the vendor" },
         { "Quests", "With Match the minimap's width on, the quest list lines up with the minimap's frame, border included" },
         { "Cooldown Manager", "Battle Shout and other group buffs set to show only when missing stay hidden in a fight when another player's copy is on you" },
+        { "Nameplates", "Big defensives no longer shows ordinary buffs like Blessing of Kings or Mark of the Wild on enemy players" },
     } },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
         { "Proc Alerts", "A painted flare around your character when a proc like Clearcasting or Overpower is ready. If you already use Daylight UI, a welcome page shows you one to turn on" },
