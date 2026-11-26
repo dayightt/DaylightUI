@@ -4640,6 +4640,37 @@ T.test("chat whispers: a Whisper button elsewhere opens the card with that perso
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Only a Whisper action means "I want to write to them". Opening a conversation to
+-- read it (a tile, the preview, Pop out from the hub) leaves the keyboard on spells.
+T.test("chat whispers: only a Whisper button types; a tile, the preview or Pop out just opens", function()
+    daylight()
+    local CH = stub.chatModule
+    whisper("hi", "Lephoque")
+    local t
+    local function typing() t = CH.Convo.Thread(); return t and t.input:HasFocus() end
+    CH.Convo.Toggle("w:Lephoque")                          -- a tile's click
+    T.truthy(CH.Convo.Showing("w:Lephoque"))
+    T.falsy(typing(), "a tile opens the card without typing")
+    CH.Convo.Close()
+    stub.RunTimers()
+    CH.Convo.Open("w:Lephoque")                            -- the preview's click
+    T.falsy(typing(), "the preview opens it without typing")
+    CH.Convo.Close()
+    stub.RunTimers()
+    CH.Hub.Open("w:Lephoque")
+    CH.Thread.LINKS.pop.click({ c = "w:Lephoque" })        -- Pop out
+    T.truthy(CH.Convo.Showing("w:Lephoque"))
+    T.falsy(typing(), "Pop out opens it without typing")
+    -- Already open, then Whisper from the friends list: it types now.
+    DaylightUI.Pad.Whisper({ name = "Lephoque" })
+    T.truthy(typing(), "a Whisper button types to them")
+    CH.Convo.Close()
+    stub.RunTimers()
+    DaylightUI.Pad.Whisper({ name = "Arthas" })
+    T.truthy(typing(), "and from a closed card")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 local function markAway(on)
     stub.units.player = stub.units.player or {}
     stub.units.player.afk = on
