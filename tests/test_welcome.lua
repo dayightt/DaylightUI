@@ -509,3 +509,28 @@ T.test("welcome: closing the bar animations early brings them back; /dui whatsne
     T.falsy(DUI.Welcome.Due())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("guide: the spell costs question starts off and picks through the draft", function()
+    local DUI = stub.Load({ module = true, actionbars = true })
+    stub.RunTimers()
+    local I, D = DUI.Installer, DUI.InstallerDraft
+    if not I.flow then I.Show() end
+    I.Start("tour")
+    local q = I.QuestionById("barCosts")
+    T.truthy(q, "the spell costs question")
+    T.eq(q.look, "spellCosts")
+    T.eq(I.Answer(q), "off", "off by default")
+    -- Its drawing: both looks, the costs only on the first.
+    local box = DUI.InstallerLooks.KINDS.spellCosts.box(UIParent)
+    box.Refresh(460)
+    T.truthy(box.frames.on and box.frames.off, "a strip of buttons for each look")
+    T.truthy(#box.frames.on.costs > 0, "costs drawn on the first")
+    T.eq(#box.frames.off.costs, 0, "none on the second")
+    I.Pick(q, "on")
+    T.eq(DUI:Get("ActionBars", "look.costs"), true)
+    T.truthy(D.Picked("ActionBars", "look.costs"))
+    D.Revert()
+    T.eq(DUI:Get("ActionBars", "look.costs"), false, "closing the guide puts it back")
+    T.falsy(tContains(DUI.Welcome.CHOICES, "spellCosts"), "no welcome slide: it stays off for everyone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

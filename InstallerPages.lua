@@ -230,6 +230,11 @@ Pages.PARTS = {
           },
           ask = "How many bars on screen?",
           what = "Your spells and abilities sit on these. You can add or move bars later." },
+        { id = "barCosts", short = "Spell costs", look = "spellCosts",
+          labels = { on = "Show costs", off = "Keep it clean" },
+          subs = { on = "Mana, rage or energy on each button.", off = "Just the icon and its key." },
+          ask = "Spell costs on your buttons?",
+          what = "Each spell's cost in the corner of its button, turning red while you're short of mana, rage or energy." },
     } },
     { id = "procs", title = "Proc Alerts", needs = "Procs", questions = {
         { id = "procs", short = "Proc Alerts", look = "procAlerts",

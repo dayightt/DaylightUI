@@ -106,6 +106,18 @@ Looks.KINDS = {
         box = function(parent) return moduleNs("Procs").Sample.Looks(parent) end,
         apply = function(k, set) set("Procs", "enabled", k == "on") end,
     },
+    -- Spell costs on the action buttons start off for everyone. The guide asks;
+    -- the welcome after an update doesn't (it isn't in Welcome.CHOICES).
+    spellCosts = {
+        title = "Spell costs",
+        desc = "Each spell's mana, rage or energy cost, right on its button. It turns red while you're short.",
+        keys = { "on", "off" }, new = "on",
+        ref = { "ActionBars", "look.costs" },
+        shown = function(v) return v == true and "on" or "off" end,
+        available = function() return DUI:GetModule("ActionBars") ~= nil end,
+        box = function(parent) return Looks.Costs(parent) end,
+        apply = function(k, set) set("ActionBars", "look.costs", k == "on") end,
+    },
 }
 
 -- The nameplates' preview: a few friendly players' names over the world, in
@@ -182,6 +194,90 @@ function Looks.Crowd(parent)
             Style.InkText(line, "LABEL")
             name:ClearAllPoints()
             name:SetPoint("TOP", box, "TOPLEFT", mid, -(Looks.CROWD_H + Looks.CROWD_GAP))
+            name:SetWidth(half - 8)
+            line:ClearAllPoints()
+            line:SetPoint("TOP", name, "BOTTOM", 0, -4)
+            line:SetWidth(half - 8)
+        end
+    end
+    return box
+end
+
+-- The spell costs' preview: a short strip of action buttons, with each
+-- spell's cost in its corner or without, one of them short of mana. Drawn as
+-- the buttons draw it: a lighter shade of the power color, red when short,
+-- that button's icon faded.
+Looks.COST_ICONS = {
+    { icon = "Interface\\Icons\\Spell_Fire_Fireball02", cost = 275 },
+    { icon = "Interface\\Icons\\Spell_Frost_FrostBolt02", cost = 70 },
+    { icon = "Interface\\Icons\\Spell_Holy_FlashHeal", cost = 725, short = true },
+    { icon = "Interface\\Icons\\Spell_Nature_Lightning", cost = 135 },
+}
+Looks.COST_LOOKS = {
+    { key = "on", name = "Spell costs", line = "The cost in each corner." },
+    { key = "off", name = "Icons only", line = "Just the icon and its key." },
+}
+Looks.COST_BUTTON = 38   -- a button at the standard size, near enough
+Looks.COST_GAP = 4       -- between buttons
+Looks.COST_LIFT = 0.4    -- as the buttons' Skin.COST_LIFT, when Action Bars is off
+Looks.COST_CAPTION = 14  -- between the strip and its caption
+
+function Looks.Costs(parent)
+    local box = CreateFrame("Frame", nil, parent)
+    box.frames, box.names, box.lines = {}, {}, {}
+    local ns = moduleNs("ActionBars")
+    local Skin = type(ns) == "table" and type(ns.Skin) == "table" and ns.Skin or {}
+    local size, gap = Looks.COST_BUTTON, Looks.COST_GAP
+    for _, look in ipairs(Looks.COST_LOOKS) do
+        local f = CreateFrame("Frame", nil, box)
+        f:SetSize(#Looks.COST_ICONS * (size + gap) - gap, size)
+        f.costs = {}
+        for i, spell in ipairs(Looks.COST_ICONS) do
+            local b = CreateFrame("Frame", nil, f)
+            b:SetSize(size, size)
+            b:SetPoint("TOPLEFT", f, "TOPLEFT", (i - 1) * (size + gap), 0)
+            Style.Shell(b, { lean = true })
+            local icon = b:CreateTexture(nil, "ARTWORK")
+            icon:SetPoint("TOPLEFT", b, "TOPLEFT", 2, -2)
+            icon:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -2, 2)
+            icon:SetTexture(spell.icon)
+            Style.CropIcon(icon)
+            if spell.short then icon:SetAlpha(Skin.OUT_OF_RANGE or 0.4) end
+            if look.key == "on" then
+                local fs = Style.Text(b, Style.SIZE.small, "LEFT")
+                local at = Skin.COST_POS and Skin.COST_POS.bottomleft or { "BOTTOMLEFT", 3, 3 }
+                fs:SetPoint(at[1], b, at[1], at[2], at[3])
+                fs:SetText(AbbreviateNumbers(spell.cost))
+                fs.short = spell.short
+                f.costs[#f.costs + 1] = fs
+            end
+        end
+        box.frames[look.key] = f
+        box.names[look.key] = Style.Text(box, Style.SIZE.body, "CENTER")
+        box.names[look.key]:SetText(L[look.name])
+        box.lines[look.key] = Style.Text(box, Style.SIZE.small, "CENTER")
+        box.lines[look.key]:SetText(L[look.line])
+    end
+    box.HEIGHT = size + Looks.COST_CAPTION + Style.SIZE.body + 4 + Style.SIZE.small + 2
+    function box.Refresh(width)
+        width = (type(width) == "number" and width > 0) and width or 460
+        box:SetSize(width, box.HEIGHT)
+        local half = width / 2
+        local r, g, b = Style.PowerColor("MANA")
+        r, g, b = Style.Lighten(r, g, b, Skin.COST_LIFT or Looks.COST_LIFT)
+        local bad = Style.INK.BAD
+        for i, look in ipairs(Looks.COST_LOOKS) do
+            local f, mid = box.frames[look.key], (i - 0.5) * half
+            f:ClearAllPoints()
+            f:SetPoint("TOP", box, "TOPLEFT", mid, 0)
+            for _, fs in ipairs(f.costs) do
+                if fs.short then fs:SetTextColor(bad[1], bad[2], bad[3]) else fs:SetTextColor(r, g, b) end
+            end
+            local name, line = box.names[look.key], box.lines[look.key]
+            Style.InkText(name, "VALUE")
+            Style.InkText(line, "LABEL")
+            name:ClearAllPoints()
+            name:SetPoint("TOP", box, "TOPLEFT", mid, -(Looks.COST_BUTTON + Looks.COST_CAPTION))
             name:SetWidth(half - 8)
             line:ClearAllPoints()
             line:SetPoint("TOP", name, "BOTTOM", 0, -4)

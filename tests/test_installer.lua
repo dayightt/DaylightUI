@@ -262,7 +262,8 @@ T.test("installer draft: a preview left by a crash is undone at the next login",
 end)
 
 T.test("installer questions: every one writes a setting the options have, with a value that setting takes", function()
-    local DUI = login({ module = true, bags = true, chat = true, infopanel = true, tooltip = true, qol = true, nameplates = true, quests = true })
+    local DUI = login({ module = true, bags = true, chat = true, infopanel = true, tooltip = true, qol = true, nameplates = true, quests = true,
+                        procs = true, actionbars = true })
     local P = DUI.InstallerPages
     local n = 0
     for _, part in ipairs(P.PARTS) do
@@ -281,10 +282,14 @@ T.test("installer questions: every one writes a setting the options have, with a
                 for _, st in ipairs(pr.set) do T.truthy(P.Find(st[1], st[2]), q.id .. ": " .. st[2]) end
             end
             for _, st in ipairs(q.bundle and q.bundle.set or {}) do T.truthy(P.Find(st[1], st[2]), q.id .. ": " .. st[2]) end
-            if q.look then T.truthy(DUI.InstallerLooks.KINDS[q.look], q.id .. ": a look") end
+            if q.look then
+                local spec = DUI.InstallerLooks.KINDS[q.look]
+                T.truthy(spec, q.id .. ": a look")
+                T.truthy(P.Find(spec.ref[1], spec.ref[2]), q.id .. ": an options row for " .. spec.ref[2])
+            end
         end
     end
-    T.eq(n, 15)
+    T.eq(n, 16)
     for _, k in ipairs(P.Keys(P.Questions("quick"))) do T.truthy(P.Find(k[1], k[2]), "quick: " .. k[1] .. " " .. k[2]) end
     T.eq(P.Where("appearance"), "General > Appearance")
     T.eq(P.Module("Bags").addon, "DaylightUI_Bags")
@@ -1908,18 +1913,18 @@ local function every(extra)
     return o
 end
 
-T.test("installer: Make it mine walks fourteen questions, each with its pick lit, and Next alone gets to the end", function()
+T.test("installer: Make it mine walks fifteen questions, each with its pick lit, and Next alone gets to the end", function()
     local DUI = login(every())
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "mine"); go(DUI)
     local I = DUI.Installer
     T.eq(I.flow.page, "q:role")
     local duel = I.pages.duel
-    T.eq(plainText(duel.stepText), "Step 1 of 14")
+    T.eq(plainText(duel.stepText), "Step 1 of 15")
     local unlit = {}
-    for i = 1, 14 do
+    for i = 1, 15 do
         if duel.picked == nil then unlit[#unlit + 1] = I.flow.page end
-        T.eq(duel.next.text:GetText(), i == 14 and "Finish" or "Next")
+        T.eq(duel.next.text:GetText(), i == 15 and "Finish" or "Next")
         press(duel.next)
     end
     T.eq(table.concat(unlit, ","), "", "every question has its pick lit")
@@ -1948,8 +1953,8 @@ T.test("installer: with nameplates off its four questions are left out and the c
     stub.FireEvent("EDIT_MODE_LAYOUTS_UPDATED")
     choose(DUI, "mine"); go(DUI)
     for _, q in ipairs(DUI.Installer.Questions()) do T.truthy(q.part ~= "Nameplates", q.id) end
-    T.eq(#DUI.Installer.Questions(), 10)
-    T.eq(plainText(DUI.Installer.pages.duel.stepText), "Step 1 of 10")
+    T.eq(#DUI.Installer.Questions(), 11)
+    T.eq(plainText(DUI.Installer.pages.duel.stepText), "Step 1 of 11")
 end)
 
 T.test("installer: another addon drawing nameplates is asked about right after the layout, in both paths, and nothing is switched off unasked", function()

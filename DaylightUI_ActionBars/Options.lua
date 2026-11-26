@@ -87,6 +87,9 @@ local function perLook(group)
         local field = type(item.key) == "string" and string.match(item.key, "^look%.(.+)$")
         if field then
             item.key = nil
+            -- Still found by its setting's name, so the setup guide's "Change it
+            -- later" and other jumps land on the row.
+            item.alsoKeys = { "look." .. field }
             item.get = function() return lookGet(field) end
             item.set = function(v) lookSet(field, v) end
             item.default = function()

@@ -1149,7 +1149,8 @@ Steps.Choices = choicesFor
 -- own names and lines hidden (the question page draws those). Each look is
 -- handed back to be placed on its column: the unit frames at the mock-up's
 -- size, the crowd of names on the sky the plate pictures use.
-Steps.SPAN = { portraitLook = { width = 278 }, tooltipStyle = { width = 210 }, plateClassIcon = { sky = 300 } }
+Steps.SPAN = { portraitLook = { width = 278 }, tooltipStyle = { width = 210 }, plateClassIcon = { sky = 300 },
+    spellCosts = { width = 240 } }
 local function spanFor(q)
     local Looks = DUI.InstallerLooks
     return function(parent, width)
