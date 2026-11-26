@@ -4063,7 +4063,9 @@ T.test("info panel: the XP and reputation bars each wear their own bar animation
         return { name = "Stormwind", reaction = 5, currentReactionThreshold = 0, nextReactionThreshold = 3000, currentStanding = 1800 }
     end }
     DUI:Set("InfoPanel", "rep.enabled", true)
-    T.isnil(Fx.StyleOf(XP.bar), "plain until picked")
+    DUI:Set("InfoPanel", "xp.barFx.style", "none")
+    DUI:Set("InfoPanel", "rep.barFx.style", "none")
+    T.isnil(Fx.StyleOf(XP.bar), "plain when picked so")
     T.isnil(Fx.StyleOf(Rep.bar))
     DUI:Set("InfoPanel", "xp.barFx.style", "flow")
     T.eq(Fx.StyleOf(XP.bar), "flow")
@@ -4092,4 +4094,27 @@ T.test("info panel: the XP and reputation bars each wear their own bar animation
     T.eq(Fx.StyleOf(XP.bar), "flow")
     DUI:Set("InfoPanel", "rep.enabled", false)
     _G.C_Reputation = nil
+end)
+
+T.test("info panel: a new setup starts the XP and reputation bars in Flow, an older profile keeps them still", function()
+    local DUI = login()
+    local XP, Rep = stub.infopanel.XP, stub.infopanel.RepBar
+    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "flow")
+    T.eq(DUI:Get("InfoPanel", "rep.barFx.style"), "flow")
+    T.eq(DUI.BarFx.StyleOf(XP.bar), "flow", "moving at once")
+    DUI:Set("InfoPanel", "rep.enabled", true)
+    T.eq(DUI.BarFx.StyleOf(Rep.bar), "flow")
+    DUI = stub.Load({ infopanel = true, before = function()
+        PW.world()
+        DaylightUIDB = { version = "1.8.4", notesSeen = "1.8.4", installerSeen = true,
+                         profileData = { ["DPS/Tank"] = { general = {}, modules = {}, positions = {} } } }
+    end })
+    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "none", "an older profile stays as it was")
+    -- The one-time question turns them on with every other bar.
+    stub.Dismiss()
+    DUI.BarFx.Ask()
+    T.eq(stub.Asked(), "barFx")
+    stub.Answer(true)
+    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "flow")
+    T.eq(DUI:Get("InfoPanel", "rep.barFx.style"), "flow")
 end)

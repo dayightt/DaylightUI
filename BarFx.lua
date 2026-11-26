@@ -641,6 +641,7 @@ BarFx.HOMES = {
         "playerCastbar.barFx", "targetCastbar.barFx", "focusCastbar.barFx", "partyCastbar.barFx", "swing.barFx",
     },
     ActionBars = { "cdmBarFx" },
+    InfoPanel = { "xp.barFx", "rep.barFx" },
 }
 
 -- The style keys of every home but skip (the setup guide's card sets one and
