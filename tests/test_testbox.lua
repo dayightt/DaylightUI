@@ -104,6 +104,74 @@ T.test("test box: party and raid samples follow their boxes", function()
     T.eq(ns.Party.header:GetAlpha(), 0)
 end)
 
+-- Every aura piece a sample tile can carry that's showing: icons in its aura
+-- groups, corner indicators, boss-debuff stand-ins, the dispel icon and glow.
+local function tileAuras(ns, list)
+    local n = 0
+    for _, b in ipairs(list or {}) do
+        if b:IsShown() then
+            local set = b.sampleSet
+            if set then
+                for _, c in ns.AuraGroups.Containers(set) do
+                    if c:IsShown() then
+                        for _, btn in ipairs(c.pool or {}) do if btn:IsShown() then n = n + 1 end end
+                    end
+                end
+                for _, c in pairs(set.ind or {}) do if c.plain and c:IsShown() then n = n + 1 end end
+            end
+            for _, slot in ipairs(b.privateSet and b.privateSet.slots or {}) do
+                if slot.sample and slot.sample:IsShown() then n = n + 1 end
+            end
+            if b.sampleDispel and b.sampleDispel:IsShown() then n = n + 1 end
+            if b.sampleHLFrame and b.sampleHLFrame:IsShown() then n = n + 1 end
+        end
+    end
+    return n
+end
+
+T.test("test box: an Auras box clears every sample aura off the frames, the frames stay", function()
+    local DUI, ns = stub.Load({ module = true })
+    DUI:Set("UnitFrames", "playerAuras.debuffs", true)
+    DUI.SetTestMode(true)
+    stub.RunTimers()
+    T.truthy(rowFor(DUI, "auras"), "the box has an Auras tick")
+    T.truthy(tileAuras(ns, ns.Party.preview) > 0, "party samples start with auras")
+    T.truthy(tileAuras(ns, ns.Raid.preview) > 0, "raid samples too")
+    T.truthy(ns.auras.sample, "and the target")
+
+    rowFor(DUI, "auras"):Click()
+    stub.RunTimers()
+    T.falsy(DUI.TestPartShown("auras"))
+    T.eq(tileAuras(ns, ns.Party.preview), 0, "no auras on the party")
+    T.eq(tileAuras(ns, ns.Raid.preview), 0, "nor the raid")
+    T.isnil(ns.auras.sample, "nor the target")
+    T.isnil(ns.playerAuras and ns.playerAuras.sample, "nor the player's own rows")
+    T.isnil(ns.focusAuras and ns.focusAuras.sample)
+    T.truthy(ns.Party.preview[1]:IsShown(), "the party samples stay")
+    T.eq(shownCount(ns.Raid.preview), 40, "every raid tile stays")
+    T.truthy(ns.frames.target.test, "the target sample stays")
+    T.truthy(ns.targetCastbar:IsShown(), "its cast too")
+
+    -- Kept for the next test mode, and a page's own preview still shows them.
+    DUI.SetTestMode(false)
+    DUI.SetTestMode(true)
+    stub.RunTimers()
+    T.isnil(ns.auras.sample, "still off next time")
+    T.eq(tileAuras(ns, ns.Party.preview), 0)
+    DUI.SetTestSolo({ "party" })
+    stub.RunTimers()
+    T.truthy(tileAuras(ns, ns.Party.preview) > 0, "a page's preview is styling them: it shows them")
+    DUI.SetTestSolo(nil)
+
+    DUI.SetTestMode(true)
+    rowFor(DUI, "auras"):Click()
+    stub.RunTimers()
+    T.truthy(tileAuras(ns, ns.Party.preview) > 0, "ticked again, back")
+    T.truthy(tileAuras(ns, ns.Raid.preview) > 0)
+    T.truthy(ns.auras.sample)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("test box: a sweep shows its group even when unticked", function()
     local DUI, ns = stub.Load({ module = true })
     DUI.SetTestPartShown("party", false)

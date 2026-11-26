@@ -271,8 +271,13 @@ end
 
 function Raid.ShowSample(b, i, cfg)
     local box, n = ns.AuraGroups.Box(b, cfg), not b.fullSample and i or nil
-    ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n)
-    ns.Indicators.ShowSample(b.sampleSet, b, cfg.indicators, box, n)
+    if b.noAuras then
+        ns.AuraGroups.HideSample(b.sampleSet)
+        ns.Indicators.HideSample(b.sampleSet)
+    else
+        ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n)
+        ns.Indicators.ShowSample(b.sampleSet, b, cfg.indicators, box, n)
+    end
 end
 
 function Raid.HideSample(b)
@@ -453,4 +458,4 @@ DUI.RegisterTestPart("raid", "Raid", 70, function()
     local d = db()
     return d ~= nil and d.raid.enabled == true
 end)
-DUI.On("TestPartChanged", function(key) if key == "raid" then previewForTestMode(DUI.testMode) end end)
+DUI.On("TestPartChanged", function(key) if key == "raid" or key == "auras" then previewForTestMode(DUI.testMode) end end)

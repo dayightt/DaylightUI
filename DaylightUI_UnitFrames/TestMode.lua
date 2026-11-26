@@ -67,6 +67,13 @@ end
 
 local function db() return ns.module and ns.module.db end
 
+-- Sample buffs, debuffs and their marks on every frame, unless the test box's
+-- Auras tick is off (a full raid of them is a lot to look past). An options
+-- page's own preview always shows them: that's where they're styled.
+function Test.ShowsAuras()
+    return DUI.testSolo ~= nil or DUI.TestPartShown("auras")
+end
+
 function Test.Start()
     if Test.active then return true end
     if InCombatLockdown() then return false end
@@ -98,17 +105,18 @@ function Test.Start()
     end
     if ns.combo and DUI.TestPartShown("combo") then ns.Combo.ShowSample(ns.combo, Test.COMBO) end
     if DUI.TestPartShown("pet") then ns.Happiness.ShowSample(ns.happiness) end
-    if ns.auras and cfg and ns.frames.target.test then
+    local auras = Test.ShowsAuras()
+    if auras and ns.auras and cfg and ns.frames.target.test then
         ns.Auras.ShowSample(ns.auras, ns.frames.target, cfg.targetAuras, Test.AURAS)
     end
     -- The player frame's own rows, only once switched on.
-    if ns.focusAuras and cfg and ns.frames.focus.test then
+    if auras and ns.focusAuras and cfg and ns.frames.focus.test then
         ns.Auras.ShowSample(ns.focusAuras, ns.frames.focus, cfg.focusAuras, Test.AURAS)
     end
-    if ns.petAuras and cfg and ns.frames.pet.test then
+    if auras and ns.petAuras and cfg and ns.frames.pet.test then
         ns.Auras.ShowSample(ns.petAuras, ns.frames.pet, cfg.petAuras, Test.AURAS)
     end
-    if ns.playerAuras and cfg then
+    if auras and ns.playerAuras and cfg then
         ns.Auras.ShowSample(ns.playerAuras, ns.frames.player, cfg.playerAuras, Test.AURAS)
     end
     return true
@@ -198,8 +206,11 @@ DUI.RegisterTestPart("castbars", "Cast bars", 50, function()
         or cfg.partyCastbar.enabled) == true
 end)
 
+DUI.RegisterTestPart("auras", "Auras", 75)
+
 -- A box was ticked or unticked, so redo the samples.
-local PARTS = { target = true, focus = true, pet = true, targettarget = true, focustarget = true, castbars = true, personal = true, arena = true }
+local PARTS = { target = true, focus = true, pet = true, targettarget = true, focustarget = true, castbars = true, personal = true, arena = true,
+                auras = true }
 DUI.On("TestPartChanged", function(key)
     if not (PARTS[key] and Test.active) or InCombatLockdown() then return end
     Test.Stop()

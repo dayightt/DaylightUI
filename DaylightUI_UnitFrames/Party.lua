@@ -95,8 +95,13 @@ end
 
 function Party.ShowSample(b, i, cfg)
     local box, n = ns.AuraGroups.Box(b, cfg), not b.fullSample and i or nil
-    ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n)
-    ns.Indicators.ShowSample(b.sampleSet, b, cfg.indicators, box, n)
+    if b.noAuras then
+        ns.AuraGroups.HideSample(b.sampleSet)
+        ns.Indicators.HideSample(b.sampleSet)
+    else
+        ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n)
+        ns.Indicators.ShowSample(b.sampleSet, b, cfg.indicators, box, n)
+    end
     ns.PartyPets.ShowSample(b)
     ns.PartyTargets.ShowSample(b, i)
     -- The healer is casting, so the page's preview shows every piece.
@@ -189,4 +194,4 @@ DUI.RegisterTestPart("party", "Party", 60, function()
     local d = db()
     return d ~= nil and Party.group:IsOn(d.party) == true
 end)
-DUI.On("TestPartChanged", function(key) if key == "party" then previewForTestMode(DUI.testMode) end end)
+DUI.On("TestPartChanged", function(key) if key == "party" or key == "auras" then previewForTestMode(DUI.testMode) end end)

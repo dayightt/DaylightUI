@@ -696,9 +696,11 @@ function Group:LayoutPreview(cfg, text, w, h)
 end
 
 -- Fills the first count sample buttons with sample members and hides the rest.
-function Group:FillSamples(list, count, cfg)
+-- noAuras leaves off every aura piece (the test box's Auras tick).
+function Group:FillSamples(list, count, cfg, noAuras)
     for i, b in ipairs(list) do
         if i <= count then
+            b.noAuras = noAuras == true
             -- The options page's single tile (b.fullSample) carries every piece.
             b.test = b.fullSample and self.opts.fullSample and self.opts.fullSample(cfg) or self.opts.sampleFor(i, cfg)
             b:Show()
@@ -706,7 +708,7 @@ function Group:FillSamples(list, count, cfg)
             if b.apiSeen then DUI.APIReport.Unit(self.key, b, b.unitToken, true)
             else b.apiSeen = true; DUI.APIReport.Made(self.key, b, b.unitToken, true) end
             UF.ShowSample(b)
-            local kind = b.test.dispel
+            local kind = not b.noAuras and b.test.dispel or nil
             local d = b.sampleDispel
             if kind and b.showDispel then
                 local c = ns.Auras.DISPEL_COLORS[kind]
@@ -731,7 +733,7 @@ function Group:FillSamples(list, count, cfg)
             b.targetMark:SetShown(mark)
             b.targetMark:SetAlpha(mark and 1 or 0)
             if self.opts.showSample then self.opts.showSample(b, i, cfg) end
-            ns.GroupPrivate.ShowSample(b, i, cfg)
+            if b.noAuras then ns.GroupPrivate.HideSample(b) else ns.GroupPrivate.ShowSample(b, i, cfg) end
         else
             b.test = nil
             b:Hide()
@@ -750,5 +752,5 @@ function Group:ShowPreview(on)
     if not self.preview then return end
     local cfg = self:Config()
     local count = cfg and self.opts.previewCount(cfg) or #self.preview
-    self:FillSamples(self.preview, on and count or 0, cfg)
+    self:FillSamples(self.preview, on and count or 0, cfg, not ns.Test.ShowsAuras())
 end
