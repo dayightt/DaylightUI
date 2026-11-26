@@ -228,11 +228,39 @@ local function makeFrame()
     return f
 end
 
+-- A leaving card fades where it was while other cards glide into that spot,
+-- so nothing on it may take a click meant for them: the card's own mouse is
+-- not enough, its buttons and icon take the mouse on their own.
+local function mouseOff(card)
+    local off = card.mouseOff or {}
+    card.mouseOff = off
+    local function walk(f)
+        for _, child in ipairs({ f:GetChildren() }) do
+            if child:IsMouseEnabled() then
+                child:EnableMouse(false)
+                off[#off + 1] = child
+            end
+            walk(child)
+        end
+    end
+    walk(card)
+end
+
+local function mouseBack(card)
+    local off = card.mouseOff
+    if not off then return end
+    for i = #off, 1, -1 do
+        off[i]:EnableMouse(true)
+        off[i] = nil
+    end
+end
+
 local function cardFor(drop)
     local card = cards[drop.rollID]
     if card then return card, false end
     card = table.remove(spare) or Card.New(RollStack.frame)
     card.leaving = nil
+    mouseBack(card)
     card:EnableMouse(true)
     card:SetScript("OnEnter", function() RollStack.Layout() end)
     card:SetScript("OnLeave", function() RollStack.Layout() end)
@@ -248,20 +276,28 @@ local function cardFor(drop)
     return card, true
 end
 
-local function leave(rollID)
+-- A card that was on screen fades out where it stood. One made in this same
+-- pass that has no room after all (atOnce) was never placed: shown, it would
+-- sit wherever that card last stood, over another roll, so it goes at once.
+local function leave(rollID, atOnce)
     local card = cards[rollID]
     if not card then return end
     cards[rollID] = nil
-    chosen[rollID] = nil
     card.leaving = true
     card.drop = nil
+    -- Waiting for room is not leaving: the roll keeps the list state its
+    -- player clicked for it.
+    if not atOnce then chosen[rollID] = nil end
     local R = DUI.APIReport
     if R then
         R.Gone("rollcard", card, false)
         R.SetInfo(card, nil)
     end
     card:EnableMouse(false)
-    Motion.AlphaTo(card, 0, Motion.NORMAL, true)
+    mouseOff(card)
+    -- A slide-in still playing would hold the card in sight over the fade.
+    Motion.Settle(card)
+    Motion.AlphaTo(card, 0, atOnce and 0 or Motion.NORMAL, true)
     spare[#spare + 1] = card
 end
 
@@ -439,8 +475,8 @@ layout = function()
         card.isNew = new
     end
     shown = fit(shown, s, keep)
-    for rollID in pairs(cards) do
-        if not keep[rollID] then leave(rollID) end
+    for rollID, card in pairs(cards) do
+        if not keep[rollID] then leave(rollID, card.isNew) end
     end
     local waiting = #all() - #shown
     RollStack.waiting:SetShown(waiting > 0)

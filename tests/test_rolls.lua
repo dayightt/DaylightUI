@@ -1193,6 +1193,71 @@ T.test("rolls stack: the stack stays on screen", function()
     T.truthy(St.frame:IsClampedToScreen(), "kept inside the screen as a last guard")
 end)
 
+-- Whether anything on a frame, or inside it, takes the mouse.
+local function takesMouse(f)
+    if f:IsMouseEnabled() then return true end
+    for _, child in ipairs({ f:GetChildren() }) do
+        if child:IsShown() and takesMouse(child) then return true end
+    end
+    return false
+end
+
+-- Every card of the stack that is in sight but not one of its placed cards:
+-- one fading out where it stood is fine, as long as nothing on it takes a
+-- click meant for the card gliding into its spot.
+local function strayCards(St)
+    local placed, out = {}, {}
+    for _, card in ipairs(St.Cards()) do placed[card] = true end
+    for _, child in ipairs({ St.frame:GetChildren() }) do
+        if child.buttons and not placed[child] and child:IsShown() and child:GetAlpha() > 0
+            and (not child.leaving or takesMouse(child)) then
+            out[#out + 1] = child
+        end
+    end
+    return out
+end
+
+T.test("rolls stack: with room for two, three to five drops never leave a card over another", function()
+    for n = 3, 5 do
+        local S, RW = rollsLogin()
+        local St = S.RollStack
+        local one = RW.Drop({ name = "Item 0", link = "|cffa335ee|Hitem:900|h[Item 0]|h|r", players = SEVEN })
+        St.Layout()
+        local h = S.RollCard.Height(St.Cards()[1], St.Cards()[1].look)
+        S.RollData.Remove(one)
+        tick(S, 1); settle()
+        local room = 2 * (h + St.Settings().spacing) + DaylightUI.Style.SIZE.small + St.Settings().spacing + 1
+        St.Room = function() return room end
+        local ids = {}
+        -- All at once, the way a boss's loot comes, then out of order: a pick
+        -- from someone else on the newest while the others wait.
+        for i = 1, n do ids[i] = RW.Drop({ name = "Item " .. i, link = "|cffa335ee|Hitem:" .. (900 + i) .. "|h[Item " .. i .. "]|h|r", players = SEVEN }) end
+        RW.Pick(ids[n], "Bram Holloway", "need")
+        tick(S, 1); settle()
+        T.eq(#St.Cards(), 2, n .. " drops: two fit")
+        T.eq(#strayCards(St), 0, n .. " drops: only the placed cards show once settled")
+        -- The mouse going over a card, and more picks from the group: each lays
+        -- the stack out again.
+        for round = 1, 3 do
+            stub.MouseEnter(St.Cards()[1]); St.Cards()[1]:GetScript("OnEnter")(St.Cards()[1])
+            T.eq(#strayCards(St), 0, n .. " drops, hover " .. round .. ": no card comes back over the others")
+            stub.MouseLeave(St.Cards()[1]); St.Cards()[1]:GetScript("OnLeave")(St.Cards()[1])
+            RW.Pick(ids[1], SEVEN[round].name, "greed")
+            T.eq(#strayCards(St), 0, n .. " drops, pick " .. round .. ": no card comes back over the others")
+        end
+        -- Each placed card sits on its own row, under the next one.
+        local cards = St.Cards()
+        for i = 2, #cards do
+            T.truthy(cards[i].y >= cards[i - 1].y + cards[i - 1]:GetHeight(), n .. " drops: card " .. i .. " clear of the one below")
+        end
+        -- Your buttons on a waiting roll still work.
+        local drop = cards[1].drop
+        cards[1].buttons.need:Click()
+        T.truthy(drop.pending or drop.mine, n .. " drops: the press is taken")
+        T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    end
+end)
+
 T.test("rolls card: a folded part is never sized 0 and hides its pieces", function()
     -- The game reads a size of 0 as no size: what hangs below it loses its place
     -- and the clipping stops, so a fold is a sliver, then hidden.
