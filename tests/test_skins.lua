@@ -1273,6 +1273,28 @@ T.test("skins: a list with no view yet is left until its rows come, with no erro
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The players' stack: a window's walk (Kit.Auto) reaches a list whose view
+-- isn't set yet, as the macro window's lists are right after /m.
+T.test("skins: a window walk past a list with no view yet makes no error", function()
+    login()
+    local Kit = stub.skins.Kit
+    local f = CreateFrame("Frame", nil, UIParent)
+    local box = list(f)
+    box.ScrollTarget = CreateFrame("Frame", nil, box)
+    box.rows[1] = button(nil, box.ScrollTarget)
+    local view = box.view
+    box.view = nil
+    Kit.Auto(f)
+    for _ = 1, 10 do stub.RunOnUpdate(Kit.walker, 1 / 60) end
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    box.view = view
+    box:Update()
+    stub.RunTimers()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.truthy(Kit.ShellOf(box.rows[1]), "its rows styled once the list fills")
+end)
+
 T.test("skins: /dui skins profile toggles", function()
     login()
     DaylightUI.RunCommand("skins profile")
@@ -2679,7 +2701,7 @@ T.test("skins: unexplored areas show dimmed on the map, from the game's pieces l
     stub.RunTimers()
     T.eq(R.frame:IsShown(), true)
     T.eq(R.frame:GetParent(), f.ScrollContainer.Child, "over the map's canvas")
-    T.eq(R.frame:GetFrameLevel(), 2002, "at the game's exploration level")
+    T.eq(R.frame:GetFrameLevel(), 2001, "just under the game's exploration level")
     -- Every Durotar tile but the explored piece's one.
     local want = 0
     for _, piece in ipairs(stub.skins.MapRevealData[1411]) do
@@ -2708,6 +2730,69 @@ T.test("skins: unexplored areas show dimmed on the map, from the game's pieces l
     DaylightUI:Set("Skins", "mapReveal", false)
     stub.RunTimers()
     T.eq(R.frame:IsShown(), false)
+end)
+
+-- The game draws the explored pieces on its exploration pin (MapExplorationPinMixin,
+-- one frame at PIN_FRAME_LEVEL_MAP_EXPLORATION's startLevel, tiles on ARTWORK).
+-- Two frames at one level draw in no set order, tile by tile, so an explored
+-- piece's bright tiles and Daylight UI's dimmed ones overlapping it came out in a
+-- different mix on each open: sharp bright squares in the dimmed areas (seen in
+-- game in Duskwood, gone after a /reload). The dimmed tiles must sit under the
+-- game's, on every map and every open, and still over the map's own art.
+T.test("skins: unexplored areas always draw under the game's explored pieces, on every map and open", function()
+    local f, defs
+    local mapSet = {}
+    login(function()
+        _G.EventRegistry = { RegisterCallback = function(_, event, fn, owner)
+            if event == "MapCanvas.MapSet" then mapSet[#mapSet + 1] = function(...) fn(owner, ...) end end
+        end }
+        f = window("WorldMapFrame")
+        f.ScrollContainer = CreateFrame("ScrollFrame", nil, f)
+        f.ScrollContainer.Child = CreateFrame("Frame", nil, f.ScrollContainer)
+        f.mapID = 1431   -- Duskwood
+        defs = { PIN_FRAME_LEVEL_DEFAULT = { startLevel = 2000, range = 1 },
+                 PIN_FRAME_LEVEL_WOW_LABS_AREA = { startLevel = 2001, range = 1 },
+                 PIN_FRAME_LEVEL_MAP_EXPLORATION = { startLevel = 2002, range = 1 } }
+        f.pinFrameLevelsManager = { definitions = defs }
+        _G.C_MapExplorationInfo = { GetExploredMapTextures = function(id)
+            -- The Twilight Grove explored; its neighbors' art overlaps it.
+            if id == 1431 then return { { textureWidth = 384, textureHeight = 512, offsetX = 298, offsetY = 79,
+                fileDataIDs = { 8061711, 8061712, 8061713, 8061714 } } } end
+            return {}
+        end }
+        _G.C_Map = _G.C_Map or {}
+        C_Map.GetMapArtLayers = function() return { { tileWidth = 256, tileHeight = 256 } } end
+    end)
+    local R = stub.skins.MapReveal
+    -- The game's own pieces: its detail layer (the map's art) and its exploration
+    -- pin, as MapCanvasMixin and MapExplorationPinMixin:ApplyFrameLevel place them.
+    local canvas = f.ScrollContainer.Child
+    local detail = CreateFrame("Frame", nil, canvas)
+    local pin = CreateFrame("Frame", nil, canvas)
+    local function gamePin() pin:SetFrameLevel(defs.PIN_FRAME_LEVEL_MAP_EXPLORATION.startLevel) end
+    gamePin()
+    f:Show()
+    DaylightUI:Set("Skins", "mapReveal", true)
+    stub.RunTimers()
+    local function check(why)
+        T.truthy(R.frame:GetFrameLevel() < pin:GetFrameLevel(), why .. ": under the explored pieces ("
+            .. R.frame:GetFrameLevel() .. " vs the game's " .. pin:GetFrameLevel() .. ")")
+        T.truthy(R.frame:GetFrameLevel() > detail:GetFrameLevel(), why .. ": over the map's own art")
+    end
+    check("opened")
+    for _, id in ipairs({ 1429, 1431, 1436, 1431 }) do   -- Elwynn, Duskwood, Westfall, Duskwood
+        f.mapID = id
+        for _, fn in ipairs(mapSet) do fn(id) end
+        check("map " .. id)
+    end
+    -- Another addon's pin level put under the exploration level moves it up; the
+    -- game's pin follows on its next refresh, and so does the overlay on the next open.
+    defs.PIN_FRAME_LEVEL_MAP_EXPLORATION.startLevel = 2003
+    f:Hide()
+    gamePin()
+    f:Show()
+    check("reopened after the pin levels moved")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- The client draws the game's quest area pin (a Blob) at its own alpha, so it
@@ -4990,4 +5075,47 @@ T.test("skins: the hunter's stable (PetStableFrame) wears our window look, its p
     f.__center = { 500, 400 }
     barDrag:GetScript("OnDragStop")(barDrag)
     T.truthy(stub.skins.WindowMove.Spot("PetStableFrame"), "its spot saved")
+end)
+
+-- A game button whose frame has secret anchoring (the guild roster's member
+-- details showing a name under the client's restrictions) answers its size
+-- with secret numbers. Closing the window mid-dungeon hides it, and the trace
+-- resets: a player got "attempt to perform arithmetic on local 'w' (a secret
+-- number value)" from tr.Draw. A tween already running hit it on its next tick too.
+T.test("skins: a traced game button with a secret size hides and tweens without doing math on it", function()
+    login()
+    local Kit = stub.skins.Kit
+    local holder = CreateFrame("Frame", nil, UIParent)
+    local b = button(nil, holder)
+    b:SetSize(96, 22)
+    Kit.Button(b)
+    local tr = Kit.TraceOf(b)
+    T.truthy(tr, "the hover trace")
+    b:GetScript("OnEnter")(b)
+    stub.RunOnUpdate(DaylightUI.Motion.Driver(), 0.02)
+    T.truthy(tr.p > 0 and tr.p < 1, "half traced")
+    stub.HeldSecret(b)
+    -- In game a secret number answers type() with "number"; the fake one is a table.
+    local realType, realCheck = type, issecretvalue
+    local function fake(v) return realType(v) == "table" and rawget(v, "__secret") == true end
+    _G.issecretvalue = fake
+    _G.type = function(v)
+        if fake(v) and realType(rawget(v, "__value")) == "number" then return "number" end
+        return realType(v)
+    end
+    local ok1, err1 = pcall(stub.RunOnUpdate, DaylightUI.Motion.Driver(), 0.02)
+    local ok2, err2 = pcall(holder.Hide, holder)
+    _G.type, _G.issecretvalue = realType, realCheck
+    T.truthy(ok1, tostring(err1))
+    T.truthy(ok2, tostring(err2))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(tr.p, 0, "back at rest")
+    T.falsy(tr.top:IsShown() or tr.left:IsShown(), "no half-drawn trace left for the next show")
+    -- Plain again: the trace draws as before.
+    stub.HeldSecret(b, false)
+    holder:Show()
+    b:GetScript("OnEnter")(b)
+    for _ = 1, 40 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 0.02) end
+    T.eq(tr.p, 1)
+    T.truthy(tr.right:IsShown(), "traced all round")
 end)

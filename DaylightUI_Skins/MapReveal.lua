@@ -5,9 +5,9 @@
 -- the unexplored ones are drawn the way MapExplorationPinMixin:RefreshOverlays
 -- draws explored ones: tiles of the art layer's size from each piece's top-left.
 --
--- It's all an addon frame and textures over the map canvas at the game's
--- exploration level. Nothing on the map is called or written; canvas, map id and
--- level table are only read. A map change is noticed from the game's
+-- It's all an addon frame and textures over the map canvas, one level under the
+-- game's exploration pin. Nothing on the map is called or written; canvas, map id
+-- and level table are only read. A map change is noticed from the game's
 -- "MapCanvas.MapSet" callback.
 
 local _, ns = ...
@@ -45,10 +45,17 @@ function Reveal.Dim()
     return math.max(0.1, math.min(1, d))
 end
 
+-- One level under the game's exploration pin, which draws the explored pieces.
+-- Pieces overlap, and two frames at the same level draw in no set order, tile by
+-- tile: at the pin's own level, an explored piece's bright tiles and the dimmed
+-- ones over it mixed differently on every open, leaving sharp bright squares.
+-- Under it, explored art always wins, as the game draws it. Read on every draw,
+-- since another addon's pin levels can move the exploration level up.
 local function level(f)
     local m = f.pinFrameLevelsManager
     local d = type(m) == "table" and type(m.definitions) == "table" and m.definitions.PIN_FRAME_LEVEL_MAP_EXPLORATION
-    return type(d) == "table" and type(d.startLevel) == "number" and d.startLevel or Reveal.LEVEL
+    local start = type(d) == "table" and type(d.startLevel) == "number" and d.startLevel or Reveal.LEVEL
+    return math.max(1, start - 1)
 end
 
 -- "w:h:x:y" for every explored piece on this map.

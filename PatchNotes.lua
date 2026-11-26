@@ -20,6 +20,7 @@ DUI.PatchNotes = {
         { "Tooltips", "Rich tooltips no longer hide TSM's vendor buy and sell prices or show them in place of the item's own vendor price" },
         { "Chat", "With a controller, the button hints under the chat box show once, not twice" },
         { "Loot rolls", "Loot roll cards no longer pile on top of each other when three or more items drop, so Need and Greed can always be clicked" },
+        { "World map", "With Show unexplored areas on, the map no longer shows sharp bright squares inside the dimmed parts" },
     } },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
         { "Proc Alerts", "A painted flare around your character when a proc like Clearcasting or Overpower is ready. If you already use Daylight UI, a welcome page shows you one to turn on" },
