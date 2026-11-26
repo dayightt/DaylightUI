@@ -4055,3 +4055,41 @@ T.test("info panel: the threat tab wakes near its own window, not over the panel
     DUI.SetTestMode(false)
     DUI:Set("InfoPanel", "meter.detached", false)
 end)
+
+T.test("info panel: the XP and reputation bars each wear their own bar animation", function()
+    local DUI = login()
+    local XP, Rep, Fx = stub.infopanel.XP, stub.infopanel.RepBar, DUI.BarFx
+    _G.C_Reputation = { GetWatchedFactionData = function()
+        return { name = "Stormwind", reaction = 5, currentReactionThreshold = 0, nextReactionThreshold = 3000, currentStanding = 1800 }
+    end }
+    DUI:Set("InfoPanel", "rep.enabled", true)
+    T.isnil(Fx.StyleOf(XP.bar), "plain until picked")
+    T.isnil(Fx.StyleOf(Rep.bar))
+    DUI:Set("InfoPanel", "xp.barFx.style", "flow")
+    T.eq(Fx.StyleOf(XP.bar), "flow")
+    T.eq(Fx.StyleOf(XP.repBar), "flow", "reputation shown on the XP bar moves the same way")
+    T.isnil(Fx.StyleOf(Rep.bar), "the separate bar keeps its own pick")
+    DUI:Set("InfoPanel", "rep.barFx.style", "tide")
+    T.eq(Fx.StyleOf(Rep.bar), "tide")
+    T.eq(Fx.StyleOf(XP.bar), "flow")
+    -- Upright bars stay still (the styles run along a bar), and move again laid across.
+    DUI:Set("InfoPanel", "xp.detached", true)
+    DUI:Set("InfoPanel", "xp.orientation", "vertical")
+    DUI:Set("InfoPanel", "rep.orientation", "vertical")
+    T.isnil(Fx.StyleOf(XP.bar), "upright XP bar")
+    T.isnil(Fx.StyleOf(Rep.bar), "upright reputation bar")
+    DUI:Set("InfoPanel", "xp.orientation", "horizontal")
+    DUI:Set("InfoPanel", "rep.orientation", "horizontal")
+    T.eq(Fx.StyleOf(XP.bar), "flow")
+    T.eq(Fx.StyleOf(Rep.bar), "tide")
+    -- Motion effects off stills both.
+    DUI:Set("general", "motion", false)
+    stub.RunTimers()
+    T.isnil(Fx.StyleOf(XP.bar))
+    T.isnil(Fx.StyleOf(Rep.bar))
+    DUI:Set("general", "motion", true)
+    stub.RunTimers()
+    T.eq(Fx.StyleOf(XP.bar), "flow")
+    DUI:Set("InfoPanel", "rep.enabled", false)
+    _G.C_Reputation = nil
+end)

@@ -539,6 +539,15 @@ function XP.HideGameBar(frame)
     frame:Hide()
 end
 
+-- Each bar's animation settings, read when asked so a profile switch is followed.
+local function fxOf(key)
+    return DUI.BarFx.Reader(function()
+        local cfg = ns.module and ns.module.db and ns.module.db[key]
+        return type(cfg) == "table" and cfg.barFx or nil
+    end)
+end
+XP.fxCfg = fxOf("xp")
+
 function XP.Apply(cfg, T)
     for _, b in ipairs({ XP.bar, XP.banked, XP.rested, XP.repBar }) do
         b:ClearAllPoints()
@@ -547,6 +556,10 @@ function XP.Apply(cfg, T)
     end
     XP.vertical = cfg.detached == true and cfg.orientation == "vertical"
     for _, b in ipairs({ XP.bar, XP.banked, XP.rested, XP.repBar }) do XP.TurnBar(b, XP.vertical) end
+    -- Bar animation, after the turn: an upright bar stays still. Reputation
+    -- shown on this bar moves the same way as the experience.
+    DUI.BarFx.Track(XP.bar, "xp", nil, nil, nil, XP.fxCfg)
+    DUI.BarFx.Track(XP.repBar, "xp", nil, nil, nil, XP.fxCfg)
     XP.text:SetRotation(XP.vertical and XP.TURN or 0)
     XP.showText = cfg.showText == true
     XP.showPercent = cfg.showPercent == true
@@ -590,6 +603,7 @@ end
 
 local Rep = {}
 ns.RepBar = Rep
+Rep.fxCfg = fxOf("rep")
 
 Rep.KEY = "infopanel.rep"
 Rep.HOME = { "TOP", nil, "TOP", 0, -12 }   -- top middle: clear of the panel, bars and chat
@@ -719,6 +733,7 @@ function Rep.Apply(db)
     Rep.tipSide = cfg.tipSide or "auto"
     Rep.vertical = cfg.orientation == "vertical"
     XP.TurnBar(Rep.bar, Rep.vertical)
+    DUI.BarFx.Track(Rep.bar, "rep", nil, nil, nil, Rep.fxCfg)
     Rep.text:SetRotation(Rep.vertical and XP.TURN or 0)
     ns.Panel.Look(f, ns.Panel.LOOK, cfg.shell)
     local T = Pixel.Px(f, Style.BorderPx(f))

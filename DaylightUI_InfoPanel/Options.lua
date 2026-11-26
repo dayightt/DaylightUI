@@ -180,6 +180,14 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.BackRow("media.xp", "Experience bar", "the experience and reputation bars", noBars),
         }) },
         shellGroup("xp", "Experience bar border and shadow", "xp.enabled", true),
+        DaylightUI.Options.BarFxCard({ module = "InfoPanel", tab = "Look",
+            desc = "The experience and reputation bars move: their colors roll along them. An upright bar stays still.",
+            choices = {
+                { id = "xp", label = "Experience bar", base = "xp.barFx.", kind = "xp",
+                  gate = function(get) return get("xp.enabled") ~= true end },
+                { id = "rep", label = "Reputation bar", base = "rep.barFx.", kind = "rep",
+                  gate = function(get) return get("rep.enabled") ~= true end },
+            } }),
         { tab = "Size", label = "Experience bar size", items = {
             { type = "toggle", key = "xp.detached", label = "Separate experience bar",
               desc = "Takes the bar off the panel and puts it under your action bars. Move it in unlock mode; drag its corner to resize.",
