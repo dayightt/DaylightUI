@@ -321,7 +321,7 @@ local function headerFits(f, tabs)
         end
     end
     local subRel, subPoint = anchorOf(f.sub, "TOPLEFT")
-    T.eq(subRel, f.title, "the sub line hangs under the title")
+    T.eq(subRel, f.titleLine, "the sub line hangs under the title's line, which the tabs never squeeze")
     T.eq(subPoint, "BOTTOMLEFT")
     local _, _, titleX, titleY = anchorOf(f.title, "TOPLEFT")
     T.truthy(titleX >= DaylightUI.Win.EDGE + DaylightUI.Win.PORTRAIT, "the title starts right of the portrait")
