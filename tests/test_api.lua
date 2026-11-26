@@ -284,6 +284,23 @@ T.test("api kit: Attach works on a tile made in combat", function()
     T.eq(API.Attach(tile), h)
 end)
 
+T.test("stub: clicks and hover on a protected frame are blocked in a fight, like EnableMouse", function()
+    stub.Load()
+    stub.secure = true
+    local tile = CreateFrame("Button", nil, UIParent, "SecureUnitButtonTemplate")
+    stub.EnterCombat()
+    local okMouse = pcall(tile.EnableMouse, tile, false)
+    local okClick = pcall(tile.SetMouseClickEnabled, tile, false)
+    local okMotion = pcall(tile.SetMouseMotionEnabled, tile, false)
+    stub.LeaveCombat()
+    local okAfter = pcall(tile.SetMouseClickEnabled, tile, false)
+    stub.secure = false
+    T.falsy(okMouse, "EnableMouse")
+    T.falsy(okClick, "SetMouseClickEnabled")
+    T.falsy(okMotion, "SetMouseMotionEnabled")
+    T.truthy(okAfter, "out of combat it's allowed")
+end)
+
 T.test("api kit: Colors is a copy", function()
     local DUI, API = load()
     local c = API.Colors()

@@ -1117,7 +1117,29 @@ function Widget:GetValue() return self.__value end
 function Widget:SetStatusBarColor(r, g, b, a) self.__barColor = { r, g, b, a } end
 -- Buttons take the mouse from the start, other frames once asked. On a protected
 -- frame this is a protected change.
-function Widget:EnableMouse(on) guard(self, "EnableMouse"); self.__mouse = on and true or false end
+function Widget:EnableMouse(on)
+    guard(self, "EnableMouse")
+    self.__mouse = on and true or false
+    self.__clicks, self.__motion = self.__mouse, self.__mouse
+end
+
+-- Clicks and hover can also be set apart. EnableMouse sets both.
+function Widget:SetMouseClickEnabled(on)
+    guard(self, "SetMouseClickEnabled")
+    self.__clicks = on and true or false
+end
+function Widget:SetMouseMotionEnabled(on)
+    guard(self, "SetMouseMotionEnabled")
+    self.__motion = on and true or false
+end
+function Widget:IsMouseClickEnabled()
+    if self.__clicks ~= nil then return self.__clicks end
+    return self:IsMouseEnabled()
+end
+function Widget:IsMouseMotionEnabled()
+    if self.__motion ~= nil then return self.__motion end
+    return self:IsMouseEnabled()
+end
 -- Whether a key a frame gets also goes on to the game is restricted in a fight
 -- (HasRestrictions in the frame API docs), so addon code can't change it in combat.
 function Widget:EnableKeyboard(on) guard(self, "EnableKeyboard"); self.__keyboard = on and true or false end

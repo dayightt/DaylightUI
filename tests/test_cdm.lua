@@ -2729,20 +2729,23 @@ T.test("cdm effects: cooldown end and combat end update the state", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("cdm effects: hidden by cooldown turns the mouse off, back when ready", function()
+T.test("cdm effects: hidden by cooldown turns the mouse off, back as the game had it when ready", function()
     local DUI, AB, set, ess = fxWorld()
     local cds = withCooldowns(ess)
-    local mouse = {}
-    ess[2].EnableMouse = function(self, on) mouse[self] = on end
     set.pieces[12].onCd = "hide"
     cds[112] = { duration = 8, isOnGCD = false }
     pass(AB)
-    T.eq(mouse[ess[2]], false, "no tooltip over the gap")
+    T.eq(ess[2]:IsMouseMotionEnabled(), false, "no tooltip over the gap")
     pass(AB)
-    T.eq(mouse[ess[2]], false, "next pass keeps it off")
+    T.eq(ess[2]:IsMouseMotionEnabled(), false, "next pass keeps it off")
     cds[112] = { duration = 0 }
     cdEvent()
-    T.eq(mouse[ess[2]], true, "back on when shown")
+    T.eq(ess[2]:IsMouseMotionEnabled(), true, "its tooltip back when shown")
+    T.eq(ess[2]:IsMouseClickEnabled(), false, "and still click-through, as the game makes it")
+    -- The game hides its row, so Daylight UI lets its items go: they keep the game's mouse.
+    _G.EssentialCooldownViewer:Hide(); pass(AB)
+    T.eq(ess[2]:IsMouseClickEnabled(), false, "let go: click-through")
+    T.eq(ess[2]:IsMouseMotionEnabled(), true, "with its tooltip")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
