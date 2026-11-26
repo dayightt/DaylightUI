@@ -556,8 +556,6 @@ function Pad.ShowHints(f)
     hints:ClearAllPoints()
     if type(f.padHintsPlace) == "function" then
         f.padHintsPlace(hints)
-    elseif f.padHintsAbove then
-        hints:SetPoint("BOTTOMLEFT", f, "TOPLEFT", 0, Pad.HINT_GAP)
     else
         hints:SetPoint("TOP", f, "BOTTOM", 0, -Pad.HINT_GAP)
     end
@@ -988,11 +986,11 @@ local function focusGained(self)
     end
 end
 
--- A Daylight UI box the game gives the controller to by itself (the chat's typing
--- box, which the game focuses through its own chat frame): its hints show and
+-- A Daylight UI box the game gives the controller to by itself (the quest
+-- journal, which the game focuses through its world map): its hints show and
 -- its keys bind while it's taken, then whichever window has the focus gets them
 -- back. f is a Daylight UI frame with padHints and, if it binds any, padKeys /
--- padTabs; f.padHintsAbove puts the bar over it.
+-- padTabs; f.padHintsPlace places the bar.
 function Pad.Take(f)
     if not manager() or fight or InCombatLockdown() or Pad.prompt then return end
     Pad.taken = f

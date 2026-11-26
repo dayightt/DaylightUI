@@ -6423,7 +6423,7 @@ T.test("chat daylight: a tab's right-click menu opens its switches under Channel
     T.eq(seen and seen.show, "Channels")
 end)
 
-T.test("chat on a controller: Classic whatever the setting, the game's chat buttons named over the typing box", function()
+T.test("chat on a controller: Classic whatever the setting, one hint bar: the game's own under the typing box", function()
     local Box = daylight()
     local Chat = stub.chatModule.Chat
     T.truthy(Box.On(), "the Daylight box, mouse and keyboard")
@@ -6437,17 +6437,21 @@ T.test("chat on a controller: Classic whatever the setting, the game's chat butt
     local eb, focused = ChatFrame1EditBox, true
     local had = eb.HasFocus
     eb.HasFocus = function() return focused end   -- the fake game's boxes never hold focus
+    -- The game's chat footer (FloatingChatFrameMixin:CreateFooter): its legend is a
+    -- child of the chat frame, hung under the edit box, shown on FocusGamepad, which
+    -- every focus of the box brings (ChatFrameEditBoxMixin:OnEditFocusGained).
+    local legend = CreateFrame("Frame", nil, ChatFrame1)
+    legend:SetPoint("TOPLEFT", eb, "BOTTOMLEFT")
+    legend:SetSize(300, 30)
     Chat.Input(0.016)
-    local host = Chat.padHost
-    T.eq(DaylightUI.Pad.taken, host, "typing: its hints show")
-    local said = {}
-    for _, row in ipairs(DaylightUI.Pad.HintList(host)) do said[#said + 1] = row[2] end
-    T.truthy(table.concat(said, "|"):find(ACTION_LABEL_SEND or "Send", 1, true))
-    T.truthy(DaylightUI.Pad.hints:IsShown())
+    T.truthy(legend:IsVisible() and legend:GetEffectiveAlpha() > 0, "the game's own bar shows under the box")
+    T.eq(DaylightUI.Pad.taken, nil, "Daylight UI draws no second bar")
+    T.falsy(DaylightUI.Pad.hints and DaylightUI.Pad.hints:IsShown(), "no Daylight UI hint bar over the box")
     for _, k in ipairs({ "PAD1", "PAD3", "PAD4", "PADLSHOULDER" }) do T.eq(stub.overrides[k], nil, k .. " stays the game's") end
     focused = false
     Chat.Input(0.016)
-    T.eq(DaylightUI.Pad.taken, nil, "done typing: given back")
+    legend:Hide()
+    T.eq(DaylightUI.Pad.taken, nil, "done typing: nothing held")
     eb.HasFocus = had
     _G.GamepadMode, _G.InputUtil = nil, nil
     DaylightUI.Fire("PadChanged")

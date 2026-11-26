@@ -1232,11 +1232,10 @@ function Chat.InputEdge() inputBusy = true end
 function Chat.Input(dt)
     local M = DUI.Motion
     local step = (dt and M.On() and not (Chat.fight or InCombatLockdown())) and dt / M.FAST or 1
-    local any, box, easing = false, nil, false
+    local any, easing = false, false
     for eb in pairs(ebAt) do
         local typing = focused(eb)
         any = any or typing
-        if typing then box = eb end
         local goal = typing and 1 or 0
         local a = inputAlpha[eb] or goal
         if a < goal then a = math.min(goal, a + step) elseif a > goal then a = math.max(goal, a - step) end
@@ -1251,47 +1250,13 @@ function Chat.Input(dt)
         ns.Feel.InputColor(eb, typing)
     end
     if ns.Box.On() then ns.Box.Typing(any) end
-    Chat.PadTyping(box)
     inputBusy = any or easing
 end
 
--- A controller: the game gives the chat the D-pad through its own chat frame
--- (the radial's Chat, or Enter), with its own buttons: A sends, X opens the
--- channels, Y the tab's settings, LB and RB step the tabs. Chat is Classic then
--- (Box.On), but those hints are drawn on a part of the game's chat frame left
--- hidden, so they show over the typing box instead. They only show: the
--- buttons stay the game's.
-local padHost, padBox
-
-local function padHints()
-    local Pad = DUI.Pad
-    local K = Pad.GameKey
-    return {
-        { { K("GAMEPAD_FACE_BOTTOM", "PAD1") }, ACTION_LABEL_SEND or DUI.L["Send"] },
-        { { Pad.KeyOf("X") }, ACTION_LABEL_CHAT_CHANNELS or DUI.L["Channels"] },
-        { { Pad.KeyOf("Y") }, ACTION_LABEL_TAB_SETTINGS or DUI.L["Tab settings"] },
-        { { K("GAMEPAD_SHOULDER_LEFT", "PADLSHOULDER"), K("GAMEPAD_SHOULDER_RIGHT", "PADRSHOULDER") }, DUI.L["Tabs"] },
-        { { K("GAMEPAD_FACE_RIGHT", "PAD2") }, FRAME_ACTION_BACK or DUI.L["Back"] },
-    }
-end
-
--- eb: the typing box with the focus, or nil.
-function Chat.PadTyping(eb)
-    local Pad = DUI.Pad
-    if not (Pad and Pad.On()) then eb = nil end
-    if eb == padBox then return end
-    padBox = eb
-    if not padHost then
-        padHost = CreateFrame("Frame", nil, UIParent)
-        padHost.padHintsAbove, padHost.padNoDefaults, padHost.padHints = true, true, padHints
-        padHost.padKeys, padHost.padTabs = {}, function() return {} end
-        Chat.padHost = padHost
-    end
-    if not eb then return Pad.Release(padHost) end
-    padHost:ClearAllPoints()
-    padHost:SetAllPoints(eb)
-    Pad.Take(padHost)
-end
+-- A controller: the game gives the chat the D-pad through its own chat frame,
+-- and every focus of a typing box (Enter, a click, the radial's Chat) goes
+-- through it. Its button hints hang under the box on that chat frame, which
+-- stays shown (chat is Classic then, Box.On), so Daylight UI draws none of its own.
 
 function Chat.Step(dt)
     inputSince = inputSince + (dt or 0)
