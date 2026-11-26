@@ -22,6 +22,7 @@ DUI.PatchNotes = {
         { "Loot rolls", "Loot roll cards no longer pile on top of each other when three or more items drop, so Need and Greed can always be clicked" },
         { "World map", "With Show unexplored areas on, the map no longer shows sharp bright squares inside the dimmed parts" },
         { "Quests", "The quest count on the map's quest list no longer hides under the search box with wider fonts" },
+        { "Guild", "Closing the guild window in a dungeon no longer shows an error" },
     } },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
         { "Proc Alerts", "A painted flare around your character when a proc like Clearcasting or Overpower is ready. If you already use Daylight UI, a welcome page shows you one to turn on" },

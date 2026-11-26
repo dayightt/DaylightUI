@@ -319,7 +319,20 @@ function W.Trace(frame, inset, thick, layer, quiet)
     function tr.Draw(p, gleam)
         tr.p = p
         local w, h = frame:GetWidth(), frame:GetHeight()
-        if type(w) ~= "number" or type(h) ~= "number" then return end
+        -- A frame with secret anchoring (a game button whose window shows a
+        -- secret) answers its size with secret numbers, which can't be measured.
+        -- Draw at the last size that could be read; with none yet, draw nothing.
+        if type(w) ~= "number" or type(h) ~= "number"
+            or (issecretvalue and (issecretvalue(w) or issecretvalue(h))) then
+            w, h = tr.w, tr.h
+            if not w then
+                for _, key in ipairs({ "top", "right", "left", "bottom" }) do tr[key]:Hide() end
+                for _, g in ipairs(tr.gleams) do g:Hide() end
+                return
+            end
+        else
+            tr.w, tr.h = w, h
+        end
         w, h = w - 2 * inset, h - 2 * inset
         if w <= 0 or h <= 0 then return end
         local d = p * (w + h)
