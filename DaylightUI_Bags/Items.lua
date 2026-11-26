@@ -472,6 +472,17 @@ function Items.Hover(btn, on, snap)
     end)
 end
 
+-- The game's new-item glows on a slot. Its store glow (BattlepayItemTexture, a
+-- blue square) starts out shown, and the game's UpdateNewItem shows it for a new
+-- store item. Blue squares were seen staying in emptied slots after selling.
+local GLOWS = { "flash", "NewItemTexture", "BattlepayItemTexture" }
+local function hideGlows(btn)
+    for _, key in ipairs(GLOWS) do
+        local t = btn[key]
+        if type(t) == "table" and t.Hide then t:Hide() end
+    end
+end
+
 -- Restyles a new button (once).
 function Items.Dress(btn)
     if dressed[btn] then return dressed[btn] end
@@ -483,6 +494,7 @@ function Items.Dress(btn)
     p.well:SetColorTexture(w[1], w[2], w[3], 1)
     p.well:Hide()
     hideGameArt(btn)
+    hideGlows(btn)
     -- Original size of each piece of the game's art (Items.ScaleArt).
     p.art = {}
     for _, key in ipairs(Items.GAME_SIZED) do
@@ -1288,12 +1300,12 @@ function Items.Fill(btn, tooltipOwner)
     call(btn, "UpdateQuestItem", q.isQuestItem, q.questID, q.isActive)
     call(btn, "UpdateNewItem", quality)
     -- No shimmer and no glow frame: stop the sweep and pulse the game just started and
-    -- hide its glow (white on common items, a second frame around the ring). New loot is
-    -- marked by the Recent group and the small new-item dot instead.
+    -- hide its glows (white on common items, a second frame around the ring; the store
+    -- item's blue square too). New loot is marked by the Recent group and the small
+    -- new-item dot instead.
     if type(btn.flashAnim) == "table" and btn.flashAnim.Stop then btn.flashAnim:Stop() end
     if type(btn.newitemglowAnim) == "table" and btn.newitemglowAnim.Stop then btn.newitemglowAnim:Stop() end
-    if type(btn.flash) == "table" and btn.flash.Hide then btn.flash:Hide() end
-    if type(btn.NewItemTexture) == "table" and btn.NewItemTexture.Hide then btn.NewItemTexture:Hide() end
+    hideGlows(btn)
     -- An item marked as junk by hand gets the game's junk coin like a gray one.
     local marked = info and ns.Categories.IsMarkedJunk(info.itemID)
     call(btn, "UpdateJunkItem", marked and 0 or quality, noValue)

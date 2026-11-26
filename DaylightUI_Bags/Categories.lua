@@ -71,7 +71,7 @@ Cat.TESTS = {
     consumable = K.consumable,
     weapon = K.weapon,
     armor = K.armor,
-    reagent = function(f) return f.classID == C.reagent end,   -- not the search keyword's meaning (includes trade goods)
+    reagent = ns.Search.ClassReagent,   -- not the search keyword's meaning (includes trade goods)
     tradegoods = K.tradegoods,
     recipe = K.recipe,
     ammo = function(f) return f.classID == C.projectile end,

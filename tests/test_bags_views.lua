@@ -1956,6 +1956,35 @@ T.test("bags: a right-click sell still holds the spot", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Ticket: after selling junk the Junk group kept its emptied spots until the
+-- bag was closed and opened again. A sale Daylight UI didn't start (the game's
+-- own vendor button, another vendor addon) and right-click sales hold their
+-- spots while the vendor is open; walking away closes them up.
+T.test("bags: spots held at a vendor close up when the vendor closes", function()
+    local ns, f = junkAtVendor()
+    local gray, weapon = ns.Bags.buttons[0][2], ns.Bags.buttons[0][1]
+    -- The game's sell-all: every gray item goes at once, nothing of Daylight UI's asked.
+    world.items[0][2] = nil
+    bagChanged(0)
+    -- And one more sold by right-click.
+    C_Container.UseContainerItem(0, 1)
+    for _ = 1, 5 do stub.RunTimers() end
+    T.truthy(f.stale, "held while the vendor is open")
+    T.truthy(weapon:IsShown(), "the right-clicked slot keeps its spot")
+    local laid = 0
+    local relayout = ns.Window.EaseRelayout
+    ns.Window.EaseRelayout = function(...) laid = laid + 1 return relayout(...) end
+    stub.FireEvent("MERCHANT_CLOSED")
+    for _ = 1, 3 do stub.RunTimers() end
+    ns.Window.EaseRelayout = relayout
+    T.eq(laid, 1, "the vendor closed: one eased layout")
+    T.falsy(f.stale, "no reopen needed")
+    T.truthy(DaylightUI.Win.Feel.Moving(gray) or (f.fading and f.fading[gray]), "the emptied spot moves off, eased")
+    settleFeel()
+    nothingMoves(f, "settled")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("bags: more than EASE_MAX moves cross-fade instead", function()
     local ns = login()
     local L, Motion = ns.Layout, DaylightUI.Motion

@@ -26,11 +26,18 @@ ns.Search = Search
 Search.CLASS = { consumable = 0, container = 1, weapon = 2, armor = 4, reagent = 5, projectile = 6, tradegoods = 7,
                  recipe = 9, quiver = 11, quest = 12, key = 13, misc = 15 }
 Search.FOOD = { [5] = true }                           -- Food & Drink
+-- Miscellaneous items with the subclass Reagent: the class reagents a spell
+-- uses up (Fish Oil, runes, powders, candles). Only the Ankh is class 5.
+Search.MISC_REAGENT = 1
 Search.POTION = { [1] = true, [2] = true, [3] = true }  -- potions, elixirs, flasks
 Search.QUALITY = { poor = 0, common = 1, uncommon = 2, rare = 3, epic = 4, legendary = 5 }
 
 local C = Search.CLASS
 Search.BIND_QUEST = Enum and Enum.ItemBind and Enum.ItemBind.Quest or 4
+
+function Search.ClassReagent(f)
+    return f.classID == C.reagent or (f.classID == C.misc and f.subClassID == Search.MISC_REAGENT)
+end
 
 -- Keywords: facts -> true when the item matches.
 Search.KEYWORDS = {
@@ -40,7 +47,7 @@ Search.KEYWORDS = {
     consumable = function(f) return f.classID == C.consumable end,
     food = function(f) return f.classID == C.consumable and Search.FOOD[f.subClassID] == true end,
     potion = function(f) return f.classID == C.consumable and Search.POTION[f.subClassID] == true end,
-    reagent = function(f) return f.classID == C.reagent or f.classID == C.tradegoods or f.craftingReagent == true end,
+    reagent = function(f) return Search.ClassReagent(f) or f.classID == C.tradegoods or f.craftingReagent == true end,
     tradegoods = function(f) return f.classID == C.tradegoods end,
     recipe = function(f) return f.classID == C.recipe end,
     key = function(f) return f.classID == C.key end,

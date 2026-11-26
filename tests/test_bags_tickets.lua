@@ -114,3 +114,26 @@ T.test("bags: a game format with numbered holes and plurals still reads back", f
     T.eq(tonumber(("Requiert Cuisine (110)"):match(skill)), 110, "a numbered skill line")
     T.eq(("50% off (3)"):match(Items.Pattern("50%% off (%d)")), "3", "a literal percent stays literal")
 end)
+
+-- The class reagents (Fish Oil, Shiny Fish Scales, Rune of Teleportation,
+-- Arcane Powder, candles...) are white Miscellaneous items with the subclass
+-- Reagent (item class 15, subclass 1 in the Forever build's item tables); only
+-- the Ankh is a class 5 Reagent. They went to Miscellaneous, and a shaman read
+-- that as "not a reagent, so it gets sold".
+local function facts(id, classID, subClassID, quality)
+    return { itemID = id, link = "|Hitem:" .. id .. "|h", classID = classID, subClassID = subClassID,
+             quality = quality, count = 1, recent = false }
+end
+
+T.test("bags: class reagents land in Reagents, never Junk or Miscellaneous", function()
+    stub.Load({ bags = true })
+    local Cat = stub.bags.Categories
+    T.eq(Cat.Assign(facts(17058, 15, 1, 1), "bags"), "reagent", "Fish Oil")
+    T.eq(Cat.Assign(facts(17057, 15, 1, 1), "bags"), "reagent", "Shiny Fish Scales")
+    T.eq(Cat.Assign(facts(17031, 15, 1, 1), "bags"), "reagent", "Rune of Teleportation")
+    T.eq(Cat.Assign(facts(17030, 5, 0, 1), "bags"), "reagent", "the Ankh stays a reagent")
+    T.eq(Cat.Assign(facts(5000, 15, 4, 1), "bags"), "misc", "other Miscellaneous items stay there")
+    T.eq(Cat.Assign(facts(5001, 15, 1, 0), "bags"), "junk", "a gray item is still junk")
+    local f = facts(17058, 15, 1, 1)
+    T.truthy(stub.bags.Search.KEYWORDS.reagent(f), "the search word reagent finds them too")
+end)

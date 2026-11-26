@@ -163,10 +163,22 @@ local function setup(opts)
                 function a:IsPlaying() return self.playing end
                 f[k] = a
             end
+            -- The store glow (Interface\Store\store-item-highlight, a soft blue
+            -- square): ContainerFrame.xml gives it no hidden flag, so it shows from
+            -- the start, and UpdateNewItem shows it instead of the new-item glow
+            -- while C_Container.IsBattlePayItem says so.
+            f.BattlepayItemTexture = f:CreateTexture()
+            f.BattlepayItemTexture:SetSize(64, 64)
             local rec = f.UpdateNewItem
             f.UpdateNewItem = function(self, ...)
                 rec(self, ...)
-                self.NewItemTexture:Show(); self.flash:Show()
+                local key = self:GetBagID() .. ":" .. self:GetID()
+                if world.battlepay and world.battlepay[key] then
+                    self.NewItemTexture:Hide(); self.BattlepayItemTexture:Show()
+                else
+                    self.BattlepayItemTexture:Hide(); self.NewItemTexture:Show()
+                end
+                self.flash:Show()
                 self.flashAnim:Play(); self.newitemglowAnim:Play()
             end
             -- No SplitStack here. The game sets it on every shift-click
@@ -370,4 +382,38 @@ T.test("bags on a controller: Y's menu feeds the pet the food under the D-pad", 
     _G.IsPlayerSpell, _G.UnitExists, _G.C_PetInfo = saved.IsPlayerSpell, saved.UnitExists, saved.PetInfo
     C_Spell.IsSpellUsable, _G.SpellCanTargetItem = saved.usable, saved.can
     _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+end)
+
+-- Ticket: blue glows stayed in bag slots, empty ones too, after selling and
+-- moving things around. The blue is the game's store glow on its bag button
+-- (BattlepayItemTexture); Daylight UI hid the new-item glow but not this one.
+-- Whether the client still calls an emptied slot new isn't known, so the fake
+-- game keeps both flags after the item leaves: the worst case.
+local function glowing(btn)
+    local t = btn.BattlepayItemTexture
+    return t:IsShown() and (t:GetAlpha() or 1) > 0
+end
+
+T.test("bags: the game's blue store glow never shows on a slot, filled or emptied", function()
+    local ns = login()
+    world.battlepay = { ["0:1"] = true, ["0:3"] = true }
+    world.items[0][3] = { iconFileID = 103, stackCount = 1, quality = 1, hyperlink = "|Hitem:3|h" }
+    local f = open(ns)
+    ns.FillAll(); stub.RunTimers()
+    local a, b, empty
+    for _, s in ipairs(f.set.Slots()) do
+        local id = s.button:GetID()
+        if s.bag == 0 and id == 1 then a = s.button end
+        if s.bag == 0 and id == 3 then b = s.button end
+        if s.bag == 0 and id == 9 then empty = s.button end
+    end
+    T.falsy(glowing(a), "a store item gets no blue glow")
+    T.falsy(glowing(b))
+    T.falsy(glowing(empty), "nor a slot that never held anything")
+    -- Sold (or moved) while the bag is open: the slot empties, its flags stay.
+    world.items[0][3] = nil
+    ns.Window.Changed(f, { [0] = true })
+    stub.RunTimers()
+    T.falsy(glowing(b), "the emptied slot keeps no glow")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

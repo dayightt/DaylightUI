@@ -259,6 +259,14 @@ function Junk.OnVendor()
     Junk.Sell(Junk.Items())
 end
 
+-- Walking away from a vendor: the spots the open bag kept for sold items close
+-- up. Right-click sales, and sales Daylight UI didn't start (the game's own
+-- vendor button, another vendor addon), hold them only while the vendor is open.
+function Junk.Fold()
+    local f = ns.window
+    if f and f:IsShown() and f.stale and not f.sorting and ns.Window then ns.Window.EaseRelayout(f) end
+end
+
 -- For the NPC window's Sell junk button. True when a locked gray item means
 -- selling item by item here; false leaves it to the game's own sale.
 function DUI.SellJunkAroundLocks()
@@ -326,7 +334,7 @@ function Junk.Register()
         TDP.AddTooltipPostCall(types.Item, function(tip, data) DUI.SafeCall(Junk.OnTip, tip, data) end)
     end
     DUI.RegisterEvent("MERCHANT_SHOW", function() Junk.OnVendor(); refreshButton() end)
-    DUI.RegisterEvent("MERCHANT_CLOSED", function() Junk.vendorOpen = false; refreshButton() end)
+    DUI.RegisterEvent("MERCHANT_CLOSED", function() Junk.vendorOpen = false; refreshButton(); Junk.Fold() end)
     -- Joining or leaving a raid switches which shard limit counts.
     DUI.RegisterEvent("GROUP_ROSTER_UPDATE", function()
         if ns.window and ns.Window and Junk.IsWarlock() then ns.Window.UpdateShards(ns.window) end
