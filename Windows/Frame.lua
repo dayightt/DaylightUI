@@ -193,8 +193,16 @@ function Win.Header(f, spec)
     f.title:SetWordWrap(false)
     Style.InkText(f.title, "VALUE")
     if not spec.compact then
+        -- The title is squeezed by the tabs, and with no room left (wide tabs, a
+        -- bigger font, a long translation) it has no width and so no height, and a
+        -- sub line hung under it would ride up into the tabs. So the sub line hangs
+        -- under an unseen line of the title's size that nothing squeezes.
+        f.titleLine = Style.Text(f, Win.TITLE_SIZE, "LEFT")
+        f.titleLine:SetPoint("TOPLEFT", f, "TOPLEFT", left, Win.TITLE_Y)
+        f.titleLine:SetText("A")   -- any letter: only its line height counts
+        f.titleLine:Hide()
         f.sub = Style.Text(f, Win.SUB_SIZE, "LEFT")
-        f.sub:SetPoint("TOPLEFT", f.title, "BOTTOMLEFT", 0, -4)
+        f.sub:SetPoint("TOPLEFT", f.titleLine, "BOTTOMLEFT", 0, -4)
         f.sub:SetPoint("RIGHT", f, "RIGHT", -40, 0)
         f.sub:SetWordWrap(false)
         f.sub:SetTextColor(Win.DIM[1], Win.DIM[2], Win.DIM[3])

@@ -1542,13 +1542,13 @@ T.test("social: your BattleTag is in the header on every tab, and a click shows 
     T.truthy(f.tag:IsShown(), "your tag is there")
     T.eq(f.tag.text:GetText(), "Curt#1674")
     local _, rel = f.tagDot:GetPoint(1)
-    T.eq(rel, f.status, "right after the status, on its row")
-    local _, tagAt = f.tag:GetPoint(1)
+    T.eq(rel, f.status.text, "right after the status, on its row")
+    local _, tagAt = f.tag.text:GetPoint(1)
     T.eq(tagAt, f.tagDot, "the tag follows the separator")
+    local _, linkAt = f.tag:GetPoint(1)
+    T.eq(linkAt, f.tag.text, "its mouse area is its words")
     local _, onlineAt = f.online:GetPoint(1)
-    T.eq(onlineAt, f.tag, "and the friends online follow the tag")
-    local _, stop = f.tag.text:GetPoint(2)
-    T.eq(stop, f.tabs[1], "the text stops short of the tabs, whatever the window's measures")
+    T.eq(onlineAt, f.tag.text, "and the friends online follow the tag")
     for _, id in ipairs({ "allies", "requests", "raid" }) do
         stub.Key(function() ns.Window.ShowTab(id, true) end)
         frame(20)
@@ -1574,6 +1574,36 @@ T.test("social: your BattleTag is in the header on every tab, and a click shows 
     clean()
 end)
 
+-- Tabs wider than the header (a bigger font, a long translation) leave the title no
+-- width, and the client then gives it no height either: a status row hung under the
+-- title rode up into the tabs, its dots between them and the BattleTag link under
+-- Recent allies. The fake game doesn't lay frames out, so this checks what each
+-- piece of the row hangs from: never the squeezed title, never a tab, and each text
+-- by its top so a tab's middle can't move it.
+T.test("social: the status row keeps its line under the tabs when the tabs leave the title no room", function()
+    local ns = load()
+    local f = open(ns, "friends")
+    local _, subAt = f.sub:GetPoint(1)
+    T.truthy(subAt ~= f.title, "the sub line doesn't hang from the title the tabs squeeze")
+    T.eq(subAt, f.titleLine, "it hangs from a line of the title's size")
+    T.eq(f.titleLine:GetNumPoints(), 1, "which nothing squeezes")
+    local tabs = {}
+    for _, b in ipairs(f.tabs) do tabs[b] = true end
+    for name, piece in pairs({ statusDot = f.statusDot, status = f.status, statusText = f.status.text,
+        tagDot = f.tagDot, tag = f.tag, tagText = f.tag.text, online = f.online }) do
+        for i = 1, piece:GetNumPoints() do
+            local point, rel = piece:GetPoint(i)
+            T.falsy(tabs[rel], name .. " never hangs from a tab")
+            T.truthy(rel ~= f.title, name .. " never hangs from the title")
+            if i == 1 and piece:GetObjectType() == "FontString" and piece ~= f.status.text then
+                T.truthy(point:find("TOP"), name .. " hangs by its top: " .. point)
+            end
+        end
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    clean()
+end)
+
 T.test("social: without a BattleTag (not connected) the header has none", function()
     local old = _G.BNGetInfo
     local ns = load()
@@ -1582,7 +1612,7 @@ T.test("social: without a BattleTag (not connected) the header has none", functi
     T.eq(f.tag:IsShown(), false)
     T.eq(f.tagDot:IsShown(), false, "no lone separator either")
     local _, onlineAt = f.online:GetPoint(1)
-    T.eq(onlineAt, f.status, "the friends online follow the status")
+    T.eq(onlineAt, f.status.text, "the friends online follow the status")
     _G.BNGetInfo = old
     clean()
 end)

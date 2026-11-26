@@ -94,27 +94,29 @@ end
 
 -- Your own BattleTag right after your status, on every tab (so: status · BattleTag · friends online), as a
 -- link that shows it selected in a box, ready for Ctrl+C (an addon can't call CopyToClipboard: the game
--- blocks it). It sits on the status row, so it lines up with the status, and nothing here measures the
--- window: the tag's text stops short of the tabs, so one that doesn't fit is cut with "...", and the first
--- paint after a /reload is right. Without a BattleTag (not connected) the friends online follow the status.
+-- blocks it). It sits on the status row under the tabs, each text hung by its top from the one before, so
+-- the row stays one line: a text tied by its middle to a tab took the tab's height instead. The row runs
+-- under the tabs' row, so only the friends online are cut with "...", at the window's edge. Nothing here
+-- measures the window, so the first paint after a /reload is right. Without a BattleTag (not connected)
+-- the friends online follow the status.
 function Social.LayTag(f, tag)
     f.tag:SetShown(tag ~= nil)
     f.tagDot:SetShown(tag ~= nil)
-    local after = f.status
+    local after = f.status.text
     if tag then
         f.tag.SetLabel(tag)
         f.tagDot:ClearAllPoints()
-        f.tagDot:SetPoint("LEFT", f.status, "RIGHT", 6, 0)
-        f.tag:ClearAllPoints()
-        f.tag:SetPoint("LEFT", f.tagDot, "RIGHT", 6, 0)
+        f.tagDot:SetPoint("TOPLEFT", f.status.text, "TOPRIGHT", 6, 0)
         f.tag.text:ClearAllPoints()
-        f.tag.text:SetPoint("LEFT", f.tag, "LEFT", 0, 0)
-        if f.tabs and f.tabs[1] then f.tag.text:SetPoint("RIGHT", f.tabs[1], "LEFT", -8, 0) end
-        after = f.tag
+        f.tag.text:SetPoint("TOPLEFT", f.tagDot, "TOPRIGHT", 6, 0)
+        -- The link's mouse area is its words.
+        f.tag:ClearAllPoints()
+        f.tag:SetPoint("LEFT", f.tag.text, "LEFT", 0, 0)
+        after = f.tag.text
     end
     f.online:ClearAllPoints()
-    f.online:SetPoint("LEFT", after, "RIGHT", 6, 0)
-    if f.tabs and f.tabs[1] then f.online:SetPoint("RIGHT", f.tabs[1], "LEFT", -8, 0) end
+    f.online:SetPoint("TOPLEFT", after, "TOPRIGHT", 6, 0)
+    f.online:SetPoint("RIGHT", f, "RIGHT", -Win.EDGE, 0)
 end
 
 function Social.CopyTag()
@@ -152,7 +154,7 @@ local function makeStatus(f)
     end)
     f.status:HookScript("OnLeave", function() DUI.Widgets.HideTooltip() end)
     f.online = Style.Text(f, Style.SIZE.small, "LEFT")
-    f.online:SetPoint("LEFT", f.status, "RIGHT", 6, 0)
+    f.online:SetPoint("TOPLEFT", f.status.text, "TOPRIGHT", 6, 0)
     f.online:SetWordWrap(false)
     Style.InkText(f.online, "LABEL")
     f.tagDot = Style.Text(f, Style.SIZE.small, "LEFT")
@@ -411,8 +413,7 @@ function Social.Build(mod)
     Win.Tabs(f, { { id = "friends", text = FRIENDS or L["Friends"] }, { id = "allies", text = L["Recent allies"] },
         { id = "requests", text = L["Requests"] }, { id = "raid", text = RAID or L["Raid"] } },
         function(id) Social.ShowTab(id, true) end)
-    f.online:SetPoint("RIGHT", f.tabs[1], "LEFT", -8, 0)   -- stops short of the tabs (long translations get cut instead of overlapping)
-    Social.LayTag(f, (select(3, ns.Data.Me())))   -- the tabs exist now: your tag stops short of them too
+    Social.LayTag(f, (select(3, ns.Data.Me())))
     -- Controller: the game's friends list has no buttons of its own, so this one
     -- follows its Communities window. Y is a row's menu and X the footer's main
     -- button (every window's); A on a raid member targets them.
