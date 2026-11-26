@@ -264,6 +264,57 @@ T.test("on a controller the cursor sits on Daylight UI's tile of the same member
     padOff()
 end)
 
+-- Two pieces of the game's CompactUnitFrameTemplate ignore their parents' alpha
+-- in its XML (CompactUnitFrame.xml): the target box (selectionHighlight, atlas
+-- RaidFrame-TargetFrame, shown while the member is your target) and the ready
+-- check icon. Inside the see-through frame they still showed at the game's spot:
+-- the D-pad targets a member, and an empty box lit up where the game's party
+-- frame would be (a player's report on a controller).
+local function gamePieces(b)
+    local box = b:CreateTexture(nil, "OVERLAY")
+    box:SetIgnoreParentAlpha(true)
+    box:Hide()
+    b.selectionHighlight = box
+    local ready = CreateFrame("Frame", nil, b)
+    ready:SetIgnoreParentAlpha(true)
+    ready.Icon = ready:CreateTexture()
+    ready.Icon:SetIgnoreParentAlpha(true)
+    b.readyCheckIcon = ready
+    return box, ready
+end
+
+T.test("on a controller the game's target box and ready check icon stay unseen, party and raid", function()
+    local _, ns = stub.Load({ module = true })
+    padOn()
+    local _, list, _, container = gameGroupFrames()
+    local box, ready = gamePieces(list.memberUnitFrames[2])
+    -- The game's hover mode box (GroupTargeting.lua), drawn round the game's button.
+    local hoverBox = CreateFrame("Frame", nil, UIParent)
+    _G.GroupTargeting = { TargetHighlight = hoverBox }
+    ns.Blizzard.Apply(DaylightUI.DB.MergeDefaults({}, ns.DEFAULTS))
+    stub.RunTimers()
+    box:Show() -- the D-pad targets party1
+    T.truthy(box:IsVisible())
+    T.eq(box:GetEffectiveAlpha(), 0, "the game's target box isn't seen where the game's frame sits")
+    T.eq(ready:GetEffectiveAlpha(), 0, "nor its ready check icon")
+    T.eq(ready.Icon:GetEffectiveAlpha(), 0)
+    T.eq(hoverBox:GetEffectiveAlpha(), 0, "nor the hover mode's box of lines")
+    -- A raid member joins in a fight: the raid container makes the button then.
+    container:Show()
+    stub.EnterCombat()
+    local raidButton = CreateFrame("Button", "CompactRaidFrame1", container)
+    raidButton:SetAttribute("unit", "raid2")
+    local raidBox = gamePieces(raidButton)
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    stub.LeaveCombat()
+    stub.RunTimers()
+    raidBox:Show()
+    T.eq(raidBox:GetEffectiveAlpha(), 0, "a raid member's box after the fight too")
+    _G.GroupTargeting = nil
+    padOff()
+end)
+
 T.test("with the mouse, the game's group frames are parked and silenced as before", function()
     local ns = setup()
     local party, list, manager = gameGroupFrames()

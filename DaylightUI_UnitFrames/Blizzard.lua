@@ -185,6 +185,33 @@ end
 
 local aimed = setmetatable({}, { __mode = "k" }) -- game button -> the tile its cursor sits on, or false
 
+-- The game's group buttons draw their target box and ready check icon with
+-- ignoreParentAlpha (CompactUnitFrameTemplate), so the see-through frame didn't
+-- hide them: targeting a member with the D-pad lit an empty box where the game's
+-- frame would be. Daylight UI's own tile shows the target outline instead.
+local function followVeil(piece)
+    if type(piece) == "table" and piece.IsIgnoringParentAlpha and piece:IsIgnoringParentAlpha() then
+        piece:SetIgnoreParentAlpha(false)
+    end
+end
+
+local function seeThrough(b)
+    followVeil(b.selectionHighlight)
+    local ready = b.readyCheckIcon
+    followVeil(ready)
+    if type(ready) == "table" then followVeil(ready.Icon) end
+end
+
+-- With the game's hover mode for party targeting on, the D-pad only marks a
+-- member, and the game draws a box of lines round its button, outside the
+-- see-through frame. Its arrow already points at Daylight UI's tile, so the
+-- box stays unseen.
+local function hideHoverBox()
+    local gt = _G.GroupTargeting
+    local box = type(gt) == "table" and gt.TargetHighlight
+    if type(box) == "table" and box.SetAlpha and box:GetAlpha() ~= 0 then box:SetAlpha(0) end
+end
+
 -- The see-through game frames take no clicks, and the game's cursor and its
 -- D-pad order follow Daylight UI's tiles: each game button's cursor spot is put
 -- on the tile showing the same member, through the game's own setter (the
@@ -202,6 +229,10 @@ function Blizzard.AimGroup()
         and type(unignore) == "function" and type(CreateAnchor) == "function"
     for frame in pairs(kept) do
         mouseOff(frame)
+        for _, b in ipairs(gameButtons(frame, {})) do
+            seeThrough(b)
+        end
+        hideHoverBox()
         if canAim then
             for _, b in ipairs(gameButtons(frame, {})) do
                 local tile = tileFor(b:GetAttribute("unit")) or false

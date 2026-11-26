@@ -25,6 +25,7 @@ DUI.PatchNotes = {
         { "Guild", "Closing the guild window in a dungeon no longer shows an error" },
         { "Social", "Your status and BattleTag in the friends window stay on their own line instead of sliding up under the tabs" },
         { "Unit frames", "Bar animations no longer cover your chosen bar texture: Silk, Glass and the others show all along the moving colors" },
+        { "Party frames", "On a controller, picking party or raid members with the D-pad no longer shows an empty box where the game's own party frames would be" },
     } },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
         { "Proc Alerts", "A painted flare around your character when a proc like Clearcasting or Overpower is ready. If you already use Daylight UI, a welcome page shows you one to turn on" },
