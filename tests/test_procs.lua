@@ -251,6 +251,53 @@ T.test("procs: a free spell shows Clearcasting; Missile Barrage does not show wh
     T.truthy(ns.Flares.Shown("missilebarrage"), "only Missiles free")
 end)
 
+-- A mage who turned the Clearcasting alert off still gets Clearcasting itself:
+-- every free Arcane Missiles it gives must not light Missile Barrage.
+T.test("procs: with the Clearcasting alert off, Clearcasting still never shows as Missile Barrage", function()
+    local ns = load("MAGE", { FROSTBOLT, FIREBALL, MISSILES })
+    ns.Alerts.Set("clearcasting", "enabled", false)
+    stub.EnterCombat()
+    cost(FROSTBOLT, 100); cost(FIREBALL, 120); cost(MISSILES, 200)
+    step()
+    cost(FROSTBOLT, 0); cost(FIREBALL, 0); cost(MISSILES, 0)
+    stub.FireEvent("UNIT_AURA", "player")
+    step(0.2)
+    step(0.2)
+    T.falsy(ns.Flares.Shown("clearcasting"), "its alert is off")
+    T.falsy(ns.Flares.Shown("missilebarrage"), "Clearcasting explains the free Missiles")
+    T.falsy(ns.Engine.Watched("clearcasting"), "not counted as an alert watched")
+    -- Frostbolt spends Clearcasting; a real Missile Barrage after it still shows.
+    cost(FROSTBOLT, 100); cost(FIREBALL, 120); cost(MISSILES, 200)
+    step(0.2)
+    cost(MISSILES, 0)
+    step(0.2)
+    T.truthy(ns.Flares.Shown("missilebarrage"), "only Missiles free")
+end)
+
+-- The client lists every cost a spell can have; one tied to an aura (a form,
+-- a buff) applies only while the caster has that aura (hasRequiredAura).
+T.test("procs: a cost tied to an aura the player lacks is not read as the spell's cost", function()
+    local ns = load("MAGE", { FROSTBOLT, FIREBALL, MISSILES })
+    stub.EnterCombat()
+    cost(FROSTBOLT, 100); cost(FIREBALL, 120)
+    local function missiles(barrage)
+        stub.spellCosts[MISSILES] = {
+            { cost = 0, requiredAuraID = 400589, hasRequiredAura = barrage },
+            { cost = 200, requiredAuraID = 0, hasRequiredAura = false },
+        }
+    end
+    missiles(false)
+    step()
+    step(0.2)
+    T.falsy(ns.Flares.Shown("missilebarrage"), "the free cost needs a buff the player hasn't got")
+    missiles(true)
+    step(0.2)
+    T.truthy(ns.Flares.Shown("missilebarrage"), "the buff is there: free")
+    missiles(false)
+    step(0.2)
+    T.falsy(ns.Flares.Shown("missilebarrage"), "gone with the buff")
+end)
+
 -- Clearcasting frees every spell, Arcane Missiles too, so once it's up the cost
 -- alone can't tell whether Missile Barrage is there. One already shown stays
 -- until Arcane Missiles is cast (Missile Barrage pays for it before

@@ -73,7 +73,23 @@ function Engine.CastTime(id)
     return v
 end
 
--- A spell's cost in its first resource (0 = free), or nil when the game can't say.
+-- The cost that applies now out of the client's list: the first one not tied
+-- to an aura the player lacks (the list also holds costs for forms and buffs
+-- that aren't there). false for an empty list (no cost at all), nil when
+-- none applies (a cat's Claw out of Cat Form) or it can't be read.
+local function applies(t)
+    if t[1] == nil then return false end
+    for _, e in ipairs(t) do
+        if type(e) ~= "table" then return nil end
+        local aura, has = e.requiredAuraID, e.hasRequiredAura
+        if isSecret(aura) or isSecret(has) then return nil end
+        if not (type(aura) == "number" and aura ~= 0 and has ~= true) then return e end
+    end
+    return nil
+end
+
+-- A spell's cost in the first resource that applies (0 = free), or nil when
+-- the game can't say.
 function Engine.Cost(id)
     if not id then return nil end
     local c = costCache[id]
@@ -82,8 +98,8 @@ function Engine.Cost(id)
     if C_Spell and type(C_Spell.GetSpellPowerCost) == "function" then
         local t = C_Spell.GetSpellPowerCost(id)
         if t ~= nil and not isSecret(t) and type(t) == "table" then
-            local first = t[1]
-            if type(first) ~= "table" then v = 0 else v = num(first.cost) end
+            local e = applies(t)
+            if e == false then v = 0 elseif e then v = num(e.cost) end
         end
     end
     costCache[id] = { readAt, v }
@@ -401,12 +417,20 @@ end
 function Engine.Learn(fresh)
     learned = true
     for k in pairs(castRoles) do castRoles[k] = nil end
-    local keep = {}
+    -- A proc another one is told apart from (Clearcasting for Missile Barrage)
+    -- is still watched with its own alert off, only never shown: otherwise every
+    -- Clearcasting would light Missile Barrage.
+    local keep, behind = {}, {}
     for _, p in ipairs(ns.Data.Mine()) do
-        if ns.Alerts.Get(p.key, "enabled") ~= false then
+        if p.unless and ns.Alerts.Get(p.key, "enabled") ~= false then behind[p.unless] = true end
+    end
+    for _, p in ipairs(ns.Data.Mine()) do
+        local on = ns.Alerts.Get(p.key, "enabled") ~= false
+        if on or behind[p.key] then
             keep[p.key] = true
             local g = state[p.key]
             if not g then g = { ratio = {}, costBase = {} }; state[p.key] = g end
+            g.silent = not on
             if fresh then g.ratio, g.costBase, g.maxCt, g.maxCut, g.base = {}, {}, nil, nil, nil end
             g.id = Engine.Known(p.cast)
             g.alsoId = Engine.Known(p.also)
@@ -441,7 +465,7 @@ function Engine.Learn(fresh)
     end
 end
 
-function Engine.Watched(key) return state[key] ~= nil end
+function Engine.Watched(key) return state[key] ~= nil and not state[key].silent end
 function Engine.Polling() return ticker ~= nil end
 function Engine.InCombat() return inCombat end
 
@@ -458,7 +482,7 @@ local ALERT_CVAR = "displaySpellActivationOverlays"
 local function wantGameOff()
     if not enabled() then return false end
     for _, p in ipairs(ns.Data.Mine()) do
-        if p.gameAlertOff and state[p.key] then return true end
+        if p.gameAlertOff and Engine.Watched(p.key) then return true end
     end
     return false
 end
@@ -538,7 +562,7 @@ function Engine.Refresh()
         local g = state[p.key]
         if g and p.mode ~= "aura" then
             local active = decide(p, g, now)
-            local show = active and not (ns.Alerts.Get(p.key, "combatOnly") and not inCombat)
+            local show = active and not g.silent and not (ns.Alerts.Get(p.key, "combatOnly") and not inCombat)
             if show then
                 local info = { stacks = g.n }
                 if not p.noTimer and g.startedAt then
@@ -553,7 +577,7 @@ function Engine.Refresh()
                 local f = ns.Flares.live[p.key]
                 if f and not f.test then ns.Flares.Hide(p.key) end
             end
-            if active or g.wait then any = true end
+            if (active and not g.silent) or g.wait then any = true end
         end
     end
     poll(inCombat or any)
