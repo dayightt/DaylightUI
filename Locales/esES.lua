@@ -91,7 +91,6 @@ L["%s found, showing %d: narrow the search"] = "%s encontrados, mostrando %d: af
 L["%s hidden."] = "%s oculto."
 L["%s honorable kills, and counting."] = "%s victorias honorables, y sigue contando."
 L["%s honorable kills. The other faction remembers you."] = "%s victorias honorables. La otra facción te recuerda."
-L["%s is also loaded. Both replace the same %s; disable one of them."] = "%s también está cargado. Ambos reemplazan el mismo %s; desactiva uno de ellos."
 L["%s is also on. Both change your %s."] = "%s también está activo. Ambos cambian tu %s."
 L["%s is back the way it comes."] = "%s vuelve a como viene de serie."
 L["%s is guarding your spot."] = "%s vigila tu sitio."

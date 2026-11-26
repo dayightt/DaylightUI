@@ -13,7 +13,6 @@ DaylightUI:RegisterModule("Skins", {
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)
-        DaylightUI.WarnIfLoaded("EllesmereUIBlizzardSkin", "EllesmereUI Blizzard Skin", DaylightUI.L["game windows"])
         ns.MapMove.Start(mod.db)
         ns.MapReveal.Start(mod.db)
         ns.MapPins.Start(mod.db)

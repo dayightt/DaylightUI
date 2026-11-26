@@ -38,19 +38,75 @@ Pages.MODULES = {
       pitch = "Small helpers: faster looting, quest automation, trainers and more." },
 }
 
--- Other addons that replace the same thing as one of Daylight UI's. Same list
--- DUI.WarnIfLoaded warns about in chat.
+-- Other addons that replace the same thing as one of Daylight UI's. The setup
+-- guide asks about them, and so does the clash box at login (Clashes.lua).
+-- Daylight UI's side of each is one of:
+--   module           the whole module (its addon is switched off)
+--   settings = {...} only part of a module: these settings, { scope, key },
+--                    turned off; the clash counts only while one is on
+--   core = true      the whole of Daylight UI
+-- what names the part, the same for every addon fighting over it.
+-- options: for an addon that clashes only through some of its own options, a
+-- function giving the names of those that are on (nil = no clash now).
+local RAID = { { "UnitFrames", "party.enabled" }, { "UnitFrames", "raid.enabled" } }
+local CDM = { { "ActionBars", "cooldowns" } }
+local MAP = { { "InfoPanel", "map.enabled" } }
+local CHARACTER = { { "Character", "enabled" } }
+
+-- Leatrix Plus fights Daylight UI only through some of its options, saved as
+-- "On"/"Off" in LeaPlusDB. It writes its own copy back over that table at
+-- logout, so Daylight UI can't switch them off for it: the pick is the
+-- whole addon. Its option names, as Leatrix Plus shows them.
+Pages.LEATRIX_CHAT = {
+    { "UseEasyChatResizing", "Use easy resizing" }, { "NoCombatLogTab", "Hide the combat log" },
+    { "NoChatButtons", "Hide chat buttons" }, { "UnclampChat", "Unclamp chat frame" },
+    { "MoveChatEditBoxToTop", "Move editbox to top" }, { "NoStickyChat", "Disable sticky chat" },
+    { "UseArrowKeysInChat", "Use arrow keys in chat" }, { "NoChatFade", "Disable chat fade" },
+    { "RecentChatWindow", "Recent chat window" }, { "RestoreChatMessages", "Restore chat messages" },
+}
+Pages.LEATRIX_MAP = { { "MinimapModder", "Enhance minimap" } }
+
+-- The names of those options that are on, or nil when none is.
+function Pages.LeatrixOn(list)
+    local db = _G.LeaPlusDB
+    if type(db) ~= "table" then return nil end
+    local on = {}
+    for _, o in ipairs(list) do
+        if db[o[1]] == "On" then on[#on + 1] = o[2] end
+    end
+    return #on > 0 and on or nil
+end
 Pages.CLASHES = {
+    { core = true, addon = "ElvUI", label = "ElvUI", what = "whole UI" },
     { module = "ActionBars", addon = "EllesmereUIActionBars", label = "EllesmereUI Action Bars", what = "action bars" },
     { module = "ActionBars", addon = "Bartender4", label = "Bartender4", what = "action bars" },
     { module = "ActionBars", addon = "Dominos", label = "Dominos", what = "action bars" },
-    { module = "ActionBars", addon = "EllesmereUICooldownManager", label = "EllesmereUI Cooldown Manager", what = "Cooldown Manager icons" },
+    { module = "ActionBars", settings = CDM, addon = "EllesmereUICooldownManager", label = "EllesmereUI Cooldown Manager", what = "Cooldown Manager icons" },
+    { module = "ActionBars", settings = CDM, addon = "BetterCooldownManager", label = "Better Cooldown Manager", what = "Cooldown Manager icons" },
+    { module = "ActionBars", settings = CDM, addon = "CooldownManagerCentered", label = "Cooldown Manager Centered", what = "Cooldown Manager icons" },
+    { module = "ActionBars", settings = CDM, addon = "SkironCooldownManager", label = "Skiron Cooldown Manager", what = "Cooldown Manager icons" },
+    { module = "ActionBars", settings = CDM, addon = "ArcUI", label = "ArcUI", what = "Cooldown Manager icons" },
+    { module = "ActionBars", settings = CDM, addon = "Ayije_CDM", label = "Ayije CDM", what = "Cooldown Manager icons" },
     { module = "Bags", addon = "Baganator", label = "Baganator", what = "bags" },
     { module = "Bags", addon = "Bagnon", label = "Bagnon", what = "bags" },
+    { module = "Bags", addon = "AdiBags", label = "AdiBags", what = "bags" },
+    { module = "Bags", addon = "ArkInventory", label = "ArkInventory", what = "bags" },
+    { module = "Bags", addon = "BetterBags", label = "BetterBags", what = "bags" },
+    { module = "Bags", addon = "Sorted", label = "Sorted", what = "bags" },
     { module = "Buffs", addon = "BuffLedger", label = "BuffLedger", what = "buff bars" },
     { module = "Chat", addon = "EllesmereUIChat", label = "EllesmereUI Chat", what = "chat" },
-    { module = "InfoPanel", addon = "EllesmereUIMinimap", label = "EllesmereUI Minimap", what = "minimap" },
-    { module = "InfoPanel", addon = "EllesmereUIDamageMeters", label = "EllesmereUI Damage Meters", what = "damage meter" },
+    { module = "Chat", addon = "Prat-3.0", label = "Prat", what = "chat" },
+    { module = "Chat", addon = "Chatter", label = "Chatter", what = "chat" },
+    { module = "Chat", addon = "Chattynator", label = "Chattynator", what = "chat" },
+    { module = "Chat", addon = "Glass", label = "Glass", what = "chat" },
+    { module = "InfoPanel", settings = MAP, addon = "EllesmereUIMinimap", label = "EllesmereUI Minimap", what = "minimap" },
+    { module = "Chat", addon = "Leatrix_Plus", label = "Leatrix Plus", what = "chat",
+      options = function() return Pages.LeatrixOn(Pages.LEATRIX_CHAT) end },
+    { module = "InfoPanel", settings = MAP, addon = "SexyMap", label = "SexyMap", what = "minimap" },
+    { module = "InfoPanel", settings = MAP, addon = "Leatrix_Plus", label = "Leatrix Plus", what = "minimap",
+      options = function() return Pages.LeatrixOn(Pages.LEATRIX_MAP) end },
+    { module = "InfoPanel", settings = { { "InfoPanel", "map.drawer" } }, addon = "MinimapButtonButton", label = "MinimapButtonButton", what = "minimap buttons" },
+    { module = "InfoPanel", settings = { { "InfoPanel", "meter.enabled" } }, addon = "EllesmereUIDamageMeters", label = "EllesmereUI Damage Meters", what = "damage meter" },
     { module = "Quests", addon = "!KalielsTracker", label = "Kaliel's Tracker", what = "quest tracker" },
     { module = "Quests", addon = "EllesmereUIQuestTracker", label = "EllesmereUI Quest Tracker", what = "quest tracker" },
     { module = "Nameplates", addon = "Platynator", label = "Platynator", what = "nameplates" },
@@ -58,17 +114,45 @@ Pages.CLASHES = {
     { module = "Nameplates", addon = "TidyPlates_ThreatPlates", label = "Threat Plates", what = "nameplates" },
     { module = "Nameplates", addon = "Plater", label = "Plater", what = "nameplates" },
     { module = "Nameplates", addon = "Kui_Nameplates", label = "Kui Nameplates", what = "nameplates" },
+    { module = "Nameplates", addon = "TidyPlates", label = "TidyPlates", what = "nameplates" },
+    { module = "Nameplates", addon = "Aloft", label = "Aloft", what = "nameplates" },
     { module = "Skins", addon = "EllesmereUIBlizzardSkin", label = "EllesmereUI Blizzard Skin", what = "game windows" },
     { module = "UnitFrames", addon = "EllesmereUIUnitFrames", label = "EllesmereUI Unit Frames", what = "frames" },
+    { module = "UnitFrames", addon = "UnhaltedUnitFrames", label = "Unhalted Unit Frames", what = "frames" },
+    { module = "UnitFrames", settings = RAID, addon = "Grid2", label = "Grid2", what = "party and raid frames" },
+    { module = "UnitFrames", settings = RAID, addon = "DandersFrames", label = "Danders Frames", what = "party and raid frames" },
+    { module = "UnitFrames", settings = RAID, addon = "HarreksAdvancedRaidFrames", label = "Harreks Raid Frames", what = "party and raid frames" },
+    { module = "Character", settings = CHARACTER, addon = "ChonkyCharacterSheet", label = "Chonky Character Sheet", what = "character window" },
+    { module = "Character", settings = CHARACTER, addon = "DejaCharacterStats", label = "Deja Character Stats", what = "character window" },
+    { module = "Character", settings = CHARACTER, addon = "BetterCharacterPanel", label = "Better Character Panel", what = "character window" },
 }
 
--- One module's entries from that list (modules warn from it too).
+-- One module's entries from that list (the quest tracker steps aside for them).
 function Pages.ClashesFor(module)
     local out = {}
     for _, c in ipairs(Pages.CLASHES) do
         if c.module == module then out[#out + 1] = c end
     end
     return out
+end
+
+-- Whether Daylight UI's side of a clash is a whole module, the kind the setup
+-- guide asks about (it switches modules, not settings).
+function Pages.ClashWhole(c)
+    return c.module ~= nil and c.settings == nil and not c.core
+end
+
+-- Whether Daylight UI's side of a clash is running right now: the module is
+-- on and, for a part of one, one of its settings is.
+function Pages.ClashOurs(c)
+    if c.core then return true end
+    local mod = DUI:GetModule(c.module)
+    if not (mod and mod.enabled) then return false end
+    if not c.settings then return DUI:Get(c.module, "enabled") ~= false end
+    for _, s in ipairs(c.settings) do
+        if DUI:Get(s[1], s[2]) then return true end
+    end
+    return false
 end
 
 -- The frames one portrait choice sets. Not party, whose setup decides (the
@@ -566,13 +650,14 @@ function Pages.AddonInstalled(addon)
     return Pages.AddonOn(addon)
 end
 
--- The clashes to show: the other addon is loaded right now.
+-- The clashes to show: the other addon is loaded right now (and, for one
+-- that clashes only through its own options, one of them is on).
 function Pages.Clashes()
     local out = {}
     local api = C_AddOns
     if not (api and api.IsAddOnLoaded) then return out end
     for _, c in ipairs(Pages.CLASHES) do
-        if api.IsAddOnLoaded(c.addon) then out[#out + 1] = c end
+        if api.IsAddOnLoaded(c.addon) and (not c.options or c.options()) then out[#out + 1] = c end
     end
     return out
 end

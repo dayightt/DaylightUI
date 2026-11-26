@@ -285,10 +285,6 @@ function Blizzard.HideCastBar(frame)
     frame:HookScript("OnShow", function(self) self:SetAlpha(0) end)
 end
 
-function Blizzard.WarnConflicts()
-    DUI.WarnIfLoaded("EllesmereUIUnitFrames", "EllesmereUI Unit Frames", DUI.L["frames"])
-end
-
 -- Battleground flag carriers. On this client the game shows them with the old
 -- arena frames (ArenaEnemyMatchFrame1-5 in ArenaEnemyFramesContainer, under the
 -- minimap), not CompactArenaFrame. Each match frame and its pet frame show
@@ -348,5 +344,4 @@ function Blizzard.Apply(db)
     if db.swing.enabled and ns.swing then
         for _, name in ipairs(SWING_FRAMES) do Blizzard.HideCastBar(name) end
     end
-    Blizzard.WarnConflicts()
 end

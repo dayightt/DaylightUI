@@ -211,7 +211,6 @@ L["%s found, showing %d: narrow the search"] = "%s개 찾음, %d개 표시 중: 
 L["%s hidden."] = "%s 숨김."
 L["%s honorable kills, and counting."] = "명예 승리 %s회, 계속 늘어나는 중."
 L["%s honorable kills. The other faction remembers you."] = "명예 승리 %s회. 상대 진영이 당신을 기억합니다."
-L["%s is also loaded. Both replace the same %s; disable one of them."] = "%s도 불러와져 있습니다. 둘 다 같은 %s 기능을 대체하니 하나를 비활성화하세요."
 L["%s is also on. Both change your %s."] = "%s도 켜져 있습니다. 둘 다 %s 기능을 바꿉니다."
 L["%s is guarding your spot."] = "%s이(가) 자리를 지키고 있습니다."
 L["%s is made again from %s, with your picks."] = "%s: %s에서 선택한 대로 다시 만들어집니다."

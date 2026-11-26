@@ -13,7 +13,7 @@ DUI.ADDON_NAME = ADDON_NAME
 DUI.CORE_PARTS = { "DB", "Pixel", "Style", "Tips", "GameFonts", "DamageText", "Motion", "Sound", "Pad", "Media", "Health", "Weapons", "Threat", "Interrupt", "Spots", "Dots", "PrivateAuras", "Taint", "BugReport", "PlateReport", "Gradients", "BarFx", "Movers",
     "GameMovers", "PTRButton", "QuestieAside", "PrettyAside", "OpenMap", "CombatText", "Fade", "FadeUpgrade", "EditMode", "Options", "OptionsTheme", "Widgets", "SampleStrip",
     "OptionsNav", "OptionsResults", "OptionsPanel", "Installer", "InstallerDraft", "InstallerPages", "InstallerCards", "InstallerScreen",
-    "InstallerUI", "InstallerChrome", "InstallerSteps", "InstallerPlugins", "InstallerLooks", "InstallerDuel", "Welcome", "Profiles", "Alts", "Plugins", "APIReport", "Donators", "Notes", "TestBox", "Win", "Tour" }
+    "InstallerUI", "InstallerChrome", "InstallerSteps", "InstallerPlugins", "InstallerLooks", "InstallerDuel", "Welcome", "Clashes", "Profiles", "Alts", "Plugins", "APIReport", "Donators", "Notes", "TestBox", "Win", "Tour" }
 DUI.VERSION = (C_AddOns and C_AddOns.GetAddOnMetadata and C_AddOns.GetAddOnMetadata(ADDON_NAME, "Version")) or "dev"
 DUI.MEDIA = "Interface\\AddOns\\DaylightUI\\Media\\"
 
@@ -113,18 +113,6 @@ local PRINT_LABEL =DUI.GradientText("DaylightUI") .. ":"
 
 function DUI.Print(msg)
     DEFAULT_CHAT_FRAME:AddMessage(PRINT_LABEL .. " " .. tostring(msg))
-end
-
--- Another addon replaces the same part of the UI. Say so once so the player
--- knows to turn one of them off. what: "frames", "action bars"...
-local warnedAbout = {}
-
-function DUI.WarnIfLoaded(addon, label, what)
-    if warnedAbout[addon] then return end
-    if C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(addon) then
-        warnedAbout[addon] = true
-        DUI.Print(string.format(L["%s is also loaded. Both replace the same %s; disable one of them."], label, L[what]))
-    end
 end
 
 -- A unit's name for our frames. With the Last names setting on, a player shows

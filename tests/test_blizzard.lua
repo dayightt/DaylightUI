@@ -91,14 +91,6 @@ T.test("the borrowed cast bar is left to the game when Daylight UI's player cast
     OverlayPlayerCastingBarFrame:EndReplacingPlayerBar()
 end)
 
-T.test("a warning is printed once when EllesmereUI unit frames are loaded", function()
-    local ns = setup(function() stub.loadedAddOns.EllesmereUIUnitFrames = true end)
-    ns.Blizzard.WarnConflicts()
-    ns.Blizzard.WarnConflicts()
-    local n = 0
-    for _, m in ipairs(stub.chat) do if string.find(m, "EllesmereUI Unit Frames", 1, true) then n = n + 1 end end
-    T.eq(n, 1)
-end)
 
 T.test("a protected cast bar is left alone in combat and hidden after", function()
     local ns = setup()

@@ -2,9 +2,6 @@
 
 local _, ns = ...
 
--- Other nameplate addons draw over Daylight UI's (double names, no gradients).
-ns.CLASHES = DaylightUI.InstallerPages.ClashesFor("Nameplates") -- listed by the setup guide
-
 DaylightUI:RegisterModule("Nameplates", {
     -- Globals each file defines. If one is missing after an update, the module
     -- turns itself off with one line in chat instead of erroring.
@@ -16,9 +13,6 @@ DaylightUI:RegisterModule("Nameplates", {
     options = ns.OPTIONS,
     OnEnable = function(mod)
         ns.cfg = mod.db
-        for _, c in ipairs(ns.CLASHES) do
-            DaylightUI.WarnIfLoaded(c.addon, c.label, DaylightUI.L["nameplates"])
-        end
         ns.Combo.Create()
         ns.Manager.Start()
     end,

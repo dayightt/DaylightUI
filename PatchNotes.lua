@@ -11,7 +11,10 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", new = {
+        { "Other addons", "When another addon does the same job as part of Daylight UI (Platynator, Baganator, Prat, Leatrix Plus...), one box at login lets you pick which to keep and turns the other off" },
+    }, fixed = {
+        { "Setup guide", "Picking EllesmereUI Cooldown Manager or Minimap no longer turns off all of your action bars or info panel" },
         { "Chat", "Whisper from the group finder or friends list lets you type right away, no second click" },
         { "Quests", "Dragging a zone in the quest tracker is smooth now, and the zone rides your mouse so you can see where it goes" },
         { "Proc Alerts", "Infusion of Light now lights up when your next Holy Light is faster" },

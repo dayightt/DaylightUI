@@ -331,9 +331,11 @@ function Installer.Questions()
     local list = P.Questions(flow.path)
     if list[1] and list[1].role then table.insert(out, table.remove(list, 1)) end
     -- Only where Daylight UI's own part is installed: otherwise there's
-    -- nothing to choose between.
+    -- nothing to choose between. A clash over part of a module (raid frames,
+    -- the minimap) is left to the clash box after the reload: the guide
+    -- switches whole modules.
     for _, c in ipairs(P.Clashes()) do
-        local mod = P.Module(c.module)
+        local mod = P.ClashWhole(c) and P.Module(c.module)
         if mod and P.AddonInstalled(mod.addon) then
             out[#out + 1] = { id = "clash:" .. c.addon, clash = c, part = L["Other addons"], short = c.label }
         end
@@ -629,7 +631,7 @@ function Installer.SetModule(mod, on)
     if not (flow and mod) then return end
     flow.modules[mod.addon] = on
     for _, c in ipairs(DUI.InstallerPages.Clashes()) do
-        if c.module == mod.name then flow.clashes[c.addon] = on and "ours" or "theirs" end
+        if c.module == mod.name and DUI.InstallerPages.ClashWhole(c) then flow.clashes[c.addon] = on and "ours" or "theirs" end
     end
     local page = Installer.pages and Installer.pages.modules
     if page and page.Refresh then page.Refresh() end
@@ -921,7 +923,7 @@ function Installer.Summary()
         end
     end
     for _, c in ipairs(P.Clashes()) do
-        if Installer.ClashTakesOver(c) then others[#others + 1] = c.label end
+        if P.ClashWhole(c) and Installer.ClashTakesOver(c) then others[#others + 1] = c.label end
     end
     local modPage = Installer.HasStep("modules") and "modules" or nil
     local function add(fmt, label, names, page)
@@ -1163,7 +1165,7 @@ local function applyModules(flow)
         end
     end
     for _, c in ipairs(P.Clashes()) do
-        if Installer.ClashTakesOver(c) and P.AddonOn(c.addon) then
+        if P.ClashWhole(c) and Installer.ClashTakesOver(c) and P.AddonOn(c.addon) then
             api.DisableAddOn(c.addon, me)
             changed = true
         end

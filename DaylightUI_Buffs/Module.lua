@@ -21,7 +21,6 @@ DUI:RegisterModule(BL.MODULE, {
     defaults = BL.DEFAULTS,
     options = BL.OPTIONS,
     OnEnable = function(mod)
-        DUI.WarnIfLoaded("BuffLedger", "BuffLedger", "buff bars")
         BL.UseModule(mod)
         BL.BuildBars()
         DUI.SafeCall(BL.Private.Build)

@@ -113,7 +113,6 @@ L["%s found, showing %d: narrow the search"] = "找到%s个，显示%d个：请�
 L["%s hidden."] = "%s已隐藏。"
 L["%s honorable kills, and counting."] = "%s次荣誉击杀，还在继续。"
 L["%s honorable kills. The other faction remembers you."] = "%s次荣誉击杀。敌对阵营记住你了。"
-L["%s is also loaded. Both replace the same %s; disable one of them."] = "%s也已载入。两者都会替换同一个%s；请禁用其中一个。"
 L["%s is also on. Both change your %s."] = "%s也已开启。两者都会改变你的%s。"
 L["%s is guarding your spot."] = "%s正在帮你守着位置。"
 L["%s is made again from %s, with your picks."] = "%s已按你的选择从%s重新生成。"

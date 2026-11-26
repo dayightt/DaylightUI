@@ -516,9 +516,6 @@ function Bars.Enable(mod)
     ns.UpgradeBars(DUI.DB.Active())      -- the login profile may differ from the one at load
     ns.module, ns.db = mod, mod.db
     ns.Migrate(mod.db)
-    for _, c in ipairs(DUI.InstallerPages.ClashesFor("ActionBars")) do
-        if c.what == "action bars" then DUI.WarnIfLoaded(c.addon, c.label, c.what) end
-    end
     ns.Skin.Wire()
     if mod.db.cooldowns then DUI.SafeCall(ns.Cooldowns.Apply) end
     -- Also with it off, so what it added to the game's layout comes back out.

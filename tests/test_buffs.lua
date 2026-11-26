@@ -809,12 +809,11 @@ T.test("buffs: DaylightUI's frame preview shows sample buffs too, and takes them
     T.truthy(BL.Preview.Active())
 end)
 
-T.test("buffs: /bl is ours unless the standalone addon is loaded, which is warned about", function()
+T.test("buffs: /bl is ours unless the standalone addon is loaded", function()
     login()
     T.eq(SlashCmdList.DAYLIGHTUIBUFFS ~= nil, true, "/bl registered")
     login({ before = function() stub.loadedAddOns.BuffLedger = true end })
     T.isnil(SlashCmdList.DAYLIGHTUIBUFFS, "left to BuffLedger")
-    T.truthy(stub.ChatContains("BuffLedger is also loaded"))
 end)
 
 T.test("buffs: options pages validate and the categories editor edits", function()

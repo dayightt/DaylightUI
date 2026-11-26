@@ -948,8 +948,6 @@ end
 
 function ns.Build(mod)
     ns.module = mod
-    DUI.WarnIfLoaded("EllesmereUIMinimap", "EllesmereUI Minimap", DUI.L["minimap"])
-    DUI.WarnIfLoaded("EllesmereUIDamageMeters", "EllesmereUI Damage Meters", DUI.L["damage meter"])
     -- The old second meter becomes the player's first window (its own
     -- upgrade, on the profile in use, before anything is built from it).
     DUI.SafeCall(ns.Windows.Upgrade, DUI.DB.Active())

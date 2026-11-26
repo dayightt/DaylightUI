@@ -935,7 +935,6 @@ function CD.Apply()
     CD.enabled = true
     DUI.SafeCall(CD.KeepGameOn)
     if ns.CdmRows then DUI.SafeCall(ns.CdmRows.Init) end
-    DUI.WarnIfLoaded("EllesmereUICooldownManager", "EllesmereUI Cooldown Manager", "Cooldown Manager icons")
     if not scanner and C_Timer and C_Timer.NewTicker then scanner = C_Timer.NewTicker(CD.SCAN, CD.Tick) end
     listen()
     if CD.Hook() or listening then return end

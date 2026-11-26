@@ -4593,6 +4593,8 @@ end
 -- reload: Yes reloads the UI. Addon code can't call ReloadUI, so Yes is then a
 --   secure /reload button over the footer's, out of combat only, and onYes runs
 --   first in that click. In combat the question waits for the fight to end.
+-- onClose: Escape and the X run this instead of onNo, for a question whose No
+--   button means more than "not now" (the clash box's Keep both).
 -- onYes and onNo run inside the click, since the game refuses some calls from
 -- a timer. Asked while another question is up, it waits its turn.
 W.ASK_W = 380
@@ -4661,6 +4663,16 @@ local function askAnswer(yes)
     if not f.spec then askNext() end
 end
 
+-- Escape or the X: onNo, unless the question has its own onClose.
+local function askClose()
+    local f = askBox
+    local spec = f and f.spec
+    if not (spec and spec.onClose) then return askAnswer(false) end
+    askLetGo(f)
+    DUI.SafeCall(spec.onClose)
+    if not f.spec then askNext() end
+end
+
 -- The secure button sits over the footer's Yes, which still shows the hover.
 local function askForward(script)
     local b = askBox and askBox.foot.buttons[1]
@@ -4701,7 +4713,7 @@ end
 local function askBuild()
     local Win = DUI.Win
     local f = Win.New({ name = "DaylightUIAsk", w = W.ASK_W, h = 160, strata = "DIALOG", compact = true })
-    f.onClose = function() askAnswer(false) end
+    f.onClose = askClose
     -- A question floats over the others: the windows that are open stay where they are, not slide aside for it.
     f.room = false
     f.text = Style.Text(f.host, SIZE.body, "LEFT")
@@ -4719,7 +4731,7 @@ local function askBuild()
     f.foot = Win.Parts.Footer(f.host)
     Win.Drag(f, {})
     Win.Keys(f, function(key)
-        if key == "ESCAPE" then askAnswer(false); return true end
+        if key == "ESCAPE" then askClose(); return true end
         -- Enter can't reload: only a click on the secure button can.
         if (key == "ENTER" or key == "NUMPADENTER") and f.spec and not f.spec.reload then
             return f.foot:Press(1)
@@ -4831,6 +4843,11 @@ end
 -- Answers the question showing now, Yes (true) or No (false), as its buttons do.
 function W.Answer(yes)
     if W.Asking() then askAnswer(yes) end
+end
+
+-- Escape or the X on the question showing now.
+function W.CloseAsk()
+    if W.Asking() then askClose() end
 end
 
 -- A reload question can't stay up through a fight: its secure button has to

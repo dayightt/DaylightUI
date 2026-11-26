@@ -11,9 +11,6 @@ DaylightUI:RegisterModule("Quests", {
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)
-        for _, c in ipairs(ns.Blizzard.CLASHES) do
-            DaylightUI.WarnIfLoaded(c.addon, c.label, DaylightUI.L["quest tracker"])
-        end
         if ns.Tracker then ns.Tracker.mod = mod end   -- read even when this tracker isn't built
         if ns.Blizzard.starved and ns.Tracker then ns.Tracker.Build(mod) end
         if ns.Journal then ns.Journal.Enable(mod) end

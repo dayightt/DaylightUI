@@ -88,6 +88,7 @@ InstallerPlugins.lua
 InstallerLooks.lua
 InstallerDuel.lua
 Welcome.lua
+Clashes.lua
 Profiles.lua
 Alts.lua
 Plugins.lua

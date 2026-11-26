@@ -1674,8 +1674,6 @@ function ns.Build(mod)
     ns.module = mod
     DUI.SafeCall(ns.UpgradeBank, DUI.DB.Active())
     if not mod.db.enabled then return end
-    -- Warn about other bag addons (the setup guide's list: Baganator, Bagnon).
-    for _, c in ipairs(DUI.InstallerPages.ClashesFor("Bags")) do DUI.WarnIfLoaded(c.addon, c.label, c.what) end
     DUI.AfterCombat(function()
         local f = bagWindow()
         if ns.Slots then ns.Slots.Create(f) end

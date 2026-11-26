@@ -137,12 +137,6 @@ T.test("nameplates: the game's plate is put away and ours shows the unit", funct
     T.eq(np.__hit, click, "the same click frame, which never left that game plate")
 end)
 
-T.test("nameplates: another nameplate addon loaded is warned about once in chat", function()
-    login(function() stub.loadedAddOns.TidyPlates_ThreatPlates = true end)
-    T.truthy(stub.ChatContains("Threat Plates is also loaded"))
-    T.falsy(stub.ChatContains("Plater is also loaded"))
-end)
-
 T.test("nameplates: the game's plates (what takes the clicks) cover ours, centered on them", function()
     local size
     login(function()
@@ -1446,7 +1440,7 @@ T.test("nameplates: your debuffs, crowd control and purgeable buffs have their c
     -- The client tags none of the classic defensives as BIG_DEFENSIVE (seen in
     -- game: Divine Shield, Ice Block, Evasion... all false), so the slot names them.
     -- The client matches that list only on someone you can help (or a spell it
-    -- marks never secret); an enemy player's plate takes a filter string instead
+    -- marks never secret); an enemy player's plate keeps the same list
     -- (test_nameplates_tickets).
     local big = p.auras.defensives.__groups.big
     T.eq(big.filter, "HELPFUL", "every buff, narrowed by the list")

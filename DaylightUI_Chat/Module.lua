@@ -12,7 +12,6 @@ DaylightUI:RegisterModule("Chat", {
     defaults = ns.DEFAULTS,
     options = ns.OPTIONS,
     OnEnable = function(mod)
-        DaylightUI.WarnIfLoaded("EllesmereUIChat", "EllesmereUI Chat", DaylightUI.L["chat"])
         ns.Talk.Load()
         ns.Talk.Listen()
         ns.Chat.Build(mod)

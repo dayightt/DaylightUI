@@ -212,7 +212,6 @@ L["%s found, showing %d: narrow the search"] = "Найдено: %s, показа
 L["%s hidden."] = "%s: скрыто."
 L["%s honorable kills, and counting."] = "Почетных побед: %s, и это не предел."
 L["%s honorable kills. The other faction remembers you."] = "Почетных побед: %s. Другая фракция вас помнит."
-L["%s is also loaded. Both replace the same %s; disable one of them."] = "%s тоже загружен. Оба заменяют одно и то же (%s): отключите один из них."
 L["%s is also on. Both change your %s."] = "%s тоже включен. Оба меняют то же самое: %s."
 L["%s is guarding your spot."] = "%s охраняет ваше место."
 L["%s is made again from %s, with your picks."] = "%s создан заново из %s с вашим выбором."
