@@ -136,7 +136,8 @@ local function fillItem(tip, link, list, after)
         else
             tip:AddLine(t)
         end
-        own[i] = {}
+        -- The game's own sell price line is always a SellPrice data line (11).
+        own[i] = { type = type(t) == "string" and t:sub(1, 11) == "Sell Price:" and 11 or nil }
     end
     local data = { type = Enum.TooltipDataType.Item, hyperlink = link, lines = own }
     for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end

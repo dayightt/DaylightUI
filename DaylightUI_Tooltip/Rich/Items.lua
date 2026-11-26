@@ -361,7 +361,7 @@ end
 -- Sorts the item's own lines (2 to own) into the card's groups. Each group
 -- is a list of functions that add their pieces; the footer's two sides are
 -- returned as they are.
-local function sort(n, lines, own, info, groups)
+local function sort(n, lines, own, info, groups, pieces)
     local P, Tip, Tips = Items.Patterns(), ns.Tooltip, DUI.Tips
     local foot = {}
     local inSet = false
@@ -374,6 +374,7 @@ local function sort(n, lines, own, info, groups)
     -- The simple look renames the game's line to "Vendor" before the card reads it.
     local vendorWord = L["Vendor"]
     for i = 2, n do
+        local piece = pieces and pieces[i]
         local line = lines[i]
         -- The crafted item's lines go to its own part, in the game's order.
         local inMade = made ~= nil and i >= made.from and i <= made.to
@@ -385,8 +386,14 @@ local function sort(n, lines, own, info, groups)
         if not t or t == "" then
             -- A blank line ends a set's piece list.
             inSet = false
-        elseif line.type == sellType or t:sub(1, #sellWord) == sellWord or t:sub(1, #vendorWord) == vendorWord then
-            -- The sell price (the game's or a quest reward's, added after).
+        elseif piece and piece.sell then
+            -- A quest reward's price, added by Daylight UI after the game's lines.
+            g.taken[i] = true
+            foot.money = piece.value
+        elseif line.type == sellType then
+            -- The game's own sell price line, known by its data line's type,
+            -- never by its words: TSM's "Vendor Sell Price" and "Vendor Buy
+            -- Price" rows start with the same word and belong to TSM.
             -- Another addon may have rewritten it with the coins on the right
             -- ("Vendor price"), so they're taken from there when it has them.
             local word = sellWord
@@ -540,7 +547,7 @@ function Items.Card(p, tip, data, n, lines, light, fade, compare)
     local own = ns.Rich.Own(data, n)
     local groups = { numbers = {}, stats = {}, effects = {}, set = {}, facts = {}, quote = {}, made = {}, taken = {} }
     info.badges = {}
-    local foot = sort(n, lines, own, info, groups)
+    local foot = sort(n, lines, own, info, groups, p.foreign and p.foreign.pieces)
     -- A recipe: the card's tags are the recipe's own. The link may name the
     -- item it makes, so the recipe is read by the data's id then.
     if groups.madeAt and info.class ~= Items.RECIPE_CLASS then

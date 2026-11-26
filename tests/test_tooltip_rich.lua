@@ -767,7 +767,9 @@ local function fillItem(tip, link, list, after, types, guid, dataLines)
         else
             tip:AddLine(t)
         end
-        own[i] = { type = types and types[i] or nil }
+        -- The game's own sell price line is always a SellPrice data line (11).
+        local sell = type(t) == "string" and t:sub(1, 11) == "Sell Price:" and 11 or nil
+        own[i] = { type = types and types[i] or sell }
     end
     local data = { type = Enum.TooltipDataType.Item, hyperlink = link, lines = dataLines or own, guid = guid }
     for _, fn in ipairs(post.ALL or {}) do fn(tip, data) end
@@ -1222,6 +1224,68 @@ T.test("rich tooltip: a sell price line another addon rewrote keeps its coins", 
     local foot = rows[#rows]
     T.truthy(stub.Text(foot.label):find("51|r / 55", 1, true), "the durability line")
     T.eq(stub.Text(foot.value), "1g 25s", "the coins from its right side")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A player's report with TSM: its "Vendor Buy Price" and "Vendor Sell Price"
+-- rows start with the word the card used to find the game's sell price, so
+-- both went missing from TSM's block and TSM's sell price, in its own
+-- lettered text, took the game's coins' place at the foot.
+T.test("rich tooltip: TSM's vendor price rows stay TSM's, the foot keeps the game's coins", function()
+    local _, Panel = login("rich")
+    items()
+    local W = DaylightUI.Widgets
+    local list = { "Coal", "Crafting Reagent", "Sell Price: 2|A:coin-silver:0:0|a 50|A:coin-copper:0:0|a" }
+    fillItem(GameTooltip, "cloth", list, function(t)
+        t:AddLine("TSM General Info", 1, 0.82, 0)
+        t:AddDoubleLine("  Vendor Buy Price", "5|cffc7c7cfs|r 00|cffeda55fc|r")
+        t:AddDoubleLine("  Vendor Sell Price", "1|cffc7c7cfs|r 25|cffeda55fc|r")
+        t:AddDoubleLine("TSM AuctionDB", "194 auctions", 1, 0.82, 0)
+        t:AddDoubleLine("  Min Buyout", "4|cffc7c7cfs|r 98|cffeda55fc|r")
+    end, { [3] = 11 })
+    local p = Panel.Get(GameTooltip)
+    local rows = kinds(p, "row")
+    local byLabel = {}
+    -- TSM indents its rows; the card keeps that.
+    for _, r in ipairs(rows) do byLabel[(stub.Text(r.label):gsub("^%s+", ""))] = r end
+    T.truthy(byLabel["Vendor Buy Price"], "TSM's buy price row is on the card")
+    T.truthy(byLabel["Vendor Sell Price"], "TSM's sell price row is on the card")
+    T.eq(stub.Text(byLabel["Vendor Sell Price"].value), W.Money(125), "in coins, under TSM's heading")
+    local foot = rows[#rows]
+    T.eq(stub.Text(foot.label), "Vendor")
+    T.eq(stub.Text(foot.value), W.Money(250), "the game's own sell price at the foot, in coins")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A quest reward's price is added by Daylight UI (the client's data has no
+-- sell price line then): it still goes to the foot, and an addon's row
+-- starting with the same word stays with that addon.
+T.test("rich tooltip: a quest reward's added price goes to the foot, not an addon's Vendor row", function()
+    local _, Panel = login("rich")
+    items()
+    local W = DaylightUI.Widgets
+    local was = { C_Item.GetItemInfo, _G.GetQuestLogChoiceInfo }
+    C_Item.GetItemInfo = function(link, ...)
+        if link == "mahi" then return link, link, 1, 10, 1, "", "", 20, "", 1, 175 end
+        return was[1](link, ...)
+    end
+    _G.GetQuestLogChoiceInfo = function() return "Mahi Kebab", 1, 1, 1, true, 9001 end
+    GameTooltip.infoList = { { getterName = "GetQuestLogItem", getterArgs = { "choice", 1, 99 } } }
+    fillItem(GameTooltip, "mahi", { "Mahi Kebab", "Quest Item" }, function(t)
+        t:AddDoubleLine("Vendor Sell Price", "9|cffc7c7cfs|r")
+    end)
+    GameTooltip.infoList = nil
+    C_Item.GetItemInfo, _G.GetQuestLogChoiceInfo = was[1], was[2]
+    T.eq(GameTooltipTextLeft3:GetText(), "Vendor: " .. W.Money(175), "the price Daylight UI added")
+    local rows = kinds(Panel.Get(GameTooltip), "row")
+    local foot = rows[#rows]
+    T.eq(stub.Text(foot.label), "Vendor")
+    T.eq(stub.Text(foot.value), W.Money(175), "the added price at the foot")
+    local seen = false
+    for _, r in ipairs(rows) do
+        if stub.Text(r.label) == "Vendor Sell Price" then seen = true end
+    end
+    T.truthy(seen, "the addon's row on the card")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

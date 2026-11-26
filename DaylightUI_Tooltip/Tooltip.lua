@@ -1277,10 +1277,14 @@ end
 function Tip.AddQuestPrice(tip, data)
     local price = Tip.QuestPrice(tip, data)
     if not price then return end
-    local text = ("%s: %s"):format(L["Vendor"], DUI.Widgets.Money(price))
+    local coins = DUI.Widgets.Money(price)
+    local text = ("%s: %s"):format(L["Vendor"], coins)
     if Tip.HasLine(tip, text) then return end
     local c = Style.INK.VALUE
     tip:AddLine(text, c[1], c[2], c[3])
+    -- Marked as the sell price, so the Rich card puts it at its foot by what
+    -- it is: another addon's line can start with the same word.
+    ns.Rich.Piece(tip, { kind = "row", label = L["Vendor"], value = coins, sell = true })
 end
 
 -- An item: a quest reward's sell price, its level (gear only) with Item level

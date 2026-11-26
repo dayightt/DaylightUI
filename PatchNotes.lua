@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Proc Alerts", "Infusion of Light now lights up when your next Holy Light is faster" },
         { "Proc Alerts", "Alerts for buffs like Redoubt, Vengeance, Nature's Grace and Unsealed Wrath now light up: before they never showed" },
         { "Proc Alerts", "The Missile Barrage alert no longer goes away when Clearcasting procs too" },
+        { "Tooltips", "Rich tooltips no longer hide TSM's vendor buy and sell prices or show them in place of the item's own vendor price" },
     } },
     { version = "2.3.0", date = "2026-11-25", summary = "Proc Alerts light up around you when a proc is ready, quest zones in your own order, and the bags, bank, vendor and quest window do everything the game's own do.", new = {
         { "Proc Alerts", "A painted flare around your character when a proc like Clearcasting or Overpower is ready. If you already use Daylight UI, a welcome page shows you one to turn on" },
