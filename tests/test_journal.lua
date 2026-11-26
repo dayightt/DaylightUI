@@ -401,6 +401,43 @@ T.test("journal: a zone folds, kept per character; a search shows every match", 
     T.deq(texts(shown(f.list.stack.pieces, "quest"), "title"), { "Westfall Stew" })
 end)
 
+-- Where a region's left (0) or right (1) edge lies across the list page, from its
+-- anchors (the fake game doesn't lay frames out). Texts measure by their words.
+local function edgeX(region, page, side, width)
+    if region == page then return side * width end
+    local function across(point) return point:find("LEFT") and 0 or point:find("RIGHT") and 1 or 0.5 end
+    local own = region.GetStringWidth and region:GetStringWidth() or region:GetWidth()
+    local fallback
+    for i = 1, region:GetNumPoints() do
+        local point, rel, relPoint, ox = region:GetPoint(i)
+        local s = across(point)
+        local at = edgeX(rel or region:GetParent(), page, across(relPoint or point), width) + (ox or 0)
+        if s == side then return at end
+        fallback = fallback or (at + (side - s) * own)
+    end
+    return fallback
+end
+
+T.test("journal: the quest count never runs under the search box, whatever the font and count", function()
+    local J = load()
+    local f = open(J)
+    -- A wide font (Poppins at a large text scale): about 13 px a letter.
+    stub.measure = function(fs) local t = rawget(fs, "__text") or ""; return #t * 13, 16 end
+    local ok, err = pcall(function()
+        for _, text in ipairs({ "3/25", "25/40", "40/40" }) do
+            f.list.count:SetText(text)
+            local W = 330
+            local searchRight = edgeX(f.list.search, f.list, 1, W)
+            local countLeft = edgeX(f.list.count, f.list, 0, W)
+            T.truthy(searchRight <= countLeft - 4, text .. ": search box ends at " .. searchRight
+                .. ", the count starts at " .. countLeft)
+            T.truthy(searchRight - edgeX(f.list.search, f.list, 0, W) > 150, text .. ": the search box keeps its room")
+        end
+    end)
+    stub.measure = nil
+    if not ok then error(err, 0) end
+end)
+
 T.test("journal: a ready quest keeps its level color, Ready says it", function()
     local J, ns = load({ zone = "Westfall" })
     local f = open(J)
