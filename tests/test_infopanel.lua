@@ -4096,25 +4096,22 @@ T.test("info panel: the XP and reputation bars each wear their own bar animation
     _G.C_Reputation = nil
 end)
 
-T.test("info panel: a new setup starts the XP and reputation bars in Flow, an older profile keeps them still", function()
+T.test("info panel: the XP and reputation bars start still, even after a Yes to the bar styles question", function()
     local DUI = login()
-    local XP, Rep = stub.infopanel.XP, stub.infopanel.RepBar
-    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "flow")
-    T.eq(DUI:Get("InfoPanel", "rep.barFx.style"), "flow")
-    T.eq(DUI.BarFx.StyleOf(XP.bar), "flow", "moving at once")
-    DUI:Set("InfoPanel", "rep.enabled", true)
-    T.eq(DUI.BarFx.StyleOf(Rep.bar), "flow")
-    DUI = stub.Load({ infopanel = true, before = function()
+    local XP = stub.infopanel.XP
+    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "none", "a new setup")
+    T.eq(DUI:Get("InfoPanel", "rep.barFx.style"), "none")
+    T.isnil(DUI.BarFx.StyleOf(XP.bar))
+    DUI = stub.Load({ infopanel = true, module = true, before = function()
         PW.world()
         DaylightUIDB = { version = "1.8.4", notesSeen = "1.8.4", installerSeen = true,
                          profileData = { ["DPS/Tank"] = { general = {}, modules = {}, positions = {} } } }
     end })
-    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "none", "an older profile stays as it was")
-    -- The one-time question turns them on with every other bar.
     stub.Dismiss()
     DUI.BarFx.Ask()
     T.eq(stub.Asked(), "barFx")
     stub.Answer(true)
-    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "flow")
-    T.eq(DUI:Get("InfoPanel", "rep.barFx.style"), "flow")
+    T.eq(DUI:Get("UnitFrames", "player.barFx.health.style"), "flow", "the frames do move")
+    T.eq(DUI:Get("InfoPanel", "xp.barFx.style"), "none")
+    T.eq(DUI:Get("InfoPanel", "rep.barFx.style"), "none")
 end)
