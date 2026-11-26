@@ -953,6 +953,29 @@ T.test("a cut of 0 is a straight end, not an angled one with nothing to cut", fu
     T.eq(#(s.bg.__masks or {}), 0, "no mask left on the background")
 end)
 
+T.test("a texture clipped twice on one frame wears each end's mask once, so both ends fit", function()
+    -- A party frame's inner cast bar: its background follows the power fill
+    -- (Style.ClipLike) and is clipped to the frame again. Angling the second
+    -- end wore the first end's mask twice plus the second's: four masks.
+    local DUI = stub.Load()
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(200, 40)
+    DUI.Style.Shell(f)
+    local bar = CreateFrame("StatusBar", nil, f)
+    local fill = bar:CreateTexture()
+    local bg = bar:CreateTexture()
+    DUI.Style.Clip(f, fill, "inner")
+    DUI.Style.ClipLike(bg, fill)
+    DUI.Style.Clip(f, bg, "inner")
+    DUI.Style.Slant(f, "right", 10)
+    T.eq(bg:GetNumMaskTextures(), 1, "one end, one mask")
+    DUI.Style.Slant(f, "both", 10)
+    T.eq(bg:GetNumMaskTextures(), 2, "each end's mask once")
+    T.truthy(bg:GetMaskTexture(1) ~= bg:GetMaskTexture(2), "two different masks")
+    DUI.Style.Slant(f, "left", 10)
+    T.eq(bg:GetNumMaskTextures(), 1, "back to one end")
+end)
+
 T.test("an end leaning under: its bottom corner sticks out, so both cuts run parallel", function()
     local DUI = stub.Load()
     local f = CreateFrame("Frame", nil, UIParent)

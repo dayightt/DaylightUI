@@ -2045,12 +2045,21 @@ end
 -- stops at, making it a strip between the two (a name, or a function
 -- returning one). only (optional): "left" or "right" for a piece that belongs
 -- to one end, so the other end never masks it (a texture takes at most three
--- masks, and both ends' pairs would be four).
+-- masks, and both ends' pairs would be four). Clipping a texture again on the
+-- same frame moves its clip: the masks are shared per line and end, so a
+-- second clip would put the same mask on it twice.
 function Style.Clip(frame, tex, inset, until_, only)
     local sl = slantOf[frame]
     if not sl then
         sl = { clips = {} }
         slantOf[frame] = sl
+    end
+    for _, had in ipairs(sl.clips) do
+        if had.tex == tex then
+            had.inset, had.until_, had.only = inset, until_, only
+            clipOf[tex] = { frame = frame, clip = had }
+            return
+        end
     end
     local clip = { tex = tex, inset = inset, until_ = until_, only = only }
     sl.clips[#sl.clips + 1] = clip
@@ -2073,14 +2082,9 @@ end
 function Style.ClipLike(over, tex)
     local c = clipOf[tex]
     if not c then return end
-    -- Asked again, it follows the fill's clip as it is now, without a second
-    -- entry (a texture takes at most three masks).
-    local had = clipOf[over]
-    if had and had.frame == c.frame then
-        had.clip.inset, had.clip.until_, had.clip.only = c.clip.inset, c.clip.until_, c.clip.only
-    else
-        Style.Clip(c.frame, over, c.clip.inset, c.clip.until_, c.clip.only)
-    end
+    -- Asked again, it follows the fill's clip as it is now (Style.Clip keeps one
+    -- entry per texture and frame).
+    Style.Clip(c.frame, over, c.clip.inset, c.clip.until_, c.clip.only)
     Style.LayoutSlant(c.frame)
 end
 
@@ -2357,6 +2361,7 @@ end
 -- A layer kept inside its bar's rectangle wears one more mask for it
 -- (Style.SameMasks), while it has room for one.
 local insideMask = setmetatable({}, { __mode = "k" }) -- fill -> its rectangle as a mask
+Style.MASK_SOLID = DUI.MEDIA .. "mask-solid.png"
 local insideOn = setmetatable({}, { __mode = "k" })   -- layer -> the rectangle mask it wears
 
 -- An overlay carries the fill's mask while the fill has one.
@@ -2491,8 +2496,11 @@ function Style.SameMasks(tex, fill, inside)
         local m = insideMask[fill]
         if not m then
             m = fill:GetParent():CreateMaskTexture()
-            -- Clamped to black, so nothing shows beyond the mask itself.
-            m:SetTexture(WHITE, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
+            -- Clamped to black, so nothing shows beyond the mask itself. A
+            -- large image, not the 8 x 8 square: the client blurs a stretched
+            -- mask's edge by half a texel, and the square's blur showed a line
+            -- of the fill along the top of a dark layer.
+            m:SetTexture(Style.MASK_SOLID, "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
             -- The bar's rectangle, not the fill's: an empty fill has no width,
             -- and a light pinned to an empty bar's end showed past it in game.
             -- The fill always reaches the bar's far side, so the cut is the
