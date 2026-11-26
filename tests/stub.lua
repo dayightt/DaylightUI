@@ -945,6 +945,23 @@ function Widget:CreateAnimationGroup()
         function a:GetFlipBookColumns() return self.__cols or 0 end
         function a:SetFlipBookRows(n) self.__rows = n end
         function a:GetFlipBookRows() return self.__rows or 0 end
+        -- Read back as the client's getters do (SimpleAnim*APIDocumentation).
+        function a:SetTarget(t) self.__target = t end
+        function a:GetTarget() return self.__target end
+        function a:SetStartDelay(d) self.__startDelay = d end
+        function a:GetStartDelay() return self.__startDelay or 0 end
+        function a:SetEndDelay(d) self.__endDelay = d end
+        function a:GetEndDelay() return self.__endDelay or 0 end
+        function a:SetOrder(n) self.__order = n end
+        function a:GetOrder() return self.__order or 1 end
+        function a:SetSmoothing(s) self.__smoothing = s end
+        function a:GetSmoothing() return self.__smoothing or "NONE" end
+        function a:SetFromAlpha(v) self.__fromAlpha = v end
+        function a:GetFromAlpha() return self.__fromAlpha or 0 end
+        function a:SetToAlpha(v) self.__toAlpha = v end
+        function a:GetToAlpha() return self.__toAlpha or 0 end
+        function a:SetScaleTo(x, y) self.__scaleTo = { x, y } end
+        function a:GetScaleTo() local s = self.__scaleTo or { 1, 1 } return s[1], s[2] end
         return a
     end
     function g:GetAnimations() return unpack(self.__anims) end

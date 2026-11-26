@@ -57,17 +57,28 @@ local function style(p, slot)
     local d = ns.Data.DESIGNS[slot.design]
     slot.spot = d and d.spot or "side"
     slot.dim = dimOf(p, slot.n)
+    slot.anim = ns.Alerts.Get(p.key, "anim")
     ns.Flares.Layout(slot, 1)
     ns.Flares.Paint(slot)
     local btn = slot.button
     btn:ClearAuraShownAnimations()
     local shown = ns.Data.SPOTS[slot.spot].mirrored and 2 or 1
-    local anim = DUI.Motion.On() and ns.Alerts.Get(p.key, "anim") or "still"
+    local moving = ns.Flares.Moving(slot)
+    local anim = moving and slot.anim or "still"
+    local kind = ns.Flares.KINDS[anim]
     local speed = ns.Alerts.Get(p.key, "speed")
     for i = 1, shown do
-        ns.Flares.SetSpeed(slot.parts[i], speed)
-        for _, g in ipairs(ns.Flares.LoopsOf(slot.parts[i], anim)) do btn:AddAuraShownAnimation(g) end
+        local part = slot.parts[i]
+        ns.Flares.SetSpeed(part, speed, kind and kind.live)
+        -- The client shows these with the button and plays their groups.
+        part.liveTex:SetShown(moving)
+        part.emberTex:SetShown(moving)
+        for _, g in ipairs(ns.Flares.LoopsOf(part, anim)) do btn:AddAuraShownAnimation(g) end
     end
+    -- GUESS: the client plays a non-looping group it was handed once each time
+    -- the buff shows. Impact's sparks again (burst.again) are left out: started
+    -- with the rest, they would cut into the first spray.
+    if moving then btn:AddAuraShownAnimation(slot.burst.group) end
     slot.body:SetAlpha(ns.Flares.Opacity(p.key))
 end
 
@@ -89,6 +100,9 @@ local function build(p, n, btn)
     body:SetAllPoints(btn)
     slot.body, slot.rel = body, btn
     slot.parts = { ns.Flares.NewPart(body), ns.Flares.NewPart(body) }
+    slot.burst = ns.Flares.NewBurst(body)
+    -- Never a strike or a burn here: Daylight UI doesn't learn when it shows.
+    slot.reveal = 1
     style(p, slot)
 end
 

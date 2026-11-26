@@ -132,6 +132,9 @@ T.test("api procs: a plugin lights an alert of its own, kept off Daylight UI's l
     T.eq(me.AddProcAlert("bloodlust", { name = "Bloodlust", design = "sun", anim = "pulse" }), true, "again: a new look")
     T.eq(me.AddProcAlert("bad", { design = "nope" }), false, "an unknown design")
     T.eq(me.AddProcAlert("bad2", { anim = "spin" }), false, "an unknown animation")
+    T.eq(me.AddProcAlert("strikes", { name = "Strikes", anim = "strike" }), true, "Strike is an animation too")
+    T.eq(me.AddProcAlert("plain", { name = "Plain" }), true)
+    T.eq(ns.Alerts.Get("ProcPlugin:plain", "anim"), "pulse", "no animation given: still Pulse")
     local heard
     me.On("ProcShown", function(key) heard = key end)
     stub.EnterCombat()

@@ -191,7 +191,66 @@ T.test("procs aura: a game-shown alert takes its Animation speed once nothing lo
     T.eq(slot.parts[1].speed, 1, "waits while the button is locked")
     stub.LeaveCombat()
     T.eq(slot.parts[1].speed, 2)
-    local t = slot.parts[1].times[1]
+    -- The breathing (the flicker also runs at half speed on Breathe).
+    local t
+    for _, x in ipairs(slot.parts[1].times) do if x[5] ~= "live" then t = x; break end end
     T.near(t[1]:GetDuration(), t[2] / 2, 0.0001)
     T.eq(stub.lockErrors, 0)
+end)
+
+-- Moving game-shown flares: the client plays what it was handed while the buff
+-- is up. Daylight UI never learns when it shows or hides, so no strike, no burn.
+local function has(list, g)
+    for _, x in ipairs(list or {}) do if x == g then return true end end
+    return false
+end
+
+T.test("procs aura: a game-shown flare hands the client its loops and its sparks", function()
+    local own = { strike = {}, breathe = { "breathe" }, pulse = { "beat" }, impact = { "wave" }, flash = { "gleam" } }
+    for _, anim in ipairs({ "strike", "breathe", "pulse", "impact", "flash" }) do
+        local ns = load()
+        ns.Alerts.Set("sealecho", "anim", anim)
+        stub.RunTimers()
+        local slot = ns.Game.slots.sealecho[1]
+        local btn = slot.button
+        local shown = btn.__shownAnims
+        for i = 1, 2 do
+            local part = slot.parts[i]
+            T.truthy(has(shown, part.live), anim .. ": piece " .. i .. "'s flicker")
+            T.truthy(has(shown, part.embers), anim .. ": piece " .. i .. "'s embers")
+            for _, name in ipairs(own[anim]) do T.truthy(has(shown, part[name]), anim .. ": its " .. name) end
+            T.truthy(inside(part.liveTex, btn), anim .. ": the sheet is inside the client's button")
+            T.truthy(inside(part.emberTex, btn))
+            T.truthy(part.liveTex:IsShown() and part.emberTex:IsShown(), anim .. ": shown with the button")
+            T.falsy(part.burnTex:IsShown(), anim .. ": no burn")
+            T.falsy(part.frontFrame:IsShown(), anim .. ": no strike front")
+            T.near(part.liveFrame:GetWidth(), 1.2 * 256, 0.5, anim .. ": whole")
+        end
+        T.truthy(slot.burst and has(shown, slot.burst.group), anim .. ": the sparks as it comes up")
+        T.truthy(inside(slot.burst.left, btn))
+        T.eq(slot.reveal, 1)
+        T.eq(stub.lockErrors, 0)
+        T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+    end
+end)
+
+T.test("procs aura: a game-shown flare changed in a PvP match waits for the match to end", function()
+    local ns = load()
+    ns.Alerts.Set("sealecho", "anim", "pulse")
+    stub.RunTimers()
+    local slot = ns.Game.slots.sealecho[1]
+    local part = slot.parts[1]
+    stub.SetRestriction("PvPMatch", true)
+    ns.Alerts.Set("sealecho", "anim", "flash")
+    ns.Alerts.Set("sealecho", "design", "flames")
+    stub.RunTimers()
+    T.eq(stub.lockErrors, 0, "nothing touched the locked button")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+    T.truthy(has(slot.button.__shownAnims, part.beat), "still Pulse during the match")
+    T.truthy(part.liveTex:GetTexture():find("flare%-wings%-live%.png$"), "still the old design")
+    stub.SetRestriction("PvPMatch", false)
+    stub.RunTimers()
+    T.truthy(part.liveTex:GetTexture():find("flare%-flames%-live%.png$"), "the new sheet once the match is over")
+    T.truthy(has(slot.button.__shownAnims, part.gleam), "and Flash's gleam")
+    T.falsy(has(slot.button.__shownAnims, part.beat), "Pulse's beat handed back")
 end)

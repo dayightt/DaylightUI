@@ -20,7 +20,12 @@ function Sample.New(parent)
     stage:SetPoint("CENTER", f, "CENTER", 0, 0)
     local flare = { rel = stage, lane = 0, frac = 1, dim = 1 }
     flare.parts = { ns.Flares.NewPart(stage), ns.Flares.NewPart(stage) }
+    flare.burst = ns.Flares.NewBurst(stage)
     s.flare = flare
+    -- The client stops its loops while the options window is closed.
+    stage:SetScript("OnShow", function()
+        if flare.key then ns.Flares.PlayLoops(flare, flare.anim) end
+    end)
 
     function s.Refresh(width, maxHeight)
         local key = ns.Options.Selected()
@@ -29,12 +34,12 @@ function Sample.New(parent)
         local design = ns.Alerts.Get(key, "design")
         local d = ns.Data.DESIGNS[design]
         flare.key, flare.design, flare.spot = key, design, d and d.spot or "side"
+        flare.anim = ns.Alerts.Get(key, "anim")
         ns.Flares.Layout(flare, 1)
         ns.Flares.Paint(flare)
         stage:SetAlpha(ns.Flares.Opacity(key))
-        -- Its loop, kept running across redraws so a slider drag doesn't stutter.
-        local anim = DUI.Motion.On() and ns.Alerts.Get(key, "anim") or "still"
-        ns.Flares.PlayLoops(flare, anim)
+        -- Its loops, kept running across redraws so a slider drag doesn't stutter.
+        ns.Flares.PlayLoops(flare, flare.anim)
         local h = math.min(maxHeight or 220, 220)
         local k = h / Sample.STAGE
         stage:SetScale(k)
@@ -88,6 +93,10 @@ function Sample.Looks(parent)
         if look.key == "on" then
             stage.flare = { rel = stage, lane = 0, frac = 1, dim = 1 }
             stage.flare.parts = { ns.Flares.NewPart(stage), ns.Flares.NewPart(stage) }
+            local flare = stage.flare
+            stage:SetScript("OnShow", function()
+                if flare.key then ns.Flares.PlayLoops(flare, flare.anim) end
+            end)
         end
         box.stages[look.key] = stage
         box.frames[look.key] = f
@@ -117,10 +126,10 @@ function Sample.Looks(parent)
                 local design = ns.Alerts.Get(key, "design")
                 local d = ns.Data.DESIGNS[design]
                 flare.key, flare.design, flare.spot = key, design, d and d.spot or "side"
+                flare.anim = ns.Alerts.Get(key, "anim")
                 ns.Flares.Layout(flare, 1)
                 ns.Flares.Paint(flare)
-                local anim = DUI.Motion.On() and ns.Alerts.Get(key, "anim") or "still"
-                ns.Flares.PlayLoops(flare, anim)
+                ns.Flares.PlayLoops(flare, flare.anim)
             end
             local name, line = box.names[look.key], box.lines[look.key]
             Style.InkText(name, "VALUE")

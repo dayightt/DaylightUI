@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", new = {
+        { "Proc Alerts", "Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, and Strike is a new one" },
+    } },
     { version = "2.4.0", date = "2026-11-26", summary = "Seven new bar animations, choose which part of a unit frame draws on top, bar ends that lean either way, and new speech bubbles.", new = {
         { "Bar animations", "Seven new bar animations: Daybreak, Pixel Sparks, Pixel Blaze, Pixel Arc, Slosh, Molten and Cinders" },
         { "Info Panel", "The experience and reputation bars can wear a bar animation too" },

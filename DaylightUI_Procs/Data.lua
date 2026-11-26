@@ -39,17 +39,19 @@ Data.SPOTS = {
     feet   = { w = 304, h = 304, y = -118, grow = 1.34, anchor = "center" },
 }
 
--- While a flare is up (Flares.NewPart has the numbers). breathe: dims deep
--- and slow; pulse: beats bigger and brighter; impact: sends out a shockwave;
--- flash: glints from its core; still: nothing moves.
+-- While a flare is up (Flares.KINDS has the numbers). Every one but Still
+-- flickers like flame on top of its own motion. strike: the liveliest flame;
+-- breathe: dims slowly; pulse: its core beats; impact: sends out a wave;
+-- flash: a gleam runs from base to tip; still: the painting doesn't move.
 Data.ANIMS = {
+    strike  = { name = L["Strike"] },
     breathe = { name = L["Breathe"] },
     pulse   = { name = L["Pulse"] },
     impact  = { name = L["Impact"] },
     flash   = { name = L["Flash"] },
     still   = { name = L["Still"] },
 }
-Data.ANIM_ORDER = { "breathe", "pulse", "impact", "flash", "still" }
+Data.ANIM_ORDER = { "strike", "breathe", "pulse", "impact", "flash", "still" }
 
 -- Spell ranks, lowest first.
 local R = {

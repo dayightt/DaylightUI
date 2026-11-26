@@ -100,16 +100,32 @@ T.test("procs options: each proc's animation can be changed and the flare restar
     local ns = load()
     pick("overpower")
     ns.Flares.Show("overpower")
-    T.truthy(ns.Flares.live.overpower.parts[1].echo:IsPlaying(), "Overpower sends out Impact's shockwave")
-    for _, anim in ipairs({ "pulse", "breathe", "still" }) do
+    settle()
+    T.truthy(ns.Flares.live.overpower.parts[1].wave:IsPlaying(), "Overpower sends out Impact's wave")
+    local own = { pulse = "beat", breathe = "breathe", flash = "gleam" }
+    for _, anim in ipairs({ "pulse", "breathe", "flash", "strike", "still" }) do
         row("Animation").set(anim)
+        settle()
         local f = ns.Flares.live.overpower
         T.eq(f.anim, anim)
         local part = f.parts[1]
-        T.eq(part.pulse:IsPlaying(), anim == "pulse", anim .. " pulse")
-        T.eq(part.breathe:IsPlaying(), anim == "breathe", anim .. " breathe")
-        T.falsy(part.echo:IsPlaying(), anim .. " no shockwave")
-        T.falsy(part.swell:IsPlaying(), anim .. " no swell")
+        for a, name in pairs(own) do T.eq(part[name]:IsPlaying(), a == anim, anim .. ": " .. name) end
+        T.falsy(part.wave:IsPlaying(), anim .. ": no wave")
+        T.eq(part.live:IsPlaying(), anim ~= "still", anim .. ": the flicker")
+    end
+end)
+
+T.test("procs options: Strike leads the Animation list; every proc's default is unchanged", function()
+    local ns = load()
+    T.eq(ns.Data.ANIM_ORDER[1], "strike", "the first choice")
+    T.eq(ns.Data.ANIMS.strike.name, "Strike")
+    T.eq(ns.Data.ANIM_ORDER[#ns.Data.ANIM_ORDER], "still", "Still stays last")
+    local r = row("Animation")
+    local order = type(r.order) == "function" and r.order() or r.order
+    T.eq(order[1], "strike", "the dropdown lists it first")
+    for _, p in ipairs(ns.Data.PROCS) do
+        T.truthy(p.anim ~= "strike", p.key .. " keeps its own default")
+        T.eq(ns.Alerts.Get(p.key, "anim"), p.anim, p.key)
     end
 end)
 
@@ -326,6 +342,27 @@ T.test("procs options: the page's preview shows the picked proc's flare and foll
     T.eq(s.flare.key, "revenge", "follows the Alert picker")
     T.falsy(ns.Flares.lanes.side and ns.Flares.lanes.side[0] == "revenge", "takes no lane")
     T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
+
+T.test("procs options: the Alerts page preview plays the picked animation's loops", function()
+    local ns = load()
+    local s = page("alerts").sample(UIParent)
+    pick("overpower")
+    local own = { strike = {}, breathe = { "breathe" }, pulse = { "beat" }, impact = { "wave" }, flash = { "gleam" } }
+    for anim, groups in pairs(own) do
+        row("Animation").set(anim)
+        s.Refresh(600, 200)
+        local part = s.flare.parts[1]
+        T.truthy(part.live:IsPlaying(), anim .. ": the flicker")
+        T.truthy(part.embers:IsPlaying(), anim .. ": the embers")
+        T.truthy(part.liveTex:IsShown(), anim .. ": its sheet shows")
+        for _, name in ipairs(groups) do T.truthy(part[name]:IsPlaying(), anim .. ": " .. name) end
+        T.eq(s.flare.burst.again:IsPlaying(), anim == "impact", anim .. ": Impact's sparks again")
+    end
+    row("Animation").set("still")
+    s.Refresh(600, 200)
+    T.falsy(s.flare.parts[1].live:IsPlaying(), "Still: no flicker")
+    T.truthy(s.flare.parts[1].tex:IsShown(), "Still: the painting")
 end)
 
 T.test("procs options: picking a design or animation shows nothing on screen, only the preview", function()
