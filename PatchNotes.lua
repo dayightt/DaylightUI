@@ -19,6 +19,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Nameplates", "New profiles put nameplates lower, right over heads instead of floating high above them. Your own profiles keep their height (Nameplates > Plates up / down, which now goes lower too)" },
     }, fixed = {
+        { "Quests", "With a controller, Show on map in the quest log can be reached with the D-pad" },
         { "Proc Alerts", "Missile Barrage no longer lights up for Clearcasting when the Clearcasting alert is turned off" },
         { "Bags", "Clean up toward the end turns on with one click, stays on when you move your bags, and really packs your items into the last slots" },
         { "Gold", "Gold, bags and item counts leave out your characters on another ruleset, like an RP PvP character on a PvE one (log in on each character once so it's sorted)" },

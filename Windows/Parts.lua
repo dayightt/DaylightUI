@@ -1559,6 +1559,24 @@ function Footer:Set(list)
     end
 end
 
+-- The buttons on show, left to right: the main one sits in the left corner,
+-- the rest keep their order (Footer:Set's layout).
+function Footer:Order()
+    local out = {}
+    for _, b in ipairs(self.buttons) do if b:IsShown() and b.main then out[#out + 1] = b end end
+    for _, b in ipairs(self.buttons) do if b:IsShown() and not b.main then out[#out + 1] = b end end
+    return out
+end
+
+-- The button next to b on one side (-1 left, 1 right), or nil at the end of the
+-- row or when b isn't one of this footer's.
+function Footer:Beside(b, dir)
+    local order = self:Order()
+    for i, x in ipairs(order) do
+        if x == b then return order[i + dir] end
+    end
+end
+
 -- Press a footer button from the keyboard (Enter or Space), with a bump.
 function Footer:Press(i)
     local b = self.buttons[i or 1]

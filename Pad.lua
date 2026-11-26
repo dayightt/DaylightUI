@@ -108,6 +108,9 @@ Pad.KEYS = {
     Y = { "GAMEPAD_FACE_TOP", "PAD4" },
     MENU_LEFT = { "GAMEPAD_MENU_LEFT", "PADBACK" },
     MENU_RIGHT = { "GAMEPAD_MENU_RIGHT", "PADFORWARD" },
+    -- D-pad left, only as a follow entry: a box inside a game window whose own
+    -- footer takes the D-pad (the quest journal over the world map's log).
+    LEFT = { "GAMEPAD_DPAD_LEFT", "PADDLEFT" },
 }
 local function keyOf(name) return key(Pad.KEYS[name][1], Pad.KEYS[name][2]) end
 Pad.KeyOf = keyOf   -- "X" -> the game's key name for it ("PAD3")
@@ -1170,6 +1173,16 @@ local function settle()
         local b = nav.GetCurrentButton and nav:GetCurrentButton()
         if b and not b:IsVisible() then nav:SelectTopLeftButton() end
     end
+end
+
+-- Puts the D-pad on b now, in whichever window has it (the game's own call for
+-- this, SetTargetButtonForFrame). Out of combat only.
+function Pad.Aim(b)
+    local nav = _G.SmartNavigation
+    if not manager() or fight or InCombatLockdown() or type(nav) ~= "table"
+        or not (nav.SetTargetButtonForFrame and nav.GetActiveFrame) then return end
+    local f = nav:GetActiveFrame()
+    if f and type(b) == "table" and b:IsVisible() then nav:SetTargetButtonForFrame(f, b) end
 end
 
 function Pad.Settle(aim)

@@ -950,6 +950,52 @@ T.test("journal on a controller: X tracks or untracks the quest on the row or pa
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The game's rule, taught here: in its quest log the world map's controller
+-- footer binds D-pad left to "World Map" (Blizzard_WorldMap.lua, questLogFooter's
+-- focusMap, GAMEPAD_DPAD_LEFT), so its cursor never moves left inside the panel.
+-- The footer row runs left to right, so its leftmost button, Show on map, could
+-- not be reached from the buttons beside it.
+T.test("journal on a controller: D-pad left walks the footer to Show on map, then the map has it", function()
+    local function padOn()
+        _G.GamepadMode = { FrameControlsManager = { FrameShown = function() end, FrameHidden = function() end } }
+        _G.InputUtil = { IsGamepadUIEnabled = function() return true end }
+    end
+    local J = load(nil, { before = padOn })
+    local at
+    local function focusMap() at = "map" end
+    _G.SmartNavigation = {
+        GetCurrentButton = function() return type(at) == "table" and at or nil end,
+        GetActiveFrame = function() return WorldMapFrame end,
+        SetTargetButtonForFrame = function(_, frame, b) if frame == WorldMapFrame then at = b end end,
+    }
+    local f = open(J)
+    row(f, 1):Click()   -- its page
+    stub.RunTimers()
+    local bs = f.quest.footer.buttons
+    local function left()
+        local o = stub.overrides.PADDLEFT
+        if o and o.click and _G[o.click] then _G[o.click]:Click() else focusMap() end
+        stub.RunTimers()
+    end
+    at = bs[4]   -- Abandon, the right corner
+    stub.RunTimers()
+    left()
+    T.eq(at, bs[3], "Abandon to Share")
+    left()
+    T.eq(at, bs[2], "Share to Untrack")
+    left()
+    T.eq(at, bs[1], "Untrack to Show on map")
+    T.truthy(bs[1].spec.primary, "the main button in the left corner")
+    left()
+    T.eq(at, "map", "from the left end D-pad left is the map's again, as in the game's own log")
+    at = row(f, 1)
+    QW.ShowLog(false)
+    stub.RunTimers()
+    T.eq(stub.overrides.PADDLEFT, nil, "nothing left bound once the log closes")
+    _G.GamepadMode, _G.InputUtil, _G.SmartNavigation = nil, nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("journal on a controller: the game's see-through pieces under it are skipped by the D-pad, and given back", function()
     local marked = {}
     local J = load(nil, { before = function()

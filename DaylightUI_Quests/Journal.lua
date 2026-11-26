@@ -1130,7 +1130,19 @@ function Journal.PadSetup()
         { key = "B", follow = true, label = BACK or L["Back"],
           when = function() return S.page == "quest" end,
           run = function() Journal.ShowList() end },
+        -- The map's own footer turns D-pad left into "World Map" anywhere in its
+        -- quest log, so on the footer row Daylight UI steps left itself until
+        -- the left end (Show on map), where left is the map's again.
+        { key = "LEFT", follow = true,
+          when = function(at) return Journal.PadLeftOf(at) ~= nil end,
+          run = function(at) DUI.Pad.Aim(Journal.PadLeftOf(at)) end },
     }
+end
+
+-- The footer button left of the stop, if the stop is one of the footer's.
+function Journal.PadLeftOf(at)
+    if not (f and S.page == "quest" and type(at) == "table") then return nil end
+    return f.quest.footer:Beside(at, -1)
 end
 
 -- The tracker's click: open the map with the log on this quest's page. The map's
