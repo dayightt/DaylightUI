@@ -71,9 +71,12 @@ local function style(p, slot)
         local part = slot.parts[i]
         ns.Flares.SetSpeed(part, speed, kind and kind.live)
         -- The client shows these with the button and plays their groups.
+        local embers = moving and ns.Flares.Embers(p.key)
         part.liveTex:SetShown(moving)
-        part.emberTex:SetShown(moving)
-        for _, g in ipairs(ns.Flares.LoopsOf(part, anim)) do btn:AddAuraShownAnimation(g) end
+        part.emberTex:SetShown(embers)
+        for _, g in ipairs(ns.Flares.LoopsOf(part, anim)) do
+            if g ~= part.embers or embers then btn:AddAuraShownAnimation(g) end
+        end
     end
     -- GUESS: the client plays a non-looping group it was handed once each time
     -- the buff shows. Impact's sparks again (burst.again) are left out: started

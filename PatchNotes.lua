@@ -12,7 +12,7 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
-        { "Proc Alerts", "Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, and Strike is a new one" },
+        { "Proc Alerts", "Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, Strike is a new one, and each alert can turn its embers off" },
     } },
     { version = "2.4.0", date = "2026-11-26", summary = "Seven new bar animations, choose which part of a unit frame draws on top, bar ends that lean either way, and new speech bubbles.", new = {
         { "Bar animations", "Seven new bar animations: Daybreak, Pixel Sparks, Pixel Blaze, Pixel Arc, Slosh, Molten and Cinders" },
@@ -28,6 +28,7 @@ DUI.PatchNotes = {
         { "Proc Alerts", "Every alert animation looks different and keeps moving, instead of Impact and Flash going still" },
         { "Cooldown Manager", "Buffs set to show only when missing stay hidden when another player's copy is on you" },
         { "Cooldown Manager", "Placed proc buffs show again, and the game's own icons no longer block clicks" },
+        { "Cooldown Manager", "Bars in the /cdm layout editor look exactly like they do on screen, and a group's own gradient colors now show on its bars" },
         { "Loot rolls", "Loot roll cards no longer pile on top of each other when three or more items drop" },
         { "Bags", "Class reagents sort into Reagents, and no blue squares or gaps stay behind after selling" },
         { "Chat", "Whispers from the group finder or friends list type right away, and controller hints show once" },

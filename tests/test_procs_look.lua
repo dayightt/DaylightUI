@@ -727,3 +727,31 @@ T.test("procs look: a one-piece design lays out its hidden right piece without a
         ns.Flares.Layout(f)
     end
 end)
+
+T.test("procs look: Embers off: a flare sheds none, up, burning or changed while up", function()
+    local ns = load()
+    ns.Alerts.Set("overpower", "design", "wings")
+    ns.Alerts.Set("overpower", "anim", "strike")
+    ns.Alerts.Set("overpower", "embers", false)
+    ns.Flares.Show("overpower")
+    settle()
+    local f = ns.Flares.live.overpower
+    for _, part in ipairs(f.parts) do
+        T.falsy(part.embers:IsPlaying(), "no embers while up")
+        T.falsy(part.emberTex:IsShown())
+        T.truthy(part.live:IsPlaying(), "the flicker stays")
+    end
+    ns.Alerts.Set("overpower", "embers", true)
+    T.eq(ns.Flares.live.overpower, f, "switched on while up: the same flare")
+    for _, part in ipairs(f.parts) do T.truthy(part.embers:IsPlaying(), "embers start") end
+    ns.Alerts.Set("overpower", "embers", false)
+    for _, part in ipairs(f.parts) do
+        T.falsy(part.embers:IsPlaying(), "and stop again")
+        T.falsy(part.emberTex:IsShown())
+    end
+    ns.Flares.Hide("overpower")
+    for _, part in ipairs(f.parts) do
+        T.falsy(part.embers:IsPlaying(), "none while it burns")
+        T.falsy(part.emberTex:IsShown())
+    end
+end)

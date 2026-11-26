@@ -317,6 +317,11 @@ function Flares.NewBurst(parent)
     return b
 end
 
+-- Whether a proc's flare sheds embers (its own Embers switch).
+function Flares.Embers(key)
+    return ns.Alerts.Get(key, "embers") ~= false
+end
+
 -- Every loop a piece can play.
 function Flares.AllLoops(part)
     return { part.live, part.embers, part.breathe, part.beat, part.wave, part.gleam }
@@ -340,6 +345,7 @@ function Flares.PlayLoops(f, anim)
     local kind = Motion.On() and Flares.KINDS[anim] or nil
     local speed = num(ns.Alerts.Get(f.key, "speed"), 1)
     local out = (f.reveal or 1) >= 1
+    local embers = Flares.Embers(f.key)
     for _, part in ipairs(f.parts) do
         local rate = kind and kind.live or 1
         if part.speed ~= speed or part.liveRate ~= rate then
@@ -350,7 +356,7 @@ function Flares.PlayLoops(f, anim)
         if kind and part.frame:IsShown() then
             want[part.live] = true
             if out then
-                want[part.embers] = true
+                want[part.embers] = embers or nil
                 for _, name in ipairs(kind.groups) do want[part[name]] = true end
             end
         end
@@ -842,8 +848,10 @@ function Flares.Hide(key, now)
         if part.frame:IsShown() then
             part.burnTex:Show()
             part.burn:Play()
-            part.emberTex:Show()
-            part.embers:Play()
+            if Flares.Embers(f.key) then
+                part.emberTex:Show()
+                part.embers:Play()
+            end
         end
     end
     Motion.Tween(f.fade, 0, 1, Motion.SLOW, nil, function() release(f) end)

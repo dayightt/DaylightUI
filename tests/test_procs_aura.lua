@@ -254,3 +254,17 @@ T.test("procs aura: a game-shown flare changed in a PvP match waits for the matc
     T.truthy(has(slot.button.__shownAnims, part.gleam), "and Flash's gleam")
     T.falsy(has(slot.button.__shownAnims, part.beat), "Pulse's beat handed back")
 end)
+
+T.test("procs aura: Embers off: a game-shown flare hands the client no embers", function()
+    local ns = load()
+    ns.Alerts.Set("sealecho", "anim", "strike")
+    ns.Alerts.Set("sealecho", "embers", false)
+    stub.RunTimers()
+    local slot = ns.Game.slots.sealecho[1]
+    for i = 1, 2 do
+        local part = slot.parts[i]
+        T.falsy(has(slot.button.__shownAnims, part.embers), "piece " .. i .. ": no embers handed over")
+        T.falsy(part.emberTex:IsShown())
+        T.truthy(has(slot.button.__shownAnims, part.live), "the flicker still is")
+    end
+end)

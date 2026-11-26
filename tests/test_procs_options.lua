@@ -408,3 +408,28 @@ T.test("procs options: Animation speed sits under Animation, dims on Still, and 
     ns.Alerts.CopyToClass("overpower")
     T.eq(ns.Alerts.Get("revenge", "speed"), 1.5, "copied with the look")
 end)
+
+T.test("procs options: Embers sits under Animation speed, on by default, dims on Still, and is copied with the look", function()
+    local ns = load()
+    pick("overpower")
+    local r = row("Embers")
+    T.eq(r.type, "toggle")
+    T.eq(ns.Alerts.Get("overpower", "embers"), true, "on by default")
+    local look
+    for _, group in ipairs(page("alerts").groups) do
+        for i, item in ipairs(group.items) do
+            if item.label == "Animation speed" then look = group.items[i + 1] end
+        end
+    end
+    T.eq(look and look.label, "Embers", "right under Animation speed")
+    T.falsy(r.disabled(), "on while it moves")
+    r.set(false)
+    T.eq(ns.Alerts.Get("overpower", "embers"), false)
+    ns.Alerts.CopyToClass("overpower")
+    T.eq(ns.Alerts.Get("revenge", "embers"), false, "copied with the look")
+    ns.Alerts.Set("overpower", "anim", "still")
+    T.truthy(r.disabled(), "no embers on Still")
+    ns.Alerts.Set("overpower", "anim", "pulse")
+    DaylightUI:Set("general", "motion", false)
+    T.truthy(r.disabled(), "none with motion off")
+end)

@@ -18,6 +18,7 @@ Alerts.FIELDS = {
     design = function(p) return p.design end,
     anim = function(p) return p.anim end,
     speed = 1,
+    embers = true,
     colorMode = "accent",
     colorTop = function() return { DAY_HI[1], DAY_HI[2], DAY_HI[3] } end,
     colorBottom = function() return { DAY_LO[1], DAY_LO[2], DAY_LO[3] } end,
@@ -33,7 +34,7 @@ Alerts.FIELDS = {
 
 -- The fields "Copy this look to my other alerts" copies. Not the design, so
 -- every alert still looks different.
-Alerts.LOOK = { "anim", "speed", "colorMode", "colorTop", "colorBottom", "size", "alpha", "sound" }
+Alerts.LOOK = { "anim", "speed", "embers", "colorMode", "colorTop", "colorBottom", "size", "alpha", "sound" }
 
 local function saved()
     local t = DUI:Get("Procs", "alerts")
