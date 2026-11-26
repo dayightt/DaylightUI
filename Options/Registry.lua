@@ -75,6 +75,16 @@ function Options.Validate(items, defaults, errors, where)
             if type(item.func) ~= "function" then fail("button without func") end
         elseif item.type == "custom" then
             if type(item.build) ~= "function" then fail("custom without build") end
+        elseif item.ends ~= nil then
+            -- A bar end's menu (Options.EndRows): two switches behind one dropdown.
+            local e = item.ends
+            if item.type ~= "dropdown" or type(e) ~= "table" or (e.side ~= "left" and e.side ~= "right") then
+                fail("ends needs a dropdown and a side")
+            elseif item.key ~= e.on then
+                fail("ends: key is not its angled switch")
+            elseif type(DUI.DB.GetPath(defaults, e.on)) ~= "boolean" or type(DUI.DB.GetPath(defaults, e.flip or "")) ~= "boolean" then
+                fail("ends: " .. tostring(e.on) .. " or " .. tostring(e.flip) .. " has no true/false default")
+            end
         elseif VALUE[item.type] and (item.get or item.set) then
             if type(item.get) ~= "function" or type(item.set) ~= "function" then fail("get without set")
             elseif item.default ~= nil and type(item.default) ~= "function" then fail("default is not a function") end
@@ -297,7 +307,42 @@ end
 -- "Show X" without changing anyone's saved value.
 local function saved(page, item)
     if item.get then return item.get() end
+    local e = item.ends
+    if e then
+        return DUI.Style.EndGlyph(e.side, DUI:Get(page.scope, Options.Key(page, e.on)),
+            DUI:Get(page.scope, Options.Key(page, e.flip)))
+    end
     return DUI:Get(page.scope, Options.Key(page, item.key))
+end
+
+-- The choices of every bar end's menu, in order.
+Options.END_VALUES = { straight = "Straight", slash = "Leans /", backslash = "Leans \\" }
+Options.END_ORDER = { "straight", "slash", "backslash" }
+
+-- A bar's two end menus, one per end, each read from and written to two
+-- switches: whether that end is angled, and whether it's flipped (its bottom
+-- corner out). o.name names the bar in both labels ("Cast bar"), o.left and
+-- o.right are { on = key, flip = key } plus their own optional disabled,
+-- hidden and note; o.disabled, o.hidden, o.note and o.since apply to both.
+-- Returns the two rows, left first.
+function Options.EndRows(o)
+    local rows = {}
+    for _, side in ipairs({ "left", "right" }) do
+        local e = o[side]
+        local note = (e.note and (" " .. e.note) or "") .. (o.note and (" " .. o.note) or "")
+        local own, all = e.disabled, o.disabled
+        local ownH, allH = e.hidden, o.hidden
+        rows[#rows + 1] = {
+            type = "dropdown", key = e.on, alsoKeys = { e.flip },
+            ends = { side = side, on = e.on, flip = e.flip },
+            label = o.name .. " " .. side .. " end", since = o.since,
+            values = Options.END_VALUES, order = Options.END_ORDER,
+            desc = "Straight, or angled either way. On the right end / puts the top corner out and \\ the bottom one; on the left end it's the other way round. Each end is set on its own." .. note,
+            disabled = (own or all) and function(get) return (all and all(get)) or (own and own(get)) or false end or nil,
+            hidden = (ownH or allH) and function(get) return (allH and allH(get)) or (ownH and ownH(get)) or false end or nil,
+        }
+    end
+    return rows
 end
 
 function Options.Get(page, item)
@@ -328,6 +373,12 @@ function Options.Set(page, item, value)
     local ok
     if item.set then
         ok = item.set(value) ~= false   -- only an explicit false means refused
+    elseif item.ends then
+        -- Straight clears the flip too, so nothing is left saved for that end.
+        local e = item.ends
+        local on, flip = DUI.Style.EndFromGlyph(e.side, value)
+        ok = DUI:Set(page.scope, Options.Key(page, e.flip), flip)
+        ok = DUI:Set(page.scope, Options.Key(page, e.on), on) and ok
     else
         ok = DUI:Set(page.scope, Options.Key(page, item.key), value)
     end
@@ -351,7 +402,15 @@ end
 
 function Options.Default(page, item)
     local d
-    if item.get then d = item.default and item.default() else d = DUI.DB.GetPath(page.defaults or {}, Options.Key(page, item.key)) end
+    if item.get then
+        d = item.default and item.default()
+    elseif item.ends then
+        local e, defaults = item.ends, page.defaults or {}
+        d = DUI.Style.EndGlyph(e.side, DUI.DB.GetPath(defaults, Options.Key(page, e.on)),
+            DUI.DB.GetPath(defaults, Options.Key(page, e.flip)))
+    else
+        d = DUI.DB.GetPath(page.defaults or {}, Options.Key(page, item.key))
+    end
     if item.invert and d ~= nil then return d ~= true end
     return d
 end

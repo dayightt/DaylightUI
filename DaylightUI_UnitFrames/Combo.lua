@@ -168,6 +168,15 @@ function Combo.Layout(c, cfg)
     else
         c:SetPoint(vert .. side, f, rel .. side, x + (cfg.x or 0), y + (cfg.y or 0))
     end
+    -- Each pip's ends, each set on its own: the inner one (slant) leans like the
+    -- frame's inner end, the outer one (slantOuter) is its own; either flips.
+    local innerOn, outerOn = cfg.slant ~= false, cfg.slantOuter == true
+    local ends, under
+    if onRight then
+        ends, under = Style.EndsOf(outerOn, cfg.slantUnderOuter, innerOn, cfg.slantUnder)
+    else
+        ends, under = Style.EndsOf(innerOn, cfg.slantUnder, outerOn, cfg.slantUnderOuter)
+    end
     for i, pip in ipairs(c.pips) do
         pip:ClearAllPoints()
         pip:SetPoint("TOPLEFT", c, "TOPLEFT", (i - 1) * (w + gap), 0)
@@ -177,7 +186,7 @@ function Combo.Layout(c, cfg)
         pip.bar:SetPoint("TOPLEFT", pip, "TOPLEFT", T, -T)
         pip.bar:SetPoint("BOTTOMRIGHT", pip, "BOTTOMRIGHT", -T, T)
         -- Angled like the target's inner end, so the row reads as part of it.
-        Style.Slant(pip, onRight and "right" or "left", cfg.slant == false and 0 or cut)
+        Style.Slant(pip, ends, ends and cut or 0, nil, under)
     end
     -- Colors: Color, the full color, and the Gradients page's pairs.
     DUI.Gradients.PaintCombo(c.pips, cfg)

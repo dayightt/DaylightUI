@@ -794,6 +794,31 @@ T.test("your target's party button gets the outline; it moves with a new target"
     T.falsy(b1.targetMark:IsShown(), "switched off")
 end)
 
+T.test("bar ends: party buttons with both ends flipped; the outline and dispel glow lean with them", function()
+    local DUI, ns = login()
+    DUI:Set("UnitFrames", "party.portrait", "none")
+    DUI:Set("UnitFrames", "party.slantOuter", true)
+    DUI:Set("UnitFrames", "party.slantUnder", true)
+    DUI:Set("UnitFrames", "party.slantUnderOuter", true)
+    DUI:Set("UnitFrames", "party.dispelGlow", true)
+    stub.RunTimers()
+    local b = button(ns, 1, "party1", { name = "Kaladin", isPlayer = true, class = "WARRIOR", health = 5, maxHealth = 10 })
+    stub.units.target = stub.units.party1
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    settle()
+    local S = DaylightUI.Style
+    local sl = S.GetSlant(b)
+    T.eq(sl.side, "both"); T.eq(sl.under, "both", "/--\\ : both ends flipped")
+    local mark = S.GetSlant(b.targetMark)
+    T.eq(mark.side, "both"); T.eq(mark.under, "both", "the outline is the same shape")
+    -- Each cut edge of the outline has its lower corners sheared out (the top in).
+    for _, e in ipairs({ "left", "right" }) do
+        local off = b.targetMark.cutEdge[e].__vertexOffsets
+        T.truthy(off[1][1] ~= 0 and off[3][1] ~= 0, e .. ": the top corners move in")
+        T.eq(off[2][1], 0); T.eq(off[4][1], 0)
+    end
+end)
+
 T.test("the target outline: a secret answer in a battleground goes straight to the client", function()
     local _, ns = login()
     local b = button(ns, 1, "party1", { name = "Kaladin", isPlayer = true, class = "WARRIOR", health = 5, maxHealth = 10 })

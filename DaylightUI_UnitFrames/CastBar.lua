@@ -358,14 +358,15 @@ function CB.Hang(h)
     h:ClearAllPoints()
     h:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, lift + drop)
     local total = c.fH + H - lift - drop
-    local cut = c.slant and (f.cut or 0) * total / c.fH or 0
     -- One reused shape table, since this runs every frame of a slide.
     local ref = c.ref or {}
-    c.ref, ref.frame, ref.height = ref, f, total
-    local side = cut > 0 and c.side or nil
-    -- Under a bar angled at both ends (the free power bar) it continues both.
-    Style.Slant(h, side and (c.ends or side), cut, ref)
-    -- The fill's moving edge carries the same angle.
+    c.ref = ref
+    -- It continues each of the frame's angled ends (a flipped one as a chevron).
+    local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH)
+    if not c.slant then ends, cut = nil, 0 end
+    Style.Slant(h, ends, cut, ref)
+    -- The fill's moving edge carries the angle of the end it runs toward.
+    local side = ns.UF.HasEnd(ends, c.side) and c.side or nil
     Style.AngleFill(h.bar, side, cut * (H - 2 * T) / total)
     if h.moved then h.moved() end
 end
@@ -456,8 +457,7 @@ function CB.Layout(h, cfg, parentCfg)
         local pf = frames.player
         local pb = pf.freePower
         local db = ns.module and ns.module.db
-        -- Not from a power bar with flipped angles: its line can't be continued.
-        local onPower = cfg.from == "power" and type(pb) == "table" and pb:IsShown() and not pb.flip
+        local onPower = cfg.from == "power" and type(pb) == "table" and pb:IsShown()
             and type(db) == "table" and db.player.powerAt == "free"
         h.under = onPower and pb or pf
     end
@@ -549,10 +549,14 @@ function CB.Layout(h, cfg, parentCfg)
         -- Drawn just above the frame (and below its portrait), so its straight
         -- border covers the rounded tip of the frame's angle where they meet.
         h:SetFrameLevel(f:GetFrameLevel() + 4)
-        h.column = { f = f, base = base, lift = lift, fH = fH, height = height, T = T, side = side, slant = cfg.slant ~= false,
-                     ends = f.ends }
+        h.column = { f = f, base = base, lift = lift, fH = fH, height = height, T = T, side = side, slant = cfg.slant ~= false }
         local total = fH + height - lift
-        cut = cfg.slant == false and 0 or (f.cut or 0) * total / fH
+        -- How far in the end it runs toward is at its bottom, for its text: under
+        -- a flipped end (a chevron) the line starts at the frame's bottom.
+        local over = ns.UF.FlipAt(f, side) and (total - fH) or total
+        cut = (cfg.slant == false or not ns.UF.HasEnd(f.ends, side)) and 0 or (f.endCut or f.cut or 0) * over / fH
+        -- Its other end can be angled on its own too.
+        h.hangPad = cfg.slant ~= false and (f.endCut or 0) * total / fH or 0
         CB.Hang(h)
     elseif middle then
         h.column = nil
@@ -652,7 +656,9 @@ function CB.Layout(h, cfg, parentCfg)
     -- The text stays clear of angled ends: the frame's when inside it, the
     -- bar's own otherwise.
     local endCut, slant = cut, cut > 0 and side or nil
-    if slant and hang and h.under.ends then slant = h.under.ends end
+    if hang and cfg.slant ~= false and h.under.ends then
+        slant, endCut = h.under.ends, math.max(endCut, h.hangPad or 0)
+    end
     if h.into then
         endCut = h.attached.cut or 0
         slant = h.attached.spec and h.attached.spec.slant
@@ -1113,9 +1119,14 @@ local function rightAt(h, W, y, inset)
         dy, dx, FW, FH = ft - ht, hl - fl, frame:GetWidth(), frame:GetHeight()
         inset = Pixel.Px(frame, DUI.DB.General().borderPx)
     end
-    local cut = sl and (sl.side == "right" or sl.side == "both") and not sl.ref and not sl.under and sl.cut or 0
+    local angled = sl and (sl.side == "right" or sl.side == "both") and not sl.ref
+    local cut = angled and sl.cut or 0
     if type(cut) ~= "number" or type(FH) ~= "number" or FH <= 0 then cut = 0 end
-    return math.min(W, FW - dx - inset - cut * (dy + y) / (FH or 1))
+    -- How far in the end is at that height: most at the bottom, or at the top
+    -- on a flipped end (its bottom corner sticks out).
+    local t = (dy + y) / (FH or 1)
+    if angled and (sl.under == "right" or sl.under == "both") then t = 1 - t end
+    return math.min(W, FW - dx - inset - cut * t)
 end
 
 -- The bar's shape for the kick's pieces (Motion.LayPiece): its right end

@@ -1024,3 +1024,36 @@ T.test("a reveal, even sent twice, is ended by one end", function()
     stepFade(DUI, 10)
     T.eq(PR.frame:GetAlpha(), 0, "faded again")
 end)
+
+T.test("bar ends: the personal display's four shapes; heals lean with it, docked bars lean the usual way", function()
+    local DUI, ns = login("ROGUE")
+    local PR = ns.Personal
+    local S = DUI.Style
+    local cases = {
+        { true, true, false, true, "leaning left" },   -- left angled and flipped, right angled
+        { true, false, false, true, "top-out both" },
+        { true, true, true, true, "bottom-out both" },
+        { true, false, true, true, "leaning right" },
+    }
+    DUI:Set("UnitFrames", "personal.castbar", true)
+    for _, c in ipairs(cases) do
+        DUI:Set("UnitFrames", "personal.slantLeft", c[1])
+        DUI:Set("UnitFrames", "personal.slantUnderLeft", c[2])
+        DUI:Set("UnitFrames", "personal.slantUnder", c[3])
+        DUI:Set("UnitFrames", "personal.slant", c[4])
+        stub.RunTimers()
+        local body = PR.frame.body
+        local sl = S.GetSlant(body)
+        local want = (c[2] and c[3]) and "both" or c[2] and "left" or c[3] and "right" or nil
+        T.eq(sl.side, "both", c[5]); T.eq(sl.under, want, c[5])
+        local _, _, under = S.GetFillAngle(body.health)
+        T.eq(under == true, c[3], c[5] .. ": the fill's edge leans like the right end")
+        if body.heals then
+            local _, _, hu = S.GetFillAngle(body.heals)
+            T.eq(hu == true, c[3], c[5] .. ": heals too")
+        end
+        -- The cast bar docked under it is cut at the same ends, never flipped.
+        local cb = S.GetSlant(ns.playerCastbar)
+        T.eq(cb.side, "both", c[5]); T.isnil(cb.under, c[5] .. ": docked bars lean the usual way")
+    end
+end)

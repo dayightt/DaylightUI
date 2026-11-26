@@ -31,6 +31,27 @@ T.test("pips sit under the target, past its angled end, and fill with the count"
     stub.comboPoints = nil
 end)
 
+T.test("bar ends: each pip takes both ends, each set on its own", function()
+    local DUI, ns = login("ROGUE")
+    local S = DaylightUI.Style
+    local sl = S.GetSlant(ns.combo.pips[1])
+    T.eq(sl.side, "left", "the target's inner end, as before"); T.isnil(sl.under)
+    -- /--\ on the target: inner (left) flipped, outer (right) angled and flipped.
+    DUI:Set("UnitFrames", "combo.slantUnder", true)
+    DUI:Set("UnitFrames", "combo.slantOuter", true)
+    DUI:Set("UnitFrames", "combo.slantUnderOuter", true)
+    stub.RunTimers()
+    for _, pip in ipairs(ns.combo.pips) do
+        sl = S.GetSlant(pip)
+        T.eq(sl.side, "both"); T.eq(sl.under, "both")
+    end
+    -- The inner end straight: only the outer one stays angled.
+    DUI:Set("UnitFrames", "combo.slant", false)
+    stub.RunTimers()
+    sl = S.GetSlant(ns.combo.pips[3])
+    T.eq(sl.side, "right"); T.eq(sl.under, "right")
+end)
+
 T.test("a secret count still reaches the pips", function()
     local _, ns = login("ROGUE")
     local s = stub.Secret(2)

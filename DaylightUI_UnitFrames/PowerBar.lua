@@ -133,36 +133,41 @@ function PB.Layout(f, cfg, text)
     local T = Pixel.Px(h, Style.BorderPx(h))
     local H = Pixel.Snap(h, cfg.powerHeight) + 2 * T
     h:SetSize(2 * Pixel.Snap(h, (tonumber(cfg.powerWidth) or tonumber(cfg.width) or 187) / 2), H)
-    local side = cfg.powerSlant ~= false and f.spec.slant or nil
-    -- Its other end can lean too, so the bar is cut like a cast bar angled at both ends.
-    local both = side ~= nil and cfg.powerSlantBoth == true
-    local cut = side and Pixel.Snap(h, H * UF.AngleOf(cfg.powerOwnAngle, cfg.powerLean)) or 0
-    -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
-    local under = side and UF.UnderOf(both or side == "right", both or side == "left",
-        cfg.powerSlantUnder, cfg.powerSlantUnderLeft) or nil
+    -- Each end is set on its own: powerSlant angles the end on the frame's
+    -- angled side (inner), powerSlantBoth the other one; powerSlantUnder and
+    -- powerSlantUnderLeft flip the right and left ends (bottom corner out).
+    local inner = f.spec.slant
+    local outer = inner == "left" and "right" or "left"
+    local innerOn = inner ~= nil and cfg.powerSlant ~= false
+    local outerOn = inner ~= nil and cfg.powerSlantBoth == true
+    local leftOn = (inner == "left" and innerOn) or (outer == "left" and outerOn)
+    local rightOn = (inner == "right" and innerOn) or (outer == "right" and outerOn)
+    local ends, under = Style.EndsOf(leftOn, cfg.powerSlantUnderLeft, rightOn, cfg.powerSlantUnder)
+    local cut = ends and Pixel.Snap(h, H * UF.AngleOf(cfg.powerOwnAngle, cfg.powerLean)) or 0
+    local side = innerOn and inner or nil
     -- The cost shade cuts both its own ends at the angle (UF.LayoutCost), so with both
-    -- of the bar's ends angled it keeps only the clip at the empty end, where a big
-    -- cost runs past the bar. A texture takes three masks, and this saves the fourth.
-    -- Set before the slant lays out, since that adds the clips.
+    -- of the bar's ends angled it keeps only the clip at the end the fill starts
+    -- from, where a big cost runs past the bar. A texture takes three masks, and
+    -- this saves the fourth. Set before the slant lays out, since that adds the clips.
     local cost = h.set.cost
     if cost then
-        Style.ClipSpan(cost:GetStatusBarTexture(), nil, nil, both and (f.growLeft == true and "right" or "left") or false)
+        Style.ClipSpan(cost:GetStatusBarTexture(), nil, nil, ends == "both" and (f.growLeft == true and "right" or "left") or false)
     end
-    Style.Slant(h, both and "both" or side, cut, nil, under)
-    -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power"):
-    -- the frame's spec (which side is angled), this bar's cut, both ends or
-    -- one, and its mover.
+    Style.Slant(h, ends, cut, nil, under)
+    -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power")
+    -- and the swing bars: the frame's spec (which side is angled), this bar's
+    -- inner cut, its ends and which flip (UF.HangEnds), and its mover.
     h.spec, h.cut, h.moverKey = f.spec, side and cut or 0, h.key
-    h.ends = both and "both" or nil
-    h.flip = under ~= nil or nil
+    h.ends, h.under, h.endCut = ends, under, cut
     local p = h.set.power
     p:ClearAllPoints()
     p:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
     p:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
     p:Show()
-    -- The fill's moving edge takes the angle of the end it runs toward.
-    local edge = side
-    if f.flipped then edge = both and (side == "left" and "right" or "left") or nil end
+    -- The fill's moving edge takes the angle of the end it runs toward: the
+    -- inner end, or the outer one when reversed.
+    local toward = f.flipped and outer or inner
+    local edge = (toward and UF.HasEnd(ends, toward)) and toward or nil
     Style.AngleFill(p, edge, cut * (H - 2 * T) / H, UF.EdgeUnder(under, edge))
     UF.LayoutPowerExtras(f, cfg, text, side, cut, H, true)
     h.want = show
@@ -195,20 +200,26 @@ function PB.LayoutLine(f, cfg, text, side, cut, show)
     h:SetFrameLevel(f:GetFrameLevel() + 1)
     local fH = f:GetHeight()
     local total = fH + gap + H
-    local lineCut = side and fH > 0 and cut * total / fH or 0
     local ref = h.slantRef or {}
-    h.slantRef, ref.frame, ref.height = ref, f, total
-    Style.Slant(h, lineCut > 0 and side or nil, lineCut, ref)
+    h.slantRef = ref
+    -- It continues each of the frame's angled ends (a flipped one as a chevron).
+    local ends, lineCut = ns.UF.HangEnds(f, total, ref, fH)
+    Style.Slant(h, ends, lineCut, ref)
+    -- How far in the inner end is at the line, for its texts.
+    if not ns.UF.HasEnd(ends, side) then side = nil end
+    local innerCut = side and lineCut * (total - (ref.drop[side] or 0)) / total or 0
     local p = h.set.power
     p:ClearAllPoints()
     p:SetPoint("TOPLEFT", h, "TOPLEFT", T, -T)
     p:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
     p:SetReverseFill(f.growLeft == true)
-    local fillSide = (lineCut > 0 and not f.flipped) and side or nil
+    -- The fill's moving edge takes the angle of the end it runs toward.
+    local toward = f.growLeft == true and "left" or "right"
+    local fillSide = ns.UF.HasEnd(ends, toward) and toward or nil
     Style.AngleFill(p, fillSide, lineCut * (H - 2 * T) / total)
     -- Its texts stay clear of the angle at the line, nearly the whole cut this
     -- far down.
-    ns.UF.LayoutPowerExtras(f, cfg, text, lineCut > 0 and side or nil, lineCut, total, true, lineCut + 4)
+    ns.UF.LayoutPowerExtras(f, cfg, text, side, innerCut, total, true, innerCut + 4)
     h:Show()
     f.foot = gap + H
 end

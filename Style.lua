@@ -38,9 +38,50 @@ local function slantImage(trail, end_, under, sharp)
     if trail then return (sharp and TRAIL_SHARP or TRAIL_MASK)[end_] end
     return (sharp and SLANT_SHARP or SLANT_MASK)[end_]
 end
+-- The mask image for an end's cut (trail: the far side of the line), for
+-- pieces that mask by hand (a heal's wedge under the fill's angled edge).
+function Style.SlantImage(trail, end_, under) return slantImage(trail, end_, under == true, false) end
 -- An end leans under when the slant's under is that end or "both" (a
 -- trapezoid wider at the bottom).
 local function leans(under, end_) return under ~= nil and (under == end_ or under == "both") end
+
+-- Bar ends. Each end of a bar is set on its own: straight, or angled with its
+-- top corner out (the usual way) or flipped, its bottom corner out. Settings
+-- keep two switches per end (angled, flipped). Style.EndsOf turns the four
+-- into Style.Slant's side and under.
+function Style.EndsOf(leftOn, leftFlip, rightOn, rightFlip)
+    leftOn, rightOn = leftOn == true, rightOn == true
+    local side = leftOn and rightOn and "both" or rightOn and "right" or leftOn and "left" or nil
+    local r, l = rightOn and rightFlip == true, leftOn and leftFlip == true
+    return side, r and l and "both" or r and "right" or l and "left" or nil
+end
+
+-- What a player picks for an end: "straight", "slash" (/) or "backslash" (\).
+-- On the right end / is the usual angle, on the left end \ is.
+local USUAL_GLYPH = { right = "slash", left = "backslash" }
+function Style.EndGlyph(end_, on, flip)
+    if on ~= true then return "straight" end
+    local usual = USUAL_GLYPH[end_] or "slash"
+    if flip == true then return usual == "slash" and "backslash" or "slash" end
+    return usual
+end
+
+-- The two switches behind a picked glyph: angled, flipped.
+function Style.EndFromGlyph(end_, glyph)
+    if glyph ~= "slash" and glyph ~= "backslash" then return false, false end
+    return true, glyph ~= (USUAL_GLYPH[end_] or "slash")
+end
+
+-- A slant continuing another frame's line (ref) can start one end's line
+-- lower down: ref.drop (a number, or { left = n, right = n }) is how far below
+-- ref.frame's top that end's line begins, with the same slope. A bar hung
+-- under a flipped end uses it, so its edge leans back from the frame's bottom
+-- corner instead of running on past it.
+local function dropOf(ref, end_)
+    local d = ref and ref.drop
+    if type(d) == "table" then d = d[end_] end
+    return (type(d) == "number" and d > 0) and d or 0
+end
 -- Bar textures: a soft-edged fill over a brushed backing texture.
 Style.BAR = {
     fill = DUI.MEDIA .. "bar-plain.tga",
@@ -1788,8 +1829,10 @@ function Style.LayoutShell(s)
         if ok and type(h) == "number" and not isSecret(h) and h > 0 then H = h end
     end
     local refH = (sl and sl.ref and sl.ref.height) or H
-    local cutTop = cut * math.max(0, refH - H) / refH
     for _, side in ipairs(ENDS) do
+        -- How far in the line already is at this frame's top. A dropped end's
+        -- line (ref.drop) starts lower, at the same slope.
+        local cutTop = cut * math.max(0, refH - dropOf(sl and sl.ref, side) - H) / refH
         local t = side == "left" and sh.LEFT or sh.RIGHT
         -- Below the shared border line or the square top corner's shadow.
         local top = (seamT or joined or angled[side]) and -T or -E
@@ -2198,6 +2241,10 @@ function Style.LayoutSlant(frame)
         end
         for _, end_ in ipairs(ENDS) do
             local active = cutsAt(clip, side, roomy, end_)
+            -- A dropped end's line (ref.drop) spans less height at the same slope.
+            local drop = ref and dropOf(ref, end_) or 0
+            local spanH = H - drop
+            local cutE = cut * spanH / H
             -- The far side of a strip, past the deeper line toward the edge. Clamped to
             -- black so nothing shows beyond the mask itself.
             local stop = until_ and maskFor(owner, "stop", until_, end_)
@@ -2211,11 +2258,11 @@ function Style.LayoutSlant(frame)
                 stop:ClearAllPoints()
                 local p = end_ == "right" and "RIGHT" or "LEFT"
                 local q = end_ == "right" and "LEFT" or "RIGHT"
-                local x = end_ == "right" and -(d + cut) or (d + cut)
+                local x = end_ == "right" and -(d + cutE) or (d + cutE)
                 local rel = ref and ref.frame or frame
-                stop:SetPoint(TOP_AT[q], rel, TOP_AT[p], x, 0)
+                stop:SetPoint(TOP_AT[q], rel, TOP_AT[p], x, -drop)
                 if ref then
-                    stop:SetSize(4 * cut, H)
+                    stop:SetSize(4 * cutE, spanH)
                 else
                     stop:SetPoint(BOTTOM_AT[q], frame, BOTTOM_AT[p], x, 0)
                     stop:SetWidth(4 * cut)
@@ -2238,8 +2285,8 @@ function Style.LayoutSlant(frame)
                 local top, bottom = TOP_AT[end_], BOTTOM_AT[end_]
                 local x = end_ == "right" and -d or d
                 if ref then
-                    mask:SetPoint(top, ref.frame, top, x, 0)
-                    mask:SetSize(4 * cut, H)
+                    mask:SetPoint(top, ref.frame, top, x, -drop)
+                    mask:SetSize(4 * cutE, spanH)
                 else
                     mask:SetPoint(top, frame, top, x, 0)
                     mask:SetPoint(bottom, frame, bottom, x, 0)

@@ -1179,18 +1179,20 @@ function ST.Hang(h)
         if row:IsShown() and not row.alone then
             n = n + 1
             local total = math.max(1, depth - T + n * (height - T) + T)
-            local cut = (f.cut or 0) * total / c.fH
-            local side = cut > 0 and "right" or nil
             -- One reused shape table per bar, since this runs every frame of a slide.
             local ref = row.slantRef or {}
-            row.slantRef, ref.frame, ref.height = ref, f, total
-            -- Under a bar angled at both ends (the free power bar) it continues both.
-            Style.Slant(row, side and (f.ends or side), cut, ref)
-            row.leftCut = side and f.ends and cut or nil
+            row.slantRef = ref
+            -- It continues each of the frame's angled ends (a flipped one as a chevron).
+            local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH)
+            Style.Slant(row, ends, cut, ref)
+            -- How far in each end is at this bar's bottom: a chevron end's line
+            -- starts lower, so it's in by less.
+            row.leftCut = ns.UF.HasEnd(ends, "left") and cut * (total - (ref.drop.left or 0)) / total or nil
+            local side = ns.UF.HasEnd(ends, "right") and "right" or nil
             Style.AngleFill(row.bar, side, cut * (height - 2 * T) / total)
             -- Each bar further down cuts further in, so its time stays clear of
             -- its own angled end, like the cast bar's.
-            row.endCut = cut
+            row.endCut = side and cut * (total - (ref.drop.right or 0)) / total or 0
         end
     end
     ST.PlaceTimes(h)

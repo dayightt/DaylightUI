@@ -99,6 +99,72 @@ function UF.UnderOf(right, left, flipRight, flipLeft)
     return r and l and "both" or r and "right" or l and "left" or nil
 end
 
+-- A frame's two ends (Defaults.lua, ns.END_FRAMES): Style.Slant's side and
+-- under, and whether the inner end (spec.slant, the one the bars fill toward)
+-- and the outer end are angled. The outer end stays square under a portrait
+-- sitting on the frame, since the ring covers it.
+function UF.FrameEnds(f, cfg)
+    local inner = f.spec.slant
+    if not inner then return nil, nil, false, false end
+    local innerOn = cfg.slant ~= false
+    local outerOn = cfg.slantOuter == true
+    if outerOn and UF.PortraitMode(f, cfg) ~= "none"
+        and not (UF.PORTRAIT_FREE[f.spec.unit] and cfg.portraitAt == "free") then
+        outerOn = false
+    end
+    local innerFlip, outerFlip = cfg.slantUnder == true, cfg.slantUnderOuter == true
+    local side, under
+    if inner == "right" then
+        side, under = Style.EndsOf(outerOn, outerFlip, innerOn, innerFlip)
+    else
+        side, under = Style.EndsOf(innerOn, innerFlip, outerOn, outerFlip)
+    end
+    return side, under, innerOn, outerOn
+end
+
+-- side when the frame's end on that side is flipped (its bottom corner out),
+-- for a tab on that end to lean the same way; else nil.
+function UF.FlipAt(f, side)
+    local u = f.under
+    if side and u and (u == side or u == "both") then return side end
+    return nil
+end
+
+-- How a piece hung under f (a cast bar, the swing bars, Ribbon's power line)
+-- continues f's ends. total is the height from f's top down to the piece's
+-- bottom, and ref a table kept by the piece (filled here, for Style.Slant). Each
+-- end f has angled is cut at f's slope over total; an end f flips is continued
+-- from f's bottom corner instead (ref.drop), so the piece leans back in and the
+-- two make a chevron. f carries ends, under and endCut (its cut over fH, its
+-- height). Returns the ends and the cut, or nil and 0.
+function UF.HangEnds(f, total, ref, fH)
+    fH = fH or f:GetHeight()
+    local ends = f.ends
+    local k = (ends and type(fH) == "number" and fH > 0) and (f.endCut or f.cut or 0) / fH or 0
+    ref.frame, ref.height = f, total
+    local drop = ref.drop or {}
+    ref.drop = drop
+    drop.left = UF.FlipAt(f, "left") and fH or nil
+    drop.right = UF.FlipAt(f, "right") and fH or nil
+    local cut = k * total
+    if cut <= 0 then return nil, 0 end
+    return ends, cut
+end
+
+-- Whether ends (Style.Slant's side) includes end_.
+function UF.HasEnd(ends, end_) return ends == "both" or (type(end_) == "string" and ends == end_) end
+
+-- A layer hung off the fill's moving edge and growing back into it (the DoT
+-- veil, the cost shade) wears the fill's edge and its own back edge, so with
+-- both of the frame's ends angled a clip at each end would be a fourth mask (a
+-- texture takes three). Only the end the fill starts from can reach it, so it
+-- keeps that end's clip alone. Run before the frame's Style.Slant.
+function UF.ClipToStart(f)
+    local start = f.growLeft and "right" or "left"
+    if f.dotVeil then Style.ClipSpan(f.dotVeil.bar:GetStatusBarTexture(), nil, nil, start) end
+    if f.cost then Style.ClipSpan(f.cost:GetStatusBarTexture(), nil, nil, start) end
+end
+
 -- Whether the fill's moving edge (from UF.UnderOf's ends) leans under.
 function UF.EdgeUnder(under, edge)
     if not edge then return nil end
@@ -629,7 +695,6 @@ UF.OVERSHIELD = {
     alpha = 0.55,            -- the stripes over the health (also a shield's alpha)
     glowWidth = 10,
 }
-local TRAIL_MASK = { right = DUI.MEDIA .. "mask-trail-r.png", left = DUI.MEDIA .. "mask-trail-l.png" }
 
 -- Every unit button (these and the group headers' buttons) uses this template.
 -- PingableUnitFrameTemplate is the game's own (its unit frames use it), so the
@@ -1013,7 +1078,7 @@ function UF.LayoutThreatTag(f, cfg, side)
         end
     end
     tag:SetSize(w, h)
-    if f.spec.slant then Style.Slant(tag, side, cut) end
+    if f.spec.slant then Style.Slant(tag, side, cut, nil, UF.FlipAt(f, side)) end
     local shell = Style.GetShell(tag)
     Style.LayoutShell(shell)
     shell:SetShown(cfg.threatTagBox ~= false)
@@ -1075,7 +1140,8 @@ function UF.HealthTextSpot(f, cfg)
     if pos == "center" then return "", 0, function() return 0 end end
     local h = pos == "outer" and outer or inner
     local dir = h == "LEFT" and 1 or -1
-    if h == outer then return h, dir, function() return 0 end end
+    -- At the outer end it keeps clear of that end's own angle, when it has one.
+    if h == outer then return h, dir, function() return f.outerCut or 0 end end
     return h, dir, function(cut) return cut or 0 end
 end
 
@@ -1123,10 +1189,16 @@ end
 -- bottom so the two never meet. SetTileName stores what PlaceTileName needs (a
 -- party button places it later, from UF.SizeTab).
 function UF.SetTileName(f, cfg, text)
-    local cut = (f.spec.slant and cfg.slant ~= false) and Pixel.Snap(f, cfg.height * UF.SLANT) or 0
+    -- Clear of each angled end: the inner one (cut) and the outer one, set on its own.
+    local ends, _, innerOn, outerOn = UF.FrameEnds(f, cfg)
+    local full = ends and Pixel.Snap(f, cfg.height * UF.SLANT) or 0
+    local cut, outerCut = innerOn and full or 0, outerOn and full or 0
+    local inner = f.spec.slant
+    local cutL = inner == "left" and cut or (inner == "right" and outerCut) or 0
+    local cutR = inner == "right" and cut or (inner == "left" and outerCut) or 0
     local pos = ((f.spec.group or ns.Spots.Valid(cfg.namePos)) and cfg.namePos) or "bar"
     f.tileName = {
-        cutPad = cut,
+        cutL = cutL, cutR = cutR,
         showPercent = cfg.showPercent == true,
         -- The health text at the outer end hands the name the inner half.
         healthOuter = cfg.healthTextPos == "outer",
@@ -1136,11 +1208,12 @@ function UF.SetTileName(f, cfg, text)
         -- big frame (player, target...) only comes here for a spot.
         pos = pos,
         box = { w = cfg.width, h = cfg.height, padX = 3, padY = 2,
-                cutL = f.spec.slant == "left" and cut or 0, cutR = f.spec.slant == "right" and cut or 0 },
+                cutL = cutL, cutR = cutR },
         -- A group tile's name outside the tile sits on a name tab (nameTag).
         -- A style with a name row has that row above the frame instead.
         tag = (f.spec.group and not f.nameRow and cfg.nameTag ~= false and UF.TAG_SPOTS[pos]) == true,
         cut = cut > 0 and f.spec.slant or nil,
+        flip = innerOn and cfg.slantUnder == true,
     }
     if f.tileName.tag then
         local size = text and tonumber(text.name) or 12
@@ -1264,8 +1337,9 @@ local function placeNameTag(f, t)
         local L = ns.Spots.Layout(t.pos, NAME_GROW[t.pos] or "center", t.box, { x = t.x, y = t.y })
         tag:SetPoint(L.point, f.health or f, L.relPoint, L.x, L.y)
     end
-    -- Angled like the tile, at the same end.
-    Style.Slant(tag, t.cut, t.cut and Pixel.Snap(f, h * UF.SLANT) or 0)
+    -- Angled like the tile, at the same end, leaning the same way.
+    Style.Slant(tag, t.cut, t.cut and Pixel.Snap(f, h * UF.SLANT) or 0, nil,
+        (t.cut and t.flip) and t.cut or nil)
     Style.LayoutShell(Style.GetShell(tag))
     fs:SetPoint("CENTER", tag, "CENTER", 0, 0)
     fs:SetJustifyH("CENTER")
@@ -1294,8 +1368,8 @@ function UF.PlaceTileName(f)
     -- The name lives in its tab while it has one, else back on the tile.
     if f.nameTag then f.nameText:SetParent(t.tag and f.nameTag or f.overlay) end
     if t.pos ~= "bar" and ns.Spots.Valid(t.pos) then return placeNameAtSpot(f, t) end
-    local leftPad = 3 + (f.spec.slant == "left" and t.cutPad or 0)
-    local rightPad = 3 + (f.spec.slant == "right" and t.cutPad or 0)
+    local leftPad = 3 + (t.cutL or 0)
+    local rightPad = 3 + (t.cutR or 0)
     -- Target of target and pet: clear of the health text, when it's shown.
     local textLeft = (f.spec.slant == "left") ~= (t.healthOuter == true)
     if not f.spec.group and t.showPercent then
@@ -1519,9 +1593,17 @@ function UF.Layout(f, cfg, text, keepSize)
         and ((cfg.showName ~= false and cfg.nameOnBar ~= true) or cfg.showPercent == true)
     f.hitTop = rowOn and (tonumber(cfg.tabHeight) or UF.TAB_HEIGHT) or 0
     -- Work out the angled end first, since corner icons keep clear of it.
-    local side = cfg.slant ~= false and f.spec.slant or nil
-    local cut = side and Pixel.Snap(f, cfg.height * UF.SLANT) or 0
+    -- Each end is set on its own (UF.FrameEnds). side is the inner end when
+    -- it's angled, as everything placed clear of it expects; ends and under
+    -- are the whole shape.
+    local ends, under, innerOn, outerOn = UF.FrameEnds(f, cfg)
+    local side = innerOn and f.spec.slant or nil
+    local fullCut = ends and Pixel.Snap(f, cfg.height * UF.SLANT) or 0
+    local cut = side and fullCut or 0
     f.cut = cut
+    f.outerCut = outerOn and fullCut or 0
+    -- Read by what hangs under the frame (UF.HangEnds).
+    f.ends, f.under, f.endCut = ends, under, fullCut
     -- Party buttons with neither a portrait nor a name tab showing carry their
     -- icons in the corners, like tiles.
     -- A backdrop carries the name on its art, so there's no tab.
@@ -1697,17 +1779,21 @@ function UF.Layout(f, cfg, text, keepSize)
     if f.power then f.power:SetReverseFill(f.growLeft) end
     if f.altMana then f.altMana:SetReverseFill(f.growLeft) end
     if f.spec.slant then
-        Style.Slant(f, side, cut)
-        -- Each fill's moving edge follows the frame's angle (straight when
-        -- reversed, since the angle belongs to the other end).
+        UF.ClipToStart(f)
+        Style.Slant(f, ends, fullCut, nil, under)
+        -- Each fill's moving edge takes the shape of the end it runs toward: the
+        -- inner end, or the outer one when reversed.
         local H = f:GetHeight()
         local ph = (showPower and where == "inside") and (f.power:GetHeight() + Pixel.Px(f, Style.SEPARATOR_PX)) or 0
-        f.healthCut = cut * (H - 2 * T - ph) / H
-        if f.backdropOn then f.healthCut = cut * f.health:GetHeight() / H end
+        local toward = f.growLeft and "left" or "right"
+        local angled = (toward == f.spec.slant) and innerOn or (toward ~= f.spec.slant and outerOn)
+        f.healthCut = angled and fullCut * (H - 2 * T - ph) / H or 0
+        if f.backdropOn then f.healthCut = angled and fullCut * f.health:GetHeight() / H or 0 end
         -- The stripe owns the angled end, so the bars' fill stays square.
-        local fillSide = (not f.flipped and cfg.fillVertical ~= true and not (band and band.along)) and side or nil
-        Style.AngleFill(f.health, fillSide, f.healthCut)
-        if f.power and where == "inside" then Style.AngleFill(f.power, fillSide, cut * f.power:GetHeight() / H) end
+        local fillSide = (angled and cfg.fillVertical ~= true and not (band and band.along)) and toward or nil
+        local fillUnder = UF.EdgeUnder(under, fillSide)
+        Style.AngleFill(f.health, fillSide, f.healthCut, fillUnder)
+        if f.power and where == "inside" then Style.AngleFill(f.power, fillSide, fullCut * f.power:GetHeight() / H, fillUnder) end
     end
 
     f.predictHeals, f.predictAbsorbs = cfg.predictHeals ~= false, cfg.predictAbsorbs ~= false
@@ -1724,7 +1810,7 @@ function UF.Layout(f, cfg, text, keepSize)
         if f.cost then f.cost:Hide() end
     end
     f.showThreat = cfg.showThreat ~= false
-    UF.LayoutPrediction(f, side)
+    UF.LayoutPrediction(f)
 
     f.percentText:ClearAllPoints()
     f.bigNumber = cfg.bigNumber == true
@@ -1805,7 +1891,10 @@ function UF.Layout(f, cfg, text, keepSize)
         -- Its angled end: the frame's, or its own (<frame>.tab.slant).
         local tabSide = side
         if f.tabSlant == "on" then tabSide = f.spec.slant elseif f.tabSlant == "off" then tabSide = nil end
-        if f.spec.slant then Style.Slant(f.tab, tabSide, tabSide and Pixel.Snap(f, f.tabHeight * UF.SLANT) or 0) end
+        -- On a flipped end it leans the same way.
+        if f.spec.slant then
+            Style.Slant(f.tab, tabSide, tabSide and Pixel.Snap(f, f.tabHeight * UF.SLANT) or 0, nil, UF.FlipAt(f, tabSide))
+        end
         Style.LayoutShell(Style.GetShell(f.tab))
         UF.SizeTab(f)
     end
@@ -2975,17 +3064,20 @@ function UF.StylePrediction(f)
     end
 end
 
--- side is the frame's angled end ("right": bars grow right) or nil.
-function UF.LayoutPrediction(f, side)
+-- Lays the heals, shields and overshield over f.health, whose fill's edge
+-- (Style.AngleFill, set just before) they copy.
+function UF.LayoutPrediction(f)
     UF.StylePrediction(f)
     if f.health:GetOrientation() == "VERTICAL" then return layoutPredictionVertical(f) end
     for _, s in ipairs({ f.heals, f.absorbs, f.overshield }) do s:SetOrientation("HORIZONTAL") end
     local growLeft = f.growLeft
     if type(growLeft) ~= "boolean" then growLeft = f.spec.slant == "left" end
-    if f.flipped then side = nil end
     local lead = growLeft and "LEFT" or "RIGHT"
     local back = growLeft and "RIGHT" or "LEFT"
-    local c = side and f.healthCut or 0
+    -- Each segment's edge copies the health fill's own (laid out just before):
+    -- which end it runs toward, how far it leans, and whether it's flipped.
+    local edge, c, under = Style.GetFillAngle(f.health)
+    c = edge and c or 0
     local w = f.health:GetWidth()
     local anchor = f.health:GetStatusBarTexture()
     for _, s in ipairs({ f.heals, f.absorbs }) do
@@ -2994,15 +3086,16 @@ function UF.LayoutPrediction(f, side)
         s:SetPoint("BOTTOM" .. back, anchor, "BOTTOM" .. lead, 0, 0)
         s:SetWidth(w)
         s:SetReverseFill(growLeft)
-        Style.AngleFill(s, side and (growLeft and "left" or "right") or nil, c)
+        Style.AngleFill(s, edge, c, under)
         local wedge = s.wedge
         wedge:ClearAllPoints()
         wedge:SetPoint("TOP" .. lead, anchor, "TOP" .. lead, 0, 0)
         wedge:SetPoint("BOTTOM" .. lead, anchor, "BOTTOM" .. lead, 0, 0)
         wedge:SetWidth(math.max(c, 0.01))
-        wedge.mask:SetTexture(TRAIL_MASK[growLeft and "left" or "right"], "CLAMP", "CLAMP")
+        wedge.mask:SetTexture(Style.SlantImage(true, growLeft and "left" or "right", under), "CLAMP", "CLAMP")
         -- The mask's line runs from the fill's edge at the top to a cut back at
-        -- the bottom, so it hangs off the wedge's back side.
+        -- the bottom (the other way round on a flipped edge), so it hangs off the
+        -- wedge's back side.
         wedge.mask:ClearAllPoints()
         wedge.mask:SetPoint("TOP" .. back, wedge, "TOP" .. back, 0, 0)
         wedge.mask:SetPoint("BOTTOM" .. back, wedge, "BOTTOM" .. back, 0, 0)
@@ -4064,7 +4157,9 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
         f.powerText:SetJustifyH("CENTER")
     elseif pos == "outer" then
         local outer = inner == "LEFT" and "RIGHT" or "LEFT"
-        local opad = endPad and 4 or ((side and cut * (ph + Pixel.Px(f, 2)) / H or 0) + 4)
+        -- An angled outer end (the frame's own, set on its own) keeps the text clear of it.
+        local ocut = (not free and (f.outerCut or 0) > 0) and f.outerCut or (side and cut or 0)
+        local opad = endPad and 4 or (ocut * (ph + Pixel.Px(f, 2)) / H + 4)
         UF.PlaceText(f.powerText, outer, f.power, outer, (outer == "LEFT" and 1 or -1) * opad, Pixel.Px(f, 1), nx, ny)
         f.powerText:SetJustifyH(outer)
     else
@@ -4084,7 +4179,10 @@ function UF.LayoutPowerExtras(f, cfg, text, side, cut, H, free, endPad)
         f.altMana:SetPoint("BOTTOMLEFT", f.power, "BOTTOMLEFT", 0, 0)
         f.altMana:SetPoint("BOTTOMRIGHT", f.power, "BOTTOMRIGHT", 0, 0)
         f.altMana:SetHeight(h)
-        Style.AngleFill(f.altMana, not f.flipped and side or nil, side and cut * h / H or 0)
+        -- Its edge copies the power fill's (laid out just before), flip included.
+        local edge, pc, pu = Style.GetFillAngle(f.power)
+        local pH = f.power:GetHeight()
+        Style.AngleFill(f.altMana, edge, (edge and pH > 0) and pc * h / pH or 0, pu)
         Style.SetBarColor(f.altMana, Style.PowerColor("MANA"))
         f.druidMana = on and cfg.druidMana ~= false
     end

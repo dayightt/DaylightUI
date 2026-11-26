@@ -85,7 +85,7 @@ local function endLean(sl, end_, H, up, down)
     local cut = sl.cut or 0
     if cut <= 0 or type(H) ~= "number" or H <= 0 then return 0, 0 end
     local slope = cut / H
-    if sl.under == end_ then return -cut - slope * up, slope * down end
+    if sl.under == end_ or sl.under == "both" then return -cut - slope * up, slope * down end
     return slope * up, -cut - slope * down
 end
 
@@ -468,8 +468,13 @@ function GP.LayoutTargetMark(b, cfg)
     local H = b:GetHeight()
     local angled = side and cut > 0 and type(H) == "number" and H > 0
     local slope = angled and cut / H or 0
-    local outL = (side == "left" or side == "both") and slope * up or 0
-    local outR = (side == "right" or side == "both") and slope * up or 0
+    -- A flipped end's outermost point is at the bottom, so there it's the reach
+    -- below the tile that pushes it out.
+    local function out(end_)
+        if side ~= end_ and side ~= "both" then return 0 end
+        return slope * ((under == end_ or under == "both") and down or up)
+    end
+    local outL, outR = out("left"), out("right")
     f:ClearAllPoints()
     f:SetPoint("TOPLEFT", b, "TOPLEFT", -T - outL, T + up)
     f:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", T + outR, -T - down)
@@ -521,7 +526,7 @@ function GP.LayoutCutEdges(f, side, cut, under, T, custom, H)
             -- 1 upper left, 2 lower left, 3 upper right, 4 lower right. The
             -- corner sticking out is the top one, or the bottom one at an end
             -- leaning under.
-            local inTop = under == end_
+            local inTop = under == end_ or under == "both"
             for i = 1, 4 do DUI.SafeCall(t.SetVertexOffset, t, i, 0, 0) end
             local pair = inTop and { 1, 3 } or { 2, 4 }
             for _, i in ipairs(pair) do DUI.SafeCall(t.SetVertexOffset, t, i, sign * cut, 0) end

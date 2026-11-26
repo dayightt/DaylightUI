@@ -517,6 +517,123 @@ T.test("the wedge's mask sits on its back side, so only the triangle shows", fun
     T.eq(p, "TOPLEFT", "growing right: off its left")
 end)
 
+-- The bar ends a frame's shell is cut with: { left = "straight"|"slash"|"backslash", right = ... }.
+local function shapeOf(f)
+    local S = DaylightUI.Style
+    local sl = S.GetSlant(f)
+    local out = {}
+    for _, e in ipairs({ "left", "right" }) do
+        local on = sl and sl.cut > 0 and (sl.side == e or sl.side == "both")
+        local flip = sl and (sl.under == e or sl.under == "both")
+        out[e] = S.EndGlyph(e, on, flip)
+    end
+    return out
+end
+
+T.test("bar ends: all four shapes on the player frame, each end on its own", function()
+    local SPEC = { unit = "player", label = "Player", power = true, slant = "right", tab = true }
+    local base = { width = 220, height = 50, powerHeight = 13, showName = true, showPercent = true, portrait = "none" }
+    -- The player's inner end is its right. { inner angled, inner flipped, outer angled, outer flipped }
+    local cases = {
+        { "/--/", { true, false, true, true }, "slash", "slash" },
+        { "\\--/", { true, false, true, false }, "backslash", "slash" },
+        { "/--\\", { true, true, true, true }, "slash", "backslash" },
+        { "\\--\\", { true, true, true, false }, "backslash", "backslash" },
+    }
+    for _, c in ipairs(cases) do
+        local cfg = {}
+        for k, v in pairs(base) do cfg[k] = v end
+        cfg.slant, cfg.slantUnder, cfg.slantOuter, cfg.slantUnderOuter = c[2][1], c[2][2], c[2][3], c[2][4]
+        local f = make(SPEC, cfg)
+        local shape = shapeOf(f)
+        T.eq(shape.left, c[3], c[1] .. ": left end")
+        T.eq(shape.right, c[4], c[1] .. ": right end")
+        -- The health fill runs toward the right end and takes its shape.
+        local edge, cut, under = DaylightUI.Style.GetFillAngle(f.health)
+        T.eq(edge, "right", c[1])
+        T.truthy(cut > 0, c[1])
+        T.eq(under == true, c[4] == "backslash", c[1] .. ": the fill's edge leans like the right end")
+        T.eq(f.outerCut > 0, true, c[1] .. ": the outer end is cut")
+    end
+end)
+
+T.test("bar ends: a portrait on the frame keeps the outer end straight", function()
+    local f = make({ unit = "player", label = "Player", power = true, slant = "right", tab = true, portrait = true },
+        { width = 220, height = 50, powerHeight = 13, showName = true, slant = true, slantOuter = true,
+          portrait = "class", portraitScale = 1 })
+    T.eq(shapeOf(f).left, "straight", "the ring covers it")
+    T.eq(f.outerCut, 0)
+end)
+
+T.test("bar ends: a reversed fill takes the outer end's shape", function()
+    local cfg = {}
+    for k, v in pairs(TCFG) do cfg[k] = v end
+    -- The target: inner end left, outer end right flipped (\), filling from the inner end.
+    cfg.slantOuter, cfg.slantUnderOuter, cfg.reverseFill = true, true, true
+    local f = make(TARGET, cfg)
+    local edge, cut, under = DaylightUI.Style.GetFillAngle(f.health)
+    T.eq(edge, "right", "reversed, it runs toward the outer end")
+    T.truthy(cut > 0)
+    T.eq(under, true)
+    cfg.slantOuter = false
+    f = make(TARGET, cfg)
+    T.isnil((DaylightUI.Style.GetFillAngle(f.health)), "a straight outer end: a square edge")
+end)
+
+T.test("bar ends: on a flipped end, heals, shields, overheal and overshield lean with it, in a fight", function()
+    local cfg = {}
+    for k, v in pairs(TCFG) do cfg[k] = v end
+    -- The target's inner end (left) flipped, the outer end angled too: /--/.
+    cfg.slantUnder, cfg.slantOuter, cfg.slantUnderOuter = true, true, false
+    cfg.dotTint = true
+    local spec = {}
+    for k, v in pairs(TARGET) do spec[k] = v end
+    spec.dots = true
+    local f, ns = make(spec, cfg)
+    stub.EnterCombat()
+    stub.units.target = { name = "Pal", isPlayer = true, class = "MAGE", health = stub.Secret(20), maxHealth = stub.Secret(50),
+                          pct = stub.Secret(40), incoming = stub.Secret(900), absorbs = stub.Secret(400) }
+    ns.UF.UpdateAll(f, true)
+    local S = DaylightUI.Style
+    local edge, cut, under = S.GetFillAngle(f.health)
+    T.eq(edge, "left"); T.eq(under, true)
+    for _, s in ipairs({ f.heals, f.absorbs }) do
+        local e2, c2, u2 = S.GetFillAngle(s)
+        T.eq(e2, edge); T.near(c2, cut); T.eq(u2, true, "the segment's edge is flipped too")
+        -- The wedge fills the triangle the flipped edge leaves: the left end's
+        -- trail turned round, which is the right end's cut image.
+        T.eq(s.wedge.mask.__texture, DaylightUI.MEDIA .. "mask-slant-r.png")
+        T.truthy(s.wedge:IsShown())
+        for _, tex in ipairs({ s:GetStatusBarTexture(), s.wedge:GetStatusBarTexture() }) do
+            T.truthy(#(tex.__masks or {}) <= 3)
+        end
+    end
+    -- The overheal past the frame's end is cut by that end: the left end leans under.
+    local clipped = false
+    for _, m in ipairs(f.heals:GetStatusBarTexture().__masks or {}) do
+        if m.__texture == DaylightUI.MEDIA .. "mask-trail-r.png" then clipped = true end
+    end
+    T.truthy(clipped, "overheal is cut along the flipped end")
+    -- The overshield and its line stay inside both ends.
+    T.eq(#(f.overshield:GetStatusBarTexture().__masks or {}), 2)
+    -- Class layers and the DoT veil fit in three masks with both ends angled.
+    T.truthy(#(f.dotVeil.bar:GetStatusBarTexture().__masks or {}) <= 3)
+end)
+
+T.test("bar ends: on a flipped end the cost shade and druid mana lean with the power fill", function()
+    local f = make({ unit = "player", label = "Player", power = true, slant = "right", tab = true },
+        { width = 220, height = 50, powerHeight = 13, showName = true, slant = true, slantUnder = true,
+          slantOuter = true, costPreview = true })
+    local S = DaylightUI.Style
+    local e, c, u = S.GetFillAngle(f.power)
+    T.eq(e, "right"); T.eq(u, true)
+    local e2, _, u2 = S.GetFillAngle(f.cost)
+    T.eq(e2, e); T.eq(u2, true)
+    local e3, c3, u3 = S.GetFillAngle(f.altMana)
+    T.eq(e3, e); T.eq(u3, true); T.truthy(c3 > 0 and c3 < c)
+    T.truthy(#(f.cost:GetStatusBarTexture().__masks or {}) <= 3)
+end)
+
 T.test("power text shows on the power bar when turned on", function()
     local cfg = {}
     for k, v in pairs(TCFG) do cfg[k] = v end

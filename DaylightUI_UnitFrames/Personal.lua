@@ -92,6 +92,14 @@ function PR.Ends(cfg)
     return cfg.slant ~= false, cfg.slantLeft == true
 end
 
+-- Which of its ends are flipped (bottom corner out): right, left. Bars docked
+-- under it keep the usual lean, so under a flipped end they point back in.
+function PR.Flips(cfg)
+    cfg = cfg or db()
+    if not cfg then return false, false end
+    return cfg.slantUnder == true, cfg.slantUnderLeft == true
+end
+
 -- How far its angled end leans: its own angle, else the shared Slant angle.
 function PR.Angle()
     local cfg = db()
@@ -102,7 +110,7 @@ end
 -- none), with its right and left ends angled or not. The fills run left to
 -- right, so their moving edge takes the right end's angle. Returns its height
 -- and the cut.
-local function layBody(s, w, h, p, right, left)
+local function layBody(s, w, h, p, right, left, flipRight, flipLeft)
     local T = Pixel.Px(s, Style.BorderPx(s))
     local hh, ph = h > 0 and Pixel.Snap(s, h) or 0, p > 0 and Pixel.Snap(s, p) or 0
     local both = hh > 0 and ph > 0
@@ -110,8 +118,10 @@ local function layBody(s, w, h, p, right, left)
     local H = hh + line + ph + 2 * T
     s:SetSize(2 * Pixel.Snap(s, w / 2), H)
     local cut = (right or left) and Pixel.Snap(s, H * PR.Angle()) or 0
-    Style.Slant(s, right and left and "both" or right and "right" or left and "left" or nil, cut)
+    local ends, under = Style.EndsOf(left, flipLeft, right, flipRight)
+    Style.Slant(s, ends, cut, nil, under)
     local side = right and cut > 0 and "right" or nil
+    local edgeUnder = ns.UF.EdgeUnder(under, side)
     local health, power = s.health, s.power
     health:SetShown(hh > 0)
     s.healthCut = cut * hh / H
@@ -120,7 +130,7 @@ local function layBody(s, w, h, p, right, left)
         health:SetPoint("TOPLEFT", s, "TOPLEFT", T, -T)
         health:SetPoint("TOPRIGHT", s, "TOPRIGHT", -T, -T)
         health:SetHeight(hh)
-        Style.AngleFill(health, side, s.healthCut)
+        Style.AngleFill(health, side, s.healthCut, edgeUnder)
     end
     power:SetShown(ph > 0)
     s.separator:SetShown(both)
@@ -129,7 +139,7 @@ local function layBody(s, w, h, p, right, left)
         power:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT", T, T)
         power:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -T, T)
         power:SetHeight(ph)
-        Style.AngleFill(power, side, cut * ph / H)
+        Style.AngleFill(power, side, cut * ph / H, edgeUnder)
     end
     if both then
         s.separator:ClearAllPoints()
@@ -522,7 +532,8 @@ function PR.Shape(h, cfg, made)
     local p = cfg.showPower ~= false and (tonumber(cfg.powerHeight) or 5) or 0
     -- Never both off, since a display with no bars would be an empty shell.
     local showHealth = cfg.showHealth ~= false or p <= 0
-    local H, cut = layBody(h.body, w, showHealth and (tonumber(cfg.height) or 10) or 0, p, right, left)
+    local flipRight, flipLeft = PR.Flips(cfg)
+    local H, cut = layBody(h.body, w, showHealth and (tonumber(cfg.height) or 10) or 0, p, right, left, flipRight, flipLeft)
     h.body:ClearAllPoints()
     h.body:SetPoint("TOP", h, "TOP", 0, 0)
     h:SetSize(h.body:GetWidth(), H)
@@ -533,7 +544,7 @@ function PR.Shape(h, cfg, made)
     body.predictHeals = showHealth and cfg.predictHeals ~= false
     body.predictAbsorbs = showHealth and cfg.predictAbsorbs ~= false
     if made and showHealth and not body.heals then ns.UF.CreatePrediction(body) end
-    if body.heals then ns.UF.LayoutPrediction(body, side) end
+    if body.heals then ns.UF.LayoutPrediction(body) end
     return side, p, H, cut, showHealth
 end
 
@@ -550,6 +561,10 @@ function PR.LayoutCombo(h, cfg)
     cc.x, cc.y = tonumber(cfg.comboX) or 0, tonumber(cfg.comboY) or 0
     local right, left = PR.Ends(cfg)
     cc.slant = right or left
+    -- Its pips lean like the display's own end (flipped or not), not the target's row.
+    local flipRight, flipLeft = PR.Flips(cfg)
+    cc.slantOuter, cc.slantUnderOuter = false, false
+    cc.slantUnder = (right and flipRight) or (not right and left and flipLeft) or false
     ns.Combo.Layout(h.combo, cc)
     -- Docked bars stack past the row, wherever it was nudged up or down.
     h.comboReach = cc.enabled and math.max(0, PR.DOCK_GAP + ns.Combo.Height(cc) - cc.y) or 0

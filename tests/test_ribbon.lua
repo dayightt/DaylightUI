@@ -534,3 +534,24 @@ T.test("a backdrop style on party buttons, and as a setup guide card", function(
     T.noerror(function() DUI.InstallerCards.Draw.frameStyle(c, "card", 140, 70) end)
     T.noerror(c.redraw)
 end)
+
+T.test("bar ends: Ribbon's power line leans back in under a flipped end, and its fill follows the end it runs toward", function()
+    local DUI, ns = login()
+    ribbon(DUI, ns)
+    DUI:Set("UnitFrames", "player.slantUnder", true)
+    stub.RunTimers()
+    local S = DaylightUI.Style
+    local f = ns.frames.player
+    local sl = S.GetSlant(f.line)
+    T.eq(sl.side, "right"); T.isnil(sl.under, "the line leans the usual way")
+    T.eq(sl.ref.drop.right, f:GetHeight(), "from the frame's bottom corner")
+    T.eq((S.GetFillAngle(f.line.set.power)), "right")
+    -- Only the outer end angled: the line follows that end alone, its fill square.
+    DUI:Set("UnitFrames", "player.slant", false)
+    DUI:Set("UnitFrames", "player.portrait", "none")
+    DUI:Set("UnitFrames", "player.slantOuter", true)
+    stub.RunTimers()
+    sl = S.GetSlant(f.line)
+    T.eq(sl.side, "left")
+    T.isnil((S.GetFillAngle(f.line.set.power)), "its fill runs toward the straight end")
+end)

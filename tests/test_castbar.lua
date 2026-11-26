@@ -1158,11 +1158,15 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     DUI:Set("UnitFrames", "player.powerSlantBoth", false)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).side, "right")
-    -- Flipped, its angle can't be continued, so the cast bar hangs under the frame.
+    -- Flipped, the cast bar still hangs from it and leans back in from its
+    -- bottom corner: a chevron.
     DUI:Set("UnitFrames", "player.powerSlantUnder", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "right", "the power bar's end leans under")
-    T.eq(h.under, ns.frames.player, "the cast bar slides out from the frame instead")
+    T.eq(h.under, pb, "the cast bar still slides out from the power bar")
+    local hs = Style.GetSlant(h)
+    T.eq(hs.side, "right"); T.isnil(hs.under, "it leans the usual way")
+    T.eq(hs.ref.drop.right, pb:GetHeight(), "its line starts at the power bar's bottom corner")
     DUI:Set("UnitFrames", "player.powerSlantBoth", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "right", "its other end keeps its own lean")
@@ -1172,7 +1176,9 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     DUI:Set("UnitFrames", "player.powerSlantUnder", false)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "left", "the left end alone")
-    T.eq(h.under, ns.frames.player, "either end flipped, the cast bar slides out from the frame")
+    T.eq(h.under, pb, "either end flipped, it stays under the power bar")
+    hs = Style.GetSlant(h)
+    T.eq(hs.ref.drop.left, pb:GetHeight()); T.isnil(hs.ref.drop.right)
     DUI:Set("UnitFrames", "player.powerSlantUnder", true)
     -- The spell cost shade leans the same way as the fill it sits on.
     local cost, fill = pb.set.cost, pb.set.power
@@ -1192,7 +1198,8 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     DUI:Set("UnitFrames", "player.powerSlantBoth", false)
     stub.RunTimers()
     T.isnil(Style.GetSlant(pb).under)
-    T.eq(h.under, pb, "unflipped: from the power bar again")
+    T.eq(h.under, pb, "unflipped: from the power bar as before")
+    T.isnil(Style.GetSlant(h).ref.drop.right, "its line from the power bar's top again")
     DUI:Set("UnitFrames", "player.powerAt", "inside")
     stub.RunTimers()
     T.eq(h.under, ns.frames.player, "the power bar back inside: under the frame again")
@@ -1492,4 +1499,71 @@ T.test("a frame with your cast bar hung under it or on its own never fades as on
     T.eq(f.buffer, true, "no cast bar at all: one picture")
     T.eq(pb.buffer, true, "its power bar too")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bar ends: under a flipped player end the hung cast bar and swing bars lean back in, while sliding", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    local Style = DUI.Style
+    DUI:Set("UnitFrames", "player.slantUnder", true)
+    DUI:Set("UnitFrames", "swing.attach", true)
+    stub.RunTimers()
+    local f, h = ns.frames.player, ns.playerCastbar
+    T.eq(h.under, f)
+    T.eq(Style.GetSlant(f).under, "right", "the player's right end flipped")
+    local fH = f:GetHeight()
+    -- Mid-slide and settled, its line starts at the frame's bottom corner.
+    stub.units.player = stub.units.player or { name = "Me", isPlayer = true, class = "MAGE" }
+    stub.units.player.cast = { name = "Fireball", notInterruptible = false, duration = stub.Duration(2) }
+    stub.FireEvent("UNIT_SPELLCAST_START", "player")
+    for i = 1, 3 do
+        local d = DaylightUI.Motion.Driver()
+        if d and d:GetScript("OnUpdate") then stub.RunOnUpdate(d, 1 / 60) end
+        local sl = Style.GetSlant(h)
+        T.eq(sl.side, "right", "step " .. i)
+        T.isnil(sl.under, "step " .. i .. ": it leans the usual way, top corner out")
+        T.eq(sl.ref.drop.right, fH, "step " .. i .. ": from the frame's bottom corner")
+    end
+    -- The fill's edge leans the usual way too.
+    local edge, _, under = Style.GetFillAngle(h.bar)
+    T.eq(edge, "right"); T.falsy(under)
+    for _, row in ipairs(ns.swing.rows) do
+        local sl = Style.GetSlant(row)
+        if row:IsShown() and sl and sl.ref then
+            T.eq(sl.ref.drop.right, fH, "the swing bars carry on the same line")
+        end
+    end
+    -- Back to the usual end: its line from the frame's top again.
+    DUI:Set("UnitFrames", "player.slantUnder", false)
+    stub.RunTimers()
+    T.isnil(Style.GetSlant(h).ref.drop.right)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("bar ends: a cast bar's end menus write its switches, each end on its own", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    local O = DUI.Options
+    -- Each frame's page carries its cast bar's card.
+    local rows, pageOf = {}, {}
+    for id in O.Pages() do
+        local page = O.GetPage(id)
+        for _, g in ipairs(page and page.groups or {}) do
+            for _, it in ipairs(g.items or {}) do
+                if it.ends then rows[it.label], pageOf[it.label] = it, page end
+            end
+        end
+    end
+    local function set(label, v) O.Set(pageOf[label], rows[label], v) end
+    for _, who in ipairs({ "Your cast bar", "Target cast bar", "Focus cast bar", "Party cast bar" }) do
+        T.truthy(rows[who .. " left end"] and rows[who .. " right end"], who .. ": both end menus")
+    end
+    T.falsy(rows["Your cast bar flip right end"], "no flip switches left")
+    -- The target's bar above the frame: \--/ is the left end usual, the right end usual.
+    DUI:Set("UnitFrames", "targetCastbar.at", "above")
+    set("Target cast bar left end", "slash")
+    set("Target cast bar right end", "backslash")
+    stub.RunTimers()
+    local sl = DUI.Style.GetSlant(ns.targetCastbarFree)
+    T.eq(sl.side, "both"); T.eq(sl.under, "both", "/--\\")
 end)

@@ -19,20 +19,30 @@ local UF = ns.UF
 -- disabled() helpers. get reads another setting on the same page.
 local function off(key) return function(get) return get(key) ~= true end end
 
--- A frame's flips, one per end, read by UF.UnderOf. o.right and o.left are the
--- keys, o.name labels both ("Swing timer"), o.what names the bar in the text,
--- o.note ends both descriptions, o.disabled / o.hidden gray out or hide both,
--- and o.rightOn / o.leftOn (optional) are the keys of the end's own angle switch.
--- Use as flipRows(o)[1], [2].
-local function flipRows(o)
-    local dis = o.disabled or function() return false end
-    local note = o.note and (" " .. o.note) or ""
-    local function row(key, side, on)
-        return { type = "toggle", key = key, label = o.name .. " flip " .. side .. " end", since = "2.0",
-                 desc = "Tips " .. o.what .. " " .. side .. " end the other way, so its bottom corner sticks out instead of its top. The other end keeps its own." .. note,
-                 disabled = function(get) return dis(get) or (on ~= nil and get(on) ~= true) end, hidden = o.hidden }
+-- A frame's two end menus (Options.EndRows): slant/slantUnder hold its inner
+-- end (the one the bars fill toward), slantOuter/slantUnderOuter the outer
+-- one. The target, its target and the PvP frames mirror the player, so their
+-- inner end is the left. With a portrait, the outer end stays straight while
+-- the portrait sits on the frame (UF.FrameEnds): the ring covers it.
+-- prefix is the settings table ("player", "raid", "partyPet"), name labels
+-- the rows ("Frame", "Pet bar"), note ends both descriptions.
+local INNER_END = { target = "left", targettarget = "left", arena = "left" }
+local function frameEndRows(prefix, id, name, disabled, portrait, note)
+    local k = function(s) return prefix .. "." .. s end
+    local inner = INNER_END[id] or "right"
+    local outer = inner == "right" and "left" or "right"
+    local ends = {
+        [inner] = { on = k("slant"), flip = k("slantUnder") },
+        [outer] = { on = k("slantOuter"), flip = k("slantUnderOuter") },
+    }
+    if portrait then
+        ends[outer].note = "Stays straight while the portrait sits on the frame, since the ring covers it."
+        ends[outer].disabled = function(get)
+            return get(k("portrait")) ~= "none" and get(k("portraitAt")) ~= "free"
+        end
     end
-    return { row(o.right, "right", o.rightOn), row(o.left, "left", o.leftOn) }
+    return DaylightUI.Options.EndRows({ name = name, left = ends.left, right = ends.right,
+        disabled = disabled, note = note })
 end
 
 -- A frame's own angle: a switch and its slider, read by UF.AngleOf. o.own and
@@ -470,7 +480,8 @@ local BAR_ORDER = {
     stripHeight = 1, ["media.health"] = 2, ["media.healthBack"] = 3, colorHealth = 4, colorHealthCustom = 5,
     backHealth = 6, backHealthColor = 7, backHealthBright = 8, backHealthAlpha = 9,
     showPower = 20, powerAt = 21, powerWidth = 22, powerHeight = 23, ribbonGap = 24,
-    powerSlant = 25, powerSlantBoth = 26, powerSlantUnder = 27, ["media.power"] = 28, ["media.powerBack"] = 29,
+    -- The power bar's two end menus share a rank, so they keep their order: left, then right.
+    powerSlant = 25, powerSlantBoth = 25, ["media.power"] = 28, ["media.powerBack"] = 29,
     colorPower = 30, colorPowerCustom = 31, backPower = 32, backPowerColor = 33, backPowerBright = 34, backPowerAlpha = 35,
     reverseFill = 40, predictHeals = 41, predictAbsorbs = 42,
 }
@@ -1318,16 +1329,10 @@ local function swingBarCard()
               desc = "The time to the next swing, written on the bar, attached or detached.", disabled = textOff },
             { type = "toggle", key = b("showIcon"), label = name .. " bar weapon icon",
               desc = "The weapon's picture at the start of the bar. Only when detached on its own.", disabled = dis, hidden = attached },
-            { type = "toggle", key = b("slant"), label = name .. " bar angled right end",
-              desc = "Cuts the " .. lower .. " bar's right end at an angle. Only when detached on its own.", disabled = dis, hidden = attached },
-            { type = "toggle", key = b("slantLeft"), label = name .. " bar angled left end",
-              desc = "Cuts the " .. lower .. " bar's left end at an angle. Only when detached on its own.", disabled = dis, hidden = attached },
-            flipRows({ right = b("slantUnder"), left = b("slantUnderLeft"), rightOn = b("slant"), leftOn = b("slantLeft"),
-                       name = name .. " bar", what = "the " .. lower .. " bar's", note = "Only when detached on its own.",
-                       disabled = dis, hidden = attached })[1],
-            flipRows({ right = b("slantUnder"), left = b("slantUnderLeft"), rightOn = b("slant"), leftOn = b("slantLeft"),
-                       name = name .. " bar", what = "the " .. lower .. " bar's", note = "Only when detached on its own.",
-                       disabled = dis, hidden = attached })[2],
+            DaylightUI.Options.EndRows({ name = name .. " bar", note = "Only when detached on its own.", disabled = dis, hidden = attached,
+                left = { on = b("slantLeft"), flip = b("slantUnderLeft") }, right = { on = b("slant"), flip = b("slantUnder") } })[1],
+            DaylightUI.Options.EndRows({ name = name .. " bar", note = "Only when detached on its own.", disabled = dis, hidden = attached,
+                left = { on = b("slantLeft"), flip = b("slantUnderLeft") }, right = { on = b("slant"), flip = b("slantUnder") } })[2],
             angleRows({ own = b("ownAngle"), lean = b("lean"), name = name .. " bar", what = "the " .. lower .. " bar's", since = "2.0",
                         note = "Only when detached on its own.", hidden = attached,
                         disabled = function(get) return dis(get) or (get(b("slant")) ~= true and get(b("slantLeft")) ~= true) end })[1],
@@ -1594,8 +1599,8 @@ local function petCard()
           desc = "Each pet's health bar fills bottom to top instead of across, for tall, narrow pet bars.", disabled = petOff },
         barRows(p("media.health"), "the pets' health bars", "Pet health bar", petOff)[1],
         barRows(p("media.health"), "the pets' health bars", "Pet health bar", petOff)[2],
-        { type = "toggle", key = p("slant"), label = "Pet angled end",
-          desc = "Cuts one end of each pet bar at an angle. When off, the ends are straight.", disabled = petOff },
+        frameEndRows("partyPet", "partyPet", "Pet bar", petOff)[1],
+        frameEndRows("partyPet", "partyPet", "Pet bar", petOff)[2],
         { type = "dropdown", key = p("color"), label = "Pet bar color", values = ns.PartyPets.COLORS, order = ns.PartyPets.COLOR_ORDER,
           desc = "Its owner's class tells at a glance whose pet it is.", disabled = petOff },
         { type = "toggle", key = p("showPower"), label = "Pet power bar",
@@ -1751,7 +1756,7 @@ end
 -- Frame card (bar textures and colors, power, heals and absorbs) becomes its
 -- "Health and power" card.
 local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true,
-    tabHeight = true, slant = true, fillVertical = true,
+    tabHeight = true, slant = true, slantOuter = true, fillVertical = true,
     showInParty = true, direction = true, growLeft = true, growUp = true, growCenter = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
@@ -1893,24 +1898,21 @@ local function framePage(id, label, desc, opts)
             disabled = powerOff }
         frame[#frame + 1] = { type = "slider", key = k("powerWidth"), label = "Power bar width", min = 40, max = 500, step = 1,
             desc = "How wide the power bar is. Only while it's on its own.", disabled = notFree }
-        frame[#frame + 1] = { type = "toggle", key = k("powerSlant"), label = "Power bar angled end",
-            desc = "Cuts the power bar's end at an angle, on the same side as the frame's. Only while it's on its own. When off, both ends are straight.", disabled = notFree }
-        frame[#frame + 1] = { type = "toggle", key = k("powerSlantBoth"), label = "Power bar angled at both ends",
-            desc = "Angles its other end too, and a cast bar hung under it follows both. Only while the power bar is on its own with its angled end on.",
-            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end }
-        -- A cast bar sliding out from under it continues its angle, which a flipped end can't do.
-        local slidesOut = function(get)
-            return id == "player" and get("playerCastbar.enabled") == true and get("playerCastbar.at") == "below"
-                and get("playerCastbar.from") == "power"
-        end
-        local powerFlip = flipRows({ right = k("powerSlantUnder"), left = k("powerSlantUnderLeft"), name = "Power bar", what = "the power bar's",
-            note = "Only on an angled end, while the power bar is on its own, and not while your cast bar slides out from under it.",
-            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false or slidesOut(get) end })
-        frame[#frame + 1] = powerFlip[1]
-        frame[#frame + 1] = powerFlip[2]
+        -- Its ends: powerSlant is the end on the frame's angled side, powerSlantBoth
+        -- the other; the flips go by left and right.
+        local inner = INNER_END[id] or "right"
+        local pends = {
+            [inner] = { on = k("powerSlant") },
+            [inner == "right" and "left" or "right"] = { on = k("powerSlantBoth") },
+        }
+        pends.right.flip, pends.left.flip = k("powerSlantUnder"), k("powerSlantUnderLeft")
+        local powerEnds = DaylightUI.Options.EndRows({ name = "Power bar", left = pends.left, right = pends.right,
+            note = "Only while it's on its own. A cast bar hung under it follows its ends.", disabled = notFree })
+        frame[#frame + 1] = powerEnds[1]
+        frame[#frame + 1] = powerEnds[2]
         local powerAngle = angleRows({ own = k("powerOwnAngle"), lean = k("powerLean"), name = "Power bar", what = "the power bar's", since = "2.0",
             note = "Only while the power bar is on its own. A cast bar sliding out from under it continues the line.",
-            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end })
+            disabled = function(get) return notFree(get) or (get(k("powerSlant")) == false and get(k("powerSlantBoth")) ~= true) end })
         frame[#frame + 1] = powerAngle[1]
         frame[#frame + 1] = powerAngle[2]
     end
@@ -1994,8 +1996,9 @@ local function framePage(id, label, desc, opts)
             desc = "How big the portrait ring is next to the frame's height.",
             disabled = function(get) return shown(get) or tooShort(get) end, hidden = onCard }
     end
-    frame[#frame + 1] = { type = "toggle", key = k("slant"), label = "Angled end",
-        desc = opts.slantDesc or "Cuts the frame's inner end at an angle; the bars follow it.", disabled = shown }
+    for _, row in ipairs(frameEndRows(id, id, "Frame", shown, opts.portrait, opts.endNote)) do
+        frame[#frame + 1] = row
+    end
     frame[#frame + 1] = { type = "toggle", key = k("predictHeals"), label = "Incoming heals",
         desc = "Heals on their way, as a soft green stretch past the health.", disabled = shown }
     frame[#frame + 1] = { type = "toggle", key = k("predictAbsorbs"), label = "Absorbs",
@@ -2558,14 +2561,13 @@ end
 local attached = notOwnSize("player")
 -- Between the frames, the bar takes the gap's width, has no icon, and fills left to right.
 local function notMiddleOwn(get) return attached(get) or atOf(get, "player") == "middle" end
--- Flipping needs an angled end, on a bar with its own shape.
-local function flipRow(unit, who, notOwn)
-    return flipRows({ right = unit .. "Castbar.slantUnder", left = unit .. "Castbar.slantUnderLeft",
-        rightOn = unit .. "Castbar.slant", leftOn = unit .. "Castbar.slantLeft",
-        name = CAST_WHO[unit], what = who .. " cast bar's",
-        note = unit == "player" and "Not while under the frame, between the frames or under the personal display."
-            or (unit == "target" or unit == "focus") and "Not inside the frame or sliding out under it." or "Not inside the frame.",
-        disabled = function(get) return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal") end })
+-- A cast bar's two end menus (Options.EndRows). rightDis / leftDis gray out
+-- one end, note ends both descriptions.
+local function castEnds(unit, rightDis, leftDis, note)
+    local k = function(s) return unit .. "Castbar." .. s end
+    return DaylightUI.Options.EndRows({ name = CAST_WHO[unit], note = note,
+        left = { on = k("slantLeft"), flip = k("slantUnderLeft"), disabled = leftDis },
+        right = { on = k("slant"), flip = k("slantUnder"), disabled = rightDis } })
 end
 -- Its own angle, on the same bars the flip works on.
 local function castAngle(unit, who, notOwn)
@@ -2623,9 +2625,8 @@ local function raidPage(size)
           disabled = off("raid.enabled") },
         { type = "toggle", key = "raid.hideSelf", invert = true, label = "Show yourself",
           desc = "Your own tile sits with the raid's. When off, only the rest of the raid shows.", disabled = off("raid.enabled") },
-        { type = "toggle", key = "raid.slant", label = "Angled end",
-          desc = "Cuts each tile's right end at an angle, like your own frame; the bars follow it.",
-          disabled = off("raid.enabled") },
+        frameEndRows("raid", "raid", "Tile", off("raid.enabled"))[1],
+        frameEndRows("raid", "raid", "Tile", off("raid.enabled"))[2],
         { type = "toggle", key = "raid.fillVertical", label = "Fill upward",
           desc = "The health bar fills bottom to top instead of across.", disabled = off("raid.enabled") },
         { type = "toggle", key = "raid.showPower", label = "Power bar",
@@ -2756,10 +2757,9 @@ local PLAYER_CAST = {
         atChoice("player", "Under the frame it continues the frame's angle and slides out as you cast. Between your frame and the target's it fills the gap, both ends angled like the frames beside it, with the swing timers fanning out under it. Above the frame or on its own it has its own size."),
         { type = "dropdown", key = "playerCastbar.from", label = "Your cast bar slides out from",
           values = { frame = "The player frame", power = "The power bar" }, order = { "frame", "power" },
-          desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
+          desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Under a flipped end of the power bar they lean back in.",
           disabled = function(get)
               return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or get("player.powerAt") ~= "free"
-                  or get("player.powerSlantUnder") == true or get("player.powerSlantUnderLeft") == true
           end },
         nudge("player", "x"),
         nudge("player", "y"),
@@ -2772,14 +2772,12 @@ local PLAYER_CAST = {
         fontRow("playerCastbar.media.font", "Your cast bar font", "The spell name and time on your cast bar", off("playerCastbar.enabled")),
         { type = "toggle", key = "playerCastbar.showIcon", label = "Your cast bar spell icon",
           desc = "The spell's icon at the end of your cast bar. Not while under the frame, where the portrait ring covers that spot, or between the frames.", disabled = notMiddleOwn },
-        { type = "toggle", key = "playerCastbar.slant", label = "Your cast bar angled right end",
-          desc = "Cuts the right end at an angle. Under the frame it continues the frame's angle, and between the frames both ends lean. When off, its ends are straight.",
-          disabled = off("playerCastbar.enabled") },
-        { type = "toggle", key = "playerCastbar.slantLeft", label = "Your cast bar angled left end",
-          desc = "Cuts the left end at an angle, leaning like the target frame's end. Not while under the frame, between the frames or under the personal display.",
-          disabled = function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end },
-        flipRow("player", "your", notMiddleOwn)[1],
-        flipRow("player", "your", notMiddleOwn)[2],
+        castEnds("player", off("playerCastbar.enabled"),
+            function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
+            "Under the frame it follows the frame's own ends (Straight there keeps it square), between the frames both ends lean, and under the personal display it takes the display's.")[1],
+        castEnds("player", off("playerCastbar.enabled"),
+            function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
+            "Under the frame it follows the frame's own ends (Straight there keeps it square), between the frames both ends lean, and under the personal display it takes the display's.")[2],
         castAngle("player", "your", notMiddleOwn)[1],
         castAngle("player", "your", notMiddleOwn)[2],
         { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
@@ -2812,14 +2810,8 @@ local TARGET_CAST = {
         { type = "toggle", key = "targetCastbar.showIcon", label = "Target cast bar spell icon",
           desc = "The spell's icon at the end of your target's cast bar. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
-        { type = "toggle", key = "targetCastbar.slant", label = "Target cast bar angled right end",
-          desc = "Cuts the right end of your target's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
-          disabled = notOwnBar("target") },
-        { type = "toggle", key = "targetCastbar.slantLeft", label = "Target cast bar angled left end",
-          desc = "Cuts the left end of your target's cast bar at an angle, leaning like the frame's own end, so a bar above or below it can match. Not inside the frame or sliding out under it.",
-          disabled = notOwnBar("target") },
-        flipRow("target", "your target's", notOwnBar("target"))[1],
-        flipRow("target", "your target's", notOwnBar("target"))[2],
+        castEnds("target", notOwnBar("target"), notOwnBar("target"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[1],
+        castEnds("target", notOwnBar("target"), notOwnBar("target"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[2],
         castAngle("target", "your target's", notOwnBar("target"))[1],
         castAngle("target", "your target's", notOwnBar("target"))[2],
         { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
@@ -2850,14 +2842,8 @@ local FOCUS_CAST = {
         { type = "toggle", key = "focusCastbar.showIcon", label = "Focus cast bar spell icon",
           desc = "The spell's icon at the end of your focus's cast bar. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
-        { type = "toggle", key = "focusCastbar.slant", label = "Focus cast bar angled right end",
-          desc = "Cuts the right end of your focus's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
-          disabled = notOwnBar("focus") },
-        { type = "toggle", key = "focusCastbar.slantLeft", label = "Focus cast bar angled left end",
-          desc = "Cuts the left end of your focus's cast bar at an angle. When off, its end is straight. Not inside the frame or sliding out under it.",
-          disabled = notOwnBar("focus") },
-        flipRow("focus", "your focus's", notOwnBar("focus"))[1],
-        flipRow("focus", "your focus's", notOwnBar("focus"))[2],
+        castEnds("focus", notOwnBar("focus"), notOwnBar("focus"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[1],
+        castEnds("focus", notOwnBar("focus"), notOwnBar("focus"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[2],
         castAngle("focus", "your focus's", notOwnBar("focus"))[1],
         castAngle("focus", "your focus's", notOwnBar("focus"))[2],
         { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
@@ -2890,28 +2876,40 @@ local PARTY_CAST = {
         fontRow("partyCastbar.media.font", "Party cast bar font", "The spell name and time on the party's cast bars", off("partyCastbar.enabled")),
         { type = "toggle", key = "partyCastbar.showIcon", label = "Party cast bar spell icon",
           desc = "The spell's icon at the end of each detached cast bar.", disabled = notOwnBar("party") },
-        { type = "toggle", key = "partyCastbar.slant", label = "Party cast bar angled end",
-          desc = "Cuts the end of each detached cast bar at an angle. When off, its end is straight.", disabled = notOwnBar("party") },
+        castEnds("party", notOwnBar("party"), notOwnBar("party"), "Each detached cast bar. Sliding out under its frame, it follows the frame's own ends.")[1],
+        castEnds("party", notOwnBar("party"), notOwnBar("party"), "Each detached cast bar. Sliding out under its frame, it follows the frame's own ends.")[2],
         { type = "toggle", key = "partyCastbar.reverseFill", label = "Party cast bar fills right to left",
           desc = "Each detached cast bar fills from the right.", disabled = notOwnBar("party") },
     } },
     castTextCard("party", "Party", "each party member's", true),
 }
 
+-- The combo pips' two end menus. Their inner end (slant) is the one by the
+-- frame's angled end: the left under the target, the right under the player.
+-- One pair per placement, the other hidden.
+local function comboEnds(inner, hidden)
+    local outer = inner == "right" and "left" or "right"
+    local ends = {
+        [inner] = { on = "combo.slant", flip = "combo.slantUnder" },
+        [outer] = { on = "combo.slantOuter", flip = "combo.slantUnderOuter" },
+    }
+    return DaylightUI.Options.EndRows({ name = "Combo point", left = ends.left, right = ends.right,
+        disabled = off("combo.enabled"), hidden = hidden })
+end
+
 ns.OPTIONS = { pages = {
     framePage("player", "Player", "Your own frame.",
         { castCards = PLAYER_CAST, power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, portrait = true, dragon = true, combat = true, auras = PLAYER_AURA_GROUPS,
-          slantDesc = "Cuts the right end at an angle; the bars and an attached cast bar follow it." }),
+          endNote = "The bars, and a cast bar hung under the frame, follow it." }),
     framePage("target", "Target", "Mirrors the player frame, with raid markers, the elite crest, and its buffs and debuffs.",
-        { castCards = TARGET_CAST, power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true,
-          slantDesc = "Cuts the left end at an angle; the bars follow it." }),
+        { castCards = TARGET_CAST, power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, crest = true, portrait = true, threat = true, threatTag = true, auras = TARGET_AURA_GROUPS, dots = true }),
     framePage("focus", "Focus", "The unit you set as focus.",
         { castCards = FOCUS_CAST, power = true, powerToggle = true, powerFree = true, portraitFree = true, powerPos = true, tab = true, healthText = true, textPos = true, marker = true, portrait = true, threat = true,
           auras = FOCUS_AURA_GROUPS }),
     framePage("party", "Party", "Your party: bars like your own frame, or square tiles (Portrait None and Name on the bar). Set how they line up, what shows, and move them as one in unlock mode.",
         { castCards = PARTY_CAST, power = true, powerPos = true, tab = true, healthText = true, textPos = true, big = true, marker = true, portrait = true, groupThreat = true,
           spacing = true, auraGroups = true, role = true, targetMark = true, pets = true,
-          layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, strataWhat = "The layer the party frames draw in.", slantDesc = "Cuts the right end at an angle; the bars follow it.",
+          layout = true, tile = true, powerToggle = true, minWidth = 20, maxHeight = 120, strataWhat = "The layer the party frames draw in.",
           showDesc = "Turn the party frames on or off. While Use raid frames in a party (Unit Frames > Raid 10) is on, the raid frames show in a party instead and the rows on this page do nothing." }),
     raidPage(10), raidPage(20), raidPage(40),
     framePage("arena", "PvP Frames", "Enemy players carrying a flag in a battleground, one frame each. Right-click one to set it as your focus.",
@@ -3129,16 +3127,10 @@ ns.OPTIONS = { pages = {
               desc = "How tall each swing timer bar is.", disabled = off("swing.enabled") },
             barRows("swing.media.bar", "the swing timer", "Swing timer", off("swing.enabled"))[1],
             barRows("swing.media.bar", "the swing timer", "Swing timer", off("swing.enabled"))[2],
-            { type = "toggle", key = "swing.slant", label = "Swing timer angled right end",
-              desc = "Cuts the bars' right end at an angle. Only when detached as a group. Under the personal display they're cut like it.", disabled = groupAttached },
-            { type = "toggle", key = "swing.slantLeft", label = "Swing timer angled left end",
-              desc = "Cuts the bars' left end at an angle. Only when detached as a group.", disabled = groupAttached },
-            flipRows({ right = "swing.slantUnder", left = "swing.slantUnderLeft", rightOn = "swing.slant", leftOn = "swing.slantLeft",
-                       name = "Swing timer", what = "the swing timer's", note = "Only when detached as a group.",
-                       disabled = groupAttached })[1],
-            flipRows({ right = "swing.slantUnder", left = "swing.slantUnderLeft", rightOn = "swing.slant", leftOn = "swing.slantLeft",
-                       name = "Swing timer", what = "the swing timer's", note = "Only when detached as a group.",
-                       disabled = groupAttached })[2],
+            DaylightUI.Options.EndRows({ name = "Swing timer", disabled = groupAttached, note = "Hung under the frame it follows the frame's own ends.",
+                left = { on = "swing.slantLeft", flip = "swing.slantUnderLeft" }, right = { on = "swing.slant", flip = "swing.slantUnder" } })[1],
+            DaylightUI.Options.EndRows({ name = "Swing timer", disabled = groupAttached, note = "Hung under the frame it follows the frame's own ends.",
+                left = { on = "swing.slantLeft", flip = "swing.slantUnderLeft" }, right = { on = "swing.slant", flip = "swing.slantUnder" } })[2],
             angleRows({ own = "swing.ownAngle", lean = "swing.lean", name = "Swing timer", what = "the swing timer's", since = "2.0",
                         note = "Only when detached as a group.",
                         disabled = function(get) return groupAttached(get) or (get("swing.slant") ~= true and get("swing.slantLeft") ~= true) end })[1],
@@ -3232,10 +3224,12 @@ ns.OPTIONS = { pages = {
         { label = "Bars", items = {
             { type = "slider", key = "personal.width", label = "Personal display width", min = 60, max = 400, step = 1, unit = "px",
               desc = "How wide the bars are.", disabled = off("personal.enabled") },
-            { type = "toggle", key = "personal.slant", label = "Personal display angled right end",
-              desc = "Cuts the right end at an angle, docked cast and swing bars too. When off, it's square.", disabled = off("personal.enabled") },
-            { type = "toggle", key = "personal.slantLeft", label = "Personal display angled left end",
-              desc = "Cuts the left end at an angle too, docked cast and swing bars included.", disabled = off("personal.enabled") },
+            DaylightUI.Options.EndRows({ name = "Personal display", disabled = off("personal.enabled"),
+                note = "Docked cast and swing bars are cut at the same ends, leaning the usual way.",
+                left = { on = "personal.slantLeft", flip = "personal.slantUnderLeft" }, right = { on = "personal.slant", flip = "personal.slantUnder" } })[1],
+            DaylightUI.Options.EndRows({ name = "Personal display", disabled = off("personal.enabled"),
+                note = "Docked cast and swing bars are cut at the same ends, leaning the usual way.",
+                left = { on = "personal.slantLeft", flip = "personal.slantUnderLeft" }, right = { on = "personal.slant", flip = "personal.slantUnder" } })[2],
             angleRows({ own = "personal.ownAngle", lean = "personal.lean", name = "Personal display", what = "the personal display's", since = "2.0",
                         note = "Docked cast and swing bars lean with it.",
                         disabled = function(get) return get("personal.enabled") ~= true or (get("personal.slant") ~= true and get("personal.slantLeft") ~= true) end })[1],
@@ -3332,8 +3326,10 @@ ns.OPTIONS = { pages = {
             barRows("combo.media.bar", "the combo points", "Combo point", off("combo.enabled"))[2],
             { type = "slider", key = "combo.border", label = "Combo point border", min = 0, max = 4, step = 1, unit = "px",
               desc = "How thick the border round each pip is. 0 leaves none.", disabled = off("combo.enabled") },
-            { type = "toggle", key = "combo.slant", label = "Angled ends",
-              desc = "Each pip leans like the frames' angled ends. When off, their ends are straight.", disabled = off("combo.enabled") },
+            comboEnds("left", function(get) return get("combo.anchor") == "player" end)[1],
+            comboEnds("left", function(get) return get("combo.anchor") == "player" end)[2],
+            comboEnds("right", function(get) return get("combo.anchor") ~= "player" end)[1],
+            comboEnds("right", function(get) return get("combo.anchor") ~= "player" end)[2],
             { type = "dropdown", key = "combo.colorMode", label = "Combo point colors",
               values = { color = "One color", blend = "Color to full color", class = "Class color",
                          gradient = "One gradient", points = "A gradient per point", customGradient = "Custom gradient" },

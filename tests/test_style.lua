@@ -861,6 +861,72 @@ T.test("an angled end's layers are strips that stop short of the contents", func
     T.eq(#masks(s.slantFill.right), 0, "no angle, no masks")
 end)
 
+T.test("bar ends: each end's shape from its own two switches, and its glyph", function()
+    local DUI = stub.Load()
+    local S = DUI.Style
+    -- Each of the four shapes, both ends angled.
+    local side, under = S.EndsOf(true, false, true, false)
+    T.eq(side, "both"); T.eq(under, nil, "\\--/ : both ends top out")
+    side, under = S.EndsOf(true, true, true, false)
+    T.eq(under, "left", "/--/ : the left end flipped alone")
+    side, under = S.EndsOf(true, false, true, true)
+    T.eq(under, "right", "\\--\\ : the right end flipped alone")
+    side, under = S.EndsOf(true, true, true, true)
+    T.eq(under, "both", "/--\\")
+    -- A straight end never counts as flipped.
+    side, under = S.EndsOf(false, true, true, false)
+    T.eq(side, "right"); T.eq(under, nil)
+    side, under = S.EndsOf(false, false, false, true)
+    T.eq(side, nil); T.eq(under, nil)
+    -- Glyphs are what the player sees: / on the right is the usual angle.
+    T.eq(S.EndGlyph("right", true, false), "slash")
+    T.eq(S.EndGlyph("right", true, true), "backslash")
+    T.eq(S.EndGlyph("left", true, false), "backslash")
+    T.eq(S.EndGlyph("left", true, true), "slash")
+    T.eq(S.EndGlyph("left", false, true), "straight")
+    for _, e in ipairs({ "left", "right" }) do
+        for _, g in ipairs({ "straight", "slash", "backslash" }) do
+            local on, flip = S.EndFromGlyph(e, g)
+            T.eq(S.EndGlyph(e, on, flip), g, e .. " " .. g .. " round trip")
+        end
+    end
+end)
+
+T.test("bar ends: a hung bar's dropped end starts its line at the frame's bottom corner", function()
+    local DUI = stub.Load()
+    local f = CreateFrame("Frame", nil, UIParent)
+    f:SetSize(200, 40)
+    DUI.Style.Shell(f)
+    DUI.Style.Slant(f, "both", 8, nil, "right")
+    local h = CreateFrame("Frame", nil, UIParent)
+    h:SetSize(200, 20)
+    h:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, 0)
+    local s = DUI.Style.Shell(h)
+    -- The line over the frame and the bar together is 60 tall, cut 12 (same slope as 8 over 40).
+    DUI.Style.Slant(h, "both", 12, { frame = f, height = 60, drop = { right = 40 } })
+    local function mask(tex, file)
+        for _, m in ipairs(tex.__masks or {}) do
+            -- A joined bar wears the crisp version of each image.
+            local t = m.__texture or ""
+            if t == DaylightUI.MEDIA .. file or t == DaylightUI.MEDIA .. file:gsub("%.png$", "-sharp.png") then return m end
+        end
+    end
+    -- The right end, under a flipped one: its line runs from 40 down (the frame's
+    -- bottom corner) over the 20 left, so its cut is 4 and it leans top out.
+    local right = mask(s.bg, "mask-slant-r.png")
+    T.truthy(right, "the right end is cut the usual way round: a chevron")
+    local p, rel, rp, x, y = right:GetPoint(1)
+    T.eq(rel, f); T.eq(p, "TOPRIGHT"); T.eq(rp, "TOPRIGHT")
+    T.eq(y, -40, "starts at the frame's bottom")
+    T.eq(right:GetWidth(), 16, "4x a cut of 4")
+    T.eq(right:GetHeight(), 20)
+    -- The left end continues the frame's line from its top, as before.
+    local left = mask(s.bg, "mask-slant-l.png")
+    p, rel, rp, x, y = left:GetPoint(1)
+    T.eq(rel, f); T.eq(y, 0)
+    T.eq(left:GetWidth(), 48); T.eq(left:GetHeight(), 60)
+end)
+
 T.test("a cut of 0 is a straight end, not an angled one with nothing to cut", function()
     local DUI = stub.Load()
     local f = CreateFrame("Frame", nil, UIParent)

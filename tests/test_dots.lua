@@ -1051,6 +1051,29 @@ T.test("dots draw: an angled fill angles both ends of the veil, and its line lea
     T.eq(veil.edge.__vertexOffsets[1][1], 0)
 end)
 
+T.test("dots draw: a flipped fill edge flips the veil's back end and its line", function()
+    local DUI, Dots = world()
+    local _, b = bar()
+    -- The fill's edge leans under: its bottom corner is ahead (\ on the right).
+    DUI.Style.AngleFill(b, "right", 6, true)
+    local veil = Dots.NewVeil(b)
+    Dots.LayoutVeil(veil, b, false)
+    local masks = veil.bar:GetStatusBarTexture().__masks or {}
+    T.eq(#masks, 2)
+    T.eq(masks[1], DUI.Style.GetFillMask(b))
+    -- The back end is the same line turned round: the left end's cut image.
+    T.eq(masks[2].__texture, DUI.MEDIA .. "mask-slant-l.png", "the damage's end leans the fill's way")
+    -- The line's bottom moves out along the cut, its top stays.
+    local off = veil.edge.__vertexOffsets
+    T.eq(off[1][1], 0); T.eq(off[3][1], 0)
+    T.eq(off[2][1], 6); T.eq(off[4][1], 6)
+    -- Back to the usual lean: top out again, bottom back.
+    DUI.Style.AngleFill(b, "right", 6)
+    Dots.LayoutVeil(veil, b, false)
+    off = veil.edge.__vertexOffsets
+    T.eq(off[1][1], 6); T.eq(off[2][1], 0)
+end)
+
 T.test("dots draw: the skull rides the end of a long bar in a small window", function()
     local _, Dots = world()
     local f = bar()

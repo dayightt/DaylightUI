@@ -89,7 +89,9 @@ function PC.Layout(b)
     CB.Layout(c.inside, { enabled = on and at == "power", spell = cfg.spell, time = cfg.time,
                           insideTextSize = cfg.insideTextSize }, d.party)
     CB.Layout(c.own, { enabled = on and at ~= "power", at = at, width = cfg.width, height = cfg.height,
-                       showIcon = cfg.showIcon, slant = at == "slide" or cfg.slant,
+                       showIcon = cfg.showIcon, slant = at == "slide" or cfg.slant, slantLeft = cfg.slantLeft,
+                       -- Sliding out from under the frame it continues the frame's ends instead.
+                       slantUnder = at ~= "slide" and cfg.slantUnder, slantUnderLeft = at ~= "slide" and cfg.slantUnderLeft,
                        spell = cfg.spell, time = cfg.time, reverseFill = cfg.reverseFill, borderOutside = true })
     if at == "free" then place(c.own, b, cfg) end
 end

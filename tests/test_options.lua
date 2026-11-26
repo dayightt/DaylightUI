@@ -127,6 +127,52 @@ T.test("a hidden page isn't listed or opened, and comes back when it applies aga
     T.falsy(stub.ChatContains("Options ("))
 end)
 
+T.test("bar ends: one menu per end reads and writes its two switches", function()
+    local DUI = stub.Load()
+    local D = { bar = { slant = true, slantUnder = false, slantLeft = false, slantUnderLeft = false },
+                big = { slant = true, slantUnder = false, slantLeft = false, slantUnderLeft = false } }
+    local rows = function()
+        return DUI.Options.EndRows({ name = "Demo bar",
+            left = { on = "bar.slantLeft", flip = "bar.slantUnderLeft" },
+            right = { on = "bar.slant", flip = "bar.slantUnder" } })
+    end
+    DUI:RegisterModule("Demo", { label = "Demo", defaults = D, options = { pages = {
+        { id = "main", label = "Main", groups = { { label = "Card", items = rows() } } },
+        -- A page that edits another table with the same keys (raid sizes do this).
+        { id = "big", label = "Big", mapKey = function(key) return (key:gsub("^bar%.", "big.")) end,
+          groups = { { label = "Card", items = rows() } } },
+    } } })
+    T.falsy(stub.ChatContains("Options ("), "the rows are valid")
+    local O = DUI.Options
+    local page = O.GetPage("Demo.main")
+    local left, right = page.groups[1].items[1], page.groups[1].items[2]
+    T.eq(left.label, "Demo bar left end"); T.eq(right.label, "Demo bar right end")
+    -- Today's look: left straight, right the usual /.
+    T.eq(O.Get(page, left), "straight"); T.eq(O.Get(page, right), "slash")
+    T.truthy(O.IsDefault(page, right))
+    -- /--\ : the left end picked /, the right end flipped to \.
+    O.Set(page, left, "slash")
+    O.Set(page, right, "backslash")
+    T.eq(DUI:Get("Demo", "bar.slantLeft"), true); T.eq(DUI:Get("Demo", "bar.slantUnderLeft"), true)
+    T.eq(DUI:Get("Demo", "bar.slant"), true); T.eq(DUI:Get("Demo", "bar.slantUnder"), true)
+    T.eq(O.Get(page, left), "slash"); T.eq(O.Get(page, right), "backslash")
+    T.falsy(O.IsDefault(page, right))
+    -- Straight clears the flip as well.
+    O.Set(page, left, "straight")
+    T.eq(DUI:Get("Demo", "bar.slantLeft"), false); T.eq(DUI:Get("Demo", "bar.slantUnderLeft"), false)
+    -- Reset puts both switches back.
+    O.ResetItem(page, right)
+    T.eq(DUI:Get("Demo", "bar.slant"), true); T.eq(DUI:Get("Demo", "bar.slantUnder"), false)
+    -- The other table's page writes its own keys only.
+    local big = O.GetPage("Demo.big")
+    O.Set(big, big.groups[1].items[2], "backslash")
+    T.eq(DUI:Get("Demo", "big.slantUnder"), true)
+    T.eq(DUI:Get("Demo", "bar.slantUnder"), false)
+    -- A broken end row is reported.
+    local errs = DUI.Options.Validate({ { type = "dropdown", key = "on", label = "X", ends = { side = "up", on = "on", flip = "on" } } }, DEFAULTS)
+    T.eq(#errs, 1)
+end)
+
 T.test("a reload item asks (the core's own reload prompt) only when its value actually changes", function()
     local DUI = stub.Load()
     DUI:RegisterModule("Demo", { label = "Demo", defaults = DEFAULTS, options = { pages = {
@@ -996,4 +1042,29 @@ T.test("role badges use Media/roles.png, as a badge and inline in text", functio
     local text = W.RoleText("DAMAGER", 12)
     T.eq(text, "|T" .. DUI.MEDIA .. "roles.png:12:12:0:0:128:128:0:64:64:128|t", "inline, the bottom left quarter")
     T.eq(W.RoleText("NONE"), "", "no art for anything else")
+end)
+
+T.test("bar ends: on every page a bar's two end menus sit together in one card, left then right", function()
+    local DUI = stub.Load({ module = true })
+    local O = DUI.Options
+    local found = 0
+    for id in O.Pages() do
+        local page = O.GetPage(id)
+        for _, g in ipairs(page and page.groups or {}) do
+            local items = g.items or {}
+            for i, it in ipairs(items) do
+                if it.ends and it.ends.side == "left" then
+                    found = found + 1
+                    local nxt = items[i + 1]
+                    local name = it.label:gsub(" left end$", "")
+                    T.truthy(nxt and nxt.ends and nxt.ends.side == "right", id .. ": " .. it.label .. " has its right end right after it")
+                    T.eq(nxt and nxt.label, name .. " right end", id .. ": the same bar")
+                elseif it.ends and it.ends.side == "right" then
+                    local prev = items[i - 1]
+                    T.truthy(prev and prev.ends and prev.ends.side == "left", id .. ": " .. it.label .. " follows its left end")
+                end
+            end
+        end
+    end
+    T.truthy(found > 10, "end menus found: " .. found)
 end)

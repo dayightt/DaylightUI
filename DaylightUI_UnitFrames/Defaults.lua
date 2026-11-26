@@ -117,7 +117,8 @@ ns.DEFAULTS = {
     -- bar beside the frame ("free", with spot right|left|below|above and x/y).
     -- insideTextSize: its text inside the frame (0 fits the power bar).
     partyCastbar = { enabled = true, at = "power", spot = "right", x = 0, y = 0, width = 140, height = 10, showIcon = true,
-                     slant = false, insideTextSize = 0, reverseFill = false },
+                     slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false,
+                     insideTextSize = 0, reverseFill = false },
     -- The target's and focus's own cast bar colors.
     targetCasts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
                     interrupted = { 0.52, 0.17, 0.15 }, classColor = false, customGradient = DaylightUI.Style.DefaultStops() },
@@ -134,6 +135,7 @@ ns.DEFAULTS = {
         height = 0, gap = 3, x = 0, y = 0,
         color = { 1.0, 0.82, 0.25 }, fullColor = { 0.95, 0.22, 0.2 },
         colorMode = "color", customGradient = DaylightUI.Style.DefaultStops(), fullAll = false, empty = 0.4, border = 2, slant = true, anchor = "target",
+        slantOuter = false, slantUnder = false, slantUnderOuter = false,
         side = "below", align = "inner", stretch = false },
     party = { enabled = true, texts = textSlots(), nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, markerSize = 13, powerTextPos = "inner", width = 170, height = 34, showPower = true, powerHeight = 7, spacing = 38, showName = true, nameOnBar = false,
               showPercent = true, slant = true, bigNumber = true, healthText = "percent", percentSign = false, hideFullHealth = false, reverseFill = false, portrait = "class", portraitRing = "class", portraitShape = "round", portraitLook = "socket", portraitRingWidth = "normal", portraitRingLine = true,
@@ -360,11 +362,24 @@ do
     -- height), instead of the shared Slant angle. angle: the older setting,
     -- above 0 for its own angle; upgrade step 21 moves it to the two above.
     d.ownAngle, d.lean, d.angle = false, 0.21, 0
+    -- Its right and left ends flipped (bottom corner out), each on its own.
+    d.slantUnder, d.slantUnderLeft = false, false
     -- The numbers on the bars, using the player frame's keys. Size 0 fits its bar.
     d.showPercent, d.healthText, d.percentSign, d.hideFullHealth = false, "percent", false, false
     d.healthTextPos, d.healthTextSize = "center", 0
     d.showPowerText, d.powerFormat, d.powerPercentSign, d.hideFullPower = false, "value", false, false
     d.powerTextPos, d.powerTextSize = "center", 0
+end
+
+-- Each end of a frame is set on its own (Options.EndRows): slant angles the
+-- inner end (the one the bars fill toward), slantOuter the outer one, and
+-- slantUnder / slantUnderOuter flip that end so its bottom corner sticks out.
+-- Frames copied from these (raid sizes, arena, focus target, party targets)
+-- take them along.
+ns.END_FRAMES = { "player", "target", "targettarget", "pet", "focus", "party", "partyPet", "raid" }
+for _, k in ipairs(ns.END_FRAMES) do
+    local d = ns.DEFAULTS[k]
+    d.slantOuter, d.slantUnder, d.slantUnderOuter = false, false, false
 end
 
 -- The name tab's own look and placement (Daylight style; UF.TabLook, UF.PlaceTab).

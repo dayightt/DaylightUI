@@ -74,7 +74,7 @@ function Dots.LayoutVeil(veil, bar, growLeft)
     v:SetWidth(math.max(bar:GetWidth(), 1))
     v:SetReverseFill(not growLeft)
     local tex = v:GetStatusBarTexture()
-    local side, cut = Style.GetFillAngle(bar)
+    local side, cut, under = Style.GetFillAngle(bar)
     local m = side and Style.GetFillMask(bar) or nil
     if veil.mask ~= m then
         if veil.mask then tex:RemoveMaskTexture(veil.mask) end
@@ -86,13 +86,18 @@ function Dots.LayoutVeil(veil, bar, growLeft)
     e:SetPoint("TOP", tex, "TOP" .. back, 0, 0)
     e:SetPoint("BOTTOM", tex, "BOTTOM" .. back, 0, 0)
     e:SetWidth(DUI.Pixel.Px(bar, EDGE_PX))
-    Style.AngleTrail(v, side, cut)
-    -- Vertex 1 is upper left, 3 upper right. Shift the line's top out along the
-    -- cut the way the trail mask runs (a quarter of its width at the top).
+    Style.AngleTrail(v, side, cut, under)
+    -- Vertex 1 is upper left, 3 upper right, 2 and 4 the lower ones. Shift the
+    -- line out along the cut the way the trail mask runs: at the top, or at the
+    -- bottom on an edge leaning under (its bottom corner ahead).
     if e.SetVertexOffset then
         local lean = side == "right" and cut or side == "left" and -cut or 0
-        DUI.SafeCall(e.SetVertexOffset, e, 1, lean, 0)
-        DUI.SafeCall(e.SetVertexOffset, e, 3, lean, 0)
+        local top, bottom = lean, 0
+        if under then top, bottom = 0, lean end
+        DUI.SafeCall(e.SetVertexOffset, e, 1, top, 0)
+        DUI.SafeCall(e.SetVertexOffset, e, 3, top, 0)
+        DUI.SafeCall(e.SetVertexOffset, e, 2, bottom, 0)
+        DUI.SafeCall(e.SetVertexOffset, e, 4, bottom, 0)
     end
 end
 
