@@ -473,6 +473,8 @@ function ns.Refresh(mod, path, hold)
         ns.DruidBars.Layout(db.player.druidBars)
         Blizzard.Apply(db)
         DUI.Movers.ApplyAll()
+        -- Last, over what each part's own layout set: the player's draw order.
+        ns.Layers.Apply()
         if ns.Test then ns.Test.Reapply() end
         if pendingFx then
             pendingFx = false
@@ -1065,6 +1067,7 @@ function ns.Build(mod)
         ns.RefitOnTab(ns.frames.target, function() return ns.auras end)
         registerEvents()
         ns.ClickCast.Start()
+        ns.Layers.Hook()
         ns.Refresh(mod)
     end, "unitframes:build")
 end

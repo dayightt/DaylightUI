@@ -509,6 +509,8 @@ local function refreshSingle(s, width, maxH)
         up = math.max(up, tabUp(f) + top)
         down = math.max(down, bottom)
     end
+    -- The player's draw order, over what the layout set.
+    ns.Layers.ApplyTo(f, s.id)
     -- Its cast bar, when it sits on the frame (withCast): what it reaches past it.
     if s.castDraw then
         local cUp, cDown, cOut = s.castDraw(f, d)
@@ -540,6 +542,7 @@ local function newSingle(id, parent)
     zoomable(s)
     local f = CreateFrame("Button", nil, s.frame)
     UF.Build(f, specOf(id))
+    f.layerPreview = true  -- Layers finds its parts on the preview, not the live frame
     f:EnableMouse(false)   -- display only, the strip's hotspots take the clicks
     s.f = f
     -- The real pet frame's indicator is a different widget. This one is only

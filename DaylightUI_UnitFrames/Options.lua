@@ -1682,8 +1682,8 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Auras", "Extras" }
-local TAB_OF = { Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Auras", "Extras", "Layers" }
+local TAB_OF = { Layers = "Layers", Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
     ["Heal indicators"] = "Auras", Dispels = "Auras" }
@@ -2419,6 +2419,10 @@ local function framePage(id, label, desc, opts)
         end
     end
     groups[#groups + 1] = barFxCard(id, (opts.power or opts.powerToggle) and powerOff or nil, shown, opts.pets)
+    if ns.Layers.PARTS[id] then
+        groups[#groups + 1] = { label = "Layers", items = ns.Layers.Rows(id, shown),
+            desc = "Which part draws on top where this frame's parts overlap. A part higher in the list draws over the ones below it. A part standing on its own can also take a layer of its own." }
+    end
     groups[#groups + 1] = copyCard(id)
     return { id = id, label = label, desc = desc, groups = tabbed(groups), preview = preview,
              sample = function(parent) return ns.PageSample.New(id, parent) end }

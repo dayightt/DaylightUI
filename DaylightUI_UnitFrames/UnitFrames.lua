@@ -940,14 +940,16 @@ local function noteLevels(frame)
         noteLevels(c)
     end
 end
+-- A frame a player placed in Layers keeps its level (c.layerOwn).
 local function relevel(frame)
     for _, c in ipairs({ frame:GetChildren() }) do
-        if c.levelOffset then
+        if c.levelOffset and not c.layerOwn then
             c:SetFrameLevel(frame:GetFrameLevel() + c.levelOffset)
             relevel(c)
         end
     end
 end
+UF.NoteLevels, UF.Relevel = noteLevels, relevel
 
 -- Puts the portrait, and the status icons that ride on it, on the frame or in
 -- its holder. Pieces inside the secure frame can't be anchored to a frame of
