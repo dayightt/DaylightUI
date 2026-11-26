@@ -20,7 +20,7 @@ Rows.ACTIVITY = 34    -- activity row
 Rows.SEP = { 1, 1, 1, 0.07 }   -- the thin line under a row that asks for one (spec.sep)
 Rows.SEP_INSET = 8
 Rows.BADGES = 5       -- max role badges per row (a dungeon's five)
-Rows.MEMBERS = 5      -- members listed by name; bigger groups get counts
+Rows.MEMBERS = 10     -- members listed by name, as the game's own tooltip; bigger groups get counts
 Rows.ACTION_W = 24                          -- a row's quick-action button (Invite on a friend), at its right end
 Rows.ACTION_INSET = 8                   -- from the row's right edge
 Rows.ACTION_ICON = "ui-data-social.png"
@@ -50,6 +50,33 @@ function Rows.ClassWord(token)
     if type(token) ~= "string" then return "" end
     local names = LOCALIZED_CLASS_NAMES_MALE
     return (type(names) == "table" and names[token]) or (token:sub(1, 1) .. token:sub(2):lower())
+end
+
+-- A group too big to name everyone: listed by name while it has at most Rows.MEMBERS,
+-- with its open spots only when the whole group fits that list.
+function Rows.ByName(r) return #r.members <= Rows.MEMBERS end
+function Rows.Spots(r) return r.size <= Rows.MEMBERS end
+
+-- How many of each class are in, in the game's class order: "3 Warrior  2 Mage", each
+-- word in its class color, the number in the accent. "" when no class is known.
+function Rows.Classes(r)
+    local n, order = {}, {}
+    for _, m in ipairs(r.members) do
+        if type(m.class) == "string" then
+            if not n[m.class] then order[#order + 1] = m.class end
+            n[m.class] = (n[m.class] or 0) + 1
+        end
+    end
+    local rank = {}
+    if type(CLASS_SORT_ORDER) == "table" then for i, c in ipairs(CLASS_SORT_ORDER) do rank[c] = i end end
+    table.sort(order, function(a, b)
+        local ra, rb = rank[a] or 99, rank[b] or 99
+        if ra ~= rb then return ra < rb end
+        return a < b
+    end)
+    local pop, bits = Win.Parts.Hex({ Style.Pop() }), {}
+    for _, c in ipairs(order) do bits[#bits + 1] = pop .. n[c] .. "|r " .. Rows.Named(Rows.ClassWord(c), c) end
+    return table.concat(bits, "   ")
 end
 
 -- How long ago it was listed: "just now", "20 min", "2 h".
@@ -296,9 +323,11 @@ function Rows.Tip(owner, r)
     if r.newcomers then T.Text(L["New players welcome"], Style.INK.GOOD) end
     if r.delisted then T.Text(L["No longer listed"], Style.INK.WARN) end
     T.Gap()
-    if r.size > Rows.MEMBERS and not r.solo then
+    if not r.solo and not Rows.ByName(r) then
         local line, of = Rows.Counts(r)
         T.Line(line, of)
+        local classes = Rows.Classes(r)
+        if classes ~= "" then T.Text(classes) end
     else
         for _, m in ipairs(r.members) do
             T.Line(W().RoleText(m.role) .. " " .. Rows.Named(m.name, m.class),
@@ -308,6 +337,9 @@ function Rows.Tip(owner, r)
             local can = {}
             for _, item in ipairs(Rows.Badges(r)) do can[#can + 1] = W().RoleText(item.role) end
             if #can > 0 then T.Line(L["Can be"], table.concat(can, " ")) end
+        elseif not Rows.Spots(r) then
+            local line, of = Rows.Counts(r)
+            T.Line(line, of)
         else
             local _, open = ns.Data.Places(r)
             for _, role in ipairs(ns.Data.ROLES) do

@@ -1343,3 +1343,68 @@ T.test("lfg places: open spots never come to more than the group's size", functi
     _, open = ns.Data.Places(r)
     T.eq(open.HEALER, 1); T.eq(open.DAMAGER, 1); T.eq(open.TANK, 0)
 end)
+
+-- A ten-player group (Upper Blackrock Spire) of nine: the game's own tooltip names every
+-- member of a group up to ten, so the card and tooltip must too, classes and all.
+local function bigGroup(n, act)
+    local classes = { "WARRIOR", "PRIEST", "ROGUE", "MAGE", "WARLOCK", "HUNTER", "DRUID", "PALADIN", "MAGE", "ROGUE", "PRIEST", "WARRIOR" }
+    local roles = { "TANK", "HEALER" }
+    local members = {}
+    for i = 1, n do
+        members[i] = { name = "Raider" .. i, classFilename = classes[(i - 1) % #classes + 1], level = 60,
+            assignedRole = roles[i] or "DAMAGER", areaName = i == 1 and "Burning Steppes" or nil }
+    end
+    return { { id = 40, activityIDs = { act }, age = 60, comment = "class run", generalPlaystyle = 2, members = members } }
+end
+
+T.test("lfg: a ten-player group shows every member by name, on the card and the tooltip", function()
+    local ns = load({ results = bigGroup(9, 801), level = 60 })
+    open(ns)
+    tab(ns, "find")
+    local row = rows(ns.Browse.page.stack, "group")[1]
+    T.truthy(row, "the group is listed")
+    local tip = recordTips()
+    row:GetScript("OnEnter")(row)
+    local text = table.concat(tip.lines, "\n")
+    for i = 1, 9 do T.truthy(text:find("Raider" .. i, 1, true), "tooltip names Raider" .. i .. ": " .. text) end
+    T.truthy(text:find("Warlock", 1, true), "with each class: " .. text)
+    click(row)
+    local lines = card(ns.Browse.page.detail)
+    local group = lines["In the group"] or ""
+    for i = 1, 9 do T.truthy(group:find("Raider" .. i, 1, true), "card names Raider" .. i .. ": " .. group) end
+end)
+
+T.test("lfg: a raid too big to name shows how many of each class are in", function()
+    local ns = load({ results = bigGroup(12, 900), level = 60 })
+    open(ns)
+    tab(ns, "find")
+    stub.Key(function() ns.Browse.PickCat(114) end)
+    frame(20)
+    local row = rows(ns.Browse.page.stack, "group")[1]
+    T.truthy(row, "the raid is listed")
+    local tip = recordTips()
+    row:GetScript("OnEnter")(row)
+    local text = table.concat(tip.lines, "\n")
+    T.truthy(text:find("12 / 40", 1, true), "how many of how many: " .. text)
+    T.truthy(text:find("Warrior", 1, true) and text:find("Mage", 1, true) and text:find("Paladin", 1, true), "the classes: " .. text)
+    click(row)
+    local lines = card(ns.Browse.page.detail)
+    local all = {}
+    for k, v in pairs(lines) do all[#all + 1] = tostring(k) .. "=" .. tostring(v) end
+    all = table.concat(all, "\n")
+    T.truthy(all:find("Mage", 1, true) and all:find("Paladin", 1, true), "the card has the classes: " .. all)
+end)
+
+T.test("lfg: a full ten-player group with a long note still names everyone on the card", function()
+    local res = bigGroup(10, 801)
+    res[1].comment = "LFM good old fast class run, nothing reserved on the Hand of Ragnaros, need key, bring health pots and fire resist, summons at the stone"
+    res[1].isDelisted = true
+    local ns = load({ results = res, level = 60 })
+    open(ns)
+    tab(ns, "find")
+    click(rows(ns.Browse.page.stack, "group")[1])
+    local lines = card(ns.Browse.page.detail)
+    local group = lines["In the group"] or ""
+    for i = 1, 10 do T.truthy(group:find("Raider" .. i, 1, true), "card names Raider" .. i .. ": " .. group) end
+    T.truthy(lines.Note, "the note too")
+end)

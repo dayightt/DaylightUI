@@ -302,18 +302,26 @@ function Browse.Spec(r)
             people[#people + 1] = { role = item.role, name = ns.Listing.ROLE_WORD[item.role]() }
         end
         if #people > 0 then rows[#rows + 1] = { label = L["Can be"], people = people } end
-    elseif r.size > ns.Rows.MEMBERS then
+    elseif not ns.Rows.ByName(r) then
+        -- Too many to name (a raid): the role counts, then how many of each class.
         local text, of = ns.Rows.Counts(r)
         add(L["In the group"], text .. "   " .. of, nil, 2)
+        add(CLASS or L["Class"], ns.Rows.Classes(r), nil, 4)
     else
         for _, m in ipairs(r.members) do
             people[#people + 1] = { role = m.role, name = ns.Rows.Named(m.name, m.class), level = m.level }
         end
-        local _, open = Data().Places(r)
-        for _, role in ipairs(Data().ROLES) do
-            for _ = 1, open[role] do people[#people + 1] = { role = role, open = true, name = L["Open spot"] } end
+        if ns.Rows.Spots(r) then
+            local _, open = Data().Places(r)
+            for _, role in ipairs(Data().ROLES) do
+                for _ = 1, open[role] do people[#people + 1] = { role = role, open = true, name = L["Open spot"] } end
+            end
         end
         if #people > 0 then rows[#rows + 1] = { label = L["In the group"], people = people } end
+        if not ns.Rows.Spots(r) then
+            local text, of = ns.Rows.Counts(r)
+            add(nil, text .. "   " .. of, nil, 2)
+        end
     end
     local buttons = {}
     if r.mine then

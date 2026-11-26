@@ -55,6 +55,7 @@ LW.ACTIVITIES = {
     [798] = { fullName = "Ragefire Chasm", shortName = "", categoryID = 2, groupFinderActivityGroupID = 285, minLevelSuggestion = 13, maxLevelSuggestion = 18, maxNumPlayers = 5, displayType = 1, orderIndex = 0 },
     [799] = { fullName = "Wailing Caverns", shortName = "", categoryID = 2, groupFinderActivityGroupID = 285, minLevelSuggestion = 12, maxLevelSuggestion = 25, maxNumPlayers = 5, displayType = 1, orderIndex = 1 },
     [800] = { fullName = "Scarlet Monastery", shortName = "", categoryID = 2, groupFinderActivityGroupID = 285, minLevelSuggestion = 26, maxLevelSuggestion = 45, maxNumPlayers = 5, displayType = 1, orderIndex = 2 },
+    [801] = { fullName = "Upper Blackrock Spire", shortName = "", categoryID = 2, groupFinderActivityGroupID = 285, minLevelSuggestion = 55, maxLevelSuggestion = 60, maxNumPlayers = 10, displayType = 1, orderIndex = 3 },
     [900] = { fullName = "Molten Core", shortName = "", categoryID = 114, groupFinderActivityGroupID = 290, minLevelSuggestion = 60, maxLevelSuggestion = 60, maxNumPlayers = 40, displayType = 2, orderIndex = 0 },
     [950] = { fullName = "The Barrens", shortName = "", categoryID = 116, groupFinderActivityGroupID = 300, minLevelSuggestion = 10, maxLevelSuggestion = 25, maxNumPlayers = 5, displayType = 1, orderIndex = 0 },
     [990] = { fullName = "Custom", shortName = "", categoryID = 120, groupFinderActivityGroupID = 0, minLevelSuggestion = 0, maxLevelSuggestion = 0, maxNumPlayers = 0, displayType = 6, orderIndex = 0 },
