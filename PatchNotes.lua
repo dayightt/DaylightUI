@@ -19,6 +19,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Nameplates", "New profiles put nameplates lower, right over heads instead of floating high above them. Your own profiles keep their height (Nameplates > Plates up / down, which now goes lower too)" },
     }, fixed = {
+        { "Damage numbers", "Picking Game default for damage numbers puts back how they fly, even when another addon had changed it" },
         { "Quests", "With a controller, Show on map in the quest log can be reached with the D-pad" },
         { "Proc Alerts", "Missile Barrage no longer lights up for Clearcasting when the Clearcasting alert is turned off" },
         { "Bags", "Clean up toward the end turns on with one click, stays on when you move your bags, and really packs your items into the last slots" },

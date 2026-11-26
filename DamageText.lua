@@ -85,6 +85,10 @@ function DT.SetPreset(name)
     local p = DT.PRESETS[name]
     if not p then return end
     for key, v in pairs(p) do DUI:Set("general", "damage." .. key, v) end
+    -- A pick always writes, even when Daylight UI's values already match it:
+    -- another addon or the console may have moved the game's settings since.
+    DUI.DB.Root().damageTextSet = true
+    DT.Apply()
 end
 
 local function anyChanged()

@@ -92,6 +92,22 @@ T.test("damage numbers: an untouched player keeps their own game settings", func
     clear()
 end)
 
+-- Another addon (or the console) left the numbers flying wide. Daylight UI never
+-- changed them, so its own values already match "Game default": picking it must
+-- still put the game's settings back, or the page can't undo the fling.
+T.test("damage numbers: picking Game default resets spread left by something else", function()
+    local cvars = fakeCVars(DEFAULTS)
+    cvars[SPREAD], cvars[START] = "3", "2.5"
+    local DUI = stub.Load()
+    stub.RunTimers()
+    DUI.DamageText.SetPreset("game")
+    stub.RunTimers()
+    T.near(tonumber(cvars[SPREAD]), 0, 0.001, "straight up, the game's own")
+    T.near(tonumber(cvars[START]), 1, 0.001)
+    T.isnil(DUI.DB.Root().damageTextSet, "back at the defaults, so nothing more is written")
+    clear()
+end)
+
 T.test("damage numbers: a preset writes the game's spread settings, after combat", function()
     local cvars, writes = fakeCVars(DEFAULTS)
     local DUI = stub.Load()
