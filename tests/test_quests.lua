@@ -2140,6 +2140,37 @@ T.test("quests clicks: a hovered quest wears the list row wash, eased in and out
     T.falsy(a.hi:IsShown(), "gone with the mouse")
 end)
 
+T.test("quests clicks: the hover wash is flush at the sides, half the gap above and measured from the text below", function()
+    local Tr, ns = tracker({ quests = { STEW } })
+    local q = Tr.frames["quest:1"]
+    local _, rel1, p1, x1, y1 = q.hi:GetPoint(1)
+    local _, rel2, p2, x2, y2 = q.hi:GetPoint(2)
+    T.eq(rel1, q); T.eq(rel2, q)
+    T.eq(q.hi:GetParent(), q, "on its own row, so it fades and clips with it")
+    T.eq(p1, "TOPLEFT")
+    T.eq(x1, 0, "flush with the row at the left")
+    T.eq(x2, 0, "and at the right")
+    T.eq(y1, math.ceil(q.block.gap / 2), "half the gap above the title")
+    -- Below, it follows the last line's real text, so a counted objective and a wrapped description
+    -- get the same air under them (the block's height is an estimate ending with the gap).
+    T.eq(p2, "TOPRIGHT", "the bottom is measured from the row's top, to the text's end")
+    local last = q.block.lines[#q.block.lines]
+    local sh = q.lines[last.key].label:GetStringHeight()
+    local textEnd = last.y + ((type(sh) == "number" and sh > 0) and sh or (last.h or 0))
+    T.eq(-y2, textEnd + ns.Rows.HI_PAD_BOTTOM, "past the last line's text")
+    -- Compact: the room above follows the smaller gap; below is the same.
+    DaylightUI:Set("Quests", "compact", true); stub.RunTimers()
+    q = Tr.frames["quest:1"]
+    local _, _, _, _, ty = q.hi:GetPoint(1)
+    local _, _, _, _, by = q.hi:GetPoint(2)
+    T.eq(ty, math.ceil(q.block.gap / 2), "half the compact gap above")
+    T.truthy(ty < y1, "less than with the normal gap")
+    local last2 = q.block.lines[#q.block.lines]
+    local sh2 = q.lines[last2.key].label:GetStringHeight()
+    T.eq(-by, last2.y + ((type(sh2) == "number" and sh2 > 0) and sh2 or (last2.h or 0)) + ns.Rows.HI_PAD_BOTTOM, "the same below with the compact gap")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("quests clicks: rowTips off, a quest under the mouse shows no tooltip but still lights", function()
     local Tr = tracker({ quests = { STEW } })
     local f = Tr.frames["quest:1"]
