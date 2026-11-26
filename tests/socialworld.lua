@@ -409,9 +409,10 @@ local function install()
     }
     -- RolodexConstantsDocumentation (a few of its kinds)
     Enum.RolodexType = Enum.RolodexType or { None = 0, PartyMember = 1, RaidMember = 2, Trade = 3, Whisper = 4, CompleteDungeon = 12, KillRaidBoss = 13, LegacyFriend = 23 }
-    _G.C_ClassInfo = _G.C_ClassInfo or {}
-    local classInfo = keep(C_ClassInfo, "GetClassInfo")
-    C_ClassInfo.GetClassInfo = function(id)
+    -- C_CreatureInfo has GetClassInfo; C_ClassInfo does not exist in the game.
+    _G.C_CreatureInfo = _G.C_CreatureInfo or {}
+    local classInfo = keep(C_CreatureInfo, "GetClassInfo")
+    C_CreatureInfo.GetClassInfo = function(id)
         local token = CLASS_ID[id]
         if token then return { className = CLASS_WORD[token], classFile = token, classID = id } end
         return classInfo and classInfo(id)

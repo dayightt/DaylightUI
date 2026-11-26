@@ -1249,12 +1249,26 @@ T.test("social: the card's titles are tan with a rule under them", function()
     clean()
 end)
 
+-- A recent ally's class comes from C_CreatureInfo.GetClassInfo, the one the game has.
+T.test("social: a recent ally's class is read from C_CreatureInfo", function()
+    local ns = load({ allies = SW.Allies() })
+    open(ns)
+    tab(ns, "allies")
+    local found
+    for _, b in ipairs(rows(ns.Allies.page.stack, "ally")) do
+        if b.spec.ally.name == "Odessa Reed" then found = b.spec.ally end
+    end
+    T.eq(found and found.class, "SHAMAN")
+    T.falsy(_G.C_ClassInfo, "the game has no C_ClassInfo.GetClassInfo, and the fake game doesn't teach it")
+    clean()
+end)
+
 -- An ally's race, faction and realm come from the character's race id and realm.
 T.test("social: an ally's card has race, faction and server from the game's data", function()
-    _G.C_CreatureInfo = {
-        GetRaceInfo = function(id) return { raceName = id == 3 and "Dwarf" or "Human" } end,
-        GetFactionInfo = function(id) return { groupTag = "Alliance", name = "Alliance" } end,
-    }
+    local creature = _G.C_CreatureInfo
+    local race, faction = creature.GetRaceInfo, creature.GetFactionInfo
+    creature.GetRaceInfo = function(id) return { raceName = id == 3 and "Dwarf" or "Human" } end
+    creature.GetFactionInfo = function(id) return { groupTag = "Alliance", name = "Alliance" } end
     local list = SW.Allies()
     for _, a in ipairs(list) do a.characterData.realmName = "CAMWOW US1 Realm 8 PvP" end
     local ns = load({ allies = list })
@@ -1277,7 +1291,7 @@ T.test("social: an ally's card has race, faction and server from the game's data
     T.falsy(all:find("CAMWOW", 1, true), "no Server block on an ally: " .. all)
     T.falsy(all:find("Server", 1, true), "none: " .. all)
     T.truthy(all:find("Faction: Alliance|History:", 1, true), "History comes under the faction: " .. all)
-    _G.C_CreatureInfo = nil
+    creature.GetRaceInfo, creature.GetFactionInfo = race, faction
     clean()
 end)
 
