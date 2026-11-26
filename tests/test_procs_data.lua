@@ -48,3 +48,10 @@ T.test("procs data: every rank list is lowest rank first", function()
     end
     T.eq(ns.Data.RANKS.overpower[1], 7384)
 end)
+
+T.test("procs data: every alert moves by default", function()
+    local ns = load()
+    for _, p in ipairs(ns.Data.PROCS) do
+        T.truthy(p.anim ~= "still", p.key .. " moves")
+    end
+end)
