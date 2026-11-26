@@ -18,6 +18,9 @@ BarFx.SHEET_SPAN = 8      -- a sheet's width in bar heights,
 BarFx.THIN_SPAN = 16      -- and the thin one's
 BarFx.FLARE_SPAN = 4
 BarFx.FLARE = M .. "barfx-flare.png"
+-- The pixel styles' sheets: 32 frames of 128 x 16 art pixels (8 rows for thin
+-- bars), four a row, played through in 3.2 seconds.
+BarFx.PIXEL = { frames = 32, cols = 4, loop = 3.2, wide = 128, tall = 16, thin = 8 }
 local WHITE = BarFx.WHITE
 
 -- A sheet's file: drawn for tall or thin bars, and turned around for a bar
@@ -57,6 +60,21 @@ local function lean(t, side, cut, under)
     end
 end
 
+-- Pixel art keeps whole screen pixels: one art pixel is drawn as the whole
+-- number of them that best fills the bar's height, so it stays crisp. It is
+-- never leaned (that would shear its pixels): it sits back by half the angled
+-- end's cut, its head on the middle of the slanted edge, and the mask trims
+-- what pokes past.
+local function pixelPin(t, bar, fill, side, h, cut, thin, sheet)
+    local px = DUI.Pixel.Px(bar, 1)
+    local rows = thin and sheet.thin or sheet.tall
+    local m = math.max(1, math.floor(h / px / rows + 0.5))
+    t:ClearAllPoints()
+    t:SetPoint(side, fill, side, (side == "LEFT" and 1 or -1) * DUI.Pixel.Snap(bar, cut / 2), 0)
+    t:SetSize(sheet.wide * m * px, rows * m * px)
+    for i = 1, 4 do t:SetVertexOffset(i, 0, 0) end
+end
+
 local function layout(s, p, w, h)
     local bar = s.bar
     local fill = bar:GetStatusBarTexture()
@@ -69,14 +87,24 @@ local function layout(s, p, w, h)
     if p.art ~= art then
         p.art = art
         -- CLAMP, or the game blends each edge with the far one.
-        p.sheet:SetTexture(sheetFile(p.name, thin, left), "CLAMP", "CLAMP")
+        if p.pixel then
+            p.sheet:SetTexture(sheetFile(p.name, thin, left), "CLAMP", "CLAMP", "NEAREST")
+        else
+            p.sheet:SetTexture(sheetFile(p.name, thin, left), "CLAMP", "CLAMP")
+        end
         p.flare:SetTexCoord(left and 1 or 0, left and 0 or 1, 0, 1)
     end
     local px = DUI.Pixel.Px(bar, 1)
-    pin(p.sheet, fill, side, h * (thin and BarFx.THIN_SPAN or BarFx.SHEET_SPAN))
+    if p.pixel then
+        pixelPin(p.sheet, bar, fill, side, h, cut, thin, p.pixel)
+    else
+        pin(p.sheet, fill, side, h * (thin and BarFx.THIN_SPAN or BarFx.SHEET_SPAN))
+    end
     pin(p.flare, fill, side, h * BarFx.FLARE_SPAN)
     pin(p.line, fill, side, thin and px or 2 * px, px)
-    for _, t in ipairs(p.layers) do lean(t, side, cut, under == true) end
+    for _, t in ipairs(p.layers) do
+        if not (p.pixel and t == p.sheet) then lean(t, side, cut, under == true) end
+    end
 end
 
 local function show(s, p, on)
@@ -103,8 +131,9 @@ local function kick(s, p, dir, size)
     Motion.Tween(p, math.min(1, 0.85 * size), 0, Motion.SLOW, function(a) t:SetAlpha(a) end)
 end
 
-local function build(s, name)
-    local p = { layers = {}, name = name }
+-- sheet: a pixel style's sheet numbers (BarFx.PIXEL), nil for Comet's and Embers'.
+local function build(s, name, sheet)
+    local p = { layers = {}, name = name, pixel = sheet }
     p.sheet = layer(p, s)
     p.flare = layer(p, s)
     p.flare:SetTexture(BarFx.FLARE, "CLAMP", "CLAMP")
@@ -115,10 +144,12 @@ local function build(s, name)
     p.anim:SetLooping("REPEAT")
     local a = p.anim:CreateAnimation("FlipBook")
     a:SetTarget(p.sheet)
-    a:SetDuration(BarFx.SHEET_LOOP)
-    a:SetFlipBookRows(BarFx.SHEET_FRAMES / BarFx.SHEET_COLS)
-    a:SetFlipBookColumns(BarFx.SHEET_COLS)
-    a:SetFlipBookFrames(BarFx.SHEET_FRAMES)
+    local frames = sheet and sheet.frames or BarFx.SHEET_FRAMES
+    local cols = sheet and sheet.cols or BarFx.SHEET_COLS
+    a:SetDuration(sheet and sheet.loop or BarFx.SHEET_LOOP)
+    a:SetFlipBookRows(frames / cols)
+    a:SetFlipBookColumns(cols)
+    a:SetFlipBookFrames(frames)
     a:SetFlipBookFrameWidth(0)
     a:SetFlipBookFrameHeight(0)
     -- The game stops a frame's animations while it's hidden: start again on show.
@@ -144,14 +175,14 @@ local function lightOf(hi)
     return { Style.Accent() }
 end
 
--- Shared with the styles kept in files of their own.
+-- Shared with the soft styles (BarFxSoft.lua).
 BarFx.SheetFile, BarFx.Pin, BarFx.Lean, BarFx.Mix, BarFx.LightOf = sheetFile, pin, lean, mix, lightOf
 
 -- tints(hi) returns the sheet's, the line's and the flash's color.
-local function def(name, tints)
+local function def(name, tints, sheet)
     return {
         layout = layout, show = show, kick = kick,
-        build = function(s) return build(s, name) end,
+        build = function(s) return build(s, name, sheet) end,
         paint = function(s, p, lo, hi, alpha)
             local fill = s.bar:GetStatusBarTexture()
             for _, t in ipairs(p.layers) do Style.SameMasks(t, fill, true) end
@@ -178,6 +209,15 @@ BarFx.Add("embers", function() return L["Embers"] end, def("embers", function(hi
     local warm = mix(hi, BarFx.EMBER, 0.5)
     return mix(warm, BarFx.EMBER_HOT, 0.6), BarFx.EMBER_HOT, mix(warm, BarFx.EMBER_HOT, 0.4)
 end))
+
+-- Chunky pixel art at the fill's end (sparks, a stepped flame, a crackling
+-- bolt), kept on whole screen pixels so it stays crisp at any bar height.
+local function pixelTints(hi)
+    return mix(hi, WHITE_HOT, 0.6), WHITE_HOT, mix(hi, WHITE_HOT, 0.8)
+end
+BarFx.Add("pixelsparks", function() return L["Pixel Sparks"] end, def("pixelsparks", pixelTints, BarFx.PIXEL))
+BarFx.Add("pixelblaze", function() return L["Pixel Blaze"] end, def("pixelblaze", pixelTints, BarFx.PIXEL))
+BarFx.Add("pixelarc", function() return L["Pixel Arc"] end, def("pixelarc", pixelTints, BarFx.PIXEL))
 
 -- Tide: a soft band of light swelling up and sinking back through the fill,
 -- the same all along it, so it never stretches with the value. A heal sends a

@@ -649,3 +649,32 @@ T.test("motion: CountTo counts from the last shown number, the first one shown a
     tickAll(1)
     T.eq(fs:GetText(), "ilvl 52.4", "ends on the exact value")
 end)
+
+T.test("Rock tips out, swings past level and settles, then lets Lua rest", function()
+    local DUI = stub.Load()
+    local M = DUI.Motion
+    local seen, last = {}, nil
+    M.Rock("surface", 4, function(v) last = v; seen[#seen + 1] = v end)
+    local function run(t) for _ = 1, math.floor(t / 0.02 + 0.5) do stub.RunOnUpdate(M.Driver(), 0.02) end end
+    run(M.FAST)
+    T.near(last, 4, 0.01, "tipped out over FAST")
+    run(M.SLOW)
+    T.near(last, -0.35 * 4, 0.01, "swung a third past level")
+    run(M.SLOW)
+    T.eq(last, 0, "level again")
+    T.isnil(M.Driver().__scripts.OnUpdate, "then no Lua runs")
+    -- A second rock mid-swing starts from where it is, not from level.
+    M.Rock("surface", 4, function(v) last = v end)
+    run(M.FAST + M.SLOW / 2)
+    local mid = last
+    local first
+    M.Rock("surface", -3, function(v) last = v; first = first or v end)
+    T.near(first, mid, 0.001, "no jump")
+    run(M.FAST + 2 * M.SLOW + 0.1)
+    T.eq(last, 0)
+    -- Motion off: level at once.
+    setMotion(false)
+    local calls = 0
+    M.Rock("off", 4, function(v) calls = calls + 1; last = v end)
+    T.eq(calls, 1); T.eq(last, 0)
+end)

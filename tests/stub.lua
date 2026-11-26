@@ -968,6 +968,71 @@ function Widget:CreateAnimationGroup()
     function g:GetLooping() return self.__looping or "NONE" end
     return g
 end
+-- This client makes a TextureCoordTranslation only from an XML template: asked
+-- for one from Lua it hands back a plain Animation with no SetOffset (seen in
+-- game), so code calling SetOffset on it errors "attempt to call a nil value".
+-- Made from a virtual AnimationGroup template in one of Daylight UI's own XML
+-- files (the .xml lines of DaylightUI.toc), the group gets the template's
+-- looping and its TextureCoordTranslation, aimed at the region it was made on.
+local animTemplates
+local function readAnimTemplates()
+    animTemplates = {}
+    for line in io.lines("DaylightUI.toc") do
+        local file = line:gsub("\r", ""):gsub("\\", "/"):match("^([^#].-%.xml)%s*$")
+        local fh = file and io.open(file)
+        if fh then
+            local xml = fh:read("*a")
+            fh:close()
+            for attrs, body in xml:gmatch("<AnimationGroup(.-)>(.-)</AnimationGroup>") do
+                local name = attrs:match('name="([^"]+)"')
+                if name then
+                    local t = { looping = attrs:match('looping="([^"]+)"'), anims = {} }
+                    for kind, a in body:gmatch("<(%w+)(.-)/>") do
+                        t.anims[#t.anims + 1] = { kind = kind, duration = tonumber(a:match('duration="([^"]+)"')),
+                            u = tonumber(a:match('offsetU="([^"]+)"')) or 0, v = tonumber(a:match('offsetV="([^"]+)"')) or 0 }
+                    end
+                    animTemplates[name] = t
+                end
+            end
+        end
+    end
+end
+do
+    local makeGroup = Widget.CreateAnimationGroup
+    function Widget:CreateAnimationGroup(name, template, ...)
+        local g = makeGroup(self, name, template, ...)
+        self.__animGroups = self.__animGroups or {}
+        self.__animGroups[#self.__animGroups + 1] = g
+        local make = g.CreateAnimation
+        function g:CreateAnimation(kind, ...)
+            if kind ~= "TextureCoordTranslation" then return make(self, kind, ...) end
+            local a = make(self, "Animation", ...)
+            local index = getmetatable(a).__index
+            return setmetatable(a, { __index = function(t, k)
+                if k == "SetOffset" or k == "GetOffset" then return nil end
+                return index(t, k)
+            end })
+        end
+        if type(template) == "string" then
+            if not animTemplates then readAnimTemplates() end
+            local t = animTemplates[template]
+            if not t then error("unknown animation group template " .. template, 2) end
+            if t.looping then g:SetLooping(t.looping) end
+            for _, spec in ipairs(t.anims) do
+                local a = make(g, spec.kind)
+                a.__target, a.__offset = self, { spec.u, spec.v }
+                if spec.duration then a:SetDuration(spec.duration) end
+                function a:GetOffset() return self.__offset[1], self.__offset[2] end
+                function a:GetTarget() return self.__target end
+            end
+        end
+        return g
+    end
+    function Widget:GetAnimationGroups() return unpack(self.__animGroups or {}) end
+    -- Tiling across: a texture repeated at its file's width instead of stretched.
+    function Widget:SetHorizTile(on) self.__horizTile = on == true end
+    function Widget:GetHorizTile() return self.__horizTile == true end
+end
 -- As the client's Button:Click: PreClick, OnClick, PostClick, in order. A test's
 -- click counts as the player's, so it is a hardware event while its scripts run.
 function Widget:Click(button)
@@ -1209,7 +1274,7 @@ function Widget:RemoveMaskTexture(m)
         if x == m then table.remove(self.__masks, i) return end
     end
 end
-function Widget:SetTexture(p, wrapH, wrapV) self.__texture = p; self.__wrap = wrapH; self.__atlas = nil; return true end
+function Widget:SetTexture(p, wrapH, wrapV, filter) self.__texture = p; self.__wrap = wrapH; self.__filter = filter; self.__atlas = nil; return true end
 function Widget:GetTexture() return self.__texture end
 -- The client knows a file by its id, so a texture set by path reads back the id
 -- when the file has one. Tests list them in stub.fileIDs (lowercase, backslashes,
@@ -4259,7 +4324,7 @@ function stub.WrapSecrets()
     end
 end
 
-stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Weapons.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "WorldWatch.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "BarFxDaybreak.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
+stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Weapons.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "WorldWatch.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "BarFxSoft.lua", "BarFxDaybreak.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
                     "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerScreen.lua", "InstallerUI.lua", "InstallerChrome.lua", "InstallerSteps.lua", "InstallerPlugins.lua", "InstallerLooks.lua", "InstallerDuel.lua", "Welcome.lua", "Clashes.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Swap.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
 stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "Auras.lua", "Spells.lua", "Layout.lua",
                      "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",

@@ -54,6 +54,8 @@ WorldWatch.lua
 Gradients.lua
 BarFx.lua
 BarFxStyles.lua
+BarFxSoft.xml
+BarFxSoft.lua
 BarFxDaybreak.lua
 Movers.lua
 Fade.lua

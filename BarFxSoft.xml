@@ -1,0 +1,12 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+    <!-- The soft bar styles' drifting patterns (BarFxSoft.lua). This client makes
+         a TextureCoordTranslation only from XML: asked for one from Lua it gives
+         a plain Animation with no SetOffset. One whole texture width a loop, so
+         it loops with no seam; the speed is set with SetDuration. -->
+    <AnimationGroup name="DaylightUIBarFxDriftRight" looping="REPEAT" virtual="true">
+        <TextureCoordTranslation duration="10" offsetU="-1" offsetV="0"/>
+    </AnimationGroup>
+    <AnimationGroup name="DaylightUIBarFxDriftLeft" looping="REPEAT" virtual="true">
+        <TextureCoordTranslation duration="10" offsetU="1" offsetV="0"/>
+    </AnimationGroup>
+</Ui>

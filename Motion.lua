@@ -440,6 +440,27 @@ end
 -- The shared tween driver (nil until the first tween). Tests run it.
 function Motion.Driver() return driver end
 
+-- A rock: step(v) is handed v tipping out to amp over FAST, swinging back a
+-- third past level over SLOW, then settling at 0 over SLOW, like water
+-- sloshing back. Asked again for the same key, it starts from where it is.
+-- With motion off it goes straight to level.
+Motion.ROCK_BACK = 0.35
+local rockAt = {}
+function Motion.Rock(key, amp, step)
+    if not Motion.On() then
+        rockAt[key] = nil
+        Motion.Tween(key, 0, 0, 0, step)
+        return
+    end
+    local function set(v) rockAt[key] = v; step(v) end
+    local back = -Motion.ROCK_BACK * amp
+    Motion.Tween(key, rockAt[key] or 0, amp, Motion.FAST, set, function()
+        Motion.Tween(key, amp, back, Motion.SLOW, set, function()
+            Motion.Tween(key, back, 0, Motion.SLOW, set, function() rockAt[key] = nil end)
+        end)
+    end)
+end
+
 -- Eases one of Daylight UI's regions to an alpha from wherever it is, stepped by hand
 -- (no animation group, so nothing else's alpha on it is lost). Going up from
 -- hidden it shows at 0 first. With hide, it's hidden once it reaches 0.
