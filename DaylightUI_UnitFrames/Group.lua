@@ -338,7 +338,7 @@ function Group:LayoutAuras(b, cfg)
     ns.GroupPrivate.Layout(b, cfg)
     if b.auraSet then
         local box = ns.AuraGroups.Box(b, cfg)
-        DUI.SafeCall(ns.AuraGroups.Place, b.auraSet, b, cfg.auras, box)
+        DUI.SafeCall(ns.AuraGroups.Place, b.auraSet, b, cfg.auras, box, cfg.iconBorder)
         DUI.SafeCall(ns.Indicators.Place, b.auraSet, b, cfg.indicators, box)
     end
 end

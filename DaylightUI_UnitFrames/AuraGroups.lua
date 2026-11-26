@@ -320,7 +320,8 @@ end
 
 -- One container placed from its group's settings g. on is the filter shown,
 -- or nil for none (counts of 0).
-local function placeOne(c, def, g, on, frame, box)
+-- border: the frame's iconBorder settings.
+local function placeOne(c, def, g, on, frame, box, border)
     local gap = tonumber(g.spacing) or 2
     local s = ns.Auras.SetOwnSize(c, tonumber(g.size) or 14, gap)
     local max = on and math.max(0, math.floor(tonumber(g.max) or 0)) or 0
@@ -344,6 +345,7 @@ local function placeOne(c, def, g, on, frame, box)
     ns.Auras.SetShortTimers(c, g.shortTimers == true)
     ns.Auras.SetSwipe(c, g.swipe == true)
     ns.Auras.SetTips(c, g.tooltips == true)
+    ns.Auras.SetBorder(c, border)
     ns.AuraLists.Use(c, ns.AuraLists.FromGroup(g))
     if real and on then ns.Auras.AddGroup(c, on) end
     if def.kind == "tilebuff" then
@@ -366,13 +368,13 @@ end
 
 -- The parent is protected (a group button), so out of combat only. Extra group
 -- containers are created here too.
-function AuraGroups.Place(set, frame, all, box)
+function AuraGroups.Place(set, frame, all, box, border)
     if not set then return end
     for _, def in ipairs(AuraGroups.DEFS) do
         local c = set[def.key]
         if c then
             local g = type(all) == "table" and type(all[def.key]) == "table" and all[def.key] or {}
-            placeOne(c, def, g, AuraGroups.ActiveKey(def, all, set.plain), frame, box)
+            placeOne(c, def, g, AuraGroups.ActiveKey(def, all, set.plain), frame, box, border)
         end
     end
     for _, key in ipairs(ns.AURA_SLOTS) do
@@ -382,7 +384,7 @@ function AuraGroups.Place(set, frame, all, box)
         local slot = set.extra and set.extra[key]
         for _, def in ipairs(AuraGroups.DEFS) do
             local c = slot and slot[def.key]
-            if c then placeOne(c, def, g or {}, def == active and which or nil, frame, box) end
+            if c then placeOne(c, def, g or {}, def == active and which or nil, frame, box, border) end
         end
     end
 end
@@ -390,9 +392,9 @@ end
 -- A stand-in set (PlainSet) placed like a real one and filled with sample
 -- icons: each shown group's max (capped by its list), or for sample tile i,
 -- the count SAMPLE_COUNTS gives.
-function AuraGroups.ShowSample(set, frame, all, box, i)
+function AuraGroups.ShowSample(set, frame, all, box, i, border)
     if not set then return end
-    AuraGroups.Place(set, frame, all, box)
+    AuraGroups.Place(set, frame, all, box, border)
     for def, c in AuraGroups.Containers(set) do
         local p = placed[c]
         if p then

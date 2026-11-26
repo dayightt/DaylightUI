@@ -886,6 +886,11 @@ function Widget:AddDispelTypeTexture(tex, opts)
     self.__dispels[#self.__dispels + 1] = { tex = tex, opts = opts }
     self.__dispel = self.__dispel or self.__dispels[1]
 end
+-- The client forgets every texture handed to AddDispelTypeTexture (BigWigs and
+-- DBM call it before handing a restyled button its textures again).
+function Widget:ClearDispelTypeTextures()
+    self.__dispels, self.__dispel = nil, nil
+end
 function Widget:SetHitRectInsets(l, r, t, b) self.__hitRect = { l, r, t, b } end
 function Widget:RegisterForClicks(...) self.__clicks = { ... } end
 function Widget:RegisterForDrag(...) self.__drag = { ... } end
@@ -2190,7 +2195,8 @@ _G.CurveConstants = { ScaleTo100 = "ScaleTo100" }
 _G.Enum = {
     StatusBarTimerDirection = { ElapsedTime = 0, RemainingTime = 1 },
     StatusBarInterpolation = { Immediate = 0, ExponentialEaseOut = 1 },
-    CustomAuraButtonDispelTypeTextureStyle = { Border = 0, BorderWithIcon = 1, CustomAsset = 2, PreserveAsset = 3 },
+    -- The game's values (AuraContainerSharedDocumentation.lua).
+    CustomAuraButtonDispelTypeTextureStyle = { Border = 0, BorderWithIcon = 1, Icon = 2, PreserveAsset = 3, CustomAsset = 4 },
     CustomAuraButtonDispelTypeStealableFilter = { Stealable = 0, NotStealable = 1 },
 }
 _G.AuraContainerSortMethod = { Default = 0, BigDefensive = 1, UnitFrameDebuff = 2, ImportantOnly = 3, Expiration = 4,

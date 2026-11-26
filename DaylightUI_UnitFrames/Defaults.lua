@@ -466,6 +466,16 @@ for _, frame in ipairs({ "party", "raid" }) do
     end
 end
 
+-- Icon borders (Auras.SetBorder), set on each frame: the look icons always
+-- had. The custom color starts at the Daylight accent.
+local function iconBorder()
+    local a = DaylightUI.Style.ACCENT
+    return { px = 2, debuff = "dispel", noType = "wine", buff = "plain", color = { a[1], a[2], a[3] }, glow = true }
+end
+ns.BORDER_FRAMES = { "targetAuras", "focusAuras", "playerAuras", "petAuras", "party", "raid" }
+for _, key in ipairs(ns.BORDER_FRAMES) do ns.DEFAULTS[key].iconBorder = iconBorder() end
+ns.DEFAULTS.personal.auras.iconBorder = iconBorder()
+
 -- Raid setups by size (Raid.lua; the Raid 10, Raid 20 and Raid 40 pages).
 -- 11 to 20 players use raid20 / raid20Text and 21 to 40 use raid40 / raid40Text,
 -- built like the 10-player raid setup, unless follow is on (the default), in

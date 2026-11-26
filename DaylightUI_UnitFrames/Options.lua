@@ -900,6 +900,38 @@ end
 -- Each group's name in its rows' labels.
 local GROUP_KINDS = { debuffs = { one = "Debuff", many = "debuffs" }, cc = { one = "Crowd control", many = "crowd control icons" },
                       buffs = { one = "Buff", many = "buffs" } }
+-- The frame's icon borders (Auras.SetBorder), one card per frame. key(s):
+-- the full settings key of s in the frame's aura settings. glow: the frame's
+-- icons have the soft light behind what you can dispel or purge (target and focus).
+local function borderCard(key, gate, glow)
+    local function k(s) return key("iconBorder." .. s) end
+    local dis = gate and off(gate) or nil
+    local items = {
+        { type = "slider", key = k("px"), label = "Icon border size", min = 0, max = ns.Auras.BORDER_MAX, step = 1,
+          unit = "px", since = "2.4.1", disabled = dis,
+          desc = "How thick the border round each buff and debuff icon is. At 0 the icons have none." },
+        { type = "dropdown", key = k("debuff"), label = "Debuff border color", since = "2.4.1", disabled = dis,
+          values = { dispel = "Dispel type color", wine = "Dark red", plain = "Plain" }, order = { "dispel", "wine", "plain" },
+          desc = "Dispel type color shows Magic in blue, Poison in green and so on, so you see what you can remove. Dark red marks every debuff the same, and Plain matches the buffs." },
+        { type = "dropdown", key = k("noType"), label = "Untyped debuff border color", since = "2.4.1",
+          values = { wine = "Dark red", plain = "Plain" }, order = { "wine", "plain" },
+          desc = "The border of a debuff nothing can dispel, while Debuff border color is Dispel type color.",
+          disabled = function(get) return (dis and dis(get)) or get(k("debuff")) ~= "dispel" end },
+        { type = "dropdown", key = k("buff"), label = "Buff border color", since = "2.4.1", disabled = dis,
+          values = { plain = "Plain", accent = "Accent color", class = "Class color", custom = "One color" },
+          order = { "plain", "accent", "class", "custom" },
+          desc = "Plain is the frame's own dark border. Accent color follows your accent (General > Appearance), Class color is your class's." },
+        { type = "color", key = k("color"), label = "Custom buff border color", since = "2.4.1", disabled = dis,
+          desc = "The buffs' border when Buff border color is One color.",
+          hidden = function(get) return get(k("buff")) ~= "custom" end },
+    }
+    if glow then
+        items[#items + 1] = { type = "toggle", key = k("glow"), label = "Dispel and purge glow", since = "2.4.1", disabled = dis,
+            desc = "A soft light behind a debuff you can dispel and a buff you can purge or steal. Turn it off for plain icons." }
+    end
+    return { label = "Icon borders", desc = "The border round this frame's buff and debuff icons.", items = items }
+end
+
 local function auraCards(k, gate)
     local AG, Spots = ns.AuraGroups, ns.Spots
     local cards = {}
@@ -933,6 +965,7 @@ local function auraCards(k, gate)
             for _, card in ipairs(indicatorCards(k, gate)) do cards[#cards + 1] = card end
         end
     end
+    cards[#cards + 1] = borderCard(k, gate)
     return cards
 end
 
@@ -1215,7 +1248,8 @@ local function unitAuraCards(prefix, own, desc)
     for _, it in ipairs(spotItems(prefix, "debuff", k("debuffs"))) do debuffs[#debuffs + 1] = it end
     for _, it in ipairs(spotItems(prefix, "buff", k("buffs"))) do buffs[#buffs + 1] = it end
     return { { label = "Debuffs", desc = desc.debuffs, items = debuffs },
-             { label = "Buffs", desc = desc.buffs, items = buffs } }
+             { label = "Buffs", desc = desc.buffs, items = buffs },
+             borderCard(k, nil, not own) }
 end
 
 local TARGET_AURA_GROUPS = unitAuraCards("targetAuras", false, {
@@ -1691,7 +1725,7 @@ local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "A
 local TAB_OF = { Layers = "Layers", Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
-    ["Heal indicators"] = "Auras", Dispels = "Auras" }
+    ["Heal indicators"] = "Auras", Dispels = "Auras", ["Icon borders"] = "Auras" }
 local function tabOf(label)
     if TAB_OF[label] then return TAB_OF[label] end
     if string.find(label, "^Extra text") then return "Text" end
@@ -3295,6 +3329,7 @@ ns.OPTIONS = { pages = {
         personalTextCard(),
         PERSONAL_AURA_GROUPS[1],
         PERSONAL_AURA_GROUPS[2],
+        PERSONAL_AURA_GROUPS[3],
         DaylightUI.Fade.Card("personal.fade.", nil, off("personal.enabled"), "Personal display"),
     } },
 

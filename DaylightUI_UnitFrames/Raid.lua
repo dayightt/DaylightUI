@@ -275,7 +275,7 @@ function Raid.ShowSample(b, i, cfg)
         ns.AuraGroups.HideSample(b.sampleSet)
         ns.Indicators.HideSample(b.sampleSet)
     else
-        ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n)
+        ns.AuraGroups.ShowSample(b.sampleSet, b, cfg.auras, box, n, cfg.iconBorder)
         ns.Indicators.ShowSample(b.sampleSet, b, cfg.indicators, box, n)
     end
 end

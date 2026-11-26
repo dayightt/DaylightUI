@@ -154,6 +154,9 @@ local swipeOn = setmetatable({}, { __mode = "k" })
 -- Containers whose icons hide their stack count (Auras.SetCounts).
 local noCounts = setmetatable({}, { __mode = "k" })
 local tipsOn = setmetatable({}, { __mode = "k" })
+-- Containers' own icon borders (Auras.SetBorder): container -> look.
+local borderOf = setmetatable({}, { __mode = "k" })
+local function lookOf(c) return c and borderOf[c] or Auras.BORDER end
 
 -- The sweep: elapsed time shades the icon clockwise, like the action bars'
 -- cooldown shade (black at SWIPE_ALPHA), so a buff darkens as it runs out. The
@@ -213,9 +216,66 @@ Auras.DISPEL_KEYS = Style.DISPEL_KEYS
 -- Registers edge to be tinted by the aura's dispel type (Style.DispelEdge) and
 -- returns which method worked. withoutType false: nothing shows for an aura
 -- without a dispel type. asset: a texture to use instead of the plain square.
-function Auras.RegisterDispelEdge(btn, edge, withoutType, asset, coords)
-    return Style.DispelEdge(btn, edge, function(key) return Auras.DISPEL_COLORS[key] or Auras.DEBUFF_BORDER end,
-        { withoutType = withoutType, asset = asset, coords = coords })
+-- plainNone: a debuff without a type takes the plain border color, not wine.
+function Auras.RegisterDispelEdge(btn, edge, withoutType, asset, coords, plainNone)
+    local colorOf = plainNone and function(key)
+        if key == "None" then return Style.BORDER end
+        return Auras.DISPEL_COLORS[key] or Auras.DEBUFF_BORDER
+    end or function(key) return Auras.DISPEL_COLORS[key] or Auras.DEBUFF_BORDER end
+    return Style.DispelEdge(btn, edge, colorOf, { withoutType = withoutType, asset = asset, coords = coords })
+end
+
+-- Icon borders, set on each frame (iconBorder in a frame's aura settings):
+-- px the border's width, debuff dispel (colored by the client from the
+-- aura's dispel type) | wine | plain, noType wine | plain (a typeless debuff
+-- while colored by type), buff plain | accent | class | custom (color), glow
+-- the soft light behind what you can dispel or purge (the target's and the
+-- focus's rows). The defaults are the look icons always had.
+Auras.BORDER = { px = Auras.BORDER_PX, debuff = "dispel", noType = "wine", buff = "plain", glow = true }
+Auras.BORDER_MAX = 4
+local DEBUFF_LOOKS = { dispel = true, wine = true, plain = true }
+local BUFF_LOOKS = { plain = true, accent = true, class = true, custom = true }
+
+-- A frame's settings table (or nil) made into a full look.
+function Auras.BorderLook(cfg)
+    local d = Auras.BORDER
+    cfg = type(cfg) == "table" and cfg or {}
+    local px = tonumber(cfg.px)
+    px = px and math.max(0, math.min(Auras.BORDER_MAX, math.floor(px + 0.5))) or d.px
+    local c = type(cfg.color) == "table" and type(cfg.color[1]) == "number" and cfg.color or nil
+    return { px = px, debuff = DEBUFF_LOOKS[cfg.debuff] and cfg.debuff or d.debuff,
+             noType = cfg.noType == "plain" and "plain" or d.noType,
+             buff = BUFF_LOOKS[cfg.buff] and cfg.buff or d.buff,
+             color = c and { c[1], c[2], c[3] } or nil, glow = cfg.glow ~= false }
+end
+
+local function sameLook(a, b)
+    if a.px ~= b.px or a.debuff ~= b.debuff or a.noType ~= b.noType or a.buff ~= b.buff or a.glow ~= b.glow then
+        return false
+    end
+    if a.buff ~= "custom" then return true end   -- the color counts only for a custom border
+    local x, y = a.color, b.color
+    if not x or not y then return x == y end
+    return x[1] == y[1] and x[2] == y[2] and x[3] == y[3]
+end
+
+-- A buff's border color for look, read at paint time (the accent can change
+-- any time). nil is the plain border.
+function Auras.BuffBorderColor(look)
+    if look.buff == "accent" then return { Style.Accent() } end
+    if look.buff == "class" then
+        local _, token = UnitClass("player")
+        return { Style.ClassColor(token) }
+    end
+    if look.buff == "custom" then return look.color or { Style.Accent() } end
+    return nil
+end
+
+-- A debuff edge's color when the client doesn't pick it (wine or plain).
+local function debuffEdgeColor(look)
+    if look.debuff == "plain" then return Style.BORDER end
+    local w = Auras.DEBUFF_BORDER
+    return { Style.Soften(w[1], w[2], w[3]) }
 end
 
 -- An icon on a party or raid tile. Clicks always pass through to the tile
@@ -229,6 +289,80 @@ function Auras.TileMouse(btn, tips)
     DUI.SafeCall(btn.SetMouseMotionEnabled, btn, tips == true)
 end
 
+-- A button's border from its container's look: the icon's inset, a debuff's
+-- edge, a buff's shell and the glow behind it. again: a button built before,
+-- whose dispel textures the client already holds, so they're cleared and
+-- handed back (an aura button is locked while auras are secret, so this runs
+-- only while it's built or through DUI.AfterRestrictions).
+local function dressBorder(btn, parts, again)
+    local look = lookOf(parts.container)
+    local T = Pixel.Px(btn, look.px)
+    local icon = parts.icon
+    icon:ClearAllPoints()
+    icon:SetPoint("TOPLEFT", btn, "TOPLEFT", T, -T)
+    icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -T, T)
+    if again and btn.ClearDispelTypeTextures then btn:ClearDispelTypeTextures() end
+    local edge = parts.edge
+    if edge then
+        edge:SetShown(look.px > 0)
+        if look.debuff == "dispel" then
+            -- Wine until the client colors it.
+            local w = Auras.DEBUFF_BORDER
+            edge:SetVertexColor(w[1], w[2], w[3], 1)
+            Auras.RegisterDispelEdge(btn, edge, nil, nil, nil, look.noType == "plain")
+        else
+            local c = debuffEdgeColor(look)
+            edge:SetVertexColor(c[1], c[2], c[3], 1)
+        end
+    end
+    local buff = BUFF_KINDS[parts.kind]
+    -- A buff's outline is always made (a lean shell can't add one later) and
+    -- goes see-through at 0, so a later width brings it back.
+    local shell = Style.Shell(btn, {
+        noBackground = true, noBevel = true, borderPx = look.px > 0 and look.px or Auras.BORDER_PX, lean = true,
+        noBorder = not buff, borderAlpha = look.px == 0 and 0 or nil,
+    })
+    -- Kept out of the global style repaint sets: the client owns the button.
+    Style.Untrack(shell)
+    if buff then Style.SetShellColors(shell, Auras.BuffBorderColor(look)) end
+    if (HALO_KINDS[parts.kind] or parts.cure) and look.glow then
+        parts.halo = Style.AuraHalo(btn, Auras.DISPEL_COLORS, parts.cure, nil, parts.halo)
+        Style.PlaceAuraHalo(parts.halo, btn, dimsOf(parts.container, parts.kind)[1])
+    elseif parts.halo then
+        parts.halo:Hide()
+    end
+end
+
+-- A container's own icon border (cfg: a frame's iconBorder settings). Set
+-- before its groups are added, since the client builds the buttons then. A
+-- change restyles the buttons already made once restrictions lift.
+function Auras.SetBorder(c, cfg)
+    if not c then return end
+    local look = Auras.BorderLook(cfg)
+    local old = borderOf[c]
+    if old and sameLook(old, look) then return end
+    if not old and sameLook(Auras.BORDER, look) then borderOf[c] = look return end
+    borderOf[c] = look
+    if plain[c] then return end
+    DUI.AfterRestrictions(function()
+        for btn, parts in pairs(ownButtons(c)) do DUI.SafeCall(dressBorder, btn, parts, true) end
+    end, "auras:border:" .. tostring(c))
+end
+
+-- Repaints the buffs' accent and class borders (the accent can change any
+-- time). Colors only, after restrictions like every touch of these buttons.
+function Auras.RepaintBorders()
+    DUI.AfterRestrictions(function()
+        for btn, parts in pairs(buttons) do
+            local look = lookOf(parts.container)
+            if BUFF_KINDS[parts.kind] and (look.buff == "accent" or look.buff == "class") then
+                local s = Style.GetShell(btn)
+                if s then DUI.SafeCall(Style.SetShellColors, s, Auras.BuffBorderColor(look)) end
+            end
+        end
+    end, "auras:border:repaint")
+end
+
 -- cure: the button belongs to a group of debuffs you can dispel (a group's `halo`).
 function Auras.InitButton(btn, kind, container, cure)
     local s = dimsOf(container, kind)
@@ -238,10 +372,7 @@ function Auras.InitButton(btn, kind, container, cure)
     elseif container and tipsOn[container] == false then
         DUI.SafeCall(btn.EnableMouse, btn, false)
     end
-    local T = Pixel.Px(btn, Auras.BORDER_PX)
     local icon = btn:CreateTexture(nil, "ARTWORK")
-    icon:SetPoint("TOPLEFT", btn, "TOPLEFT", T, -T)
-    icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -T, T)
     icon:SetTexCoord(iconCoords(s[1], s[2]))
     btn:SetIcon(icon)
     -- Soft dark edges fading inward give the icon depth.
@@ -271,30 +402,23 @@ function Auras.InitButton(btn, kind, container, cure)
     btn:SetApplicationCount(count)
     if container and noCounts[container] then count:SetAlpha(0) end
     DUI.SafeCall(btn.SetTooltipAnchorPoint, btn, Auras.TOOLTIP_ANCHOR)
+    local edge
     if not BUFF_KINDS[kind] then
         -- A square edge the size of the button, behind the icon, tinted by the
         -- client from the aura's dispel type. It's the debuff's whole border,
         -- because the client reorders a button's frames and a shell border
-        -- could end up on top and hide it. Wine until the client colors it.
-        local edge = btn:CreateTexture(nil, "BACKGROUND", nil, 1)
+        -- could end up on top and hide it.
+        edge = btn:CreateTexture(nil, "BACKGROUND", nil, 1)
         edge:SetTexture("Interface\\Buttons\\WHITE8x8")
         edge:SetAllPoints(btn)
-        local w = Auras.DEBUFF_BORDER
-        edge:SetVertexColor(w[1], w[2], w[3], 1)
-        Auras.RegisterDispelEdge(btn, edge)
     end
-    local shell = Style.Shell(btn, {
-        noBackground = true, noBevel = true, borderPx = Auras.BORDER_PX, lean = true,
-        noBorder = not BUFF_KINDS[kind],
-    })
-    -- The client owns and redraws aura buttons itself; keep them out of the
-    -- global style repaint sets so a settings change doesn't touch them.
-    Style.Untrack(shell)
+    -- The client owns and redraws aura buttons itself; keep their texts out of
+    -- the global style repaint sets so a settings change doesn't touch them.
     Style.Untrack(time)
     Style.Untrack(count)
-    local halo = (HALO_KINDS[kind] or cure) and Style.AuraHalo(btn, Auras.DISPEL_COLORS, cure)
-    Style.PlaceAuraHalo(halo, btn, s[1])
-    local parts = { icon = icon, kind = kind, container = container, time = time, count = count, halo = halo, cd = cd }
+    local parts = { icon = icon, kind = kind, container = container, time = time, count = count, cd = cd,
+                    edge = edge, cure = cure }
+    dressBorder(btn, parts)
     buttons[btn] = parts
     if container then
         byContainer[container] = byContainer[container] or setmetatable({}, { __mode = "k" })
@@ -411,6 +535,7 @@ function Auras.Create(frame, side, unit, cfg)
             if cfg then
                 Auras.SetTextSizes(c, cfg[kind .. "TimeSize"], cfg[kind .. "CountSize"])
                 Auras.SetRowLook(c, cfg, kind)
+                Auras.SetBorder(c, cfg.iconBorder)
                 ns.AuraLists.Use(c, ns.AuraLists.FromRow(cfg, kind))
             end
         end
@@ -715,11 +840,13 @@ function Auras.Apply(set, cfg)
     Auras.SetOwnSize(set.debuffs, cfg.debuffSize or sizeOf.debuff[1], cfg.debuffSpacing or Auras.SPACING.debuff)
     Auras.SetTextSizes(set.debuffs, cfg.debuffTimeSize, cfg.debuffCountSize)
     Auras.SetRowLook(set.debuffs, cfg, "debuff")
+    Auras.SetBorder(set.debuffs, cfg.iconBorder)
     ns.AuraLists.Use(set.debuffs, ns.AuraLists.FromRow(cfg, "debuff"))
     if set.buffs then
         Auras.SetOwnSize(set.buffs, cfg.buffSize or sizeOf.buff[1], cfg.buffSpacing or Auras.SPACING.buff)
         Auras.SetTextSizes(set.buffs, cfg.buffTimeSize, cfg.buffCountSize)
         Auras.SetRowLook(set.buffs, cfg, "buff")
+        Auras.SetBorder(set.buffs, cfg.iconBorder)
         ns.AuraLists.Use(set.buffs, ns.AuraLists.FromRow(cfg, "buff"))
     end
     -- Others' debuffs: the dispellable ones and the rest, each up to the count,
@@ -970,6 +1097,7 @@ local function sampleButton(parent, kind)
     end
     if BUFF_KINDS[kind] then
         Style.Shell(btn, { noBackground = true, noBevel = true, borderPx = Auras.BORDER_PX, lean = true })
+        btn.borderPx = Auras.BORDER_PX
     else
         btn.edge = btn:CreateTexture(nil, "BACKGROUND", nil, 1)
         btn.edge:SetTexture("Interface\\Buttons\\WHITE8x8")
@@ -994,7 +1122,8 @@ local function fitSample(btn, s, sample, c)
     local time, count = textOf(c, btn.kind)
     if btn.timeSize ~= time then btn.timeSize = time; Style.SetTextSize(btn.time, time) end
     if btn.countSize ~= count then btn.countSize = count; Style.SetTextSize(btn.count, count) end
-    local T = Pixel.Px(btn, Auras.BORDER_PX)
+    local look = lookOf(c)
+    local T = Pixel.Px(btn, look.px)
     btn.icon:ClearAllPoints()
     btn.icon:SetPoint("TOPLEFT", btn, "TOPLEFT", T, -T)
     btn.icon:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -T, T)
@@ -1003,12 +1132,30 @@ local function fitSample(btn, s, sample, c)
     btn.time:SetText(sample.time or "")
     btn.count:SetText(sample.count or "")
     if btn.edge then
-        local col = Auras.DISPEL_COLORS[sample.dispel or "None"] or Auras.DEBUFF_BORDER
-        btn.edge:SetVertexColor(Style.Soften(col[1], col[2], col[3]))
+        btn.edge:SetShown(look.px > 0)
+        if look.debuff == "dispel" then
+            local key = sample.dispel or "None"
+            local col = (key == "None" and look.noType == "plain") and Style.BORDER
+                or Auras.DISPEL_COLORS[key] or Auras.DEBUFF_BORDER
+            btn.edge:SetVertexColor(Style.Soften(col[1], col[2], col[3]))
+        else
+            local col = debuffEdgeColor(look)
+            btn.edge:SetVertexColor(col[1], col[2], col[3])
+        end
+    else
+        -- A buff's shell: laid out again only when the width changes.
+        local px = look.px
+        if btn.borderPx ~= px then
+            btn.borderPx = px
+            Style.Shell(btn, { noBackground = true, noBevel = true, lean = true,
+                               borderPx = px > 0 and px or Auras.BORDER_PX, borderAlpha = px == 0 and 0 or nil })
+        end
+        local shell = Style.GetShell(btn)
+        if shell then Style.SetShellColors(shell, Auras.BuffBorderColor(look)) end
     end
     if btn.halo then
         -- A buff you can purge, or a debuff you can dispel (sample.cure).
-        local glow = sample.purge or (sample.cure and sample.dispel)
+        local glow = look.glow and (sample.purge or (sample.cure and sample.dispel)) or nil
         local col = Auras.DISPEL_COLORS[glow or "Magic"] or Auras.DISPEL_COLORS.Magic
         btn.halo:SetVertexColor(Style.Soften(col[1], col[2], col[3]))
         btn.halo:SetShown(glow ~= nil)

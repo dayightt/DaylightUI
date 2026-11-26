@@ -647,16 +647,18 @@ end
 -- on debuffs with a dispel type instead (the button's group decides which
 -- debuffs, e.g. the target's ones you can dispel). every puts it on any buff,
 -- for a row whose filter already picked only those (nameplates). Returns the
--- texture, or nil when the client refuses.
+-- texture, or nil when the client refuses. halo: one made by an earlier call,
+-- handed to the client again after the button's ClearDispelTypeTextures.
 Style.AURA_HALO = DUI.MEDIA .. "glow.png"
 Style.AURA_HALO_REACH = 0.5 -- how far it spreads past the icon, as a share of its width
-function Style.AuraHalo(btn, colors, harmful, every)
+function Style.AuraHalo(btn, colors, harmful, every, halo)
     local styles = Enum and Enum.CustomAuraButtonDispelTypeTextureStyle
     local steal = Enum and Enum.CustomAuraButtonDispelTypeStealableFilter
     if not (btn.AddDispelTypeTexture and styles and styles.CustomAsset and steal) then return nil end
-    local halo = btn:CreateTexture(nil, "BACKGROUND", nil, -8)
+    halo = halo or btn:CreateTexture(nil, "BACKGROUND", nil, -8)
     halo:SetTexture(Style.AURA_HALO)
     halo:SetBlendMode("ADD")
+    halo:Show()
     -- A buff without a type (rare on a purgeable one) takes Magic's light.
     local assets, tints = dispelSet(colors, Style.AURA_HALO, nil, "Magic")
     local ok = pcall(btn.AddDispelTypeTexture, btn, halo, {

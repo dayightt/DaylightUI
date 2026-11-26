@@ -32,7 +32,12 @@ DaylightUI:RegisterModule("UnitFrames", {
         if lists then ns.AuraLists.Changed() end
         if last then ns.Refresh(mod, last) end
     end,
-    OnStyleChanged = function(mod) ns.Refresh(mod) end,
+    OnStyleChanged = function(mod)
+        ns.Refresh(mod)
+        -- Icons whose border wears the accent or class color: the client owns them,
+        -- so the style repaint skips them.
+        ns.Auras.RepaintBorders()
+    end,
     -- Sample frames shown inside other windows, like the setup guide (Sample.lua).
     Samples = function(_, parent) return ns.Sample.Pair(parent) end,
 })

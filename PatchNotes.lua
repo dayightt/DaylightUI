@@ -15,6 +15,7 @@ DUI.PatchNotes = {
         { "Nameplates", "Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick" },
         { "Proc Alerts", "Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, Strike is a new one, and each alert can turn its embers off" },
         { "Action bars", "Spell costs on your buttons: each spell's mana, rage or energy cost, turning red when you're short. Turn it on in the setup guide or under Action Bars > Text" },
+        { "Unit frames", "Icon borders: set the border round each frame's buff and debuff icons on its own, its thickness, dispel type colors or one color, plain, accent, class or your own color on buffs, and the dispel glow (each frame's Auras tab)" },
     }, fixed = {
         { "Action bars", "A spell cast through a macro lights up its button when it procs" },
     } },
