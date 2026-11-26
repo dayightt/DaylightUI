@@ -38,6 +38,7 @@ PR.RACE = { Human = 1, Dwarf = 0.8, NightElf = 1.15, Gnome = 0.55, Orc = 1.05, S
             Troll = 1.15, BloodElf = 1, Draenei = 1.15 }
 PR.FORM = { [1] = 0.7, [3] = 0.85, [4] = 0.6, [5] = 1.05, [8] = 1.05, [16] = 0.75, [31] = 1.2 }
 PR.MOUNTED = 1.55
+PR.MOUNT_RECHECK = 0.5 -- seconds before a second look at the mounted state
 
 PR.DOCK_GAP = 4      -- gap between the pieces stacked under the bars
 PR.TEXT_MIN = 8      -- a number sized to fit its bar never goes smaller than this
@@ -399,6 +400,33 @@ function PR.HookCamera()
     for _, event in ipairs({ "PLAYER_ENTERING_WORLD", "PLAYER_MOUNT_DISPLAY_CHANGED", "UPDATE_SHAPESHIFT_FORM",
                              "UI_SCALE_CHANGED", "DISPLAY_SIZE_CHANGED", "CVAR_UPDATE" }) do
         DUI.RegisterEvent(event, PR.Wake)
+    end
+    -- Attacking from a mount knocks you off it with no mount event, so the mount
+    -- aura going and the fight starting are watched too.
+    DUI.RegisterUnitEvent("UNIT_AURA", PR.MountCheck, "player")
+    DUI.RegisterEvent("PLAYER_REGEN_DISABLED", PR.MountCheck)
+end
+
+-- Wakes the follow when the mounted state really changed. The game can still
+-- say mounted for a moment after the mount aura goes, so while it does, one
+-- more look follows shortly after.
+function PR.MountCheck()
+    local mounted = IsMounted()
+    if isSecret(mounted) then return end
+    mounted = mounted and true or false
+    if mounted ~= PR.wasMounted then
+        PR.wasMounted = mounted
+        PR.Wake()
+    end
+    if mounted and not PR.checkSoon then
+        PR.checkSoon = true
+        C_Timer.After(PR.MOUNT_RECHECK, function()
+            PR.checkSoon = nil
+            local now = IsMounted()
+            if isSecret(now) or now then return end
+            PR.wasMounted = false
+            PR.Wake()
+        end)
     end
 end
 

@@ -270,6 +270,26 @@ T.test("a mount or a bigger race drops it further, a form shrinks it", function(
     stub.formID = nil
 end)
 
+-- Attacking from a mount knocks you off it with no mount event, and the game's
+-- mounted state can lag the aura change by a moment. The display must still
+-- come back up under you.
+T.test("knocked off a mount by an attack, it comes back up under you", function()
+    local _, _, PR = login()
+    stub.mounted = true
+    stub.FireEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+    frames(PR, 200)
+    T.near(topY(PR), expected(PR, 15, PR.MOUNTED), 0.5, "mounted")
+    -- The mount aura goes while the game still says mounted, then the fight starts.
+    stub.FireEvent("UNIT_AURA", "player")
+    stub.FireEvent("PLAYER_REGEN_DISABLED")
+    frames(PR, 200)
+    stub.mounted = nil
+    frames(PR, 200)
+    stub.RunTimers()
+    frames(PR, 200)
+    T.near(topY(PR), expected(PR, 15, 1), 0.5, "back at the unmounted spot")
+end)
+
 T.test("a secret race keeps the last plain one", function()
     local _, _, PR = login()
     stub.race = "Tauren"
