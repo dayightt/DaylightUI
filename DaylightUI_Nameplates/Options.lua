@@ -693,6 +693,16 @@ ns.OPTIONS = { pages = {
               disabled = function(get) return not get("friendly.enabled") or not get("friendly.percent") end },
             { type = "toggle", key = "friendly.level", label = "Friendly level", disabled = off("friendly.enabled"),
               desc = "Their level by the bar." },
+            { type = "dropdown", key = "friendly.levelColor", label = "Friendly level color", since = "2.4.1",
+              values = { class = "Class and reaction", white = "White", accent = "Accent color", custom = "One color" },
+              order = { "class", "white", "accent", "custom" },
+              desc = "Players' levels in their class color and NPCs' in their reaction color, like their names. Or always white, your accent color, or one color you pick.",
+              disabled = function(get) return not get("friendly.enabled") or not get("friendly.level") end },
+            { type = "color", key = "friendly.levelCustom", label = "Custom friendly level color", since = "2.4.1",
+              desc = "The friendly level's color when Friendly level color is One color.",
+              disabled = function(get)
+                  return not get("friendly.enabled") or not get("friendly.level") or get("friendly.levelColor") ~= "custom"
+              end },
             { type = "toggle", key = "friendly.power", label = "Friendly power bar", since = "1.6.6", disabled = off("friendly.enabled"),
               desc = "Their mana, rage or energy as a thin bar under the health bar: see a healer running low. Who gets one, its size and color follow Health & Names > Power bar." },
             { type = "dropdown", key = "friendly.healthColor", label = "Friendly health bar color",

@@ -162,6 +162,8 @@ ns.DEFAULTS = {
         totemBorder = true, -- the ring or edge in the element's color
         percent = false, healthFormat = "percent", percentSign = true, healthSize = 0,
         level = false,
+        levelColor = "class", -- "class" (class and reaction, as the name), "white", "accent", "custom"; never by difficulty
+        levelCustom = { INK.VALUE[1], INK.VALUE[2], INK.VALUE[3] }, -- ...color for "custom"
         power = false, -- power bar under friendly health bars (who: shared powerShow)
         showName = true, -- names on friendly plates (name-only plates keep theirs)
         nameSize = 13, nameColor = "class", guild = true, role = true,

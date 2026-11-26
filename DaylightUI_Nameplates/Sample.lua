@@ -170,7 +170,7 @@ Sample.PARTS = {
                "percentPos", "percentX", "percentY", "friendly.percentPos", "friendly.percentX", "friendly.percentY" },
       move = { spot = PERCENT("Pos"), x = PERCENT("X"), y = PERCENT("Y") } },
     { label = "Level", at = at("level"),
-      keys = { "level", "levelColor", "levelCustom", "levelSize", "media.levelFont", "friendly.level", "levelPos", "levelX", "levelY",
+      keys = { "level", "levelColor", "levelCustom", "levelSize", "media.levelFont", "friendly.level", "friendly.levelColor", "friendly.levelCustom","levelPos", "levelX", "levelY",
                "friendly.levelPos", "friendly.levelX", "friendly.levelY" },
       move = { spot = LEVEL("Pos"), x = LEVEL("X"), y = LEVEL("Y") },
       size = { s = { "levelSize" } } },
@@ -588,7 +588,7 @@ local function refresh(s, width, maxH)
         end
     end
     if p.percent:IsShown() then DUI.Health.WriteSample(p.percent, pc.healthFormat or "percent", pct, value, pc.percentSign ~= false) end
-    if p.level:IsShown() then Plate.PaintLevel(p, u.level, u.classification) end
+    if p.level:IsShown() then Plate.PaintLevel(p, u.level, u.classification, nil, u) end
     Plate.PaintDragon(p, u.classification)
 
     -- Threat shows on its own page, in the state the chips picked.

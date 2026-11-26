@@ -2105,9 +2105,39 @@ function Plate.UpdateLevel(p)
     Plate.PaintLevel(p, lvl, plain(UnitClassification, u), u)
 end
 
+-- A friendly unit's level says nothing about danger, so it never takes the
+-- difficulty colors (a low-level friend read gray). Class and reaction like the
+-- name, white, the accent or one color. The preview has no unit, only its
+-- sample's class and reaction.
+function Plate.PaintFriendLevel(p, unit, sample)
+    local c = Plate.Cfg(p)
+    local mode, t = c.levelColor, c.levelCustom
+    if mode == "white" then
+        Style.InkText(p.level, "VALUE")
+    elseif mode == "accent" then
+        Style.InkText(p.level, "pop")
+    elseif mode == "custom" and type(t) == "table" then
+        p.level:SetTextColor(t[1], t[2], t[3])
+    else
+        local token, reaction
+        if sample then
+            token, reaction = sample.class, sample.reaction
+        elseif unit then
+            if plain(UnitIsPlayer, unit) == true then token = select(2, UnitClass(unit)) end
+            reaction = plain(UnitReaction, unit, "player")
+        end
+        if token then
+            p.level:SetTextColor(Style.ClassTextColor(token))
+        else
+            local r, g, b = Style.ReactionColor(reaction)
+            p.level:SetTextColor(Style.Lighten(r, g, b, Plate.NAME_LIGHTEN))
+        end
+    end
+end
+
 -- A plain level and classification ("elite"...) into the level text. Also used by
--- the preview's sample, which has no unit token, just its level.
-function Plate.PaintLevel(p, lvl, classification, unit)
+-- the preview's sample, which has no unit token, just its level and the sample.
+function Plate.PaintLevel(p, lvl, classification, unit, sample)
     local text, r, g, b
     if lvl <= 0 then
         text = "??"
@@ -2120,7 +2150,10 @@ function Plate.PaintLevel(p, lvl, classification, unit)
     end
     p.level:SetText(text)
     -- A plugin's level (DaylightUI.API's Paint) keeps its color.
-    if not Plate.Owned("level") then
+    local owned = Plate.Owned("level")
+    if not owned and p.friendly then
+        Plate.PaintFriendLevel(p, unit, sample)
+    elseif not owned then
         -- "??" keeps its skull red whatever the setting: danger is what the glance needs.
         local mode = lvl > 0 and Plate.Cfg(p).levelColor or "difficulty"
         local t = mode == "custom" and Plate.Cfg(p).levelCustom

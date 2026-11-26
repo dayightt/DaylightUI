@@ -213,6 +213,36 @@ T.test("nameplates: the level's own color and size (levelColor, levelCustom, lev
     T.eq(select(2, p.level:GetFont()), 17, "its own size")
 end)
 
+T.test("nameplates: a friendly level is never gray by difficulty: class and reaction by default, or the picked color", function()
+    login(function()
+        _G.UnitLevel = function(u) if u == "player" then return 60 end return 10 end
+        _G.UnitClassification = function() return "normal" end
+        stub.units.nameplate3 = { name = "Stormwind Guard", reaction = 5, health = 100, maxHealth = 100 }
+    end)
+    local set = function(k, v) DaylightUI:Set("Nameplates", k, v); stub.RunTimers() end
+    set("friendly.enabled", true)
+    set("friendly.level", true)
+    local Style = DaylightUI.Style
+    local mage, guard, mob = added("nameplate2"), added("nameplate3"), added("nameplate1")
+    local function same(fs, what, r, g, b)
+        local c = fs.__textColor
+        T.truthy(math.abs(c[1] - r) < 1e-6 and math.abs(c[2] - g) < 1e-6 and math.abs(c[3] - b) < 1e-6, what)
+    end
+    T.eq(mage.level.__text, "10")
+    same(mage.level, "a level 10 mage seen at 60: her class color, not gray", Style.ClassTextColor("MAGE"))
+    local rr, rg, rb = Style.ReactionColor(5)
+    same(guard.level, "a friendly NPC: its reaction color, as its name", Style.Lighten(rr, rg, rb, stub.nameplates.Plate.NAME_LIGHTEN))
+    local gray = mob.level.__textColor
+    T.truthy(math.abs(gray[1] - gray[2]) < 0.05, "the enemy at level 10 keeps the game's gray")
+    set("friendly.levelColor", "white")
+    same(mage.level, "white", Style.INK.VALUE[1], Style.INK.VALUE[2], Style.INK.VALUE[3])
+    set("friendly.levelColor", "custom")
+    set("friendly.levelCustom", { 0.2, 0.4, 0.9 })
+    same(mage.level, "one picked color", 0.2, 0.4, 0.9)
+    set("levelColor", "white")
+    same(mage.level, "the enemy setting leaves friends be", 0.2, 0.4, 0.9)
+end)
+
 T.test("nameplates: friendly plates are just the name by default, no casts or auras", function()
     login()
     local p = added("nameplate2")
