@@ -723,6 +723,15 @@ function DB.ProcsOff(p)
     if p.modules.Procs.enabled == nil then p.modules.Procs.enabled = false end
 end
 
+-- Nameplates used to sit 14 px above the game's spot, which left names floating
+-- well over heads. New profiles start lower; one from before keeps the height
+-- it had, so nobody's plates move under them.
+function DB.KeepPlateHeight(p)
+    if type(p.modules) ~= "table" then p.modules = {} end
+    if type(p.modules.Nameplates) ~= "table" then p.modules.Nameplates = {} end
+    if p.modules.Nameplates.offsetY == nil then p.modules.Nameplates.offsetY = 14 end
+end
+
 -- Bar ends became one setting per end. Where one switch covered both ends,
 -- the saved choice is split so each end looks as it did: the data bar's
 -- angled (now its left end) gives its right end the same, and the loot
@@ -801,6 +810,10 @@ local function migrate(sv)
         if type(p) == "table" and not p.procsOff1 then
             p.procsOff1 = true
             DB.ProcsOff(p)
+        end
+        if type(p) == "table" and not p.plateLow1 then
+            p.plateLow1 = true
+            DB.KeepPlateHeight(p)
         end
         if type(p) == "table" and not p.barEnds1 then
             p.barEnds1 = true
@@ -890,7 +903,7 @@ local function point()
     if type(pd[DB.activeName]) ~= "table" then DB.activeName = DB.Fallback() end
     if type(pd[DB.activeName]) ~= "table" then
         -- The account's first profile. Whatever the setup guide saves comes from this.
-        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, tagLetters1 = true, tipStyle1 = true, procsOff1 = true, unsaved = true,
+        pd[DB.activeName] = { gradients1 = true, localFont1 = true, hiddenBars1 = true, backs1 = true, tagLetters1 = true, tipStyle1 = true, procsOff1 = true, plateLow1 = true, unsaved = true,
                               general = {},
                               modules = DB.StandardStart() }
         pd[DB.activeName].general.localFont = DB.NonLatinClient() or nil

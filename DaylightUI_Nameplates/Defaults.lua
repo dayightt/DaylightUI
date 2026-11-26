@@ -17,7 +17,7 @@ ns.OUTSIDE_SPOTS = { "above", "below", "outleft", "outright", "outtopleft", "out
 ns.DEFAULTS = {
     media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS, ns.MEDIA_FONTS),
     scale = 1,              -- on top of the UI's scale; the game's plate scale is ignored
-    offsetY = 14, -- offset up (+) or down (-) from the center of the game's plate
+    offsetY = -20, -- offset up (+) or down (-) from the center of the game's plate (older profiles keep 14, DB.KeepPlateHeight)
     range = 60, -- max plate distance in yards (the game's maximum)
     targetScale = true, -- size your target's plate and the others separately (below)
     target = { width = 1, height = 1, scale = 1.15, nameSize = 0 }, -- nameSize: target name (0 = Name size); the rest scale target Width and bar height, plus extra zoom

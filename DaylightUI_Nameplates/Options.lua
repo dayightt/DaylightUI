@@ -97,7 +97,7 @@ ns.OPTIONS = { pages = {
         { label = "Size and look", items = {
             { type = "slider", key = "scale", label = "Nameplate scale", min = 0.5, max = 2, step = 0.05, unit = "x",
               desc = "Size of every plate, friendly and enemy. Plates keep this size at any distance." },
-            { type = "slider", key = "offsetY", label = "Plates up / down", min = -20, max = 40, step = 1, unit = "px",
+            { type = "slider", key = "offsetY", label = "Plates up / down", min = -50, max = 40, step = 1, unit = "px",
               desc = "Moves plates up or down from where the game puts them. Higher plates can end up where the game's damage numbers start, and those always draw behind plates." },
             { type = "slider", key = "range", label = "View distance", min = 20, max = 60, step = 1,
               desc = "How far away plates show, in yards. 60 is the most the game allows." },

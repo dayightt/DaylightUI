@@ -311,6 +311,35 @@ T.test("Proc Alerts start off in profiles from before them, on in new ones", fun
     T.eq(pd.Fresh.procsOff1, true, "a new profile is marked")
 end)
 
+-- Nameplates sit lower by default now: profiles from before keep the old
+-- height once, so no player's plates move; new installs and new profiles
+-- start low.
+T.test("nameplates keep their old height in old profiles, sit low in new ones", function()
+    local DUI = stub.Load({ nameplates = true, before = function()
+        DaylightUIDB = { version = 2, profileData = {
+            Old = { modules = { Tooltip = { textSize = 13 } } },
+            Moved = { modules = { Nameplates = { offsetY = 5 } } } } }
+    end })
+    local pd = DaylightUIDB.profileData
+    T.eq(pd.Old.modules.Nameplates.offsetY, 14, "an existing profile keeps the old height")
+    T.eq(pd.Moved.modules.Nameplates.offsetY, 5, "a height picked by hand stays")
+    pd.Old.modules.Nameplates.offsetY = nil
+    DUI.DB.Init()
+    T.isnil(pd.Old.modules.Nameplates.offsetY, "only once")
+    DUI.Profiles.Create("Fresh")
+    T.eq(pd.Fresh.plateLow1, true, "a new profile is marked")
+    T.eq(DUI:Get("Nameplates", "offsetY") ~= nil, true)
+end)
+
+T.test("a fresh install starts with low nameplates", function()
+    local DUI = stub.Load({ nameplates = true })
+    local first = DaylightUIDB.profileData[DUI.DB.DEFAULT]
+    T.eq(first.plateLow1, true)
+    T.eq(DUI:Get("Nameplates", "offsetY"), -20)
+    DUI.DB.Init()
+    T.eq(DUI:Get("Nameplates", "offsetY"), -20, "still low on the next load")
+end)
+
 T.test("a fresh install starts with Proc Alerts on, and stays so on the next load", function()
     local DUI = stub.Load({ procs = true })
     local first = DaylightUIDB.profileData[DUI.DB.DEFAULT]
