@@ -606,8 +606,12 @@ local function truthUp(id, holder)
     if A and A.Unseen(id) then return nil end
     -- A buff someone else can put up too (Battle Shout): the item only counts your
     -- own cast. Where the holder can read it whoever cast it, that's the better
-    -- word; where it can't, yours being up or down is the best there is.
-    if A and A.GameBlind(id) and A.Knows(holder) then return nil end
+    -- word, though the item saying yours is up still counts; where it can't,
+    -- yours being up or down is the best there is.
+    if A and A.GameBlind(id) and A.Knows(holder) then
+        if holder.anyCaster and buffUp(holder.ids) == true then return true end
+        return nil
+    end
     -- A row that doesn't list the rank you know: its item saying up is still true
     -- (a lower rank), but its silence isn't a down.
     if A and A.Short(id) then return buffUp(holder and holder.ids) == true or nil end

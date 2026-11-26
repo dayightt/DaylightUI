@@ -727,6 +727,7 @@ local function initButton(h, btn)
     try(btn.SetApplicationCount, btn, parts.count)
     ns.CdmEffects.MakeSlide(btn, h)
     if h.isShield then watchShown(h, btn) end
+    if h.anyCaster then ns.CdmAuras.WatchShown(h, btn) end
     DUI.SafeCall(B.LayoutButton, h, btn, parts)
 end
 

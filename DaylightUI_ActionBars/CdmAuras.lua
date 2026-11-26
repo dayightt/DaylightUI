@@ -3,7 +3,8 @@
 -- the client finds the aura and draws the button only while it's up. Its buttons are
 -- never read. Whether the aura is up is the game's own Cooldown Manager item's to
 -- say (CdmRows asks it). A holder answers by itself only for what it really knows:
--- the pet, a debuff it counts from your own casts, and an aura the game never hides.
+-- the pet, a debuff it counts from your own casts, an aura the game never hides, and
+-- a buff or debuff anyone's cast counts for (its own button says, A.WatchShown).
 -- Any other buff with no item of the game's is drawn and nothing more.
 
 local _, ns = ...
@@ -197,6 +198,15 @@ local function forgetShort() for k in pairs(short) do short[k] = nil end end
 DUI.RegisterEvent("SPELLS_CHANGED", forgetShort)
 for _, e in ipairs(ns.CdmData.INFO_EVENTS) do DUI.RegisterEvent(e, forgetShort) end
 
+-- A buff anyone's cast counts for (Battle Shout) or a debuff the target holds one
+-- copy of (Sunder Armor). The game's item lights for your own cast alone, so with
+-- someone else's up it says down. The holder watches every caster's, so its own
+-- button is the word (A.WatchShown).
+function A.AnyCaster(id)
+    local own, C = ownKey(id), ns.CdmCustom
+    return own ~= nil and (C.Shared(own) or C.Unique(own)) or false
+end
+
 -- The game's item never sees this aura at all: a trap's debuff, a buff on your pet,
 -- a summoned helper. (A buff others can cast too it does see, only never theirs.)
 function A.Unseen(id)
@@ -352,6 +362,30 @@ local function initButton(h, btn)
     if parts.box then placeButton(h, btn) end
     if btn.SetMouseMotionEnabled then try(btn.SetMouseMotionEnabled, btn, false) end
     ns.CdmEffects.MakeSlide(btn, h)
+    if h.anyCaster then A.WatchShown(h, btn) end
+end
+
+-- The client plays a button's shown animations as it comes up for an aura and stops
+-- them once it has none (ApplyVisibility in Blizzard_CustomAuraButton.lua), in a
+-- fight too, while the aura itself and the button's own shown state are secret. An
+-- empty looping group handed to it tells whether any of the holder's buttons is up.
+local function shownChanged(h, btn, up)
+    h.shownButtons = h.shownButtons or {}
+    local was = next(h.shownButtons) ~= nil
+    h.shownButtons[btn] = up or nil
+    if was ~= (next(h.shownButtons) ~= nil) and h.wantsUp and ns.CdmRows then ns.CdmRows.Refresh() end
+end
+
+function A.WatchShown(h, btn)
+    if type(btn.AddAuraShownAnimation) ~= "function" then return end
+    local ag = btn:CreateAnimationGroup()
+    local still = ag:CreateAnimation("Translation")
+    still:SetOffset(0, 0)
+    still:SetDuration(3600)
+    ag:SetLooping("REPEAT")
+    ag:SetScript("OnPlay", function() shownChanged(h, btn, true) end)
+    ag:SetScript("OnStop", function() shownChanged(h, btn, false) end)
+    DUI.SafeCall(btn.AddAuraShownAnimation, btn, ag)
 end
 
 -- h.layoutFor and h.init let other holders (CdmBars' aura bars) use their own button
@@ -391,6 +425,7 @@ end
 -- doesn't mean "on the target" (Battle Shout reports false).
 local function setup(h, id)
     h.id, h.containers, h.err = id, {}, nil
+    h.anyCaster, h.shownButtons = nil, nil
     local C = ns.CdmCustom
     local custom = C ~= nil and C.Is(id)
     -- Custom pieces only build containers out of combat, since it's unclear whether
@@ -476,6 +511,8 @@ local function setup(h, id)
         if k then k.follow = true end
         return
     end
+    -- Set before the containers exist: the client makes their buttons right away.
+    h.anyCaster = A.AnyCaster(id) or nil
     build(h, "player", "HELPFUL", ids)
     if h.onPet then build(h, "pet", "HELPFUL", ids) end
     -- A spell added by ID can also be a debuff on you (Weakened Soul after a
@@ -1060,6 +1097,12 @@ function A.IsUp(h)
         end
         return h.up
     end
+    if h.anyCaster and not h.neverSecret then
+        -- Anyone's copy counts: read where auras are plain, else whether the
+        -- client's button for it is up.
+        if readable() then h.up = found(h) else h.up = next(h.shownButtons or {}) ~= nil end
+        return h.up
+    end
     if not h.neverSecret then return nil end
     h.up = found(h)
     return h.up
@@ -1067,7 +1110,7 @@ end
 
 -- Whether the holder can tell by itself if it's up, in a fight too (A.IsUp).
 function A.Knows(h)
-    return type(h) == "table" and (h.face ~= nil or h.neverSecret == true)
+    return type(h) == "table" and (h.face ~= nil or h.neverSecret == true or h.anyCaster == true)
 end
 
 -- The aura read straight off the unit: true or false where auras read plainly,
@@ -1098,7 +1141,7 @@ function A.AuraChanged()
             end
             paintFace(h)
             if h.wantsUp and h.up ~= was then moved = true end
-        elseif h.wantsUp and h.neverSecret and h:IsShown() then
+        elseif h.wantsUp and (h.neverSecret or h.anyCaster) and h:IsShown() then
             local was = h.up
             if A.IsUp(h) ~= was then moved = true end
         elseif h.reads and readable() then

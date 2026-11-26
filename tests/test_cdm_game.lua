@@ -629,6 +629,7 @@ end
 -- in a fight either. Those stay drawn and nothing more, in town too, since an option
 -- that works in town and not in a fight reads as broken.
 local THORNS = 467
+local PACK = 17007   -- Leader of the Pack: on no group list, so only the game's icon can tell it
 local NO_ICON = {
     { "its row only shows in combat", true, function() CW.Setting("BuffIconCooldownViewer", "VisibleSetting", Enum.CooldownViewerVisibleSetting.InCombat) end },
     { "its row is hidden", false, function() CW.Setting("BuffIconCooldownViewer", "VisibleSetting", Enum.CooldownViewerVisibleSetting.Hidden) end },
@@ -637,14 +638,14 @@ local NO_ICON = {
 for _, case in ipairs(NO_ICON) do
 for _, shape in ipairs({ "icon", "bar" }) do
 T.test("cdm game: a buff with no game icon to ask right now, " .. case[1] .. " (" .. shape .. ")", function()
-    local DUI, AB, D, R, Fx = classWorld("DRUID", THORNS, { THORNS }, case[4])
-    local id = CW.ID(THORNS, BUFFS)
+    local DUI, AB, D, R, Fx = classWorld("DRUID", PACK, { PACK }, case[4])
+    local id = CW.ID(PACK, BUFFS)
     local set = D.Current()
     D.AddPiece(set, id, shape, 0, 0)
     set.pieces[id].missing, set.pieces[id].missingGlow = true, true
     pass(AB)
     if case[3] then
-        -- Thorns is hidden by default. Daylight UI switched it on in the game's
+        -- Leader of the Pack is hidden by default. Daylight UI switched it on in the game's
         -- layout at login, and remembers that it did.
         DUI.DB.Character().cdmSwitched = { [id] = BUFFS }
         case[3](); stub.RunTimers()
@@ -656,27 +657,37 @@ T.test("cdm game: a buff with no game icon to ask right now, " .. case[1] .. " (
     if not case[2] then
         T.eq(R.Tracked(id), false, "nothing can tell in a fight: the card leaves the rows out")
         T.falsy(Fx.GlowShown(holder()), "and no glow in town either")
-        CW.Aura("player", THORNS, { duration = 600 }); stub.RunTimers()
+        CW.Aura("player", PACK, { duration = 600 }); stub.RunTimers()
         T.eq(R.Tracked(id), false, "the same while it's up")
         T.eq(#stub.errors, 0, tostring(stub.errors[1]))
         return
     end
     T.truthy(R.Tracked(id), "the card offers Hide, the glows and the sounds")
     T.truthy(Fx.GlowShown(holder()), "not up: the missing glow")
-    CW.Aura("player", THORNS, { duration = 600 }); stub.RunTimers()
+    CW.Aura("player", PACK, { duration = 600 }); stub.RunTimers()
     T.truthy(R.Tracked(id), "still offered while it's up")
     T.falsy(Fx.GlowShown(holder()), "up: no glow")
-    CW.Unaura("player", THORNS); stub.RunTimers()
+    CW.Unaura("player", PACK); stub.RunTimers()
     T.truthy(R.Tracked(id), "and after it dropped")
     T.truthy(Fx.GlowShown(holder()), "gone: the glow again")
     -- In a fight the game's row is back, and its icon answers again.
     stub.EnterCombat(); stub.FireEvent("PLAYER_IN_COMBAT_CHANGED", true); stub.RunTimers()
     T.truthy(BuffIconCooldownViewer:IsShown(), "the game's row shows in a fight")
-    T.truthy(Fx.GlowShown(holder()), "missing in a fight: the glow")
-    CW.Aura("player", THORNS, { duration = 600 }); stub.RunTimers()
-    T.falsy(Fx.GlowShown(holder()), "up in a fight: no glow")
-    CW.Unaura("player", THORNS); stub.RunTimers()
-    T.truthy(Fx.GlowShown(holder()), "dropped in a fight: the glow again")
+    -- There the game's icon draws it again, a stand-in while it's down.
+    local function lit()
+        return holder(), CW.Item(id), AB.CdmOwn.PlaceholderFrame(id, shape)
+    end
+    local function glows()
+        for _, f in ipairs({ lit() }) do
+            if f and f:IsShown() and Fx.GlowShown(f) then return true end
+        end
+        return false
+    end
+    T.truthy(glows(), "missing in a fight: the glow")
+    CW.Aura("player", PACK, { duration = 600 }); stub.RunTimers()
+    T.falsy(glows(), "up in a fight: no glow")
+    CW.Unaura("player", PACK); stub.RunTimers()
+    T.truthy(glows(), "dropped in a fight: the glow again")
     stub.LeaveCombat(); stub.FireEvent("PLAYER_IN_COMBAT_CHANGED", false); stub.RunTimers()
     T.falsy(BuffIconCooldownViewer:IsShown(), "the row goes again after the fight")
     T.truthy(R.Tracked(id), "still offered")
@@ -690,8 +701,8 @@ end
 -- Once the pass finds nothing can tell its buff, the card is drawn again, so it
 -- shows the same rows now as when the spell is picked again later.
 T.test("cdm game: the card is drawn again once a just-placed buff has been looked at", function()
-    local DUI, AB, D, R = classWorld("DRUID", THORNS, { THORNS }, true)
-    local id = CW.ID(THORNS, BUFFS)
+    local DUI, AB, D, R = classWorld("DRUID", PACK, { PACK }, true)
+    local id = CW.ID(PACK, BUFFS)
     local Ed, Card = AB.CdmEditor, AB.CdmCard
     Ed.Open(1); stub.RunTimers()
     D.AddPiece(D.Current(), id, "icon", 0, 0)
@@ -751,11 +762,11 @@ end)
 for _, case in ipairs({ { "its row is hidden", "Tracked Buffs row is set to Hidden" },
                         { "the game's layout hides the buff", "makes no icon for this buff" } }) do
 T.test("cdm game: the card says why a buff has no up or missing options, " .. case[1], function()
-    local DUI, AB, D, R = classWorld("DRUID", THORNS, { THORNS }, case[1] ~= "its row is hidden")
+    local DUI, AB, D, R = classWorld("DRUID", PACK, { PACK }, case[1] ~= "its row is hidden")
     if case[1] == "its row is hidden" then
         CW.Setting("BuffIconCooldownViewer", "VisibleSetting", Enum.CooldownViewerVisibleSetting.Hidden); stub.RunTimers()
     end
-    local id = CW.ID(THORNS, BUFFS)
+    local id = CW.ID(PACK, BUFFS)
     local Ed, Card = AB.CdmEditor, AB.CdmCard
     Ed.Open(1); stub.RunTimers()
     D.AddPiece(D.Current(), id, "icon", 0, 0)
@@ -835,6 +846,114 @@ T.test("cdm game: a row that lists every rank you know keeps the game's item as 
     CW.Aura("target", SAP, { harmful = true, duration = 25 }); stub.RunTimers()
     T.truthy(CW.Item(id).isActive, "the game's item sees it")
     T.truthy(R.Tracked(id), "and answers for it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- A player's warrior: Battle Shout set to Buff only, Buff up Hide, Buff missing
+-- Show with its glow, every stance on, hooked right of another spell in a group
+-- shown only in a fight, with Slide over on. While a shout is on you it stays out
+-- of sight, in a fight too (auras secret), yours or another warrior's: the game's
+-- own item only ever lights for yours, so with someone else's up it read as
+-- missing and showed, glowing.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: Battle Shout set to show only while missing stays hidden while any shout is up (" .. shape .. ")", function()
+    local DUI, AB, D, R, Fx = world({ known = { SHOUT, 5242, 6192, 11549, 11550, 11551, 25289, REND, CLAP } })
+    local shout, rend = CW.ID(SHOUT, BUFFS), CW.ID(REND, ESSENTIAL)
+    local set = D.Current()
+    D.AddPiece(set, rend, "icon", 0, 0)
+    D.AddPiece(set, shout, shape, 0, 0)
+    T.truthy(D.Hook(set, shout, rend, "right", "center"))
+    local p = set.pieces[shout]
+    p.track, p.hideActive, p.missing, p.missingGlow = "buff", true, true, true
+    T.truthy(D.SetChainValue(set, rend, "combat", true))
+    T.truthy(D.SetChainValue(set, rend, "collapse", true))
+    pass(AB)
+    local function holder()
+        return shape == "bar" and AB.CdmBars.AuraFrame(shout) or AB.CdmAuras.Frame(shout)
+    end
+    -- The fake container doesn't match auras itself. As the client's does, it shows
+    -- its button for any caster's shout on you (HELPFUL, no PLAYER), in a fight too.
+    local function button()
+        local h = holder()
+        for _, k in ipairs(h.containers) do
+            if k.unit == "player" and k.filter == "HELPFUL" then return k.c.__groups.a.button, k.c end
+        end
+    end
+    local function shoutOn(from)
+        CW.Aura("player", 25289, { duration = 120, sourceUnit = from })
+        stub.AuraVisible((button()), true); stub.RunTimers()
+    end
+    local function shoutOff()
+        CW.Unaura("player", 25289)
+        stub.AuraVisible((button()), false); stub.RunTimers()
+    end
+    -- What a player sees of it: the client's button, the icon kept in its spot,
+    -- the glow.
+    local function seen()
+        local h = holder()
+        local out = {}
+        local btn, c = button()
+        if btn.__auraShown and c:GetAlpha() > 0 then out[#out + 1] = "button" end
+        if h.underBox and h.underBox:IsShown() and (h.underAlpha or 1) > 0 then out[#out + 1] = "icon" end
+        if Fx.GlowShown(h) then out[#out + 1] = "glow" end
+        return #out == 0 and "hidden" or table.concat(out, "+")
+    end
+    -- A bar keeps an empty bar in its spot, under the glow.
+    local missing = shape == "bar" and "glow" or "icon+glow"
+    shoutOn()
+    T.eq(R.DrawnBy(shout), shape == "bar" and "aura bar" or "aura icon", "drawn by Daylight UI's holder")
+    T.truthy(R.Tracked(shout), "the card offers Buff up and Buff missing")
+    T.eq(seen(), "hidden", "your shout, out of a fight: hidden")
+    stub.EnterCombat(); stub.FireEvent("PLAYER_REGEN_DISABLED"); stub.RunTimers()
+    T.eq(seen(), "hidden", "a fight starts: hidden")
+    shoutOff(); shoutOn()
+    T.eq(seen(), "hidden", "shouted again over it: hidden")
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM"); stub.RunTimers()
+    T.eq(seen(), "hidden", "a stance swap: hidden")
+    shoutOff()
+    T.eq(seen(), missing, "ran out: shown, glowing")
+    -- Another warrior's shout takes the place of yours.
+    shoutOn("party1")
+    T.falsy(CW.Item(shout).isActive, "the game's item never lights for someone else's")
+    T.eq(seen(), "hidden", "another warrior's shout in a fight: hidden")
+    shoutOff()
+    T.eq(seen(), missing, "theirs ran out: shown, glowing")
+    shoutOn("party1")
+    stub.LeaveCombat(); stub.FireEvent("PLAYER_REGEN_ENABLED"); stub.RunTimers()
+    T.eq(seen(), "hidden", "theirs as the fight ends: hidden")
+    shoutOff()
+    T.eq(seen(), missing, "theirs gone out of a fight: shown")
+    shoutOn("party1")
+    T.eq(seen(), "hidden", "theirs out of a fight: hidden")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+end
+
+-- A group buff (Thorns) is drawn by Daylight UI's holder, which shows anyone's
+-- copy. With no game icon at all (its row hidden in Edit Mode) the holder's own
+-- button still tells whether it's up, in a fight too.
+for _, shape in ipairs({ "icon", "bar" }) do
+T.test("cdm game: a group buff with its row hidden is still told by its own button (" .. shape .. ")", function()
+    local DUI, AB, D, R, Fx = classWorld("DRUID", THORNS, { THORNS })
+    local id = CW.ID(THORNS, BUFFS)
+    local set = D.Current()
+    D.AddPiece(set, id, shape, 0, 0)
+    set.pieces[id].missing, set.pieces[id].missingGlow = true, true
+    CW.Setting("BuffIconCooldownViewer", "VisibleSetting", Enum.CooldownViewerVisibleSetting.Hidden)
+    pass(AB)
+    local h = shape == "bar" and AB.CdmBars.AuraFrame(id) or AB.CdmAuras.Frame(id)
+    local btn = h.containers[1].c.__groups.a.button
+    T.truthy(R.Tracked(id), "the card offers its up and missing rows")
+    T.truthy(Fx.GlowShown(h), "not up: the missing glow")
+    stub.EnterCombat(); stub.RunTimers()
+    CW.Aura("player", THORNS, { duration = 600, sourceUnit = "party1" })
+    stub.AuraVisible(btn, true); stub.RunTimers()
+    T.falsy(Fx.GlowShown(h), "a friend's Thorns in a fight: up, no glow")
+    CW.Unaura("player", THORNS)
+    stub.AuraVisible(btn, false); stub.RunTimers()
+    T.truthy(Fx.GlowShown(h), "gone in a fight: the glow again")
+    stub.LeaveCombat()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 end

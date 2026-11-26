@@ -5975,9 +5975,9 @@ T.test("cdm state: a buff nothing can tell about is drawn and nothing more, its 
 end)
 
 -- Battle Shout is a buff another warrior can put on you, which the game's item doesn't
--- count. Where the game hides auras in a fight nothing can read theirs, so your own
--- being up or down (the game's item) is the best word there is, and the reminder to
--- cast it keeps working in a fight.
+-- count. Its holder's own button is the word for anyone's (test_cdm_game), and the
+-- game's item saying yours is up still counts, so the reminder to cast it keeps
+-- working in a fight.
 T.test("cdm state: a buff others can cast too takes the game's item for your own (icon and bar)", function()
     local DUI, AB, E, D, set, _, _, icons = auraWorld(false, { 31, 41 })
     DUI.DB.General().motion = false
