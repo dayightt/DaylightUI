@@ -480,3 +480,23 @@ T.test("book spend: the window opens on the set in use again", function()
     T.isnil(ns.Talents.group)
     T.eq(ns.Talents.data.configID, BW.CONFIG)
 end)
+
+-- The game's switch refusing the call must reach the error log, and Activate must
+-- stay ready to try again, never a click that silently does nothing.
+T.test("book spend: a switch the game refuses is reported, and Activate stays ready", function()
+    local ns = load({ tree = { left = 3 }, dual = "new" })
+    local page = openTalents(ns)
+    page.sets[2]:Click()
+    frame(2)
+    local real = C_SpecializationInfo.SetActiveSpecGroup
+    C_SpecializationInfo.SetActiveSpecGroup = function() error("SetActiveSpecGroup refused") end
+    local before = #stub.errors
+    page.actions.buttons[1]:Click()
+    C_SpecializationInfo.SetActiveSpecGroup = real
+    T.eq(#stub.errors, before + 1, "the refusal is in the error log")
+    T.truthy(tostring(stub.errors[#stub.errors]):find("refused"), tostring(stub.errors[#stub.errors]))
+    T.isnil(ns.Spend.activating, "no switch waiting")
+    T.falsy(page.actions.buttons[1].off, "Activate still works")
+    page.actions.buttons[1]:Click()
+    T.deq(BW.Calls("SetActiveSpecGroup")[1], { 2 }, "the next click goes through")
+end)

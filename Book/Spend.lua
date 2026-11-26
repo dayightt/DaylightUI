@@ -129,7 +129,10 @@ function Spend.Activate(group)
     local S = C_SpecializationInfo
     if type(S) ~= "table" or group == ns.TalentData.ActiveGroup() then return false end
     if InCombatLockdown() then return false end
-    call(S.SetActiveSpecGroup, group)
+    if type(S.SetActiveSpecGroup) ~= "function" then return false end
+    -- Through SafeCall, so a refusal reaches the error log instead of the click
+    -- silently doing nothing; Activate then stays ready to try again.
+    if not DUI.SafeCall(S.SetActiveSpecGroup, group) then return false end
     Spend.activating = group
     -- Moving interrupts the cast without any event, hence the timeout.
     C_Timer.After(Spend.SWITCH_WAIT, function()
