@@ -3596,6 +3596,7 @@ function Plate.Uninstall(p)
     ns.Auras.SetUnit(p, nil)
     ns.Cast.Stop(p, true)
     ns.Cast.Unkick(p)
+    DUI.BarFx.ClearReaction(p.health)
     DUI.Motion.KickTagOff(p.kickTag)
     ns.Minion.Clear(p)
     DUI.Motion.Tween(p, 1, 1, 0) -- stops a fade in progress

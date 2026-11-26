@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Speech bubbles", "Speech bubbles have a sleek new look with a cut corner, a colored line and a little pointer. Chat options can change the line (or take it away), color it by the speaker's class, and set the background and the corner" },
         { "Angled bars", "Each end of an angled bar can now be straight or lean either way, on its own, so a bar can be shaped /--/, \\--/, /--\\ or \\--\\: unit frames, raid tiles, cast bars, swing timers, power bars, the personal display, meters, the data bar, the loot feed and the breath bar. Heals, shields and everything inside the bars follow, and bars hung under a flipped end lean back in" },
         { "Proc Alerts", "An Animation speed slider for each alert, to make its animation calmer or livelier" },
+        { "General", "Daybreak, a new bar animation: a soft crescent of light rides the end of your health bar, a hit pushes a shadow into it and a heal draws two rings of light back to the edge. Pick it under Bar animation on a unit frame or nameplate page" },
     }, fixed = {
         { "Setup guide", "Picking EllesmereUI Cooldown Manager or Minimap no longer turns off all of your action bars or info panel" },
         { "Chat", "Whisper from the group finder or friends list lets you type right away, no second click" },

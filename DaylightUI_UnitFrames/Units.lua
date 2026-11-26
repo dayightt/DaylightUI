@@ -558,7 +558,10 @@ end
 -- stays the same, empty or not).
 local function occupant(unit)
     local f = ns.frames[unit]
-    if f then DUI.APIReport.Occupant("unit", f, unit) end
+    if not f then return end
+    -- A hit or heal still playing on the bar was the last occupant's.
+    if f.health then DUI.BarFx.ClearReaction(f.health) end
+    DUI.APIReport.Occupant("unit", f, unit)
 end
 
 local function registerEvents()

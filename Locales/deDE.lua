@@ -1344,7 +1344,7 @@ L["The colors the animation moves: the ones the bar already has, your accent, yo
 L["One end of the custom pair."] = "Erste Farbe des eigenen Farbpaars."
 L["The other end of the custom pair."] = "Zweite Farbe des eigenen Farbpaars."
 L["React to hits and heals"] = "Auf Treffer und Heilungen reagieren"
-L["Animations that react (Tide) move with every heal and hit. When off, they keep their steady pace."] = "Animationen, die reagieren („Flut“), bewegen sich bei jeder Heilung und jedem Treffer mit. Sonst laufen sie gleichmäßig weiter."
+L["Animations that react (Tide, Daybreak) move with every heal and hit. When off, they keep their steady pace."] = "Animationen, die reagieren („Flut“, „Daybreak“), bewegen sich bei jeder Heilung und jedem Treffer mit. Sonst laufen sie gleichmäßig weiter."
 L["Reaction size"] = "Reaktionsstärke"
 L["How big a reaction is. The game doesn't say how big a hit or heal was, so every one moves the same."] = "Stärke der Reaktion. Das Spiel verrät nicht, wie groß ein Treffer oder eine Heilung war, deshalb fällt jede Reaktion gleich aus."
 L["Small icons over your frame from its left end. Your buff bars show them too."] = "Kleine Symbole über deinem Rahmen, ab seinem linken Ende. Deine Buffleisten zeigen sie ebenfalls."

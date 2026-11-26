@@ -6884,7 +6884,7 @@ L["A soft animated light on the outline around your target, like on the main but
 L["Animation colors"] = "Colores de la animación"
 L["Animation speed"] = "Velocidad de la animación"
 L["Animation strength"] = "Intensidad de la animación"
-L["Animations that react (Tide) move with every heal and hit. When off, they keep their steady pace."] = "Las animaciones que reaccionan (Marea) se mueven con cada curación y cada golpe. Desactivado, mantienen su ritmo constante."
+L["Animations that react (Tide, Daybreak) move with every heal and hit. When off, they keep their steady pace."] = "Las animaciones que reaccionan (Marea, Alba) se mueven con cada curación y cada golpe. Desactivado, mantienen su ritmo constante."
 L["Bar animation"] = "Animación de la barra"
 L["Bar styles"] = "Estilos de barra"
 L["Bars that move: their colors roll along them and react to the fight."] = "Barras que se mueven: sus colores avanzan por ellas y reaccionan al combate."

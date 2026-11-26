@@ -144,6 +144,9 @@ local function lightOf(hi)
     return { Style.Accent() }
 end
 
+-- Shared with the styles kept in files of their own.
+BarFx.SheetFile, BarFx.Pin, BarFx.Lean, BarFx.Mix, BarFx.LightOf = sheetFile, pin, lean, mix, lightOf
+
 -- tints(hi) returns the sheet's, the line's and the flash's color.
 local function def(name, tints)
     return {

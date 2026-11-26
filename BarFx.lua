@@ -420,7 +420,21 @@ end
 -- The unit a tracked bar shows (Tide reacts to its hits and heals).
 function BarFx.SetUnit(bar, unit)
     local s = worn[bar]
-    if s then s.unit = unit end
+    if not s then return end
+    -- Another unit: a reaction still playing was the last one's.
+    if s.unit ~= unit then BarFx.ClearReaction(bar) end
+    s.unit = unit
+end
+
+-- A bar now shows someone else under the same unit token (a new target, a
+-- nameplate handed to another mob): a style's reaction in flight stops.
+function BarFx.ClearReaction(bar)
+    local s = worn[bar]
+    if not (s and s.pieces) then return end
+    for key, p in pairs(s.pieces) do
+        local def = BarFx.DEFS[key]
+        if def and def.clearReaction then def.clearReaction(s, p) end
+    end
 end
 
 -- A power bar's power token (MANA, RAGE...), for "By power type". A power bar

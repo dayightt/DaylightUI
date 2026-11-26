@@ -930,10 +930,26 @@ end
 -- animation's start value, so a test can check none runs where a tween owns it.
 function Widget:CreateAnimationGroup()
     local g = new("AnimationGroup", nil, self)
+    -- Each animation keeps what it was set to, read back by the client's getters.
+    g.__anims = {}
     function g:CreateAnimation(kind)
         if kind == "Alpha" then g.__alpha = true end
-        return new("Animation", nil, self)
+        local a = new("Animation", nil, self)
+        g.__anims[#g.__anims + 1] = a
+        function a:GetObjectType() return kind or "Animation" end
+        function a:SetDuration(d) self.__duration = d end
+        function a:GetDuration() return self.__duration or 0 end
+        function a:SetFlipBookFrames(n) self.__frames = n end
+        function a:GetFlipBookFrames() return self.__frames or 0 end
+        function a:SetFlipBookColumns(n) self.__cols = n end
+        function a:GetFlipBookColumns() return self.__cols or 0 end
+        function a:SetFlipBookRows(n) self.__rows = n end
+        function a:GetFlipBookRows() return self.__rows or 0 end
+        return a
     end
+    function g:GetAnimations() return unpack(self.__anims) end
+    function g:SetAnimationSpeedMultiplier(k) self.__speed = k end
+    function g:GetAnimationSpeedMultiplier() return self.__speed or 1 end
     -- OnPlay as it starts, OnStop when a playing group is stopped, as the
     -- client's AnimationGroup scripts. A looping group plays until stopped.
     function g:Play()
@@ -949,6 +965,7 @@ function Widget:CreateAnimationGroup()
     end
     function g:IsPlaying() return self.__playing == true end
     function g:SetLooping(kind) self.__looping = kind end
+    function g:GetLooping() return self.__looping or "NONE" end
     return g
 end
 -- As the client's Button:Click: PreClick, OnClick, PostClick, in order. A test's
@@ -4242,7 +4259,7 @@ function stub.WrapSecrets()
     end
 end
 
-stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Weapons.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "WorldWatch.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
+stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Weapons.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "WorldWatch.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "BarFxDaybreak.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
                     "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerScreen.lua", "InstallerUI.lua", "InstallerChrome.lua", "InstallerSteps.lua", "InstallerPlugins.lua", "InstallerLooks.lua", "InstallerDuel.lua", "Welcome.lua", "Clashes.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Swap.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
 stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "Auras.lua", "Spells.lua", "Layout.lua",
                      "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",

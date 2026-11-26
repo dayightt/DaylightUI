@@ -1584,7 +1584,7 @@ local function barFxItems(spec, c)
           hidden = function(get) return get(base .. "colors") ~= "custom" end, disabled = none,
           desc = "The other end of the custom pair." },
         { type = "toggle", key = base .. "react", label = "React to hits and heals", since = "1.8.5",
-          hidden = function() return c.kind ~= "health" end, disabled = none, desc = "Animations that react (Tide) move with every heal and hit. When off, they keep their steady pace." },
+          hidden = function() return c.kind ~= "health" end, disabled = none, desc = "Animations that react (Tide, Daybreak) move with every heal and hit. When off, they keep their steady pace." },
         { type = "slider", key = base .. "reactSize", label = "Reaction size", min = 0.25, max = 2, step = 0.05, unit = "x", since = "1.8.5",
           hidden = function() return c.kind ~= "health" end, disabled = function(get) return none(get) or get(base .. "react") == false end,
           desc = "How big a reaction is. The game doesn't say how big a hit or heal was, so every one moves the same." },
