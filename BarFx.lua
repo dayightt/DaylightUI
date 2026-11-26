@@ -166,20 +166,27 @@ local function playFlow(s)
     end
 end
 
--- Flow: the bar's own two colors rolling along it. A base of the bar's own
--- texture in the first color and a soft wave in the second over it
--- (barfx-wave.png, eased on a cosine, so the turns have no crease), or on a
--- Daylight sweep bar the sweep itself there and back (barfx-sweep.png). Both
--- are flipbook sheets the game steps through, so nothing moves out of the
--- fill: each layer is laid exactly over it and wears the fill's own masks (its
--- moving angled edge, and the bar's still ends), as the bar's texture layer
--- does. They sit just over the fill and under everything else drawn on the bar
--- (hidden-class colors, a cast's "can't interrupt" color).
+-- Flow: the bar's own two colors rolling along it, or on a Daylight sweep bar
+-- the sweep itself there and back (barfx-sweep.png). The waves are flipbook
+-- sheets the game steps through, so nothing moves out of the fill: each layer
+-- is laid exactly over it and wears the fill's own masks (its moving angled
+-- edge, and the bar's still ends), as the bar's texture layer does. They sit
+-- just over the fill and under everything else drawn on the bar (hidden-class
+-- colors, a cast's "can't interrupt" color).
+-- The bar's texture has to show all along the bar, crest and trough: a plain
+-- wave laid over it hid its shading wherever the wave stood, so every bar
+-- texture looked the same. So the base wears the bar's own texture in what the
+-- two colors share (the lower of each channel), and two soft waves ADD the
+-- rest on top: the second color's share on a cosine (barfx-wave.png, eased, so
+-- the turns have no crease) and the first's on its mirror (barfx-wave-ebb.png,
+-- one minus the wave). The colors still roll exactly between the two, with
+-- the texture's shading under them.
 -- No layer is drawn in MOD: one with a mask wipes out what lies under it where
 -- the mask cuts it away, so the world showed through past the fill's angled
 -- edge (seen in game).
 BarFx.WHITE = "Interface\\Buttons\\WHITE8X8"
 BarFx.WAVE = DUI.MEDIA .. "barfx-wave.png"
+BarFx.WAVE_EBB = DUI.MEDIA .. "barfx-wave-ebb.png"
 BarFx.SWEEP = DUI.MEDIA .. "barfx-sweep.png"
 BarFx.FRAMES = 256   -- rows in the sheets (tools/make_barfx.py)
 BarFx.FILL_SUB = -7   -- the fill's sublevel while a style shows; Flow just above, lights over it (BarFx.FX_SUB), the bar's overlays from 1
@@ -205,10 +212,14 @@ local function buildFlow(s)
     h.base = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
     h.sweep = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 1)
     h.wave = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
-    h.layers = { h.base, h.sweep, h.wave }
+    h.ebb = bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
+    h.wave:SetBlendMode("ADD")
+    h.ebb:SetBlendMode("ADD")
+    h.layers = { h.base, h.sweep, h.wave, h.ebb }
     for _, t in ipairs(h.layers) do Style.FollowFill(bar, t) end
     flipbook(h.anim, h.sweep)
     flipbook(h.anim, h.wave)
+    flipbook(h.anim, h.ebb)
     -- The game stops a frame's animations while it's hidden: start again on show.
     h.extra, h.waves = {}, 0
     bar:HookScript("OnShow", function()
@@ -225,7 +236,8 @@ local function extraWave(s, i)
     if e then return e end
     e = { anim = s.bar:CreateAnimationGroup() }
     e.anim:SetLooping("REPEAT")
-    e.tex = s.bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 2)
+    -- Laid over the added pair: drawn under it, the pair would add onto it.
+    e.tex = s.bar:CreateTexture(nil, "ARTWORK", nil, BarFx.FILL_SUB + 3)
     Style.FollowFill(s.bar, e.tex)
     flipbook(e.anim, e.tex)
     h.extra[i] = e
@@ -239,6 +251,7 @@ local function showFlow(h, on)
     h.base:SetShown(on and not h.isSweep)
     h.sweep:SetShown(on and h.isSweep == true)
     h.wave:SetShown(on and not h.isSweep)
+    h.ebb:SetShown(on and not h.isSweep and h.ebbOn == true)
     for i, e in ipairs(h.extra or {}) do
         e.tex:SetShown(on and not h.isSweep and i <= (h.waves or 0) and e.live == true)
     end
@@ -281,11 +294,17 @@ local function paintFlow(s)
         h.sweep:SetTexture(BarFx.SWEEP, "CLAMP", "CLAMP")
         h.sweep:SetVertexColor(1, 1, 1, alpha)
     else
-        -- The bar's own texture, so its shading stays.
+        -- The bar's own texture, so its shading stays, in what both colors
+        -- share; the waves add each color's own part over it.
+        local r, g, b = math.min(lo[1], hi[1]), math.min(lo[2], hi[2]), math.min(lo[3], hi[3])
         h.base:SetTexture(grain or BarFx.WHITE, "CLAMP", "CLAMP")
-        h.base:SetVertexColor(lo[1], lo[2], lo[3], alpha)
+        h.base:SetVertexColor(r, g, b, alpha)
         h.wave:SetTexture(BarFx.WAVE, "CLAMP", "CLAMP")
-        h.wave:SetVertexColor(hi[1], hi[2], hi[3], alpha)
+        h.wave:SetVertexColor(hi[1] - r, hi[2] - g, hi[3] - b, alpha)
+        -- A lighter shade of one color adds nothing on the ebb: no layer then.
+        h.ebbOn = lo[1] > r or lo[2] > g or lo[3] > b
+        h.ebb:SetTexture(BarFx.WAVE_EBB, "CLAMP", "CLAMP")
+        h.ebb:SetVertexColor(lo[1] - r, lo[2] - g, lo[3] - b, alpha)
         for i = 1, waves do
             local t, c = h.extra[i].tex, stops[i + 2]
             t:SetTexture(BarFx.WAVE, "CLAMP", "CLAMP")

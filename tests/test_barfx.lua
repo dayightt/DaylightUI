@@ -104,7 +104,7 @@ T.test("Flow rolls the bar's own colors on a loop the client runs", function()
             T.truthy(#(r.__masks or {}) >= 1, "masked to the fill")
         end
     end
-    T.eq(strips, 3, "a base, a soft wave and the bar texture over them, between the fill and its overlays")
+    T.eq(strips, 4, "a base in the bar's texture, the sweep, a soft wave and its mirror, between the fill and its overlays")
     cfg.style = "none"
     DUI.Fire("StyleChanged")
     T.isnil(DUI.BarFx.StyleOf(bar), "picking none takes it off")
@@ -317,7 +317,8 @@ T.test("Tide swells on its own, surges on a heal, ebbs on a hit, then lets Lua r
     end
     T.truthy(swell, "its own swell, not Flow's rolling colors")
     for _, r in ipairs(lights(bar)) do
-        T.truthy(r:GetTexture() ~= DUI.BarFx.WAVE and r:GetTexture() ~= DUI.BarFx.SWEEP, "no Flow under it")
+        T.truthy(r:GetTexture() ~= DUI.BarFx.WAVE and r:GetTexture() ~= DUI.BarFx.WAVE_EBB
+            and r:GetTexture() ~= DUI.BarFx.SWEEP, "no Flow under it")
     end
     T.eq(swell:GetNumPoints(), 1, "laid over the whole fill")
     T.eq(surge:GetAlpha(), 0)
@@ -482,4 +483,76 @@ T.test("no style multiplies a layer over the bar", function()
             T.truthy(base, "Flow's base wears the bar's own texture, so its shading stays")
         end
     end
+end)
+
+-- What Flow draws at one spot of the bar, worked out from its shown layers the
+-- way the client blends them: a texel of the bar's texture with shading g
+-- (1 = its brightest), where the rolling wave stands at w (1 = its crest).
+-- barfx-wave.png's alpha at the spot is w, its partner sheet's is 1 - w.
+local function flowAt(bar, g, w)
+    local DUI = DaylightUI
+    local grain = DUI.Style.BarGrainOf(bar)
+    local layers = lights(bar)
+    table.sort(layers, function(a, b)
+        local _, sa = a:GetDrawLayer()
+        local _, sb = b:GetDrawLayer()
+        return sa < sb
+    end)
+    local out = { 0, 0, 0 }
+    for _, r in ipairs(layers) do
+        local file = r:GetTexture()
+        local v = r.__vertex or { 1, 1, 1, 1 }
+        local texel, a = 1, v[4] or 1
+        if file == grain then texel = g
+        elseif file == DUI.BarFx.WAVE then a = a * w
+        elseif file == DUI.BarFx.WAVE_EBB then a = a * (1 - w) end
+        for i = 1, 3 do
+            local c = v[i] * texel
+            if r:GetBlendMode() == "ADD" then out[i] = out[i] + c * a
+            else out[i] = out[i] * (1 - a) + c * a end
+        end
+    end
+    return out
+end
+
+local function near(a, b) return math.abs(a - b) < 0.002 end
+
+-- A player's report: with motion on, Flow made every health and power bar
+-- look the same and their picked texture (Silk) no longer showed; turning the
+-- bar animations off brought it back.
+T.test("Flow keeps the picked bar texture's shading all along the bar, crest and trough, in its own colors", function()
+    for _, pair in ipairs({
+        { "one color (power by type)", { 0.2, 0.4, 0.9 } },
+        { "two colors (a class gradient)", { 0.9, 0.4, 0.6 }, { 1, 0.75, 0.55 } },
+        { "colors that cross over", { 0.12, 0.56, 1 }, { 1, 0.6, 0.12 } },
+    }) do
+        local DUI, bar, _, read = setup({ style = "flow" })
+        DUI:Set("general", "barTexture", "silk")
+        stub.RunTimers()
+        DUI.Style.NoteFill(bar:GetStatusBarTexture(), pair[2], pair[3] or pair[2])
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        local lo, hi = DUI.BarFx.Colors({ bar = bar, cfg = read })
+        for _, w in ipairs({ 0, 0.5, 1 }) do
+            local lit, shaded = flowAt(bar, 1, w), flowAt(bar, 0.76, w)
+            local want = { lo[1] + (hi[1] - lo[1]) * w, lo[2] + (hi[2] - lo[2]) * w, lo[3] + (hi[3] - lo[3]) * w }
+            for i = 1, 3 do
+                T.truthy(near(lit[i], want[i]), pair[1] .. ": the colors roll as before at " .. w
+                    .. " (" .. lit[i] .. " vs " .. want[i] .. ")")
+            end
+            T.truthy(lit[1] + lit[2] + lit[3] - (shaded[1] + shaded[2] + shaded[3]) > 0.05,
+                pair[1] .. ": Silk's shading shows at " .. w .. " along the wave")
+        end
+    end
+end)
+
+T.test("a texture picked while Flow runs shows on the bar at once", function()
+    local DUI, bar, _, read = setup({ style = "flow" })
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    DUI:Set("general", "barTexture", "glass")
+    stub.RunTimers()
+    local glass = DUI.Style.BarGrainOf(bar)
+    T.truthy(type(glass) == "string" and glass:find("bar%-glass"), "the bar follows the pick")
+    local found
+    for _, r in ipairs(lights(bar)) do if r:GetTexture() == glass then found = true end end
+    T.truthy(found, "and Flow's layers wear it")
 end)
