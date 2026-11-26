@@ -182,3 +182,16 @@ T.test("procs aura: turning an alert or the module off switches its slot off", f
     stub.LeaveCombat()
     T.deq(enabledSlots(ns, "redoubt"), { 1 }, "Only in combat off: between fights too")
 end)
+
+T.test("procs aura: a game-shown alert takes its Animation speed once nothing locks it", function()
+    local ns = load()
+    local slot = ns.Game.slots.redoubt[1]
+    stub.EnterCombat()
+    ns.Alerts.Set("redoubt", "speed", 2)
+    T.eq(slot.parts[1].speed, 1, "waits while the button is locked")
+    stub.LeaveCombat()
+    T.eq(slot.parts[1].speed, 2)
+    local t = slot.parts[1].times[1]
+    T.near(t[1]:GetDuration(), t[2] / 2, 0.0001)
+    T.eq(stub.lockErrors, 0)
+end)

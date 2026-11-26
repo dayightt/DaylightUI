@@ -29,7 +29,7 @@ end
 
 -- A row bound to one field of the picked proc.
 local function field(name, item)
-    item.since = SINCE
+    item.since = item.since or SINCE
     item.get = function() return ns.Alerts.Get(sel(), name) end
     item.set = function(v) ns.Alerts.Set(sel(), name, v) end
     item.default = function() return ns.Alerts.Default(sel(), name) end
@@ -92,8 +92,11 @@ local LOOK = {
         desc = "The painted light this proc shows. Each design has its own spot around your character, so two procs at once never look alike.",
         disabled = off }),
     field("anim", { type = "dropdown", label = "Animation", values = animValues, order = animOrder,
-        desc = "How the flare moves while it's up: Breathe softly, Pulse like the game's own alert, land with an Impact, Flash bright, or stay Still.",
+        desc = "How the flare moves while it's up: Breathe slowly, Pulse in a beat, send out an Impact shockwave, Flash from its core, or stay Still.",
         disabled = off }),
+    field("speed", { type = "slider", label = "Animation speed", since = "2.3.1", min = 0.5, max = 2, step = 0.1, unit = "x",
+        desc = "How fast the animation moves. Lower is calmer, higher is livelier.",
+        disabled = function() return off() or ns.Alerts.Get(sel(), "anim") == "still" or not DUI.Motion.On() end }),
     field("colorMode", { type = "dropdown", label = "Colors", disabled = off,
         values = { accent = "Accent color", class = "Class gradient", custom = "Custom gradient" },
         order = { "accent", "class", "custom" },

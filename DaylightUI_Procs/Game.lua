@@ -63,7 +63,9 @@ local function style(p, slot)
     btn:ClearAuraShownAnimations()
     local shown = ns.Data.SPOTS[slot.spot].mirrored and 2 or 1
     local anim = DUI.Motion.On() and ns.Alerts.Get(p.key, "anim") or "still"
+    local speed = ns.Alerts.Get(p.key, "speed")
     for i = 1, shown do
+        ns.Flares.SetSpeed(slot.parts[i], speed)
         for _, g in ipairs(ns.Flares.LoopsOf(slot.parts[i], anim)) do btn:AddAuraShownAnimation(g) end
     end
     slot.body:SetAlpha(ns.Flares.Opacity(p.key))

@@ -315,3 +315,30 @@ T.test("procs look: the hot core carries the alert's colors, never white over th
     T.truthy(lo.r < 0.5 and lo.g < 0.5, "bottom stays blue, not white")
     T.truthy(hi.a <= 0.4, "and it's soft")
 end)
+
+T.test("procs look: Animation speed scales every loop, and a change keeps the flare up", function()
+    local ns = load()
+    ns.Alerts.Set("overpower", "design", "wings")
+    for _, anim in ipairs({ "breathe", "pulse", "impact", "flash" }) do
+        ns.Alerts.Set("overpower", "anim", anim)
+        ns.Alerts.Set("overpower", "speed", 1)
+        ns.Flares.Show("overpower")
+        settle()
+        local f = ns.Flares.live.overpower
+        local base = {}
+        for i, t in ipairs(f.parts[2].times) do base[i] = t[1]:GetDuration() end
+        ns.Alerts.Set("overpower", "speed", 2)
+        T.eq(ns.Flares.live.overpower, f, anim .. ": the same flare, not shown again")
+        T.near(f:GetAlpha(), 1, 0.001, anim .. ": no fade out and in")
+        for i, t in ipairs(f.parts[2].times) do
+            T.near(t[1]:GetDuration(), base[i] / 2, 0.0001, anim .. " twice as fast")
+        end
+        for _, g in ipairs(ns.Flares.LoopsOf(f.parts[2], anim)) do T.truthy(g:IsPlaying(), anim .. " still plays") end
+        ns.Flares.Hide("overpower", true)
+    end
+    -- A flare shown later (from the pool) takes the speed too.
+    ns.Alerts.Set("overpower", "speed", 0.5)
+    ns.Flares.Show("overpower")
+    local t = ns.Flares.live.overpower.parts[1].times[1]
+    T.near(t[1]:GetDuration(), t[2] * 2, 0.0001, "half speed takes twice as long")
+end)

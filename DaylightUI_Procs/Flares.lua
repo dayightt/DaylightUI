@@ -60,9 +60,6 @@ local function layer(parent, sub)
     return t
 end
 
--- One painted piece: its frame (placed, and what the loops move), the light
--- and the core over it. Both textures sit on the piece's bottom edge, so the
--- time drain can shorten them from the top.
 -- The loops' numbers. Each animation moves its own way, so two procs with
 -- different animations never look alike: breathe dims, pulse beats, impact
 -- sends out a shockwave, flash glints from its core.
@@ -71,12 +68,37 @@ Flares.PULSE = { to = 1.16, time = 0.5 }
 Flares.IMPACT = { every = 1.4, wave = 0.75, waveTo = 1.45, waveAlpha = 0.5, swell = 1.06 }
 Flares.GLINT = { every = 1.6, rise = 0.15, fall = 0.45, stretch = 1.2 }
 
-local function anim(g, kind, smoothing, duration, delay)
+-- Each animation keeps its times at 1x, so the Animation speed setting can
+-- scale them (Flares.SetSpeed).
+local function anim(part, g, kind, smoothing, duration, delay)
     local a = g:CreateAnimation(kind)
     a:SetSmoothing(smoothing)
     a:SetDuration(duration)
     if delay then a:SetStartDelay(delay) end
+    part.times[#part.times + 1] = { a, duration, delay or 0, 0 }
     return a
+end
+
+local function hold(part, a, seconds)
+    a:SetEndDelay(seconds)
+    for _, t in ipairs(part.times) do
+        if t[1] == a then t[4] = seconds end
+    end
+end
+
+-- Plays a part's loops faster (above 1) or slower. Only between plays: a
+-- group's length is worked out as it starts.
+function Flares.SetSpeed(part, speed)
+    speed = num(speed, 1)
+    if speed <= 0 then speed = 1 end
+    if part.speed == speed then return end
+    part.speed = speed
+    for _, t in ipairs(part.times) do
+        local a = t[1]
+        a:SetDuration(t[2] / speed)
+        a:SetStartDelay(t[3] / speed)
+        a:SetEndDelay(t[4] / speed)
+    end
 end
 
 -- A copy of a light layer in a frame of its own, hidden between its loops.
@@ -92,9 +114,12 @@ local function copy(pf, sub)
     return cf, t
 end
 
+-- One painted piece: its frame (placed, and what the loops move), the light,
+-- the core, and the copies the shockwave and glint animate. Both textures sit on the piece's bottom edge, so the
+-- time drain can shorten them from the top.
 function Flares.NewPart(f)
     local pf = CreateFrame("Frame", nil, f)
-    local part = { frame = pf, tex = layer(pf, 0), core = layer(pf, 1) }
+    local part = { frame = pf, tex = layer(pf, 0), core = layer(pf, 1), times = {}, speed = 1 }
     part.echoFrame, part.echoTex = copy(pf, 2)
     part.glintFrame, part.glintTex = copy(pf, 3)
     for _, t in ipairs({ part.tex, part.core }) do
@@ -105,7 +130,7 @@ function Flares.NewPart(f)
     local B = Flares.BREATHE
     local g = pf:CreateAnimationGroup()
     g:SetLooping("BOUNCE")
-    local a = anim(g, "Alpha", "IN_OUT", B.time)
+    local a = anim(part, g, "Alpha", "IN_OUT", B.time)
     a:SetFromAlpha(1)
     a:SetToAlpha(B.to)
     part.breathe = g
@@ -114,10 +139,10 @@ function Flares.NewPart(f)
     local P = Flares.PULSE
     g = pf:CreateAnimationGroup()
     g:SetLooping("BOUNCE")
-    local s = anim(g, "Scale", "IN_OUT", P.time)
+    local s = anim(part, g, "Scale", "IN_OUT", P.time)
     s:SetScaleFrom(1, 1)
     s:SetScaleTo(P.to, P.to)
-    a = anim(g, "Alpha", "IN_OUT", P.time)
+    a = anim(part, g, "Alpha", "IN_OUT", P.time)
     a:SetFromAlpha(0.85)
     a:SetToAlpha(1)
     part.pulse, part.pulseScale = g, s
@@ -128,14 +153,14 @@ function Flares.NewPart(f)
     local I = Flares.IMPACT
     g = part.echoFrame:CreateAnimationGroup()
     g:SetLooping("REPEAT")
-    s = anim(g, "Scale", "OUT", I.wave)
+    s = anim(part, g, "Scale", "OUT", I.wave)
     s:SetScaleFrom(1, 1)
     s:SetScaleTo(I.waveTo, I.waveTo)
-    s:SetEndDelay(I.every - I.wave)
-    a = anim(g, "Alpha", "OUT", 0.1)
+    hold(part, s, I.every - I.wave)
+    a = anim(part, g, "Alpha", "OUT", 0.1)
     a:SetFromAlpha(0)
     a:SetToAlpha(I.waveAlpha)
-    a = anim(g, "Alpha", "OUT", I.wave - 0.1, 0.1)
+    a = anim(part, g, "Alpha", "OUT", I.wave - 0.1, 0.1)
     a:SetFromAlpha(I.waveAlpha)
     a:SetToAlpha(0)
     part.echo, part.echoScale = g, s
@@ -143,27 +168,27 @@ function Flares.NewPart(f)
     -- proc pulse does, so the flare ends each loop at its own size.
     g = pf:CreateAnimationGroup()
     g:SetLooping("REPEAT")
-    local up = anim(g, "Scale", "IN_OUT", 0.2)
+    local up = anim(part, g, "Scale", "IN_OUT", 0.2)
     up:SetScale(I.swell, I.swell)
     up:SetOrder(1)
-    local down = anim(g, "Scale", "IN_OUT", 0.35)
+    local down = anim(part, g, "Scale", "IN_OUT", 0.35)
     down:SetScale(1 / I.swell, 1 / I.swell)
     down:SetOrder(2)
-    down:SetEndDelay(I.every - 0.55)
+    hold(part, down, I.every - 0.55)
     part.swell, part.swellScales = g, { up, down }
 
     -- Flash: the core flares brighter and a little taller, then fades back.
     local G = Flares.GLINT
     g = part.glintFrame:CreateAnimationGroup()
     g:SetLooping("REPEAT")
-    s = anim(g, "Scale", "OUT", G.rise + G.fall)
+    s = anim(part, g, "Scale", "OUT", G.rise + G.fall)
     s:SetScaleFrom(1, 1)
     s:SetScaleTo(1, G.stretch)
-    s:SetEndDelay(G.every - G.rise - G.fall)
-    a = anim(g, "Alpha", "IN_OUT", G.rise)
+    hold(part, s, G.every - G.rise - G.fall)
+    a = anim(part, g, "Alpha", "IN_OUT", G.rise)
     a:SetFromAlpha(0)
     a:SetToAlpha(1)
-    a = anim(g, "Alpha", "OUT", G.fall, G.rise)
+    a = anim(part, g, "Alpha", "OUT", G.fall, G.rise)
     a:SetFromAlpha(1)
     a:SetToAlpha(0)
     part.glint, part.glintScale = g, s
@@ -173,7 +198,12 @@ end
 -- Plays a flare's loop on its shown pieces and stops every other. One already
 -- playing keeps going, so a redraw (the options' preview) doesn't stutter.
 function Flares.PlayLoops(f, anim)
+    local speed = num(ns.Alerts.Get(f.key, "speed"), 1)
     for _, part in ipairs(f.parts) do
+        if part.speed ~= speed then
+            for _, g in ipairs(Flares.AllLoops(part)) do g:Stop() end
+            Flares.SetSpeed(part, speed)
+        end
         local want = {}
         if part.frame:IsShown() then
             for _, g in ipairs(Flares.LoopsOf(part, anim)) do want[g] = true end
@@ -508,6 +538,9 @@ function Flares.Repaint()
             if not f.arriving then f:SetAlpha(f.target) end
             Flares.Paint(f)
             Flares.Layout(f, 1)
+            -- A new speed restarts only the loop, so a slider drag doesn't
+            -- fade the flare out and in again.
+            if Motion.On() then Flares.PlayLoops(f, f.anim) end
         end
     end
 end

@@ -357,3 +357,17 @@ T.test("procs options: a test flare the engine also showed still goes after a lo
     T.falsy(ns.Flares.Shown("overpower"), "and it goes when the test's time is up")
     C_Timer.After = after
 end)
+
+T.test("procs options: Animation speed sits under Animation, dims on Still, and is copied with the look", function()
+    local ns = load()
+    pick("overpower")
+    local r = row("Animation speed")
+    T.truthy(r, "the row is there")
+    r.set(1.5)
+    T.eq(ns.Alerts.Get("overpower", "speed"), 1.5)
+    T.falsy(r.disabled(), "on while it moves")
+    ns.Alerts.Set("overpower", "anim", "still")
+    T.truthy(r.disabled(), "nothing to speed up on Still")
+    ns.Alerts.CopyToClass("overpower")
+    T.eq(ns.Alerts.Get("revenge", "speed"), 1.5, "copied with the look")
+end)
