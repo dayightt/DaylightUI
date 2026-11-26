@@ -19,6 +19,7 @@ DUI.PatchNotes = {
     }, changed = {
         { "Nameplates", "New profiles put nameplates lower, right over heads instead of floating high above them. Your own profiles keep their height (Nameplates > Plates up / down, which now goes lower too)" },
     }, fixed = {
+        { "Gold", "Gold, bags and item counts leave out your characters on another ruleset, like an RP PvP character on a PvE one (log in on each character once so it's sorted)" },
         { "Unit frames", "With a portrait on, the health and power bars no longer run under it, so a nearly empty bar looks nearly empty and centered health text sits in the middle" },
         { "Action bars", "A spell cast through a macro lights up its button when it procs" },
     } },

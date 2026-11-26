@@ -12,35 +12,82 @@ local L = DUI.L
 local Alts = {}
 DUI.Alts = Alts
 
--- The ruleset part of a realm name: "CAMWOW US1 Realm 8 PvP" gives "PvP", nil
--- when the name has no ruleset word. C_GameRules only answers for the player,
--- so for anyone else the realm name is all there is.
-function Alts.RulesetOf(realm)
+-- Rulesets go by these kinds: "PvE", "PvP", "RP", "RPvP", "Hardcore".
+local LABELS = { PvE = "PvE", PvP = "PvP", RP = "RP", RPvP = "RP PvP", Hardcore = "Hardcore" }
+
+-- The ruleset kind in a realm name: "CAMWOW US1 Realm 8 PvP" gives "PvP", nil
+-- when the name has no ruleset word.
+function Alts.KindOf(realm)
     if type(realm) ~= "string" or DUI.IsSecret(realm) then return nil end
     local s = string.lower(realm)
-    if s:find("%f[%a]hardcore%f[%A]") then return L["Hardcore"] end
-    if s:find("%f[%a]rp[%s%-]*p?vp%f[%A]") then return L["RP PvP"] end
-    if s:find("%f[%a]pvp%f[%A]") then return L["PvP"] end
-    if s:find("%f[%a]pve%f[%A]") then return L["PvE"] end
-    if s:find("%f[%a]rp%f[%A]") then return L["RP"] end
+    if s:find("%f[%a]hardcore%f[%A]") then return "Hardcore" end
+    if s:find("%f[%a]rp[%s%-]*p?vp%f[%A]") then return "RPvP" end
+    if s:find("%f[%a]pvp%f[%A]") then return "PvP" end
+    if s:find("%f[%a]pve%f[%A]") then return "PvE" end
+    if s:find("%f[%a]rp%f[%A]") then return "RP" end
+end
+
+-- The same, as words to show ("RP PvP").
+function Alts.RulesetOf(realm)
+    local kind = Alts.KindOf(realm)
+    return kind and L[LABELS[kind]] or nil
+end
+
+-- The ruleset the game says you're on. Forever has one megaserver per ruleset
+-- and no realm names to read it from, so only the game's rules can tell. Nil
+-- on a client with realms, or before the game has said. A rule the client
+-- lacks counts as off.
+function Alts.FromGame()
+    if not (RegionalUniqueNamesEnabled and RegionalUniqueNamesEnabled()) then return nil end
+    local rules = Enum and Enum.GameRule
+    if not (C_GameRules and C_GameRules.IsGameRuleActive and type(rules) == "table") then return nil end
+    if rules.PvPRuleset == nil or rules.RPRuleset == nil then return nil end
+    local function on(rule) return rule ~= nil and C_GameRules.IsGameRuleActive(rule) == true end
+    if on(rules.HardcoreRuleset) then return "Hardcore" end
+    local pvp, rp = on(rules.PvPRuleset), on(rules.RPRuleset)
+    if pvp and rp then return "RPvP" end
+    if pvp then return "PvP" end
+    if rp then return "RP" end
+    return "PvE"
+end
+
+-- Your own ruleset kind: the game's word first, then the realm name's.
+function Alts.Mine()
+    return Alts.FromGame() or Alts.KindOf(GetRealmName and GetRealmName())
 end
 
 -- Is this realm on the player's ruleset? Many numbered realms share one ruleset,
 -- so only the ruleset word can say. A name with no word (on either side) counts
 -- as the same, since there's no way to tell.
 function Alts.SameRuleset(realm)
-    local mine = Alts.RulesetOf(GetRealmName and GetRealmName())
-    local theirs = Alts.RulesetOf(realm)
+    local mine, theirs = Alts.Mine(), Alts.KindOf(realm)
     return mine == nil or theirs == nil or mine == theirs
 end
 
 -- A saved character ("First Last-Realm") the player could reach from here.
 -- Bags and gold on another ruleset can never be traded or mailed over, so the
--- bag viewer, item counts and the gold list leave those characters out.
+-- bag viewer, item counts and the gold list leave those characters out. Each
+-- character's ruleset is saved when it logs in; one not logged in since then
+-- goes by its realm name, and counts as reachable when that has no word either.
 function Alts.Reachable(key)
     if type(key) ~= "string" then return false end
-    return Alts.SameRuleset(key:match("%-(.*)$"))
+    local chars = DUI.DB.Root().characters
+    local c = type(chars) == "table" and chars[key] or nil
+    local theirs = type(c) == "table" and LABELS[c.ruleset] and c.ruleset or Alts.KindOf(key:match("%-(.*)$"))
+    local mine = Alts.Mine()
+    return mine == nil or theirs == nil or mine == theirs
 end
+
+-- Saves this character's ruleset for the others' lists. The game may only say
+-- once the world is loaded, and says again when it changes.
+local function saveRuleset()
+    if not DUI.DB.CharKey() then return end
+    local kind = Alts.Mine()
+    if kind then DUI.DB.Character().ruleset = kind end
+end
+DUI.RegisterEvent("PLAYER_LOGIN", saveRuleset)
+DUI.RegisterEvent("PLAYER_ENTERING_WORLD", saveRuleset)
+DUI.RegisterEvent("GAME_RULES_CHANGED", saveRuleset)
 
 -- Every other character on this ruleset that can be removed, as { key, name,
 -- realm, class, money }. This realm first, then by name.

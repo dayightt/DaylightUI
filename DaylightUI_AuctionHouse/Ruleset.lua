@@ -7,6 +7,7 @@
 --   ns.On("RulesetChanged", function(key) end)
 
 local _, ns = ...
+local DUI = DaylightUI
 
 local Ruleset = {}
 ns.Ruleset = Ruleset
@@ -18,19 +19,9 @@ function Ruleset.Region()
 end
 
 -- The ruleset the game says, nil when it can't (a client with realms, or one
--- missing the rules). A rule name the client lacks counts as off.
+-- missing the rules). The core works it out, as the alts' lists need it too.
 function Ruleset.FromGame()
-    if not (RegionalUniqueNamesEnabled and RegionalUniqueNamesEnabled()) then return nil end
-    local rules = Enum and Enum.GameRule
-    if not (C_GameRules and C_GameRules.IsGameRuleActive and type(rules) == "table") then return nil end
-    if rules.PvPRuleset == nil or rules.RPRuleset == nil then return nil end
-    local function on(rule) return rule ~= nil and C_GameRules.IsGameRuleActive(rule) == true end
-    if on(rules.HardcoreRuleset) then return "Hardcore" end
-    local pvp, rp = on(rules.PvPRuleset), on(rules.RPRuleset)
-    if pvp and rp then return "RPvP" end
-    if pvp then return "PvP" end
-    if rp then return "RP" end
-    return "PvE"
+    return DUI.Alts.FromGame()
 end
 
 local function realm()
