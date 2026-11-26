@@ -627,6 +627,21 @@ ns.UPGRADE_STEPS[25] = function(uf)
     end
 end
 
+-- 26: a power bar on its own had one angled end on its frame's side
+-- (powerSlant) and a switch to angle the other too (powerSlantBoth). Each end
+-- now has its own switch. The sides are the frames' own (Units.lua).
+ns.UPGRADE_STEPS[26] = function(uf)
+    for id, frameSide in pairs({ player = "right", target = "left", focus = "right" }) do
+        local c = uf[id]
+        if type(c) == "table" and (c.powerSlant ~= nil or c.powerSlantBoth ~= nil) then
+            local on, both = c.powerSlant ~= false, c.powerSlantBoth == true
+            c.powerSlantRight = on and (both or frameSide == "right")
+            c.powerSlantLeft = on and (both or frameSide == "left")
+            c.powerSlant, c.powerSlantBoth = nil, nil
+        end
+    end
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 -- Each step also gets this run: from = the last step done before it (0 for a
 -- new profile), picked = settings an earlier step set from the player's own

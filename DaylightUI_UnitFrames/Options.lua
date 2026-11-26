@@ -470,7 +470,7 @@ local BAR_ORDER = {
     stripHeight = 1, ["media.health"] = 2, ["media.healthBack"] = 3, colorHealth = 4, colorHealthCustom = 5,
     backHealth = 6, backHealthColor = 7, backHealthBright = 8, backHealthAlpha = 9,
     showPower = 20, powerAt = 21, powerWidth = 22, powerHeight = 23, ribbonGap = 24,
-    powerSlant = 25, powerSlantBoth = 26, powerSlantUnder = 27, ["media.power"] = 28, ["media.powerBack"] = 29,
+    powerSlantRight = 25, powerSlantLeft = 26, powerSlantUnder = 27, ["media.power"] = 28, ["media.powerBack"] = 29,
     colorPower = 30, colorPowerCustom = 31, backPower = 32, backPowerColor = 33, backPowerBright = 34, backPowerAlpha = 35,
     reverseFill = 40, predictHeals = 41, predictAbsorbs = 42,
 }
@@ -1893,24 +1893,27 @@ local function framePage(id, label, desc, opts)
             disabled = powerOff }
         frame[#frame + 1] = { type = "slider", key = k("powerWidth"), label = "Power bar width", min = 40, max = 500, step = 1,
             desc = "How wide the power bar is. Only while it's on its own.", disabled = notFree }
-        frame[#frame + 1] = { type = "toggle", key = k("powerSlant"), label = "Power bar angled end",
-            desc = "Cuts the power bar's end at an angle, on the same side as the frame's. Only while it's on its own. When off, both ends are straight.", disabled = notFree }
-        frame[#frame + 1] = { type = "toggle", key = k("powerSlantBoth"), label = "Power bar angled at both ends",
-            desc = "Angles its other end too, and a cast bar hung under it follows both. Only while the power bar is on its own with its angled end on.",
-            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end }
+        frame[#frame + 1] = { type = "toggle", key = k("powerSlantRight"), label = "Power bar angled right end", since = "2.3.1",
+            desc = "Cuts the power bar's right end at an angle, and a cast bar hung under it follows. Only while it's on its own.", disabled = notFree }
+        frame[#frame + 1] = { type = "toggle", key = k("powerSlantLeft"), label = "Power bar angled left end", since = "2.3.1",
+            desc = "Cuts the power bar's left end at an angle, and a cast bar hung under it follows. Only while it's on its own.", disabled = notFree }
+        local noAngle = function(get)
+            return get(k("powerSlantRight")) ~= true and get(k("powerSlantLeft")) ~= true
+        end
         -- A cast bar sliding out from under it continues its angle, which a flipped end can't do.
         local slidesOut = function(get)
             return id == "player" and get("playerCastbar.enabled") == true and get("playerCastbar.at") == "below"
                 and get("playerCastbar.from") == "power"
         end
         local powerFlip = flipRows({ right = k("powerSlantUnder"), left = k("powerSlantUnderLeft"), name = "Power bar", what = "the power bar's",
+            rightOn = k("powerSlantRight"), leftOn = k("powerSlantLeft"),
             note = "Only on an angled end, while the power bar is on its own, and not while your cast bar slides out from under it.",
-            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false or slidesOut(get) end })
+            disabled = function(get) return notFree(get) or slidesOut(get) end })
         frame[#frame + 1] = powerFlip[1]
         frame[#frame + 1] = powerFlip[2]
         local powerAngle = angleRows({ own = k("powerOwnAngle"), lean = k("powerLean"), name = "Power bar", what = "the power bar's", since = "2.0",
             note = "Only while the power bar is on its own. A cast bar sliding out from under it continues the line.",
-            disabled = function(get) return notFree(get) or get(k("powerSlant")) == false end })
+            disabled = function(get) return notFree(get) or noAngle(get) end })
         frame[#frame + 1] = powerAngle[1]
         frame[#frame + 1] = powerAngle[2]
     end
@@ -2462,6 +2465,11 @@ local function notOwnSize(unit)
     local inside = unit == "player" and "below" or "power"
     return function(get) return get(unit .. "Castbar.enabled") ~= true or atOf(get, unit) == inside end
 end
+-- Whether the player's power bar on its own has an angled end flipped (PB.Layout's h.flip).
+local function powerFlipped(get)
+    return UF.UnderOf(get("player.powerSlantRight") == true, get("player.powerSlantLeft") == true,
+        get("player.powerSlantUnder"), get("player.powerSlantUnderLeft")) ~= nil
+end
 local function notInside(unit)
     return function(get) return get(unit .. "Castbar.enabled") ~= true or atOf(get, unit) ~= "power" end
 end
@@ -2759,7 +2767,7 @@ local PLAYER_CAST = {
           desc = "With the power bar on its own (Player > Power bar), the cast bar and the swing timer under it can slide out from under the power bar instead of the frame. Not while the power bar's angles are flipped.",
           disabled = function(get)
               return get("playerCastbar.enabled") ~= true or get("playerCastbar.at") ~= "below" or get("player.powerAt") ~= "free"
-                  or get("player.powerSlantUnder") == true or get("player.powerSlantUnderLeft") == true
+                  or powerFlipped(get)
           end },
         nudge("player", "x"),
         nudge("player", "y"),

@@ -1148,14 +1148,14 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     T.eq(ns.swing.castbar.under, pb, "the swing timer hangs from it too")
     local clipPoint = { h.clip:GetPoint(1) }
     T.eq(clipPoint[2], pb, "its clip starts at the power bar's bottom")
-    DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+    DUI:Set("UnitFrames", "player.powerSlantLeft", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).side, "both", "the power bar angled at both ends")
     T.eq(Style.GetSlant(h).side, "both", "the cast bar under it follows both")
     for _, row in ipairs(ns.swing.rows) do
         if row:IsShown() then T.eq(Style.GetSlant(row).side, "both", "and the swing bars") end
     end
-    DUI:Set("UnitFrames", "player.powerSlantBoth", false)
+    DUI:Set("UnitFrames", "player.powerSlantLeft", false)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).side, "right")
     -- Flipped, its angle can't be continued, so the cast bar hangs under the frame.
@@ -1163,7 +1163,7 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "right", "the power bar's end leans under")
     T.eq(h.under, ns.frames.player, "the cast bar slides out from the frame instead")
-    DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+    DUI:Set("UnitFrames", "player.powerSlantLeft", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "right", "its other end keeps its own lean")
     DUI:Set("UnitFrames", "player.powerSlantUnderLeft", true)
@@ -1189,7 +1189,7 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     sameAngle("reversed")
     DUI:Set("UnitFrames", "player.reverseFill", false)
     DUI:Set("UnitFrames", "player.powerSlantUnder", false)
-    DUI:Set("UnitFrames", "player.powerSlantBoth", false)
+    DUI:Set("UnitFrames", "player.powerSlantLeft", false)
     stub.RunTimers()
     T.isnil(Style.GetSlant(pb).under)
     T.eq(h.under, pb, "unflipped: from the power bar again")

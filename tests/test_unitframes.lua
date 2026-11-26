@@ -2174,16 +2174,72 @@ T.test("a power bar on its own angled at both ends keeps its cost shade to three
     pb.set.power:SetHeight(11)
     for _, flip in ipairs({ false, true, false }) do
         DUI:Set("UnitFrames", "player.powerSlantUnder", flip)
-        DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+        DUI:Set("UnitFrames", "player.powerSlantLeft", true)
         stub.RunTimers()
         T.eq(DUI.Style.GetSlant(pb).side, "both")
-        DUI:Set("UnitFrames", "player.powerSlantBoth", false)
+        DUI:Set("UnitFrames", "player.powerSlantLeft", false)
         stub.RunTimers()
-        DUI:Set("UnitFrames", "player.powerSlantBoth", true)
+        DUI:Set("UnitFrames", "player.powerSlantLeft", true)
         stub.RunTimers()
     end
     T.truthy(DUI.Style.GetFillAngle(pb.set.cost), "the shade's edge is angled")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("a power bar on its own angles each end by its own switch, and flips only an angled end", function()
+    local DUI, ns = stub.Load({ module = true })
+    stub.RunTimers()
+    DUI:Set("UnitFrames", "player.powerAt", "free")
+    stub.RunTimers()
+    local pb = ns.frames.player.freePower
+    pb.set.power:SetHeight(11)
+    T.eq(DUI.Style.GetSlant(pb).side, "right", "the right end by default")
+    DUI:Set("UnitFrames", "player.powerSlantRight", false)
+    DUI:Set("UnitFrames", "player.powerSlantLeft", true)
+    stub.RunTimers()
+    T.eq(DUI.Style.GetSlant(pb).side, "left", "the left end alone")
+    T.eq(pb.spec.slant, "left", "a cast bar hung under it reads the left side")
+    T.isnil(DUI.Style.GetFillAngle(pb.set.power), "the fill runs to the straight right end")
+    DUI:Set("UnitFrames", "player.powerSlantUnderLeft", true)
+    stub.RunTimers()
+    T.eq(DUI.Style.GetSlant(pb).under, "left", "its left end flips")
+    DUI:Set("UnitFrames", "player.powerSlantUnderLeft", false)
+    DUI:Set("UnitFrames", "player.powerSlantLeft", false)
+    stub.RunTimers()
+    T.isnil(DUI.Style.GetSlant(pb).side, "both ends straight")
+    DUI:Set("UnitFrames", "player.powerSlantRight", true)
+    stub.RunTimers()
+    T.eq(DUI.Style.GetSlant(pb).side, "right")
+    T.truthy(DUI.Style.GetFillAngle(pb.set.power), "the fill runs to the angled right end")
+
+    local O = DUI.Options
+    local function row(label)
+        for _, g in ipairs(O.GetPage("UnitFrames.player").groups) do
+            for _, it in ipairs(g.items) do
+                if it.label == label then return it end
+            end
+        end
+    end
+    local get = function(key) return DUI:Get("UnitFrames", key) end
+    T.truthy(row("Power bar angled right end")); T.truthy(row("Power bar angled left end"))
+    T.isnil(row("Power bar angled end")); T.isnil(row("Power bar angled at both ends"))
+    local left, right = row("Power bar flip left end"), row("Power bar flip right end")
+    T.truthy(left.disabled(get), "the straight left end can't flip")
+    T.falsy(right.disabled(get), "the angled right end can")
+    DUI:Set("UnitFrames", "player.powerSlantLeft", true)
+    T.falsy(left.disabled(get)); T.falsy(right.disabled(get))
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("upgrade 26: the power bar's one angled end and its both-ends switch become a switch per end", function()
+    local _, ns = stub.Load({ module = true })
+    local uf = { player = { powerSlantBoth = true }, target = { powerSlant = true }, focus = { powerSlant = false } }
+    ns.UPGRADE_STEPS[26](uf)
+    T.eq(uf.player.powerSlantRight, true); T.eq(uf.player.powerSlantLeft, true, "both ends stay angled")
+    T.eq(uf.target.powerSlantRight, false); T.eq(uf.target.powerSlantLeft, true, "the target's end is its left")
+    T.eq(uf.focus.powerSlantRight, false); T.eq(uf.focus.powerSlantLeft, false, "off stays straight")
+    T.isnil(uf.player.powerSlantBoth); T.isnil(uf.target.powerSlant)
+    ns.UPGRADE_STEPS[26]({})
 end)
 
 T.test("power bar off: the Ribbon line goes and nothing keeps room for it", function()

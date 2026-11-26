@@ -133,13 +133,13 @@ function PB.Layout(f, cfg, text)
     local T = Pixel.Px(h, Style.BorderPx(h))
     local H = Pixel.Snap(h, cfg.powerHeight) + 2 * T
     h:SetSize(2 * Pixel.Snap(h, (tonumber(cfg.powerWidth) or tonumber(cfg.width) or 187) / 2), H)
-    local side = cfg.powerSlant ~= false and f.spec.slant or nil
-    -- Its other end can lean too, so the bar is cut like a cast bar angled at both ends.
-    local both = side ~= nil and cfg.powerSlantBoth == true
+    -- Each end has its own switch. With both on, side is the frame's.
+    local right, left = cfg.powerSlantRight == true, cfg.powerSlantLeft == true
+    local both = right and left
+    local side = both and f.spec.slant or right and "right" or left and "left" or nil
     local cut = side and Pixel.Snap(h, H * UF.AngleOf(cfg.powerOwnAngle, cfg.powerLean)) or 0
     -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
-    local under = side and UF.UnderOf(both or side == "right", both or side == "left",
-        cfg.powerSlantUnder, cfg.powerSlantUnderLeft) or nil
+    local under = side and UF.UnderOf(right, left, cfg.powerSlantUnder, cfg.powerSlantUnderLeft) or nil
     -- The cost shade cuts both its own ends at the angle (UF.LayoutCost), so with both
     -- of the bar's ends angled it keeps only the clip at the empty end, where a big
     -- cost runs past the bar. A texture takes three masks, and this saves the fourth.
@@ -150,9 +150,11 @@ function PB.Layout(f, cfg, text)
     end
     Style.Slant(h, both and "both" or side, cut, nil, under)
     -- Read by a cast bar hung under it (CB.Layout, playerCastbar.from "power"):
-    -- the frame's spec (which side is angled), this bar's cut, both ends or
-    -- one, and its mover.
-    h.spec, h.cut, h.moverKey = f.spec, side and cut or 0, h.key
+    -- a spec naming the side this bar angles, its cut, both ends or one, and
+    -- its mover.
+    local spec = f.spec
+    if side and side ~= spec.slant then spec = setmetatable({ slant = side }, { __index = f.spec }) end
+    h.spec, h.cut, h.moverKey = spec, side and cut or 0, h.key
     h.ends = both and "both" or nil
     h.flip = under ~= nil or nil
     local p = h.set.power
@@ -161,8 +163,8 @@ function PB.Layout(f, cfg, text)
     p:SetPoint("BOTTOMRIGHT", h, "BOTTOMRIGHT", -T, T)
     p:Show()
     -- The fill's moving edge takes the angle of the end it runs toward.
-    local edge = side
-    if f.flipped then edge = both and (side == "left" and "right" or "left") or nil end
+    local toward = f.growLeft == true and "left" or "right"
+    local edge = (toward == "right" and right or toward == "left" and left) and toward or nil
     Style.AngleFill(p, edge, cut * (H - 2 * T) / H, UF.EdgeUnder(under, edge))
     UF.LayoutPowerExtras(f, cfg, text, side, cut, H, true)
     h.want = show
