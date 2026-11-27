@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Slant angle", "Set how far angled bar ends lean on nameplates, the loot feed, meters, the data bar, the breath bar and boss timer bars. Unit frames' Slant angle now goes up to 100%" },
         { "Spellbook", "Hide passive spells: a switch at the bottom of the spellbook leaves racial traits and other passives out so only spells you cast are listed" },
         { "Proc Alerts", "The Overpower alert lights up when your target dodges in Defensive or Berserker Stance too, so you know when to swap" },
+        { "Cast bars", "The target, focus and party cast bars can have their own border, corners and shadow when they're not inside the frame, like your own cast bar" },
     }, changed = {
         { "Bags", "The bags' own \"Compare with what you wear\" switch is gone. The one under Tooltip decides for every item, bags included" },
     }, fixed = {
@@ -27,6 +28,7 @@ DUI.PatchNotes = {
         { "Quests", "Quests started from an item show at the top of the quest tracker again (\"Quest discovered\"), so you can click to read and accept them" },
         { "Quests", "Quest item buttons: Shift-click links the item in chat, the button lights up when you reach the quest's area, and items a finished quest still needs stay" },
         { "Quests", "Quests that ask for gold show how much you have and need, and opening a quest in the quest log turns the map to it" },
+        { "Cast bars", "A target or focus cast bar above or below its frame now leans at the ends like the frame, instead of staying square" },
     } },
     { version = "2.4.2", date = "2026-11-27", summary = "XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.", new = {
         { "Info Panel", "XP orbs: gaining experience sends a ring of orbs flying into your XP bar" },

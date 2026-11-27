@@ -92,7 +92,7 @@ function PC.Layout(b)
                        showIcon = cfg.showIcon, slant = at == "slide" or cfg.slant, slantLeft = cfg.slantLeft,
                        -- Sliding out from under the frame it continues the frame's ends instead.
                        slantUnder = at ~= "slide" and cfg.slantUnder, slantUnderLeft = at ~= "slide" and cfg.slantUnderLeft,
-                       spell = cfg.spell, time = cfg.time, reverseFill = cfg.reverseFill, borderOutside = true })
+                       spell = cfg.spell, time = cfg.time, reverseFill = cfg.reverseFill, borderOutside = true, shell = cfg.shell })
     if at == "free" then place(c.own, b, cfg) end
 end
 

@@ -2511,8 +2511,8 @@ local function nudge(unit, axis)
 end
 -- Above or below the frame, the bar can take the frame's width (fitFrame).
 local function fitRow(unit)
-    return { type = "toggle", key = unit .. "Castbar.fitFrame", label = CAST_WHO[unit] .. " matches the frame's width",
-             desc = "Above or below the frame, the bar is as wide as the frame. When off, it takes the width below.",
+    return { type = "toggle", key = unit .. "Castbar.fitFrame", label = CAST_WHO[unit] .. " matches the frame",
+             desc = "Above or below the frame, the bar is as wide as the frame and its ends lean like the frame's. When off, it takes the width and ends below.",
              disabled = function(get)
                  local at = atOf(get, unit)
                  return get(unit .. "Castbar.enabled") ~= true or not (at == "above" or at == "below")
@@ -2601,7 +2601,7 @@ end
 local function castAngle(unit, who, notOwn)
     return angleRows({ own = unit .. "Castbar.ownAngle", lean = unit .. "Castbar.lean", name = CAST_WHO[unit], what = who .. " cast bar's", since = "2.0",
         note = unit == "player" and "Not while under the frame, between the frames or under the personal display."
-            or (unit == "target" or unit == "focus") and "Not inside the frame or sliding out under it." or "Not inside the frame.",
+            or (unit == "target" or unit == "focus") and "Not inside the frame, sliding out under it, or matching the frame above or below it." or "Not inside the frame.",
         disabled = function(get)
             return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal")
                 or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
@@ -2773,9 +2773,17 @@ end
 
 -- Each cast bar's cards, which sit on its frame's page under the Cast bar tab (framePage).
 -- The player's border card says whose it is, since the frame has a border card of its own.
-local function castShell(bar)
+-- notOwn: grays the rows out while the bar has none of its own (inside the frame).
+local function castShell(bar, notOwn)
     local card = shellCard(bar, bar .. ".enabled", true)
     card.label = "Cast bar border and shadow"
+    if notOwn then
+        card.desc = card.desc .. " Not inside the frame, where it's part of the frame."
+        for _, item in ipairs(card.items) do
+            local was = item.disabled
+            item.disabled = function(get) return notOwn(get) or (was and was(get)) or false end
+        end
+    end
     return card
 end
 local PLAYER_CAST = {
@@ -2838,16 +2846,17 @@ local TARGET_CAST = {
         { type = "toggle", key = "targetCastbar.showIcon", label = "Target cast bar spell icon",
           desc = "The spell's icon at the end of your target's cast bar. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
-        castEnds("target", notOwnBar("target"), notOwnBar("target"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[1],
-        castEnds("target", notOwnBar("target"), notOwnBar("target"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[2],
-        castAngle("target", "your target's", notOwnBar("target"))[1],
-        castAngle("target", "your target's", notOwnBar("target"))[2],
+        castEnds("target", notOwnWidth("target"), notOwnWidth("target"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[1],
+        castEnds("target", notOwnWidth("target"), notOwnWidth("target"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[2],
+        castAngle("target", "your target's", notOwnWidth("target"))[1],
+        castAngle("target", "your target's", notOwnWidth("target"))[2],
         { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
           desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
         strataRow("targetCastbar.strata", "Target cast bar layer", "The layer your target's cast bar draws in.",
             notOwnBar("target"), " Inside the frame or sliding out under it, it draws with the frame instead. Same as frame keeps it with the frame wherever it stands.", true),
     } },
+    castShell("targetCastbar", notOwnSize("target")),
     castTextCard("target", "Target", "your target's", true),
 }
 local FOCUS_CAST = {
@@ -2870,16 +2879,17 @@ local FOCUS_CAST = {
         { type = "toggle", key = "focusCastbar.showIcon", label = "Focus cast bar spell icon",
           desc = "The spell's icon at the end of your focus's cast bar. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
-        castEnds("focus", notOwnBar("focus"), notOwnBar("focus"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[1],
-        castEnds("focus", notOwnBar("focus"), notOwnBar("focus"), "Not inside the frame or sliding out under it, where it follows the frame's own ends.")[2],
-        castAngle("focus", "your focus's", notOwnBar("focus"))[1],
-        castAngle("focus", "your focus's", notOwnBar("focus"))[2],
+        castEnds("focus", notOwnWidth("focus"), notOwnWidth("focus"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[1],
+        castEnds("focus", notOwnWidth("focus"), notOwnWidth("focus"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[2],
+        castAngle("focus", "your focus's", notOwnWidth("focus"))[1],
+        castAngle("focus", "your focus's", notOwnWidth("focus"))[2],
         { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
           desc = "Your focus's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
         strataRow("focusCastbar.strata", "Focus cast bar layer", "The layer your focus's cast bar draws in.",
             notOwnBar("focus"), " Inside the frame or sliding out under it, it draws with the frame instead. Same as frame keeps it with the frame wherever it stands.", true),
     } },
+    castShell("focusCastbar", notOwnSize("focus")),
     castTextCard("focus", "Focus", "your focus's"),
 }
 local PARTY_CAST = {
@@ -2909,6 +2919,7 @@ local PARTY_CAST = {
         { type = "toggle", key = "partyCastbar.reverseFill", label = "Party cast bar fills right to left",
           desc = "Each detached cast bar fills from the right.", disabled = notOwnBar("party") },
     } },
+    castShell("partyCastbar", notOwnSize("party")),
     castTextCard("party", "Party", "each party member's", true),
 }
 

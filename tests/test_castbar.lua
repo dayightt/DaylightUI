@@ -477,6 +477,7 @@ T.test("a cast bar of its own can angle its left end, its right end, or both", f
     local DUI, ns = stub.Load({ module = true })
     local Style = DaylightUI.Style
     DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)   -- at the frame's width it takes the frame's ends
     DUI:Set("UnitFrames", "targetCastbar.slantLeft", true)
     DUI:Set("UnitFrames", "targetCastbar.showIcon", true)
     stub.RunTimers()
@@ -565,6 +566,7 @@ T.test("a cast bar of its own can switch on its own angle; off, the shared one",
     DUI:Set("UnitFrames", "playerCastbar.ownAngle", true)
     stub.RunTimers()
     T.truthy(Style.GetSlant(h).cut > shared, "steeper with its own angle")
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)
     DUI:Set("UnitFrames", "playerCastbar.lean", 0.02)
     stub.RunTimers()
     T.truthy(Style.GetSlant(h).cut < shared, "near 0 it's nearly square, not the shared angle")
@@ -1013,12 +1015,43 @@ T.test("a batch of crafts is one bar over the whole batch, with its count", func
         stub.Advance(3)
         left = math.max(0, left - 1)
         stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-" .. n, 3275)
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", true)
         stub.units.player = {}
         stub.FireEvent("UNIT_SPELLCAST_STOP", "player", "Cast-" .. n, 3275)
     end
     craft(1)
     T.truthy(h:IsShown())
     T.near(h.bar.__timer[1]:GetTotalDuration(), 9, 0.01, "three crafts' time")
+-- A player's report: below the target frame, at its width, the bar stayed
+-- square while the frame's ends leaned.
+T.test("above or below its frame at the frame's width, the target's cast bar leans like the frame", function()
+    local DUI, ns = stub.Load({ module = true })
+    local Style = DaylightUI.Style
+    DUI:Set("UnitFrames", "target.portrait", "none")
+    DUI:Set("UnitFrames", "target.slantOuter", true)
+    DUI:Set("UnitFrames", "target.slantUnderOuter", true)
+    DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    stub.RunTimers()
+    local h, target = ns.targetCastbarFree, ns.frames.target
+    local sl = Style.GetSlant(h)
+    T.eq(target.ends, "both", "the frame leans at both ends")
+    T.eq(sl.side, target.ends, "the bar's ends are the frame's")
+    T.eq(sl.under, target.under, "flipped the same way")
+    local fs = Style.GetSlant(target)
+    T.near(sl.cut / h:GetHeight(), (target.endCut or target.cut) / target:GetHeight(), 0.02, "at the frame's slope")
+    -- Its own width keeps its own ends.
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)
+    stub.RunTimers()
+    T.isnil(Style.GetSlant(h).side, "straight, its own ends' default")
+    T.truthy(fs, "the frame has a slant")
+    -- The focus's the same way.
+    DUI:Set("UnitFrames", "focus.portrait", "none")
+    DUI:Set("UnitFrames", "focus.slantOuter", true)
+    DUI:Set("UnitFrames", "focusCastbar.at", "above")
+    stub.RunTimers()
+    T.eq(Style.GetSlant(ns.focusCastbarFree).side, ns.frames.focus.ends, "the focus's bar leans like its frame")
+end)
+
     T.eq(h.text.__text, "Linen Bandage 1/3")
     finish(1)
     T.truthy(h:IsShown(), "stays up between two crafts")
@@ -1161,6 +1194,17 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     -- Flipped, the cast bar still hangs from it and leans back in from its
     -- bottom corner: a chevron.
     DUI:Set("UnitFrames", "player.powerSlantUnder", true)
+    -- The target's, focus's and party's bars of their own take one too.
+    DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    DUI:Set("UnitFrames", "targetCastbar.shell.own", true)
+    DUI:Set("UnitFrames", "targetCastbar.shell.borderPx", 1)
+    DUI:Set("UnitFrames", "focusCastbar.at", "free")
+    DUI:Set("UnitFrames", "focusCastbar.shell.own", true)
+    DUI:Set("UnitFrames", "focusCastbar.shell.borderPx", 4)
+    stub.RunTimers()
+    T.eq(Style.GetShell(ns.targetCastbarFree).opts.borderPx, 1, "the target's own border")
+    T.eq(Style.GetShell(ns.focusCastbarFree).opts.borderPx, 4, "the focus's own border")
+    T.eq(ns.DEFAULTS.partyCastbar.shell.own, false, "the party's bars have one too, off by default")
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "right", "the power bar's end leans under")
     T.eq(h.under, pb, "the cast bar still slides out from the power bar")
@@ -1567,3 +1611,4 @@ T.test("bar ends: a cast bar's end menus write its switches, each end on its own
     local sl = DUI.Style.GetSlant(ns.targetCastbarFree)
     T.eq(sl.side, "both"); T.eq(sl.under, "both", "/--\\")
 end)
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)   -- at the frame's width it wears the frame's ends
