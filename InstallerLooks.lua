@@ -118,6 +118,33 @@ Looks.KINDS = {
         box = function(parent) return Looks.Costs(parent) end,
         apply = function(k, set) set("ActionBars", "look.costs", k == "on") end,
     },
+    -- New in 2.5. Off writes the XP gain effects switch, which the orbs ride on.
+    xpOrbs = {
+        title = "XP orbs",
+        desc = "When you gain XP, a ring of orbs bursts out and streams into your experience bar, filling it as they land.",
+        keys = { "on", "off" }, new = "on",
+        ref = { "InfoPanel", "xpGain" },
+        shown = function(v) return v == false and "off" or "on" end,
+        available = function()
+            local ns = moduleNs("InfoPanel")
+            return type(ns) == "table" and type(ns.XPOrbs) == "table" and type(ns.XPOrbs.Preview) == "function"
+        end,
+        box = function(parent) return Looks.Orbs(parent) end,
+        apply = function(k, set) set("InfoPanel", "xpGain", k == "on") end,
+    },
+    buffReminder = {
+        title = "Missing buffs", rail = "Missing buffs",
+        desc = "In a group, a row of icons above you shows the buffs you're missing. Click a raid buff of yours to cast it.",
+        keys = { "on", "off" }, new = "on",
+        ref = { "Buffs", "settings.reminder.enabled" },
+        shown = function(v) return v == false and "off" or "on" end,
+        available = function()
+            local ns = moduleNs("Buffs")
+            return type(ns) == "table" and type(ns.ReminderRow) == "table" and type(ns.ReminderRow.Preview) == "function"
+        end,
+        box = function(parent) return Looks.Reminders(parent) end,
+        apply = function(k, set) set("Buffs", "settings.reminder.enabled", k == "on") end,
+    },
 }
 
 -- The nameplates' preview: a few friendly players' names over the world, in
@@ -285,6 +312,79 @@ function Looks.Costs(parent)
         end
     end
     return box
+end
+
+-- A pair laid out like the others: each look's drawing (made by art(key, f),
+-- ART_H tall, centered in its half), its name and line under it.
+Looks.PAIR_GAP = 14   -- between a drawing and its name
+local function pair(parent, looks, artH, art)
+    local box = CreateFrame("Frame", nil, parent)
+    box.frames, box.names, box.lines = {}, {}, {}
+    for _, look in ipairs(looks) do
+        local f = CreateFrame("Frame", nil, box)
+        f.art = art(look.key, f)
+        box.frames[look.key] = f
+        box.names[look.key] = Style.Text(box, Style.SIZE.body, "CENTER")
+        box.names[look.key]:SetText(L[look.name])
+        box.lines[look.key] = Style.Text(box, Style.SIZE.small, "CENTER")
+        box.lines[look.key]:SetText(L[look.line])
+    end
+    box.HEIGHT = artH + Looks.PAIR_GAP + Style.SIZE.body + 4 + Style.SIZE.small + 2
+    function box.Refresh(width)
+        width = (type(width) == "number" and width > 0) and width or 460
+        box:SetSize(width, box.HEIGHT)
+        local half = width / 2
+        for i, look in ipairs(looks) do
+            local f, mid = box.frames[look.key], (i - 0.5) * half
+            f:SetSize(half - 32, artH)
+            f:ClearAllPoints()
+            f:SetPoint("TOP", box, "TOPLEFT", mid, 0)
+            if f.art and f.art.Layout then f.art.Layout(half - 32) end
+            local name, line = box.names[look.key], box.lines[look.key]
+            Style.InkText(name, "VALUE")
+            Style.InkText(line, "LABEL")
+            name:ClearAllPoints()
+            name:SetPoint("TOP", box, "TOPLEFT", mid, -(artH + Looks.PAIR_GAP))
+            name:SetWidth(half - 8)
+            line:ClearAllPoints()
+            line:SetPoint("TOP", name, "BOTTOM", 0, -4)
+            line:SetWidth(half - 8)
+        end
+    end
+    return box
+end
+
+-- The XP orbs' preview: the experience bar with orbs streaming in, or the
+-- bar alone.
+Looks.ORBS_H = 110
+Looks.ORBS_LOOKS = {
+    { key = "on", name = "XP orbs", line = "Orbs stream into your XP bar." },
+    { key = "off", name = "Just the bar", line = "The bar fills, as before." },
+}
+function Looks.Orbs(parent)
+    local XPOrbs = moduleNs("InfoPanel").XPOrbs
+    return pair(parent, Looks.ORBS_LOOKS, Looks.ORBS_H, function(key, f)
+        local p = XPOrbs.Preview(f, key == "off")
+        p:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+        function p.Layout(w) p:SetSize(w, Looks.ORBS_H) end
+        return p
+    end)
+end
+
+-- The missing buffs' preview: the row of sample icons, or nothing.
+Looks.REMINDERS_H = 80
+Looks.REMINDER_LOOKS = {
+    { key = "on", name = "Missing buffs", line = "Icons above you for what you lack." },
+    { key = "off", name = "Off", line = "No reminders." },
+}
+function Looks.Reminders(parent)
+    local Row = moduleNs("Buffs").ReminderRow
+    return pair(parent, Looks.REMINDER_LOOKS, Looks.REMINDERS_H, function(key, f)
+        if key ~= "on" then return nil end
+        local p = Row.Preview(f)
+        p:SetPoint("CENTER", f, "CENTER", 0, 0)
+        return p
+    end)
 end
 
 function Looks.Available(kind)

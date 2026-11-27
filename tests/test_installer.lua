@@ -263,7 +263,7 @@ end)
 
 T.test("installer questions: every one writes a setting the options have, with a value that setting takes", function()
     local DUI = login({ module = true, bags = true, chat = true, infopanel = true, tooltip = true, qol = true, nameplates = true, quests = true,
-                        procs = true, actionbars = true })
+                        procs = true, actionbars = true, buffs = true })
     local P = DUI.InstallerPages
     local n = 0
     for _, part in ipairs(P.PARTS) do
@@ -289,7 +289,7 @@ T.test("installer questions: every one writes a setting the options have, with a
             end
         end
     end
-    T.eq(n, 16)
+    T.eq(n, 18)
     for _, k in ipairs(P.Keys(P.Questions("quick"))) do T.truthy(P.Find(k[1], k[2]), "quick: " .. k[1] .. " " .. k[2]) end
     T.eq(P.Where("appearance"), "General > Appearance")
     T.eq(P.Module("Bags").addon, "DaylightUI_Bags")

@@ -5827,7 +5827,6 @@ L["Your attacks ignore %.0f of the target's armor."] = "你的攻击忽略目标
 L["Your spells ignore %.0f of the target's resistances."] = "你的法术忽略目标 %.0f 点抗性。"
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "获得经验时，光球会从怪物、任务给予者或你发现的地点飞入计量条，落下时逐步填满。随后新获得的那段会发光，并升起“+XP”；升级时有扫光效果。需要动态效果（常规 > 外观）。"
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "队长框体上的王冠。 在你为它选好位置之前，它跟随名字标签或头像。"
 L["Adds a chat tab, or a combat log tab."] = "添加聊天标签页或战斗记录标签页。"
 L["Alerts and timers"] = "警报与计时条"

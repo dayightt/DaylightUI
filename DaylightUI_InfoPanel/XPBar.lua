@@ -359,54 +359,62 @@ local function accentPair()
     return { lo = lo, hi = hi }
 end
 
-function XP.Paint(d)
+-- bar, rested: another pair to paint the same way (the XP orbs' preview, which
+-- has no rested bar); the panel's own by default.
+function XP.Paint(d, bar, rested)
+    bar = bar or XP.bar
+    if not bar then return end
+    if bar == XP.bar then rested = XP.rested end
+    -- Only the panel's bar can stand upright.
+    local vertical = bar == XP.bar and XP.vertical
+    local function restedColor(...) if rested then Style.SetBarColor(rested, ...) end end
     local G = DUI.Gradients
     local r, g, b = d.color[1], d.color[2], d.color[3]
     local accent = not d.rep and XP.colorMode == "accent"
     local own = not d.rep and XP.colorMode == "custom" and G and G.Stops(XP.stops)
-    local upright = XP.vertical and "VERTICAL" or nil
+    local upright = vertical and "VERTICAL" or nil
     local custom
     -- Your own colors: along the bar, or its last one with the gradient off.
     if own then
         if XP.gradient then
-            G.PaintStops(XP.bar, XP.stops, nil, false, upright)
+            G.PaintStops(bar, XP.stops, nil, false, upright)
             r, g, b = Style.StopsAt(own, 0.5)
         else
             local last = own[#own]
             r, g, b = last[1], last[2], last[3]
-            Style.SetBarColor(XP.bar, r, g, b)
+            Style.SetBarColor(bar, r, g, b)
         end
-        Style.SetBarColor(XP.rested, r, g, b)
+        restedColor(r, g, b)
         return
     end
     -- An accent of three or more colors runs every one of them along the bar.
     local many = accent and XP.gradient and G and Style.AccentStops()
     if many then
-        Style.PaintBarStops(XP.bar, many, nil, upright or "HORIZONTAL")
-        Style.SetBarColor(XP.rested, Style.StopsAt(many, 0.5))
+        Style.PaintBarStops(bar, many, nil, upright or "HORIZONTAL")
+        restedColor(Style.StopsAt(many, 0.5))
         return
     end
     if accent and XP.gradient and G then custom = accentPair()
     elseif accent then r, g, b = Style.Accent() end
     if custom and not XP.gradient then r, g, b = custom.hi[1], custom.hi[2], custom.hi[3] end
     if custom and XP.gradient and G then
-        Style.SetBarColor(XP.bar, G.MidOf(custom.lo, custom.hi))
-        XP.bar:SetStatusBarColor(1, 1, 1, 1)
-        XP.PaintPair(XP.bar, custom.lo, custom.hi, XP.vertical)
+        Style.SetBarColor(bar, G.MidOf(custom.lo, custom.hi))
+        bar:SetStatusBarColor(1, 1, 1, 1)
+        XP.PaintPair(bar, custom.lo, custom.hi, vertical)
         r, g, b = G.MidOf(custom.lo, custom.hi)
     elseif XP.gradient and G then
         local key = d.rep and "REP_" .. d.rep or (XP.colorMode == "class" and G.KeyFor("player"))
         if key and G.Has(key) then
-            XP.PaintKey(XP.bar, key, XP.vertical)
+            XP.PaintKey(bar, key, vertical)
             r, g, b = G.Mid(key)
         else
-            XP.PaintFrom(XP.bar, d.color, XP.vertical)
+            XP.PaintFrom(bar, d.color, vertical)
             r, g, b = G.MidOf(G.PairFrom(d.color))
         end
     else
-        Style.SetBarColor(XP.bar, r, g, b)    -- a plain color also clears a gradient
+        Style.SetBarColor(bar, r, g, b)    -- a plain color also clears a gradient
     end
-    Style.SetBarColor(XP.rested, r, g, b)
+    restedColor(r, g, b)
 end
 
 -- The fill's color at t (0 = its start, 1 = its end) as it is painted now:

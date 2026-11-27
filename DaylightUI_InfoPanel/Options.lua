@@ -135,7 +135,7 @@ ns.OPTIONS = { pages = {
               hidden = function(get) return get("xp.enabled") == true end },
             { type = "toggle", key = "xpGain", label = "XP gain effects",
               disabled = function(get) return get("xp.enabled") ~= true or motionOff() end,
-              desc = "When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)." },
+              desc = "When you gain XP, a ring of orbs bursts out and flies into the bar, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)." },
             { type = "toggle", key = "xp.showText", label = "Show XP and rested XP as text",
               desc = "The numbers on the bar, e.g. 1,200 / 5,000 (+800), where +800 is your rested XP.",
               disabled = off("xp.enabled") },
@@ -166,7 +166,7 @@ ns.OPTIONS = { pages = {
               desc = "Where the numbers open when you hover the bar. Automatic opens them toward the middle of the screen.",
               disabled = off("xp.enabled") },
         } },
-        { tab = "General", label = "XP orbs", desc = "When you gain XP, orbs bloom where it came from and fly into the experience bar. They come with XP gain effects above.", items = {
+        { tab = "General", label = "XP orbs", desc = "When you gain XP, a ring of orbs bursts out and flies into the experience bar. They come with XP gain effects above.", items = {
             { type = "slider", key = "orbs.size", label = "Orb size", min = 0.5, max = 2.5, step = 0.1, unit = "%",
               desc = "How big the XP orbs are.",
               disabled = function(get) return get("xpGain") ~= true or motionOff() end },

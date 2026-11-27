@@ -3,7 +3,6 @@ local _, DUI = ...
 DUI.AddLanguage("frFR", function(L)
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "Quand vous gagnez de l'expérience, des orbes volent vers la barre depuis le monstre, le donneur de quête ou le lieu découvert, et la remplissent en arrivant. Puis la nouvelle portion brille et « +PX » s'élève ; un balayage lors d'un passage de niveau. Nécessite les effets de mouvement (Général > Apparence)."
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "Une couronne sur le cadre du chef de groupe. Il suit l'onglet du nom ou le portrait jusqu'à ce que vous lui choisissiez une place."
 L["Adds a chat tab, or a combat log tab."] = "Ajoute un onglet de discussion ou un onglet de journal de combat."
 L["Alerts and timers"] = "Alertes et minuteurs"

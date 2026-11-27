@@ -3,7 +3,9 @@
 -- sunrise banner with what's new; then one slide per new look (portraits,
 -- tooltips, Proc Alerts) where both are drawn side by side and the player
 -- picks one, and a slide showing the new bar animations moving, with where to
--- pick them. A player who saw it before gets only the slides added since.
+-- pick them. 2.5 adds its own page on the banner: XP orbs and missing buffs,
+-- each playing in a card with a switch. A player who saw it before gets only
+-- the slides added since.
 -- Nothing is written until Finish; closing it early asks again next login.
 -- A brand-new account never sees it: the setup guide asks the same things.
 --
@@ -20,7 +22,7 @@ local C = W.COLORS
 local Welcome = {}
 DUI.Welcome = Welcome
 
-Welcome.VERSION = 4
+Welcome.VERSION = 5
 Welcome.LOGIN_DELAY = 2  -- after the plugins' guides look (1 s), before the portrait question would (3 s)
 Welcome.WAIT = 5         -- while the guide's window is busy, look again this often
 Welcome.TRIES = 24       -- for about two minutes
@@ -48,10 +50,26 @@ Welcome.AFTER_SUN = 0.3    -- the words wait this long for the sunrise to start
 
 -- The slides after the news: one per new look (InstallerLooks.KINDS), or a
 -- slide that only shows something (Welcome.SHOWS).
-Welcome.CHOICES = { "portraitLook", "tooltipStyle", "plateClassIcon", "procAlerts", "barFx" }
+Welcome.CHOICES = { "portraitLook", "tooltipStyle", "plateClassIcon", "procAlerts", "barFx", "news25" }
 -- A slide added after the 2.0 welcome: the version it came with. A player who
 -- saw an earlier one gets only these, without the news.
-Welcome.SINCE = { procAlerts = 3, barFx = 4 }
+Welcome.SINCE = { procAlerts = 3, barFx = 4, news25 = 5 }
+
+-- The 2.5 page: a card per new thing (InstallerLooks.KINDS, on or off), each
+-- playing its preview over a few words, a switch in its corner. A thing whose
+-- module is off is left out; the page shows while one is left.
+Welcome.NEWS25 = {
+    { kind = "xpOrbs",
+      text = "When you gain XP, a ring of orbs bursts out and streams into your experience bar, filling it as they land.",
+      hint = "Size, speed and color: Info Panel > Experience bar." },
+    { kind = "buffReminder",
+      text = "In a group, a row of icons above you shows the buffs you're missing: raid buffs (click yours to cast it), your class's own buff, oils and poisons.",
+      hint = "Food, scrolls and camp too: Buffs > Missing buffs." },
+}
+Welcome.CARD25_H = 252
+Welcome.CARD25_PAD = 14
+Welcome.DEMO_H = 110       -- each card's preview
+Welcome.DEMO_DIM = 0.35    -- a preview switched off
 
 -- The bar animations new since the last welcome, in the order shown, each
 -- with a line about it. One that isn't in this build is left out.
@@ -98,7 +116,17 @@ Welcome.SHOWS = {
     },
 }
 
+local function news25()
+    local out = {}
+    for _, item in ipairs(Welcome.NEWS25) do
+        if DUI.InstallerLooks.Available(item.kind) then out[#out + 1] = item end
+    end
+    return out
+end
+Welcome.News25 = news25
+
 local function available(kind)
+    if kind == "news25" then return #news25() > 0 end
     local show = Welcome.SHOWS[kind]
     if not show then return DUI.InstallerLooks.Available(kind) end
     local on = false
@@ -107,7 +135,10 @@ local function available(kind)
 end
 
 -- Whether a slide waits for a pick before Next.
-local function needsPick(kind) return kind ~= "news" and not Welcome.SHOWS[kind] end
+local function needsPick(kind) return kind ~= "news" and kind ~= "news25" and not Welcome.SHOWS[kind] end
+
+-- A page on the sunrise banner, with its own button and dots.
+local function full(kind) return kind == "news" or kind == "news25" end
 
 -- What's new: the first one is the tall card. go = a choice slide the card
 -- opens; hue = its icon's spot along the Daylight sweep.
@@ -280,7 +311,7 @@ local function rule(parent, width, toLeft) return DUI.InstallerChrome.Rule(paren
 
 -- What sits on the window itself while the news shows: the plaque on the
 -- banner's lower edge with its lines.
-local function buildChrome(page)
+local function buildChrome(page, version)
     local UI = DUI.InstallerUI
     local win = UI.Frame()
     local k = CreateFrame("Frame", nil, win)
@@ -308,7 +339,7 @@ local function buildChrome(page)
         local a, z = Style.GRADIENT_SHAPE[1], Style.GRADIENT_SHAPE[2]
         p.Paint()
         p.Set(hex(Style.INK.LABEL) .. Welcome.Spaced(L["Version"]) .. "|r   "
-            .. hex(Style.INK.VALUE) .. Welcome.Spaced("2.0") .. "|r")
+            .. hex(Style.INK.VALUE) .. Welcome.Spaced(version or "2.0") .. "|r")
         if p:GetWidth() < Welcome.PLAQUE_W then p:SetWidth(Welcome.PLAQUE_W) end
         Style.Gradient(k.lineL, "HORIZONTAL", a[1], a[2], a[3], 0, a[1], a[2], a[3], 0.9)
         Style.Gradient(k.lineR, "HORIZONTAL", z[1], z[2], z[3], 0.9, z[1], z[2], z[3], 0)
@@ -318,6 +349,42 @@ local function buildChrome(page)
     page:HookScript("OnShow", function() k.Paint(); k:Show() end)
     page:HookScript("OnHide", function() k:Hide() end)
     return k
+end
+
+-- A dot per slide under a banner page, the one showing long and lit.
+local function addDots(page, y)
+    page.dots = CreateFrame("Frame", nil, page)
+    page.dots:SetHeight(Welcome.DOT)
+    page.dots:SetPoint("TOP", page, "TOP", 0, -y)
+    page.dots.list = {}
+
+    function page.Dots(at)
+        local list, total = page.dots.list, 0
+        for i = 1, #run.slides do
+            local d = list[i]
+            if not d then
+                d = page.dots:CreateTexture(nil, "ARTWORK")
+                d:SetTexture(DUI.MEDIA .. "ui-round.png")
+                list[i] = d
+            end
+            local on = i == (at or 1)
+            local w = on and Welcome.DOT_ON or Welcome.DOT
+            d:SetSize(w, Welcome.DOT)
+            d:ClearAllPoints()
+            d:SetPoint("LEFT", page.dots, "LEFT", total, 0)
+            if on then
+                local c = sweep(Welcome.DOT_HUE)
+                d:SetVertexColor(c[1], c[2], c[3], 1)
+            else
+                W.Tint(d, C.track)
+            end
+            d:Show()
+            total = total + w + Welcome.DOT_GAP
+        end
+        for i = #run.slides + 1, #list do list[i]:Hide() end
+        page.dots:SetWidth(math.max(1, total - Welcome.DOT_GAP))
+    end
+    return y + Welcome.DOT + 4
 end
 
 local function buildNews(parent, width)
@@ -379,40 +446,8 @@ local function buildNews(parent, width)
     page.go:SetScript("OnClick", function() Welcome.Next() end)
     y = y + Welcome.GO_H + Welcome.DOTS_GAP
 
-    -- A dot per slide, this one long and lit.
-    page.dots = CreateFrame("Frame", nil, page)
-    page.dots:SetHeight(Welcome.DOT)
-    page.dots:SetPoint("TOP", page, "TOP", 0, -y)
-    page.dots.list = {}
-    y = y + Welcome.DOT + 4
+    y = addDots(page, y)
     page:SetHeight(y)
-
-    function page.Dots()
-        local list, total = page.dots.list, 0
-        for i = 1, #run.slides do
-            local d = list[i]
-            if not d then
-                d = page.dots:CreateTexture(nil, "ARTWORK")
-                d:SetTexture(DUI.MEDIA .. "ui-round.png")
-                list[i] = d
-            end
-            local on = i == 1
-            local w = on and Welcome.DOT_ON or Welcome.DOT
-            d:SetSize(w, Welcome.DOT)
-            d:ClearAllPoints()
-            d:SetPoint("LEFT", page.dots, "LEFT", total, 0)
-            if on then
-                local c = sweep(Welcome.DOT_HUE)
-                d:SetVertexColor(c[1], c[2], c[3], 1)
-            else
-                W.Tint(d, C.track)
-            end
-            d:Show()
-            total = total + w + Welcome.DOT_GAP
-        end
-        for i = #run.slides + 1, #list do list[i]:Hide() end
-        page.dots:SetWidth(math.max(1, total - Welcome.DOT_GAP))
-    end
 
     -- After the sunrise: the plaque and its lines, the title and its lines,
     -- the line under it, the Auction House, the other cards one by one, then
@@ -451,6 +486,147 @@ local function buildNews(parent, width)
             lo = Style.GRADIENT_SHAPE[1], hi = Style.GRADIENT_SHAPE[2] })
     end)
     page:HookScript("OnHide", function() W.GlowAround(page.cards[1], false) end)
+    return page
+end
+
+-- The 2.5 page, on the banner like the news: the "Version 2.5" plaque, the
+-- title between its lines, then a card per new thing side by side, each
+-- playing its preview over a few words and where to fine-tune it, with a
+-- switch in its corner (a click anywhere on the card flips it too). A switch
+-- only changes the pick: it's written at Finish, like every other slide's.
+
+local function card25(parent, item, width)
+    local Looks, Cards, M = DUI.InstallerLooks, DUI.InstallerCards, DUI.Motion
+    local spec = Looks.KINDS[item.kind]
+    local pad = Welcome.CARD25_PAD
+    local c = Cards.Card(parent)
+    c:SetSize(width, Welcome.CARD25_H)
+    c.kind = item.kind
+    c.title = W.Font(c.inner, W.TITLE, SIZE.head, C.value)
+    c.title:SetPoint("TOPLEFT", c.inner, "TOPLEFT", pad, -pad)
+    c.title:SetText(L[spec.title])
+    c.switch = W.Switch(c.inner)
+    c.switch:SetPoint("RIGHT", c.inner, "TOPRIGHT", -pad, -(pad + SIZE.head / 2))
+    c.demo = CreateFrame("Frame", nil, c.inner)
+    c.demo:SetSize(width - 2 * pad, Welcome.DEMO_H)
+    c.demo:SetPoint("TOPLEFT", c.title, "BOTTOMLEFT", 0, -10)
+    local ns = DUI:GetModule(item.kind == "xpOrbs" and "InfoPanel" or "Buffs").ns
+    if item.kind == "xpOrbs" then
+        c.preview = ns.XPOrbs.Preview(c.demo)
+        c.preview:SetSize(width - 2 * pad, Welcome.DEMO_H)
+        c.preview:SetPoint("TOPLEFT", c.demo, "TOPLEFT", 0, 0)
+    else
+        c.preview = ns.ReminderRow.Preview(c.demo)
+        c.preview:SetPoint("CENTER", c.demo, "CENTER", 0, 0)
+    end
+    c.text = Cards.Text(c, L[item.text], SIZE.body, C.text)
+    c.text:SetPoint("TOPLEFT", c.demo, "BOTTOMLEFT", 0, -12)
+    c.text:SetPoint("RIGHT", c.inner, "RIGHT", -pad, 0)
+    c.hint = W.Font(c.inner, W.BODY, SIZE.small, C.dim)
+    c.hint:SetPoint("BOTTOMLEFT", c.inner, "BOTTOMLEFT", pad, pad)
+    c.hint:SetPoint("RIGHT", c.inner, "RIGHT", -pad, 0)
+    c.hint:SetJustifyH("LEFT")
+    c.hint:SetText(L[item.hint])
+
+    -- Lit while on: the outline and the circling lights; off, the preview dims.
+    function c.Paint(animate)
+        local on = run ~= nil and run.picks[item.kind] == "on"
+        c.switch.SetOn(on)
+        c.SetSelected(on)
+        W.GlowAround(c, on, { frame = c.inner })
+        M.AlphaTo(c.demo, on and 1 or Welcome.DEMO_DIM, animate and M.NORMAL or 0)
+    end
+    local function flip()
+        if not run then return end
+        run.picks[item.kind] = run.picks[item.kind] == "on" and "off" or "on"
+        c.Paint(true)
+    end
+    c.switch:SetScript("OnClick", flip)
+    c:SetScript("OnClick", function()
+        flip()
+        if DUI.Sound then DUI.Sound.Play("toggle") end
+    end)
+    c.tooltip = { L[spec.title], L["Click to switch it on or off."] }
+    return c
+end
+
+local function buildNews25(parent, width)
+    local M = DUI.Motion
+    local page = CreateFrame("Frame", nil, parent)
+    page:SetWidth(width)
+    page.chrome = buildChrome(page, "2.5")
+
+    local y = Welcome.TITLE_TOP
+    page.greet = W.Font(page, W.TITLE, Welcome.TITLE_SIZE, C.value, "CENTER")
+    page.greet:SetPoint("TOP", page, "TOP", 0, -y)
+    page.greet:SetText(string.format(L["New in Daylight UI %s"], DUI.GradientText("2.5")))
+    page.ruleL = rule(page, Welcome.RULE_W, true)
+    page.ruleL:SetPoint("RIGHT", page.greet, "LEFT", -Welcome.RULE_GAP, 0)
+    page.ruleR = rule(page, Welcome.RULE_W, false)
+    page.ruleR:SetPoint("LEFT", page.greet, "RIGHT", Welcome.RULE_GAP, 0)
+    y = y + Welcome.TITLE_SIZE + 10
+
+    page.intro = W.Font(page, W.BODY, SIZE.small, C.dim, "CENTER")
+    page.intro:SetPoint("TOP", page, "TOP", 0, -y)
+    page.intro:SetText(Welcome.Spaced(L["Two new things. Keep what you like."]))
+    y = y + SIZE.small + Welcome.INTRO_GAP
+
+    -- Two side by side; one alone sits in the middle at the same width.
+    local m, gap = Welcome.MARGIN, Welcome.GAP
+    local cw = (width - 2 * m - gap) / 2
+    local items = news25()
+    page.cards = {}
+    for i, item in ipairs(items) do
+        local c = card25(page, item, cw)
+        local x = #items == 1 and (width - cw) / 2 or m + (i - 1) * (cw + gap)
+        c:SetPoint("TOPLEFT", page, "TOPLEFT", x, -y)
+        page.cards[i] = c
+    end
+    y = y + Welcome.CARD25_H + Welcome.GO_GAP
+
+    page.go = W.HeroButton(page, DONE or L["Done"], Welcome.GO_H)
+    page.go:SetWidth(Welcome.GO_W)
+    page.go:SetPoint("TOP", page, "TOP", 0, -y)
+    page.go:SetScript("OnClick", function() Welcome.Next() end)
+    y = y + Welcome.GO_H + Welcome.DOTS_GAP
+    y = addDots(page, y)
+    page:SetHeight(y)
+
+    function page.Refresh()
+        for _, c in ipairs(page.cards) do c.Paint(false) end
+    end
+
+    -- After the sunrise, as the news comes in: the plaque, the title, the
+    -- cards one by one, then the button.
+    function page.Play()
+        local last = run.at == #run.slides
+        page.go.SetLabel(last and (DONE or L["Done"]) or (NEXT or L["Next"]))
+        page.Dots(run.at)
+        page.dots:SetShown(#run.slides > 1)
+        local Feel = DUI.Win.Feel
+        local t, slow, beat, k, lift = Welcome.AFTER_SUN, M.SLOW, M.FAST, page.chrome, Welcome.LIFT
+        Feel.Piece(k.plaque, t, slow, lift / 2)
+        Feel.Piece(k.lineL, t + beat, slow, 0)
+        Feel.Piece(k.lineR, t + beat, slow, 0)
+        t = t + beat
+        Feel.Piece(page.greet, t, slow, lift)
+        Feel.Piece(page.ruleL, t + beat, slow, 0)
+        Feel.Piece(page.ruleR, t + beat, slow, 0)
+        Feel.Piece(page.intro, t + 2 * beat, slow, lift / 2)
+        t = t + 3 * beat
+        for i, c in ipairs(page.cards) do
+            Feel.Piece(c, t + (i - 1) * Welcome.STAGGER, slow, lift)
+        end
+        t = t + #page.cards * Welcome.STAGGER
+        Feel.Piece(page.go, t, slow, lift)
+        if #run.slides > 1 then Feel.Piece(page.dots, t + beat, slow, 0) end
+        C_Timer.After(t + slow, function()
+            if page:IsVisible() then page.go.Shine() end
+        end)
+    end
+    page:HookScript("OnHide", function()
+        for _, c in ipairs(page.cards) do W.GlowAround(c, false) end
+    end)
     return page
 end
 
@@ -556,6 +732,8 @@ function Welcome.Go(i)
     if not page then
         if kind == "news" then
             page = buildNews(UI.Body(), UI.ContentWidth(false))
+        elseif kind == "news25" then
+            page = buildNews25(UI.Body(), UI.ContentWidth(false))
         elseif kind == "barFx" then
             page = buildBarFx(UI.Body(), UI.ContentWidth(true))
         else
@@ -564,16 +742,22 @@ function Welcome.Go(i)
         page:Hide()
         run.pages[i] = page
     end
-    if kind == "news" then
+    if full(kind) then
         UI.SetPage(page, { full = true, veil = true, still = true, dir = dir })
     else
         local show = Welcome.SHOWS[kind]
         local spec = show or Looks.KINDS[kind]
         -- A lone slide (only Proc Alerts are new) needs no "Step 1 of 1".
-        local first = run.slides[1] == "news" and 1 or 0
-        local total = #run.slides - first
+        -- The banner pages aren't steps.
+        local at, total = 0, 0
+        for n, s in ipairs(run.slides) do
+            if not full(s) then
+                total = total + 1
+                if n <= i then at = at + 1 end
+            end
+        end
         UI.SetPage(page, {
-            dir = dir, rail = true, veil = true, still = true, step = total > 1 and i - first or nil, total = total,
+            dir = dir, rail = true, veil = true, still = true, step = total > 1 and at or nil, total = total,
             title = L[spec.title], desc = L[spec.desc], back = i > 1,
             later = show and show.later() or Looks.Later(kind),
             laterSay = show and L[show.laterSay] or nil, laterKey = show and show.laterKey or nil,
@@ -581,8 +765,9 @@ function Welcome.Go(i)
         })
         local steps = {}
         for n, s in ipairs(run.slides) do
-            local k = Welcome.SHOWS[s] or Looks.KINDS[s]
-            steps[n] = { id = n, label = s == "news" and L["What's new"] or L[k.rail or k.title] }
+            local k = Welcome.SHOWS[s] or Looks.KINDS[s] or {}
+            local label = s == "news" and L["What's new"] or s == "news25" and L["New in 2.5"] or L[k.rail or k.title]
+            steps[n] = { id = n, label = label }
         end
         UI.SetRail(steps, i, run.visited, Welcome.Go)
     end
@@ -641,6 +826,12 @@ function Welcome.Show(after)
     local list = slides(after)
     if #list == 0 then return true end
     run = { slides = list, picks = {}, pages = {}, visited = {} }
+    -- The 2.5 page's switches start as the settings are.
+    for _, kind in ipairs(list) do
+        if kind == "news25" then
+            for _, item in ipairs(news25()) do run.picks[item.kind] = DUI.InstallerLooks.Current(item.kind) end
+        end
+    end
     UI.Open({
         width = Welcome.WIDTH, height = Welcome.HEIGHT, lit = true,
         close = Welcome.OnClosed,
@@ -670,7 +861,7 @@ DUI.RegisterEvent("PLAYER_LOGIN", function()
 end)
 
 DUI.RegisterCommand("welcome", function() Welcome.Show() end,
-    function() return L["/dui welcome - what's new in Daylight UI 2.0, and the new looks and Proc Alerts to pick from"] end)
+    function() return L["/dui welcome - what's new in Daylight UI 2.0 and since, and the new looks to pick from"] end)
 -- Only the slides this version's welcome added.
 DUI.RegisterCommand("whatsnew", function() Welcome.Show(Welcome.VERSION - 1) end,
-    function() return L["/dui whatsnew - the newest slides of the welcome, like the new bar animations"] end)
+    function() return L["/dui whatsnew - what's new in Daylight UI 2.5: XP orbs and missing buffs"] end)

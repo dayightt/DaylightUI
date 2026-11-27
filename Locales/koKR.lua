@@ -3,7 +3,6 @@ local _, DUI = ...
 DUI.AddLanguage("koKR", function(L)
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "경험치를 얻으면 몬스터, 퀘스트 제공자 또는 발견한 장소에서 구슬이 막대로 날아와 도착할 때마다 막대를 채웁니다. 그런 다음 새로 채운 부분이 빛나고 \"+경험치\"가 떠오르며, 레벨이 오르면 빛이 쓸고 지나갑니다. 움직임 효과가 필요합니다 (일반 > 모양)."
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "파티장의 프레임에 왕관이 표시됩니다. 위치를 직접 정하기 전까지는 이름 탭이나 초상화를 따라갑니다."
 L["Adds a chat tab, or a combat log tab."] = "대화 탭이나 전투 기록 탭을 추가합니다."
 L["Alerts and timers"] = "경보와 타이머"

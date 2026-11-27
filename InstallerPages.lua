@@ -307,6 +307,18 @@ Pages.PARTS = {
                    list = "A row per item." },
           ask = "How should your bags be arranged?",
           what = "How your items are laid out when you open your bags." },
+        { id = "xpOrbs", short = "XP orbs", needs = "InfoPanel", look = "xpOrbs",
+          labels = { on = "Orbs on", off = "Just the bar" },
+          subs = { on = "Orbs stream into your XP bar.", off = "The bar fills, as before." },
+          new = { on = true },
+          ask = "XP orbs when you gain experience?",
+          what = "When you gain XP, a ring of orbs bursts out and streams into your experience bar, filling it as they land." },
+        { id = "buffReminder", short = "Missing buffs", needs = "Buffs", look = "buffReminder",
+          labels = { on = "Remind me", off = "No reminders" },
+          subs = { on = "Icons above you for what you lack.", off = "Nothing shows." },
+          new = { on = true },
+          ask = "Show the buffs you're missing?",
+          what = "In a group, a row of icons above you shows missing raid buffs, your class's own buff and weapon oils or poisons. Click a raid buff of yours to cast it." },
     } },
     -- A bundle is yes or no: yes picks every setting in set, no leaves them as
     -- the setup has them. A setting with `addon` is only picked while that

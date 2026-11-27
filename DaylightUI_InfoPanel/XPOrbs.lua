@@ -1,6 +1,7 @@
--- XP orbs: when you gain experience, a ring of orbs blooms where it came from
--- (the mob, the quest giver's reward, the zone name), settles, then streams
--- into the XP bar. The fill steps up as each orb lands; the last one sweeps a
+-- XP orbs: when you gain experience, a ring of orbs blooms, settles, then
+-- streams into the XP bar. It starts where the gain came from when that can be
+-- told (the quest giver's reward line, or where the cursor last hovered the
+-- mob), else at a spot above the middle of the screen. The fill steps up as each orb lands; the last one sweeps a
 -- light over the gained piece and shows the "+N".
 --
 -- What a gain was and where it started is XPSource.lua's. Everything here is
@@ -44,7 +45,8 @@ XPOrbs.bursts = {}
 XPOrbs.owed = 0      -- XP the bar holds back until its orbs land
 XPOrbs.landed = 0
 XPOrbs.textures = {}
-local free = {}
+-- Free textures, one pool per layer: the screen's, or a preview's own.
+local pools = {}
 
 -- How many orbs a gain gets: more for a bigger share of the level, so a big
 -- kill looks bigger, and even a small one reads.
@@ -104,10 +106,14 @@ local function layer()
     return f
 end
 
-local function texture(file)
-    local t = table.remove(free)
+local function texture(file, on)
+    on = on or layer()
+    local pool = pools[on]
+    if not pool then pool = {}; pools[on] = pool end
+    local t = table.remove(pool)
     if not t then
-        t = layer():CreateTexture(nil, "OVERLAY")
+        t = on:CreateTexture(nil, "OVERLAY")
+        t.pool, t.layer = pool, on
         XPOrbs.textures[#XPOrbs.textures + 1] = t
     end
     t:SetTexture(file)
@@ -120,18 +126,25 @@ end
 local function release(t)
     if not t then return end
     t:Hide()
-    free[#free + 1] = t
+    t.pool[#t.pool + 1] = t
 end
 
 local function place(t, x, y, w, h)
     t:ClearAllPoints()
-    t:SetPoint("CENTER", XPOrbs.layer, "BOTTOMLEFT", x, y)
+    t:SetPoint("CENTER", t.layer, "BOTTOMLEFT", x, y)
     t:SetSize(w, h or w)
 end
 
 local function alive()
     local n = 0
     for _, b in ipairs(XPOrbs.bursts) do n = n + (b.n - b.landed) end
+    return n
+end
+
+-- The bursts flying into the real bar, leaving out previews'.
+local function screenBursts()
+    local n = 0
+    for _, b in ipairs(XPOrbs.bursts) do if not b.preview then n = n + 1 end end
     return n
 end
 
@@ -237,12 +250,23 @@ end
 
 -- One frame of every burst.
 function XPOrbs.Step(dt)
-    local tx, ty = target()
-    if not tx then XPOrbs.Drop(); return end
-    local W, H = UIParent:GetWidth() or 0, UIParent:GetHeight() or 0
+    local rx, ry = target()
+    if not rx and screenBursts() > 0 then XPOrbs.Drop() end
     local busy = false
     for bi = #XPOrbs.bursts, 1, -1 do
         local b = XPOrbs.bursts[bi]
+        -- A preview's burst aims at its own bar, and ends alone when that is gone.
+        local tx, ty = rx, ry
+        if b.aim then tx, ty = b.aim() end
+        if not tx then
+            finish(b)
+            for _, k in ipairs(b.sparks) do release(k.tex) end
+            b.sparks = {}
+            table.remove(XPOrbs.bursts, bi)
+            b = nil
+        end
+        if b then
+        local W, H = (b.layer or UIParent):GetWidth() or 0, (b.layer or UIParent):GetHeight() or 0
         b.t = b.t + dt
         local t = b.t
         -- The bow's pull: from the bar toward the middle of the screen.
@@ -268,11 +292,15 @@ function XPOrbs.Step(dt)
                     for _, g in ipairs(o.ghosts) do release(g) end
                     o.ghosts = {}
                     b.landed = b.landed + 1
-                    XPOrbs.landed = XPOrbs.landed + 1
-                    b.sparks[#b.sparks + 1] = { tex = texture(RINGTEX), t = t, x = tx, y = ty }
-                    if b.level then b.level.frac = math.min(1, b.level.frac + b.step)
-                    elseif not b.cosmetic then XPOrbs.owed = math.max(0, XPOrbs.owed - b.step) end
-                    settleBar()
+                    b.sparks[#b.sparks + 1] = { tex = texture(RINGTEX, b.layer), t = t, x = tx, y = ty }
+                    if b.onLand then
+                        DUI.SafeCall(b.onLand, b)
+                    else
+                        XPOrbs.landed = XPOrbs.landed + 1
+                        if b.level then b.level.frac = math.min(1, b.level.frac + b.step)
+                        elseif not b.cosmetic then XPOrbs.owed = math.max(0, XPOrbs.owed - b.step) end
+                        settleBar()
+                    end
                     if b.landed == b.n then XPOrbs.Done(b) end
                 elseif x then
                     place(o.halo, x, y, 2 * XPOrbs.HALO * o.r)
@@ -307,6 +335,7 @@ function XPOrbs.Step(dt)
         else
             busy = true
         end
+        end
     end
     if not busy then
         XPOrbs.layer:SetScript("OnUpdate", nil)
@@ -317,6 +346,7 @@ end
 -- The last orb of a burst is home.
 function XPOrbs.Done(b)
     local G = ns.XPGain
+    if b.preview then return end
     if b.plugin then return end
     if b.level then
         XPOrbs.levelling = nil
@@ -328,7 +358,12 @@ function XPOrbs.Done(b)
 end
 
 -- A burst for a gain, from src (XPSource's answer).
-local function burst(g, src)
+-- opts (a preview's): layer = the frame it draws on, aim() = its bar's fill
+-- edge in that frame's units, onLand(b) = an orb is home.
+local function burst(g, src, opts)
+    opts = opts or {}
+    local on = opts.layer
+    local aim = opts.aim or target
     local n = g.count or XPOrbs.Count(g.gain, g.max)
     local room = XPOrbs.ALIVE - alive()
     if n > room then n = math.max(math.min(3, n), room) end
@@ -338,14 +373,15 @@ local function burst(g, src)
     local size, flight, K = look()
     local b = { x = x, y = y, t = 0, n = n, landed = 0, orbs = {}, sparks = {}, step = g.gain / n, plugin = g.plugin,
                 from = g.from, to = g.to, max = g.max, gain = g.gain, level = g.level, flight = flight, k = K,
-                ux = 0, uy = 1, w = UIParent:GetWidth() or 0, h = UIParent:GetHeight() or 0 }
+                layer = on, aim = opts.aim, onLand = opts.onLand, preview = opts.aim ~= nil,
+                ux = 0, uy = 1, w = (on or UIParent):GetWidth() or 0, h = (on or UIParent):GetHeight() or 0 }
     if g.level then b.step = (1 - g.level.frac) / n end
     local XP = ns.XP
     local restedN = 0
     if type(src.bonus) == "number" and src.bonus > 0 then
         restedN = math.floor(n * math.min(1, src.bonus / g.gain) + 0.5)
     end
-    local tx, ty = target()
+    local tx, ty = aim()
     local wide = not src.known
     for i = 1, n do
         local a = (i - 1) / n * 2 * math.pi + math.random() * 0.4
@@ -358,14 +394,14 @@ local function burst(g, src)
             sx = x + (math.random() - 0.5) * 2 * XPOrbs.BORN[1], sy = y + (math.random() - 0.5) * 2 * XPOrbs.BORN[2],
             rx = x + math.cos(a) * rxr, ry = y + math.sin(a) * r * XPOrbs.SQUASH,
             dx = math.cos(a), dy = math.sin(a), ghosts = {} }
-        o.halo = texture(GLOW)
+        o.halo = texture(GLOW, on)
         o.halo:SetVertexColor(color[1], color[2], color[3])
         local c = lift(color, XPOrbs.LIFT)
-        o.core = texture(GLOW)
+        o.core = texture(GLOW, on)
         o.core:SetVertexColor(c[1], c[2], c[3])
         if trails then
             for k = 1, #XPOrbs.TRAIL do
-                local gtex = texture(GLOW)
+                local gtex = texture(GLOW, on)
                 gtex:SetVertexColor(color[1], color[2], color[3])
                 gtex:Hide()
                 o.ghosts[k] = gtex
@@ -387,11 +423,11 @@ local function burst(g, src)
     -- They hold a moment once the ring has settled, then leave one by one;
     -- slower flights hold and spread out in step.
     for rank, o in ipairs(order) do o.leave = M.NORMAL + M.FAST * K + (rank - 1) * M.NORMAL * K / n end
-    b.ring = texture(RINGTEX)
+    b.ring = texture(RINGTEX, on)
     local hi = { XPOrbs.ColorAt(1) }
     b.ring:SetVertexColor(hi[1], hi[2], hi[3])
     XPOrbs.bursts[#XPOrbs.bursts + 1] = b
-    if #XPOrbs.bursts == 1 and alive() == n then XPOrbs.landed = 0 end
+    if not b.preview and screenBursts() == 1 then XPOrbs.landed = 0 end
     startDriver()
 end
 
@@ -430,14 +466,102 @@ end
 -- Ends every burst at once: the bar shows the true value, nothing is left drawn.
 function XPOrbs.Drop()
     XPOrbs.gen = (XPOrbs.gen or 0) + 1
-    local had = #XPOrbs.bursts > 0 or XPOrbs.owed > 0 or XPOrbs.levelling
-    for _, b in ipairs(XPOrbs.bursts) do
-        finish(b)
-        for _, k in ipairs(b.sparks) do release(k.tex) end
+    local had = XPOrbs.owed > 0 or XPOrbs.levelling ~= nil
+    -- A preview's bursts fly on: they don't fill the real bar.
+    for i = #XPOrbs.bursts, 1, -1 do
+        local b = XPOrbs.bursts[i]
+        if not b.preview then
+            had = true
+            finish(b)
+            for _, k in ipairs(b.sparks) do release(k.tex) end
+            table.remove(XPOrbs.bursts, i)
+        end
     end
-    for i = #XPOrbs.bursts, 1, -1 do XPOrbs.bursts[i] = nil end
     XPOrbs.owed, XPOrbs.levelling, XPOrbs.landed = 0, nil, 0
-    if XPOrbs.layer then XPOrbs.layer:SetScript("OnUpdate", nil) end
+    if XPOrbs.layer and #XPOrbs.bursts == 0 then XPOrbs.layer:SetScript("OnUpdate", nil) end
     ns.XPSource.Drop()
     return had
+end
+
+-- A preview for the setup guide and the What's New page: a sample XP bar in
+-- the bar's own colors, and every few seconds a burst that blooms above it and
+-- streams in, the fill stepping up as each orb lands. It draws on its own
+-- layer, so it sits in its card at the card's scale, and plays only while it
+-- shows: a hidden preview's bursts end on the next frame.
+XPOrbs.PREVIEW_EVERY = 2.6   -- s between bursts
+XPOrbs.PREVIEW_ORBS = 12
+XPOrbs.PREVIEW_GAIN = 0.12   -- each burst's share of the bar
+XPOrbs.PREVIEW_START, XPOrbs.PREVIEW_FULL = 0.2, 0.85  -- the fill starts here, and starts over past FULL
+XPOrbs.PREVIEW_BAR = 11      -- the panel's bar height
+XPOrbs.PREVIEW_PAD = 4       -- the bar's frame around it
+-- Where each burst blooms, as shares of the box from its bottom left, in turn.
+XPOrbs.PREVIEW_SPOTS = { { 0.24, 0.66 }, { 0.72, 0.74 }, { 0.48, 0.6 } }
+
+-- still: the bar alone, as it is with the orbs off.
+function XPOrbs.Preview(parent, still)
+    local box = CreateFrame("Frame", nil, parent)
+    box.still = still == true
+    box.holder = CreateFrame("Frame", nil, box)
+    box.holder:SetHeight(XPOrbs.PREVIEW_BAR + 2 * XPOrbs.PREVIEW_PAD)
+    box.holder:SetPoint("BOTTOMLEFT", box, "BOTTOMLEFT", 0, 0)
+    box.holder:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", 0, 0)
+    Style.Shell(box.holder)
+    box.bar = Style.Bar(box.holder, nil, ns.MEDIA.bars.xp)
+    box.bar:SetPoint("TOPLEFT", box.holder, "TOPLEFT", XPOrbs.PREVIEW_PAD, -XPOrbs.PREVIEW_PAD)
+    box.bar:SetPoint("BOTTOMRIGHT", box.holder, "BOTTOMRIGHT", -XPOrbs.PREVIEW_PAD, XPOrbs.PREVIEW_PAD)
+    box.layer = CreateFrame("Frame", nil, box)
+    box.layer:SetAllPoints(box)
+    box.layer:SetFrameLevel(box.holder:GetFrameLevel() + 10)
+    box.value, box.turn = XPOrbs.PREVIEW_START, 0
+    box.bar:SetValue(box.value)
+
+    -- Painted as the bar paints experience (even at the level cap, where the
+    -- panel's shows reputation), each time it shows: the player can change it.
+    function box.Paint()
+        ns.XP.Paint({ color = ns.XP.COLOR }, box.bar)
+    end
+
+    -- The fill's edge, in the layer's units, from the preview's own layout
+    -- (the bar runs along its bottom); nil once the preview is hidden.
+    local function aim()
+        local w = box:GetWidth()
+        if not box:IsVisible() or type(w) ~= "number" or w <= 0 then return nil end
+        local lo, hi = box.bar:GetMinMaxValues()
+        local v = box.bar:GetValue()
+        local p = (hi > lo) and math.max(0, math.min(1, (v - lo) / (hi - lo))) or 0
+        local pad = XPOrbs.PREVIEW_PAD
+        return pad + (w - 2 * pad) * p, pad + XPOrbs.PREVIEW_BAR / 2
+    end
+
+    local function land(b)
+        box.value = math.min(1, box.value + b.step)
+        Style.SetBarValue(box.bar, box.value)
+    end
+
+    function box.Fire()
+        if box.still or not box:IsVisible() or not M.On() then return end
+        if box.value >= XPOrbs.PREVIEW_FULL then
+            box.value = XPOrbs.PREVIEW_START
+            Style.SetBarValue(box.bar, box.value)
+        end
+        box.turn = box.turn % #XPOrbs.PREVIEW_SPOTS + 1
+        local s = XPOrbs.PREVIEW_SPOTS[box.turn]
+        local w, h = box:GetWidth() or 0, box:GetHeight() or 0
+        burst({ gain = XPOrbs.PREVIEW_GAIN, max = 1, count = XPOrbs.PREVIEW_ORBS },
+            { x = w * s[1], y = h * s[2], known = true },
+            { layer = box.layer, aim = aim, onLand = land })
+    end
+
+    box:SetScript("OnShow", function()
+        box.Paint()
+        if box.still then return end
+        if box.ticker then box.ticker:Cancel() end
+        box.ticker = C_Timer.NewTicker(XPOrbs.PREVIEW_EVERY, box.Fire)
+        C_Timer.After(M.SLOW, box.Fire)
+    end)
+    box:SetScript("OnHide", function()
+        if box.ticker then box.ticker:Cancel(); box.ticker = nil end
+    end)
+    box.Paint()
+    return box
 end

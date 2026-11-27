@@ -1048,7 +1048,6 @@ L["Came in"] = "Einnahmen"
 L["Went out"] = "Ausgaben"
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "Wenn du EP erhältst, fliegen Kugeln vom Gegner, vom Questgeber oder vom entdeckten Ort in die Leiste und füllen sie, sobald sie ankommen. Dann leuchtet das neue Stück auf und „+EP“ steigt auf; bei einem Stufenaufstieg läuft ein Lichtstreifen über die Leiste. Braucht „Bewegungseffekte“ (Allgemein > Erscheinungsbild)."
 -- New texts since #82: draft written with AI help, not yet checked by a native speaker.
 L["Zone levels"] = "Zonenstufen"
 L["Hover a zone on the world map to see its level range after its name, colored by how hard it is for you: green is easy, yellow is right for you, red is too high."] = "Zeige auf der Weltkarte mit der Maus auf eine Zone, dann steht ihr Stufenbereich hinter dem Namen. Die Farbe sagt, wie schwer sie für dich ist: Grün ist leicht, Gelb passt, Rot ist zu hoch."

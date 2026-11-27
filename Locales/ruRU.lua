@@ -3,7 +3,6 @@ local _, DUI = ...
 DUI.AddLanguage("ruRU", function(L)
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "Когда вы получаете опыт, сферы летят в полосу от противника, от того, кто дал задание, или от открытой местности и заполняют её по мере прилёта. Затем новый кусок вспыхивает, и всплывает «+XP»; при повышении уровня — развертка. Требует «Эффекты движения» (Общий > Внешность)."
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "Корона на рамке лидера группы. Следует за вкладкой имени или портретом, пока вы не выберете ему место."
 L["Adds a chat tab, or a combat log tab."] = "Добавляет вкладку чата или вкладку журнала боя."
 L["Alerts and timers"] = "Оповещения и таймеры"

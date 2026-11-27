@@ -498,13 +498,13 @@ T.test("welcome: with the unit frames switched off, no bar animations slide", fu
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("welcome: closing the bar animations early brings them back; /dui whatsnew opens them", function()
+T.test("welcome: closing the bar animations early brings them back", function()
     local DUI = sawProcs()
     stub.RunTimers()
     closeWindow()
     T.truthy(DUI.Welcome.Due(), "asks again next login")
-    SlashCmdList.DAYLIGHTUI("whatsnew")
-    T.eq(DUI.Welcome.Slide(), "barFx", "the command opens just the newest slide")
+    DUI.Welcome.Show(3)
+    T.eq(DUI.Welcome.Slide(), "barFx", "the bar animations again")
     DUI.Welcome.Next()
     T.falsy(DUI.Welcome.Due())
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
@@ -532,5 +532,201 @@ T.test("guide: the spell costs question starts off and picks through the draft",
     D.Revert()
     T.eq(DUI:Get("ActionBars", "look.costs"), false, "closing the guide puts it back")
     T.falsy(tContains(DUI.Welcome.CHOICES, "spellCosts"), "no welcome slide: it stays off for everyone")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- The 2.5 page: an account that saw the bar animations (welcome = 4) gets one
+-- page on the banner, a card each for XP orbs and missing buffs, each playing
+-- its preview with a switch. The switches start as the settings are and are
+-- written only at Done.
+local PW = require("panelworld")
+local function saw24(opts)
+    opts = opts or {}
+    local DUI = stub.Load({ module = true, tooltip = true, procs = true,
+        infopanel = opts.infopanel ~= false, buffs = opts.buffs ~= false, before = function()
+        if opts.infopanel ~= false then PW.world() end
+        stub.SetUnits({ player = { name = "Me", class = "PRIEST", isPlayer = true, level = 20 } })
+        local mods = { UnitFrames = { groupFrames = 20 }, Procs = { enabled = true } }
+        for k, v in pairs(opts.mods or {}) do mods[k] = v end
+        DaylightUIDB = { version = "2.4.1", notesSeen = "2.4.1", installerSeen = true, barFxAsked = true,
+                         portraitLookAsked = true, welcome = 4,
+                         profileData = { ["DPS/Tank"] = { general = {}, positions = {}, modules = mods } } }
+    end })
+    DUI.Installer.Mark("installed")
+    DUI.Installer.MarkSeen()
+    stub.Dismiss()
+    return DUI
+end
+
+local function cardOf(page, kind)
+    for _, c in ipairs(page.cards) do if c.kind == kind then return c end end
+end
+
+-- Frames pass: timers and every shown OnUpdate.
+local function frames(seconds)
+    for _ = 1, math.floor(seconds * 30) do
+        stub.RunTimers()
+        stub.Advance(1 / 30)
+        local f = EnumerateFrames()
+        while f do
+            local fn = rawget(f, "__scripts") and f.__scripts.OnUpdate
+            if fn and f:IsVisible() then fn(f, 1 / 30) end
+            f = EnumerateFrames(f)
+        end
+    end
+end
+
+T.test("welcome 2.5: one page with XP orbs and missing buffs, each switched from the window, written at Done", function()
+    local DUI = saw24()
+    T.truthy(DUI.Welcome.Due(), "due after the update")
+    stub.RunTimers()
+    T.truthy(DUI.Welcome.Running(), "shown at login")
+    T.eq(DUI.Welcome.Slide(), "news25", "only the 2.5 page")
+    local page = DUI.Welcome.Page()
+    T.eq(#page.cards, 2, "a card each")
+    local orbs, buffs = cardOf(page, "xpOrbs"), cardOf(page, "buffReminder")
+    T.truthy(orbs and buffs)
+    T.truthy(orbs.switch.on and buffs.switch.on, "both start on, as the settings are")
+    T.truthy(orbs.text:GetText() ~= "" and buffs.text:GetText() ~= "", "each says what it does")
+    T.falsy(string.find(orbs.text:GetText(), "mob", 1, true), "the orbs don't start at the mob, so it isn't promised")
+    -- Off from the switch, and the buffs off by a click on the card itself.
+    press(orbs.switch)
+    T.falsy(orbs.switch.on, "the switch moves")
+    press(buffs)
+    T.falsy(buffs.switch.on, "a click on the card flips it too")
+    T.eq(DUI:Get("InfoPanel", "xpGain"), true, "nothing written yet")
+    T.eq(DUI:Get("Buffs", "settings.reminder.enabled"), true, "nothing written yet")
+    -- Back on, and off again: the last pick wins.
+    press(buffs.switch)
+    press(buffs.switch)
+    press(page.go)
+    T.falsy(DUI.Welcome.Running(), "Done closes it")
+    T.eq(DUI:Get("InfoPanel", "xpGain"), false, "XP orbs off")
+    T.eq(DUI:Get("Buffs", "settings.reminder.enabled"), false, "missing buffs off")
+    T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION)
+    T.falsy(DUI.Welcome.Due(), "once per account")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome 2.5: a switch starts off when the player had turned it off, and on writes it back", function()
+    local DUI = saw24({ mods = { InfoPanel = { xpGain = false }, Buffs = { settings = { reminder = { enabled = false } } } } })
+    stub.RunTimers()
+    local page = DUI.Welcome.Page()
+    local orbs, buffs = cardOf(page, "xpOrbs"), cardOf(page, "buffReminder")
+    T.falsy(orbs.switch.on, "orbs start off")
+    T.falsy(buffs.switch.on, "missing buffs start off")
+    T.truthy(orbs.demo:GetAlpha() < 1, "a preview switched off is dimmed")
+    -- Closing early writes nothing and asks again.
+    press(orbs.switch)
+    closeWindow()
+    T.eq(DUI:Get("InfoPanel", "xpGain"), false, "the X writes nothing")
+    T.truthy(DUI.Welcome.Due(), "asks again next login")
+    SlashCmdList.DAYLIGHTUI("whatsnew")
+    T.eq(DUI.Welcome.Slide(), "news25", "/dui whatsnew opens the 2.5 page")
+    page = DUI.Welcome.Page()
+    T.falsy(cardOf(page, "xpOrbs").switch.on, "a new run starts from the settings again")
+    press(cardOf(page, "xpOrbs").switch)
+    DUI.Welcome.Next()
+    T.eq(DUI:Get("InfoPanel", "xpGain"), true, "on is written")
+    T.eq(DUI:Get("Buffs", "settings.reminder.enabled"), false, "the one left alone stays off")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome 2.5: with Buffs switched off, the XP orbs card stands alone in the middle", function()
+    local DUI = saw24({ buffs = false })
+    stub.RunTimers()
+    T.eq(DUI.Welcome.Slide(), "news25")
+    local page = DUI.Welcome.Page()
+    T.eq(#page.cards, 1)
+    T.eq(page.cards[1].kind, "xpOrbs")
+    local _, _, _, x = page.cards[1]:GetPoint(1)
+    T.truthy(math.abs(x + page.cards[1]:GetWidth() / 2 - page:GetWidth() / 2) < 1, "centered")
+    DUI.Welcome.Next()
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome 2.5: with neither module, nothing is due", function()
+    local DUI = saw24({ buffs = false, infopanel = false })
+    stub.RunTimers()
+    T.falsy(DUI.Welcome.Running())
+    T.eq(DUI.DB.Root().welcome, DUI.Welcome.VERSION, "marked seen")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome 2.5: the XP orbs card plays orbs into its own bar, never the real one, and stops when hidden", function()
+    local DUI = saw24()
+    stub.RunTimers()
+    local O = stub.infopanel.XPOrbs
+    local box = cardOf(DUI.Welcome.Page(), "xpOrbs").preview
+    local owed = O.owed
+    local before = box.value
+    T.truthy(box.ticker ~= nil, "a ticker plays it while shown")
+    box.Fire()
+    local mine
+    for _, b in ipairs(O.bursts) do if b.layer == box.layer then mine = b end end
+    T.truthy(mine, "a burst on the card's own layer")
+    T.eq(mine.orbs[1].halo:GetParent(), box.layer, "its orbs draw in the card, at the card's scale")
+    -- A real burst ending (the bar hidden) leaves the preview flying.
+    O.Drop()
+    local still = false
+    for _, b in ipairs(O.bursts) do if b == mine then still = true end end
+    T.truthy(still, "the real bar's drop leaves the preview's burst")
+    frames(3)
+    T.truthy(box.value > before, "the fill stepped up as the orbs landed")
+    T.eq(O.owed, owed, "the real bar owes nothing for it")
+    -- Hidden: its bursts end at once and the ticker stops.
+    box.Fire()
+    local ticker = box.ticker
+    DUI.Welcome.Next()
+    T.falsy(box:IsVisible())
+    T.truthy(ticker.cancelled, "the ticker is cancelled")
+    O.Step(1 / 30)
+    for _, b in ipairs(O.bursts) do T.truthy(b.layer ~= box.layer, "no burst left for a hidden preview") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("welcome 2.5: the missing buffs card shows the real sample icons, rising in, nothing clickable", function()
+    local DUI = saw24()
+    stub.RunTimers()
+    local box = cardOf(DUI.Welcome.Page(), "buffReminder").preview
+    local Row, Reminder = stub.buffs.ReminderRow, stub.buffs.Reminder
+    T.eq(#box.tiles, #stub.buffs.ReminderData.SAMPLE, "a tile per sample buff")
+    frames(2)
+    for _, t in ipairs(box.tiles) do
+        T.truthy(t:IsVisible(), "shown")
+        T.truthy(t:GetAlpha() > 0.99, "risen in")
+        T.truthy(t.icon:GetTexture() ~= nil, "its icon")
+        T.falsy(Row.Clickable(t.entry), "nothing to click")
+    end
+    T.eq(box.tiles[1].count:GetText(), "3/5", "the count a giver sees")
+    T.eq(#Row.tiles, 0, "the row above you is untouched")
+    -- A middle-click hides nothing.
+    box.tiles[2]:GetScript("OnMouseUp")(box.tiles[2], "MiddleButton")
+    T.falsy(next(Reminder.hidden), "no buff hidden by the preview")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("guide: XP orbs and missing buffs are asked in Make it mine, through the draft", function()
+    local DUI = stub.Load({ module = true, infopanel = true, buffs = true, before = PW.world })
+    stub.RunTimers()
+    local I, D = DUI.Installer, DUI.InstallerDraft
+    if not I.flow then I.Show() end
+    I.Start("tour")
+    for _, spec in ipairs({ { "xpOrbs", "InfoPanel", "xpGain" }, { "buffReminder", "Buffs", "settings.reminder.enabled" } }) do
+        local q = I.QuestionById(spec[1])
+        T.truthy(q, "asked: " .. spec[1])
+        T.eq(q.look, spec[1])
+        T.eq(I.Answer(q), "on", "on by default")
+        local box = DUI.InstallerLooks.KINDS[spec[1]].box(UIParent)
+        box.Refresh(460)
+        T.truthy(box.frames.on and box.frames.off, "a drawing for each")
+        T.truthy(box.frames.on.art ~= nil, "the On one draws the preview")
+        I.Pick(q, "off")
+        T.eq(DUI:Get(spec[2], spec[3]), false)
+        T.truthy(D.Picked(spec[2], spec[3]))
+    end
+    D.Revert()
+    T.eq(DUI:Get("InfoPanel", "xpGain"), true, "closing the guide puts it back")
+    T.eq(DUI:Get("Buffs", "settings.reminder.enabled"), true, "closing the guide puts it back")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)

@@ -5894,7 +5894,6 @@ L["Your windows"] = "Tus ventanas"
 L["new window"] = "ventana nueva"
 
 -- Machine draft below this line: not yet checked by a native speaker.
-L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "Al ganar PE, unos orbes vuelan a la barra desde el enemigo, el que da la misión o el lugar descubierto, y la llenan al llegar. Luego la nueva porción brilla y «+PE» sube; un barrido al subir de nivel. Necesita los efectos de movimiento (General > Apariencia)."
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "Una corona en el marco del líder del grupo. Va con la pestaña del nombre o el retrato hasta que le elijas un sitio."
 L["Adds a chat tab, or a combat log tab."] = "Añade una pestaña de chat o una del registro de combate."
 L["Alerts and timers"] = "Alertas y temporizadores"
