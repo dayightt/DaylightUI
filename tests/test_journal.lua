@@ -377,14 +377,14 @@ end)
 T.test("journal: Show on map turns the map out of combat, only pings in a fight", function()
     local J = load()
     local f = open(J)
-    row(f, 1):Click()
+    row(f, 1):Click()   -- opening the page turns it once
     foot(f)[1]:Click()
-    T.eq(#QW.Calls("map"), 1)
-    T.deq(QW.Calls("ping"), { 1 })
+    T.eq(#QW.Calls("map"), 2)
+    T.deq(QW.Calls("ping"), { 1, 1 })
     stub.EnterCombat()
     foot(f)[1]:Click()
-    T.eq(#QW.Calls("map"), 1, "the map isn't turned in a fight")
-    T.deq(QW.Calls("ping"), { 1, 1 })
+    T.eq(#QW.Calls("map"), 2, "the map isn't turned in a fight")
+    T.deq(QW.Calls("ping"), { 1, 1, 1 })
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1056,3 +1056,58 @@ T.test("journal on a controller: lighting a quest in a fight builds the ring and
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+
+-- Game-behavior audit (QuestMapFrame.lua).
+
+-- QuestMapQuestOptions_ShareQuest plays the log's open sound.
+T.test("journal: Share plays the game's sound", function()
+    local J = load()
+    local f = open(J)
+    stub.SetGroup(true)
+    row(f, 3):Click()
+    foot(f)[3]:Click()
+    T.eq(#QW.Calls("share"), 1)
+    T.truthy(#QW.Calls("sound") > 0 and QW.Calls("sound")[#QW.Calls("sound")] == SOUNDKIT.IG_QUEST_LOG_OPEN, "IG_QUEST_LOG_OPEN")
+end)
+
+-- QuestMapFrame_ShowQuestDetails turns the map to the quest and pings it;
+-- going back puts the map where it was (returnMapID).
+T.test("journal: opening a quest turns the map to it, going back returns it", function()
+    local J = load()
+    local f = open(J)
+    T.eq(WorldMapFrame:GetMapID(), 37)
+    row(f, 1):Click()
+    T.deq(QW.Calls("map"), { 52 }, "the quest's map")
+    T.deq(QW.Calls("ping"), { 1 })
+    J.ShowQuest(3)   -- another quest from its page: the map it came from stays the way back
+    J.ShowList()
+    T.eq(QW.Calls("map")[#QW.Calls("map")], 37, "back where it was")
+    -- In a fight the map can't be turned: only the ping.
+    stub.EnterCombat()
+    local n = #QW.Calls("map")
+    row(f, 1):Click()
+    T.eq(#QW.Calls("map"), n, "no turn in a fight")
+    J.ShowList()
+    T.eq(#QW.Calls("map"), n, "nor back")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- QuestMapFrame_UpdateSuperTrackedQuest: picking another quest as the focus (its
+-- map pin) while a page is open leaves that page. Daylight UI's journal opens the
+-- newly focused quest's page.
+T.test("journal: focusing another quest while a page is open turns to its page", function()
+    local J = load()
+    local f = open(J)
+    row(f, 1):Click()
+    C_SuperTrack.SetSuperTrackedQuestID(3)
+    stub.FireEvent("SUPER_TRACKING_CHANGED"); stub.RunTimers()
+    T.eq(f.quest:IsShown(), true)
+    T.eq(J.S.quest, 3, "its page")
+    C_SuperTrack.SetSuperTrackedQuestID(0)
+    stub.FireEvent("SUPER_TRACKING_CHANGED"); stub.RunTimers()
+    T.eq(J.S.quest, 3, "clearing the focus leaves the page alone")
+    J.ShowList()
+    C_SuperTrack.SetSuperTrackedQuestID(1)
+    stub.FireEvent("SUPER_TRACKING_CHANGED"); stub.RunTimers()
+    T.eq(f.quest:IsShown(), false, "on the list nothing opens")
+end)

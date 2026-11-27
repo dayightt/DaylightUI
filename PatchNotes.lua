@@ -24,6 +24,9 @@ DUI.PatchNotes = {
         { "Spellbook", "The spellbook does what the game's own does: Alt-click casts a spell on yourself, Shift-P opens on your pet's spells, search finds spells by what they do, and unlearned spells show the level they come at" },
         { "Spellbook", "Pet spells show when they're set to autocast, hovering a spell lights the buttons on your bars that hold it, and spells that aren't on any bar shimmer now and then" },
         { "Talents", "Drag a learned talent ability straight onto your action bars, and spell and talent tooltips say when an ability isn't on any of your bars" },
+        { "Quests", "Quests started from an item show at the top of the quest tracker again (\"Quest discovered\"), so you can click to read and accept them" },
+        { "Quests", "Quest item buttons: Shift-click links the item in chat, the button lights up when you reach the quest's area, and items a finished quest still needs stay" },
+        { "Quests", "Quests that ask for gold show how much you have and need, and opening a quest in the quest log turns the map to it" },
     } },
     { version = "2.4.2", date = "2026-11-27", summary = "XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.", new = {
         { "Info Panel", "XP orbs: gaining experience sends a ring of orbs flying into your XP bar" },

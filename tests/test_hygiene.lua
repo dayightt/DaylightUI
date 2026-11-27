@@ -409,6 +409,7 @@ local GRAY_OK = {
     ["Style.lua|NEUTRAL"] = "bar fill for no class/reaction; text falls back to INK.VALUE",
     ["Style.lua|locked"] = "uninterruptible cast bar fill",
     ["Character/Slots.lua|EMPTY_TINT"] = "an empty slot's icon tint, not text",
+    ["DaylightUI_Quests/Items.lua|WAITING"] = "a quest item's icon tint while its cooldown can't run, the game's own 0.4, not text",
     ["DaylightUI_ActionBars/CdmEffects.lua|no"] = "an icon that can't be cast: the game's own tint for it, not text",
     ["DaylightUI_UnitFrames/Defaults.lua|dead"] = "health bar fill",
     ["DaylightUI_UnitFrames/Defaults.lua|offline"] = "health bar fill",

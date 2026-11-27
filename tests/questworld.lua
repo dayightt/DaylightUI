@@ -100,7 +100,12 @@ function QW.world(spec)
             GetMaxNumQuestsCanAccept = function() return 25 end,
             GetInfo = function(i) return log()[i] end,
             GetLogIndexForQuestID = indexOf,
-            GetTitleForQuestID = function(id) local q = find(id); return q and q.title end,
+            -- A quest not in the log yet (a pop-up's) answers from spec.titles.
+            GetTitleForQuestID = function(id) local q = find(id); return q and q.title or (S().titles or {})[id] end,
+            -- money = copper the quest asks for (QuestCache's requiredMoney)
+            GetRequiredMoney = function(id) local q = find(id); return q and q.money or 0 end,
+            -- waypoint = the text the game puts on a quest that leads through another zone first
+            GetNextWaypointText = function(id) local q = find(id); return q and q.waypoint end,
             -- onParty = { "party1", ... } lists who else has it (spec.partySize: GetNumSubgroupMembers)
             IsUnitOnQuest = function(unit, id)
                 for _, u in ipairs(find(id) and find(id).onParty or {}) do if u == unit then return true end end
@@ -173,18 +178,44 @@ function QW.world(spec)
         end }
         _G.GetDifficultyColor = function(d) return QW.COLORS[QW.DIFFICULTY[d]] or QW.COLORS.difficult end
         _G.GetQuestLogCompletionText = function(i) local q = atIndex(i); return q and q.turnIn end
+        -- item.whenComplete: the 4th return, showItemWhenComplete (the item still matters once ready)
         _G.GetQuestLogSpecialItemInfo = function(i)
             local q = atIndex(i)
-            if q and q.item then return q.item.link, q.item.icon, q.item.charges end
+            if q and q.item then return q.item.link, q.item.icon, q.item.charges, q.item.whenComplete == true end
         end
-        _G.GetQuestLogSpecialItemCooldown = function() return 0, 0, 1 end
+        -- itemCooldown = { start, duration, enable }; enable 0 = the cooldown can't run yet
+        _G.GetQuestLogSpecialItemCooldown = function(i)
+            local q = atIndex(i)
+            local c = q and q.itemCooldown
+            if c then return c[1], c[2], c[3] end
+            return 0, 0, 1
+        end
+        _G.GetMoney = function() return S().money or 0 end
+        -- Inside a quest's area on the map (spec.inside = { [questID] = true }); the client
+        -- says so with PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED (questID, isInside).
+        _G.C_Minimap = _G.C_Minimap or {}
+        C_Minimap.IsInsideQuestBlob = function(id) return (S().inside or {})[id] == true end
+        -- The client's pop-up list (spec.popups = { { id, "OFFER" | "COMPLETE" } }). The game's
+        -- quest window adds to it (QuestFrame.lua, QUEST_DETAIL with a start item) and only a
+        -- tracker shows it. A click opens the quest (ShowQuestOffer) and removes it.
+        _G.GetNumAutoQuestPopUps = function() return #(S().popups or {}) end
+        _G.GetAutoQuestPopUp = function(i) local p = (S().popups or {})[i]; if p then return p[1], p[2] end end
+        _G.RemoveAutoQuestPopUp = function(id)
+            record("popupRemoved", id)
+            local list = S().popups or {}
+            for i = #list, 1, -1 do if list[i][1] == id then table.remove(list, i) end end
+        end
+        _G.ShowQuestOffer = function(id) record("offer", id) end
         _G.IsQuestLogSpecialItemInRange = function(i) local q = atIndex(i); return q and q.itemRange or 1 end
         _G.GetQuestProgressBarPercent = function(id) local q = find(id); return q and q.pct or 0 end
         _G.GetRealZoneText = function() return S().zone end
         _G.GetQuestUiMapID = function() return 52 end
         _G.GetQuestLogRewardMoney = function() return 150 end
         _G.GetMoneyString = function(c) return c .. "c" end
-        _G.C_Map = { OpenWorldMap = function(mapID) record("map", mapID) end }
+        _G.C_Map = { OpenWorldMap = function(mapID)
+            record("map", mapID)
+            if _G.WorldMapFrame and mapID then WorldMapFrame.mapID = mapID end
+        end }
         _G.C_SuperTrack = {
             GetSuperTrackedQuestID = function() return S().focus or 0 end,
             SetSuperTrackedQuestID = function(id) record("focus", id); S().focus = id end,
@@ -258,7 +289,7 @@ function QW.world(spec)
         _G.OpenAchievementFrameToAchievement = function(id) record("achievement", id) end
         _G.PlaySound = function(id) record("sound", id) end
         _G.PlaySoundFile = function(file) record("soundFile", file) end
-        _G.SOUNDKIT = { IG_QUEST_LIST_COMPLETE = 878, IG_QUEST_LOG_ABANDON_QUEST = 846 }
+        _G.SOUNDKIT = { IG_QUEST_LIST_COMPLETE = 878, IG_QUEST_LOG_ABANDON_QUEST = 846, IG_QUEST_LOG_OPEN = 875 }
         _G.IsShiftKeyDown = function() return S().shift == true end
         _G.IsControlKeyDown = function() return S().ctrl == true end
         _G.IsAltKeyDown = function() return S().alt == true end
@@ -345,6 +376,7 @@ function QW.map()
     map.ScrollContainer = CreateFrame("ScrollFrame", nil, map)
     map.ScrollContainer.Child = CreateFrame("Frame", nil, map.ScrollContainer)
     map.mapID = 37
+    function map:GetMapID() return self.mapID end   -- MapCanvasMixin:GetMapID
     map.pinFrameLevelsManager = { definitions = { PIN_FRAME_LEVEL_QUEST_BLOB = { startLevel = 2007 } } }
     -- Its quest pins (QuestDataProvider's "QuestPinTemplate" pool). A plain pool's
     -- EnumerateActive is pairs(activeObjects), with the pin as the key.

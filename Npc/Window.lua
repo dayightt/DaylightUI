@@ -698,8 +698,12 @@ function Npc.Close()
     if not f then return end
     -- The game's quest window plays its auto-accept sound as an auto quest closes.
     local auto = S.mode == "detail" and S.data and S.data.auto and not S.sample
+    local autoID = auto and S.data.questID or nil
     S.mode, S.data = nil, nil
     if auto and type(PlayAutoAcceptQuestSound) == "function" then DUI.SafeCall(PlayAutoAcceptQuestSound) end
+    -- So does its tracker pop-up go (QuestFrame_OnHide), which the parked game window
+    -- never does behind this one.
+    if type(autoID) == "number" and type(RemoveAutoQuestPopUp) == "function" then DUI.SafeCall(RemoveAutoQuestPopUp, autoID) end
     -- Its PvP question goes with it (QuestFrame_OnHide hides QuestFrame.dialog).
     local W = DUI.Widgets
     local asking = W.Asking and W.Asking()

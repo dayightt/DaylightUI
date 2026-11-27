@@ -25,7 +25,9 @@ Tracker.EVENTS = { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPT
     "QUEST_REMOVED", "QUEST_AUTOCOMPLETE", "ZONE_CHANGED", "ZONE_CHANGED_NEW_AREA", "PLAYER_ENTERING_WORLD",
     "CONTENT_TRACKING_UPDATE", "TRACKED_ACHIEVEMENT_UPDATE", "PLAYER_REGEN_ENABLED", "PLAYER_REGEN_DISABLED", "SUPER_TRACKING_CHANGED",
     "PLAYER_LEVEL_UP",    -- title difficulty colors depend on the player's level
-    "UNIT_QUEST_LOG_CHANGED", "GROUP_ROSTER_UPDATE" }   -- which party members are on a quest
+    "UNIT_QUEST_LOG_CHANGED", "GROUP_ROSTER_UPDATE",   -- which party members are on a quest
+    "QUEST_FINISHED",     -- the game's quest window closing after adding a pop-up (Data.Popups)
+    "PLAYER_MONEY" }      -- a quest asking for gold (only while one does)
 -- These can arrive in bursts (a whole raid turning in), so they wait and get one check.
 Tracker.WAITS = { QUEST_LOG_UPDATE = true, UNIT_QUEST_LOG_CHANGED = true, GROUP_ROSTER_UPDATE = true }
 -- Settings whose change re-lays the list with a fade instead of a jump.
@@ -499,6 +501,14 @@ function Tracker.Render(animate, ifChanged)
     -- reading it again each time the zone passes another made dragging stutter.
     local snap = Tracker.zoneDrag and Tracker.lastSnap or ns.Data.Snapshot(db.filter)
     Tracker.lastSnap = snap
+    Tracker.money, Tracker.popupCount = snap.money == true, snap.popupCount or 0
+    -- A new pop-up opens a folded list, as the game's tracker expands for one.
+    local popped = {}
+    for _, p in ipairs(snap.popups or {}) do
+        popped[p.id] = true
+        if not (Tracker.popups and Tracker.popups[p.id]) then Tracker.Folds().quests = nil end
+    end
+    Tracker.popups = popped
     Tracker.zone = snap.realZone   -- ZONE_CHANGED compares against the game's own zone text
     Tracker.groups, Tracker.hereKey = snap.groups, ns.Data.HereKey(snap.here)
     for k in pairs(inTracker) do inTracker[k] = nil end
@@ -598,7 +608,7 @@ function Tracker.ReportRows(blocks)
     local R = DUI.APIReport
     if type(R) ~= "table" then return end
     for _, b in ipairs(blocks) do
-        local f = b.kind == "quest" and b.quest and frames[b.key]
+        local f = b.kind == "quest" and b.quest and b.quest.state ~= "popup" and frames[b.key]
         if f then
             local info = f.apiInfo or {}
             f.apiInfo = info
@@ -670,6 +680,13 @@ function Tracker.OnEvent(event, a, b)
         return Tracker.FightStarts()
     end
     if event == "PLAYER_REGEN_ENABLED" then Tracker.fighting = false end
+    -- Most talks close with no pop-up added, and most gold changes touch no quest.
+    if event == "QUEST_FINISHED" then
+        local n = type(GetNumAutoQuestPopUps) == "function" and GetNumAutoQuestPopUps() or 0
+        if n == Tracker.popupCount then return end
+    elseif event == "PLAYER_MONEY" and not Tracker.money then
+        return
+    end
     local r = Tracker.reasons
     if event == "QUEST_ACCEPTED" then
         if type(a) == "number" then r.enter[a] = true end

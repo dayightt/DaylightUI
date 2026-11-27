@@ -48,6 +48,7 @@ Journal.TEXT = Style.INK.TEXT
 local db, f, blob, ring
 local data = { groups = {}, count = 0, max = 0 }
 local S = { page = "list", quest = nil, query = "" }
+Journal.S = S
 local want, wantUntil      -- the quest a tracker click is opening the log to, and until when
 local veiled = {}          -- game pieces set to alpha 0 -> their previous alpha
 local mapHover = {}        -- questID -> true while hovered on the map
@@ -836,7 +837,10 @@ function Journal.Share(q)
         refuse(ERR_NOT_IN_COMBAT or L["Not in combat."])
         return
     end
-    if type(QuestLogPushQuest) == "function" and q.logIndex then QuestLogPushQuest(q.logIndex) end
+    if type(QuestLogPushQuest) == "function" and q.logIndex then
+        QuestLogPushQuest(q.logIndex)
+        if DUI.Sound then DUI.Sound.Kit("IG_QUEST_LOG_OPEN") end   -- the game's log plays it on a share
+    end
 end
 
 -- The footer's Abandon asks first (W.Confirm: "Abandon?", 3 s). Its second click
@@ -1054,8 +1058,21 @@ end
 
 -- Pages
 
+-- The map a quest's page turned away from (the game's returnMapID): going back to
+-- the list turns it back. Kept only out of combat, when the map may be turned.
+local returnMap = nil
+local function mapNow()
+    local map = _G.WorldMapFrame
+    local id = type(map) == "table" and type(map.GetMapID) == "function" and map:GetMapID() or nil
+    return type(id) == "number" and id or nil
+end
+
 function Journal.ShowList(lift)
     if not f then return end
+    if S.page == "quest" and returnMap and not InCombatLockdown() and C_Map and C_Map.OpenWorldMap then
+        DUI.SafeCall(C_Map.OpenWorldMap, returnMap)
+    end
+    returnMap = nil
     S.page, S.quest = "list", nil
     calm()
     Journal.Light(nil)
@@ -1066,8 +1083,16 @@ function Journal.ShowList(lift)
     if lift ~= false then Win().Feel.Stagger({ f.list.search }, 0) end
 end
 
-function Journal.ShowQuest(id)
-    if not (f and find(id)) then return end
+-- Opening a quest turns the map to it and pings it, as the game's log does
+-- (QuestMapFrame_ShowQuestDetails). there: the map is already on it (a tracker
+-- click opened it there, a pin on it was clicked).
+function Journal.ShowQuest(id, there)
+    local q = f and find(id)
+    if not q then return end
+    if not there then
+        if S.page ~= "quest" and not InCombatLockdown() then returnMap = mapNow() end
+        Journal.Map(q)
+    end
     S.page, S.quest = "quest", id
     calm()
     Journal.Spot(nil)
@@ -1170,7 +1195,8 @@ function Journal.Arrive()
     local id = want
     local late = id and GetTime() > wantUntil
     want, wantUntil = nil, nil
-    if id and not late and find(id) then Journal.ShowQuest(id) else Journal.ShowList(true) end
+    returnMap = nil
+    if id and not late and find(id) then Journal.ShowQuest(id, true) else Journal.ShowList(true) end
 end
 
 -- Re-read the log and fill the visible page (no lift, it's an update).
@@ -1196,6 +1222,11 @@ function Journal.OnEvent(event, id)
         if not (S.page == "quest" and Journal.waitItems[id]) then return end
     elseif event == "QUEST_DATA_LOAD_RESULT" then
         if not (S.page == "quest" and S.quest == id) then return end
+    elseif event == "SUPER_TRACKING_CHANGED" and S.page == "quest" then
+        -- Another quest picked as the focus (its map pin, the tracker's icon) while a
+        -- page is open: the game's log leaves the page; this one turns to that quest's.
+        local now = call(api(C_SuperTrack, "GetSuperTrackedQuestID"))
+        if type(now) == "number" and now ~= 0 and now ~= S.quest and find(now) then Journal.ShowQuest(now, true) end
     end
     Journal.Soon()
 end

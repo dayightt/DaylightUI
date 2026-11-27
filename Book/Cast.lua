@@ -11,21 +11,9 @@ ns.Cast = Cast
 
 Cast.NAME = "DaylightUIBookCast"
 
--- The secure attribute prefix ("alt-", "alt-ctrl-") for one of the game's
--- modified clicks as the player set it (Settings > Modified clicks), or nil.
--- The secure templates put held keys in this order (SecureButton_GetModifierPrefix).
-local KEY_ORDER = { "ALT", "CTRL", "SHIFT" }
-function Cast.Prefix(action)
-    local keys = type(GetModifiedClick) == "function" and GetModifiedClick(action)
-    if type(keys) ~= "string" then return nil end
-    local held = {}
-    for key in string.gmatch(keys, "%a+") do held[key] = true end
-    local prefix = ""
-    for _, key in ipairs(KEY_ORDER) do
-        if held[key] then prefix = prefix .. string.lower(key) .. "-" end
-    end
-    return prefix ~= "" and prefix or nil
-end
+-- The secure attribute prefix for one of the game's modified clicks (the window
+-- kit's, shared with the quest item buttons).
+function Cast.Prefix(action) return DUI.Win.ClickPrefix(action) end
 
 -- The game's book casts on you on the self-cast click, but its link and pick-up
 -- clicks come first, so a self-cast sharing their keys never casts.

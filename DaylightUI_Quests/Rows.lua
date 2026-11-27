@@ -306,7 +306,8 @@ local function paintLine(f, l, ln, b, look, fx)
             paintTimer(l, b.quest and b.quest.timer, look)
         else
             l.label:SetText(ln.text)
-            l.label:SetTextColor(Look.Color(look, ln.kind == "failed" and "failed" or "objective"))
+            if ln.kind == "popup" then Style.InkText(l.label, "pop")   -- what a click does, in the accent
+            else l.label:SetTextColor(Look.Color(look, ln.kind == "failed" and "failed" or "objective")) end
         end
     end
 end
@@ -422,9 +423,41 @@ local function paintZone(f, b, look)
     f.count:SetShown(b.folded == true)
 end
 
+-- A pop-up (the client's list): an accent "!" in the icon's place, an accent edge
+-- on the left and a faint wash fading to the right. Made the first time a row
+-- shows one, hidden on rows that don't.
+Rows.POPUP_EDGE = 2
+Rows.POPUP_WASH = 0.14
+local function paintPopup(f, on)
+    if not on then
+        if f.bang then f.bang:Hide(); f.edge:Hide(); f.wash:Hide() end
+        return
+    end
+    if not f.bang then
+        f.bang = Style.Text(f, Style.SIZE.body, "CENTER")
+        f.bang:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+        f.bang:SetWidth(Layout.ICON)
+        f.edge = f:CreateTexture(nil, "BACKGROUND", nil, 1)
+        f.edge:SetTexture(Look.WHITE)
+        f.edge:SetPoint("TOPRIGHT", f, "TOPLEFT", -3, Rows.HI_PAD)
+        f.edge:SetPoint("BOTTOMRIGHT", f, "BOTTOMLEFT", -3, -Rows.HI_PAD)
+        f.wash = f:CreateTexture(nil, "BACKGROUND")
+        f.wash:SetTexture(Look.WHITE)
+        f.wash:SetPoint("TOPLEFT", f, "TOPLEFT", -3, Rows.HI_PAD)
+        f.wash:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, -Rows.HI_PAD)
+    end
+    f.edge:SetWidth(DUI.Pixel.Px(f, Rows.POPUP_EDGE))
+    Style.PaintAccentText(f.bang, "!")
+    Style.PaintAccent(f.edge, 1, "VERTICAL")
+    local r, g, b = Style.Accent()
+    f.wash:SetGradient("HORIZONTAL", CreateColor(r, g, b, Rows.POPUP_WASH), CreateColor(r, g, b, 0))
+    f.bang:Show(); f.edge:Show(); f.wash:Show()
+end
+
 local function paintBlock(f, b, look, opts, events)
     local q = b.quest
     local state = q and q.state or nil
+    paintPopup(f, state == "popup")
     f.ring:SetShown(state == "active")
     f.ring:SetVertexColor(unpack(Look.RING))
     f.ready:SetShown(state == "ready")

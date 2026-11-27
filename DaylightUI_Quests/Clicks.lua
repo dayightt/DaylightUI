@@ -124,7 +124,19 @@ function Clicks.Hints()
     return out
 end
 
+-- A pop-up from the client's list opens its quest in the talk window (the game's
+-- AutoQuestPopupBlockMixin:OnMouseUp) and leaves the list. Left button only.
+Clicks.POPUP_HINT = { OFFER = L["Click: view the quest"], COMPLETE = L["Click: complete the quest"] }
+function Clicks.Popup(q, button)
+    if button == "RightButton" then return end
+    local open = q.popup == "COMPLETE" and ShowQuestComplete or ShowQuestOffer
+    if type(open) == "function" then DUI.SafeCall(open, q.id) end
+    if type(RemoveAutoQuestPopUp) == "function" then RemoveAutoQuestPopUp(q.id) end
+    ns.Tracker.Queue(true)
+end
+
 function Clicks.Quest(q, button, f)
+    if q.popup then return Clicks.Popup(q, button) end
     if button == "RightButton" then return Clicks.Menu(q, f) end
     -- Chat box open: a click links first.
     if IsModifiedClick and IsModifiedClick("CHATLINK") and link(q.id) then return end
@@ -369,7 +381,12 @@ function Clicks.OnEnter(f)
     GameTooltip:SetOwner(f, "ANCHOR_NONE")
     GameTooltip:ClearAllPoints()
     GameTooltip:SetPoint("TOPRIGHT", f, "TOPLEFT", -Clicks.TIP_GAP, 0)
-    if b.kind == "quest" then
+    if b.kind == "quest" and b.quest.popup then
+        DUI.Tips.Clear()
+        DUI.Tips.Title(b.quest.title, ns.Look.TitleColor(ns.Tracker.Look(), b.quest))
+        DUI.Tips.Hint(Clicks.POPUP_HINT[b.quest.popup])
+        DUI.Tips.Flush(GameTooltip)
+    elseif b.kind == "quest" then
         Clicks.QuestTip(b.quest)
     else
         Clicks.AchievementTip(b.ach)

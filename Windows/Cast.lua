@@ -54,6 +54,22 @@ local function rectOf(frame)
     return left * k, bottom * k, (left + w) * k, (bottom + h) * k
 end
 
+-- The secure attribute prefix ("shift-", "alt-ctrl-") for one of the game's
+-- modified clicks as the player set it (Settings > Modified clicks), or nil.
+-- The secure templates put held keys in this order (SecureButton_GetModifierPrefix).
+local KEY_ORDER = { "ALT", "CTRL", "SHIFT" }
+function Win.ClickPrefix(action)
+    local keys = type(GetModifiedClick) == "function" and GetModifiedClick(action)
+    if type(keys) ~= "string" then return nil end
+    local held = {}
+    for key in string.gmatch(keys, "%a+") do held[key] = true end
+    local prefix = ""
+    for _, key in ipairs(KEY_ORDER) do
+        if held[key] then prefix = prefix .. string.lower(key) .. "-" end
+    end
+    return prefix ~= "" and prefix or nil
+end
+
 -- Puts these attributes on a secure cast button and clears any it had before
 -- that this set leaves out (a self-cast key, say), so nothing stale casts.
 function Win.SetCast(b, attrs)

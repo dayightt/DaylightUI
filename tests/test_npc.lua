@@ -2615,3 +2615,23 @@ T.test("npc talk game: an auto-accepted quest plays the game's sound as it close
     T.eq(played, 1)
     _G.PlayAutoAcceptQuestSound = nil
 end)
+
+-- QuestFrame_OnHide also takes the quest's tracker pop-up away (RemoveAutoQuestPopUp):
+-- the game's own window never closes behind Daylight UI's, so this one does it.
+T.test("npc talk game: an auto-accepted quest's tracker pop-up goes once its page closes", function()
+    local N = load()
+    local removed = {}
+    _G.RemoveAutoQuestPopUp = function(id) removed[#removed + 1] = id end
+    NW.Quest("DETAIL", NW.Candles({ auto = true }))
+    frame(); settle()
+    local id = GetQuestID()
+    talkButton(N, OKAY or DaylightUI.L["Okay"]):Click()
+    frame(3)
+    T.deq(removed, { id })
+    removed = {}
+    NW.Quest("DETAIL", NW.Candles())
+    frame(); settle()
+    N.Close()
+    T.deq(removed, {}, "a plain quest has no pop-up to take")
+    _G.RemoveAutoQuestPopUp = nil
+end)

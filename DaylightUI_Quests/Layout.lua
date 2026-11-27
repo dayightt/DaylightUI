@@ -98,6 +98,10 @@ local function questBlock(q, o, measure, gap)
     local y = titleLine(lines, q.title, o, measure, q.level, q.tag, q.party, q.voice)
     local folded = o.folds and o.folds["q" .. q.id]
     if o.foldReady and q.state == "ready" and not q.timer then folded = true end
+    -- The game's waypoint line comes first, above the objectives or the hand-in.
+    if q.waypoint and not folded and q.state ~= "failed" then
+        y = textLine(lines, "waypoint", "waypoint", q.waypoint, o, measure, y)
+    end
     if folded then
         -- Folded from its menu: just the title, plus a timer if one is still running.
         if q.timer then y = textLine(lines, "timer", "timer", "", o, measure, y) end
@@ -113,6 +117,15 @@ local function questBlock(q, o, measure, gap)
         if q.timer then y = textLine(lines, "timer", "timer", "", o, measure, y) end
     end
     return { key = "quest:" .. q.id, kind = "quest", quest = q, lines = lines, h = y + gap, item = q.item ~= nil }
+end
+
+-- A pop-up from the client's list (Data.Popups): its title and what a click does.
+local function popupBlock(p, o, measure, gap)
+    local lines = {}
+    local y = titleLine(lines, p.title, o, measure)
+    local D = ns.Data
+    y = textLine(lines, "popup", "popup", p.popup == "COMPLETE" and D.POPUP_COMPLETE or D.POPUP_OFFER, o, measure, y)
+    return { key = "popup:" .. p.id, kind = "quest", quest = p, lines = lines, h = y + gap }
 end
 
 local function achBlock(a, o, measure, gap)
@@ -319,11 +332,16 @@ function Layout.Build(snap, o, measure)
         end
     end
     local function questsOf(g) return rest[g] or g.quests end
-    if total > 0 or o.emptyHeader then
+    local popups = snap.popups or {}
+    if total > 0 or o.emptyHeader or #popups > 0 then
         -- With the option on, the filter (All / This zone) sits right under this header's line,
         -- on the right, while the quests show: it never sits over a title.
         header("quests", L["Quests"], snap.logCount .. "/" .. snap.logMax,
                o.filterRow and not folds.quests and (o.filter == "zone" and "zone" or "all") or nil)
+        -- Pop-ups first, above every zone, as in the game's tracker.
+        if not folds.quests then
+            for _, p in ipairs(popups) do push(popupBlock(p, o, measure, gap)) end
+        end
         local flat = o.sort == "levelAll" and not o.zoneNames
         if not folds.quests and not flat then Layout.SortZones(snap.groups, o, snap.here) end
         if not folds.quests and flat then

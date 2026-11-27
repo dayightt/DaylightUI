@@ -3652,3 +3652,128 @@ T.test("zone order: right-click Quests sorts the zones A to Z, by level, or back
     T.isnil(DaylightUI.DB.Character().questZoneOrder)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Game-behavior audit (the game's QuestObjectiveTracker and its item buttons).
+
+-- A quest started by an item goes into the client's pop-up list and the quest
+-- window closes (QuestFrame.lua, QUEST_DETAIL with a start item). Only a tracker
+-- shows that list: without a row the quest can't be opened at all.
+T.test("quests pop-ups: a discovered quest shows on top, opens on a click and leaves", function()
+    local Tr, ns, settle = tracker({ quests = { STEW }, titles = { [77] = "The Defias Brotherhood" } })
+    QW.state.popups = { { 77, "OFFER" } }
+    stub.FireEvent("QUEST_FINISHED"); settle()
+    local f = Tr.frames["popup:77"]
+    T.truthy(f, "a row for it")
+    T.eq(Tr.shown[2].key, "popup:77", "right under the Quests header, above every zone")
+    T.eq(f.lines.title.label:GetText(), "The Defias Brotherhood")
+    T.eq(f.lines.popup.label:GetText(), ns.Data.POPUP_OFFER)
+    click(Tr, "popup:77")
+    T.deq(QW.Calls("offer"), { 77 }, "the game's ShowQuestOffer")
+    T.deq(QW.Calls("popupRemoved"), { 77 })
+    settle()
+    T.isnil(Tr.frames["popup:77"], "gone once opened")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests pop-ups: shown with nothing tracked, unfold a folded list, skip a quest with no title yet", function()
+    local Tr, ns, settle = tracker({ quests = {}, titles = { [77] = "The Defias Brotherhood" } })
+    Tr.Folds().quests = true
+    QW.state.popups = { { 78, "OFFER" }, { 77, "OFFER" } }
+    stub.FireEvent("QUEST_FINISHED"); settle()
+    T.truthy(Tr.frames["popup:77"], "shown though no quest is tracked")
+    T.isnil(Tr.frames["popup:78"], "no title known yet: waits, as the game's does")
+    T.isnil(Tr.Folds().quests, "the list unfolds for it (the game's ForceExpand)")
+    -- A complete pop-up hands the quest in.
+    QW.state.popups = { { 77, "COMPLETE" } }
+    stub.FireEvent("QUEST_FINISHED"); settle()
+    T.eq(Tr.frames["popup:77"].lines.popup.label:GetText(), ns.Data.POPUP_COMPLETE)
+    click(Tr, "popup:77")
+    T.deq(QW.Calls("complete"), { 77 })
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests: the gold a quest still needs shows as a line and follows your money", function()
+    local Tr, ns, settle = tracker({ money = 2000, quests = { QW.quest(1, "Pay the Toll", { money = 5000,
+        objs = { { text = "Toll paid", done = false } } }) } })
+    local f = Tr.frames["quest:1"]
+    T.truthy(f.lines["obj:money"], "a money line while short")
+    T.truthy(f.lines["obj:money"].label:GetText():find(DaylightUI.MoneyString(2000), 1, true), "what you have")
+    T.truthy(f.lines["obj:money"].label:GetText():find(DaylightUI.MoneyString(5000), 1, true), "what it needs")
+    QW.state.money = 6000
+    stub.FireEvent("PLAYER_MONEY"); settle()
+    T.isnil(Tr.frames["quest:1"].lines["obj:money"], "enough now: gone, as in the game")
+end)
+
+T.test("quests: the priority quest shows the game's waypoint line", function()
+    local Tr = tracker({ focus = 1, quests = { QW.quest(1, "Far Away", { waypoint = "Take the boat to Menethil",
+        objs = { { text = "Thing: 0/1", have = 0, need = 1 } } }), QW.quest(2, "Other", { waypoint = "Not focused" }) } })
+    T.truthy(Tr.frames["quest:1"].lines.waypoint, "the focused quest")
+    T.truthy(Tr.frames["quest:1"].lines.waypoint.label:GetText():find("Take the boat", 1, true))
+    T.isnil(Tr.frames["quest:2"].lines.waypoint, "only the focused one, as the game's")
+end)
+
+local SALVE = { link = "|cffffffff|Hitem:5862::::::::|h[Salve]|h|r", icon = 1, charges = 1 }
+
+T.test("quests items: a ready quest keeps its item when the game says it's still needed", function()
+    local Tr, ns = tracker({ quests = {
+        QW.quest(1, "A", { complete = true, turnIn = "Back", item = { link = SALVE.link, icon = 1, whenComplete = true } }),
+        QW.quest(2, "B", { complete = true, turnIn = "Back", item = SALVE }) } })
+    local s = ns.Data.Snapshot()
+    T.truthy(s.groups[1].quests[1].item, "showItemWhenComplete")
+    T.isnil(s.groups[1].quests[2].item, "the rest still drop it")
+end)
+
+T.test("quests items: Shift-click links the item into an open chat box and never uses it", function()
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = SALVE }) } })
+    stub.modifiedClicks.CHATLINK = "SHIFT"   -- the game's default (Settings > Modified clicks)
+    ns.Items.Place()
+    local btn = ns.Items.buttons[1]
+    local used = 0
+    C_Item = C_Item or {}
+    local wasEq = C_Item.IsEquippableItem
+    C_Item.IsEquippableItem = function() used = used + 1; return false end
+    local inserted = {}
+    _G.ChatFrameUtil = { InsertLink = function(t) inserted[#inserted + 1] = t; return true end }
+    _G.IsModifiedClick = function(k) return k == "CHATLINK" and QW.state.shift == true end
+    stub.SecureClick(btn, "LeftButton", true); stub.SecureClick(btn, "LeftButton", false)
+    T.eq(used, 1, "a plain click uses it")
+    QW.state.shift = true
+    stub.SecureClick(btn, "LeftButton", true); stub.SecureClick(btn, "LeftButton", false)
+    T.eq(used, 1, "Shift-click doesn't use it")
+    T.deq(inserted, { SALVE.link }, "linked once")
+    QW.state.shift = nil
+    _G.IsModifiedClick = function() return false end
+    _G.ChatFrameUtil = nil
+    C_Item.IsEquippableItem = wasEq
+    stub.modifiedClicks.CHATLINK = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests items: the icon dims while its cooldown can't run yet", function()
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = SALVE, itemCooldown = { 100, 30, 0 } }) } })
+    local btn = ns.Items.buttons[1]
+    ns.Items.Refresh()
+    local r, g, b = btn.icon:GetVertexColor()
+    T.eq(r, ns.Items.WAITING[1], "dimmed like the game's 0.4")
+    QW.state.quests[1].itemCooldown = { 100, 30, 1 }
+    ns.Items.Refresh()
+    r = btn.icon:GetVertexColor()
+    T.eq(r, 1, "back once it runs")
+end)
+
+T.test("quests items: walking into the quest's area runs a light round its button", function()
+    local Tr, ns = tracker({ quests = { QW.quest(1, "A", { item = SALVE }), QW.quest(2, "B", { item = SALVE }) } })
+    local b1, b2 = ns.Items.buttons[1], ns.Items.buttons[2]
+    T.falsy(b1.areaRun and b1.areaRun.on, "not there yet")
+    stub.FireEvent("PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED", 1, true)
+    T.truthy(b1.areaRun and b1.areaRun.on, "lit")
+    T.falsy(b2.areaRun and b2.areaRun.on, "only that quest's")
+    stub.RunTimers()
+    T.falsy(b1.areaRun.on, "stops after its laps")
+    -- Already inside when a quest's button is set up (the game checks IsInsideQuestBlob then).
+    QW.state.inside = { [3] = true }
+    table.insert(QW.state.quests, QW.quest(3, "C", { item = SALVE }))
+    stub.FireEvent("QUEST_WATCH_LIST_CHANGED", 3, true)
+    stub.RunTimersOnce()   -- the layout, not yet the light's end
+    T.truthy(ns.Items.buttons[3].areaRun.on, "lit on set-up")
+end)

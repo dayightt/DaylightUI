@@ -18,6 +18,12 @@ Items.SIZE = 24
 Items.GAP = 10              -- between a button and the list
 Items.RANGE_TICK = 0.2
 Items.OUT_OF_RANGE = { 1, 0.35, 0.35 }
+Items.WAITING = { 0.4, 0.4, 0.4 }  -- a cooldown that can't run yet, the game's own dim
+-- Walking into the quest's area runs a light round the button (the game pulses
+-- its button six times there): AREA_LAPS rounds of AREA_LAP seconds.
+Items.AREA_LAP = 1
+Items.AREA_LAPS = 6
+Items.AREA_LIGHT = Items.AREA_LAP * Items.AREA_LAPS
 Items.PLATES = 40           -- nameplate units checked for who you are fighting
 Items.FORGET = 5            -- seconds a used-on name is kept when no fight follows
 
@@ -63,6 +69,18 @@ local function make(id)
     b.cooldown:SetAllPoints(b.icon)
     b.count = Style.Text(b, Style.SIZE.tiny, "RIGHT")
     b.count:SetPoint("BOTTOMRIGHT", b, "BOTTOMRIGHT", -1, 1)
+    -- Made here, out of combat, so a fight never has to add regions to a secure button.
+    b.areaRun = DUI.Motion.EdgeRun(b, { size = 10, lap = Items.AREA_LAP })
+    -- The game's link click (CHATLINK) has no secure action (Items.Place), so with a
+    -- chat box open it links the item instead of using it. Only the release acts:
+    -- the button takes both halves of a click.
+    b:SetScript("PostClick", function(self, _, down)
+        if down or not (IsModifiedClick and IsModifiedClick("CHATLINK")) then return end
+        local insert = ChatFrameUtil and ChatFrameUtil.InsertLink
+        if not (type(insert) == "function" and type(self.link) == "string" and insert(self.link) == true) then
+            DUI.ShowError(ns.Clicks.LINK_NO_CHAT)
+        end
+    end)
     b:SetScript("OnEnter", DUI.Win.Parts.ItemTip(function(self)
         if GameTooltip and self.link then
             GameTooltip:SetOwner(self, "ANCHOR_LEFT")
@@ -184,9 +202,19 @@ function Items.Place()
             local btn = buttons[q.id] or make(q.id)
             buttons[q.id] = btn
             local itemID = q.item.link:match("item:(%d+)")
+            local fresh = btn.questID ~= q.id
             btn.link, btn.logIndex, btn.questID = q.item.link, q.logIndex, q.id
             btn:SetAttribute("type", "item")
             btn:SetAttribute("item", itemID and ("item:" .. itemID) or q.item.link)
+            -- The link keys get no action (ATTRIBUTE_NOOP): a secure button can't ask
+            -- in a fight whether a chat box is open, so they always link.
+            local link = DUI.Win.ClickPrefix("CHATLINK")
+            if btn.linkKey ~= link then
+                if btn.linkKey then btn:SetAttribute(btn.linkKey .. "type*", nil) end
+                if link then btn:SetAttribute(link .. "type*", "") end
+                btn.linkKey = link
+            end
+            if fresh then Items.CheckArea(btn) end
             btn.icon:SetTexture(q.item.icon)
             local charges = q.item.charges
             btn.count:SetText((type(charges) == "number" and not secret(charges) and charges > 1) and charges or "")
@@ -275,8 +303,8 @@ function Items.Refresh()
     if not next(want) then return end
     for id, btn in pairs(buttons) do
         if want[id] and btn.logIndex then
-            local start, dur = nil, nil
-            if type(GetQuestLogSpecialItemCooldown) == "function" then start, dur = GetQuestLogSpecialItemCooldown(btn.logIndex) end
+            local start, dur, enable = nil, nil, nil
+            if type(GetQuestLogSpecialItemCooldown) == "function" then start, dur, enable = GetQuestLogSpecialItemCooldown(btn.logIndex) end
             if secret(start) or secret(dur) then
                 -- SetCooldown refuses secrets from addon code (AllowedWhenUntainted in the
                 -- game's API docs), and these items have no duration object, so the sweep is
@@ -291,14 +319,13 @@ function Items.Refresh()
                 btn.cdStart, btn.cdDur = false, false
             end
             local inRange = type(IsQuestLogSpecialItemInRange) == "function" and IsQuestLogSpecialItemInRange(btn.logIndex)
-            local out = not secret(inRange) and inRange == 0
-            if btn.tint ~= out then
-                btn.tint = out
-                if out then
-                    btn.icon:SetVertexColor(unpack(Items.OUT_OF_RANGE))
-                else
-                    btn.icon:SetVertexColor(1, 1, 1)
-                end
+            -- A cooldown that can't run yet (enable 0, the game's dim) wins over range.
+            local waiting = not (secret(dur) or secret(enable)) and type(dur) == "number" and dur > 0 and enable == 0
+            local tint = (waiting and "wait") or ((not secret(inRange) and inRange == 0) and "out") or false
+            if btn.tint ~= tint then
+                btn.tint = tint
+                local c = (tint == "wait" and Items.WAITING) or (tint == "out" and Items.OUT_OF_RANGE) or nil
+                if c then btn.icon:SetVertexColor(c[1], c[2], c[3]) else btn.icon:SetVertexColor(1, 1, 1) end
             end
         end
     end
@@ -332,3 +359,29 @@ function Items.Dim(snap)
 end
 
 DUI.RegisterEvent("BAG_UPDATE_COOLDOWN", function() Items.Refresh() end)
+
+-- The quest's area on the map: the button's light runs its laps, then stops (it
+-- doesn't wait for leaving, as the game's pulse doesn't). Each start has its own
+-- token so an older timer leaves a newer light alone.
+function Items.LightArea(btn)
+    local run = btn and btn.areaRun
+    if not run then return end
+    run.Set(true, { DUI.Style.Accent() })
+    local mine = {}
+    run.token = mine
+    C_Timer.After(Items.AREA_LIGHT, function()
+        if run.token == mine then run.Set(false); run.token = nil end
+    end)
+end
+
+-- Already inside when a button is given its quest (the game checks on set-up).
+function Items.CheckArea(btn)
+    local inside = C_Minimap and C_Minimap.IsInsideQuestBlob
+    if type(inside) ~= "function" or type(btn.questID) ~= "number" then return end
+    if inside(btn.questID) == true then Items.LightArea(btn) end
+end
+
+DUI.RegisterEvent("PLAYER_INSIDE_QUEST_BLOB_STATE_CHANGED", function(_, questID, inside)
+    if inside ~= true or type(questID) ~= "number" or secret(questID) then return end
+    if want[questID] then Items.LightArea(buttons[questID]) end
+end)

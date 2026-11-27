@@ -13,6 +13,10 @@ Data.READY = L["Ready to turn in"]   -- turn-in line when the game gives none
 Data.AUTO = L["Click to complete"]
 Data.OTHER = L["Other"]              -- quests the log lists under no header
 Data.LOG_MAX = 25                 -- fallback when the game doesn't say
+-- The client's pop-up list (the game's AutoQuestPopUpTracker): a quest started by
+-- an item, or accepted by itself, waits there for a click.
+Data.POPUP_OFFER = L["Quest discovered · Click to view"]
+Data.POPUP_COMPLETE = L["Quest complete · Click to complete"]
 
 local function pick(ok, ...) if ok then return ... end end
 -- Calls fn if it exists. Does nothing (no error) if it doesn't or if it fails.
@@ -183,14 +187,33 @@ function Data.Quest(questID, timers, zone, index, info, focus)
         q.turnIn = q.auto and Data.AUTO or ((type(text) == "string" and text ~= "") and text or Data.READY)
     end
     q.objs = Data.Objectives(questID)
-    -- A quest that's ready to hand in has no more use for its item, so no button.
-    if q.state ~= "ready" then
-        local link, icon, charges = call(GetQuestLogSpecialItemInfo, index)
-        if type(link) == "string" then q.item = { link = link, icon = icon, charges = charges } end
+    -- The gold it still asks for, as the game's tracker shows it: only while you
+    -- carry less (Data.Snapshot says to follow your money while any quest asks).
+    q.money = call(api(QL, "GetRequiredMoney"), questID)
+    if type(q.money) ~= "number" then q.money = 0 end
+    if q.state == "active" and q.money > 0 then
+        local have = call(GetMoney)
+        if type(have) == "number" and have < q.money then
+            q.objs[#q.objs + 1] = { index = "money", kind = "text", done = false,
+                                    text = DaylightUI.MoneyString(have) .. " / " .. DaylightUI.MoneyString(q.money) }
+        end
+    end
+    -- A ready quest's item goes, unless the game says it's still needed then.
+    local link, icon, charges, whenReady = call(GetQuestLogSpecialItemInfo, index)
+    if type(link) == "string" and (q.state ~= "ready" or whenReady == true) then
+        q.item = { link = link, icon = icon, charges = charges }
     end
     q.timer = Data.TimeLeft(questID, timers)
     if focus == nil then focus = call(api(C_SuperTrack, "GetSuperTrackedQuestID")) end
     q.focus = focus == questID
+    -- The game's tracker leads the priority quest through another zone first with a line.
+    if q.focus and q.state ~= "failed" then
+        local way = call(api(QL, "GetNextWaypointText"), questID)
+        if type(way) == "string" and way ~= "" then
+            local fmt = q.state == "active" and WAYPOINT_OBJECTIVE_FORMAT_OPTIONAL
+            q.waypoint = type(fmt) == "string" and fmt:format(way) or way
+        end
+    end
     return q
 end
 
@@ -335,6 +358,22 @@ function Data.HereKey(here)
     return table.concat(list, "\n")
 end
 
+-- The client's pop-ups, newest last, as the game's tracker reads them. A quest
+-- whose title isn't known yet waits (the game's does too).
+function Data.Popups()
+    local out = {}
+    local n = call(GetNumAutoQuestPopUps)
+    for i = 1, type(n) == "number" and n or 0 do
+        local id, kind = call(GetAutoQuestPopUp, i)
+        local title = type(id) == "number" and call(api(C_QuestLog, "GetTitleForQuestID"), id)
+        if type(title) == "string" and title ~= "" and call(api(C_QuestLog, "IsQuestBounty"), id) ~= true then
+            out[#out + 1] = { id = id, title = title, popup = kind == "COMPLETE" and "COMPLETE" or "OFFER",
+                              state = "popup", objs = {}, diff = DaylightUI.Npc.Data.QuestColor(id) }
+        end
+    end
+    return out, type(n) == "number" and n or 0
+end
+
 function Data.Snapshot(filter)
     local QL = C_QuestLog
     local snap = { groups = {}, achievements = Data.Achievements() }
@@ -351,6 +390,7 @@ function Data.Snapshot(filter)
         local zone = headerOf[id] or Data.HeaderFor(id) or Data.OTHER
         local q = zone and Data.Quest(id, timers, zone, indexOf[id], infoOf[id], focus)
         if q then
+            if q.money > 0 then snap.money = true end
             local g = byZone[zone]
             if not g then
                 g = { name = zone, quests = {} }
@@ -360,6 +400,7 @@ function Data.Snapshot(filter)
             g.quests[#g.quests + 1] = q
         end
     end
+    snap.popups, snap.popupCount = Data.Popups()
     snap.zone = Data.Here(function(name) return byZone[name] ~= nil end)
     snap.here = Data.HereSet(snap.groups, snap.zone)
     local seats = Data.Seats(rank)
