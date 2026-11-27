@@ -128,9 +128,9 @@ local function paintTile(t)
     t.name:SetShown(namesOn())
 end
 
-local function newTile()
-    local t = CreateFrame("Frame", nil, Row.Build())
-    t:SetFrameStrata("MEDIUM")
+-- A tile on parent: the row's, or a preview's (which keeps its own).
+local function makeTile(parent)
+    local t = CreateFrame("Frame", nil, parent)
     t:EnableMouse(true)
     t.shell = Style.Shell(t, { borderPx = Row.BORDER_PX, noBevel = true })
     t.icon = t:CreateTexture(nil, "ARTWORK")
@@ -150,11 +150,17 @@ local function newTile()
     t:SetScript("OnEnter", function(self) showTip(self, self) end)
     t:SetScript("OnLeave", hideTip)
     t:SetScript("OnMouseUp", function(self, button)
-        if button == "MiddleButton" and self.entry then hideKey(self.entry.key) end
+        if button == "MiddleButton" and self.entry and not self.entry.sample then hideKey(self.entry.key) end
     end)
     t:Hide()
-    Row.tiles[#Row.tiles + 1] = t
     paintTile(t)
+    return t
+end
+
+local function newTile()
+    local t = makeTile(Row.Build())
+    t:SetFrameStrata("MEDIUM")
+    Row.tiles[#Row.tiles + 1] = t
     return t
 end
 
@@ -488,3 +494,56 @@ end)
 DUI.On("StyleChanged", function()
     for _, t in ipairs(Row.active) do if t.entry then fill(t, t.entry) end end
 end)
+
+-- ---------------------------------------------------------------------
+-- A preview (the setup guide and the What's New page)
+-- ---------------------------------------------------------------------
+
+Row.PREVIEW_STAGGER = 0.08   -- s between one tile rising in and the next
+Row.PREVIEW_RISE = 6
+
+-- The sample row on its own frame: the real tiles, filled with the sample
+-- buffs, a raid buff you give breathing as yours does when it shows. Nothing
+-- can be clicked and nothing is reported to plugins. Each time it shows, the
+-- tiles rise in one after another.
+function Row.Preview(parent)
+    local box = CreateFrame("Frame", nil, parent)
+    box.tiles = {}
+    for i, e in ipairs(BL.ReminderData.SAMPLE) do
+        local t = makeTile(box)
+        local copy = {}
+        for k, v in pairs(e) do copy[k] = v end
+        copy.sample = true
+        t.sampleEntry = copy
+        box.tiles[i] = t
+    end
+    function box.Layout()
+        local n = #box.tiles
+        local s = size()
+        for i, t in ipairs(box.tiles) do
+            paintTile(t)
+            fill(t, t.sampleEntry)
+            t:ClearAllPoints()
+            t:SetPoint("TOP", box, "TOP", spotX(i, n), 0)
+            t:Show()
+        end
+        box:SetSize(math.max(1, n * s + (n - 1) * gap()), s + (namesOn() and -Row.NAME_Y + Style.SIZE.small or 0))
+    end
+    box:SetScript("OnShow", function()
+        box.Layout()
+        local Feel = DUI.Win and DUI.Win.Feel
+        for i, t in ipairs(box.tiles) do
+            if Feel then Feel.Piece(t, i * Row.PREVIEW_STAGGER, Motion.SLOW, Row.PREVIEW_RISE) end
+            if t.sampleEntry.kind == "give" then
+                C_Timer.After(#box.tiles * Row.PREVIEW_STAGGER + Motion.SLOW, function()
+                    if box:IsVisible() then breathe(t) end
+                end)
+            end
+        end
+    end)
+    box:SetScript("OnHide", function()
+        for _, t in ipairs(box.tiles) do stopBreath(t) end
+    end)
+    box.Layout()
+    return box
+end
