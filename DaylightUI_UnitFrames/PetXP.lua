@@ -155,7 +155,7 @@ function PetXP.Create(pet)
         Tips.Clear()
         -- Whose experience it is: the pet's name over the line.
         local name = UnitName("pet")
-        Tips.Title(type(name) == "string" and name or DUI.L["Experience"])
+        Tips.Title(type(name) == "string" and not isSecret(name) and name or DUI.L["Experience"])
         Tips.Line(DUI.L["Experience"], percent(cur, need))
         Tips.Flush(GameTooltip)
         GameTooltip:Show()
