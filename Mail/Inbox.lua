@@ -44,16 +44,18 @@ local function call(fn, ...)
     if ok then return a, b, c, d, e, f, g, h, i, j, k, l, m end
 end
 local function money(c) return DUI.Widgets.Money(c) end
+local asking   -- a second click waiting on a letter (defined with the actions below)
 local function pending() return C_Mail and call(C_Mail.IsCommandPending) == true end
 
 -- Letters
 
 function Inbox.Letter(i)
-    local pkg, stationery, sender, subject, gold, cod, days, items, read, returned, _, canReply, gm = call(GetInboxHeaderInfo, i)
+    local pkg, stationery, sender, subject, gold, cod, days, items, read, returned, textCreated, canReply, gm = call(GetInboxHeaderInfo, i)
     if sender == nil and subject == nil then return nil end
     local l = { index = i, sender = sender or "", subject = subject or "", money = tonumber(gold) or 0, cod = tonumber(cod) or 0,
         days = tonumber(days) or 0, items = tonumber(items) or 0, read = read == true, returned = returned == true,
-        canReply = canReply == true, gm = gm == true, icon = pkg or stationery }
+        canReply = canReply == true and not Inbox.FromMe(sender), gm = gm == true, icon = pkg or stationery,
+        stationery = stationery, textCreated = textCreated == true }
     local kind, item, player, bid, buyout, deposit, cut, _, _, _, count = call(GetInboxInvoiceInfo, i)
     if kind == "buyer" or kind == "seller" or kind == "seller_temp_invoice" then
         l.invoice = { type = kind, item = item, player = player, bid = tonumber(bid) or 0, buyout = tonumber(buyout) or 0,
@@ -73,6 +75,16 @@ function Inbox.Letter(i)
     l.key = ns.Ledger.LetterKey(l.sender, l.subject, l.invoice)
     l.ends = time() + l.days * 86400
     return l
+end
+
+-- The game's Reply stays off on a letter from yourself (OpenMailMixin:Update). Mail
+-- names carry the last name too, so both forms are checked.
+function Inbox.FromMe(sender)
+    if type(sender) ~= "string" or sender == "" then return false end
+    local own = DUI.DB and DUI.DB.Character and DUI.DB.Character().mailName
+    if sender == own then return true end
+    local first = type(UnitFullName) == "function" and call(UnitFullName, "player")
+    return type(first) == "string" and not DUI.IsSecret(first) and sender == first
 end
 
 -- A letter's identity: sender, subject, invoice (the ledger's letter key) and expiry.
@@ -192,7 +204,10 @@ local function takeAllClick()
 end
 
 local function daysText(d)
-    if d < 1 then return L["Under a day"] end
+    if d < 1 then
+        local h = math.floor(d * 24)
+        return h >= 1 and string.format(L["%d hr"], h) or L["Under an hour"]
+    end
     local n = math.floor(d)
     return n == 1 and L["1 day"] or string.format(L["%d days"], n)
 end
@@ -235,6 +250,36 @@ end
 
 -- The list
 
+-- Not enough gold on hand to pay a letter's cash on delivery.
+function Inbox.Short(l)
+    return l ~= nil and l.cod > 0 and l.cod > (tonumber(call(GetMoney)) or 0)
+end
+
+-- A letter's hover, as the game's inbox line: its one item (the item's own tooltip),
+-- or how many; the gold in it, or its cash on delivery (red when you can't pay it);
+-- and how long it has before it goes back or away.
+function Inbox.LineTip(b, l)
+    local tip = GameTooltip
+    if not (tip and l) then return end
+    local Tips = DUI.Tips
+    tip:SetOwner(b, "ANCHOR_RIGHT")
+    if l.items == 1 and tip.SetInboxItem then
+        tip:SetInboxItem(l.index)
+    else
+        Tips.Title(l.subject ~= "" and l.subject or l.sender)
+        if l.items > 1 then Tips.Sub(string.format("%s (%d)", ns.Game("MAIL_MULTIPLE_ITEMS", L["Several items"]), l.items)) end
+    end
+    if l.money > 0 then
+        Tips.Line(ns.Game("ENCLOSED_MONEY", L["Gold enclosed"]), DUI.MoneyString(l.money), Style.INK.MONEY)
+    elseif l.cod > 0 then
+        Tips.Line(ns.Game("COD_AMOUNT", L["Cash on delivery"]), DUI.MoneyString(l.cod), Inbox.Short(l) and Style.INK.BAD or Style.INK.WARN)
+    end
+    local goes = l.canDelete and ns.Game("TIME_UNTIL_DELETED", L["Deleted in"]) or ns.Game("TIME_UNTIL_RETURNED", L["Returned in"])
+    Tips.Line(goes, daysText(l.days), l.days <= Inbox.LOW_DAYS and Style.INK.WARN or Style.INK.VALUE)
+    Tips.Flush(tip)
+    tip:Show()
+end
+
 local function lineOf(l, picked, id)
     local value, vc
     if l.money > 0 then value, vc = money(l.money), Style.INK.MONEY
@@ -253,10 +298,16 @@ local function lineOf(l, picked, id)
         picked = picked == l,
         id = id,
         key = Inbox.TicksOn() and "" or nil,   -- room on the left for the tick
+        tooltip = function(b) Inbox.LineTip(b, l) end,
         onClick = function()
             if takeAllClick() then Inbox.TakeAll(l) end
             Inbox.Pick(l.index)
             if DUI.Sound then DUI.Sound.Play("open") end   -- opening sound, like the game's
+        end,
+        -- Right-click picks the letter and opens its options (Delete or Return, Report spam).
+        onRightClick = function(b)
+            Inbox.Pick(l.index)
+            Inbox.Options(b)
         end }
 end
 
@@ -389,8 +440,19 @@ function Inbox.TakeAll(l)
     if Inbox.Do(function() AutoLootMailItem(l.index) end) then Inbox.Untick(l) end
 end
 
+-- The game deletes a letter on closing it when nothing is left in it and its text
+-- was already taken as an item (OpenMailMixin:OnHide). Leaving it for another letter
+-- is closing it here. A sale whose gold is still on its way stays.
+local function closing(l)
+    if not l or l.money > 0 or l.items > 0 or not l.textCreated then return end
+    if l.invoice and l.invoice.type == "seller_temp_invoice" then return end
+    Inbox.Do(function() DeleteInboxItem(l.index) end)
+end
+
 -- Selecting a letter reads it (GetInboxText marks it read, same as the game's window).
 function Inbox.Pick(i)
+    local was = Inbox.Find(S.picked)
+    if was and was.index ~= i then closing(was) end
     S.picked = Inbox.Id(Inbox.Letter(i))
     S.confirm = nil
     call(GetInboxText, i)
@@ -417,13 +479,66 @@ local function receipt(s, l)
     end
 end
 
-local function itemTip(i, a)
+-- An item in a letter: the game's item tooltip, then the cash on delivery it costs
+-- (red when you can't pay it), as OpenMailAttachment_OnEnter.
+local function itemTip(l, a)
     return function(b)
         if not (GameTooltip and GameTooltip.SetInboxItem) then return end
         GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
-        GameTooltip:SetInboxItem(i, a)
+        GameTooltip:SetInboxItem(l.index, a)
+        if l.cod > 0 then
+            DUI.Tips.Line(ns.Game("COD_AMOUNT", L["Cash on delivery"]), DUI.MoneyString(l.cod), Inbox.Short(l) and Style.INK.BAD or Style.INK.WARN)
+            DUI.Tips.Flush(GameTooltip)
+        end
         GameTooltip:Show()
     end
+end
+
+local function textTip(text)
+    return function(b)
+        if not GameTooltip then return end
+        GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
+        DUI.Tips.Text(text)
+        DUI.Tips.Flush(GameTooltip)
+        GameTooltip:Show()
+    end
+end
+
+Inbox.COIN = "Interface\\Icons\\INV_Misc_Coin_01"
+
+-- The tiles under a letter, as the game's attachment row: its gold (a click takes only
+-- the gold), its text as an item while it can still be taken, then each item.
+local function tilesOf(l, takeable)
+    local tiles = {}
+    if l.money > 0 then
+        local icon = C_CurrencyInfo and call(C_CurrencyInfo.GetCoinIcon, l.money)
+        tiles[#tiles + 1] = { name = DUI.MoneyString(l.money), nameColor = Style.INK.MONEY, texture = icon or Inbox.COIN,
+            sub = L["Click to take the gold"], tooltip = textTip(L["Take the gold in this letter."]),
+            onClick = function() Inbox.TakeMoney() end }
+    end
+    if takeable and not l.textCreated then
+        tiles[#tiles + 1] = { name = L["Letter"], nameColor = Style.INK.VALUE, texture = l.stationery or ns.Window.ICON,
+            sub = L["Click to take a copy"], tooltip = textTip(ns.Game("MAIL_LETTER_TOOLTIP", L["Take a copy of this letter."])),
+            onClick = function() Inbox.TakeText() end }
+    end
+    local short = Inbox.Short(l)
+    for a = 1, Inbox.SLOTS do
+        local name, _, tex, count, quality = call(GetInboxItem, l.index, a)
+        if name then
+            local sub
+            if l.cod > 0 then
+                local price = DUI.MoneyString(l.cod)
+                if short then sub = string.format(L["Not enough gold to pay %s"], price)
+                elseif asking("item" .. a, l) then sub = string.format(L["Click again to pay %s"], price)
+                else sub = string.format(L["Pay %s to take it"], price) end
+            end
+            tiles[#tiles + 1] = { name = name, texture = tex, count = count, quality = quality, tooltip = itemTip(l, a),
+                sub = sub, subColor = l.cod > 0 and (short and Style.INK.BAD or Style.INK.WARN) or nil,
+                link = function() local at = Inbox.Find(S.picked); return at and call(GetInboxItemLink, at.index, a) end,
+                onClick = function() Inbox.TakeItem(a) end }
+        end
+    end
+    return tiles
 end
 
 -- The selected letter on the right (`l`, as Render found it).
@@ -436,29 +551,16 @@ function Inbox.Show(pane, l)
     if l then
         local sub = string.format(L["From %s"], Win.Parts.Hex(Style.INK.VALUE) .. l.sender .. "|r") .. "  ·  " .. daysText(l.days)
         s:Line({ icon = l.icon or ns.Window.ICON, text = l.subject, color = Style.INK.TITLE, sub = sub })
-        local body = call(GetInboxText, l.index)
+        local body, _, _, takeable = call(GetInboxText, l.index)
         if type(body) == "string" and body ~= "" then s:Text(body, { color = Style.INK.TEXT, gap = 10 }) end
         if l.invoice then s:Gap(6); receipt(s, l) end
-        if l.money > 0 and not l.invoice then s:Gap(6); s:Money(l.money) end
         if l.cod > 0 then
             s:Text(string.format(L["Cash on delivery: taking the items pays %s"], money(l.cod)), { color = Style.INK.WARN, gap = 10 })
         end
-        if l.items > 0 then
-            local items = {}
-            for a = 1, 16 do
-                local name, _, tex, count, quality = call(GetInboxItem, l.index, a)
-                if name then
-                    items[#items + 1] = { name = name, texture = tex, count = count, quality = quality, tooltip = itemTip(l.index, a),
-                        onClick = l.cod == 0 and function()
-                            local at = Inbox.Find(S.picked)   -- current position of the letter
-                            if at and Inbox.Do(function() TakeInboxItem(at.index, a) end) and at.items <= 1 and at.money == 0 then
-                                Inbox.Untick(Inbox.Picked())
-                            end
-                        end or nil }
-                end
-            end
+        local tiles = tilesOf(l, takeable == true)
+        if #tiles > 0 then
             s:Gap(8)
-            s:Items(items)
+            s:Items(tiles)
         end
     end
     pane.pieces = s:End()
@@ -475,7 +577,7 @@ end
 
 -- Irreversible or costly actions need a second click on the same letter (matched by
 -- identity, since letters may have moved).
-local function asking(what, l)
+asking = function(what, l)
     return l and S.confirm and S.confirm.what == what and gapOf(l, S.confirm.id) ~= nil
 end
 local function confirmed(what, l)
@@ -485,15 +587,54 @@ local function confirmed(what, l)
     end
     S.confirm = { what = what, id = Inbox.Id(l), at = GetTime() }
     Inbox.PaintFooter()
-    C_Timer.After(Inbox.CONFIRM, function() if S.confirm and GetTime() - S.confirm.at >= Inbox.CONFIRM - 0.01 then S.confirm = nil; Inbox.PaintFooter() end end)
+    C_Timer.After(Inbox.CONFIRM, function() if S.confirm and GetTime() - S.confirm.at >= Inbox.CONFIRM - 0.01 then S.confirm = nil; Inbox.Soon() end end)
     return false
 end
 
 function Inbox.Take()
     local l = Inbox.Find(S.picked)
-    if not l then return end
+    if not l or Inbox.Short(l) then return end
     if l.cod > 0 and not confirmed("take", l) then return end
     if Inbox.Do(function() AutoLootMailItem(l.index) end) then Inbox.Untick(l) end
+end
+
+-- One item from the picked letter. A cash on delivery item asks a second click and
+-- pays (the game's COD_CONFIRMATION), or does nothing without the gold (COD_ALERT).
+function Inbox.TakeItem(a)
+    local at = Inbox.Find(S.picked)   -- current position of the letter
+    if not at or Inbox.Short(at) then return end
+    if at.cod > 0 and not confirmed("item" .. a, at) then return Inbox.Show(nil, at) end
+    if Inbox.Do(function() TakeInboxItem(at.index, a) end) and at.items <= 1 and at.money == 0 then
+        Inbox.Untick(Inbox.Picked())
+    end
+end
+
+-- The gold alone (OpenMailMoneyButton).
+function Inbox.TakeMoney()
+    local at = Inbox.Find(S.picked)
+    if not (at and at.money > 0) then return end
+    if Inbox.Do(function() TakeInboxMoney(at.index) end) and at.items == 0 then Inbox.Untick(Inbox.Picked()) end
+end
+
+-- The letter's text as an item in the bags (OpenMailLetterButton).
+function Inbox.TakeText()
+    local at = Inbox.Find(S.picked)
+    if at then Inbox.Do(function() TakeInboxTextItem(at.index) end) end
+end
+
+-- Report spam opens the game's own report window, as its button does.
+function Inbox.CanReport(l)
+    return l ~= nil and type(CanComplainInboxItem) == "function" and call(CanComplainInboxItem, l.index) == true
+end
+function Inbox.Report(l)
+    if not Inbox.CanReport(l) then return end
+    local info, frame = _G.ReportInfo, _G.ReportFrame
+    if not (type(info) == "table" and info.CreateMailReportInfo and type(frame) == "table" and frame.InitiateReport) then return end
+    DUI.SafeCall(function()
+        local kind = Enum and Enum.ReportType and Enum.ReportType.Mail
+        local report = info:CreateMailReportInfo(kind, l.index)
+        if report then frame:InitiateReport(report, l.sender) end
+    end)
 end
 
 function Inbox.Return()
@@ -534,8 +675,11 @@ function Inbox.Options(owner)
     local keys, values = {}, {}
     if l.canDelete then keys[#keys + 1] = "delete"; values.delete = DELETE or L["Delete"] end
     if not l.canDelete or (l.canReply and not l.returned) then keys[#keys + 1] = "return"; values["return"] = MAIL_RETURN or L["Return"] end
+    if Inbox.CanReport(l) then keys[#keys + 1] = "report"; values.report = REPORT_SPAM or L["Report spam"] end
     DUI.Widgets.OpenMenu(owner, keys, values, nil, function(k)
-        if k == "delete" then Inbox.Delete() else Inbox.Return() end
+        if k == "delete" then Inbox.Delete()
+        elseif k == "report" then Inbox.Report(Inbox.Find(S.picked))
+        else Inbox.Return() end
     end)
 end
 
@@ -714,6 +858,7 @@ function Inbox.PaintFooter(pane)
     local function asked(what) return asking(what, l) end
     local take = L["Take"]
     if asked("take") then take = L["Click again to pay"] elseif l and l.cod > 0 then take = string.format(L["Pay %s"], DUI.MoneyString(l.cod)) end
+    local short = Inbox.Short(l)
     local anyGold = false
     for _, x in ipairs(read.letters or {}) do if (x.money > 0 or x.items > 0) and x.cod == 0 then anyGold = true end end
     local delete = DELETE or L["Delete"]
@@ -731,7 +876,7 @@ function Inbox.PaintFooter(pane)
         })
     end
     pane.foot:Set({
-        { text = take, primary = true, off = busy or not (l and (l.money > 0 or l.items > 0)), onClick = Inbox.Take },
+        { text = take, primary = true, off = busy or short or not (l and (l.money > 0 or l.items > 0)), onClick = Inbox.Take },
         { text = REPLY_MESSAGE or L["Reply"], off = busy or not (l and l.canReply), onClick = Inbox.Reply },
         -- when the last button returns it, this one would say the same
         { text = ns.Game("MAIL_RETURN", L["Return"]), off = busy or not (l and l.canReply and not l.returned and l.canDelete), onClick = Inbox.Return },

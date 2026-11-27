@@ -124,18 +124,24 @@ function Send.Render(page)
     local s = page.stack
     s:Begin()
     local tiles = {}
+    -- As the game's attachment buttons: a left-click or drag picks the item up (or
+    -- swaps in the one held), a right-click puts it back in the bags.
     for _, it in ipairs(items) do
         local slot = it.slot
         tiles[#tiles + 1] = { name = it.name, texture = it.texture, count = it.count, quality = it.quality,
-            sub = L["Click to take back"],
+            sub = L["Right-click to take back"],
             tooltip = function(b)
                 if not (GameTooltip and GameTooltip.SetSendMailItem) then return end
                 GameTooltip:SetOwner(b, "ANCHOR_RIGHT")
                 GameTooltip:SetSendMailItem(slot)
                 GameTooltip:Show()
             end,
-            onClick = function() ClickSendMailItemButton(slot, true) end }
+            onClick = function(_, button) ClickSendMailItemButton(slot, button == "RightButton") end,
+            onDrag = function() ClickSendMailItemButton(slot) end,
+            onReceive = function() ClickSendMailItemButton(slot) end }
     end
+    Send.ItemSubject(page, items)
+    Send.CodAllowed(page, #items > 0)
     -- After the items, an empty slot to drop the next one on (new each time, until all 12
     -- are used).
     local left = Send.SLOTS - #items
@@ -147,9 +153,39 @@ function Send.Render(page)
     s:Items(tiles)
     page.pieces = s:End()
     local price = tonumber(call(GetSendMailPrice)) or 0
-    page.postage:SetText(string.format(L["Postage %s"], Win.Parts.Hex(Style.INK.MONEY) .. DUI.MoneyString(price) .. "|r"))
+    -- Red when it's more than you have, as the game's postage.
+    local ink = price > (tonumber(call(GetMoney)) or 0) and Style.INK.BAD or Style.INK.MONEY
+    page.postage:SetText(string.format(L["Postage %s"], Win.Parts.Hex(ink) .. DUI.MoneyString(price) .. "|r"))
     Send.PaintFooter(page)
 end
+
+-- The subject follows the first item while it's empty or still that item's name, and
+-- clears when the item comes off (SendMailFrame_Update's previousItem).
+function Send.ItemSubject(page, items)
+    local it = items[1]
+    local title = it and ((tonumber(it.count) or 1) > 1 and string.format("%s (%d)", it.name, it.count) or it.name) or nil
+    local now = page.subject:GetText() or ""
+    if title then
+        if now == "" or now == S.previousItem then page.subject:SetText(title) end
+        S.previousItem = title
+    else
+        if now ~= "" and now == S.previousItem then page.subject:SetText("") end
+        S.previousItem = nil
+    end
+end
+
+-- Cash on delivery needs an item, and the realm can turn it off (C_Mail.IsCODEnabled).
+function Send.CodOn()
+    if not (C_Mail and type(C_Mail.IsCODEnabled) == "function") then return true end
+    return call(C_Mail.IsCODEnabled) ~= false
+end
+function Send.CodAllowed(page, hasItem)
+    local can = hasItem and Send.CodOn()
+    page.cod.off = not can or nil
+    if not can and S.cod then S.cod = false end
+    Send.PaintCod(page)
+end
+Send.MAX_COD = 10000      -- gold, the game's MAX_COD_AMOUNT
 
 function Send.PaintFooter(page)
     page = page or Send.page
@@ -172,7 +208,7 @@ function Send.Clear()
     if not page then return end
     for _, box in ipairs({ page.to, page.subject, page.body, page.gold, page.silver, page.copper }) do box:SetText("") end
     S.cod = false
-    S.reply = nil
+    S.reply, S.previousItem = nil, nil
     for _, it in ipairs(Send.Items()) do ClickSendMailItemButton(it.slot, true) end
     call(SetSendMailMoney, 0)
     call(SetSendMailCOD, 0)
@@ -204,6 +240,9 @@ function Send.Send()
     if S.cod and (amount == 0 or #items == 0) then
         return Send.Say(L["Cash on delivery needs an item and a price."], "WARN")
     end
+    if S.cod and amount > Send.MAX_COD * 10000 then
+        return Send.Say(string.format(L["Cash on delivery can be at most %d gold."], Send.MAX_COD), "WARN")
+    end
     if S.cod then
         call(SetSendMailMoney, 0)
         SetSendMailCOD(amount)
@@ -228,12 +267,16 @@ local function sent()
     Send.Remember(S.to)
     local page = Send.page
     if page then
-        for _, box in ipairs({ page.subject, page.body, page.gold, page.silver, page.copper }) do box:SetText("") end
-        S.cod, S.reply = false, nil
+        -- The whole form empties and the cursor waits in To, as the game's; a reply goes
+        -- back to the inbox.
+        for _, box in ipairs({ page.to, page.subject, page.body, page.gold, page.silver, page.copper }) do box:SetText("") end
+        local reply = S.reply ~= nil
+        S.cod, S.reply, S.previousItem = false, nil, nil
         Send.PaintCod(page)
         Send.Chips(page)
         Send.Render(page)
         Send.Say(string.format(L["Sent to %s."], S.to), "GOOD")
+        if reply then ns.Window.ShowTab("inbox") elseif page:IsVisible() then page.to:SetFocus() end
     end
 end
 
@@ -368,13 +411,8 @@ function Send.Build(page)
     local y = 14
     label(page, ns.Game("MAIL_TO_LABEL", L["To"]), y)
     page.chips = {}
-    page.to = box(page, y, { hint = L["First and last name"],
+    page.to = box(page, y, { hint = L["First and last name"], maxLetters = 77,
         onChange = function(_, user) if user then Send.Chips(page) end end })
-    -- Tab takes the first matching name, then moves on to the subject.
-    page.to:SetScript("OnTabPressed", function(self)
-        if page.first and trim(self:GetText()) ~= "" and page.first ~= trim(self:GetText()) then Send.Pick(page.first) end
-        page.subject:SetFocus()
-    end)
     y = y + Send.ROW
     page.chipsY = y
     y = y + W().CHIP_HEIGHT + 10
@@ -391,15 +429,33 @@ function Send.Build(page)
     letter:SetHeight(Send.LETTER_H - 12)
     letter:SetScript("OnSizeChanged", function(_, w) if type(w) == "number" and w > 0 then letter.edit:SetWidth(w) end end)
     page.letter, page.body = letter, letter.edit
-    page.subject:SetScript("OnTabPressed", function() page.body:SetFocus() end)
     y = y + Send.LETTER_H + (Send.ROW - W().INPUT_H) + 4
     page.goldLabel = label(page, L["Gold"], y)
     local coins = W().Coins(page)
     coins:SetPoint("TOPLEFT", page, "TOPLEFT", Send.EDGE + Send.LABEL_W, -y)
     page.gold, page.silver, page.copper = coins.gold, coins.silver, coins.copper
+    page.coins = coins
+    -- Gold picked up from the bags' money goes into the boxes (SendMailMoneyButton_OnClick).
+    for _, e in ipairs({ coins.gold, coins.silver, coins.copper }) do
+        e:HookScript("OnMouseUp", function()
+            local held = tonumber(call(GetCursorMoney)) or 0
+            if held <= 0 then return end
+            coins.Set(coins.Copper() + held)
+            call(DropCursorMoney)
+        end)
+    end
     page.cod = W().Switch(page)
     page.cod:SetPoint("TOPRIGHT", page, "TOPRIGHT", -Send.EDGE, -y - 5)
-    page.cod:SetScript("OnClick", function() S.cod = not S.cod; Send.PaintCod(page) end)
+    page.cod:SetScript("OnClick", function(self)
+        if self.off then return end
+        S.cod = not S.cod
+        Send.PaintCod(page)
+    end)
+    -- Turned off by the realm: say so, as the game's COD button does.
+    page.cod:SetScript("OnEnter", function(self)
+        if not Send.CodOn() then W().Tooltip(self, ns.Game("COD_DISABLED", L["Cash on delivery is turned off."])) end
+    end)
+    page.cod:SetScript("OnLeave", function() W().HideTooltip() end)
     local codLabel = Style.Text(page, Style.SIZE.small, "RIGHT")
     codLabel:SetPoint("RIGHT", page.cod, "LEFT", -8, 0)
     Style.InkText(codLabel, "LABEL")
@@ -415,6 +471,19 @@ function Send.Build(page)
     page.said:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Send.EDGE, Send.FOOT)
     page.said:Hide()
     page.foot = Win.Parts.Footer(page)
+    Send.Keys(page)
+    -- An item dropped anywhere on the form, or clicked onto it or the letter, is attached
+    -- (SendMailFrame's OnMouseUp and its letter's). The page itself takes no mouse, so
+    -- the window's own frame hears it, and the window stays draggable.
+    local function drop()
+        if page:IsVisible() and call(GetCursorInfo) == "item" then Send.Attach() end
+    end
+    local win = ns.Window.frame
+    if win then
+        win:HookScript("OnReceiveDrag", drop)
+        win:HookScript("OnMouseUp", drop)
+    end
+    page.body:HookScript("OnMouseUp", drop)
     -- Tell the game the Send tab is showing (right-clicking bag items then attaches them).
     page:SetScript("OnShow", function() call(SetSendMailShowing, true) end)
     page:SetScript("OnHide", function() call(SetSendMailShowing, false) end)
@@ -435,20 +504,53 @@ function Send.Build(page)
     end)
 end
 
--- On show: a reply from the inbox fills To and the subject.
+-- The game's reply prefix ("RE:"), put in front once (OpenMailReplyMixin:Reply).
+function Send.ReplySubject(subject)
+    local prefix = (type(MAIL_REPLY_PREFIX) == "string" and MAIL_REPLY_PREFIX ~= "" and MAIL_REPLY_PREFIX or "RE:") .. " "
+    subject = subject or ""
+    if subject:sub(1, #prefix) == prefix then return subject end
+    return prefix .. subject
+end
+
+-- On show: a reply from the inbox fills To and the subject, and the cursor goes to the letter.
 function Send.Fill(page)
     local r = ns.Window.replyTo
     if r then
         ns.Window.replyTo = nil
         page.to:SetText(r.name or "")
-        local subj = r.subject or ""
-        page.subject:SetText(subj ~= "" and string.format(L["Re: %s"], subj) or "")
+        page.subject:SetText(Send.ReplySubject(r.subject))
         S.reply = r.id
     end
     Send.Say(nil)
     Send.Chips(page)
     Send.PaintCod(page)
     Send.Render(page)
+    if r then page.body:SetFocus() end
+end
+
+-- Keys, as the game's form: Tab goes round To, Subject, the letter and the coins
+-- (Shift-Tab back, EditBox_HandleTabbing over SEND_MAIL_TAB_LIST); Enter moves from
+-- To to the subject and from the subject to the letter. Names complete in a list
+-- under To, as the game's AutoComplete box (Up and Down pick, Tab or Enter fill).
+function Send.Keys(page)
+    local order = { page.to, page.subject, page.body, page.gold, page.silver, page.copper }
+    for i, e in ipairs(order) do
+        e:SetScript("OnTabPressed", function(self)
+            if self == page.to and not (page.complete and page.complete:IsOpen()) then
+                local typed = trim(self:GetText())
+                if page.first and typed ~= "" and page.first ~= typed then Send.Pick(page.first) end
+            end
+            local back = type(IsShiftKeyDown) == "function" and IsShiftKeyDown()
+            order[back and ((i - 2) % #order + 1) or (i % #order + 1)]:SetFocus()
+        end)
+    end
+    page.to:SetScript("OnEnterPressed", function() page.subject:SetFocus() end)
+    page.subject:SetScript("OnEnterPressed", function() page.body:SetFocus() end)
+    page.complete = W().Complete(page.to, function(text)
+        local out = {}
+        for _, n in ipairs(Send.Names(text)) do out[#out + 1] = { insert = n, from = 1, to = #text, label = n } end
+        return out
+    end)
 end
 
 function Send.Pieces()

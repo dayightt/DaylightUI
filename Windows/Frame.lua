@@ -256,7 +256,7 @@ function Win.Tabs(f, tabs, onPick, opts)
         b.id = t.id
         b:SetPoint("RIGHT", right, "LEFT", -Win.TAB_GAP, 0)
         b:SetScript("OnClick", function()
-            if f.tab == b.id or Win.TabDropped(f) then return end
+            if f.tab == b.id or b.off or Win.TabDropped(f) then return end
             Win.PickTab(f, b.id)
             if f.onTab then f.onTab(b.id) end
         end)

@@ -137,6 +137,13 @@ end
 local function takeItem(i, l, a)
     local it = l.items[a]
     if not it then return true end
+    -- A guess at the client: the game never asks it to (COD_ALERT stops a COD it
+    -- can't pay first), so the fake refuses the take as a server would.
+    if l.cod > S().money then
+        fire("MAIL_FAILED", it.itemID)
+        fire("UI_ERROR_MESSAGE", 3, "You don't have enough money.")
+        return false
+    end
     if S().bagFree <= 0 then
         fire("MAIL_FAILED", 5165)
         fire("UI_ERROR_MESSAGE", 3, "Inventory is full.")
@@ -336,13 +343,37 @@ local function install()
         local l = S().inbox[i]
         if not l then return nil end
         return 133465, nil, l.sender, l.subject, l.money, l.cod, l.days, itemCount(l), l.read == true,
-            l.returned == true, l.read == true, l.canReply == true, false
+            l.returned == true, l.textCreated == true, l.canReply == true, l.gm == true
     end
+    -- bodyText, stationeryID1, stationeryID2, isTakeable, isInvoice, isConsortium
+    -- (OpenMailMixin:Update). A player's letter with text can be taken as an item.
     _G.GetInboxText = function(i)
         local l = L(i)
         l.read = true
-        return l.body, nil, nil, l.invoice ~= nil
+        return l.body, nil, nil, l.body ~= "" and l.invoice == nil and l.canReply == true, l.invoice ~= nil, false
     end
+    -- The letter's text as an item in the bags (OpenMailLetterButton). Only once.
+    _G.TakeInboxTextItem = function(i)
+        record("TakeInboxTextItem", i)
+        command("TakeInboxTextItem", function()
+            local l = L(i)
+            if l.textCreated or S().bagFree <= 0 then fire("MAIL_FAILED"); return end
+            S().bagFree = S().bagFree - 1
+            l.textCreated = true
+            table.insert(S().bags, { name = "Plain Letter", itemID = 8383, count = 1 })
+            fire("MAIL_INBOX_UPDATE")
+            fire("MAIL_SUCCESS")
+        end)
+    end
+    -- The report button shows for a player's letter (OpenMailMixin:Update).
+    _G.CanComplainInboxItem = function(i) local l = L(i); return l.canReply == true and l.invoice == nil end
+    _G.ReportInfo = { CreateMailReportInfo = function(_, kind, i) return { kind = kind, mail = i } end }
+    _G.ReportFrame = { InitiateReport = function(_, info, target) record("Report", info.mail, target) end }
+    -- Money picked up from the bags' gold (SendMailMoneyButton_OnClick).
+    _G.GetCursorMoney = function() return S().cursorMoney or 0 end
+    _G.DropCursorMoney = function() S().cursorMoney = nil end
+    -- A trial account can't send mail (MailMixin:UpdateTrialState).
+    _G.GameLimitedMode_IsActive = function() return S().trial == true end
     -- name, itemID, texture, count, quality, canUse
     _G.GetInboxItem = function(i, a)
         local it = L(i).items[a]
@@ -451,10 +482,20 @@ local function install()
         if not it then return nil end
         return it.name, it.itemID, 134400, it.count, it.quality or 1
     end
+    -- As a bag slot: no slot = the first free one; a click with an item on the cursor
+    -- swaps it in, without one picks the attached item up; clear puts it back in the bags.
     _G.ClickSendMailItemButton = function(slot, clear)
         record("ClickSendMailItemButton", slot, clear)
-        if clear then S().send.items[slot] = nil
-        elseif S().cursor then S().send.items[slot] = S().cursor; S().cursor = nil end
+        local items = S().send.items
+        if slot == nil then
+            for i = 1, 12 do if not items[i] then slot = i; break end end
+            if slot == nil then return end
+        end
+        if clear then items[slot] = nil
+        else
+            local held, there = S().cursor, items[slot]
+            items[slot], S().cursor = held, there
+        end
         fire("MAIL_SEND_INFO_UPDATE")
     end
     _G.GetSendMailPrice = function()
@@ -496,6 +537,7 @@ local function install()
         IsCommandPending = function() return S().pending == true end,
         HasInboxMoney = function(i) return L(i).money > 0 end,
         CanCheckInbox = function() return true end,
+        IsCODEnabled = function() return S().codOff ~= true end,
         SetOpeningAll = function(on) S().openingAll = on == true end,
         GetCraftingOrderMailInfo = function() return nil end,
     }
@@ -526,6 +568,8 @@ function MW.Transfer(okay)
 end
 
 function MW.Cursor(item) S().cursor = item end
+function MW.CursorMoney(c) S().cursorMoney = c end
+function MW.CursorItem() return S().cursor end
 function MW.Sent() return S().sent end
 function MW.Bags() return S().bags end
 
@@ -542,7 +586,7 @@ function MW.world(spec)
     return function()
         MW.state = { calls = {}, queue = {}, inbox = {}, incoming = {}, sent = {}, bags = {}, auctions = {},
             money = spec.money or 1000000, bagFree = spec.bagFree or 16, send = { items = {} }, beyond = spec.beyond,
-            strangers = spec.strangers }
+            strangers = spec.strangers, trial = spec.trial, codOff = spec.codOff }
         _G.MailFrame, _G.InboxFrame, _G.SendMailFrame, _G.OpenMailFrame = nil, nil, nil, nil
         _G.SendMailNameEditBox, _G.SendMailSubjectEditBox = nil, nil
         -- Blizzard_MailFrame's global: it enables the game's own Send button.

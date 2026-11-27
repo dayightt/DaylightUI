@@ -95,6 +95,27 @@ function Mail.ShowTab(id)
     Win.ShowPage(f, id)
 end
 
+-- A trial account can't send mail: the game hides its Send tab and says why
+-- (MailMixin:UpdateTrialState). Here the tab is off and its hover says it.
+function Mail.Trial()
+    local f = Mail.frame
+    if not (f and f.tabs) then return end
+    local trial = type(GameLimitedMode_IsActive) == "function" and call(GameLimitedMode_IsActive) == true
+    for _, b in ipairs(f.tabs) do
+        if b.id == "send" then
+            b.SetOff(trial)
+            if not b.trialTip then
+                b.trialTip = true
+                b:HookScript("OnEnter", function(self)
+                    if self.off then DUI.Widgets.Tooltip(self, ns.Game("TRIAL_RESTRICTED", L["Trial accounts can't send mail."])) end
+                end)
+                b:HookScript("OnLeave", function() DUI.Widgets.HideTooltip() end)
+            end
+        end
+    end
+    if trial and f.current == "send" then Mail.ShowTab("inbox") end
+end
+
 -- Open, close, follow the game's frame
 
 local function spot() return Mail.spot and Mail.spot.Get() end
@@ -275,6 +296,8 @@ function Mail.Build(mod)
     if Mail.swap then Mail.swap.Icon(f) end
     Win.Tabs(f, { { id = "inbox", text = INBOX or L["Inbox"] }, { id = "send", text = ns.Game("SENDMAIL", L["Send"]) },
         { id = "ledger", text = L["Ledger"] } }, function(id) Mail.ShowTab(id) end)
+    Mail.Trial()
+    DUI.RegisterEvent("TRIAL_STATUS_UPDATE", Mail.Trial)
     -- Controller, matching the game's mail buttons (MailFrame.lua footers): X opens all,
     -- replies to the open letter, or sends; Y opens the letter's options.
     local function picked() return f.current == "inbox" and ns.Inbox.Picked() or nil end
