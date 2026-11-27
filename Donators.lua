@@ -102,6 +102,8 @@ Donators.LIST = {
     "Oliver",
     "Karchedon",
     "AJ",
+    "Cpt NightShade",
+    "Gravius Sunmourn",
     "Hugo",
     "Daniel C.",
     "sam",
