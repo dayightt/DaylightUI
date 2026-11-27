@@ -254,6 +254,45 @@ T.test("social: a friend picked: Invite (their game account) and Whisper (Battle
     clean()
 end)
 
+-- A friend added by character name (a title friend) is a Battle.net entry with no
+-- BattleTag. The game's own whisper (ChatFrameUtil.SendBNetTell) sends to their
+-- character; a Battle.net whisper to them goes nowhere.
+T.test("social: whispering a friend added by character name whispers the character", function()
+    local friends = SW.Friends()
+    friends[#friends + 1] = { bnetAccountID = 8, accountName = "Gorvin Ashmantle", battleTag = "", friendLevel = 3,
+        titleTarget = "Gorvin Ashmantle-Realm",
+        gameAccountInfo = { gameAccountID = 120, clientProgram = "WoW", isOnline = true, wowProjectID = WOW_PROJECT_ID,
+            characterName = "Gorvin Ashmantle", classFilename = "PALADIN", characterLevel = 30, areaName = "Duskwood" } }
+    local ns = load({ friends = friends })
+    open(ns)
+    local page = ns.Friends.page
+    local gorvin
+    for _, r in ipairs(rows(page.stack, "friend")) do
+        if (r.name:GetText() or ""):find("Gorvin", 1, true) then gorvin = r end
+    end
+    T.truthy(gorvin, "the title friend has a row")
+    stub.Key(function() gorvin:Click() end)
+    local sent, bnSent = {}, {}
+    local oldBN, oldChat, oldPrompt = _G.BNSendWhisper, _G.C_ChatInfo, DaylightUI.Widgets.Prompt
+    _G.BNSendWhisper = function(id, text) bnSent[#bnSent + 1] = { id, text } end
+    _G.C_ChatInfo = setmetatable({ SendChatMessage = function(text, kind, _, target) sent[#sent + 1] = { text, kind, target } end },
+        { __index = oldChat })
+    local asked, accept
+    DaylightUI.Widgets.Prompt = function(text, _, onAccept) asked, accept = text, onAccept end
+    local whisper
+    for _, b in ipairs(page.detail.buttons) do if b:IsShown() and b.text:GetText() == "Whisper" then whisper = b end end
+    T.truthy(whisper, "a Whisper button: " .. panel(page))
+    stub.Key(function() whisper:Click() end)
+    T.truthy(accept, "Daylight UI's box asks for the words")
+    accept("hi")
+    _G.BNSendWhisper, _G.C_ChatInfo, DaylightUI.Widgets.Prompt = oldBN, oldChat, oldPrompt
+    T.eq(#bnSent, 0, "no Battle.net whisper")
+    T.eq(sent[1] and sent[1][2], "WHISPER")
+    T.eq(sent[1] and sent[1][3], "Gorvin Ashmantle-Realm", "sent to the character the game names")
+    T.eq(asked, "Whisper Gorvin Ashmantle-Realm", "the box names the character")
+    clean()
+end)
+
 -- A quick Invite at the row's right end, as the game's own friends list has: only
 -- on a friend you can play with now, without picking the row, and the row's light
 -- stays on while the mouse is on the button.

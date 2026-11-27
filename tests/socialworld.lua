@@ -342,6 +342,13 @@ local function install()
         end,
         SetBlocked = function(id, on) record("SetBlocked", id, on) end,
         AreTitleFriendsEnabled = function() return true end,
+        -- A friend added by character name (friendLevel Title) is whispered as that
+        -- character: the game's ChatFrameUtil.SendBNetTell asks this first. A
+        -- Battle.net whisper to them goes nowhere.
+        GetDefaultTitleWhisperTarget = function(id)
+            local f = byID(id)
+            if f and f.friendLevel == 3 then return f.titleTarget end
+        end,
         SendTitleFriendInviteByName = function(name)
             if not stub.HardwareOnly("C_BattleNet.SendTitleFriendInviteByName") then return end
             record("SendTitleFriendInviteByName", name)

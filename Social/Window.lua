@@ -22,6 +22,7 @@ ns.Window = Social
 
 Social.NAME = "DaylightUISocial"
 Social.W, Social.H = 520, 600   -- four header tabs, with room beside them for status and friends online
+Social.STATUS_DROP = 4          -- the status row's drop below the sub line's spot (makeStatus)
 Social.RAID_W = 700          -- eight groups side by side need a wider window
 Social.MIN_H = 460
 Social.ICON = "Interface\\Icons\\Achievement_GuildPerk_EverybodysFriend"
@@ -145,7 +146,10 @@ local function makeStatus(f)
     f.statusDot = f:CreateTexture(nil, "ARTWORK")
     f.statusDot:SetTexture(DUI.MEDIA .. "shape-circle.png")
     f.statusDot:SetSize(7, 7)
-    f.statusDot:SetPoint("TOPLEFT", f.sub, "TOPLEFT", 0, -3)
+    -- The row runs under the header tabs, whose underline sits at their bottom edge
+    -- (about 3 px into a normal sub line): it hangs that much lower so a picked tab's
+    -- line never crosses the BattleTag, and still clears the header's rule.
+    f.statusDot:SetPoint("TOPLEFT", f.sub, "TOPLEFT", 0, -3 - Social.STATUS_DROP)
     f.status = DUI.Widgets.Link(f, Style.SIZE.small)
     f.status:SetPoint("LEFT", f.statusDot, "RIGHT", 5, 0)
     f.status:SetScript("OnClick", function(self) Social.StatusMenu(self) end)

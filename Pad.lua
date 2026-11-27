@@ -1387,10 +1387,26 @@ local function locked()
     return false
 end
 
+-- A friend added by character name sits in the Battle.net list, but a Battle.net
+-- whisper to them goes nowhere. The game's own SendBNetTell asks the client for the
+-- character to whisper instead, and so does Daylight UI.
+function Pad.WhisperTarget(who)
+    local B = C_BattleNet
+    if type(who) ~= "table" or not who.bn or type(B) ~= "table" or type(B.GetDefaultTitleWhisperTarget) ~= "function" then
+        return who
+    end
+    local target = B.GetDefaultTitleWhisperTarget(who.bn)
+    if type(target) == "string" and not DUI.IsSecret(target) and target ~= "" then
+        return { name = target }
+    end
+    return who
+end
+
 -- who = { name = "Name-Realm" } or a Battle.net friend { bn = bnetAccountID,
 -- name = their account name }.
 function Pad.Whisper(who)
     if type(who) ~= "table" or type(who.name) ~= "string" or who.name == "" then return end
+    who = Pad.WhisperTarget(who)
     if not Pad.On() and type(DUI.ChatWhisper) == "function" and DUI.ChatWhisper(who) then return end
     DUI.Widgets.Prompt(string.format(L["Whisper %s"], who.name), "", function(text)
         if locked() then return end
