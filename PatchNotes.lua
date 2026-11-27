@@ -11,8 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
-        { "Unit frames", "Druid resource bars show your rage and energy again in caster form, next to your mana in bear or cat form" },
+    { version = "Unreleased", changed = {
+        { "Unit frames", "The druid resource bars are gone: the mana strip on your power bar shows your mana in bear and cat form, and it's turned back on if you used the bars" },
+    }, fixed = {
         { "Bags", "Hovering the Disenchant button after Shift-clicking it no longer throws an error" },
         { "Info Panel", "The data bar's text color setting now changes the data bar's texts" },
         { "Bar animations", "Embers takes the colors you pick, Same color as the bar too, instead of always the same orange" },
