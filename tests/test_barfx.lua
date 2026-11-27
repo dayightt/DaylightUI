@@ -608,8 +608,54 @@ T.test("Flip direction rolls Flow the other way, and keeps it through every rest
     T.eq(plays[#plays], false, "unflipped: forward again")
 end)
 
-T.test("Flip direction is offered only for animations that move along the bar", function()
-    local DUI = stub.Load({})
-    for _, k in ipairs({ "flow", "slosh", "molten", "auto" }) do T.truthy(DUI.BarFx.Rolls(k), k) end
-    for _, k in ipairs({ "none", "tide", "comet", "embers", "daybreak", "cinders", "pixelarc" }) do T.falsy(DUI.BarFx.Rolls(k), k) end
+-- Every style moves along the bar (Comet's sparks, Tide's swell, Cinders'
+-- motes...), so Flip turns each one around: its running loops play backwards
+-- through a repaint and a show, and forwards again once unflipped.
+T.test("Flip direction turns every animation around", function()
+    local styles = {}
+    do
+        local DUI = stub.Load({})
+        for _, k in ipairs(DUI.BarFx.ORDER) do styles[#styles + 1] = k end
+    end
+    T.truthy(#styles >= 10, "every style is checked")
+    for _, style in ipairs(styles) do
+        local DUI, bar, cfg, read = setup({ style = style })
+        local groups = {}
+        local make = bar.CreateAnimationGroup
+        bar.CreateAnimationGroup = function(self, ...)
+            local g = make(self, ...)
+            groups[#groups + 1] = g
+            local play = g.Play
+            g.Play = function(me, reverse, ...)
+                me.wentBack = reverse == true
+                return play(me, reverse, ...)
+            end
+            return g
+        end
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        stub.RunTimers()
+        local function check(back, when)
+            local running = 0
+            for _, g in ipairs(groups) do
+                if g:IsPlaying() then
+                    running = running + 1
+                    T.eq(g.wentBack, back, style .. ": " .. when)
+                end
+            end
+            -- Molten moves only by its drifting patterns, turned in test_barfx_soft.
+            if style ~= "molten" then T.truthy(running > 0, style .. ": something runs " .. when) end
+        end
+        check(false, "forward unless flipped")
+        cfg.flip = true
+        DUI.BarFx.Apply(bar)
+        stub.RunTimers()
+        check(true, "backwards once flipped")
+        bar:Hide(); bar:Show()
+        stub.RunTimers()
+        check(true, "still backwards after a show")
+        cfg.flip = false
+        DUI.BarFx.Apply(bar)
+        stub.RunTimers()
+        check(false, "forward again")
+    end
 end)

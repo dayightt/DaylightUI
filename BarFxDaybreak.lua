@@ -55,12 +55,8 @@ local function show(s, p, on)
     if on then
         -- Coming on, or the client stopped it (hidden, a loading screen): start
         -- over with nothing left of a reaction. A repaint keeps both going.
-        if not was or not p.anim:IsPlaying() then
-            clearReaction(s, p)
-            p.anim:Stop()
-            p.anim:Play()
-        end
-        p.anim:SetAnimationSpeedMultiplier(math.max(0.05, s.speed or 1))
+        if not was or not p.anim:IsPlaying() then clearReaction(s, p) end
+        BarFx.PlayLoop(s, p.anim, not was)
     else
         p.anim:Stop()
         clearReaction(s, p)

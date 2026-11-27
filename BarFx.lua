@@ -334,12 +334,18 @@ local function flowFor(style)
     return style == "flow" or (def ~= nil and def.flow == true)
 end
 
--- Whether a style moves along the bar, so flipping it means something. The
--- rest sit on the fill's end or swell in place. By power type is always Flow.
-function BarFx.Rolls(style)
-    if style == "auto" then return true end
-    local def = BarFx.DEFS[style]
-    return flowFor(style) or (def ~= nil and def.rolls == true)
+-- Plays a style's looping group, backwards when the bar is flipped: every
+-- style's sheet moves along the bar, so playing it back turns it around.
+-- over starts it from the top; a flip turned on or off does too, and one the
+-- client stopped (hidden, a loading screen) is started again.
+function BarFx.PlayLoop(s, g, over)
+    local back = s.flip == true
+    if over or g.duiBack ~= back or not g:IsPlaying() then
+        g:Stop()
+        g:Play(back)
+        g.duiBack = back
+    end
+    if g.SetAnimationSpeedMultiplier then g:SetAnimationSpeedMultiplier(math.max(0.05, s.speed or 1)) end
 end
 
 local function hidePieces(s, keep)

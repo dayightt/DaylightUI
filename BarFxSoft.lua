@@ -124,13 +124,18 @@ local function playing(s, p, on)
     -- Coming on it starts over, and so it does when BarFx.Restart stopped it
     -- after a loading screen; already on (a repaint) it keeps going.
     local over = not was or (p.anim and not p.anim:IsPlaying())
-    for _, g in ipairs(groupsOf(p)) do
-        if on then
+    local still = #p.still
+    for i, g in ipairs(groupsOf(p)) do
+        if not on then
+            g:Stop()
+        elseif i <= still then
+            -- The flipbooks (Slosh's surface, Cinders' motes) play backwards
+            -- when flipped; the patterns turn by swapping their drift above.
+            BarFx.PlayLoop(s, g, over)
+        else
             if over then g:Stop() end
             g:Play()
             if g.SetAnimationSpeedMultiplier then g:SetAnimationSpeedMultiplier(math.max(0.05, s.speed or 1)) end
-        else
-            g:Stop()
         end
     end
 end
@@ -295,7 +300,6 @@ local function tilt(s, p, v)
 end
 
 BarFx.Add("slosh", function() return L["Slosh"] end, {
-    rolls = true,
     build = function(s)
         local p = piece(s, "slosh")
         local sub = BarFx.FILL_SUB
@@ -374,7 +378,6 @@ BarFx.Add("slosh", function() return L["Slosh"] end, {
 local MOLTEN_HEAL = { seams = 0.30, bloom = 1.0 }
 
 BarFx.Add("molten", function() return L["Molten"] end, {
-    rolls = true,
     build = function(s)
         local p = piece(s, "molten")
         local sub = BarFx.FILL_SUB
