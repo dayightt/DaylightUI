@@ -213,6 +213,29 @@ T.test("on a controller the game's party list stays visible but unseen, so the D
     padOff()
 end)
 
+-- Seen in game: on joining a group or zoning, the game's own group buttons
+-- answered IsMouseEnabled with a secret, and testing it stopped the update with
+-- "boolean test on a secret boolean value". The fake game can't trap that test,
+-- so this checks the question is never asked of the game's frames at all.
+T.test("on a controller the game's group buttons go mouse-off without being asked whether they take the mouse", function()
+    local ns = setup()
+    padOn()
+    local party, list = gameGroupFrames()
+    local asked = 0
+    local function counted(f)
+        f.IsMouseEnabled = function() asked = asked + 1; return stub.Secret(true) end
+    end
+    counted(party); counted(list)
+    for _, b in ipairs(list.memberUnitFrames) do counted(b) end
+    ns.Blizzard.Apply(DaylightUI.DB.MergeDefaults({}, ns.DEFAULTS))
+    stub.FireEvent("GROUP_ROSTER_UPDATE")
+    stub.RunTimers()
+    T.eq(asked, 0, "the game's answer can be secret: never read")
+    for _, b in ipairs(list.memberUnitFrames) do T.eq(b.__mouse, false, "the member takes no clicks") end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    padOff()
+end)
+
 T.test("on a controller the cursor sits on Daylight UI's tile of the same member, and skips members it doesn't show", function()
     local _, ns = stub.Load({ module = true })
     padOn()

@@ -45,10 +45,12 @@ local function wantVeil(frame)
     return frame == _G.TargetFrame and DUI.Pad ~= nil and DUI.Pad.On()
 end
 
+-- The game's frames can answer IsMouseEnabled with a secret (seen on its group
+-- buttons when a group forms), so the mouse is turned off without asking first.
 local function quiet(frame)
-    if frame:IsMouseEnabled() then frame:EnableMouse(false) end
+    frame:EnableMouse(false)
     local tot = frame.totFrame
-    if type(tot) == "table" and tot.EnableMouse and tot:IsMouseEnabled() then tot:EnableMouse(false) end
+    if type(tot) == "table" and tot.EnableMouse then tot:EnableMouse(false) end
 end
 
 -- The controller's directional party targeting (party targeting turned off in
@@ -171,7 +173,7 @@ local function gameButtons(frame, out)
 end
 
 local function mouseOff(frame)
-    if frame:IsMouseEnabled() then frame:EnableMouse(false) end
+    frame:EnableMouse(false)
     for _, child in ipairs({ frame:GetChildren() }) do mouseOff(child) end
 end
 

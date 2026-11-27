@@ -29,6 +29,7 @@ DUI.PatchNotes = {
         { "Gold", "Gold, bags and item counts leave out your characters on another ruleset, like an RP PvP character on a PvE one (log in on each character once so it's sorted)" },
         { "Unit frames", "With a portrait on, the health and power bars no longer run under it, so a nearly empty bar looks nearly empty and centered health text sits in the middle" },
         { "Action bars", "A spell cast through a macro lights up its button when it procs" },
+        { "Unit frames", "With a controller, joining a group or zoning no longer throws a 'secret boolean' error from the party and raid frames" },
         { "Bags", "No more error at login with Pawn and an addon like Caerdon Wardrobe on, and the upgrade search works with them" },
     } },
     { version = "2.4.0", date = "2026-11-26", summary = "Seven new bar animations, choose which part of a unit frame draws on top, bar ends that lean either way, and new speech bubbles.", new = {
