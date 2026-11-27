@@ -59,6 +59,19 @@ local function slotKeys()
     return slots
 end
 
+-- The item's own spot for the game's modified clicks (Ctrl tries on its own look),
+-- as the game's bag and gear buttons pass it. nil for the bank or a missing item.
+function Sets.Location(e)
+    local IL = _G.ItemLocation
+    if type(IL) ~= "table" then return nil end
+    if e.where == "worn" and e.wornIn and type(IL.CreateFromEquipmentSlot) == "function" then
+        return IL:CreateFromEquipmentSlot(e.wornIn)
+    end
+    if e.where == "bags" and e.bag and e.bagSlot and type(IL.CreateFromBagAndSlot) == "function" then
+        return IL:CreateFromBagAndSlot(e.bag, e.bagSlot)
+    end
+end
+
 -- Where a set's item is right now, and its link when it's on you or in a bag.
 local function locate(loc)
     if loc == Sets.MISSING then return "missing" end
@@ -70,7 +83,7 @@ local function locate(loc)
         if C_Container and type(C_Container.GetContainerItemLink) == "function" and d.bag and d.slot then
             link = C_Container.GetContainerItemLink(d.bag, d.slot)
         end
-        return d.isBank and "bank" or "bags", link
+        return d.isBank and "bank" or "bags", link, nil, d.bag, d.slot
     end
     if d.isBank then return "bank" end
     if d.isPlayer then return "worn", d.slot and GetInventoryItemLink("player", d.slot) or nil, d.slot end
@@ -78,7 +91,7 @@ end
 
 local function itemOf(key, slot, itemID, loc)
     local e = { key = key, slot = slot, itemID = itemID, label = ns.Gear.LABEL[key] or key }
-    e.where, e.link, e.wornIn = locate(loc)
+    e.where, e.link, e.wornIn, e.bag, e.bagSlot = locate(loc)
     -- Putting the set on changes this slot: its item is in a bag, the bank
     -- or another slot (a ring on the other finger).
     e.swaps = e.where == "bags" or e.where == "bank" or (e.where == "worn" and e.wornIn ~= nil and e.wornIn ~= slot)
@@ -425,7 +438,8 @@ function Sets.Refresh(lift)
                 s:Line({ id = e.key, item = e, icon = e.icon, text = e.name or e.label, sub = e.label,
                     color = e.quality and { Parts.QualityColor(e.quality) } or nil,
                     value = where and where[1] or nil, valueColor = where and where[2] or nil,
-                    tooltip = itemTip, link = function() return e.link end, onClick = toggle })
+                    tooltip = itemTip, link = function() return e.link end, location = function() return Sets.Location(e) end,
+                    onClick = toggle })
             elseif e.kind == "left" then
                 -- Put back but not saved yet: the save fills it with what you wear.
                 s:Line({ id = e.key, text = e.label, color = Style.INK.LABEL, value = L["Yours on save"],

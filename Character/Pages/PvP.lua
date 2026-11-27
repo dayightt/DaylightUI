@@ -140,6 +140,36 @@ function PvP.Ends(seconds)
     if hours >= 1 then return string.format(hours == 1 and L["Ends in %d hour"] or L["Ends in %d hours"], hours) end
     return L["Ends within the hour"]
 end
+-- Seconds until PvP.Ends would say something else (the next whole day or hour,
+-- or the season's end), nil with no end known.
+function PvP.NextChange(seconds)
+    if type(seconds) ~= "number" or seconds <= 0 then return nil end
+    local step = seconds >= PvP.DAY and PvP.DAY or seconds >= PvP.HOUR and PvP.HOUR or nil
+    if not step then return seconds + 1 end
+    return seconds % step + 1
+end
+
+-- While the page is open, one timer to the moment the countdown's words change,
+-- so it moves on as the game's ticking one does, and a new season shows when it
+-- starts. Nothing runs between those moments.
+function PvP.Watch(page, seconds)
+    page.watch = (page.watch or 0) + 1
+    local wait = PvP.NextChange(seconds)
+    if not wait then return end
+    local mine = page.watch
+    C_Timer.After(wait, function()
+        if page.watch ~= mine or not page:IsShown() then return end
+        if ns.window and ns.window.current == "pvp" then ns.Window.Refresh() end
+    end)
+end
+
+-- Where the rank rewards are sold, in the game's words for your faction.
+function PvP.Vendor()
+    local horde = type(UnitFactionGroup) == "function" and UnitFactionGroup("player") == "Horde"
+    local text = horde and _G.PVP_RANK_REWARDS_VENDOR_HORDE or _G.PVP_RANK_REWARDS_VENDOR_ALLIANCE
+    return type(text) == "string" and text or nil
+end
+
 -- A number in a sentence, in the accent (read now: follows an accent switch).
 function PvP.Pop(s) return DUI.Win.Parts.Hex({ Style.Pop() }) .. s .. "|r" end
 
@@ -215,14 +245,17 @@ function PvP.Build(page)
         local r = self.data
         if not r or type(GameTooltip) ~= "table" then return end
         GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        local Tips = DUI.Tips
+        Tips.Clear()
         if r.itemID and type(GameTooltip.SetItemByID) == "function" then GameTooltip:SetItemByID(r.itemID)
         else
-            local Tips = DUI.Tips
-            Tips.Clear()
             Tips.Title(r.name)
             if r.text and r.text ~= r.name then Tips.Text(r.text) end
-            Tips.Flush(GameTooltip)
         end
+        -- The game's PvP page says where the rewards are sold.
+        local vendor = PvP.Vendor()
+        if vendor then Tips.Text(vendor, Tips.LABEL) end
+        Tips.Flush(GameTooltip)
         GameTooltip:Show()
     end))
     W:SetScript("OnLeave", function(self)
@@ -389,6 +422,7 @@ function PvP.Refresh(page)
     b3.main:SetText(d.season > 0 and string.format(L["Season %s"], d.season) or L["No season right now"])
     b3.bar:Hide()
     b3.sub:SetText(PvP.Ends(d.ends) or "")
+    PvP.Watch(page, d.ends)
     -- A season ending within the day reads amber.
     Style.InkText(b3.sub, (d.ends > 0 and d.ends < PvP.DAY) and "WARN" or "VALUE")
     for _, b in ipairs(page.blocks) do Style.InkText(b.label, "LABEL") end   -- tan: the accent stays for numbers

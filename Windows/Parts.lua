@@ -52,11 +52,14 @@ Parts.PICKED = { 1, 1, 1, 0.08 }
 
 -- Shift-click links the item, Ctrl-click previews it, via the game's
 -- HandleModifiedItemClick. Returns true if the game handled the click.
--- link may be the item link or a function returning it.
-function Parts.ItemClick(link)
+-- link may be the item link or a function returning it; location, for an item
+-- the player owns, its ItemLocation (or a function returning it), so Ctrl tries
+-- on its own look as the game's bag and gear buttons do.
+function Parts.ItemClick(link, location)
     if type(HandleModifiedItemClick) ~= "function" then return false end
     if type(link) == "function" then link = link() end
-    return link ~= nil and HandleModifiedItemClick(link) == true
+    if type(location) == "function" then location = location() end
+    return link ~= nil and HandleModifiedItemClick(link, location) == true
 end
 
 -- The item compare, the game's way: on with Shift (the COMPAREITEMS modifier)
@@ -707,7 +710,7 @@ local function makeLine(parent)
     b:SetScript("OnClick", function(self, button)
         local spec = self.lineSpec
         if not spec then return end
-        if spec.link and button ~= "RightButton" and Parts.ItemClick(spec.link) then return end
+        if spec.link and button ~= "RightButton" and Parts.ItemClick(spec.link, spec.location) then return end
         if spec.dim then return end
         local fn = button == "RightButton" and spec.onRightClick or (button ~= "RightButton" and spec.onClick)
         if fn then
@@ -721,7 +724,8 @@ end
 -- spec: icon (file or id), text, color, sub, subColor, value, valueColor, subValue
 -- and subValueColor (right of the sub, with the value moved up to the name), dim,
 -- picked, key (as for a Row), onClick(b), onRightClick(b), tooltip(b), leave(b),
--- link() for item modifier clicks (Parts.ItemClick), id.
+-- link() for item modifier clicks (Parts.ItemClick), location() for an item the
+-- player owns (its ItemLocation: Ctrl then tries on its own look), id.
 function Stack:Line(spec)
     local b = take(self, "line", makeLine)
     b.lineSpec = spec

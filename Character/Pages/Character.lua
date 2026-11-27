@@ -676,9 +676,20 @@ function CharacterPage.Refresh(page)
     DUI.AfterCombat(ns.Slots.Pin, "characterPin")
 end
 
-function CharacterPage.OnEvent(_, event, slot)
+function CharacterPage.OnEvent(_, event, slot, where)
     if event == "PLAYER_EQUIPMENT_CHANGED" then ns.Model.Dress(slot)
-    elseif event == "UNIT_MODEL_CHANGED" then ns.Model.SetUp() end
+    elseif event == "UNIT_MODEL_CHANGED" then ns.Model.SetUp()
+    elseif event == "ENCHANT_SPELL_COMPLETED" then CharacterPage.Enchanted(slot, where) end
+end
+
+-- ENCHANT_SPELL_COMPLETED: successful, and the enchanted item's ItemLocation. Gear
+-- you wear flashes, as the game's GearEnchantAnimation does for the same test.
+function CharacterPage.Enchanted(ok, where)
+    if ok ~= true or type(where) ~= "table" then return end
+    if not (type(where.IsValid) == "function" and where:IsValid() and type(where.IsEquipmentSlot) == "function"
+        and where:IsEquipmentSlot()) then return end
+    ns.Model.Swell()
+    ns.Slots.Flash(where:GetEquipmentSlot())
 end
 
 ns.Window.Register("character", CharacterPage)

@@ -124,15 +124,15 @@ function Reputation.Build(page)
         local f = P.faction
         if f then C_Reputation.SetFactionActive(f.index, not C_Reputation.IsFactionActive(f.index)) end
         ns.Window.Refresh()
-    end)
+    end, function() return _G.REPUTATION_MOVE_TO_INACTIVE end)
     ns.List.AddToggle(P, L["At war"], function()
         if P.faction then C_Reputation.ToggleFactionAtWar(P.faction.index) end
         ns.Window.Refresh()
-    end)
+    end, function() return _G.REPUTATION_AT_WAR_DESCRIPTION end)
     ns.List.AddToggle(P, L["Show on the experience bar"], function(t)
         if P.faction then C_Reputation.SetWatchedFactionByIndex(t.on and 0 or P.faction.index) end
         ns.Window.Refresh()
-    end)
+    end, function() return _G.REPUTATION_SHOW_AS_XP end)
     -- Built bottom up; read top down: watch, at war, inactive.
     P.toggles = { P.toggles[3], P.toggles[2], P.toggles[1] }
 end

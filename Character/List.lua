@@ -144,14 +144,28 @@ local function rowFrame(L, i)
         self.hovered = true
         List.ShowBarText(self)
         if self.item and self.item.kind ~= "head" and not L.opts.static then Light(self.hi, true) end
+        List.FullName(self)
     end)
     r:SetScript("OnLeave", function(self)
         self.hovered = false
         List.ShowBarText(self)
         Light(self.hi, false)
+        if self.namedTip and GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+        self.namedTip = nil
     end)
     L.rows[i] = r
     return r
+end
+
+-- A name cut short by its row shows in full on hover, as the game's lists do.
+function List.FullName(r)
+    local item = r.item
+    if not (item and item.kind ~= "head" and item.text and item.text ~= "" and GameTooltip) then return end
+    if not (r.text:IsShown() and r.text:IsTruncated() == true) then return end
+    GameTooltip:SetOwner(r, "ANCHOR_RIGHT")
+    GameTooltip:SetText(item.text)
+    GameTooltip:Show()
+    r.namedTip = true
 end
 
 -- A hovered row with a bar and item.barText shows that text on its bar. It fades
@@ -176,7 +190,8 @@ function List.ShowBarText(r)
 end
 
 -- opts: onPick(item) for rows, onFold(item) for headers, row = row height
--- (List.BAR_ROW for lists with bars).
+-- (List.BAR_ROW for lists with bars), onModified(item) for a click with a
+-- modifier held (true when it handled the click).
 function List.Make(page, opts)
     opts = opts or {}
     local row = opts.row or List.ROW
@@ -297,6 +312,8 @@ function List.Click(L, item)
         L.opts.onFold(item)
         return
     end
+    if L.opts.onModified and type(IsModifiedClick) == "function" and IsModifiedClick()
+        and L.opts.onModified(item) == true then return end
     if L.opts.static then return end
     L.selectedKey = item.key
     if L.opts.onPick then L.opts.onPick(item) end
@@ -390,8 +407,10 @@ end
 -- A row with a W.Switch on the right. Clicking anywhere on the row flips it
 -- right away. The game's answer may need a server round trip, so for
 -- TOGGLE_HOLD seconds a refresh that still reads the old state keeps the click's.
+-- tip: what the switch does, said on hover. onClick may return false to refuse
+-- the change (the switch stays as it was).
 List.TOGGLE_HOLD = 2
-function List.Toggle(parent, label, onClick)
+function List.Toggle(parent, label, onClick, tip)
     local t = CreateFrame("Button", nil, parent)
     t:SetSize(List.PANE_W - 2 * List.PANE_PAD, 20)
     t.switch = DUI.Widgets.Switch(t)
@@ -404,12 +423,26 @@ function List.Toggle(parent, label, onClick)
     Style.InkText(t.text, "TEXT")
     t:SetScript("OnClick", function(self)
         if self.enabled == false then return end
+        if onClick(self) == false then return end   -- self.on is still the old state here
         if DUI.Sound then DUI.Sound.Play("toggle") end
-        onClick(self)   -- self.on is still the old state here
         self.want = { on = not self.on, at = GetTime(), who = self.who }
         self.on = not self.on
         self.switch.SetOn(self.on)
     end)
+    if tip then
+        t:SetScript("OnEnter", function(self)
+            local text = type(tip) == "function" and tip() or tip
+            if not (GameTooltip and type(text) == "string") then return end
+            GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+            DUI.Tips.Clear()
+            DUI.Tips.Text(text)
+            DUI.Tips.Flush(GameTooltip)
+            GameTooltip:Show()
+        end)
+        t:SetScript("OnLeave", function(self)
+            if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+        end)
+    end
     return t
 end
 
@@ -458,8 +491,8 @@ function List.Pane(page)
 end
 
 -- Switches stacked from the bottom of the pane (above its button).
-function List.AddToggle(P, label, onClick)
-    local t = List.Toggle(P, label, onClick)
+function List.AddToggle(P, label, onClick, tip)
+    local t = List.Toggle(P, label, onClick, tip)
     local n = #P.toggles
     t:SetPoint("BOTTOMLEFT", P, "BOTTOMLEFT", List.PANE_PAD, List.PANE_PAD + 34 + n * 24)
     P.toggles[n + 1] = t

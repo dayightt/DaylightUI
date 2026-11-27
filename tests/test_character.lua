@@ -2116,8 +2116,9 @@ T.test("character skills: armor and languages folded once per login, through the
     ns.Window.Refresh(true)
     T.deq(CW.Calls("CollapseSkill"), { 11, 9 }, "only once")
     local page = ns.window.pages.skills
-    T.deq(texts(page.right.items), { "Weapon Skills", "Swords", "Armor Proficiencies", "Languages" })
-    ns.List.Click(page.right, page.right.items[3])
+    T.deq(texts(page.list.items), { "Professions", "Mining", "Secondary Skills", "First Aid", "Weapon Skills", "Swords",
+        "Armor Proficiencies", "Languages" })
+    ns.List.Click(page.list, page.list.items[7])
     T.deq(CW.Calls("ExpandSkill"), { 9 })
 end)
 local PVP = { renownLevel = 3, renownReputationEarned = 400, renownLevelThreshold = 1000,
@@ -2203,7 +2204,7 @@ local function currency()
     return {
         { name = "Player vs. Player", isHeader = true, isHeaderExpanded = true },
         { name = "Honor", quantity = 1250, iconFileID = 101, currencyID = 1901, maxWeeklyQuantity = 1000,
-          quantityEarnedThisWeek = 300, isShowInBackpack = false },
+          quantityEarnedThisWeek = 300, isShowInBackpack = false, isAccountTransferable = true },
         { name = "Miscellaneous", isHeader = true, isHeaderExpanded = false },
     }
 end
@@ -2273,6 +2274,275 @@ end)
 T.test("character currency: no currencies, no tab", function()
     local _, ns = load()
     T.eq(ns.Window.TabShown("currency"), false)
+end)
+
+-- The game's own window, behavior by behavior (docs: the character audit).
+
+-- Runs fn with IsModifiedClick answering for mods, and the chat box open or not.
+local function withMods(mods, typing, fn)
+    local isMod, util = _G.IsModifiedClick, _G.ChatFrameUtil
+    _G.IsModifiedClick = function(k) if k == nil then return next(mods) ~= nil end return mods[k] == true end
+    local linked = {}
+    _G.ChatFrameUtil = { InsertLink = function(link) if typing then linked[#linked + 1] = link; return true end return false end }
+    local ok, err = pcall(fn)
+    _G.IsModifiedClick, _G.ChatFrameUtil = isMod, util
+    if not ok then error(err, 0) end
+    return linked
+end
+
+local function rowNamed(list, name)
+    for _, it in ipairs(list.items) do if it.text == name then return it end end
+end
+
+local function said()
+    return table.concat(CW.Calls("tipLine"), "|") .. "|" .. table.concat(CW.Calls("tipText"), "|")
+end
+
+T.test("character game: Shift-click a currency links it while typing, else puts it in the backpack", function()
+    local _, ns = load({ currency = currency() })
+    local page = openPage(ns, "TokenFrame")
+    local linked = withMods({ CHATLINK = true, TOKENWATCHTOGGLE = true }, true, function()
+        ns.List.Click(page.list, rowNamed(page.list, "Honor"))
+    end)
+    T.deq(linked, { "|Hcurrency:1901|h[Honor]|h" }, "its link in the chat box")
+    T.deq(CW.Calls("Backpack"), {}, "and nothing else")
+    withMods({ CHATLINK = true, TOKENWATCHTOGGLE = true }, false, function()
+        ns.List.Click(page.list, rowNamed(page.list, "Honor"))
+    end)
+    T.deq(CW.Calls("Backpack"), { { 2, true } }, "no chat box: into the backpack (TOKENWATCHTOGGLE)")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character game: the backpack takes only as many currencies as it has room for", function()
+    local list = currency()
+    for i = 1, 7 do
+        list[#list + 1] = { name = "Token " .. i, quantity = i, currencyID = 3000 + i, isShowInBackpack = i <= 6 }
+    end
+    local _, ns = load({ currency = list })
+    _G.BackpackTokenFrame = { GetMaxTokensWatched = function() return 6 end }
+    local told
+    _G.UIErrorsFrame = { AddMessage = function(_, text) told = text end }
+    _G.TOO_MANY_WATCHED_TOKENS = "You may only track %d currencies at a time."
+    local page = openPage(ns, "TokenFrame")
+    page.pane.toggles[1]:Click()   -- Honor would be the 7th
+    T.deq(CW.Calls("Backpack"), {}, "refused, as the game's own switch is")
+    T.eq(told, "You may only track 6 currencies at a time.")
+    T.eq(page.pane.toggles[1].on, false, "the switch stays off")
+    _G.BackpackTokenFrame, _G.UIErrorsFrame = nil, nil
+end)
+
+T.test("character game: the backpack's room is Daylight UI's bag's when its bags are on", function()
+    local DUI, ns = load({ currency = currency() })
+    _G.BackpackTokenFrame = { GetMaxTokensWatched = function() return 9 end }
+    DUI.BagCurrencyMax = 6
+    T.eq(ns.Currency.MaxWatched(), 6)
+    DUI.BagCurrencyMax = nil
+    T.eq(ns.Currency.MaxWatched(), 9, "the game's own bag")
+    _G.BackpackTokenFrame = nil
+end)
+
+T.test("character game: the Unused switch, the switches' hovers, the total cap", function()
+    local list = currency()
+    list[2].maxQuantity = 75000
+    local _, ns = load({ currency = list })
+    local page = openPage(ns, "TokenFrame")
+    local P = page.pane
+    T.eq(#P.toggles, 2, "Show in the backpack and Unused")
+    P.toggles[2]:Click()
+    T.deq(CW.Calls("Unused"), { { 2, true } })
+    T.eq(P.sub:GetText(), "1,250 / 75,000", "the most you can hold")
+    _G.TOKEN_SHOW_ON_BACKPACK = "Show this currency on your backpack."
+    P.toggles[1]:GetScript("OnEnter")(P.toggles[1])
+    T.truthy(said():find("Show this currency on your backpack.", 1, true), "its hover says what it does")
+    P.toggles[1]:GetScript("OnLeave")(P.toggles[1])
+end)
+
+T.test("character game: an undiscovered currency's switches are off", function()
+    local list = currency()
+    list[2].discovered = false
+    local _, ns = load({ currency = list })
+    local page = openPage(ns, "TokenFrame")
+    T.eq(page.pane.toggles[1].enabled, false)
+    T.eq(page.pane.toggles[2].enabled, false)
+end)
+
+T.test("character game: Transfer shows only for a currency that can move, off with the reason when it can't now", function()
+    local list = currency()
+    list[#list + 1] = { name = "Badge", quantity = 5, currencyID = 77, isAccountTransferable = true, transferPercentage = 90 }
+    list[#list + 1] = { name = "Marks", quantity = 2, currencyID = 78 }
+    local _, ns = load({ currency = list, transfer = { [77] = { false, 1 } } })
+    _G.Enum = _G.Enum or {}
+    Enum.AccountCurrencyTransferResult = { MaxQuantity = 1 }
+    _G.CURRENCY_TRANSFER_DISABLED_MAX_QUANTITY = "Can't hold any more."
+    _G.CURRENCY_TRANSFER_LOSS = "%d%% is lost on transfer."
+    local page = openPage(ns, "TokenFrame")
+    ns.List.Click(page.list, rowNamed(page.list, "Marks"))
+    T.falsy(page.pane.button:IsShown(), "Marks can't move between characters")
+    ns.List.Click(page.list, rowNamed(page.list, "Badge"))
+    T.truthy(page.pane.button:IsShown())
+    T.truthy(page.pane.button.off, "off: it can't move now")
+    page.pane.button:GetScript("OnEnter")(page.pane.button)
+    T.truthy(said():find("Can't hold any more.", 1, true), "the reason on hover")
+    T.truthy(page.pane.body:GetText():find("10% is lost on transfer.", 1, true), "the loss is said")
+end)
+
+T.test("character game: the reputation switches say what they do on hover", function()
+    local _, ns = load({ factions = { CW.faction("Stormwind", 6, 3000, 3000, 9000, { canToggleAtWar = true }) } })
+    _G.REPUTATION_AT_WAR_DESCRIPTION = "At war: you attack them on sight."
+    local page = openPage(ns, "ReputationFrame")
+    local t = page.pane.toggles[2]
+    t:GetScript("OnEnter")(t)
+    T.truthy(said():find("At war: you attack them on sight.", 1, true))
+end)
+
+T.test("character game: Defense counts its bonus from UnitDefenseSkill", function()
+    local _, ns = load({ skills = {
+        CW.skill("Weapon Skills", { isHeader = true, skillID = 6 }),
+        CW.skill("Defense", { skillID = 95, skillLineCategoryID = 6, rank = 300, maxRank = 300 }) } })
+    local _, right = ns.Skills.Columns(ns.Skills.Read())
+    T.eq(right[2].right, "300 (+12) / 300", "the game's window reads the bonus from UnitDefenseSkill")
+end)
+
+T.test("character game: statistics refresh live and keep categories at any depth", function()
+    local stats = { categories = { { id = 1, title = "Combat" }, { id = 2, title = "Kills", parent = 1 },
+                                    { id = 4, title = "Bosses", parent = 2 } },
+                    stats = { [1] = { { id = 101, name = "Total deaths", quantity = "12" } },
+                              [4] = { { id = 401, name = "Ragnaros", quantity = "1" } } } }
+    local _, ns = load({ statistics = stats })
+    local cats = ns.Statistics.Categories()
+    T.deq(texts(cats), { "Combat", "Kills", "Bosses" }, "a category two steps down stays")
+    T.eq(cats[3].indent, 2)
+    ToggleCharacter("PaperDollFrame")
+    ns.Follow.Tick()
+    ns.Follow.Select("statistics")
+    local page = ns.window.pages.statistics
+    stats.stats[1][1].quantity = "13"
+    stub.FireEvent("CRITERIA_UPDATE")
+    stub.RunTimers()
+    T.eq(page.right.items[1].right, "13", "CRITERIA_UPDATE refreshes, as the game's page does")
+end)
+
+T.test("character game: a cut name shows in full on hover", function()
+    local _, ns = load({ statistics = STATS })
+    ToggleCharacter("PaperDollFrame")
+    ns.Follow.Tick()
+    ns.Follow.Select("statistics")
+    local page = ns.window.pages.statistics
+    local r = page.right.rows[1]
+    r.text.IsTruncated = function() return true end
+    r:GetScript("OnEnter")(r)
+    T.deq(CW.Calls("tipText"), { "Total deaths" })
+    r:GetScript("OnLeave")(r)
+    r.text.IsTruncated = function() return false end
+    r:GetScript("OnEnter")(r)
+    T.eq(#CW.Calls("tipText"), 1, "not when it fits")
+end)
+
+T.test("character game: the season countdown moves on while the PvP page is open", function()
+    local p = {}
+    for k, v in pairs(PVP) do p[k] = v end
+    p.seasonEnds = 2 * 3600 + 30
+    local _, ns = load({ pvp = p })
+    local page = openPage(ns, "PVPRankFrame")
+    T.eq(page.blocks[3].sub:GetText(), "Ends in 2 hours")
+    p.seasonEnds = 3600 + 20
+    stub.RunTimers()
+    T.eq(page.blocks[3].sub:GetText(), "Ends in 1 hour", "a timer to the next change refreshes it")
+end)
+
+T.test("character game: the next reward's hover says where to buy it", function()
+    local p = {}
+    for k, v in pairs(PVP) do p[k] = v end
+    p.rewards = { [5] = { { name = "Rank 5 rewards", description = "Knight's Tabard", icon = 7 } } }
+    local _, ns = load({ pvp = p })
+    _G.PVP_RANK_REWARDS_VENDOR_ALLIANCE = "Sold in the Champions' Hall."
+    _G.PVP_RANK_REWARDS_VENDOR_HORDE = "Sold in the Hall of Legends."
+    local page = openPage(ns, "PVPRankFrame")
+    page.reward:GetScript("OnEnter")(page.reward)
+    local s = said()
+    T.truthy(s:find("Champions' Hall", 1, true) or s:find("Hall of Legends", 1, true), "the vendor line: " .. s)
+end)
+
+T.test("character game: the model is the game's panning scene (right drag pans)", function()
+    local made = {}
+    load(nil, { before = function()
+        local cf = _G.CreateFrame
+        _G.CreateFrame = function(kind, name, parent, template, ...)
+            if kind == "ModelScene" then made[#made + 1] = template end
+            return cf(kind, name, parent, template, ...)
+        end
+    end })
+    T.truthy(#made > 0)
+    for _, t in ipairs(made) do T.eq(t, "PanningModelSceneMixinTemplate") end
+end)
+
+T.test("character game: Ctrl-click a set's item tries it on from where it is", function()
+    local _, ns = setsWorld()
+    local panel = openSets(ns)
+    ns.Sets.Pick(2)
+    local got
+    local hmc = _G.HandleModifiedItemClick
+    _G.HandleModifiedItemClick = function(link, loc) got = { link, loc }; return true end
+    for _, b in ipairs(panel.stack.pieces) do
+        if b.lineSpec and b.name:GetText() == "Fury Helm" then b:GetScript("OnClick")(b, "LeftButton") end
+    end
+    _G.HandleModifiedItemClick = hmc
+    T.truthy(got, "the click went to the game")
+    T.deq(got[2], { bagID = 1, slotIndex = 3 }, "the item's own spot, as the game's bag passes it")
+end)
+
+T.test("character game: a click on a skill shows it in the pane, a weapon skill with its hit, crit and glancing numbers", function()
+    local list = skills()
+    list[8] = CW.skill("Swords", { skillID = 43, skillLineCategoryID = 6, rank = 298, maxRank = 300,
+        description = "Allows for the use of one-handed swords." })
+    local _, ns = load({ skills = list })
+    _G.GetGlancingBlowChance = function() return 0.4 end
+    _G.GetGlancingBlowPenalty = function() return 0.35 end
+    local page = openPage(ns, "SkillsFrame")
+    T.truthy(page.list and page.pane, "one list and the pane, as the Reputation and Currency pages")
+    T.eq(page.pane.title:GetText(), "Mining", "the first skill to start with")
+    local swords
+    for _, it in ipairs(page.list.items) do if it.text == "Swords" then swords = it end end
+    ns.List.Click(page.list, swords)
+    local P = page.pane
+    T.eq(P.title:GetText(), "Swords")
+    T.eq(P.sub:GetText(), "298 / 300")
+    T.eq(P.body:GetText(), "Allows for the use of one-handed swords.")
+    local shown = {}
+    for _, l in ipairs(page.lines) do
+        if l.head:IsShown() then shown[#shown + 1] = l.head:GetText() end
+        if l.label:IsShown() then shown[#shown + 1] = l.label:GetText() .. "=" .. l.value:GetText() end
+    end
+    T.deq(shown, { "VS A MOB OF YOUR LEVEL", "Hit=-0.08%", "Crit=-0.08%", "VS A RAID BOSS", "Hit=-0.68%", "Crit=-0.68%",
+        "Glancing=40% for 35% less" }, "the game's numbers: 0.04% a point short of level x 5")
+    local mining
+    for _, it in ipairs(page.list.items) do if it.text == "Mining" then mining = it end end
+    ns.List.Click(page.list, mining)
+    for _, l in ipairs(page.lines) do T.falsy(l.label:IsShown(), "no weapon numbers for a profession") end
+    _G.GetGlancingBlowChance, _G.GetGlancingBlowPenalty = nil, nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("character game: an enchant on worn gear swells the model's glow and lights the slot", function()
+    local _, ns = load()
+    openPage(ns, "PaperDollFrame")
+    local glow = ns.Model.holder.glow
+    local w0 = glow:GetWidth()
+    local where = { IsValid = function() return true end, IsEquipmentSlot = function() return true end,
+                    GetEquipmentSlot = function() return 1 end }
+    stub.FireEvent("ENCHANT_SPELL_COMPLETED", true, where)
+    local head = ns.Slots.frames.Head
+    T.truthy(head.glow.shown, "the enchanted slot lights")
+    local drv = DaylightUI.Motion.Driver()
+    T.truthy(drv, "a tween runs")
+    drv:GetScript("OnUpdate")(drv, DaylightUI.Motion.NORMAL)
+    T.truthy(glow:GetWidth() > w0, "the glow grew")
+    -- A bag item enchanted: nothing flashes.
+    local bag = { IsValid = function() return true end, IsEquipmentSlot = function() return false end }
+    head.glow:Ease(false)
+    stub.FireEvent("ENCHANT_SPELL_COMPLETED", true, bag)
+    T.falsy(head.glow.shown)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- Edge cases.
@@ -3501,19 +3771,18 @@ T.test("character list: every row has the same room on all four sides, with or w
     end
 end)
 
-T.test("character skills: a row lights nothing and picks nothing (there is nothing to open), but a header still folds", function()
+T.test("character skills: a row lights on hover and a click picks it for the pane", function()
     local _, ns = load({ skills = skills() })
     local page = openPage(ns, "SkillsFrame")
-    local List = ns.List
-    local row
-    for _, r in ipairs(page.left.rows) do if r:IsShown() and r.item and r.item.kind == "row" then row = r; break end end
+    local rows = {}
+    for _, r in ipairs(page.list.rows) do if r:IsShown() and r.item and r.item.kind == "row" then rows[#rows + 1] = r end end
+    local row = rows[2]
     T.truthy(row, "a skill row")
     row:GetScript("OnEnter")(row)
-    T.falsy(row.hi:IsShown(), "no hover wash")
+    T.truthy(row.hi:IsShown(), "the hover wash: it opens something now")
     stub.Key(function() row:Click() end)
-    T.falsy(row.pick:IsShown() or row.mark:IsShown(), "no pick")
-    T.isnil(page.left.selectedKey, "nothing selected")
-    T.truthy(page.left.opts.static and page.right.opts.static)
+    T.truthy(row.pick:IsShown() and row.mark:IsShown(), "picked")
+    T.eq(page.pane.title:GetText(), row.item.text)
 end)
 
 T.test("character skills: a fold shows at once even when the game's list still reads the old state, and doesn't flip back", function()
@@ -3531,28 +3800,28 @@ T.test("character skills: a fold shows at once even when the game's list still r
         return table.concat(out, ",")
     end
     local function click(name)
-        for _, r in ipairs(page.right.rows) do
+        for _, r in ipairs(page.list.rows) do
             if r:IsShown() and r.item and r.item.text == name then stub.Key(function() r:Click() end); return end
         end
         error("no row " .. name)
     end
     stub.RunTimers()
-    T.truthy(names(page.right):find("Swords", 1, true), "Weapon Skills starts open")
+    T.truthy(names(page.list):find("Swords", 1, true), "Weapon Skills starts open")
     click("Weapon Skills")
     stub.RunTimers()
-    T.falsy(names(page.right):find("Swords", 1, true), "folded at once, before the game's list changed")
+    T.falsy(names(page.list):find("Swords", 1, true), "folded at once, before the game's list changed")
     for _, f in ipairs(late) do f() end
     stub.FireEvent("SKILL_LINES_CHANGED")
     stub.RunTimers()
-    T.falsy(names(page.right):find("Swords", 1, true), "and it stays folded when the game's answer comes")
+    T.falsy(names(page.list):find("Swords", 1, true), "and it stays folded when the game's answer comes")
     late = {}
     click("Weapon Skills")
     stub.RunTimers()
-    T.truthy(names(page.right):find("Swords", 1, true), "opens at once")
+    T.truthy(names(page.list):find("Swords", 1, true), "opens at once")
     for _, f in ipairs(late) do f() end
     stub.FireEvent("SKILL_LINES_CHANGED")
     stub.RunTimers()
-    T.truthy(names(page.right):find("Swords", 1, true), "and stays open")
+    T.truthy(names(page.list):find("Swords", 1, true), "and stays open")
     C.CollapseSkillHeader, C.ExpandSkillHeader = realCollapse, realExpand
 end)
 

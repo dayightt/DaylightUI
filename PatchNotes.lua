@@ -23,6 +23,11 @@ DUI.PatchNotes = {
         { "Bar animations", "Embers takes the colors you pick, Same color as the bar too, instead of always the same orange" },
         { "Group finder", "Typing /who in chat opens the group finder on its Who tab" },
         { "Chat", "Clicking a Battle.net friend's name in a whisper line starts a whisper to them again" },
+        { "Character", "Click a skill on the Skills tab to see what it does; a weapon skill shows your hit, crit and glancing chances against mobs of your level and raid bosses, and Defense counts the bonus from your gear" },
+        { "Character", "On the Currency tab, Shift-click a currency to link it in chat or put it in your bag, mark one Unused, and see the most you can hold. Your bag only takes as many as it has room for, and Transfer only shows for currencies that can move, saying why when it can't" },
+        { "Character", "Statistics update as you play and show every category, cut-off names show in full when you hover them, and the switches on the Reputation and Currency tabs say what they do" },
+        { "Character", "The PvP tab's season countdown counts down while it's open, and the next reward says where it's sold" },
+        { "Character", "Right-drag your character to move it in view, enchanting gear you wear makes it glow, and Ctrl-click an item in an equipment set to try on that exact item" },
     } },
     { version = "2.4.1", date = "2026-11-26", summary = "Proc alerts redone as living flame, spell costs on your action buttons, icon borders per frame, and lower nameplates on new profiles.", new = {
         { "Nameplates", "Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick" },

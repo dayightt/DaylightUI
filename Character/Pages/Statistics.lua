@@ -31,12 +31,19 @@ function Statistics.Categories()
             local dim = { ns.Colors.Dim(color[1], color[2], color[3]) }
             items[#items + 1] = { kind = "row", key = "c" .. id, text = info[id].title, indent = 0, data = id, color = color,
                                   tint = color }
-            for _, child in ipairs(ids) do
-                if info[child].parent == id then
-                    items[#items + 1] = { kind = "row", key = "c" .. child, text = info[child].title, indent = 1, data = child,
-                                          color = dim, tint = color }
+            -- Every level under it, each one a step further in, as the game's tree walks them.
+            local seen = { [id] = true }
+            local function under(parent, depth)
+                for _, child in ipairs(ids) do
+                    if info[child].parent == parent and not seen[child] then
+                        seen[child] = true
+                        items[#items + 1] = { kind = "row", key = "c" .. child, text = info[child].title, indent = depth,
+                                              data = child, color = dim, tint = color }
+                        under(child, depth + 1)
+                    end
                 end
             end
+            under(id, 1)
         end
     end
     return items
@@ -92,6 +99,8 @@ function Statistics.Refresh(page)
     ns.List.Set(page.right, Statistics.Rows(picked, color))
 end
 
+-- A statistic moving on (a kill, a death) refreshes the numbers, as the game's page does.
+Statistics.events = { "CRITERIA_UPDATE" }
 Statistics.Available = function() return type(GetStatisticsCategoryList) == "function" end
 
 ns.Window.Register("statistics", Statistics)

@@ -54,6 +54,7 @@ local function make(kind)
     Model.GLOW_ALPHA = 0.3
     Model.GLOW_W, Model.GLOW_H = 1.25, 1.05  -- glow size relative to the model
     Model.GLOW_UP = 0.04                     -- glow center offset up, as a fraction of height
+    Model.SWELL, Model.SWELL_ALPHA = 1.25, 1 -- an enchant's flash: the glow grows this much and brightens to this
     Model.SHADOW_ALPHA = 0.6
     Model.SHADOW_W, Model.SHADOW_H = 0.65, 34
     Model.FEET = 0.12                        -- shadow center, as a fraction of height from the bottom
@@ -79,7 +80,8 @@ local function make(kind)
         holder.shadow:SetTexture(Model.GLOW)
         holder.shadow:SetVertexColor(0, 0, 0, Model.SHADOW_ALPHA)
         holder:SetScript("OnSizeChanged", Model.Place)
-        local ok, scene = DUI.SafeReturn(CreateFrame, "ModelScene", nil, holder, "ModelSceneMixinTemplate")
+        -- The game's character sheet scene template: right drag pans the camera (PanningModelSceneMixin).
+        local ok, scene = DUI.SafeReturn(CreateFrame, "ModelScene", nil, holder, "PanningModelSceneMixinTemplate")
         if ok and scene then
             scene:SetAllPoints(holder)
             scene:EnableMouse(true)
@@ -105,6 +107,22 @@ local function make(kind)
         h.shadow:ClearAllPoints()
         h.shadow:SetPoint("CENTER", h, "BOTTOM", 0, ht * Model.FEET)
         h.shadow:SetSize(w * Model.SHADOW_W, Model.SHADOW_H)
+    end
+
+    -- An enchant landed on your gear: the glow behind you swells and settles, as
+    -- the game's character window flashes over its model. Nothing with motion off
+    -- or the glow turned off.
+    function Model.Swell()
+        local h, M = Model.holder, DUI.Motion
+        if not (h and h.glow:IsShown() and M.On()) then return end
+        local function step(k)
+            ns.Colors.Glow(h.glow, Model.GLOW_ALPHA + (Model.SWELL_ALPHA - Model.GLOW_ALPHA) * k)
+            local s = 1 + (Model.SWELL - 1) * k
+            h.glow:SetSize((h:GetWidth() or 0) * Model.GLOW_W * s, (h:GetHeight() or 0) * Model.GLOW_H * s)
+        end
+        M.Tween(h.glow, 0, 1, M.NORMAL, step, function()
+            M.Tween(h.glow, 1, 0, M.SLOW, step, function() Model.Place(); Model.Paint() end)
+        end)
     end
 
     function Model.Paint()

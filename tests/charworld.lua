@@ -229,7 +229,8 @@ local function installInventory()
     -- S().aim = { kind = "enchant"|"condition", fits = { [slot id] = true } }.
     local function aimed(kind) return S().aim ~= nil and S().aim.kind == kind end
     local function fits(loc) return S().aim ~= nil and S().aim.fits[loc.equipmentSlotIndex] == true end
-    _G.ItemLocation = { CreateFromEquipmentSlot = function(_, id) return { equipmentSlotIndex = id } end }
+    _G.ItemLocation = { CreateFromEquipmentSlot = function(_, id) return { equipmentSlotIndex = id } end,
+        CreateFromBagAndSlot = function(_, bag, slot) return { bagID = bag, slotIndex = slot } end }
     _G.C_Spell = _G.C_Spell or {}
     C_Spell.TargetSpellIsEnchanting = function() return aimed("enchant") end
     C_Spell.TargetSpellChecksItemCondition = function() return aimed("condition") end
@@ -552,8 +553,36 @@ local function installCurrency(spec)
             return d
         end,
         ExpandCurrencyList = function(i, on) record("ExpandCurrency", { i, on }) end,
-        SetCurrencyBackpack = function(i, on) record("Backpack", { i, on }) end,
+        SetCurrencyBackpack = function(i, on)
+            record("Backpack", { i, on })
+            if list[i] then list[i].isShowInBackpack = on end
+        end,
+        SetCurrencyUnused = function(i, on) record("Unused", { i, on }) end,
         GetCurrencyDescription = function(id) return "What currency " .. tostring(id) .. " is for." end,
+        GetCurrencyListLink = function(i) return list[i] and ("|Hcurrency:" .. tostring(list[i].currencyID) .. "|h[" .. list[i].name .. "]|h") end,
+        -- The backpack's list: the currencies marked for it, in list order.
+        GetBackpackCurrencyInfo = function(n)
+            local k = 0
+            for _, c in ipairs(list) do
+                if c.isShowInBackpack and not c.isHeader then
+                    k = k + 1
+                    if k == n then return { name = c.name, quantity = c.quantity, currencyTypesID = c.currencyID } end
+                end
+            end
+        end,
+        -- Transfers: spec.transfer = { ready = bool, [currency id] = { ok, reason } }.
+        RequestCurrencyDataForAccountCharacters = function() record("RequestAccountData", true) end,
+        IsAccountCharacterCurrencyDataReady = function() return not (spec.transfer and spec.transfer.ready == false) end,
+        IsCurrencyTransferInProgress = function() return false end,
+        IsAccountTransferableCurrency = function(id)
+            for _, c in ipairs(list) do if c.currencyID == id then return c.isAccountTransferable == true end end
+            return false
+        end,
+        CanTransferCurrency = function(id)
+            local t = spec.transfer and spec.transfer[id]
+            if t then return t[1], t[2] end
+            return true, nil
+        end,
     }
 end
 

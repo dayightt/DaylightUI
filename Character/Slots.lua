@@ -628,6 +628,18 @@ function Slots.Holding()
     end
 end
 
+-- An enchant landed on the gear in this slot (a slot id): its glow lights up and
+-- fades again, with the model's swell (Model.Swell).
+function Slots.Flash(slot)
+    for key, h in pairs(Slots.frames) do
+        if ns.Gear.SlotId(key) == slot and h:IsShown() then
+            h.glow:Ease(true)
+            local M = DUI.Motion
+            C_Timer.After(M.NORMAL, function() Slots.Holding() end)   -- back to what the cursor asks for
+        end
+    end
+end
+
 -- The slots an equipment set is about to change get the circling lights.
 -- slots: { [slot id] = true }, nil for none.
 function Slots.Swap(slots)

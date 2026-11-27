@@ -1678,6 +1678,9 @@ function ns.Build(mod)
     ns.module = mod
     DUI.SafeCall(ns.UpgradeBank, DUI.DB.Active())
     if not mod.db.enabled then return end
+    -- How many currencies the footer has room for: the character window's
+    -- "Show in the backpack" switch stops there, as the game's does for its bag.
+    DUI.BagCurrencyMax = ns.Currency.MAX
     DUI.AfterCombat(function()
         local f = bagWindow()
         if ns.Slots then ns.Slots.Create(f) end
