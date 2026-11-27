@@ -435,6 +435,27 @@ T.test("craft: a tab casts its profession's spell, so Herbalism's Gardening open
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- A tab whose click opened its profession casts nothing on the next click, even
+-- with the mouse still on it.
+T.test("craft: a second click on the tab just picked keeps the window open", function()
+    local ns = load()
+    local f = open(ns)
+    local cook = f.tabs[2]
+    cook.GetLeft, cook.GetBottom = function() return 560 end, function() return 500 end
+    cook:GetScript("OnEnter")(cook)
+    local b = _G.DaylightUICraftTab
+    T.eq(b:GetAttribute("spell"), 2550, "the caster is over Cooking")
+    stub.Key(stub.SecureClick, b, "LeftButton", false)
+    frame(20)
+    T.eq(f.title:GetText(), "Cooking")
+    stub.Key(stub.SecureClick, b, "LeftButton", false)
+    frame(20)
+    T.eq(#PW.Calls("CastSpell"), 1, "cast once")
+    T.truthy(DaylightUI.Win.IsOpen(f), "still open")
+    T.eq(f.title:GetText(), "Cooking")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("craft: in a fight a tab still opens a profession by its skill line", function()
     local ns = load()
     local f = open(ns)
