@@ -2139,7 +2139,14 @@ T.test("info panel: faded out, the minimap's quest areas go with it and come bac
     stub.Advance(3)
     settle()
     T.near(Minimap:GetAlpha(), 0.3, 0.01, "part faded")
-    T.truthy(areasShow(), "part faded: still in sight")
+    -- They can't fade with it (they ignore its alpha): at full strength over a map
+    -- mostly faded they look like they float (a player's screenshot), so they go.
+    T.falsy(areasShow(), "faded below half: the outlines go")
+    DaylightUI:Set("InfoPanel", "fade.alpha", 0.7)
+    stub.Advance(3)
+    settle()
+    T.near(Minimap:GetAlpha(), 0.7, 0.01, "faded a little")
+    T.truthy(areasShow(), "more than half there: they stay")
     -- The AFK screen and the NPC scene take the map away: the areas too.
     DaylightUI:Set("InfoPanel", "fade.mode", "never")
     stub.Advance(3)

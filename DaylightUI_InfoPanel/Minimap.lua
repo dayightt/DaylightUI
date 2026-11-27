@@ -935,6 +935,7 @@ DUI.RegisterEvent("LOADING_SCREEN_DISABLED", redrawSoon)
 -- map is fully out of sight it wears a see-through mask, and its own shape
 -- comes back with it.
 Map.areasAway = false
+Map.AREAS_FROM = 0.5   -- the map's alpha below which its quest areas go (Map.Follow)
 function Map.PutMask(mm)
     if type(mm) ~= "table" or type(mm.SetMaskTexture) ~= "function" then return end
     local mask = Map.areasAway and Map.ERASE or (Map.Round() and Map.ROUND_MASK or Map.MASK)
@@ -983,8 +984,10 @@ function Map.Follow()
     if type(was) ~= "number" or math.abs(was - want) > 0.0001 then mm:SetAlpha(want) end
     -- Its arrow and dots ignore its alpha: fully out of sight, they go too.
     DUI.Fade.MapDots(want > 0)
-    -- So do the quest areas, which stay inside its mask.
-    Map.areasAway = want == 0
+    -- So do the quest areas, which stay inside its mask. They can't fade with it,
+    -- and at full strength over a map mostly faded they look like they float, so
+    -- they go once it's below half.
+    Map.areasAway = want < Map.AREAS_FROM
     Map.PutMask(mm)
     if want < 1 then
         Map.dim = true
