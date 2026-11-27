@@ -116,7 +116,7 @@ local function questBlock(q, o, measure, gap)
         -- Ready quests keep their timer: a timed quest fails if it isn't turned in.
         if q.timer then y = textLine(lines, "timer", "timer", "", o, measure, y) end
     end
-    return { key = "quest:" .. q.id, kind = "quest", quest = q, lines = lines, h = y + gap, item = q.item ~= nil }
+    return { key = "quest:" .. q.id, kind = "quest", quest = q, lines = lines, h = y + gap, gap = gap, item = q.item ~= nil }
 end
 
 -- A pop-up from the client's list (Data.Popups): its title and what a click does.
@@ -132,7 +132,7 @@ local function achBlock(a, o, measure, gap)
     local lines = {}
     local y = titleLine(lines, a.title, o, measure)
     y = objLines(lines, a.objs, o, measure, y)
-    return { key = "ach:" .. a.id, kind = "ach", ach = a, lines = lines, h = y + gap }
+    return { key = "ach:" .. a.id, kind = "ach", ach = a, lines = lines, h = y + gap, gap = gap }
 end
 
 -- Most recent progress first. Quests with an entry in recent (questID -> number,

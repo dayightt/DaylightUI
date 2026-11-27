@@ -1402,14 +1402,16 @@ function Fx.SetDown(item, button, isDown, isDue)
 end
 
 -- After a pass, loose items it didn't report on lose their glow, and a held item it
--- didn't report on (the game hid it as its buff dropped) forgets up or down so a
--- buff glow isn't left on it.
+-- didn't report on (the game hid it as its buff dropped) forgets up or down and its
+-- recast, so no buff glow is left on it.
 function Fx.EndPass(told)
     for item in pairs(looseLit) do
         if not told[item] then looseLit[item] = nil; down[item] = nil; due[item] = nil; showGlow(item, false) end
     end
     for item in pairs(opts) do
-        if not told[item] and down[item] ~= nil then down[item] = nil; due[item] = nil; refreshNow(item) end
+        if not told[item] and (down[item] ~= nil or due[item] ~= nil) then
+            down[item] = nil; due[item] = nil; refreshNow(item)
+        end
     end
 end
 

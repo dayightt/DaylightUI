@@ -90,6 +90,7 @@ function Win.Swap(spec)
     function s.Place()
         local b, g = s.link, game()
         if not (b and g) or InCombatLockdown() then return end
+        if g:GetParent() ~= Win.Followers.aside then b.SetLabel(L["Daylight UI window"]) end
         local mm, close = maxMin(g), type(g.CloseButton) == "table" and g.CloseButton or nil
         local beside = mm and mm:IsShown() and mm or close
         b:ClearAllPoints()

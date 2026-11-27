@@ -406,6 +406,21 @@ T.test("book: the header's swap button hands over to the game's book and it stay
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+T.test("book: the link made while the game's book was held aside fits its words once that book shows", function()
+    local B = load()
+    BW.Open(BW.SPELLBOOK)
+    settle()
+    local link = B.swap.link
+    T.truthy(link, "made as the book loaded")
+    B.frame.swap:Click()
+    settle()
+    T.eq(PlayerSpellsFrame:GetParent(), UIParent)
+    T.truthy(link:IsShown())
+    T.eq(link:GetWidth(), link.text:GetStringWidth(), "as wide as its words on screen")
+    T.truthy(link:GetWidth() < 300, "not stretched off the screen")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("book: the game's book's link switches back to Daylight UI's, no reload", function()
     stub.Load({ before = function()
         BW.world()()

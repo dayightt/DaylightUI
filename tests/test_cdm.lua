@@ -2843,6 +2843,20 @@ T.test("cdm effects: switching On cooldown back to show, or letting go, restores
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Glow to recast runs on your own cast's clock, so it can light while the buff
+-- can't be read. A pass that no longer reports the item turns it off.
+T.test("cdm effects: a recast glow with the buff unknown goes out once the pass stops reporting it", function()
+    local DUI, AB, set, ess, bars = fxWorld()
+    local Fx = AB.CdmEffects
+    set.pieces[21].clipGlow = true
+    pass(AB)
+    Fx.SetDown(bars[1], set.pieces[21], nil, true)
+    T.truthy(Fx.GlowShown(bars[1]), "lit on your cast's clock")
+    Fx.EndPass({})
+    T.falsy(Fx.GlowShown(bars[1]), "not reported: the glow goes out")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 -- The game's category lists (Essential 0, Utility 1, TrackedBuff 2,
 -- TrackedBar 3): known ids, and all ids including unlearned ones.
 local function withCategories(known, all)

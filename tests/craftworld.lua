@@ -267,12 +267,16 @@ end
 local function install()
     Enum.SpellBookSpellBank = Enum.SpellBookSpellBank or { Player = 0, Pet = 1 }
     -- A secure click casting a profession's spell opens it, as the game's own tab
-    -- does (ProfessionsLargeRightTabMixin:CastProfessionSpell).
+    -- does (ProfessionsLargeRightTabMixin:CastProfessionSpell). Cast while that
+    -- profession is open, it closes it.
     stub.CastSpell = function(spellID)
         for _, p in ipairs(S().profs) do
             if p.spellID == spellID then
                 record("CastSpell", spellID)
-                C_Timer.After(0, function() PW.Open(p.skillLine) end)
+                local open = S().open == p.skillLine
+                C_Timer.After(0, function()
+                    if open then asGame(C_TradeSkillUI.CloseTradeSkill) else PW.Open(p.skillLine) end
+                end)
             end
         end
     end

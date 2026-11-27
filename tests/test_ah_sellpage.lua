@@ -423,6 +423,23 @@ T.test("sell: your own cheapest isn't undercut, and shows as yours", function()
     quiet()
 end)
 
+T.test("sell: what's up now lists cheapest first, whatever order the search came back in", function()
+    local A = load({ dearFirst = true, auctions = {
+        { itemID = SWORD, name = "Ridge Cleaver", count = 1, buyout = 11 * G, classID = 2, quality = 2 },
+        { itemID = SWORD, name = "Ridge Cleaver", count = 1, buyout = 2 * G + 500, classID = 2, quality = 2 },
+        { itemID = SWORD, name = "Ridge Cleaver", count = 1, buyout = 3 * G, classID = 2, quality = 2 },
+    } })
+    local page = open(A)
+    A.SellPage.Pick("2207", true)
+    AHW.Settle()
+    local rows = page.right.ah.rows
+    T.eq(#rows, 3)
+    T.eq(rows[1].unit, 2 * G + 500)
+    T.eq(rows[2].unit, 3 * G)
+    T.eq(rows[3].unit, 11 * G)
+    quiet()
+end)
+
 T.test("sell: no one else selling posts at the usual price; neither asks for one", function()
     local A = load({ bags = { [0] = {
         { itemID = COPPER, stackCount = 5, name = "Copper Bar" },
