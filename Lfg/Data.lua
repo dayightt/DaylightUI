@@ -148,15 +148,16 @@ end
 
 -- The group finder has no raids on Forever, but the game's older dungeon list still
 -- knows every instance by id: GetLFGDungeonInfo returns name, type, subtype, then the
--- levels (minimum, maximum, recommended, recommended range). Read once, by name.
+-- levels (minimum, maximum, recommended, recommended range). Read once, by name. An id with no
+-- instance returns nothing, so 3000 is only a ceiling that keeps the scan finite, not a count.
 local function legacyLevels()
     if legacy then return legacy end
     legacy = {}
     if type(GetLFGDungeonInfo) ~= "function" then return legacy end
     for id = 1, 3000 do
-        local ok, name, _, _, minLevel, maxLevel, _, minRec, maxRec = pcall(GetLFGDungeonInfo, id)
+        local name, _, _, minLevel, maxLevel, _, minRec, maxRec = GetLFGDungeonInfo(id)
         name, minLevel, maxLevel, minRec, maxRec = plain(name), plain(minLevel), plain(maxLevel), plain(minRec), plain(maxRec)
-        if ok and type(name) == "string" and name ~= "" and not legacy[name] then
+        if type(name) == "string" and name ~= "" and not legacy[name] then
             local lo, hi = minRec, maxRec
             if not (type(lo) == "number" and type(hi) == "number" and lo > 0 and hi > 0) then lo, hi = minLevel, maxLevel end
             if type(lo) == "number" and type(hi) == "number" and lo > 0 and hi > 0 then legacy[name] = { lo, hi } end
@@ -166,8 +167,9 @@ local function legacyLevels()
 end
 
 -- The suggested levels of the instance with this name: { low, high }, from the group
--- finder when it has the activity, else from the game's older dungeon list (raids).
-function Data.LevelsByName(name)
+-- finder when it has the activity, else from the game's older dungeon list (raids). raid: the
+-- name may be inside the zone's, which a dungeon the group finder doesn't list must not match.
+function Data.LevelsByName(name, raid)
     if type(name) ~= "string" or name == "" then return nil end
     local a = Data.ActivityByName(name)
     if a then
@@ -178,6 +180,7 @@ function Data.LevelsByName(name)
     end
     local list = legacyLevels()
     if list[name] then return list[name] end
+    if not raid then return nil end
     -- The list says "Onyxia" where the zone is "Onyxia's Lair" (Guarida de Onyxia): the
     -- longest listed name inside the zone's name.
     local best, bestLen = nil, 3

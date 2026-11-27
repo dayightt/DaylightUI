@@ -130,20 +130,21 @@ end
 local function instanceLine(e)
     local name = call(GetRealZoneText, e[2])
     if type(name) ~= "string" or name == "" then name = e[7] end
-    if e[1] == "raid" then return name, string.format(L["Raid, %d players"], e[6]), e[2] end
-    return name, L["Dungeon"], e[2]
+    if e[1] == "raid" then return name, string.format(L["Raid, %d players"], e[6]), "raid" end
+    return name, L["Dungeon"], "dungeon"
 end
 
 -- Adds a pin, or merges it into a nearby one of the same family.
-local function add(list, family, kind, x, y, title, sub, instance)
+-- kindOf: "raid" or "dungeon" for an instance's line, which gets its level range.
+local function add(list, family, kind, x, y, title, sub, kindOf)
     for _, p in ipairs(list) do
         if p.family == family and math.abs(p.x - x) < Pins.MERGE and math.abs(p.y - y) < Pins.MERGE then
-            p.lines[#p.lines + 1] = { title, sub, instance }
+            p.lines[#p.lines + 1] = { title, sub, kindOf }
             if kind == "raid" then p.kind = "raid" end
             return
         end
     end
-    list[#list + 1] = { family = family, kind = kind, x = x, y = y, lines = { { title, sub, instance } } }
+    list[#list + 1] = { family = family, kind = kind, x = x, y = y, lines = { { title, sub, kindOf } } }
 end
 
 -- All pins on a zone map, computed once.
@@ -228,7 +229,7 @@ local function onEnter(b)
         if i > 1 then Tips.Gap() end
         Tips.Title(line[1])
         -- An instance's level range, colored for your level, read now so a level up shows.
-        local range = line[3] and ns.MapLevels and ns.MapLevels.InstanceText(line[1]) or ""
+        local range = line[3] and ns.MapLevels and ns.MapLevels.InstanceText(line[1], nil, line[3] == "raid") or ""
         if line[2] then Tips.Sub(line[2] .. range) end
     end
     Tips.Flush(GameTooltip)

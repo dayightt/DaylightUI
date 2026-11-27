@@ -2897,7 +2897,7 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
             T.near(x, 530, 0.01); T.near(y, -119, 0.01)
             local r, g = b.icon:GetVertexColor()
             T.eq(r, 1, "the raid icon wears its own colors")
-            T.eq(b.pin.lines[1][3], 309, "the line keeps its instance, for the level range")
+            T.eq(b.pin.lines[1][3], "raid", "the line keeps its kind, for the level range")
         end
         if b.pin.kind == "flight" then
             local r = b.icon:GetVertexColor()
@@ -2993,16 +2993,19 @@ T.test("skins: an entrance's tooltip line gets the group finder's level range", 
     -- Raids aren't in the group finder on Forever: the game's older dungeon list has them
     -- (name, type, subtype, min, max, recommended, recommended range).
     T.eq(Levels.InstanceText("Blackwing Lair", 60), "", "not in either list")
-    _G.GetLFGDungeonInfo = function(id)
-        if id == 47 then return "Blackwing Lair", 2, 2, 60, 60, 60, 60, 60 end
-        if id == 3 then return "Ragefire Chasm", 1, 1, 8, 20, 13, 13, 18 end
-        if id == 45 then return "Onyxia", 2, 2, 60, 60, 60, 60, 60 end
-    end
+    LW.DUNGEONS = {
+        [47] = { "Blackwing Lair", 2, 2, 60, 60, 60, 60, 60 },
+        [3] = { "Ragefire Chasm", 1, 1, 8, 20, 13, 13, 18 },
+        [45] = { "Onyxia", 2, 2, 60, 60, 60, 60, 60 },
+        [46] = { "Wailing", 1, 1, 15, 25, 20, 15, 25 },
+    }
     stub.lfg.Data.Forget()
     T.eq(plain(Levels.InstanceText("Blackwing Lair", 60)), " (60)", "a raid from the game's dungeon list")
     T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "the group finder first")
-    T.eq(plain(Levels.InstanceText("Onyxia's Lair", 60)), " (60)", "the list's short name is inside the zone's")
-    _G.GetLFGDungeonInfo = nil
+    T.eq(plain(Levels.InstanceText("Onyxia's Lair", 60, true)), " (60)", "a raid: the list's short name is inside the zone's")
+    T.eq(Levels.InstanceText("Onyxia's Lair", 60), "", "a dungeon never takes a name that is only inside another")
+    T.eq(Levels.InstanceText("The Wailing Caverns", 20), "", "so a dungeon the group finder lacks isn't matched by a part of its name")
+    LW.DUNGEONS = {}
     stub.lfg.Data.Forget()
     -- No switch of its own: the zone levels one leaves it alone.
     DaylightUI:Set("Skins", "mapLevels", false)

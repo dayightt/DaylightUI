@@ -65,38 +65,6 @@ Levels.ZONES = {
     [2482] = { 56, 60 },  -- Mount Hyjal
 }
 
--- The levels each dungeon and raid is meant for, by the instance's map id (the
--- ids of MapPinsData), shown after its name on the entrance's tooltip. A raid
--- with one level is { 60, 60 }. Forever's own dungeons aren't here yet: with no
--- range, their tooltip stays as it was.
-Levels.INSTANCES = {
-    [389] = { 13, 18 },  -- Ragefire Chasm
-    [43]  = { 15, 25 },  -- Wailing Caverns
-    [36]  = { 18, 23 },  -- The Deadmines
-    [33]  = { 22, 30 },  -- Shadowfang Keep
-    [48]  = { 24, 32 },  -- Blackfathom Deeps
-    [34]  = { 24, 31 },  -- The Stockade
-    [90]  = { 29, 38 },  -- Gnomeregan
-    [47]  = { 30, 40 },  -- Razorfen Kraul
-    [189] = { 34, 45 },  -- Scarlet Monastery
-    [129] = { 37, 46 },  -- Razorfen Downs
-    [70]  = { 41, 51 },  -- Uldaman
-    [209] = { 44, 54 },  -- Zul'Farrak
-    [349] = { 46, 55 },  -- Maraudon
-    [109] = { 50, 60 },  -- The Temple of Atal'Hakkar
-    [230] = { 52, 60 },  -- Blackrock Depths
-    [229] = { 55, 60 },  -- Blackrock Spire
-    [429] = { 55, 60 },  -- Dire Maul
-    [289] = { 58, 60 },  -- Scholomance
-    [329] = { 58, 60 },  -- Stratholme
-    [249] = { 60, 60 },  -- Onyxia's Lair
-    [309] = { 60, 60 },  -- Zul'Gurub
-    [409] = { 60, 60 },  -- Molten Core
-    [469] = { 60, 60 },  -- Blackwing Lair
-    [509] = { 60, 60 },  -- Ruins of Ahn'Qiraj
-    [531] = { 60, 60 },  -- Ahn'Qiraj Temple
-}
-
 local cfg, label
 local byName       -- the game's (localized) zone name -> its range
 local written      -- the text last written, so it's not done twice
@@ -153,10 +121,11 @@ end
 -- A dungeon's or raid's range after its line on the entrance's tooltip: the
 -- levels the group finder suggests for the activity of that name (the same ones
 -- Lfg shows), or, for what it doesn't list (the raids), the game's dungeon list.
--- "" for an entrance neither knows.
-function Levels.InstanceText(name, level)
+-- "" for an entrance neither knows. raid: the entrance is a raid, which may be listed under a
+-- shorter name.
+function Levels.InstanceText(name, level, raid)
     local Data = DUI.Lfg and DUI.Lfg.Data
-    local range = Data and Data.LevelsByName(name)
+    local range = Data and Data.LevelsByName(name, raid)
     return range and Levels.Span(range, level) or ""
 end
 

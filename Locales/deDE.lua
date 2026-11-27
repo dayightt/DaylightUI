@@ -306,7 +306,7 @@ L["Parts of the world map you haven't explored yet show too, dimmed so you can s
 L["Unexplored area brightness"] = "Helligkeit unerforschter Gebiete"
 L["How bright the unexplored areas are. At 100% they look like the parts you've explored."] = "Helligkeit der unerforschten Gebiete. Bei 100% sehen sie aus wie die bereits erforschten."
 L["Dungeon and raid entrances"] = "Dungeon- und Schlachtzugseingänge"
-L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name."] = "Ein Symbol auf der Weltkarte an jedem Dungeon- und Schlachtzugseingang. Zeige mit der Maus darauf, um den Namen zu sehen."
+L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name and the levels."] = "Ein Symbol auf der Weltkarte an jedem Dungeon- und Schlachtzugseingang. Zeige mit der Maus darauf, um den Namen und die Stufen zu sehen."
 L["Flight masters"] = "Flugmeister"
 L["A bird on the world map at each flight master you can use: blue for Alliance, red for Horde, gold for both."] = "Ein Vogel auf der Weltkarte bei jedem Flugmeister, den du nutzen kannst: blau für die Allianz, rot für die Horde, golden für beide."
 L["Boats and zeppelins"] = "Schiffe und Zeppeline"

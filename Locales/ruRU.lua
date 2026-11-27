@@ -413,7 +413,7 @@ L["A spell's icon pops and lights up once when it comes off a real cooldown (nev
 L["A spell's icon turns gray while it's on cooldown. The global cooldown doesn't count."] = "Значок заклинания сереет, пока оно восстанавливается. Глобальное восстановление не учитывается."
 L["A square minimap in the panel. Scroll to zoom."] = "Квадратная мини-карта на панели. Колесико мыши меняет масштаб."
 L["A symbol on the world map at each boat dock and zeppelin tower. Hover it to see where it goes."] = "Символ на карте мира у каждой пристани и башни дирижаблей. Наведите курсор, чтобы узнать, куда идет рейс."
-L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name."] = "Символ на карте мира у каждого входа в подземелье и рейд. Наведите курсор, чтобы узнать название."
+L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name and the levels."] = "Символ на карте мира у каждого входа в подземелье и рейд. Наведите курсор, чтобы узнать название и уровни."
 L["A thin bar under the name."] = "Тонкая полоса под именем."
 L["A thin line across the bars where your threat would pull it: 110% of the tank's in melee, 130% at range. Not shown on a boss, whose numbers the game keeps hidden."] = "Тонкая линия поперек полос там, где ваша угроза сорвет противника: 110% от угрозы танка в ближнем бою, 130% в дальнем. Не показывается на боссе: игра скрывает его числа."
 L["A thin mana strip along the bottom of the power bar while a form hides your mana."] = "Тонкая полоска маны вдоль нижнего края полосы ресурса, пока облик скрывает вашу ману."
