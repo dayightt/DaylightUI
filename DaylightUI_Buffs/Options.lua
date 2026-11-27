@@ -404,6 +404,61 @@ local function filterItems(debuff)
     }
 end
 
+-- Missing buffs (Reminder.lua, ReminderRow.lua): what shows, then the look.
+local function reminderItems()
+    local on = off("settings.reminder.enabled")
+    local SEARCH = "Reminder Missing Raid buffs Fortitude Oil Poison"
+    local function kind(key, label, desc, extra)
+        return { type = "toggle", key = "settings.reminder." .. key, label = label, desc = desc,
+                 disabled = on, search = extra and (SEARCH .. " " .. extra) or SEARCH }
+    end
+    return {
+        { type = "toggle", key = "settings.reminder.enabled", label = "Show missing buffs", search = SEARCH,
+          desc = "A row above you shows the buffs you're missing: raid buffs (click yours to cast it), your class's own buff and weapon oils, poisons or imbues. Hidden while resting, dead or traveling, and solo." },
+        kind("solo", "Missing buffs when solo",
+             "Your own buff, weapons and consumables show when you play alone too. When off, the row only shows in a group."),
+        kind("give", "Raid buffs you give",
+             "Fortitude, Arcane Intellect, Mark of the Wild, Battle Shout and the like that you can cast, with how many in your group have it. Click the icon to cast it on the first one missing it, out of a fight."),
+        kind("get", "Raid buffs from others",
+             "The raid buffs you lack whose giver is in your group, and a blessing per paladin by your class. These can't be clicked.", "Blessing"),
+        kind("self", "Your class's own buff",
+             "Inner Fire, Demon Armor, Lightning Shield, a mage armor, a paladin aura or a hunter aspect. Click the icon to cast the one you used last.", "Armor Aura Aspect"),
+        kind("weapons", "Weapon oils, poisons and imbues",
+             "A weapon with nothing on it, when you carry an oil, a stone or a poison (or a shaman knows an imbue). Click the icon to put it on.", "Stone Imbue"),
+        kind("food", "Food buff",
+             "Shows while you don't have Well Fed or another food buff.", "Well Fed"),
+        kind("scrolls", "Scrolls",
+             "A scroll you carry whose buff you don't have. A raid buff of the same stat replaces it, so none is asked for then."),
+        kind("camp", "Camp Benefits",
+             "Shows while you don't have the buff from a camp.", "Campfire"),
+        kind("sleepingBag", "Sleeping bag",
+             "Below max level with a Cozy Sleeping Bag in your bags, while you have under 3 stacks of its rested buff.", "Rested"),
+        { type = "slider", key = "settings.reminder.lowMinutes", label = "Running low, in minutes", min = 0, max = 10, step = 1,
+          disabled = on, search = SEARCH,
+          desc = "A buff with less time left than this shows again, its time counting down on the icon. At 0 only a missing buff shows." },
+        { type = "slider", key = "settings.reminder.fightAlpha", label = "Raid buffs opacity in a fight", min = 0, max = 1, step = 0.05, unit = "%",
+          disabled = on, search = SEARCH,
+          desc = "In a fight the row holds still: raid buffs dim to this, and the rest fade away until it ends. At 0 raid buffs fade away too." },
+        { type = "slider", key = "settings.reminder.size", label = "Missing buffs icon size", min = 24, max = 64, step = 1, unit = "px",
+          disabled = on, search = SEARCH,
+          desc = "How big each icon in the row is." },
+        { type = "slider", key = "settings.reminder.gap", label = "Missing buffs spacing", min = 4, max = 48, step = 1, unit = "px",
+          disabled = on, search = SEARCH,
+          desc = "The space between two icons in the row." },
+        { type = "toggle", key = "settings.reminder.names", label = "Missing buffs names", disabled = on, search = SEARCH,
+          desc = "Each buff's name under its icon. When off, hover an icon to see it." },
+        { type = "button", label = "Preview the missing buffs", text = function()
+              return BL.Reminder and BL.Reminder.sample and "Hide" or "Preview"
+          end,
+          desc = "Shows a sample row where it sits: a raid buff you give, one from others, your own buff and a weapon oil.",
+          disabled = on, search = SEARCH,
+          func = function()
+              local R = BL.Reminder
+              if R then R.ShowSample(not R.sample) end
+          end },
+    }
+end
+
 local PREVIEW = { type = "button", label = "Preview the buff bar",
     text = function() return BL.Preview.Active() and "Hide" or "Show" end,
     desc = "Fills the bar with a sample of every buff it knows, sorted and colored as they would be.",
@@ -444,19 +499,9 @@ BL.OPTIONS = { pages = {
         { label = "Bar", items = barItems(false) },
         { label = "Filter", desc = "Which buffs show, from the lists on Unit Frames > Aura Lists.", items = filterItems(false) },
         { label = "Text", desc = TEXT_DESC, items = TEXT_ITEMS },
-        { label = "Missing group buffs",
-          desc = "On a ready check, and when you enter a dungeon or raid in a group, a short line shows the group buffs you don't have yet: only ones someone in your group can give. It fades once they land. Move it in unlock mode.",
-          items = {
-            { type = "toggle", key = "settings.reminder.enabled", label = "Show missing group buffs",
-              desc = "Fortitude, Mark of the Wild, Arcane Intellect, a blessing per paladin and the like, by your class. Never in a fight, a boss encounter or a battleground, where buffs can't be read." },
-            { type = "slider", key = "settings.reminder.seconds", label = "Missing buffs shown for", min = 3, max = 30, step = 1,
-              desc = "How many seconds the line stays before fading, unless the buffs land first.",
-              disabled = off("settings.reminder.enabled") },
-            { type = "button", label = "Preview missing group buffs", text = "Show",
-              desc = "Shows a sample of the line where it sits.",
-              disabled = off("settings.reminder.enabled"),
-              func = function() if BL.Reminder then BL.Reminder.ShowSample(true) end end },
-        } },
+        { label = "Missing buffs",
+          desc = "A row of icons above you shows the buffs you're missing. Middle-click one to hide it until the next loading screen. Move the row in unlock mode.",
+          items = reminderItems() },
         { label = "Combine into one icon", desc = "Categories set to Combine show as one icon; hover it to see them all.", items = {
             { type = "toggle", key = "settings.consolidateOnlyGroup", label = "Combine only in a group",
               desc = "Needs a category set to Combine (Categories page).", disabled = noneCombine },

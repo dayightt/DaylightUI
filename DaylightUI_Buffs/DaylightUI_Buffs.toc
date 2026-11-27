@@ -28,6 +28,8 @@ Feel.lua
 DebuffBar.lua
 Private.lua
 PreviewBar.lua
+ReminderData.lua
+ReminderRow.lua
 Reminder.lua
 EdgeEditor.lua
 Commands.lua

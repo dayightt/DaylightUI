@@ -869,6 +869,8 @@ local NAMED = {
     rolls = "DaylightUIRollStack",
     -- 1.16: the area round the character the proc flares hang in.
     procs = "DaylightUIProcs",
+    -- 1.17: the missing-buffs row.
+    reminders = "DaylightUIBuffRemindersHolder",
 }
 API.FRAME_NAMES = {}
 for k in pairs(NAMED) do API.FRAME_NAMES[#API.FRAME_NAMES + 1] = k end
@@ -1441,6 +1443,52 @@ function View.AddBuffCategory(v, key, spec)
     entry.label, entry.spells, entry.color = spec.label, spells, color
     DUI.Fire("BuffCategoriesChanged")
     return true
+end
+
+-- Missing buffs of a plugin's own (1.17): me.AddBuffReminder(key, { label,
+-- spells = { ids }, icon?, when? }) puts an icon in the missing-buffs row
+-- while none of those spells is on the player (and when(), if given, says
+-- true), under the row's own rules (a group, not resting, never in a fight).
+-- A click casts the highest one the player knows. Its key in the row is
+-- "<plugin>:<key>". Called again, it replaces the spec.
+local buffReminders = {}
+function Report.BuffReminders() return buffReminders end
+function View.AddBuffReminder(v, key, spec)
+    if not str(key) or type(spec) ~= "table" or not str(spec.label) or type(spec.spells) ~= "table"
+            or (spec.when ~= nil and type(spec.when) ~= "function") then
+        chat(L["%s: a missing buff needs a key, a label and a list of spell ids."], v.name)
+        return false
+    end
+    local spells = {}
+    for _, sid in ipairs(spec.spells) do if type(sid) == "number" then spells[#spells + 1] = sid end end
+    if #spells == 0 then
+        chat(L["%s: a missing buff needs a key, a label and a list of spell ids."], v.name)
+        return false
+    end
+    local full = v.name .. ":" .. key
+    local entry
+    for _, x in ipairs(buffReminders) do if x.key == full then entry = x end end
+    if not entry then
+        entry = { key = full, owner = v.name }
+        buffReminders[#buffReminders + 1] = entry
+        Report.Count(v.name, "buffreminders")
+    end
+    entry.label, entry.spells, entry.when = spec.label, spells, spec.when
+    entry.icon = (type(spec.icon) == "number" or str(spec.icon)) and spec.icon or nil
+    DUI.Fire("BuffRemindersChanged")
+    return true
+end
+function View.RemoveBuffReminder(v, key)
+    local full = str(key) and v.name .. ":" .. key
+    for i, x in ipairs(buffReminders) do
+        if x.key == full then
+            table.remove(buffReminders, i)
+            Report.Count(v.name, "buffreminders", nil, -1)
+            DUI.Fire("BuffRemindersChanged")
+            return true
+        end
+    end
+    return false
 end
 
 -- Bag groups (1.7): me.AddBagGroup(key, { label, match = fn(item) -> true })

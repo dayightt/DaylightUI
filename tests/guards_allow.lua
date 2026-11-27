@@ -165,7 +165,7 @@ return {
         ["DaylightUI_Buffs/Auras.lua"] = 2,
         ["DaylightUI_Buffs/Bar.lua"] = 31,
         ["DaylightUI_Buffs/Data.lua"] = 1,
-        ["DaylightUI_Buffs/Reminder.lua"] = 6,
+        ["DaylightUI_Buffs/Reminder.lua"] = 1,
         ["DaylightUI_Buffs/Scan.lua"] = 1,
         ["DaylightUI_Chat/Bubbles.lua"] = 10,
         ["DaylightUI_Chat/Chat.lua"] = 3,

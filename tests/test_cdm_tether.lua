@@ -1129,11 +1129,11 @@ test("cdm tether: the frame list starts with where you put it, then each area's 
     local function inOrder(listed, first, second, third)
         return indexOf(listed, first) < indexOf(listed, second) and indexOf(listed, second) < indexOf(listed, third)
     end
-    T.truthy(inOrder(keys, "buffs.buff", "buffs.debuff", "buffs.reminder"), "Buffs, Debuffs, Missing Buffs in English")
+    T.truthy(inOrder(keys, "buffs.buff", "buffs.debuff", "buffs.reminders"), "Buffs, Debuffs, Missing Buffs in English")
     rawset(L, "Buffs", "Zz"); rawset(L, "Debuffs", "Yy"); rawset(L, "Missing Buffs", "Xx")
     _, keys = Tether.Choices()
     rawset(L, "Buffs", nil); rawset(L, "Debuffs", nil); rawset(L, "Missing Buffs", nil)
-    T.truthy(inOrder(keys, "buffs.reminder", "buffs.debuff", "buffs.buff"),
+    T.truthy(inOrder(keys, "buffs.reminders", "buffs.debuff", "buffs.buff"),
         "a language that names them the other way round sorts them the other way round")
 end)
 

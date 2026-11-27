@@ -116,9 +116,16 @@ BL.DEFAULTS = {
         textOutline = "general",
         expiring = true, -- the buff timer warms and pulses in its last 5 s (Feel.lua)
         newGlow = true, -- buffs and debuffs slide in and lift away (Feel.lua; old name kept for saved settings)
-        -- On a ready check, or entering a dungeon or raid in a group, show
-        -- the group buffs you're missing for this many seconds (Reminder.lua).
-        reminder = { enabled = true, seconds = 10 },
+        -- Missing buffs, a row of tiles above you (Reminder.lua, ReminderRow.lua):
+        -- which kinds show, solo too, when a buff counts as running low, how
+        -- see-through raid buffs are in a fight, and the tiles' look. The
+        -- consumables are off: not everyone carries them.
+        reminder = {
+            enabled = true, solo = false,
+            give = true, get = true, self = true, weapons = true,
+            food = false, scrolls = false, camp = false, sleepingBag = false,
+            lowMinutes = 5, fightAlpha = 0.5, size = 36, gap = 24, names = true,
+        },
         -- Aura lists from Unit Frames > Aura Lists ("none" = no list): one to
         -- hide, one to show only.
         hideList = "none", onlyList = "none",

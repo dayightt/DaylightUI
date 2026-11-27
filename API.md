@@ -46,12 +46,12 @@ wrong" below).
 
 ```lua
 local API = DaylightUI.API
-print(API.major, API.minor)   -- 1, 16
+print(API.major, API.minor)   -- 1, 17
 ```
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 16 }` for Proc Alerts (1.16), `{ 1, 15 }` for the Auction House prices (1.15), `{ 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 17 }` for missing buffs (1.17), `{ 1, 16 }` for Proc Alerts (1.16), `{ 1, 15 }` for the Auction House prices (1.15), `{ 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -226,6 +226,17 @@ Since 1.13:
   the winner) paints it again and sends `FrameStyled`. The two sample cards on the Loot rolls options
   page come as previews. There are no cards while the player uses the game's own roll popups (the
   Loot rolls switch, or the controller UI).
+
+Since 1.17:
+
+- `"buffreminder"`: an icon in the missing-buffs row above the character. Its `unit` is the buff's
+  key: `"fortitude"`, `"wild"`, `"intellect"`, `"spirit"`, `"shadow"`, `"shout"`, a blessing
+  (`"might"`, `"wisdom"`, `"kings"`, `"salvation"`, `"light"`, `"sanctuary"`), the class buff
+  (`"innerfire"`, `"armor"`, `"aura"`, `"aspect"`, `"shield"`, `"demonarmor"`), `"weapon:main"`,
+  `"weapon:off"`, `"food"`, `"camp"`, `"sleepingBag"`, `"scroll:<stat>"`, or a plugin's
+  `"<plugin>:<key>"`. Icons are reused: `FrameUnitChanged` when one shows another buff,
+  `FrameRemoved` when its buff stops missing. Test mode and the options' preview icons come as
+  previews.
 
 Since 1.5:
 
@@ -924,6 +935,23 @@ spells. A buff the player moved by hand stays where they put it. The bars' holde
 kind `"buffbar"` (`"buff"` and `"debuff"`) to attach to; the game's buttons inside lock in fights,
 so never touch those.
 
+### Missing buffs of your own (1.17)
+
+```lua
+me.AddBuffReminder("ward", { label = "Frost Ward", spells = { 6143, 8461, 8462 },
+    when = function() return IsInInstance() end })
+me.RemoveBuffReminder("ward")
+```
+
+An icon of yours in the missing-buffs row, shown while none of `spells` is on the player and
+`when()` (optional) returns `true`. It follows the row's own rules: in a group (or solo, when the
+player allows it), never while resting, dead or traveling, and never added in a fight. A click casts
+the highest of `spells` the player knows (none known: it shows but can't be clicked). `icon` is
+optional (the first spell's by default). Its key in the row is `"<your plugin>:<key>"`, and calling
+`AddBuffReminder` again replaces it. `when` runs on every look at the row (an aura change, a roster
+change), so keep it cheap; an error in it is reported and the icon stays away. Under the game's
+aura restrictions the icon only shows when every spell's aura is readable, so it never cries wolf.
+
 ## Aura filters on party and raid frames (1.7)
 
 ```lua
@@ -1051,7 +1079,7 @@ with the error said once. Call `AddGlowStyle` again with the same key to change 
 
 | Call | What it does |
 |---|---|
-| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"`, since 1.13 `"rolls"` (the loot roll cards' holder), and since 1.16 `"procs"` (the area round the character the proc flares hang in) (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
+| `API.GetFrame(name)` | Daylight UI's big frames by a fixed name, to dock to or stay clear of: `"infopanel"`, `"minimap"`, `"meter"`, `"threat"`, `"databar"`, `"chat"`, `"questtracker"`, `"bags"`, `"bank"`, `"afk"`, `"npc"`, since 1.13 `"rolls"` (the loot roll cards' holder), since 1.16 `"procs"` (the area round the character the proc flares hang in), and since 1.17 `"reminders"` (the missing-buffs row) (`API.FRAME_NAMES`). `nil` while that part is off or not made yet. |
 | `API.GetMoverFrame(key)` | The frame placed under a mover key: `"unitframes.player"`, `"actionbars.main"`, `"infopanel"`, yours `"plugin.<name>.<key>"`. |
 | `API.IsUnlocked()` | Unlock mode is on. |
 | `me.IsPreviewing(key)` | Your part should show its sample now: unlock mode, or test mode with its test part ticked. |

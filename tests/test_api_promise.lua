@@ -46,10 +46,12 @@ local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "Regis
     -- 1.14
     "WatchCooldown",
     -- 1.16
-    "WatchProc", "AddProcAlert", "ShowProcAlert", "HideProcAlert" }
+    "WatchProc", "AddProcAlert", "ShowProcAlert", "HideProcAlert",
+    -- 1.17
+    "AddBuffReminder", "RemoveBuffReminder" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
-    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories",
+    "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories", "BuffReminders",
     "FormatChat", "ChatFormatting", "ChatLinkClicked", "DropOverride", "DropShopFilter", "DropTooltipLines",
     "DropFormatter", "StartPainter", "Count", "QuestMenu", "QuestMenuClick",
     "Changes", "Changers", "Texts", "ApplyDefaults", "FrameStyles" }
