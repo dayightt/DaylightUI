@@ -8,11 +8,7 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {
-        ["Buffs.settings.reminder.seconds"] = "the missing-buffs banner became a row that stays while a buff is missing, so it has no time to fade",
-    },
-    frames = {
-        ["buffs.reminder"] = "the missing-buffs banner became a row with its own mover, buffs.reminders, starting at the row's spot",
-    },
+    values = {},
+    frames = {},
     plates = {},
 }
