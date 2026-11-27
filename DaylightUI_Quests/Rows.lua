@@ -17,13 +17,39 @@ Rows.CHEVRON = 12
 Rows.ZONE_CHEVRON = 10
 Rows.LIFT = 1          -- how far a hovered quest title moves toward white
 Rows.GLOW = DUI.MEDIA .. "glow.png"
-Rows.HI_PAD = 2        -- the hover wash past a quest's top and bottom (half the compact gap)
+Rows.HI_PAD = 2        -- a dragged zone's card past its quests' top and bottom
+Rows.HI_PAD_BOTTOM = 5 -- the hover wash below a quest's last line of text (its height already holds the letters' tails); less where the gap is smaller
 Rows.GLOW_SIZE = 30    -- glow behind a hovered icon
 Rows.GLOW_ALPHA = 0.85
 Rows.glowParent = nil  -- the tracker's holder, outside the list (which clips)
 Rows.Effects = {}      -- filled in by the motion code; empty means nothing plays
 
 local pools = {}
+
+-- The wash behind a hovered quest: flush with the row at its sides, like every list row's
+-- wash, with half the gap above the title and a little room below. Its bottom follows the
+-- last line's real text (not the block's height, which is an estimate and ends with the gap
+-- to the next quest): a wrapped description and a counted objective got different amounts
+-- of air under them. The first paint of a row has no lines yet, so a block's own end stands in.
+function Rows.PlaceWash(f, b)
+    local gap = b and b.gap or 0
+    local last = b and b.lines and b.lines[#b.lines]
+    local bottom
+    if last then
+        local l = f.lines[last.key]
+        local sh = l and l.label and l.label.GetStringHeight and l.label:GetStringHeight()
+        if type(sh) == "number" and not DUI.IsSecret(sh) and sh > 0 then bottom = last.y + sh else bottom = last.y + (last.h or 0) end
+    end
+    f.hi:ClearAllPoints()
+    -- Above, half the gap to the quest before it.
+    f.hi:SetPoint("TOPLEFT", f, "TOPLEFT", 0, math.ceil(gap / 2))
+    if bottom then
+        -- Never into the next quest's title: a compact list's gap is smaller than the pad.
+        f.hi:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 0, -(bottom + math.min(Rows.HI_PAD_BOTTOM, math.max(0, gap - 1))))
+    else
+        f.hi:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, gap - Rows.HI_PAD_BOTTOM)
+    end
+end
 
 local function newBlock(kind, parent)
     local f = CreateFrame("Button", nil, parent)
@@ -45,14 +71,13 @@ local function newBlock(kind, parent)
         f.chevron:SetTexture(Look.CHEVRON)
         f.chevron:SetSize(Rows.ZONE_CHEVRON, Rows.ZONE_CHEVRON)
     else
-        -- The shared list-row hover wash, as in the quest log, reaching half the
-        -- gap above and below so the hovered quest reads as one block.
+        -- The shared list-row hover wash, as in the quest log: flush with the row at its
+        -- sides, half the gap above the title and a little under the last line (Rows.PlaceWash).
         local W = DUI.Win.Parts
         f.hi = f:CreateTexture(nil, "BACKGROUND")
         f.hi:SetTexture(W.WHITE)
         f.hi:SetVertexColor(W.HI[1], W.HI[2], W.HI[3], W.HI[4])
-        f.hi:SetPoint("TOPLEFT", f, "TOPLEFT", 0, Rows.HI_PAD)
-        f.hi:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, -Rows.HI_PAD)
+        Rows.PlaceWash(f)
         f.hi:Hide()
         for _, name in ipairs({ "ring", "ready", "failed" }) do
             local t = f:CreateTexture(nil, "ARTWORK")
@@ -493,7 +518,7 @@ function Rows.Paint(f, b, look, opts)
     f:SetHeight(math.max(1, b.h))
     if b.kind == "header" then paintHeader(f, b, look)
     elseif b.kind == "zone" then paintZone(f, b, look)
-    else paintBlock(f, b, look, opts, events) end
+    else paintBlock(f, b, look, opts, events); Rows.PlaceWash(f, b) end
     f.painted = true
     Rows.look = look
     if f.lift then Rows.Lift(f, f.lift) end   -- currently hovered
