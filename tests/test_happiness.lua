@@ -175,55 +175,31 @@ T.test("pet happiness: the test-mode sample keeps its name with 'color the bar' 
     DUI.SetTestMode(false)
 end)
 
--- Druid resource bars (DruidBars.lua): the powers the main bar isn't showing.
-T.test("druid bars: rage and energy in caster form, mana beside a form's power; only forms you know", function()
+-- The druid resource bars were removed: the mana strip on the power bar shows
+-- mana in a form. A player who had the bars on gets the strip back on.
+T.test("druid bars are gone; a player who had them on gets the mana strip", function()
     local DUI, ns = stub.Load({ module = true, before = function()
-        stub.units.player = { name = "Leafy", isPlayer = true, class = "DRUID", powerType = 0, powerToken = "MANA" }
-        stub.knownSpells[5487] = true      -- Bear Form, no Cat Form yet
+        stub.units.player = { name = "Leafy", isPlayer = true, class = "DRUID", powerType = 1, powerToken = "RAGE" }
     end })
-    local h = _G.DaylightUIDruidBars
-    T.truthy(h, "made with the player frame")
-    T.falsy(h:IsShown(), "off by default")
-    DUI:Set("UnitFrames", "player.druidBars.enabled", true)
-    stub.RunTimers()
-    local B = ns.DruidBars
-    local function shown()
-        local out = {}
-        for _, i in ipairs(B.Wanted()) do out[#out + 1] = B.POWERS[i].token end
-        return table.concat(out, ",")
+    T.falsy(_G.DaylightUIDruidBars, "no druid bars made")
+    T.falsy(ns.DruidBars)
+    local function profile(bars, strip)
+        return { modules = { UnitFrames = { groupFrames = 25,
+            player = { druidMana = strip, druidBars = { enabled = bars, width = 120 } } } },
+            positions = { ["unitframes.druidBars"] = { 10, 20 } }, general = {} }
     end
-    local function rowsShown()
-        local n = 0
-        for _, r in ipairs({ h:GetChildren() }) do if r:IsShown() then n = n + 1 end end
-        return n
-    end
-    T.eq(shown(), "RAGE", "caster form: rage (no Cat Form yet: no energy)")
-    T.truthy(h:IsShown(), "caster form shows a bar")
-    T.eq(rowsShown(), 1)
-    stub.knownSpells[768] = true
-    stub.FireEvent("SPELLS_CHANGED")
-    T.eq(shown(), "RAGE,ENERGY", "learning Cat Form adds energy")
-    T.eq(rowsShown(), 2)
-    stub.units.player.powerType, stub.units.player.powerToken = 1, "RAGE"
-    stub.FireEvent("UNIT_DISPLAYPOWER", "player")
-    stub.RunTimers()
-    T.eq(shown(), "MANA,ENERGY", "a bear: mana and energy")
-    T.eq(rowsShown(), 2)
-    stub.units.player.powerType, stub.units.player.powerToken = 3, "ENERGY"
-    stub.FireEvent("UNIT_DISPLAYPOWER", "player")
-    stub.RunTimers()
-    T.eq(shown(), "MANA,RAGE", "a cat: mana and rage")
-    DUI:Set("UnitFrames", "player.druidBars.enabled", false)
-    stub.RunTimers()
-    T.falsy(h:IsShown())
+    local p = profile(true, false)
+    ns.UpgradeGroupFrames(p)
+    local pl = p.modules.UnitFrames.player
+    T.eq(pl.druidMana, nil, "bars on: the strip is back on (its default)")
+    T.eq(pl.druidBars, nil, "the old settings are cleared")
+    T.eq(p.positions["unitframes.druidBars"], nil, "and their spot")
+    local before = DUI.DB.Copy(p)
+    ns.UpgradeGroupFrames(p)
+    T.deq(p, before, "a second run changes nothing")
+    p = profile(false, false)
+    ns.UpgradeGroupFrames(p)
+    T.eq(p.modules.UnitFrames.player.druidMana, false, "bars off: the strip stays as the player left it")
+    T.eq(p.modules.UnitFrames.player.druidBars, nil)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
-end)
-
-T.test("druid bars: never for another class", function()
-    local DUI = stub.Load({ module = true, before = function()
-        stub.units.player = { name = "Hunts", isPlayer = true, class = "HUNTER" }
-    end })
-    DUI:Set("UnitFrames", "player.druidBars.enabled", true)
-    stub.RunTimers()
-    T.falsy(_G.DaylightUIDruidBars:IsShown())
 end)

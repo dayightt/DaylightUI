@@ -470,7 +470,6 @@ function ns.Refresh(mod, path, hold)
         ns.PlacePetAuras(db)
         ns.Combo.Layout(ns.combo, db.combo)
         ns.Happiness.Layout(ns.happiness, db.pet)
-        ns.DruidBars.Layout(db.player.druidBars)
         Blizzard.Apply(db)
         DUI.Movers.ApplyAll()
         -- Last, over what each part's own layout set: the player's draw order.
@@ -943,12 +942,6 @@ function ns.Build(mod)
                 -- Its standalone power bar, when used (fades with the frame).
                 list[2] = ns.PowerBar.Create(f)
                 DUI.Movers.Register(list[2], ns.PowerBar.KeyFor(spec.unit), POWER_MOVERS[spec.unit][1], POWER_MOVERS[spec.unit][2])
-            end
-            if spec.unit == "player" and f.power then
-                -- A druid's other powers (also fade with the frame).
-                local druid = ns.DruidBars.Create(f)
-                list[#list + 1] = druid
-                DUI.Movers.Register(druid, ns.DruidBars.KEY, "Druid Resource Bars", ns.DruidBars.HOME)
             end
             if f.threatTag then
                 -- Its standalone threat % tag, when used (fades with the frame).

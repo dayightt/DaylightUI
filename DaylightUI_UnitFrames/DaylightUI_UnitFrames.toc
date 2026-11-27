@@ -45,7 +45,6 @@ ClickBinder.lua
 ClickCastPage.lua
 AuraListsPage.lua
 PowerBar.lua
-DruidBars.lua
 Personal.lua
 Arrive.lua
 Moments.lua

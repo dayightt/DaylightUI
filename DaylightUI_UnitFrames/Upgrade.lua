@@ -627,6 +627,18 @@ ns.UPGRADE_STEPS[25] = function(uf)
     end
 end
 
+-- 26: the druid resource bars were removed. The mana strip on the power bar
+-- shows mana in a form, so a player who had the bars on gets the strip back
+-- on, in case they had turned it off for the bars.
+ns.UPGRADE_STEPS[26] = function(uf, pos)
+    local pl = uf.player
+    if type(pl) == "table" then
+        if type(pl.druidBars) == "table" and pl.druidBars.enabled == true then pl.druidMana = nil end
+        pl.druidBars = nil
+    end
+    pos["unitframes.druidBars"] = nil
+end
+
 -- p: a profile's data { modules = {...}, positions = {...}, general = {...} }.
 -- Each step also gets this run: from = the last step done before it (0 for a
 -- new profile), picked = settings an earlier step set from the player's own

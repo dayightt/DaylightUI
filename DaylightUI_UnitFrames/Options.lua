@@ -2276,16 +2276,6 @@ local function framePage(id, label, desc, opts)
     if opts.combat then
         extras[#extras + 1] = { type = "toggle", key = k("druidMana"), label = "Druid mana in forms",
             desc = "A thin mana strip along the bottom of the power bar while a form hides your mana.", disabled = powerOff }
-        local function druidOff(get) return shown(get) or get(k("druidBars.enabled")) ~= true end
-        extras[#extras + 1] = { type = "toggle", key = k("druidBars.enabled"), label = "Druid resource bars",
-            desc = "Small bars for the druid powers you're not using right now: rage and energy in caster form, mana beside your form's power in bear or cat form. Rage and energy show once you know their form. Move them in unlock mode.",
-            disabled = shown }
-        extras[#extras + 1] = { type = "slider", key = k("druidBars.width"), label = "Druid bars width", min = 40, max = 300, step = 1, unit = "px",
-            desc = "How long each bar is.", disabled = druidOff }
-        extras[#extras + 1] = { type = "slider", key = k("druidBars.height"), label = "Druid bars height", min = 3, max = 20, step = 1, unit = "px",
-            desc = "How tall each bar is.", disabled = druidOff }
-        extras[#extras + 1] = { type = "toggle", key = k("druidBars.showText"), label = "Druid bars numbers",
-            desc = "How much of each power you have, on its bar.", disabled = druidOff }
         extras[#extras + 1] = { type = "toggle", key = k("costPreview"), label = "Spell cost preview",
             desc = "While you cast, the power the spell will use is shaded on your power bar.", disabled = powerSpellOff }
         extras[#extras + 1] = { type = "color", key = k("costColor"), label = "Spell cost color",

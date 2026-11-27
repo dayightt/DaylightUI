@@ -133,10 +133,6 @@ local function swing()
         return out
     end, { ownLayer = true, free = function() return true end, mover = function() return "unitframes.swing" end })
 end
-local function druid()
-    return part("druid", "Druid bars", function(f) if not f.layerPreview then return _G.DaylightUIDruidBars end end,
-        { free = function() return true end, mover = function() return ns.DruidBars.KEY end })
-end
 local THREAT = part("threat", "Threat %", function(f) return f.threatHolder end,
     { free = function(f) return f.threatTag ~= nil and f.threatTag:GetParent() == f.threatHolder end,
       mover = function() return ns.UF.THREAT_KEY end })
@@ -148,7 +144,7 @@ local COMBO = part("combo", "Combo points", function(f) if not f.layerPreview th
 -- install. It settles parts that draw at the same level, and places a part
 -- that isn't built yet.
 Layers.PARTS = {
-    player = extraTexts({ druid(), castbar("player", "playerCastbar"), swing(), HEALTH, power("player"),
+    player = extraTexts({ castbar("player", "playerCastbar"), swing(), HEALTH, power("player"),
         debuffs("player"), buffs("player"), NAME, HEALTH_TEXT, POWER_TEXT }, { PORTRAIT, LEVEL, LEADER, PVP, REST }),
     target = extraTexts({ castbar("target", "targetCastbarFree"), HEALTH, power("target"), debuffs("target"),
         buffs("target"), NAME, HEALTH_TEXT, POWER_TEXT }, { PORTRAIT, MARKER, CREST, LEVEL, LEADER, PVP, THREAT, COMBO }),
