@@ -26,6 +26,7 @@ Layout.HEADER_LINE = 2
 Layout.HEADER_GAP = 6        -- below the line
 Layout.SECTION_GAP = 6       -- above every section but the first
 Layout.ZONE_TOP, Layout.ZONE_GAP = 2, 3
+Layout.FILTER_EXTRA = 10      -- the filter words' row under the header's line: the zone name's text size plus this (their line, air above and below)
 Layout.BAR_H, Layout.BAR_TOP, Layout.BAR_BOTTOM = 7, 3, 2
 Layout.LEADING = 3           -- line height minus font size
 Layout.FAILED = L["Failed"]
@@ -270,6 +271,11 @@ function Layout.FightOnly(snap)
     return out
 end
 
+-- The height of the filter words' row: it follows the tracker's text size.
+function Layout.FilterH(o)
+    return (o.sizes and o.sizes.zone or 10) + Layout.FILTER_EXTRA
+end
+
 function Layout.Build(snap, o, measure)
     if o.fightOnly then snap = Layout.FightOnly(snap) end
     local blocks, y = {}, 0
@@ -280,12 +286,12 @@ function Layout.Build(snap, o, measure)
         y = y + b.h
         blocks[#blocks + 1] = b
     end
-    local function header(id, label, count)
+    local function header(id, label, count, filter)
         if #blocks > 0 then y = y + Layout.SECTION_GAP end
         local textH = lineH(o.sizes.header, DaylightUI.Style.Upper(label), o.width - 30, measure)
         push({ key = "section:" .. id, kind = "header", id = id, label = label, count = count,
-               folded = folds[id] == true, textH = textH,
-               h = textH + Layout.HEADER_PAD + Layout.HEADER_LINE + Layout.HEADER_GAP })
+               folded = folds[id] == true, textH = textH, filter = filter,
+               h = textH + Layout.HEADER_PAD + Layout.HEADER_LINE + Layout.HEADER_GAP + (filter and Layout.FilterH(o) or 0) })
     end
     local total = 0
     for _, g in ipairs(snap.groups) do total = total + #g.quests end
@@ -314,7 +320,10 @@ function Layout.Build(snap, o, measure)
     end
     local function questsOf(g) return rest[g] or g.quests end
     if total > 0 or o.emptyHeader then
-        header("quests", L["Quests"], snap.logCount .. "/" .. snap.logMax)
+        -- With the option on, the filter (All / This zone) sits right under this header's line,
+        -- on the right, while the quests show: it never sits over a title.
+        header("quests", L["Quests"], snap.logCount .. "/" .. snap.logMax,
+               o.filterRow and not folds.quests and (o.filter == "zone" and "zone" or "all") or nil)
         local flat = o.sort == "levelAll" and not o.zoneNames
         if not folds.quests and not flat then Layout.SortZones(snap.groups, o, snap.here) end
         if not folds.quests and flat then

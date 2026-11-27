@@ -389,7 +389,7 @@ local function addable(s, id, auras)
         return keys, values
     end
     function s.Add(choice)
-        local sub, what = string.match(tostring(choice), "^(%a+):(%a+)$")
+        local sub, what = string.match(tostring(choice), "^(%a+):(.+)$")
         if sub == "text" then
             local key = ns.Texts.Add(ns.Raid.PageFrame(id), what)
             if key then return "Extra text " .. indexOf(ns.TEXT_SLOTS, key) end

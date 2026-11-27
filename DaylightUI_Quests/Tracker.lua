@@ -29,7 +29,7 @@ Tracker.EVENTS = { "QUEST_LOG_UPDATE", "QUEST_WATCH_LIST_CHANGED", "QUEST_ACCEPT
 -- These can arrive in bursts (a whole raid turning in), so they wait and get one check.
 Tracker.WAITS = { QUEST_LOG_UPDATE = true, UNIT_QUEST_LOG_CHANGED = true, GROUP_ROSTER_UPDATE = true }
 -- Settings whose change re-lays the list with a fade instead of a jump.
-Tracker.FADE_PATHS = { filter = true, instances = true, zoneNames = true, hideDone = true, sort = true, hereFirst = true, foldReady = true, readyLast = true, emptyHeader = true }
+Tracker.FADE_PATHS = { filter = true, filterRow = true, instances = true, zoneNames = true, hideDone = true, sort = true, hereFirst = true, foldReady = true, readyLast = true, emptyHeader = true }
 Tracker.NEAR_EVERY = 5            -- seconds between nearest-first checks
 Tracker.DIM = 0.5                 -- other quests' alpha while one is hovered
 
@@ -158,7 +158,7 @@ end
 
 function Tracker.Options()
     return { width = Tracker.Width(), sizes = db.sizes, zoneNames = db.zoneNames, compact = db.compact,
-             hideDone = db.hideDone, filter = Tracker.ZoneOnly() and "zone" or db.filter, folds = Tracker.Folds(), caps = db.capsTitles,
+             hideDone = db.hideDone, filter = Tracker.ZoneOnly() and "zone" or db.filter, filterRow = db.filterRow, folds = Tracker.Folds(), caps = db.capsTitles,
              levels = db.questLevels, tags = db.questTags, party = db.questParty, sort = db.sort, hereFirst = db.hereFirst,
              recent = db.sort == "recent" and Tracker.Recent() or nil, near = Tracker.near,
              frozen = InCombatLockdown() and Tracker.order or nil,
@@ -1153,12 +1153,24 @@ function Tracker.PaintControls()
     c.zone.SetActive(zoneOnly)
 end
 
+-- Whether the Quests title leaves room for the controls on its line: the controls sit
+-- left of the header's arrow, so a long title (a long word in another language, a small
+-- tracker) would run under them.
+function Tracker.TitleFits(h)
+    local c = Tracker.controls
+    local w = h and h.label and h.label:GetStringWidth()
+    if type(w) ~= "number" or DUI.IsSecret(w) then return true end
+    local cw = c.all:GetWidth() + 4 + c.zone:GetWidth()
+    return w + Tracker.CONTROL_GAP <= Tracker.Width() - (ns.Rows.CHEVRON + Tracker.CONTROL_GAP) - cw
+end
+
 -- Controls show while the mouse is over the list (and a moment after it leaves).
--- The count under them fades out.
+-- The count under them fades out, and so does the title when it doesn't fit beside them.
+-- With the filter under the header's line (`filterRow`) they never show.
 local function alpha(a) Tracker.controls:SetAlpha(a) end
 function Tracker.Hovered()
     local c = Tracker.controls
-    local over = (view:IsMouseOver() == true) or (c:IsShown() and c:IsMouseOver() == true)
+    local over = db.filterRow ~= true and ((view:IsMouseOver() == true) or (c:IsShown() and c:IsMouseOver() == true))
     local now = GetTime()
     if over then Tracker.lastOver = now end
     local want = over or (Tracker.lastOver and now - Tracker.lastOver < Tracker.CONTROL_LINGER)
@@ -1193,6 +1205,13 @@ function Tracker.Hovered()
             local from = h.countGoal and fs:GetAlpha() or goal
             h.countGoal = goal
             M.Tween(fs, from, goal, goal == 0 and M.FAST or M.NORMAL, function(a) fs:SetAlpha(a) end)
+        end
+        local tg = (c:IsShown() and not c.leaving and not Tracker.TitleFits(h)) and 0 or 1
+        if h.labelGoal ~= tg then
+            local fs = h.label
+            local from = h.labelGoal and fs:GetAlpha() or tg
+            h.labelGoal = tg
+            M.Tween(fs, from, tg, tg == 0 and M.FAST or M.NORMAL, function(a) fs:SetAlpha(a) end)
         end
     end
 end
