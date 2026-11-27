@@ -11,7 +11,10 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Proc Alerts", "Proc alerts no longer show as big green boxes for some players" },
+        { "Bar animations", "Molten, Cinders and Slosh no longer show green blocks on some players' bars" },
+    } },
     { version = "2.4.2", date = "2026-11-27", summary = "XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.", new = {
         { "Info Panel", "XP orbs: gaining experience sends a ring of orbs flying into your XP bar" },
         { "Buffs", "Missing buffs show as icons above you: raid buffs, class buffs, poisons, food, scrolls and more. Click one to cast it. Set them up under Buffs > Missing buffs" },

@@ -30,7 +30,9 @@ Flares.TEST_SECONDS = 10
 -- out, gleam = Flash's band, sparks = the strike's spray (a frame stands for
 -- twice the piece), embers = a field rising over the piece.
 Flares.LIVE = { frames = 32, cols = 8, loop = 2 }
-Flares.EMBERS = { frames = 48, cols = 8, loop = 3, lift = 0.3 }
+-- rows = the whole image's, empty ones after the last frame: a sheet a power
+-- of two tall, since some clients draw an odd-sized image as a green box.
+Flares.EMBERS = { frames = 48, cols = 8, rows = 8, loop = 3, lift = 0.3 }
 Flares.SPARKS = { frames = 16, cols = 4, time = 0.6, lift = 0.4, size = 2 }
 Flares.BURN = { frames = 8, cols = 8 }
 Flares.GLEAM = { frames = 8, cols = 8, time = 0.45, every = 1.6 }
@@ -138,7 +140,7 @@ local function flipbook(holder, g, tex, sheet, duration, order, rate)
     a:SetTarget(tex)
     a:SetDuration(duration)
     if order then a:SetOrder(order) end
-    a:SetFlipBookRows(sheet.frames / sheet.cols)
+    a:SetFlipBookRows(sheet.rows or sheet.frames / sheet.cols)
     a:SetFlipBookColumns(sheet.cols)
     a:SetFlipBookFrames(sheet.frames)
     a:SetFlipBookFrameWidth(0)

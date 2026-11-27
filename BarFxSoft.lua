@@ -24,6 +24,10 @@ BarFx.MOLTEN_GLOW = 4
 -- The motes' sheet: 272 frames, 8 a row, over 9 s (about 30 a second; 128
 -- frames over 18 s stepped too slowly and looked choppy in game).
 BarFx.CINDERS_LOOP, BarFx.CINDERS_FRAMES, BarFx.CINDERS_COLS = 9, 272, 8
+-- Its rows down the whole image: empty ones after the last frame make the
+-- sheet a power of two tall, since some clients draw an odd-sized image as a
+-- green box.
+BarFx.CINDERS_ROWS = 64
 BarFx.MOTES_REST = 0.5                   -- the motes' sheet peaks at twice what shows at rest
 BarFx.SURFACE_LOOP = 8
 BarFx.SURFACE_FRAMES = 256
@@ -91,11 +95,11 @@ local function group(p, s)
     return g
 end
 
-local function flipbook(g, t, loop, frames, cols)
+local function flipbook(g, t, loop, frames, cols, rows)
     local a = g:CreateAnimation("FlipBook")
     a:SetTarget(t)
     a:SetDuration(loop)
-    a:SetFlipBookRows(frames / cols)
+    a:SetFlipBookRows(rows or frames / cols)
     a:SetFlipBookColumns(cols)
     a:SetFlipBookFrames(frames)
     a:SetFlipBookFrameWidth(0)
@@ -423,7 +427,7 @@ BarFx.Add("cinders", function() return L["Cinders"] end, {
         local sub = BarFx.FILL_SUB
         softEnd(p, s, { depth = sub + 1, glow = sub + 2, bloom = sub + 4, line = sub + 5 })
         p.motes = pinned(p, s, sub + 3)
-        flipbook(group(p, s), p.motes, BarFx.CINDERS_LOOP, BarFx.CINDERS_FRAMES, BarFx.CINDERS_COLS)
+        flipbook(group(p, s), p.motes, BarFx.CINDERS_LOOP, BarFx.CINDERS_FRAMES, BarFx.CINDERS_COLS, BarFx.CINDERS_ROWS)
         return p
     end,
     layout = function(s, p, w, h)

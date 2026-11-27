@@ -460,3 +460,77 @@ T.test("media: the plate signature follows only the files plates draw", function
     T.truthy(changed ~= same, "the font arrived")
     T.truthy(newBack ~= changed, "the back texture arrived")
 end)
+
+-- The game's art must be a power of two on each side: some players' clients
+-- draw an odd-sized image as a solid green box (seen on Proc Alerts and the bar
+-- animations), even where it draws fine on others.
+local STILL_ODD_OK = {
+    -- Still art drawn once on the options home and in the setup guide, not an
+    -- animation sheet; no green box reported on them.
+    ["logo-line1.png"] = true, ["logo-line2.png"] = true, ["logo-line3.png"] = true,
+    ["logo-sun.png"] = true, ["logo-sun-glow.png"] = true, ["logo-tagline.png"] = true,
+    ["logo-title.png"] = true,
+    -- The level tag on unit frames, still art too.
+    ["socket-tag.png"] = true,
+}
+
+local function pngSize(path)
+    local f = assert(io.open(path, "rb"))
+    local head = f:read(24)
+    f:close()
+    local function be(i)
+        local a, b, c, d = head:byte(i, i + 3)
+        return ((a * 256 + b) * 256 + c) * 256 + d
+    end
+    return be(17), be(21)
+end
+
+local function mediaPngs()
+    local list = {}
+    local p = io.popen("dir /b Media 2>nul")
+    for line in p:lines() do
+        local name = line:match("^(.-%.png)%s*$")
+        if name then list[#list + 1] = name end
+    end
+    p:close()
+    if #list == 0 then
+        p = io.popen("ls Media 2>/dev/null")
+        for line in p:lines() do if line:match("%.png$") then list[#list + 1] = line end end
+        p:close()
+    end
+    return list
+end
+
+local function pow2(n) return n > 0 and bit.band(n, n - 1) == 0 end
+
+T.test("media: every image is a power of two on each side", function()
+    local list = mediaPngs()
+    T.truthy(#list > 100, "found the Media folder's images")
+    local odd = {}
+    for _, name in ipairs(list) do
+        local w, h = pngSize("Media/" .. name)
+        if not (pow2(w) and pow2(h)) and not STILL_ODD_OK[name] then
+            odd[#odd + 1] = ("%s %dx%d"):format(name, w, h)
+        end
+    end
+    T.eq(table.concat(odd, ", "), "", "odd-sized images")
+end)
+
+T.test("media: each animation sheet's rows fill its whole image", function()
+    stub.Load({ procs = true })
+    stub.FireEvent("PLAYER_LOGIN")
+    local E = stub.procs and stub.procs.Flares and stub.procs.Flares.EMBERS
+        or (DaylightUI:GetModule("Procs").Flares or {}).EMBERS
+    T.truthy(E, "the embers sheet")
+    local _, h = pngSize("Media/flare-embers.png")
+    T.eq((E.rows or E.frames / E.cols) * 256, h, "embers: 256 px rows down the whole sheet")
+    local BarFx = DaylightUI.BarFx
+    for _, name in ipairs({ "barfx-cinders.png", "barfx-cinders-l.png" }) do
+        local _, ch = pngSize("Media/" .. name)
+        T.eq((BarFx.CINDERS_ROWS or BarFx.CINDERS_FRAMES / BarFx.CINDERS_COLS) * 32, ch, name)
+    end
+    for _, name in ipairs({ "barfx-cinders-thin.png", "barfx-cinders-thin-l.png" }) do
+        local _, ch = pngSize("Media/" .. name)
+        T.eq((BarFx.CINDERS_ROWS or BarFx.CINDERS_FRAMES / BarFx.CINDERS_COLS) * 16, ch, name)
+    end
+end)

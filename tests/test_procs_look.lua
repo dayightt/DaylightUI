@@ -246,7 +246,7 @@ T.test("procs look: a flare loops its flicker and its embers with no Lua running
         T.eq(part.embers:GetLooping(), "REPEAT")
         T.eq(part.emberTex:GetTexture(), media("flare-embers.png"))
         local fb = flipbook(part.embers)
-        T.eq(fb:GetFlipBookFrames(), 48); T.eq(fb:GetFlipBookColumns(), 8); T.eq(fb:GetFlipBookRows(), 6)
+        T.eq(fb:GetFlipBookFrames(), 48); T.eq(fb:GetFlipBookColumns(), 8); T.eq(fb:GetFlipBookRows(), 8, "the square sheet's rows, the last two empty")
         local v = part.emberTex.__vertex
         T.rgb({ v[1], v[2], v[3] }, lift(hi, 0.3), "embers: the top color lifted toward white")
     end
