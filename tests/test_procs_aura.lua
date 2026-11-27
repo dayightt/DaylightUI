@@ -158,10 +158,25 @@ T.test("procs aura: no container leaves the other procs working and reports once
     stub.noAuraContainer = nil
 end)
 
+-- Fingers of Frost's only signal was the game's alert event, and players saw no
+-- flare from it (in a fight too). The client's aura frame shows it from its buff
+-- instead (both of Forever's ids), as the reference addon does.
+T.test("procs aura: Fingers of Frost is shown by the client from its buff, so a missed alert can't lose it", function()
+    local ns = load("MAGE")
+    local slot = ns.Game.slots.fingers and ns.Game.slots.fingers[1]
+    T.truthy(slot and slot.button, "Fingers of Frost has a game-shown slot")
+    local c = _G.DaylightUIProcsAuras
+    T.deq(c.__slots["DaylightUIProcs_fingers_1"].opts.candidateFilters.includeSpellIDs,
+        { [400670] = true, [400669] = true })
+    stub.EnterCombat()
+    T.deq(enabledSlots(ns, "fingers"), { 1 }, "on in a fight")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("procs aura: these procs default to no sound", function()
     local ns = load()
     for _, p in ipairs(ns.Data.PROCS) do
-        if p.mode == "aura" then T.eq(ns.Alerts.Get(p.key, "sound"), "none", p.key) end
+        if p.mode == "aura" and not p.overlayIds then T.eq(ns.Alerts.Get(p.key, "sound"), "none", p.key) end
     end
 end)
 

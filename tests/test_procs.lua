@@ -437,22 +437,35 @@ local function overlay(id, on)
     end
 end
 
-T.test("procs: the game's alert for Fingers of Frost shows the flare and its hide event hides it", function()
+-- Fingers of Frost's picture is the client's aura frame (test_procs_aura); the
+-- game's alert event still tells when it lands, so its sound plays from it, once,
+-- and Daylight UI draws no second flare of its own.
+T.test("procs: the game's alert for Fingers of Frost plays its sound and draws no second flare", function()
     for _, id in ipairs({ 400670, 400669, 400647, 44544 }) do
         local ns = load("MAGE")
+        local played = {}
+        local alert = DaylightUI.Sound.Alert
+        DaylightUI.Sound.Alert = function(name) played[#played + 1] = name end
         stub.EnterCombat()
         step()
         overlay(id, true)
         step()
-        T.truthy(ns.Flares.Shown("fingers"), "spell " .. id)
-        overlay(id, false)
-        step()
-        T.falsy(ns.Flares.Shown("fingers"), "hidden " .. id)
+        T.eq(#played, 1, "its sound, spell " .. id)
+        T.falsy(ns.Flares.Shown("fingers"), "no flare of Daylight UI's own: the client shows it")
         overlay(id, true)
         step()
-        stub.FireEvent("SPELL_ACTIVATION_OVERLAY_HIDE")
+        T.eq(#played, 1, "the same alert again plays nothing more")
+        overlay(id, false)
+        overlay(id, true)
         step()
-        T.falsy(ns.Flares.Shown("fingers"), "a hide with no spell hides every one")
+        T.eq(#played, 2, "a new one after it ended")
+        ns.Alerts.Set("fingers", "enabled", false)
+        step()
+        overlay(id, false)
+        overlay(id, true)
+        step()
+        T.eq(#played, 2, "turned off: silent")
+        DaylightUI.Sound.Alert = alert
     end
 end)
 

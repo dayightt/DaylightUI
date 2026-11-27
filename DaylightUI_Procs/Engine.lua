@@ -298,6 +298,17 @@ local function onOverlay(event, spellID)
     local p = id and overlayOf[id]
     local g = p and state[p.key]
     if not g then return end
+    if p.mode == "aura" then
+        -- The client draws this one from its buff; the alert only says when it
+        -- lands, so it plays the sound once per alert.
+        local on = event == "SPELL_ACTIVATION_OVERLAY_SHOW"
+        if on and not g.overlay and not g.silent
+            and not (ns.Alerts.Get(p.key, "combatOnly") ~= false and not inCombat) then
+            ns.Flares.PlaySound(p.key)
+        end
+        g.overlay, g.overlayAt = on, now
+        return
+    end
     g.overlay = event == "SPELL_ACTIVATION_OVERLAY_SHOW"
     g.overlayAt = now
     Engine.Soon()
@@ -476,7 +487,8 @@ function Engine.InCombat() return inCombat end
 -- game's setting is turned off; the player's value comes back when it isn't
 -- (and at logout, so a module turned off in the AddOns list leaves it right).
 -- The game's alert code checks the setting in its own handler, so the event
--- still comes. Fingers of Frost has no other signal: the setting is left alone.
+-- still comes. A mage's setting is left alone: Fingers of Frost's sound comes
+-- from the alert event.
 local ALERT_CVAR = "displaySpellActivationOverlays"
 
 local function wantGameOff()

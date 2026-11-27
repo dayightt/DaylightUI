@@ -129,8 +129,11 @@ Data.PROCS = {
       watch = { R.missiles }, unless = "clearcasting" },
     { key = "hotstreak", class = "MAGE", spell = 400624, mode = "faster", design = "flames", anim = "pulse", dur = 20,
       cast = R.pyroblast, refs = { R.fireball }, threshold = 0.46, stacks = 3, stackAt = { 0.88, 0.66 } },
-    { key = "fingers", class = "MAGE", spell = 400670, mode = "overlay", design = "shards", anim = "pulse", dur = 15,
-      overlayIds = { 400670, 400669, 400647, 44544 }, noTimer = true },
+    -- Fingers of Frost changes nothing an addon can read, and the game's alert
+    -- event alone missed it for players: the client shows it from its buff (Forever
+    -- has two), and the alert only plays its sound.
+    { key = "fingers", class = "MAGE", spell = 400670, mode = "aura", design = "shards", anim = "pulse", dur = 15,
+      buffIds = { 400670, 400669 }, overlayIds = { 400670, 400669, 400647, 44544 }, noTimer = true },
     { key = "arcaneblast", class = "MAGE", spell = 400574, mode = "casts", design = "sigil", anim = "pulse", dur = 18,
       cast = { 400574 }, stacks = 4, fromStacks = 1 },
     -- Druid
