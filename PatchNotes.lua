@@ -16,9 +16,11 @@ DUI.PatchNotes = {
         { "Proc Alerts", "Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, Strike is a new one, and each alert can turn its embers off" },
         { "Action bars", "Spell costs on your buttons: each spell's mana, rage or energy cost, turning red when you're short. Turn it on in the setup guide or under Action Bars > Text" },
         { "Unit frames", "Icon borders: set the border round each frame's buff and debuff icons on its own, its thickness, dispel type colors or one color, plain, accent, class or your own color on buffs, and the dispel glow (each frame's Auras tab)" },
+        { "Quests", "The quest tracker can show its All / This zone filter as words under the title (Quests > Filter under the title)" },
     }, changed = {
         { "Nameplates", "New profiles put nameplates lower, right over heads instead of floating high above them. Your own profiles keep their height (Nameplates > Plates up / down, which now goes lower too)" },
     }, fixed = {
+        { "Mailbox", "Auction house letters in the inbox show the item and whether it sold, expired or was won, and the days left no longer get cut off" },
         { "Group finder", "Groups of up to ten (like Upper Blackrock Spire) show every member's name and class again when you hover or click them; bigger raids show how many of each class are in" },
         { "Damage numbers", "Picking Game default for damage numbers puts back how they fly, even when another addon had changed it" },
         { "Quests", "With a controller, Show on map in the quest log can be reached with the D-pad" },
