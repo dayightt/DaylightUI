@@ -404,58 +404,518 @@ local function filterItems(debuff)
     }
 end
 
--- Missing buffs (Reminder.lua, ReminderRow.lua): what shows, then the look.
-local function reminderItems()
-    local on = off("settings.reminder.enabled")
-    local SEARCH = "Reminder Missing Raid buffs Fortitude Oil Poison"
-    local function kind(key, label, desc, extra)
-        return { type = "toggle", key = "settings.reminder." .. key, label = label, desc = desc,
-                 disabled = on, search = extra and (SEARCH .. " " .. extra) or SEARCH }
+-- Missing buffs (Reminder.lua and its parts, ReminderRow.lua): five cards with
+-- EllesmereUI's sections, his rows and defaults, in Daylight UI's words.
+local R = "settings.reminder."
+local RSEARCH = "Missing buffs Reminder"
+local function remOff(get) return get(R .. "enabled") ~= true end
+local function rem(t)
+    t.search = RSEARCH .. (t.search and (" " .. t.search) or "")
+    local own = t.disabled
+    t.disabled = function(get) return remOff(get) or (own and own(get)) or false end
+    return t
+end
+local function rToggle(key, label, desc, extra)
+    local t = { type = "toggle", key = R .. key, label = label, desc = desc }
+    for k, v in pairs(extra or {}) do t[k] = v end
+    return rem(t)
+end
+local function rSlider(key, label, min, max, step, desc, extra)
+    local t = { type = "slider", key = R .. key, label = label, min = min, max = max, step = step, desc = desc }
+    for k, v in pairs(extra or {}) do t[k] = v end
+    return rem(t)
+end
+local function rDrop(key, label, values, order, desc, extra)
+    local t = { type = "dropdown", key = R .. key, label = label, values = values, order = order, desc = desc }
+    for k, v in pairs(extra or {}) do t[k] = v end
+    return rem(t)
+end
+local function rColor(key, label, desc, extra)
+    local t = { type = "color", key = R .. key, label = label, desc = desc }
+    for k, v in pairs(extra or {}) do t[k] = v end
+    return rem(t)
+end
+
+local function myClass()
+    local _, class = UnitClass("player")
+    class = BL.Plain(class)
+    return type(class) == "string" and class or "WARRIOR"
+end
+
+-- A label, then a menu button whose menu ticks things on and off.
+local function switchMenu(label, desc, keys, values, isOn, flip, summary, hidden)
+    return { type = "custom", label = label, desc = desc, hidden = hidden,
+        build = function(row)
+            local W = UI()
+            row.name = DUI.Style.Text(row, DUI.Style.SIZE.body, "LEFT")
+            row.name:SetPoint("LEFT", row, "LEFT", W.PAD, 0)
+            row.name:SetText(L[label])
+            DUI.Style.InkText(row.name, "TEXT")
+            local b = W.MenuButton(row, "")
+            b:SetPoint("RIGHT", row, "RIGHT", -W.PAD, 0)
+            b:SetScript("OnClick", function(self)
+                local k, v = keys(), values()
+                W.OpenMenu(self, k, v, nil, function(key) flip(key); refreshPanel() end, 220,
+                    { keepOpen = true, rows = #k, checked = function(key) return isOn(key) end })
+            end)
+            row.button = b
+        end,
+        update = function(row)
+            row.button.SetLabel(summary(), 160)
+            local off = DaylightUI:Get(BL.MODULE, R .. "enabled") ~= true
+            row:SetAlpha(off and 0.4 or 1)
+            row.button:EnableMouse(not off)
+        end,
+        height = function() return 36 end }
+end
+
+local PLACES = { open_world = "Open world", dungeon = "Dungeons", raid = "Raids", in_combat = "In combat" }
+local function whereRow(sectionKey, label, withCombat)
+    local path = R .. sectionKey .. ".where."
+    local function keys()
+        local k = { "open_world", "dungeon", "raid" }
+        if withCombat then k[#k + 1] = "in_combat" end
+        return k
     end
+    local function on(key) return DaylightUI:Get(BL.MODULE, path .. key) ~= false end
+    return switchMenu(label, "Where this section's icons show. Battlegrounds and arenas always show them.", keys,
+        function() local v = {} for _, k in ipairs(keys()) do v[k] = L[PLACES[k]] end return v end,
+        on, function(key) DaylightUI:Set(BL.MODULE, path .. key, not on(key)) end,
+        function()
+            local shown = {}
+            for _, k in ipairs(keys()) do if on(k) then shown[#shown + 1] = L[PLACES[k]] end end
+            return #shown == 0 and L["Nowhere"] or table.concat(shown, ", ")
+        end)
+end
+
+local function soundRow(sectionKey, label)
+    return rem({ type = "dropdown", key = R .. sectionKey .. ".sound", label = label, search = "Sound",
+        choices = function() return DUI.Sound.AlertChoices() end,
+        hover = function(k) DUI.Sound.AlertHover(k) end,
+        onPick = function(k) DUI.Sound.AlertSample(k) end,
+        desc = "Plays once when an icon of this section appears. None plays nothing." })
+end
+
+-- A weapon hand's pick (nil = Auto), kept per class.
+local function handRow(hand, label, isImbue, hidden, disabled)
+    local function path() return R .. "hands." .. myClass() .. "." .. hand end
+    return rem({ type = "dropdown", label = label, hidden = hidden, disabled = disabled, search = "Weapon",
+        choices = function()
+            local values, order = { auto = L["Auto"], off = L["Off"] }, { "auto", "off" }
+            for _, b in ipairs(BL.ReminderData.WEAPON_BUFFS) do
+                if (b.imbue == true) == isImbue and (not b.class or b.class == myClass()) then
+                    local name = b.name or (b.spells and C_Spell and BL.Plain(C_Spell.GetSpellName(b.spells[1]))) or b.key
+                    values[b.key] = name
+                    order[#order + 1] = b.key
+                end
+            end
+            return values, order
+        end,
+        get = function() return DaylightUI:Get(BL.MODULE, path()) or "auto" end,
+        set = function(v) DaylightUI:Set(BL.MODULE, path(), v ~= "auto" and v or nil) end,
+        default = function() return "auto" end,
+        desc = "Auto uses the first you have, in the usual order. Off never reminds for this hand." })
+end
+
+local function rankRow(key, label, desc, disabled)
+    return rem({ type = "dropdown", label = label, disabled = disabled,
+        values = { high = "Highest owned", low = "Lowest owned" }, order = { "high", "low" },
+        get = function() return DaylightUI:Get(BL.MODULE, R .. key) == true and "low" or "high" end,
+        set = function(v) DaylightUI:Set(BL.MODULE, R .. key, v == "low") end,
+        default = function() return "high" end, desc = desc })
+end
+
+local function hasImbue() return BL.ReminderSelf and BL.ReminderSelf.HasImbue(myClass()) end
+local function canDual() return type(CanDualWield) == "function" and BL.Plain(CanDualWield()) == true end
+
+-- Missing buffs: the switch, cursor, tooltips, picker, preview.
+local function reminderCore()
     return {
-        { type = "toggle", key = "settings.reminder.enabled", label = "Show missing buffs", search = SEARCH,
-          desc = "A row above you shows the buffs you're missing: raid buffs (click yours to cast it), your class's own buff and weapon oils, poisons or imbues. Hidden while resting, dead or traveling, and solo." },
-        kind("solo", "Missing buffs when solo",
-             "Your own buff, weapons and consumables show when you play alone too. When off, the row only shows in a group."),
-        kind("give", "Raid buffs you give",
-             "Fortitude, Arcane Intellect, Mark of the Wild, Battle Shout and the like that you can cast, with how many in your group have it. Click the icon to cast it on the first one missing it, out of a fight."),
-        kind("get", "Raid buffs from others",
-             "The raid buffs you lack whose giver is in your group, and a blessing per paladin by your class. These can't be clicked.", "Blessing"),
-        kind("self", "Your class's own buff",
-             "Inner Fire, Demon Armor, Lightning Shield, a mage armor, a paladin aura or a hunter aspect. Click the icon to cast the one you used last.", "Armor Aura Aspect"),
-        kind("weapons", "Weapon oils, poisons and imbues",
-             "A weapon with nothing on it, when you carry an oil, a stone or a poison (or a shaman knows an imbue). Click the icon to put it on.", "Stone Imbue"),
-        kind("food", "Food buff",
-             "Shows while you don't have Well Fed or another food buff.", "Well Fed"),
-        kind("scrolls", "Scrolls",
-             "A scroll you carry whose buff you don't have. A raid buff of the same stat replaces it, so none is asked for then."),
-        kind("camp", "Camp Benefits",
-             "Shows while you don't have the buff from a camp.", "Campfire"),
-        kind("sleepingBag", "Sleeping bag",
-             "Below max level with a Cozy Sleeping Bag in your bags, while you have under 3 stacks of its rested buff.", "Rested"),
-        { type = "slider", key = "settings.reminder.lowMinutes", label = "Running low, in minutes", min = 0, max = 10, step = 1,
-          disabled = on, search = SEARCH,
-          desc = "A buff with less time left than this shows again, its time counting down on the icon. At 0 only a missing buff shows." },
-        { type = "slider", key = "settings.reminder.fightAlpha", label = "Raid buffs opacity in a fight", min = 0, max = 1, step = 0.05, unit = "%",
-          disabled = on, search = SEARCH,
-          desc = "In a fight the row holds still: raid buffs dim to this, and the rest fade away until it ends. At 0 raid buffs fade away too." },
-        { type = "slider", key = "settings.reminder.size", label = "Missing buffs icon size", min = 24, max = 64, step = 1, unit = "px",
-          disabled = on, search = SEARCH,
-          desc = "How big each icon in the row is." },
-        { type = "slider", key = "settings.reminder.gap", label = "Missing buffs spacing", min = 4, max = 48, step = 1, unit = "px",
-          disabled = on, search = SEARCH,
-          desc = "The space between two icons in the row." },
-        { type = "toggle", key = "settings.reminder.names", label = "Missing buffs names", disabled = on, search = SEARCH,
-          desc = "Each buff's name under its icon. When off, hover an icon to see it." },
-        { type = "button", label = "Preview the missing buffs", text = function()
+        { type = "toggle", key = R .. "enabled", label = "Show missing buffs", search = RSEARCH,
+          desc = "A row above you shows the buffs you're missing: raid buffs, your own buffs and consumables. Left-click casts out of a fight, middle-click hides one until the next loading screen." },
+        rToggle("cursor", "Raid buffs at the cursor",
+            "The raid buffs you can give follow your mouse instead of sitting in the row. They can't be clicked there."),
+        rToggle("cursorCombat", "Only at the cursor in a fight",
+            "Out of a fight your raid buffs stay in the row, where they can be clicked.",
+            { disabled = function(get) return get(R .. "cursor") ~= true end }),
+        rToggle("tooltips", "Missing buffs tooltips",
+            "Hovering an icon shows the spell or item and who is missing it. When off, nothing shows on hover."),
+        rToggle("picker", "Right-click to choose",
+            "Right-click a spell group, a class buff, Well Fed or a scroll to choose what the icon uses. Scroll over a spell to choose its rank."),
+        rem({ type = "button", label = "Preview the missing buffs", text = function()
               return BL.Reminder and BL.Reminder.sample and "Hide" or "Preview"
           end,
           desc = "Shows a sample row where it sits: a raid buff you give, one from others, your own buff and a weapon oil.",
-          disabled = on, search = SEARCH,
           func = function()
-              local R = BL.Reminder
-              if R then R.ShowSample(not R.sample) end
-          end },
+              local Rm = BL.Reminder
+              if Rm then Rm.ShowSample(not Rm.sample) end
+          end }),
+    }
+end
+
+-- Missing buffs look: his Display rows on Daylight UI's pieces.
+local function reminderLook()
+    local glowValues, glowOrder = { none = "None" }, { "none" }
+    for _, k in ipairs(DUI.Motion.GLOW_STYLE_ORDER) do glowValues[k] = DUI.Motion.GLOW_STYLES[k]; glowOrder[#glowOrder + 1] = k end
+    local function cropped(get) return get(R .. "shape") ~= "cropped" end
+    local function noNames(get) return get(R .. "names") == false end
+    local function noCount(get) return get(R .. "count") == false end
+    local function noBorder(get) return get(R .. "border") == "none" end
+    local nameFont = DUI.Options.FontRow(R .. "nameFont", "Missing buffs name font", "The font of each icon's name", noNames)
+    local countFont = DUI.Options.FontRow(R .. "countFont", "Missing buffs count font", "The font of the count in each icon's corner", noCount)
+    rem(nameFont); rem(countFont)
+    return {
+        rSlider("size", "Missing buffs icon size", 20, 120, 1, "How big each icon in the row is.", { unit = "px" }),
+        rDrop("shape", "Missing buffs icon shape",
+            { none = "Square", cropped = "Cropped", circle = "Circle", diamond = "Diamond", hexagon = "Hexagon",
+              octagon = "Octagon", shield = "Shield" },
+            { "none", "cropped", "circle", "diamond", "hexagon", "octagon", "shield" },
+            "Cropped trims each icon's top and bottom so it's wider than tall. The other shapes are the action bars' button shapes."),
+        rSlider("zoom", "Missing buffs icon zoom", 0, 15, 0.5, "How far the icon's art is zoomed in, trimming its edges."),
+        rSlider("crop", "Missing buffs crop", 5, 25, 1,
+            "How much is trimmed from each icon's top and bottom, per side, when the shape is Cropped.",
+            { unit = nil, hidden = cropped }),
+        rDrop("grow", "Missing buffs grow direction", { CENTER = "Centered", LEFT = "Grow left", RIGHT = "Grow right" },
+            { "CENTER", "LEFT", "RIGHT" }, "Which part of the row stays in place as icons come and go."),
+        rDrop("strata", "Missing buffs frame strata",
+            { BACKGROUND = "Background", LOW = "Low", MEDIUM = "Medium", HIGH = "High", DIALOG = "Dialog" },
+            { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG" }, "Which layer of the screen the row and its click buttons sit in."),
+        rSlider("gap", "Missing buffs spacing", 0, 50, 1, "The space between two icons in the row.", { unit = "px" }),
+        rDrop("border", "Missing buffs border style", { daylight = "Daylight", flat = "Flat", none = "None" },
+            { "daylight", "flat", "none" }, "The edge round each icon: Daylight UI's shell, a flat line, or none."),
+        rSlider("borderPx", "Missing buffs border size", 0, 6, 1, "How thick the edge round each icon is.", { unit = "px", disabled = noBorder }),
+        rColor("borderColor", "Missing buffs border color", "The color of the edge round each icon.", { disabled = noBorder }),
+        rSlider("borderShiftX", "Missing buffs border shift X", -10, 10, 1, "Moves the edge left or right of the icon.", { disabled = noBorder }),
+        rSlider("borderShiftY", "Missing buffs border shift Y", -10, 10, 1, "Moves the edge up or down from the icon.", { disabled = noBorder }),
+        rToggle("borderBehind", "Missing buffs border behind the icon",
+            "Draws the edge under the icon instead of over it, with its background.", { disabled = noBorder }),
+        rToggle("names", "Missing buffs names", "Each buff's short name by its icon. When off, hover an icon to see it."),
+        nameFont,
+        rSlider("nameSize", "Missing buffs name size", 6, 30, 1, "Text size of each icon's name.", { disabled = noNames }),
+        rDrop("nameAnchor", "Missing buffs name position",
+            { BOTTOM = "Below the icon", TOP = "Above the icon", CENTER = "On the icon", LEFT = "Left of the icon", RIGHT = "Right of the icon" },
+            { "BOTTOM", "TOP", "CENTER", "LEFT", "RIGHT" }, "Where each icon's name sits.", { disabled = noNames }),
+        rSlider("nameX", "Missing buffs name X", -50, 50, 1, "Moves the names left or right.", { disabled = noNames }),
+        rSlider("nameY", "Missing buffs name Y", -50, 50, 1, "Moves the names up or down.", { disabled = noNames }),
+        rColor("nameColor", "Missing buffs name color", "The color of each icon's name.", { disabled = noNames }),
+        rToggle("count", "Item count", "How many of the item you carry, in the icon's corner. Red 0 when you have none. A raid buff's count of who has it always shows."),
+        countFont,
+        rSlider("countSize", "Missing buffs count size", 6, 30, 1, "Text size of the count in each icon's corner.", { disabled = noCount }),
+        rSlider("countX", "Missing buffs count X", -50, 50, 1, "Moves the counts left or right.", { disabled = noCount }),
+        rSlider("countY", "Missing buffs count Y", -50, 50, 1, "Moves the counts up or down.", { disabled = noCount }),
+        rDrop("glow", "Missing buffs glow", glowValues, glowOrder,
+            "A light that runs round every icon while it shows. None: an icon you can click glows a few times as it appears."),
+        rDrop("glowColor", "Missing buffs glow color", { accent = "Accent color", class = "Class color", custom = "One color" },
+            { "accent", "class", "custom" }, "The color of the glow.", { disabled = function(get) return get(R .. "glow") == "none" end }),
+        rColor("glowCustom", "Custom missing buffs glow color", "The glow's color when Missing buffs glow color is One color.",
+            { hidden = function(get) return get(R .. "glowColor") ~= "custom" end }),
+        rSlider("opacity", "Missing buffs opacity", 0, 1, 0.05, "How see-through the whole row is.", { unit = "%" }),
+        rSlider("fightAlpha", "Raid buffs opacity in a fight", 0, 1, 0.05,
+            "In a fight raid buff icons dim to this and the rest fade away until it ends.", { unit = "%" }),
+    }
+end
+
+local RAID_NAMES = { fortitude = "Power Word: Fortitude", wild = "Mark of the Wild", intellect = "Arcane Intellect",
+                     spirit = "Divine Spirit", shout = "Battle Shout" }
+
+local function reminderRaid()
+    local rows = {
+        whereRow("raid", "Raid buffs: where to show", true),
+        rToggle("raid.others", "Others are missing my buff",
+            "A raid buff you can give shows while someone in your group lacks it, with how many have it. When off, it shows only while you lack it."),
+        rToggle("raid.mine", "I'm missing others' buffs",
+            "The raid buffs someone in your group could give you and you lack. They can't be clicked."),
+        soundRow("raid", "Raid buffs sound"),
+    }
+    for _, key in ipairs({ "fortitude", "wild", "intellect", "spirit", "shout" }) do
+        rows[#rows + 1] = rToggle("raid.on." .. key, RAID_NAMES[key], "Reminds of this raid buff. When off, it never shows.", { search = "Raid buffs" })
+    end
+    rows[#rows + 1] = rToggle("raid.blessings", "Blessings", "A paladin's blessings you lack, one per paladin in your group.", { search = "Raid buffs" })
+    rows[#rows + 1] = rToggle("raid.shadow", "Shadow Protection", "Asked for only once someone in your group already wears it.", { search = "Raid buffs" })
+    return rows
+end
+
+-- Self buffs: a class's buffs as a menu of switches, the rest by class.
+local function classBuffMenu()
+    local function list() return BL.ReminderData.CLASS_BUFFS[myClass()] or {} end
+    local function name(b)
+        if b.menu then return b.menu end
+        local line = b.lines[#b.lines]
+        return (C_Spell and BL.Plain(C_Spell.GetSpellName(line[1]))) or b.key
+    end
+    return switchMenu("Class buffs", "Reminds you when one of your class's own buffs is missing. Click the icon to cast it.",
+        function()
+            local k = {}
+            for _, b in ipairs(list()) do k[#k + 1] = b.key end
+            if myClass() == "HUNTER" then k[#k + 1] = "huntertracking" end
+            return k
+        end,
+        function()
+            local v = { huntertracking = L["Target tracking"] }
+            for _, b in ipairs(list()) do v[b.key] = name(b) end
+            return v
+        end,
+        function(key)
+            if key == "huntertracking" then return DaylightUI:Get(BL.MODULE, R .. "self.hunterTracking") == true end
+            for _, b in ipairs(list()) do if b.key == key then return BL.ReminderSelf.ClassBuffOn(b) end end
+            return false
+        end,
+        function(key)
+            if key == "huntertracking" then
+                DaylightUI:Set(BL.MODULE, R .. "self.hunterTracking", DaylightUI:Get(BL.MODULE, R .. "self.hunterTracking") ~= true)
+                return
+            end
+            for _, b in ipairs(list()) do
+                if b.key == key then DaylightUI:Set(BL.MODULE, R .. "self.picks." .. key, not BL.ReminderSelf.ClassBuffOn(b)) end
+            end
+        end,
+        function()
+            local n = 0
+            for _, b in ipairs(list()) do if BL.ReminderSelf.ClassBuffOn(b) then n = n + 1 end end
+            return string.format(L["%d on"], n)
+        end,
+        function() return myClass() == "MAGE" or #list() == 0 and myClass() ~= "HUNTER" end)
+end
+
+-- Typed-in spells: a box to add one, then a line per spell with its class
+-- menu and Remove.
+local CLASSES = { "WARRIOR", "PALADIN", "HUNTER", "ROGUE", "PRIEST", "SHAMAN", "MAGE", "WARLOCK", "DRUID" }
+local LINE_H = 28
+local customList = { type = "custom", label = "Custom spells",
+    build = function(row)
+        local W = UI()
+        row.input = W.Input(row, { numeric = true, hint = L["Spell ID"], onChange = function(text) row.typed = text end })
+        row.input:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -4)
+        row.input:SetWidth(140)
+        local function add()
+            if BL.ReminderSelf.AddCustom(row.typed) then row.input:SetText(""); refreshPanel() end
+        end
+        row.input:HookScript("OnEnterPressed", add)
+        row.add = W.Button(row, L["Add"], 24)
+        row.add:SetPoint("LEFT", row.input, "RIGHT", 8, 0)
+        row.add:SetScript("OnClick", add)
+        row.lines = {}
+    end,
+    update = function(row)
+        local W = UI()
+        local custom = DaylightUI:Get(BL.MODULE, R .. "self.custom") or {}
+        local ids = custom.ids or {}
+        for i, id in ipairs(ids) do
+            local line = row.lines[i]
+            if not line then
+                line = CreateFrame("Frame", nil, row)
+                line:SetHeight(LINE_H)
+                line.text = DUI.Style.Text(line, DUI.Style.SIZE.body, "LEFT")
+                line.text:SetPoint("LEFT", line, "LEFT", 0, 0)
+                line.del = W.DeleteButton(line)
+                line.del:SetPoint("RIGHT", line, "RIGHT", 0, 0)
+                line.classes = W.MenuButton(line, L["Classes"], 22)
+                line.classes:SetPoint("RIGHT", line.del, "LEFT", -6, 0)
+                row.lines[i] = line
+            end
+            line:ClearAllPoints()
+            line:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -8 - i * LINE_H)
+            line:SetPoint("RIGHT", row, "RIGHT", -W.PAD, 0)
+            local name = C_Spell and BL.Plain(C_Spell.GetSpellName(id)) or tostring(id)
+            line.text:SetText(string.format("%s  %s", name or "", DUI.Win.Parts.Hex(DUI.Style.INK.LABEL) .. id .. "|r"))
+            DUI.Style.InkText(line.text, "TEXT")
+            line.del:SetScript("OnClick", function() BL.ReminderSelf.RemoveCustom(id); refreshPanel() end)
+            line.classes:SetScript("OnClick", function(self)
+                local values = {}
+                for _, c in ipairs(CLASSES) do values[c] = (LOCALIZED_CLASS_NAMES_MALE and LOCALIZED_CLASS_NAMES_MALE[c]) or c end
+                W.OpenMenu(self, CLASSES, values, nil, function(c)
+                    local cl = (DaylightUI:Get(BL.MODULE, R .. "self.custom.classes") or {})[id]
+                    BL.ReminderSelf.SetCustomClass(id, c, type(cl) == "table" and cl[c] == false)
+                end, 180, { keepOpen = true, rows = #CLASSES, checked = function(c)
+                    local cl = (DaylightUI:Get(BL.MODULE, R .. "self.custom.classes") or {})[id]
+                    return not (type(cl) == "table" and cl[c] == false)
+                end })
+            end)
+            line:Show()
+        end
+        for i = #ids + 1, #row.lines do row.lines[i]:Hide() end
+        row.count = #ids
+    end,
+    height = function(row) return 40 + (row.count or 0) * LINE_H end }
+
+-- Spell groups: one card row per group with its spells, add, rename, remove.
+local groupList = { type = "custom", label = "Spell groups",
+    build = function(row)
+        local W = UI()
+        row.new = W.Button(row, L["New spell group"], 24)
+        row.new:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, -4)
+        row.new.FitWidth(120)
+        row.new:SetScript("OnClick", function()
+            W.Prompt(L["Name for the new spell group:"], "", function(text)
+                if BL.ReminderSelf.NewGroup(text) then refreshPanel() end
+            end)
+        end)
+        row.blocks = {}
+    end,
+    update = function(row)
+        local W = UI()
+        local groups = DaylightUI:Get(BL.MODULE, R .. "self.groups") or {}
+        local y = -36
+        for gi, g in ipairs(groups) do
+            local b = row.blocks[gi]
+            if not b then
+                b = CreateFrame("Frame", nil, row)
+                b.title = DUI.Style.Text(b, DUI.Style.SIZE.small, "LEFT")
+                b.title:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -4)
+                b.input = W.Input(b, { numeric = true, hint = L["Spell ID"], onChange = function(text) b.typed = text end })
+                b.input:SetWidth(120)
+                b.input:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -24)
+                b.input:HookScript("OnEnterPressed", function() if b.addFn then b.addFn() end end)
+                b.add = W.Button(b, L["Add"], 24)
+                b.add:SetPoint("LEFT", b.input, "RIGHT", 8, 0)
+                b.rename = W.Button(b, L["Rename"], 24)
+                b.rename:SetPoint("LEFT", b.add, "RIGHT", 6, 0)
+                b.remove = W.Button(b, L["Remove"], 24)
+                b.remove:SetPoint("LEFT", b.rename, "RIGHT", 6, 0)
+                b.lines = {}
+                row.blocks[gi] = b
+            end
+            b:ClearAllPoints()
+            b:SetPoint("TOPLEFT", row, "TOPLEFT", W.PAD, y)
+            b:SetPoint("RIGHT", row, "RIGHT", -W.PAD, 0)
+            b.title:SetText(string.upper(g.name or ""))
+            DUI.Style.InkText(b.title, "pop")
+            local function add() if BL.ReminderSelf.AddToGroup(gi, b.typed) then b.input:SetText(""); refreshPanel() end end
+            b.add:SetScript("OnClick", add)
+            b.addFn = add
+            b.rename:SetScript("OnClick", function()
+                W.Prompt(L["New name for the group:"], g.name or "", function(text)
+                    if BL.ReminderSelf.RenameGroup(gi, text) then refreshPanel() end
+                end)
+            end)
+            W.Confirm(b.remove, L["Remove"], function() BL.ReminderSelf.RemoveGroup(gi); refreshPanel() end)
+            local ids = g.ids or {}
+            for li, id in ipairs(ids) do
+                local line = b.lines[li]
+                if not line then
+                    line = CreateFrame("Frame", nil, b)
+                    line:SetHeight(LINE_H)
+                    line.text = DUI.Style.Text(line, DUI.Style.SIZE.body, "LEFT")
+                    line.text:SetPoint("LEFT", line, "LEFT", 0, 0)
+                    line.del = W.DeleteButton(line)
+                    line.del:SetPoint("RIGHT", line, "RIGHT", 0, 0)
+                    b.lines[li] = line
+                end
+                line:ClearAllPoints()
+                line:SetPoint("TOPLEFT", b, "TOPLEFT", 0, -54 - (li - 1) * LINE_H)
+                line:SetPoint("RIGHT", b, "RIGHT", 0, 0)
+                local name = C_Spell and BL.Plain(C_Spell.GetSpellName(id)) or ""
+                line.text:SetText(string.format("%s  %s", name or "", DUI.Win.Parts.Hex(DUI.Style.INK.LABEL) .. id .. "|r"))
+                DUI.Style.InkText(line.text, "TEXT")
+                line.del:SetScript("OnClick", function() BL.ReminderSelf.RemoveFromGroup(gi, id); refreshPanel() end)
+                line:Show()
+            end
+            for li = #ids + 1, #b.lines do b.lines[li]:Hide() end
+            local h = 58 + #ids * LINE_H
+            b:SetHeight(h)
+            b:Show()
+            y = y - h - 6
+        end
+        for gi = #groups + 1, #row.blocks do row.blocks[gi]:Hide() end
+        row.total = -y
+    end,
+    height = function(row) return (row.total or 36) + 4 end }
+
+local function reminderSelf()
+    local function notClass(c) return function() return myClass() ~= c end end
+    local function off(key) return function(get) return get(R .. key) ~= true end end
+    return {
+        whereRow("self", "Self buffs: where to show"),
+        soundRow("self", "Self buffs sound"),
+        rToggle("self.mageArmor", "Mage armors",
+            "Reminds you when no Frost Armor, Ice Armor or Mage Armor is up. The icon is the one you last had on; click it to cast it.",
+            { hidden = notClass("MAGE") }),
+        classBuffMenu(),
+        rToggle("self.imbue", myClass() == "ROGUE" and "Poisons" or "Weapon imbues",
+            "Reminds you when a weapon has no poison or imbue. Click the icon to put one on.",
+            { hidden = function() return not hasImbue() end, search = "Poison Imbue" }),
+        handRow("mhImbue", myClass() == "ROGUE" and "Main hand poison" or "Main hand imbue", true,
+            function() return not hasImbue() end, off("self.imbue")),
+        handRow("ohImbue", myClass() == "ROGUE" and "Off hand poison" or "Off hand imbue", true,
+            function() return not hasImbue() or not canDual() end, off("self.imbue")),
+        rankRow("self.lowRank", "Weapon rank to use",
+            "Which of the items you carry a weapon reminder uses: the highest or the lowest rank. Shared with stones and oils."),
+        rToggle("self.hideNoItem", "Hide weapons when none in bags",
+            "A hand set to an item you don't carry shows nothing. When off, it still shows, grayed. A warlock's stone shows its Create spell instead."),
+        rSlider("self.weaponBelow", "Weapons show below, in minutes", 0, 10, 1,
+            "Shows a weapon reminder before a poison, imbue, stone or oil runs out. At 0 only once it has run out."),
+        rToggle("self.sacrifice", C_Spell and BL.Plain(C_Spell.GetSpellName(18788)) or "Demonic Sacrifice",
+            "With the Demonic Sacrifice talent, reminds you when its buff is missing. Click to summon the demon, then again to sacrifice it.",
+            { hidden = notClass("WARLOCK") }),
+        rDrop("self.demon", "Demon to sacrifice",
+            { auto = "Auto", imp = "Imp", voidwalker = "Voidwalker", succubus = "Succubus", felhunter = "Felhunter" },
+            { "auto", "imp", "voidwalker", "succubus", "felhunter" },
+            "Auto: any sacrifice buff counts, and the demon that is out is sacrificed (else the Imp is summoned).",
+            { hidden = notClass("WARLOCK"), disabled = off("self.sacrifice") }),
+        rToggle("self.gather", "Gathering tracking", "Reminds you when no gathering tracking is on. Click to track herbs first, else minerals."),
+        rToggle("self.gatherClassTrack", "Ignore if class tracking is on",
+            "A class's own tracking on the minimap (a hunter's, a paladin's) hides the gathering reminder.", { disabled = off("self.gather") }),
+        rToggle("self.treasure", C_Spell and BL.Plain(C_Spell.GetSpellName(2481)) or "Find Treasure", "Reminds dwarves when Find Treasure is off."),
+        customList,
+        groupList,
+    }
+end
+
+-- Scrolls and elixirs: which stats, per class, as a menu of switches.
+local function statMenu()
+    local function path(key) return R .. "items.stats." .. myClass() .. "." .. key end
+    local function locked(key) return BL.ReminderItems.Locked(key, myClass()) end
+    return switchMenu("Scrolls and elixirs", "Reminds you when a ticked stat has no scroll or elixir buff while you carry one. Click the icon to use it.",
+        function() local k = {} for _, s in ipairs(BL.ReminderData.STATS) do k[#k + 1] = s.key end return k end,
+        function()
+            local v = {}
+            for _, s in ipairs(BL.ReminderData.STATS) do
+                v[s.key] = locked(s.key) and string.format(L["%s (you know its buff)"], s.label) or s.label
+            end
+            return v
+        end,
+        function(key) return not locked(key) and DaylightUI:Get(BL.MODULE, path(key)) == true end,
+        function(key)
+            if locked(key) then return end
+            DaylightUI:Set(BL.MODULE, path(key), DaylightUI:Get(BL.MODULE, path(key)) ~= true)
+        end,
+        function()
+            local n = 0
+            for _, s in ipairs(BL.ReminderData.STATS) do
+                if DaylightUI:Get(BL.MODULE, path(s.key)) == true and not locked(s.key) then n = n + 1 end
+            end
+            return n == 0 and L["None"] or string.format(L["%d on"], n)
+        end)
+end
+
+local function reminderItemsCard()
+    local function off(key) return function(get) return get(R .. key) ~= true end end
+    return {
+        whereRow("items", "Consumables: where to show"),
+        soundRow("items", "Consumables sound"),
+        rToggle("items.camp", "Camp Benefits", "Reminds you when the Camp Benefits campfire buff is missing.", { search = "Campfire" }),
+        rToggle("items.bag", "Sleeping bag",
+            "Reminds you when your Well-Rested buff is missing or under 3 stacks. Only while a Cozy Sleeping Bag is in your bags and you are below max level. Click the icon to use it."),
+        rSlider("items.bagBelow", "Sleeping bag show below, in minutes", 0, 10, 1,
+            "Also reminds you this many minutes before Well-Rested runs out. At 0, never early.", { disabled = off("items.bag") }),
+        rToggle("items.bagTimer", "Sleep timer", "Counts down to three Well-Rested stacks while you sleep in the bag.", { disabled = off("items.bag") }),
+        rToggle("items.wellFed", "Well Fed", "Reminds you when you have no Well Fed buff. Click the icon to eat.", { search = "Food" }),
+        rSlider("items.wellFedBelow", "Well Fed show below, in minutes", 0, 10, 1,
+            "Also reminds you this many minutes before Well Fed runs out. At 0, never early.", { disabled = off("items.wellFed") }),
+        rToggle("items.censer", "Arcane Censer",
+            "Reminds you in dungeons when Magical Awareness is missing, while an Arcane Censer is in your bags. Click the icon to use it."),
+        statMenu(),
+        rToggle("items.separate", "Scrolls and elixirs separately", "One icon for each ticked stat instead of one for the first."),
+        rToggle("items.stronger", "Show stronger buffs",
+            "Suggests a scroll or elixir from your bags when it gives more of its stat than the buff you have."),
+        rankRow("items.statLowRank", "Scrolls and elixirs rank to use",
+            "The highest or the lowest scroll or elixir you carry for each stat. A choice made by right-clicking wins."),
+        rSlider("items.statBelow", "Scrolls and elixirs show below, in minutes", 0, 10, 1,
+            "Shows a countdown before a scroll or elixir buff runs out. At 0 only once it has run out."),
+        rToggle("items.oil", "Weapon stones and oils", "Reminds you when a weapon has no stone or oil. Click the icon to put one on from your bags.",
+            { search = "Sharpening Weightstone Wizard Oil" }),
+        handRow("mhTemp", "Main hand stone or oil", false, nil, off("items.oil")),
+        handRow("ohTemp", "Off hand stone or oil", false, function() return not canDual() end, off("items.oil")),
     }
 end
 
@@ -501,7 +961,11 @@ BL.OPTIONS = { pages = {
         { label = "Text", desc = TEXT_DESC, items = TEXT_ITEMS },
         { label = "Missing buffs",
           desc = "A row of icons above you shows the buffs you're missing. Middle-click one to hide it until the next loading screen. Move the row in unlock mode.",
-          items = reminderItems() },
+          items = reminderCore() },
+        { label = "Missing buffs look", desc = "How the row of missing buffs looks.", items = reminderLook() },
+        { label = "Raid buffs", desc = "The raid buffs you give, and the ones others give that you lack.", items = reminderRaid() },
+        { label = "Self buffs", desc = "Your class's own buffs, weapon poisons and imbues, tracking and spells you add. Out of a fight only.", items = reminderSelf() },
+        { label = "Consumables", desc = "Food, scrolls and elixirs, the sleeping bag, the Arcane Censer, stones and oils. Out of a fight only.", items = reminderItemsCard() },
         { label = "Combine into one icon", desc = "Categories set to Combine show as one icon; hover it to see them all.", items = {
             { type = "toggle", key = "settings.consolidateOnlyGroup", label = "Combine only in a group",
               desc = "Needs a category set to Combine (Categories page).", disabled = noneCombine },

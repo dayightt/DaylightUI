@@ -15,7 +15,7 @@ DUI:RegisterModule(BL.MODULE, {
     -- module with one line in chat instead of erroring.
     ns = BL,
     parts = { "Categories", "Data", "Classify", "Auras", "Spells", "Layout", "Scan", "Preview", "Widgets",
-               "Bar", "Feel", "DebuffBar", "Private", "ReminderData", "ReminderRow", "Reminder", "EdgeEditor" },
+               "Bar", "Feel", "DebuffBar", "Private", "ReminderData", "ReminderRow", "Reminder", "ReminderSelf", "ReminderItems", "EdgeEditor" },
     label = "Buffs & Debuffs",
     order = 130,
     defaults = BL.DEFAULTS,

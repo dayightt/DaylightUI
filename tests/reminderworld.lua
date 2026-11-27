@@ -21,16 +21,23 @@ RW.NAMES = {
     light = { "Blessing of Light", "Greater Blessing of Light" },
     sanctuary = { "Blessing of Sanctuary", "Greater Blessing of Sanctuary" },
 }
-RW.SELF_NAMES = {
-    aspect = { "Aspect of the Hawk", "Aspect of the Monkey", "Aspect of the Cheetah", "Aspect of the Pack",
-               "Aspect of the Wild", "Aspect of the Beast", "Aspect of the Viper", "Aspect of the Dragonhawk" },
-    aura = { "Devotion Aura", "Retribution Aura", "Concentration Aura", "Shadow Resistance Aura",
-             "Frost Resistance Aura", "Fire Resistance Aura" },
+RW.CLASS_NAMES = {
+    thorns = { "Thorns" },
+    aspect = { "Aspect of the Viper", "Aspect of the Dragonhawk", "Aspect of the Pack", "Aspect of the Cheetah",
+               "Aspect of the Monkey", "Aspect of the Beast", "Aspect of the Wild", "Aspect of the Hawk" },
+    trueshot = { "Trueshot Aura" },
+    blessing = { "Blessing of Wisdom", "Blessing of Kings", "Blessing of Might" },
+    paladinaura = { "Fire Resistance Aura", "Frost Resistance Aura", "Shadow Resistance Aura", "Concentration Aura",
+                    "Retribution Aura", "Devotion Aura" },
+    rfury = { "Righteous Fury" },
     innerfire = { "Inner Fire" },
+    shadowform = { "Shadowform" },
     shield = { "Lightning Shield", "Water Shield" },
     demonarmor = { "Demon Armor" },
-    armor = { "Frost Armor", "Ice Armor", "Mage Armor" },
 }
+RW.ARMOR_NAMES = { "Frost Armor", "Ice Armor", "Mage Armor" }
+RW.TRACK_NAMES = { "Track Beasts", "Track Dragonkin", "Track Demons", "Track Elementals", "Track Giants",
+                   "Track Undead", "Track Humanoids" }
 RW.IMBUE_NAMES = { rockbiter = "Rockbiter Weapon", windfury = "Windfury Weapon",
                    flametongue = "Flametongue Weapon", frostbrand = "Frostbrand Weapon" }
 
@@ -42,13 +49,21 @@ function RW.Names(BL)
         name(fam.single, n[1])
         if fam.group then name(fam.group, n[2] or n[1]) end
     end
-    for _, list in pairs(D.SELF) do
+    for _, list in pairs(D.CLASS_BUFFS) do
         for _, buff in ipairs(list) do
-            for i, line in ipairs(buff.lines) do name(line, RW.SELF_NAMES[buff.key][i] or buff.key) end
+            for i, line in ipairs(buff.lines) do name(line, RW.CLASS_NAMES[buff.key][i] or buff.key) end
+            for i, line in ipairs(buff.also or {}) do name(line, "Greater " .. RW.CLASS_NAMES[buff.key][i]) end
         end
     end
-    for _, imbue in ipairs(D.IMBUES) do name(imbue.ids, RW.IMBUE_NAMES[imbue.key]) end
-    name(D.FOOD, "Well Fed")
+    for i, line in ipairs(D.MAGE_ARMORS) do name(line, RW.ARMOR_NAMES[i]) end
+    for i, id in ipairs(D.TRACKING) do name({ id }, RW.TRACK_NAMES[i]) end
+    for _, b in ipairs(D.WEAPON_BUFFS) do
+        if b.spells then name(b.spells, RW.IMBUE_NAMES[b.key]) end
+        if b.create then name(b.create, "Create " .. b.name) end
+    end
+    name({ D.WELL_FED }, "Well Fed")
+    name({ D.CENSER.buff }, "Magical Awareness")
+    name({ D.SLEEPING_BAG.sleeping }, "Sleeping")
     name({ D.CAMP }, "Camp Benefits")
     name({ D.SLEEPING_BAG.buff }, "Well Rested")
 end
@@ -83,8 +98,18 @@ function RW.Login(units, opts)
         if opts.before then opts.before() end
     end })
     for id in pairs(stub.knownSpells) do stub.knownSpells[id] = nil end
+    -- Auras one test made never secret don't carry into the next.
+    stub.neverSecretAuras = {}
     for _, id in ipairs(opts.known or {}) do stub.knownSpells[id] = true end
     RW.Names(stub.buffs)
+    -- A normal dungeon unless the test says where: raid buffs are left out of
+    -- the open world by default.
+    if opts.where ~= "world" then
+        stub.SetInstance(opts.where or "party")
+        stub.difficulty = opts.difficulty or 1
+    end
+    -- "I'm missing others' buffs" is off by default; most tests want both views.
+    if opts.mine ~= false then DaylightUI:Set("Buffs", "settings.reminder.raid.mine", true) end
     stub.SetGroup(units.party1 ~= nil or units.raid1 ~= nil, false)
     stub.RunTimers()
     return stub.buffs

@@ -1,29 +1,29 @@
 local stub = require("stub")
 
--- Missing buffs in a fight (DaylightUI_Buffs/Reminder.lua, ReminderRow.lua): at
--- the pull nothing moves (a secure button can't), raid buffs dim, the rest fade,
--- your own raid buff stays clickable, and nothing is read until it ends.
+-- Missing buffs in a fight (DaylightUI_Buffs/Reminder.lua, ReminderRow.lua), as
+-- EllesmereUI does it: raid buffs are still read when the client says every
+-- rank is plain, your own raid buff's button stays clickable, the rest fade
+-- where they stand, and nothing moves under a secure button.
 
 local RW = require("reminderworld")
 local login, settle = RW.Login, RW.Settle
 
 -- A priest giving Fortitude, a mage and a paladin here (Intellect, Wisdom from
--- others), Inner Fire missing, Wizard Oil carried.
+-- others), Inner Fire missing, Camp Benefits switched on and missing.
 local function world()
     local BL = login({
         player = { name = "Me", class = "PRIEST" },
         party1 = { name = "Mag", class = "MAGE" },
         party2 = { name = "Pal", class = "PALADIN" },
     }, { known = { 1243, 588 }, bags = true })
-    stub.equipped[16] = { id = 1000, class = 2, subClass = 10 }
-    stub.bagItems[20750] = 3
+    DaylightUI:Set("Buffs", "settings.reminder.items.camp", true)
     BL.Reminder.Refresh()
     settle()
     return BL
 end
 
 local function tileOf(BL, key)
-    for _, t in ipairs(BL.ReminderRow.active) do if t.key == key then return t end end
+    for _, t in ipairs(BL.ReminderRow.active) do if t.key == key and t:IsShown() then return t end end
 end
 
 local function buttonOf(BL, key)
@@ -37,28 +37,40 @@ local function point(f)
     return table.concat({ tostring(p), tostring(rel), tostring(rp), tostring(x), tostring(y) }, " ")
 end
 
+local function fortitude(units)
+    for _, u in ipairs(units) do
+        stub.SetAuras(u, "HELPFUL", { { name = "Power Word: Fortitude", spellId = 1243 } })
+    end
+end
+
+-- Every Fortitude rank never secret, as the client may say for a raid buff.
+local function plainFortitude(BL)
+    for _, id in ipairs(BL.ReminderData.byKey.fortitude.ids) do stub.neverSecretAuras[id] = true end
+end
+
 T.test("buffs reminder fight: the pull: raid tiles go to 0.5, the rest fade out, the spots don't move", function()
     local BL = world()
     local keys = {}
     for _, t in ipairs(BL.ReminderRow.active) do keys[#keys + 1] = t.key end
-    T.deq(keys, { "fortitude", "intellect", "wisdom", "innerfire", "weapon:main" })
+    T.deq(keys, { "fortitude", "intellect", "wisdom", "innerfire", "camp" })
     local spots = {}
     for _, t in ipairs(BL.ReminderRow.active) do spots[t.key] = point(t) end
     stub.EnterCombat()
-    settle()
+    stub.RunTimers(); settle()
     for _, key in ipairs({ "fortitude", "intellect", "wisdom" }) do
         local t = tileOf(BL, key)
+        T.truthy(t, key .. " held (can't be read in the fight)")
         T.near(t:GetAlpha(), 0.5, 0.01, key .. " dims")
         T.eq(point(t), spots[key], key .. " holds its spot")
     end
-    T.falsy(tileOf(BL, "innerfire"):IsShown(), "your own buff fades away")
-    T.falsy(tileOf(BL, "weapon:main"):IsShown(), "the oil fades away")
+    T.falsy(tileOf(BL, "innerfire"), "your own buff fades away")
+    T.falsy(tileOf(BL, "camp"), "the camp fades away")
     stub.LeaveCombat()
 end)
 
-T.test("buffs reminder fight: the pull: your Fortitude button keeps its spell and spot; the oil's macro does nothing in a fight", function()
+T.test("buffs reminder fight: the pull: your Fortitude button keeps its spell and spot; Inner Fire's goes see-through", function()
     local BL = world()
-    local fort, oil = buttonOf(BL, "fortitude"), buttonOf(BL, "weapon:main")
+    local fort, inner = buttonOf(BL, "fortitude"), buttonOf(BL, "innerfire")
     local spot = point(fort)
     stub.secure = true
     stub.EnterCombat()
@@ -67,24 +79,20 @@ T.test("buffs reminder fight: the pull: your Fortitude button keeps its spell an
     T.eq(fort:GetAttribute("spell1"), 1243)
     T.truthy(fort:IsShown()); T.eq(fort:GetAlpha(), 1, "still there to click")
     T.eq(point(fort), spot)
-    T.truthy(oil:GetAttribute("macrotext1"):find("[nocombat]", 1, true))
-    T.eq(oil:GetAlpha(), 0, "see-through, since it can't hide in a fight")
+    T.truthy(inner:GetAttribute("macrotext1"):find("[nocombat", 1, true))
+    T.eq(inner:GetAlpha(), 0, "see-through, since it can't hide in a fight")
     stub.LeaveCombat()
     stub.secure = false
 end)
 
-T.test("buffs reminder fight: nothing is read; UNIT_AURA and GROUP_ROSTER_UPDATE wait", function()
+T.test("buffs reminder fight: an unreadable raid buff isn't read in a fight; the row holds; one refresh after", function()
     local BL = world()
     local reads = 0
     local U = C_UnitAuras
     local get = U.GetAuraDataBySpellName
     U.GetAuraDataBySpellName = function(...) reads = reads + 1; return get(...) end
-    local sets = 0
-    local set = BL.ReminderRow.Set
-    BL.ReminderRow.Set = function(...) sets = sets + 1; return set(...) end
     stub.secure = true
     stub.EnterCombat()
-    -- The roster changes in the fight: a druid joins.
     stub.units.party3 = { name = "Dru", class = "DRUID", isPlayer = true }
     T.noerror(function()
         stub.FireEvent("GROUP_ROSTER_UPDATE")
@@ -92,16 +100,108 @@ T.test("buffs reminder fight: nothing is read; UNIT_AURA and GROUP_ROSTER_UPDATE
         stub.FireEvent("UNIT_AURA", "party1")
         stub.RunTimers()
     end, "no protected call")
-    T.eq(reads, 0, "nothing read")
-    T.eq(sets, 0, "the row holds")
+    T.eq(reads, 0, "secret in the fight: nothing read")
+    T.truthy(tileOf(BL, "fortitude"), "held")
     stub.LeaveCombat()
     stub.secure = false
     stub.RunTimers()
-    T.eq(sets, 1, "one refresh after the fight")
     T.truthy(reads > 0)
     T.truthy(tileOf(BL, "wild"), "the druid's Mark shows now")
     U.GetAuraDataBySpellName = get
-    BL.ReminderRow.Set = set
+end)
+
+-- Worst case 1: Fortitude missing on one at the pull, the button bound to it.
+-- A dead priest's Fortitude comes back missing on two after a combat res.
+T.test("buffs reminder fight: a combat res mid-fight: Fortitude missing on two shows in the fight, the provider button casts it", function()
+    local units = {
+        player = { name = "Me", class = "PRIEST" },
+        party1 = { name = "War", class = "WARRIOR" },
+        party2 = { name = "Rog", class = "ROGUE" },
+    }
+    local BL = login(units, { known = { 1243 } })
+    plainFortitude(BL)
+    fortitude({ "player", "party1" })
+    BL.Reminder.Refresh(); settle()
+    local t = tileOf(BL, "fortitude")
+    T.eq(t.count:GetText(), "2/3")
+    local b = buttonOf(BL, "fortitude")
+    stub.secure = true
+    stub.EnterCombat()
+    -- party1 died and was brought back: no Fortitude.
+    stub.SetAuras("party1", "HELPFUL", {})
+    stub.FireEvent("UNIT_AURA", "party1")
+    stub.RunTimers(); settle()
+    t = tileOf(BL, "fortitude")
+    T.truthy(t, "shown in the fight")
+    T.eq(t.count:GetText(), "1/3", "read again in the fight")
+    T.eq(b:GetAlpha(), 1)
+    T.eq(b:GetAttribute("spell1"), 1243, "the button still casts it")
+    local cast = {}
+    stub.CastSpell = function(id) cast[#cast + 1] = id end
+    stub.SecureClick(b, "LeftButton", false)
+    stub.CastSpell = nil
+    T.deq(cast, { 1243 })
+    stub.LeaveCombat(); stub.secure = false
+end)
+
+T.test("buffs reminder fight: all buffed at the pull, missing after: a plain icon that says it can't be clicked", function()
+    local units = {
+        player = { name = "Me", class = "PRIEST" },
+        party1 = { name = "War", class = "WARRIOR" },
+    }
+    local BL = login(units, { known = { 1243 } })
+    plainFortitude(BL)
+    fortitude({ "player", "party1" })
+    BL.Reminder.Refresh(); settle()
+    T.falsy(tileOf(BL, "fortitude"))
+    stub.secure = true
+    stub.EnterCombat()
+    stub.SetAuras("party1", "HELPFUL", {})
+    stub.FireEvent("UNIT_AURA", "party1")
+    stub.RunTimers(); settle()
+    local t = tileOf(BL, "fortitude")
+    T.truthy(t, "shown in the fight")
+    T.falsy(buttonOf(BL, "fortitude"), "no button made in a fight")
+    local said = {}
+    _G.UIErrorsFrame = CreateFrame("Frame", "UIErrorsFrame", UIParent)
+    UIErrorsFrame.AddMessage = function(_, text) said[#said + 1] = text end
+    t:GetScript("OnMouseUp")(t, "LeftButton")
+    t:GetScript("OnMouseUp")(t, "LeftButton")
+    T.deq(said, { "Click-to-use is disabled in combat" }, "said once, not every click")
+    stub.LeaveCombat(); stub.secure = false
+end)
+
+T.test("buffs reminder fight: in combat unticked: no raid icon in a fight", function()
+    local units = { player = { name = "Me", class = "PRIEST" }, party1 = { name = "War", class = "WARRIOR" } }
+    local BL = login(units, { known = { 1243 } })
+    plainFortitude(BL)
+    DaylightUI:Set("Buffs", "settings.reminder.raid.where.in_combat", false)
+    BL.Reminder.Refresh(); settle()
+    T.truthy(tileOf(BL, "fortitude"), "out of combat: shown")
+    stub.EnterCombat()
+    stub.FireEvent("UNIT_AURA", "party1")
+    stub.RunTimers(); settle()
+    T.falsy(tileOf(BL, "fortitude"), "in a fight: gone")
+    stub.LeaveCombat()
+end)
+
+T.test("buffs reminder fight: a second buff of yours (Fortitude and Spirit) gets its own icon out of combat; in a fight only the bound one", function()
+    local units = { player = { name = "Me", class = "PRIEST" }, party1 = { name = "Mag", class = "MAGE" } }
+    local BL = login(units, { known = { 1243, 14752 } })
+    plainFortitude(BL)
+    for _, id in ipairs(BL.ReminderData.byKey.spirit.ids) do stub.neverSecretAuras[id] = true end
+    BL.Reminder.Refresh(); settle()
+    T.truthy(buttonOf(BL, "fortitude")); T.truthy(buttonOf(BL, "spirit"), "its own icon and cast")
+    T.eq(buttonOf(BL, "spirit"):GetAttribute("spell1"), 14752)
+    local spirit = buttonOf(BL, "spirit")
+    stub.secure = true
+    stub.EnterCombat()
+    stub.FireEvent("UNIT_AURA", "party1")
+    stub.RunTimers(); settle()
+    T.truthy(tileOf(BL, "fortitude"), "the bound one")
+    T.falsy(tileOf(BL, "spirit"), "not the second")
+    T.eq(spirit:GetAlpha(), 0, "its button see-through")
+    stub.LeaveCombat(); stub.secure = false
 end)
 
 T.test("buffs reminder fight: after the fight the row re-centers, the faded come back and the glow breathes again", function()
@@ -124,30 +224,23 @@ T.test("buffs reminder fight: after the fight the row re-centers, the faded come
         xs[#xs + 1] = x
         T.eq(t:GetAlpha(), 1, t.key .. " back to full")
     end
-    T.deq(keys, { "fortitude", "intellect", "wisdom", "weapon:main" })
-    T.deq(xs, { -90, -30, 30, 90 }, "re-centered without Inner Fire")
-    T.truthy(tileOf(BL, "weapon:main"):IsShown(), "the oil is back")
+    T.deq(keys, { "fortitude", "intellect", "wisdom", "camp" })
+    T.deq(xs, { -81, -27, 27, 81 }, "re-centered without Inner Fire")
+    T.truthy(tileOf(BL, "camp"), "the camp is back")
     local again = {}
     for _, h in ipairs(glows) do again[h] = true end
     T.truthy(again[tileOf(BL, "fortitude")], "Fortitude breathes again")
     W.GlowAround = glow
 end)
 
-T.test("buffs reminder fight: ENCOUNTER_START before the lockdown already holds the row", function()
+T.test("buffs reminder fight: ENCOUNTER_START before the lockdown already dims the row", function()
     local BL = world()
-    local sets = 0
-    local set = BL.ReminderRow.Set
-    BL.ReminderRow.Set = function(...) sets = sets + 1; return set(...) end
     stub.FireEvent("ENCOUNTER_START", 1, "Boss", 1, 5)
-    settle()
+    stub.RunTimers(); settle()
     T.near(tileOf(BL, "fortitude"):GetAlpha(), 0.5, 0.01, "dimmed at the encounter")
-    T.isnil(BL.Reminder.Collect(), "nothing read")
-    stub.FireEvent("UNIT_AURA", "player"); stub.RunTimers()
-    T.eq(sets, 0)
     stub.FireEvent("ENCOUNTER_END", 1, "Boss", 1, 5, 1)
-    stub.RunTimers()
-    T.eq(sets, 1, "the encounter over, out of combat: looked again")
-    BL.ReminderRow.Set = set
+    stub.RunTimers(); settle()
+    T.eq(tileOf(BL, "fortitude"):GetAlpha(), 1, "the encounter over, out of combat: back")
 end)
 
 T.test("buffs reminder fight: the glow breathes three laps, then rests (nothing runs while idle)", function()

@@ -2149,6 +2149,13 @@ _G.UnitCreatureType = function(u)
     local x = U(u)
     if x then return x.creatureType, x.creatureTypeID end
 end
+-- A pet's family as the game names it, and its id (CreatureFamily: Imp 23,
+-- Voidwalker 16, Succubus 17, Felhunter 15). Refuses a missing unit.
+_G.UnitCreatureFamily = function(u)
+    if u == nil then error("bad argument #1 to 'UnitCreatureFamily' (Usage: local name, id = UnitCreatureFamily(unit))", 2) end
+    local x = U(u)
+    if x then return x.family, x.familyID end
+end
 _G.UnitIsBossMob = function(u) local x = U(u); return x ~= nil and x.boss == true end
 _G.GetRaidTargetIndex = function(u) local x = U(u); return x and x.raidTarget end
 _G.GetComboPoints = function() return stub.comboPoints or 0 end
@@ -3484,14 +3491,17 @@ _G.C_UnitAuras = {
     end,
     -- The first aura with that name under the filter (HELPFUL when none; |PLAYER
     -- = only yours). Quietly nothing while auras are secret (RequiresNonSecretAura).
+    -- RequiresNonSecretAura: in combat and under restrictions only an aura the
+    -- game never hides (stub.neverSecretAuras) comes back.
     GetAuraDataBySpellName = function(unit, name, filter)
-        if stub.AurasRestricted() then return nil end
+        local restricted = stub.AurasRestricted()
         filter = filter or "HELPFUL"
         local kind = filter:find("HARMFUL") and "HARMFUL" or "HELPFUL"
         local mine = filter:find("PLAYER") ~= nil
         local list = stub.auras[unit] and stub.auras[unit][kind]
         for _, a in ipairs(list or {}) do
-            if a.name == name and (not mine or a.sourceUnit == "player" or a.isFromPlayerOrPlayerPet == true) then
+            if a.name == name and (not mine or a.sourceUnit == "player" or a.isFromPlayerOrPlayerPet == true)
+                and not (restricted and not stub.neverSecretAuras[a.spellId]) then
                 local out = {}
                 for k, v in pairs(a) do out[k] = v end
                 return out
@@ -3565,6 +3575,7 @@ C_Secrets.ShouldSpellAuraBeSecret = function(sid)
 end
 _G.Enum.StartTimerType = { PvPBeginTimer = 0, ChallengeModeCountdown = 1, PlayerCountdown = 2, PlunderstormCountdown = 3 }
 _G.Enum.WeaponSlot = { MainHand = 0, OffHand = 1, Ranged = 2 }
+_G.Enum.ItemEnchantType = { None = 0, Permanent = 1, Temporary = 2, Imbue = 3 }
 _G.Enum.PlayerSwingType = { MainHand = 0, OffHand = 1, Ranged = 2 }
 function stub.SetWeaponEnchants(list) stub.weaponEnchants = list or {} end
 _G.C_Item = {
@@ -3993,10 +4004,36 @@ function stub.BagReads()
     local instant = stub.bagSaved[4]
     C_Item.GetItemInfoInstant = function(item)
         for _, e in pairs(stub.equipped) do
-            if e.id == item then return e.id, "", "", "", 134400, e.class or 2, e.subClass or 7 end
+            if e.id == item then return e.id, "", "", e.equipLoc or "", 134400, e.class or 2, e.subClass or 7 end
         end
+        local info = stub.itemInfo[item]
+        if info then return item, "", "", "", 134400, info.class or 0, info.subClass or 0 end
         if instant then return instant(item) end
     end
+    --   stub.bagSlots = { { id, count } }    (C_Container, one bag)
+    --   stub.itemInfo[itemID] = { minLevel, ilvl, class }   (C_Item.GetItemInfo's 4th and 5th returns)
+    --   stub.itemCooldowns[itemID] = { start, duration }
+    stub.bagSlots, stub.itemInfo, stub.itemCooldowns = {}, {}, {}
+    stub.bagSaved.container = stub.bagSaved.container or { _G.C_Container, C_Item.GetItemInfo, C_Item.GetItemCooldown,
+                                                           C_Item.IsItemDataCachedByID }
+    _G.C_Container = {
+        GetContainerNumSlots = function(bag) return bag == 0 and #stub.bagSlots or 0 end,
+        GetContainerItemID = function(bag, slot) local s = bag == 0 and stub.bagSlots[slot]; return s and s.id end,
+        GetContainerItemInfo = function(bag, slot)
+            local s = bag == 0 and stub.bagSlots[slot]
+            if s then return { itemID = s.id, stackCount = s.count or 1 } end
+        end,
+    }
+    C_Item.GetItemInfo = function(item)
+        local info = stub.itemInfo[item]
+        if info then return "Item " .. item, "", 1, info.ilvl or 1, info.minLevel or 1 end
+    end
+    C_Item.GetItemCooldown = function(item)
+        local c = stub.itemCooldowns[item]
+        if c then return c[1], c[2], true end
+        return 0, 0, true
+    end
+    C_Item.IsItemDataCachedByID = function() return true end
 end
 
 -- Globals Reset clears (the addon under test and its saved variables). Another addon that copies this file changes the list.
@@ -4063,11 +4100,33 @@ function stub.Reset()
     -- Where the player is (stub.SetInstance). nil = the open world.
     stub.instance = nil
     _G.IsInInstance = function() local k = stub.instance or "none"; return k ~= "none", k end
+    -- The game's 11 returns (name, type, difficultyID, difficultyName, maxPlayers,
+    -- dynamicDifficulty, isDynamic, instanceID, groupSize, lfgDungeonID,
+    -- hasWorldTier); stub.difficulty is the difficulty id (0 in the open world).
+    stub.difficulty = nil
+    -- The minimap's trackers (C_Minimap): stub.tracking = { { spellID, type, active, name } }.
+    stub.tracking = {}
+    _G.C_Minimap = {
+        GetNumTrackingTypes = function() return #stub.tracking end,
+        GetTrackingInfo = function(i)
+            if issecretvalue and issecretvalue(i) then error("GetTrackingInfo: secret argument") end
+            local t = stub.tracking[i]
+            if not t then return nil end
+            return { name = t.name or "", texture = t.texture or 0, active = t.active == true,
+                     type = t.type or "spell", subType = -1, spellID = t.spellID }
+        end,
+    }
+    _G.GetInstanceInfo = function()
+        local k = stub.instance or "none"
+        return "Here", k, stub.difficulty or 0, "", 5, 0, false, k == "none" and 0 or 1, 0, nil, false
+    end
     stub.auras, stub.weaponEnchants, stub.auraReadsThrow = {}, {}, false
     stub.flying, stub.taxi, stub.vehicle = nil, nil, nil
     if stub.bagSaved then -- put back what stub.BagReads replaced
         local b = stub.bagSaved
         C_Item.GetItemCount, C_Item.GetItemSpell, _G.GetInventoryItemID, C_Item.GetItemInfoInstant = b[1], b[2], b[3], b[4]
+        local c = b.container
+        if c then _G.C_Container, C_Item.GetItemInfo, C_Item.GetItemCooldown, C_Item.IsItemDataCachedByID = c[1], c[2], c[3], c[4] end
         stub.bagSaved = nil
     end
     stub.cursorPos = { 0, 0 }
@@ -4436,7 +4495,7 @@ end
 stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Weapons.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "WorldWatch.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "BarFxSoft.lua", "BarFxDaybreak.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
                     "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerScreen.lua", "InstallerUI.lua", "InstallerChrome.lua", "InstallerSteps.lua", "InstallerPlugins.lua", "InstallerLooks.lua", "InstallerDuel.lua", "Welcome.lua", "Clashes.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Swap.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
 stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "Auras.lua", "Spells.lua", "Layout.lua",
-                     "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "ReminderData.lua", "ReminderRow.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",
+                     "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "ReminderData.lua", "ReminderRow.lua", "Reminder.lua", "ReminderSelf.lua", "ReminderItems.lua", "EdgeEditor.lua", "Commands.lua",
                      "Options.lua", "Module.lua" }
 stub.QUESTS_FILES = { "Blizzard.lua", "Defaults.lua", "Data.lua", "Layout.lua", "Look.lua", "Rows.lua", "Animate.lua",
                       "Items.lua", "Clicks.lua", "Details.lua", "Journal.lua", "Scroll.lua", "Tracker.lua", "Progress.lua", "Nav.lua", "Spots.lua", "Route.lua", "Arrow.lua", "QuestieBridge.lua", "Gather.lua", "Voice.lua", "Choice.lua", "GiverTips.lua", "Options.lua", "Module.lua" }

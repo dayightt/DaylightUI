@@ -3403,6 +3403,14 @@ function Style.SetTextSize(fs, size)
     repaintFont(fs)
 end
 
+-- A text made with Style.Text gets its own font file (nil: back to the
+-- Appearance font). Size, outline and shadow keep following the settings.
+function Style.SetTextFont(fs, file)
+    if fontOf[fs] == file then return end
+    fontOf[fs] = file
+    repaintFont(fs)
+end
+
 -- Removes a shell or FontString from the repaint sets, for pieces the client
 -- owns and redraws itself (e.g. aura buttons). The font or shell already
 -- applied is left as is.

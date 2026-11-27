@@ -116,15 +116,47 @@ BL.DEFAULTS = {
         textOutline = "general",
         expiring = true, -- the buff timer warms and pulses in its last 5 s (Feel.lua)
         newGlow = true, -- buffs and debuffs slide in and lift away (Feel.lua; old name kept for saved settings)
-        -- Missing buffs, a row of tiles above you (Reminder.lua, ReminderRow.lua):
-        -- which kinds show, solo too, when a buff counts as running low, how
-        -- see-through raid buffs are in a fight, and the tiles' look. The
-        -- consumables are off: not everyone carries them.
+        -- Missing buffs, a row of icons above you (Reminder.lua and its parts,
+        -- ReminderRow.lua draws them). Three sections like EllesmereUI's buff
+        -- reminders, with its defaults: raid buffs, your own buffs and
+        -- consumables. Each section says where it shows: a place set to false
+        -- is left out (open_world, dungeon, raid, and in_combat for raid buffs).
         reminder = {
-            enabled = true, solo = false,
-            give = true, get = true, self = true, weapons = true,
-            food = false, scrolls = false, camp = false, sleepingBag = false,
-            lowMinutes = 5, fightAlpha = 0.5, size = 36, gap = 24, names = true,
+            enabled = true, cursor = false, cursorCombat = false, tooltips = true, picker = false,
+            size = 40, shape = "none", zoom = 7, crop = 10, grow = "CENTER", strata = "MEDIUM", gap = 14,
+            border = "daylight", borderPx = 3, borderShiftX = 0, borderShiftY = 0, borderBehind = false,
+            borderColor = { DaylightUI.Style.BORDER[1], DaylightUI.Style.BORDER[2], DaylightUI.Style.BORDER[3] },
+            names = true, nameFont = "general", nameSize = 12, nameAnchor = "BOTTOM", nameX = 0, nameY = -5,
+            nameColor = { DaylightUI.Style.INK.TEXT[1], DaylightUI.Style.INK.TEXT[2], DaylightUI.Style.INK.TEXT[3] },
+            count = true, countFont = "general", countSize = 16, countX = 0, countY = 0,
+            glow = "none", glowColor = "accent",
+            glowCustom = { DaylightUI.Style.ACCENT[1], DaylightUI.Style.ACCENT[2], DaylightUI.Style.ACCENT[3] },
+            opacity = 1, fightAlpha = 0.5,
+            -- Weapon picks per class: mhImbue, ohImbue, mhTemp, ohTemp (nil = Auto).
+            hands = {},
+            raid = {
+                where = { open_world = false }, others = true, mine = false, sound = "none",
+                on = { fortitude = true, wild = true, intellect = true, spirit = true, shout = true },
+                blessings = true, shadow = true,
+            },
+            self = {
+                where = {}, sound = "none", mageArmor = false, picks = {}, hunterTracking = false,
+                imbue = false, lowRank = false, hideNoItem = true, weaponBelow = 1,
+                sacrifice = false, demon = "auto", gather = false, gatherClassTrack = true, treasure = false,
+                -- Spells the player typed in, and groups of them: custom.ids,
+                -- custom.classes[id][CLASS] = false; groups = { { name, ids, castSpellID, castRanks } }.
+                custom = { ids = {}, classes = {} }, groups = {},
+                classActions = {},
+            },
+            items = {
+                where = {}, sound = "none", camp = false,
+                bag = false, bagBelow = 0, bagTimer = true,
+                wellFed = false, wellFedBelow = 0,
+                censer = false,
+                -- stats[CLASS][stat] = true; statPick[CLASS] = item id (or [CLASS][key] with separate icons).
+                stats = {}, separate = false, stronger = false, statLowRank = false, statBelow = 0, statPick = {},
+                oil = false,
+            },
         },
         -- Aura lists from Unit Frames > Aura Lists ("none" = no list): one to
         -- hide, one to show only.
