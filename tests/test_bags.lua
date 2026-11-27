@@ -1071,7 +1071,7 @@ T.test("bags: typing searches; the X clears it; sort is the game's sort", functi
     T.eq(f.search:GetText(), "", "a search clears when the bag closes")
 end)
 
-T.test("bags: the search's help waits behind its ?, shown after a second's rest there", function()
+T.test("bags: the search's help waits behind its ?, shown after a half-second's rest there or a click", function()
     local ns = login()
     local f = open(ns)
     local box, help = f.search, f.search.help
@@ -1099,7 +1099,6 @@ T.test("bags: the search's help waits behind its ?, shown after a second's rest 
     T.eq(select(2, box.clear:GetPoint(1)), help, "the X just left of it")
     local _, right = box:GetTextInsets()
     T.truthy(right >= help:GetWidth() + box.clear:GetWidth(), "typed text stops short of both")
-    T.falsy(help:IsMouseClickEnabled(), "a click goes through to the box, which keeps its focus")
 
     -- Left before the wait is up: nothing.
     stub.MouseEnter(help)
@@ -1114,13 +1113,46 @@ T.test("bags: the search's help waits behind its ?, shown after a second's rest 
     local waited = false
     for _, s in ipairs(waits) do if s == ns.Window.HELP_WAIT then waited = true end end
     T.truthy(waited, "waits HELP_WAIT")
-    T.eq(ns.Window.HELP_WAIT, 1, "about a second")
+    T.eq(ns.Window.HELP_WAIT, 0.5, "half a second")
     stub.RunTimers()
     T.eq(guides, 1, "the search help")
     T.eq(owner, help, "on the ?")
     T.truthy(tip:IsShown())
     stub.MouseLeave(help)
     T.falsy(tip:IsShown(), "gone on leave")
+
+    -- A click shows it at once and leaves an unfocused box, and its folded
+    -- filters, as they were.
+    guides = 0
+    stub.MouseEnter(help)
+    help:Click()
+    T.eq(guides, 1, "a click shows the help at once")
+    T.falsy(box:HasFocus(), "an unfocused box stays unfocused")
+    T.falsy(f.filtersShown, "so the filters stay folded")
+    stub.MouseLeave(help)
+
+    -- A focused box keeps its focus, and its filters stay open, whether the
+    -- press takes the focus from it or not.
+    box:SetFocus()
+    T.truthy(f.filtersShown, "focus opens the filters")
+    for _, takes in ipairs({ true, false }) do
+        stub.MouseEnter(help)
+        help:GetScript("OnMouseDown")(help, "LeftButton")
+        if takes then box:ClearFocus() end
+        T.truthy(f.filtersShown, "the filters stay open through the press")
+        help:GetScript("OnMouseUp")(help, "LeftButton")
+        help:Click()
+        T.truthy(box:HasFocus(), "the box has its focus after the click")
+        T.truthy(f.filtersShown, "and the filters are still open")
+        stub.MouseLeave(help)
+    end
+
+    -- Focus that goes some other way while the mouse rests on the "?" folds
+    -- the filters once the mouse moves off.
+    stub.MouseEnter(help)
+    box:ClearFocus()
+    stub.MouseLeave(help)
+    T.falsy(f.filtersShown, "folded after the mouse leaves")
 
     C_Timer.After, ns.Search.Tip = realAfter, realGuide
     tip.SetOwner, tip.IsOwned = realSetOwner, realIsOwned

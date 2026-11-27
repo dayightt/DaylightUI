@@ -124,43 +124,60 @@ function Window.NextView(view)
 end
 
 -- The search's "?", inside the box at its right edge, the X (there while
--- something is typed) just left of it. Resting the mouse on it for HELP_WAIT
--- shows the search syntax. Clicks go through it to the box, so it never takes
--- the box's focus.
-Window.HELP_WAIT = 1      -- seconds
+-- something is typed) just left of it. Resting the mouse on it for HELP_WAIT,
+-- or clicking it, shows the search syntax. A click there leaves the box as it
+-- was: focused stays focused, so the filters under it stay put.
+Window.HELP_WAIT = 0.5    -- seconds
 Window.HELP_ICON = 10     -- the "?"
 Window.HELP_DISC = 14     -- the soft circle behind it
 Window.HELP_GAP = 2       -- between the "?" and the X
-local function helpButton(eb)
+local function helpButton(f, eb)
     local W = DUI.Widgets
     local s = eb.clear:GetHeight()
-    local b = W.IconButton(eb, "ui-micro-help.png", nil, nil, s)
+    local function show(self)
+        if not (self:IsVisible() and self:IsMouseOver()) then return end
+        GameTooltip:Hide()
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        ns.Search.Tip(GameTooltip)
+        GameTooltip:Show()
+    end
+    local token = 0
+    local b = W.IconButton(eb, "ui-micro-help.png", nil, function(self)
+        token = token + 1
+        show(self)
+    end, s)
     b.icon:SetSize(Window.HELP_ICON, Window.HELP_ICON)
     b.disc = b:CreateTexture(nil, "BACKGROUND")
     b.disc:SetTexture(DUI.MEDIA .. "shape-circle.png")
     b.disc:SetSize(Window.HELP_DISC, Window.HELP_DISC)
     b.disc:SetPoint("CENTER", b, "CENTER", 0, 0)
     W.Tint(b.disc, Style.INK.LABEL, 0.15)
-    b:SetMouseClickEnabled(false)
     b:SetPoint(eb.clear:GetPoint(1))   -- the X's spot at the edge
     eb.clear:ClearAllPoints()
     eb.clear:SetPoint("RIGHT", b, "LEFT", -Window.HELP_GAP, 0)
     eb.hint:SetPoint("RIGHT", b, "LEFT", -Window.HELP_GAP, 0)
     local l, r, t, bottom = eb:GetTextInsets()
     eb:SetTextInsets(l, r + s + Window.HELP_GAP, t, bottom)
-    local token = 0
     b:HookScript("OnEnter", function(self)
         token = token + 1
         local mine = token
         C_Timer.After(Window.HELP_WAIT, function()
-            if mine ~= token or not (self:IsVisible() and self:IsMouseOver()) then return end
-            GameTooltip:Hide()
-            GameTooltip:SetOwner(self, "ANCHOR_TOP")
-            ns.Search.Tip(GameTooltip)
-            GameTooltip:Show()
+            if mine == token then show(self) end
         end)
     end)
-    b:HookScript("OnLeave", function() token = token + 1 end)
+    -- The box focused when the "?" is pressed gets its focus back on release.
+    b:HookScript("OnMouseDown", function() if eb:HasFocus() then b.keep = true end end)
+    b:HookScript("OnMouseUp", function()
+        if b.keep then
+            b.keep = nil
+            eb:SetFocus()
+        end
+    end)
+    b:HookScript("OnLeave", function()
+        token = token + 1
+        b.keep = nil
+        if not eb:HasFocus() then Window.SyncFilters(f) end
+    end)
     return b
 end
 
@@ -184,9 +201,15 @@ local function searchBox(f)
     end)
     eb:HookScript("OnEditFocusLost", function()
         -- A click on a filter takes the focus first; that click decides instead.
-        if not Window.OverFilters(f) then Window.SyncFilters(f) end
+        if Window.OverFilters(f) then return end
+        -- A press on the "?" hands the focus back on release.
+        if eb.help and eb.help:IsMouseOver() then
+            eb.help.keep = true
+            return
+        end
+        Window.SyncFilters(f)
     end)
-    eb.help = helpButton(eb)
+    eb.help = helpButton(f, eb)
     return eb
 end
 
