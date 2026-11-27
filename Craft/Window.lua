@@ -274,7 +274,13 @@ function Craft.TabCaster(f, b, spellID)
                 end)
             end,
             post = function(row, button)
-                if button ~= "LeftButton" or f.tab == row.id or Win.TabDropped(f) then return end
+                if button ~= "LeftButton" or Win.TabDropped(f) then return end
+                -- After a click the caster holds no spell until the tab's OnEnter
+                -- lays it again: the profession it opened is the open one now, and
+                -- the open one's tab casts nothing.
+                local btn = Craft.tabCaster.button
+                if btn and not InCombatLockdown() then btn:SetAttribute("type1", nil) end
+                if f.tab == row.id then return end
                 Win.PickTab(f, row.id)
                 if DUI.Sound then DUI.Sound.Play("click") end
             end })
