@@ -99,7 +99,8 @@ for _, id in ipairs(R.searing) do decimRenew[#decimRenew + 1] = id end
 -- Every proc. mode: how it's seen (Engine.lua). spell: the proc's own spell (its
 -- name is shown). cast: the spell it boosts. dur: its usual length in seconds.
 -- cd + holdCd: hidden for that long after a cast. noPower = false: short of
--- power doesn't count. combatOnly: the default of "Only in combat". off: not
+-- power doesn't count. afterDodge: the target's dodge also opens it outside
+-- Battle Stance, where the game says no (Engine.lua). combatOnly: the default of "Only in combat". off: not
 -- shown until ticked. sound "none": the default sound (buffs only the game sees).
 -- gameAlertOff: the game alerts for it too, and it has a signal of its own, so
 -- the game's art (which would double the flare) is turned off while it's watched.
@@ -113,7 +114,7 @@ Data.PROCS = {
       cast = R.conflag, noPower = false, onTarget = true, cd = 10, holdCd = true, noTimer = true, combatOnly = true, off = true },
     -- Warrior
     { key = "overpower", class = "WARRIOR", spell = 7384, mode = "usable", design = "talons", anim = "impact", dur = 5,
-      cast = R.overpower, cd = 5, holdCd = true, combatOnly = true },
+      cast = R.overpower, cd = 5, holdCd = true, combatOnly = true, afterDodge = true },
     { key = "revenge", class = "WARRIOR", spell = 6572, mode = "usable", design = "crown", anim = "impact", dur = 5,
       cast = R.revenge, cd = 5, combatOnly = true },
     { key = "shieldblock", class = "WARRIOR", spell = 2565, mode = "usable", design = "ring", anim = "pulse", dur = 5,

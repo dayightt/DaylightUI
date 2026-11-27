@@ -53,6 +53,53 @@ T.test("procs: a proc shows its flare in a fight and hides it when the spell is 
     T.truthy(ns.Flares.Shown("overpower"), "back once the cooldown is over and it's still usable")
 end)
 
+-- On Forever the game says Overpower can't be used outside Battle Stance, even
+-- right after a dodge, so a warrior in Defensive or Berserker Stance never saw
+-- the flare that would tell them to swap.
+T.test("procs: Overpower lights up after the target dodges, in any stance", function()
+    local stance = 3
+    local spells = { 2457, 71, 2458 }
+    local ns = load("WARRIOR", { OVERPOWER }, function()
+        _G.GetNumShapeshiftForms = function() return #spells end
+        _G.GetShapeshiftFormInfo = function(i) return 132349 + i, stance == i, true, spells[i] end
+    end)
+    stub.EnterCombat()
+    usable(OVERPOWER, false)
+    step()
+    T.falsy(ns.Flares.Shown("overpower"), "no dodge yet")
+    stub.FireEvent("UNIT_COMBAT", "target", "WOUND", "", stub.Secret(40), 1)
+    step()
+    T.falsy(ns.Flares.Shown("overpower"), "a hit isn't a dodge")
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1)
+    step()
+    T.truthy(ns.Flares.Shown("overpower"), "dodged in Berserker Stance: lit at once")
+    T.near(ns.Flares.live.overpower.info.left, 5, 0.05, "the window counts from the dodge")
+    step(4)
+    T.truthy(ns.Flares.Shown("overpower"), "still inside the 5 s")
+    step(1.1); step(0.4)
+    T.falsy(ns.Flares.Shown("overpower"), "the window ran out")
+    -- A new target: the dodge was the old one's.
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1); step()
+    T.truthy(ns.Flares.Shown("overpower"))
+    stub.FireEvent("PLAYER_TARGET_CHANGED"); step(); step(0.4)
+    T.falsy(ns.Flares.Shown("overpower"), "another target: gone")
+    -- Cast it: spent, and the old dodge doesn't bring it back after its cooldown.
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1); step()
+    T.truthy(ns.Flares.Shown("overpower"))
+    cast(OVERPOWER); step()
+    T.falsy(ns.Flares.Shown("overpower"), "used: gone")
+    step(5.1)
+    T.falsy(ns.Flares.Shown("overpower"), "the dodge was spent")
+    -- In Battle Stance the game knows whose dodge it was: its answer stands.
+    stance = 1
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM")
+    stub.FireEvent("UNIT_COMBAT", "target", "DODGE", "", 0, 1); step()
+    T.falsy(ns.Flares.Shown("overpower"), "Battle Stance, the game says no: someone else's dodge")
+    usable(OVERPOWER, true)
+    stub.FireEvent("SPELL_UPDATE_USABLE"); step()
+    T.truthy(ns.Flares.Shown("overpower"), "the game says yes")
+end)
+
 T.test("procs: a 'no' shorter than 0.3 s does not hide the flare", function()
     local ns = load("WARRIOR", { OVERPOWER })
     stub.EnterCombat()

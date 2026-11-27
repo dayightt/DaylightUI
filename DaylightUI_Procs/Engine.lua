@@ -120,6 +120,35 @@ local function stealthed()
     return not isSecret(v) and v == true
 end
 
+-- Overpower outside Battle Stance: the target's dodge opens a 5 s window, kept
+-- as a hidden buff on you that can't be read in a fight, and the game says the
+-- spell can't be used outside Battle Stance, so it never lit up for a warrior
+-- who'd swap stances to use it. UNIT_COMBAT's action stays plain, so a dodge
+-- by the target opens the window here. It can't tell whose attack was dodged,
+-- so in Battle Stance the game's own answer stands.
+local BATTLE_STANCE = 2457
+local dodgedAt = nil
+
+-- true or false, or nil when the stance can't be read.
+local function battleStance()
+    if type(GetNumShapeshiftForms) ~= "function" or type(GetShapeshiftFormInfo) ~= "function" then return nil end
+    local n = GetNumShapeshiftForms()
+    if isSecret(n) or type(n) ~= "number" then return nil end
+    for i = 1, n do
+        local _, active, _, sid = GetShapeshiftFormInfo(i)
+        if isSecret(active) or isSecret(sid) then return nil end
+        if active == true then return sid == BATTLE_STANCE end
+    end
+    return false
+end
+
+-- When the dodge window opened, while it's open and you're out of Battle Stance.
+local function dodgeOpen(p, now)
+    if not (p.afterDodge and dodgedAt and now - dodgedAt < p.dur) then return nil end
+    if battleStance() ~= false then return nil end
+    return dodgedAt
+end
+
 -- Usable ------------------------------------------------------------------
 
 -- Shown while the game says the spell can be used. For a short window
@@ -137,13 +166,15 @@ CHECKS.usable = function(p, g, now)
             end
         end
     end
+    local dodged = not on and dodgeOpen(p, now)
+    if dodged then on, read = true, true end
     if not read then return end       -- secret or unknown: keep the last answer
     if on and p.combatOnly and not inCombat then on = false end
     if on and p.notStealthed and stealthed() then on = false end
     -- When the window opened: the game says yes from the dodge on, even while
     -- the flare waits for the cooldown. A cast that opens it (Ghostly Strike) counts from itself.
     if on and not g.seenOn and not (g.seenOffAt and now - g.seenOffAt < Engine.GRACE) then
-        local at = g.openCastAt
+        local at = dodged or g.openCastAt
         g.openAt = (at and now - at < p.dur) and at or now
     end
     if g.seenOn and not on then g.seenOffAt = now end
@@ -611,6 +642,7 @@ local function onCast(_, unit, _, spellID)
         if g then
             if r.role == "used" then
                 g.wait, g.castAt = true, now
+                if r.p.afterDodge then dodgedAt = nil end
             elseif r.role == "open" then
                 g.openCastAt = now
             elseif r.role == "spend" then
@@ -626,16 +658,29 @@ local function onCast(_, unit, _, spellID)
     soon()
 end
 
+-- The target dodged: only a warrior watching Overpower cares.
+local function onTargetHit(_, unit, action)
+    if not started or isSecret(action) or action ~= "DODGE" then return end
+    local any = false
+    for _, p in ipairs(ns.Data.Mine()) do
+        if p.afterDodge and state[p.key] then any = true end
+    end
+    if not any then return end
+    dodgedAt = GetTime()
+    soon()
+end
+
 function Engine.Start(mod)
     if started then return end
     started = true
     inCombat = InCombatLockdown() == true
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function() inCombat = true; soon() end)
     DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() inCombat = false; soon() end)
-    for _, e in ipairs({ "SPELL_UPDATE_USABLE", "PLAYER_TARGET_CHANGED",
-                         "UPDATE_SHAPESHIFT_FORM", "PLAYER_ENTERING_WORLD" }) do
+    for _, e in ipairs({ "SPELL_UPDATE_USABLE", "UPDATE_SHAPESHIFT_FORM", "PLAYER_ENTERING_WORLD" }) do
         DUI.RegisterEvent(e, soon)
     end
+    -- A new target: a dodge seen was the old one's.
+    DUI.RegisterEvent("PLAYER_TARGET_CHANGED", function() dodgedAt = nil; soon() end)
     -- A new rank only changes which spell is read. The usual speeds and costs
     -- are learned again on a talent change alone: the spells-changed event can
     -- come with the proc itself (a buff that changes a cast time), and forgetting
@@ -647,6 +692,7 @@ function Engine.Start(mod)
     -- The proc's buff landing out of a fight, when nothing polls.
     DUI.RegisterUnitEvent("UNIT_AURA", soon, "player")
     DUI.RegisterUnitEvent("UNIT_SPELLCAST_SUCCEEDED", onCast, "player")
+    DUI.RegisterUnitEvent("UNIT_COMBAT", onTargetHit, "target")
     DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_SHOW", onOverlay)
     DUI.RegisterEvent("SPELL_ACTIVATION_OVERLAY_HIDE", onOverlay)
     DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", onCooldowns)
