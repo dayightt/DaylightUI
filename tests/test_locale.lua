@@ -159,6 +159,11 @@ T.test("the key set holds the options' and the guide's own text", function()
     T.truthy(keys["Reset page"], "an L literal")
     T.truthy(keys["Shows a sample of just this frame while you edit it, and every change "
         .. "as you make it. Stays on across pages until you switch it off; combat ends it."], "a split literal")
+    T.truthy(keys["Drop it on a line"], "a tooltip design hint lead")
+    T.truthy(keys[" move the picked piece."], "the tooltip design keys hint")
+    T.truthy(keys["Robe of the Evening Star"], "the tooltip sample item name")
+    T.truthy(keys["Daylight UI's own card, laid out in rows."], "a tooltip looks sample line")
+    T.truthy(keys["Cast, cost and range"], "a tooltip layout piece label")
 end)
 
 T.test("search finds a setting by its shown text and by its English", function()
