@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased" },
+    { version = "Unreleased", fixed = {
+        { "Unit frames", "Druid resource bars show your rage and energy again in caster form, next to your mana in bear or cat form" },
+    } },
     { version = "2.4.1", date = "2026-11-26", summary = "Proc alerts redone as living flame, spell costs on your action buttons, icon borders per frame, and lower nameplates on new profiles.", new = {
         { "Nameplates", "Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick" },
         { "Proc Alerts", "Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, Strike is a new one, and each alert can turn its embers off" },

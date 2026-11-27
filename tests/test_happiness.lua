@@ -175,14 +175,11 @@ T.test("pet happiness: the test-mode sample keeps its name with 'color the bar' 
     DUI.SetTestMode(false)
 end)
 
--- Druid resource bars (DruidBars.lua): your mana while a form hides it. Rage
--- and energy are never shown outside their form: shifting starts them over, so
--- the number the game keeps for them there is one you never get.
-T.test("druid bars: mana while a form hides it, never rage or energy outside their form", function()
+-- Druid resource bars (DruidBars.lua): the powers the main bar isn't showing.
+T.test("druid bars: rage and energy in caster form, mana beside a form's power; only forms you know", function()
     local DUI, ns = stub.Load({ module = true, before = function()
         stub.units.player = { name = "Leafy", isPlayer = true, class = "DRUID", powerType = 0, powerToken = "MANA" }
-        stub.knownSpells[5487] = true
-        stub.knownSpells[768] = true
+        stub.knownSpells[5487] = true      -- Bear Form, no Cat Form yet
     end })
     local h = _G.DaylightUIDruidBars
     T.truthy(h, "made with the player frame")
@@ -195,15 +192,27 @@ T.test("druid bars: mana while a form hides it, never rage or energy outside the
         for _, i in ipairs(B.Wanted()) do out[#out + 1] = B.POWERS[i].token end
         return table.concat(out, ",")
     end
-    T.eq(shown(), "", "caster form: the main bar already shows mana")
-    T.falsy(h:IsShown())
+    local function rowsShown()
+        local n = 0
+        for _, r in ipairs({ h:GetChildren() }) do if r:IsShown() then n = n + 1 end end
+        return n
+    end
+    T.eq(shown(), "RAGE", "caster form: rage (no Cat Form yet: no energy)")
+    T.truthy(h:IsShown(), "caster form shows a bar")
+    T.eq(rowsShown(), 1)
+    stub.knownSpells[768] = true
+    stub.FireEvent("SPELLS_CHANGED")
+    T.eq(shown(), "RAGE,ENERGY", "learning Cat Form adds energy")
+    T.eq(rowsShown(), 2)
     stub.units.player.powerType, stub.units.player.powerToken = 1, "RAGE"
     stub.FireEvent("UNIT_DISPLAYPOWER", "player")
-    T.eq(shown(), "MANA", "a bear: mana, no energy")
-    T.truthy(h:IsShown())
+    stub.RunTimers()
+    T.eq(shown(), "MANA,ENERGY", "a bear: mana and energy")
+    T.eq(rowsShown(), 2)
     stub.units.player.powerType, stub.units.player.powerToken = 3, "ENERGY"
     stub.FireEvent("UNIT_DISPLAYPOWER", "player")
-    T.eq(shown(), "MANA", "a cat: mana, no rage")
+    stub.RunTimers()
+    T.eq(shown(), "MANA,RAGE", "a cat: mana and rage")
     DUI:Set("UnitFrames", "player.druidBars.enabled", false)
     stub.RunTimers()
     T.falsy(h:IsShown())
