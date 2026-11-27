@@ -17,6 +17,8 @@ Defaults.lua
 Panel.lua
 XPBar.lua
 XPGain.lua
+XPSource.lua
+XPOrbs.lua
 Rows.lua
 MeterHeader.lua
 Meter.lua

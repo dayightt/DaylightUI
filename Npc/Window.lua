@@ -112,6 +112,20 @@ local function firstPress()
     return true
 end
 
+-- Where a quest's experience reward shows, in UIParent units, while it does:
+-- the right part of the reward line, where the experience follows the money.
+-- The XP orbs of a turn-in bloom there.
+Npc.XP_PART = 50
+function ns.XPSpot()
+    local t = Npc.xpText
+    if not (t and t:IsVisible() and t:GetText() == Npc.xpLine) then return nil end
+    local x, y = t:GetCenter()
+    local w = t:GetWidth()
+    if type(x) ~= "number" or type(y) ~= "number" or type(w) ~= "number" then return nil end
+    local k = (t:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    return (x + w / 2 - math.min(w / 2, Npc.XP_PART)) * k, y * k
+end
+
 function Npc.Goodbye()
     if S.sample then return Npc.Close() end
     if S.mode == "merchant" then
@@ -450,7 +464,13 @@ function Npc.Fill(page)
                 if #d.choices > 0 or #spells > 0 or d.rewardTitle then s:Text(L["You'll also get:"], { size = DUI.Style.SIZE.small, color = Parts.DIM }) end
                 s:Items(tilesFor(fixed, false))
             end
-            s:Money(d.money, d.xp)
+            local line = s:Money(d.money, d.xp)
+            -- The XP orbs of a turn-in start from this text.
+            if line and (d.xp or 0) > 0 then
+                Npc.xpText, Npc.xpLine = line, line:GetText()
+                -- Laid out by the next frame: the XP orbs note the spot then.
+                C_Timer.After(0, function() DUI.Fire("QuestXPShown") end)
+            end
         end
     end
     page.pieces = s:End()

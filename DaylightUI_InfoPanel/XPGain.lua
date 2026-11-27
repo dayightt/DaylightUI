@@ -1,7 +1,9 @@
 -- XP bar gain effects: the fill eases, the gained piece flashes, a "+1,234"
 -- rises off the bar (consecutive kills add up), and a level up sweeps a band
--- across before it empties. Reputation at the cap gets the same minus the
--- level up. A secret value skips the effects and is set directly.
+-- across before it empties. With the XP orbs (XPOrbs.lua) a gain flies in
+-- first: the fill steps as each orb lands and the last one sweeps a light over
+-- the gained piece. Reputation at the cap gets the same minus the level up and
+-- the orbs. A secret value skips the effects and is set directly.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -152,35 +154,111 @@ local function sweep(XP)
     t.group:Play()
 end
 
+-- The light over the gained piece as the last orb lands: a frame of Daylight
+-- UI laid over just that piece, and the bar's own sweep across it.
+local function sweepPiece(XP, from, to, max)
+    local up = XP.vertical
+    local w = (up and XP.bar:GetHeight() or XP.bar:GetWidth()) or 0
+    if w <= 0 or max <= 0 or to <= from then return end
+    local f = XPGain.piece
+    if not f then
+        f = CreateFrame("Frame", nil, XP.bar)
+        f.light = f:CreateTexture(nil, "OVERLAY")
+        f.light:SetTexture(DUI.MEDIA .. "glow.png")
+        f.light:SetBlendMode("ADD")
+        f.light:Hide()
+        XPGain.piece = f
+    end
+    f:SetFrameLevel(XP.bar:GetFrameLevel() + 3)
+    f:ClearAllPoints()
+    local a, b = w * from / max, w * math.min(to, max) / max
+    if up then
+        f:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", 0, a)
+        f:SetPoint("BOTTOMRIGHT", XP.bar, "BOTTOMRIGHT", 0, a)
+        f:SetHeight(math.max(1, b - a))
+    else
+        f:SetPoint("TOPLEFT", XP.bar, "TOPLEFT", a, 0)
+        f:SetPoint("BOTTOMLEFT", XP.bar, "BOTTOMLEFT", a, 0)
+        f:SetWidth(math.max(1, b - a))
+    end
+    XP.Sweep(f.light, f, { width = XPGain.PIECE_LIGHT, dur = DUI.Motion.SLOW, alpha = 0.7, key = "xpGainPiece" }, up)
+end
+XPGain.PIECE_LIGHT = 44   -- the light's width over the gained piece
+
+-- The last orb of a gain is home: the light over what it gave, and "+N".
+function XPGain.Landed(from, to, max, gain)
+    local XP = ns.XP
+    if not (XP and XP.bar) then return end
+    sweepPiece(XP, from, to, max)
+    rise(XP, gain)
+end
+
+-- The level up: the bar full while a band crosses it, then the new level's XP.
+local function levelSweep(XP, max)
+    XPGain.sweepId = (XPGain.sweepId or 0) + 1
+    local id = XPGain.sweepId
+    XP.bar:SetValue(max)
+    sweep(XP)
+    C_Timer.After(DUI.Motion.SLOW, function()
+        if id ~= XPGain.sweepId or not XP.bar then return end
+        local now = XP.Read()
+        if now and not now.rep then plain(XP.bar, ns.XPOrbs.Shown(now)) end
+    end)
+end
+
+-- The level-up burst's last orb is home.
+function XPGain.LevelSweep()
+    local XP = ns.XP
+    if not (XP and XP.bar) then return end
+    local _, max = XP.bar:GetMinMaxValues()
+    if secret(max) or type(max) ~= "number" then return end
+    levelSweep(XP, max)
+end
+
 -- Called by XP.Update with the reading; true when it set the bar's value.
 function XPGain.Show(d)
-    local XP = ns.XP
-    if not enabled() then XPGain.last = nil; return false end
-    if secret(d.value) or secret(d.max) then XPGain.last = nil; return false end
+    local XP, Orbs = ns.XP, ns.XPOrbs
+    if not enabled() then XPGain.last = nil; Orbs.Drop(); return false end
+    if secret(d.value) or secret(d.max) then XPGain.last = nil; Orbs.Drop(); return false end
     local last = XPGain.last
     local level = UnitLevel and UnitLevel("player")
-    XPGain.last = { label = d.label, value = d.value, max = d.max, level = level, rep = d.rep }
+    -- Nothing moved (rested or quest XP changed, or the level up arrived ahead
+    -- of its new numbers): keep the last reading, so a level up is judged once
+    -- its numbers are in.
+    if last and last.label == d.label and last.value == d.value and last.max == d.max then
+        last.rested = d.rested
+        Style.SetBarValue(XP.bar, Orbs.Shown(d))
+        return true
+    end
+    XPGain.last = { label = d.label, value = d.value, max = d.max, level = level, rep = d.rep, rested = d.rested }
     local seen = XPGain.levelSeen
     if not last or last.label ~= d.label then
+        Orbs.Drop()
         Style.SetBarValue(XP.bar, d.value, true)
         return true
     end
     local levelUp = not d.rep and not last.rep
         and ((level ~= nil and last.level ~= nil and level > last.level) or (seen and d.value < last.value))
+    -- How much the rested pool fell with this gain, for the orbs' rested share.
+    local drop = type(last.rested) == "number" and type(d.rested) == "number" and last.rested - d.rested or nil
     if levelUp then
         XPGain.levelSeen = nil
-        XPGain.sweepId = (XPGain.sweepId or 0) + 1
-        local id = XPGain.sweepId
-        XP.bar:SetValue(d.max)   -- full while the band crosses
-        sweep(XP)
-        C_Timer.After(DUI.Motion.SLOW, function()
-            if id ~= XPGain.sweepId or not XP.bar then return end
-            local now = XP.Read()
-            if now and now.label == d.label then plain(XP.bar, now.value) end
-        end)
+        if Orbs.Wanted(d) and type(last.max) == "number" and last.max > 0 then
+            Orbs.Gain({ from = last.value, max = last.max, gain = (last.max - last.value) + d.value,
+                        levelUp = true, restedDrop = drop })
+            Style.SetBarValue(XP.bar, Orbs.Shown(d))
+            return true
+        end
+        Orbs.Drop()
+        levelSweep(XP, d.max)
         return true
     end
-    Style.SetBarValue(XP.bar, d.value)
+    if d.max == last.max and d.value > last.value and Orbs.Wanted(d) then
+        Orbs.Gain({ from = last.value, to = d.value, max = d.max, gain = d.value - last.value, restedDrop = drop })
+        Style.SetBarValue(XP.bar, Orbs.Shown(d))
+        return true
+    end
+    Style.SetBarValue(XP.bar, Orbs.Shown(d))
     if d.max == last.max and d.value > last.value then
         flashPiece(XP, last.value, d.value, d.max)
         rise(XP, d.value - last.value)

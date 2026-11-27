@@ -3,6 +3,7 @@ local _, DUI = ...
 DUI.AddLanguage("frFR", function(L)
 
 -- Machine draft below this line: not yet checked by a native speaker.
+L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "Quand vous gagnez de l'expérience, des orbes volent vers la barre depuis le monstre, le donneur de quête ou le lieu découvert, et la remplissent en arrivant. Puis la nouvelle portion brille et « +PX » s'élève ; un balayage lors d'un passage de niveau. Nécessite les effets de mouvement (Général > Apparence)."
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "Une couronne sur le cadre du chef de groupe. Il suit l'onglet du nom ou le portrait jusqu'à ce que vous lui choisissiez une place."
 L["Adds a chat tab, or a combat log tab."] = "Ajoute un onglet de discussion ou un onglet de journal de combat."
 L["Alerts and timers"] = "Alertes et minuteurs"
@@ -3738,7 +3739,6 @@ L["The panel's framed box behind the list, as tall as what's shown."] = "Le cadr
 L["The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn the square off to have only this."] = "La barre de vie du familier prend à la place la couleur de son humeur : rouge mécontent, jaune satisfait, vert heureux. Désactivez le carré pour n'avoir que ceci."
 L["The pets' health text. General uses the font on General > Appearance."] = "Le texte de vie des familiers. « Général » utilise la police de Général > Apparence."
 L["The pets' names. General uses the font on General > Appearance."] = "Les noms des familiers. « Général » utilise la police de Général > Apparence."
-L["The piece of the bar you just earned flashes and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "La portion de barre que vous venez de gagner clignote et « +PX » s'élève ; un balayage lors d'un passage de niveau. Nécessite les effets de mouvement (Général > Apparence)."
 L["The pips widen to span the whole frame, so the row reads like a bar."] = "Les points s'élargissent pour couvrir tout le cadre, la rangée se lit alors comme une barre."
 L["The pips' color with One color, or the color they start from with Color to full color."] = "La couleur des points avec « Une couleur », ou leur couleur de départ avec « Couleur vers couleur pleine »."
 L["The players who keep DaylightUI going. Thank you."] = "Les joueurs qui font vivre DaylightUI. Merci."

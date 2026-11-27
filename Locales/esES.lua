@@ -4044,7 +4044,6 @@ L["The panel's framed box behind the list, as tall as what's shown."] = "El cuad
 L["The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn the square off to have only this."] = "La barra de salud de la mascota adopta en su lugar el color de su humor: rojo si está descontenta, amarillo si está satisfecha, verde si está feliz. Desactiva el cuadrado para tener solo esto."
 L["The pets' health text. General uses the font on General > Appearance."] = "El texto de salud de las mascotas. «General» usa la fuente de General > Apariencia."
 L["The pets' names. General uses the font on General > Appearance."] = "Los nombres de las mascotas. «General» usa la fuente de General > Apariencia."
-L["The piece of the bar you just earned flashes and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "La porción de barra que acabas de ganar parpadea y «+PE» sube; un barrido al subir de nivel. Necesita los efectos de movimiento (General > Apariencia)."
 L["The pips widen to span the whole frame, so the row reads like a bar."] = "Los puntos se ensanchan para cubrir todo el marco, así la fila se lee como una barra."
 L["The pips' color with One color, or the color they start from with Color to full color."] = "El color de los puntos con «Un color», o su color de partida con «Color hasta color lleno»."
 L["The players who keep DaylightUI going. Thank you."] = "Los jugadores que mantienen DaylightUI en marcha. Gracias."
@@ -5895,6 +5894,7 @@ L["Your windows"] = "Tus ventanas"
 L["new window"] = "ventana nueva"
 
 -- Machine draft below this line: not yet checked by a native speaker.
+L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "Al ganar PE, unos orbes vuelan a la barra desde el enemigo, el que da la misión o el lugar descubierto, y la llenan al llegar. Luego la nueva porción brilla y «+PE» sube; un barrido al subir de nivel. Necesita los efectos de movimiento (General > Apariencia)."
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "Una corona en el marco del líder del grupo. Va con la pestaña del nombre o el retrato hasta que le elijas un sitio."
 L["Adds a chat tab, or a combat log tab."] = "Añade una pestaña de chat o una del registro de combate."
 L["Alerts and timers"] = "Alertas y temporizadores"

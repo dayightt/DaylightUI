@@ -3,6 +3,7 @@ local _, DUI = ...
 DUI.AddLanguage("koKR", function(L)
 
 -- Machine draft below this line: not yet checked by a native speaker.
+L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "경험치를 얻으면 몬스터, 퀘스트 제공자 또는 발견한 장소에서 구슬이 막대로 날아와 도착할 때마다 막대를 채웁니다. 그런 다음 새로 채운 부분이 빛나고 \"+경험치\"가 떠오르며, 레벨이 오르면 빛이 쓸고 지나갑니다. 움직임 효과가 필요합니다 (일반 > 모양)."
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "파티장의 프레임에 왕관이 표시됩니다. 위치를 직접 정하기 전까지는 이름 탭이나 초상화를 따라갑니다."
 L["Adds a chat tab, or a combat log tab."] = "대화 탭이나 전투 기록 탭을 추가합니다."
 L["Alerts and timers"] = "경보와 타이머"
@@ -3554,7 +3555,6 @@ L["The panel's framed box behind the list, as tall as what's shown."] = "목록 
 L["The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn the square off to have only this."] = "소환수 생명력 막대가 대신 만족도 색을 띱니다: 불만은 빨강, 보통은 노랑, 만족은 초록. 이것만 쓰려면 네모를 끄세요."
 L["The pets' health text. General uses the font on General > Appearance."] = "소환수 생명력 텍스트. 일반은 일반 > 모양의 글꼴을 사용합니다."
 L["The pets' names. General uses the font on General > Appearance."] = "소환수 이름. 일반은 일반 > 모양의 글꼴을 사용합니다."
-L["The piece of the bar you just earned flashes and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "방금 얻은 막대 부분이 반짝이고 \"+경험치\"가 떠오르며, 레벨이 오르면 빛이 쓸고 지나갑니다. 움직임 효과가 필요합니다 (일반 > 모양)."
 L["The pips widen to span the whole frame, so the row reads like a bar."] = "칸이 개체창 전체 너비로 넓어져 줄이 막대처럼 보입니다."
 L["The pips' color with One color, or the color they start from with Color to full color."] = "단색일 때의 칸 색상, 또는 최대 색상으로 변화일 때 시작 색상."
 L["The players who keep DaylightUI going. Thank you."] = "DaylightUI를 이어 가게 해 주는 플레이어분들. 감사합니다."

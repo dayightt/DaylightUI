@@ -54,6 +54,8 @@ local function noBar(get) return get("databar.enabled") ~= true end
 
 -- The numbers' color, for the strip under the map and for the data bar.
 local NUMBER_COLORS = { accent = "Accent color", white = "White", class = "Class color", custom = "One color" }
+local ORB_COLORS = { bar = "Same as the experience bar", accent = "Accent color", daylight = "Daylight gradient",
+    gradient = "Class gradient", class = "Class color", custom = "One color" }
 local function numberColor(prefix, off, what)
     return { type = "dropdown", key = prefix .. "numberColor", label = what .. " color", since = "2.2",
              values = NUMBER_COLORS, order = { "accent", "white", "class", "custom" }, disabled = off,
@@ -133,7 +135,7 @@ ns.OPTIONS = { pages = {
               hidden = function(get) return get("xp.enabled") == true end },
             { type = "toggle", key = "xpGain", label = "XP gain effects",
               disabled = function(get) return get("xp.enabled") ~= true or motionOff() end,
-              desc = "The piece of the bar you just earned flashes and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)." },
+              desc = "When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)." },
             { type = "toggle", key = "xp.showText", label = "Show XP and rested XP as text",
               desc = "The numbers on the bar, e.g. 1,200 / 5,000 (+800), where +800 is your rested XP.",
               disabled = off("xp.enabled") },
@@ -163,6 +165,21 @@ ns.OPTIONS = { pages = {
               order = { "auto", "left", "right", "above", "below" },
               desc = "Where the numbers open when you hover the bar. Automatic opens them toward the middle of the screen.",
               disabled = off("xp.enabled") },
+        } },
+        { tab = "General", label = "XP orbs", desc = "When you gain XP, orbs bloom where it came from and fly into the experience bar. They come with XP gain effects above.", items = {
+            { type = "slider", key = "orbs.size", label = "Orb size", min = 0.5, max = 2.5, step = 0.1, unit = "%",
+              desc = "How big the XP orbs are.",
+              disabled = function(get) return get("xpGain") ~= true or motionOff() end },
+            { type = "slider", key = "orbs.flight", label = "Orb flight time", min = 0.4, max = 1.6, step = 0.1, unit = "s",
+              desc = "How long each orb takes to fly into the bar. Longer flights also linger a little longer where they bloom.",
+              disabled = function(get) return get("xpGain") ~= true or motionOff() end },
+            { type = "dropdown", key = "orbs.color", label = "Orb color", values = ORB_COLORS,
+              order = { "bar", "accent", "daylight", "gradient", "class", "custom" },
+              desc = "Same as the experience bar takes its colors, whatever you picked for it. Rested orbs keep the Rested XP color.",
+              disabled = function(get) return get("xpGain") ~= true or motionOff() end },
+            { type = "color", key = "orbs.custom", label = "Custom orb color",
+              desc = "The XP orbs' color while Orb color is set to One color.",
+              hidden = function(get) return get("orbs.color") ~= "custom" end },
         } },
         { tab = "Look", label = "Experience bar look", items = DaylightUI.Options.Join({
             { type = "toggle", key = "xp.gradient", label = "Experience bar gradient",

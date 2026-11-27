@@ -3452,7 +3452,6 @@ L["The panel's framed box behind the list, as tall as what's shown."] = "列表�
 L["The pet's health bar takes the mood color instead: red unhappy, yellow content, green happy. Turn the square off to have only this."] = "宠物生命条改为显示心情颜色：红色为不高兴，黄色为满足，绿色为高兴。关闭方块即可只保留这一项。"
 L["The pets' health text. General uses the font on General > Appearance."] = "宠物的生命值文字。选择“常规”时使用常规 > 外观中的字体。"
 L["The pets' names. General uses the font on General > Appearance."] = "宠物的名字。选择“常规”时使用常规 > 外观中的字体。"
-L["The piece of the bar you just earned flashes and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "刚获得的那段计量条会闪烁，并升起“+XP”；升级时有扫光效果。需要动态效果（常规 > 外观）。"
 L["The pips widen to span the whole frame, so the row reads like a bar."] = "点会加宽以横跨整个框体，让这一行看起来像计量条。"
 L["The pips' color with One color, or the color they start from with Color to full color."] = "单一颜色时点的颜色，或“渐变到满点颜色”时的起始颜色。"
 L["The players who keep DaylightUI going. Thank you."] = "让DaylightUI持续前进的玩家们。谢谢你们。"
@@ -5828,6 +5827,7 @@ L["Your attacks ignore %.0f of the target's armor."] = "你的攻击忽略目标
 L["Your spells ignore %.0f of the target's resistances."] = "你的法术忽略目标 %.0f 点抗性。"
 
 -- Machine draft below this line: not yet checked by a native speaker.
+L["When you gain XP, orbs fly into the bar from the mob, the quest giver or the place you found, filling it as they land. Then the new piece shines and \"+XP\" rises; a sweep on a level up. Needs Motion effects (General > Appearance)."] = "获得经验时，光球会从怪物、任务给予者或你发现的地点飞入计量条，落下时逐步填满。随后新获得的那段会发光，并升起“+XP”；升级时有扫光效果。需要动态效果（常规 > 外观）。"
 L["A crown on the party leader's frame. It rides with the name tab or portrait until you pick a spot for it."] = "队长框体上的王冠。 在你为它选好位置之前，它跟随名字标签或头像。"
 L["Adds a chat tab, or a combat log tab."] = "添加聊天标签页或战斗记录标签页。"
 L["Alerts and timers"] = "警报与计时条"

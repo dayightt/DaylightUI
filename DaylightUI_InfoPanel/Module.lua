@@ -6,7 +6,7 @@ DaylightUI:RegisterModule("InfoPanel", {
     -- Every part the files define. If one is missing after an update, the
     -- module turns itself off with a single line in chat.
     ns = ns,
-    parts = { "Panel", "XP", "RepBar", "XPGain", "Rows", "MeterHeader", "Meter", "ThreatView", "ThreatMeter", "DeathLog", "Breakdown", "BreakdownWindow", "Summary", "Windows", "MeterFrame", "Report", "Minimap", "Drawer", "DataTexts", "DataBar", "Broker", "Tracker", "MeterOptions" },
+    parts = { "Panel", "XP", "RepBar", "XPGain", "XPSource", "XPOrbs", "Rows", "MeterHeader", "Meter", "ThreatView", "ThreatMeter", "DeathLog", "Breakdown", "BreakdownWindow", "Summary", "Windows", "MeterFrame", "Report", "Minimap", "Drawer", "DataTexts", "DataBar", "Broker", "Tracker", "MeterOptions" },
     label = "Info Panel",
     order = 120,
     defaults = ns.DEFAULTS,

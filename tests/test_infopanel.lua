@@ -2945,6 +2945,7 @@ end
 
 T.test("info panel: an XP gain flashes the gained piece and shows +N, adding up", function()
     login()
+    stub.loadedAddOns["XPOrbs"] = true   -- the flash, as next to the XP Orbs addon (orbs: test_xporbs)
     local XP, G = stub.infopanel.XP, stub.infopanel.XPGain
     xpWidth(XP)
     T.eq(G.flash, nil, "login: no effect")
@@ -2970,6 +2971,7 @@ end)
 
 T.test("info panel: a level up sweeps once, with no gain flash, then the bar empties", function()
     login()
+    stub.loadedAddOns["XPOrbs"] = true   -- the flash, as next to the XP Orbs addon (orbs: test_xporbs)
     local XP, G = stub.infopanel.XP, stub.infopanel.XPGain
     xpWidth(XP)
     local level = 10
@@ -3847,6 +3849,7 @@ end)
 
 T.test("info panel: the XP gain number wears the bar's color, lifted", function()
     login()
+    stub.loadedAddOns["XPOrbs"] = true   -- the flash, as next to the XP Orbs addon (orbs: test_xporbs)
     local XP, G = stub.infopanel.XP, stub.infopanel.XPGain
     xpWidth(XP)
     setXP(300); setXP(420)

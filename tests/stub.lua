@@ -2278,6 +2278,30 @@ _G.BreakUpLargeNumbers = function(v, natural)
     return s
 end
 
+-- The client's XP chat lines, English, word for word from its GlobalStrings.
+for k, v in pairs({
+    COMBATLOG_XPGAIN_FIRSTPERSON = "%s dies, you gain %d experience.",
+    COMBATLOG_XPGAIN_FIRSTPERSON_GROUP = "%s dies, you gain %d experience. (+%d group bonus)",
+    COMBATLOG_XPGAIN_FIRSTPERSON_RAID = "%s dies, you gain %d experience. (-%d raid penalty)",
+    COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED = "You gain %d experience.",
+    COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED_GROUP = "You gain %d experience. (+%d group bonus)",
+    COMBATLOG_XPGAIN_FIRSTPERSON_UNNAMED_RAID = "You gain %d experience. (-%d raid penalty)",
+    COMBATLOG_XPGAIN_EXHAUSTION1 = "%s dies, you gain %d experience. (%s exp %s bonus)",
+    COMBATLOG_XPGAIN_EXHAUSTION1_GROUP = "%s dies, you gain %d experience. (%s exp %s bonus, +%d group bonus)",
+    COMBATLOG_XPGAIN_EXHAUSTION1_RAID = "%s dies, you gain %d experience. (%s exp %s bonus, -%d raid penalty)",
+    COMBATLOG_XPGAIN_EXHAUSTION2 = "%s dies, you gain %d experience. (%s exp %s bonus)",
+    COMBATLOG_XPGAIN_EXHAUSTION2_GROUP = "%s dies, you gain %d experience. (%s exp %s bonus, +%d group bonus)",
+    COMBATLOG_XPGAIN_EXHAUSTION2_RAID = "%s dies, you gain %d experience. (%s exp %s bonus, -%d raid penalty)",
+    COMBATLOG_XPGAIN_EXHAUSTION4 = "%s dies, you gain %d experience. (%s exp %s penalty)",
+    COMBATLOG_XPGAIN_EXHAUSTION4_GROUP = "%s dies, you gain %d experience. (%s exp %s penalty, +%d group bonus)",
+    COMBATLOG_XPGAIN_EXHAUSTION4_RAID = "%s dies, you gain %d experience. (%s exp %s penalty, -%d raid penalty)",
+    COMBATLOG_XPGAIN_EXHAUSTION5 = "%s dies, you gain %d experience. (%s exp %s penalty)",
+    COMBATLOG_XPGAIN_EXHAUSTION5_GROUP = "%s dies, you gain %d experience. (%s exp %s penalty, +%d group bonus)",
+    COMBATLOG_XPGAIN_EXHAUSTION5_RAID = "%s dies, you gain %d experience. (%s exp %s penalty, -%d raid penalty)",
+    COMBATLOG_XPGAIN_QUEST = "You gain %d experience. (%s exp %s bonus)",
+    ERR_ZONE_EXPLORED_XP = "Discovered %s: %d experience gained",
+}) do _G[k] = v end
+
 -- The client's shortener accepts secret values, and so does this fake.
 -- With break points from CreateAbbreviateConfig it follows them like the client:
 -- the first tier the value reaches, cut to its divisors.
@@ -3138,6 +3162,10 @@ _G.UnitGroupRolesAssigned = function(u) local x = U(u); return (x and x.role) or
 local ROLE_COORDS = { TANK = { 0, 0.25, 0, 0.25 }, HEALER = { 0.25, 0.5, 0, 0.25 }, DAMAGE = { 0.5, 0.75, 0, 0.25 } }
 _G.GetTexCoordsForRoleSmallCircle = function(role) return unpack(ROLE_COORDS[role] or ROLE_COORDS.DAMAGE) end
 _G.IsResting = function() return stub.resting == true end
+-- Travelling: stub.flying, stub.taxi (a flight path), stub.vehicle (UnitInVehicle).
+_G.IsFlying = function() return stub.flying == true end
+_G.UnitOnTaxi = function(u) return u == "player" and stub.taxi == true end
+_G.UnitInVehicle = function(u) return u == "player" and stub.vehicle == true end
 _G.IsInGroup = function() return stub.inGroup == true end
 _G.UnitIsGroupAssistant = function(u)
     needUnit(u, "UnitIsGroupAssistant", "local isAssistant = UnitIsGroupAssistant(unit)")
@@ -3522,6 +3550,13 @@ stub.neverSecretAuras = {}
 C_Secrets.GetSpellAuraSecrecy = function(sid)
     if issecretvalue and issecretvalue(sid) then error("GetSpellAuraSecrecy: secret argument") end
     return stub.neverSecretAuras[sid] and Enum.SecrecyLevel.NeverSecret or Enum.SecrecyLevel.ContextuallySecret
+end
+-- Whether a spell's aura reads secret right now (SecretPredicateAPI): yes in
+-- combat and under a restriction, unless the game never hides it.
+C_Secrets.ShouldSpellAuraBeSecret = function(sid)
+    if issecretvalue and issecretvalue(sid) then error("ShouldSpellAuraBeSecret: secret argument") end
+    if stub.neverSecretAuras[sid] then return false end
+    return stub.AurasRestricted()
 end
 _G.Enum.StartTimerType = { PvPBeginTimer = 0, ChallengeModeCountdown = 1, PlayerCountdown = 2, PlunderstormCountdown = 3 }
 _G.Enum.WeaponSlot = { MainHand = 0, OffHand = 1, Ranged = 2 }
@@ -3930,6 +3965,35 @@ function stub.SpellReads()
     _G.IsPlayerSpell = function(id) return stub.knownSpells[id] == true end
 end
 
+-- Bags and gear for the buff reminder, installed by a test that wants them:
+--   stub.bagItems[itemID] = count        (C_Item.GetItemCount)
+--   stub.itemSpells[itemID] = { name, spellID }   (C_Item.GetItemSpell: the buff it gives)
+--   stub.equipped[slot] = { id, class, subClass }  (GetInventoryItemID, and
+--       C_Item.GetItemInfoInstant for that id: class 2 = a weapon)
+function stub.BagReads()
+    stub.bagItems, stub.itemSpells, stub.equipped = {}, {}, {}
+    stub.bagSaved = stub.bagSaved or { C_Item.GetItemCount, C_Item.GetItemSpell, _G.GetInventoryItemID, C_Item.GetItemInfoInstant }
+    C_Item.GetItemCount = function(item)
+        if issecretvalue and issecretvalue(item) then error("GetItemCount: secret argument") end
+        return stub.bagItems[item] or 0
+    end
+    C_Item.GetItemSpell = function(item)
+        local s = stub.itemSpells[item]
+        if s then return s[1], s[2] end
+    end
+    _G.GetInventoryItemID = function(_, slot)
+        local e = stub.equipped[slot]
+        return e and e.id
+    end
+    local instant = stub.bagSaved[4]
+    C_Item.GetItemInfoInstant = function(item)
+        for _, e in pairs(stub.equipped) do
+            if e.id == item then return e.id, "", "", "", 134400, e.class or 2, e.subClass or 7 end
+        end
+        if instant then return instant(item) end
+    end
+end
+
 -- Globals Reset clears (the addon under test and its saved variables). Another addon that copies this file changes the list.
 stub.RESET_GLOBALS = { "DaylightUIDB", "DaylightUIAuctionDB", "DaylightUI", "SLASH_DAYLIGHTUI1" }
 -- stub.feelOwner is the table whose .Win.Feel FinishFade settles (nil = DaylightUI).
@@ -3995,6 +4059,12 @@ function stub.Reset()
     stub.instance = nil
     _G.IsInInstance = function() local k = stub.instance or "none"; return k ~= "none", k end
     stub.auras, stub.weaponEnchants, stub.auraReadsThrow = {}, {}, false
+    stub.flying, stub.taxi, stub.vehicle = nil, nil, nil
+    if stub.bagSaved then -- put back what stub.BagReads replaced
+        local b = stub.bagSaved
+        C_Item.GetItemCount, C_Item.GetItemSpell, _G.GetInventoryItemID, C_Item.GetItemInfoInstant = b[1], b[2], b[3], b[4]
+        stub.bagSaved = nil
+    end
     stub.cursorPos = { 0, 0 }
     stub.SetTime(1700000000, 1000.0)
     _G.GetTime = function() return upClock end   -- a test may have swapped it for its own
@@ -4361,7 +4431,7 @@ end
 stub.CORE_FILES = { "Locales/Locales.lua", "Locales/ruRU.lua", "Locales/zhCN.lua", "Locales/koKR.lua", "Locales/frFR.lua", "Locales/esES.lua", "Locales/deDE.lua", "Core.lua", "DB.lua", "Pixel.lua", "Style.lua", "Tips.lua", "GameFonts.lua", "DamageText.lua", "Motion.lua", "Sound.lua", "Pad.lua", "Media.lua", "Health.lua", "Weapons.lua", "Threat.lua", "Interrupt.lua", "Spots.lua", "Dots.lua", "DotsDraw.lua", "PrivateAuras.lua", "Taint.lua", "BugReport.lua", "PlateReport.lua", "WorldWatch.lua", "Gradients.lua", "BarFx.lua", "BarFxStyles.lua", "BarFxSoft.lua", "BarFxDaybreak.lua", "Movers.lua", "Fade.lua", "FadeUpgrade.lua", "EditMode.lua", "EditModeBase.lua", "GameMovers.lua", "PTRButton.lua", "QuestieAside.lua", "PrettyAside.lua", "OpenMap.lua", "CombatText/Kinds.lua", "CombatText/Lines.lua", "CombatText/Feed.lua", "CombatText/Page.lua", "Options/Registry.lua", "Options/Theme.lua",
                     "Options/Widgets.lua", "Options/SampleStrip.lua", "Options/Nav.lua", "Options/Results.lua", "Options/Panel.lua", "GameMenu.lua", "Installer.lua", "InstallerDraft.lua", "InstallerPages.lua", "InstallerCards.lua", "InstallerScreen.lua", "InstallerUI.lua", "InstallerChrome.lua", "InstallerSteps.lua", "InstallerPlugins.lua", "InstallerLooks.lua", "InstallerDuel.lua", "Welcome.lua", "Clashes.lua", "Profiles.lua", "Alts.lua", "Plugins.lua", "API.lua", "Donators.lua", "PatchNotes.lua", "PatchNotesUI.lua", "TestBox.lua", "Windows/Feel.lua", "Windows/Frame.lua", "Windows/Room.lua", "Windows/Follow.lua", "Windows/Swap.lua", "Windows/Parts.lua", "Windows/Keys.lua", "Windows/Cast.lua", "Tour.lua" }
 stub.BUFFS_FILES = { "Core.lua", "Categories.lua", "Data.lua", "Classify.lua", "Auras.lua", "Spells.lua", "Layout.lua",
-                     "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",
+                     "Scan.lua", "Preview.lua", "Widgets.lua", "Bar.lua", "Feel.lua", "DebuffBar.lua", "Private.lua", "PreviewBar.lua", "ReminderData.lua", "ReminderRow.lua", "Reminder.lua", "EdgeEditor.lua", "Commands.lua",
                      "Options.lua", "Module.lua" }
 stub.QUESTS_FILES = { "Blizzard.lua", "Defaults.lua", "Data.lua", "Layout.lua", "Look.lua", "Rows.lua", "Animate.lua",
                       "Items.lua", "Clicks.lua", "Details.lua", "Journal.lua", "Scroll.lua", "Tracker.lua", "Progress.lua", "Nav.lua", "Spots.lua", "Route.lua", "Arrow.lua", "QuestieBridge.lua", "Gather.lua", "Voice.lua", "Choice.lua", "GiverTips.lua", "Options.lua", "Module.lua" }
@@ -4519,7 +4589,7 @@ function stub.Load(opts)
     end
     if opts.infopanel then
         local IP = {}
-        loadFiles("DaylightUI_InfoPanel/", { "Defaults.lua", "Panel.lua", "XPBar.lua", "XPGain.lua", "Rows.lua", "MeterHeader.lua", "Meter.lua", "ThreatView.lua", "ThreatMeter.lua", "DeathLog.lua", "Breakdown.lua", "BreakdownWindow.lua", "Summary.lua", "MeterWindows.lua", "MeterFrame.lua", "Report.lua", "Minimap.lua", "Drawer.lua", "DataTexts.lua", "DataBar.lua", "Broker.lua", "Tracker.lua",
+        loadFiles("DaylightUI_InfoPanel/", { "Defaults.lua", "Panel.lua", "XPBar.lua", "XPGain.lua", "XPSource.lua", "XPOrbs.lua", "Rows.lua", "MeterHeader.lua", "Meter.lua", "ThreatView.lua", "ThreatMeter.lua", "DeathLog.lua", "Breakdown.lua", "BreakdownWindow.lua", "Summary.lua", "MeterWindows.lua", "MeterFrame.lua", "Report.lua", "Minimap.lua", "Drawer.lua", "DataTexts.lua", "DataBar.lua", "Broker.lua", "Tracker.lua",
                                              "MeterOptions.lua", "Options.lua", "Module.lua" }, "DaylightUI_InfoPanel", IP)
         stub.FireEvent("ADDON_LOADED", "DaylightUI_InfoPanel")
         stub.infopanel = IP

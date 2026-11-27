@@ -11,8 +11,12 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", changed = {
+    { version = "Unreleased", new = {
+        { "Info Panel", "XP orbs: when you gain experience, a ring of orbs blooms where it came from (the mob, the quest giver, the place you found) and streams into your XP bar, filling it as they land. Set their size, speed and color under Info Panel > Experience bar" },
+        { "Buffs", "Missing buffs now show as a row of icons above you while you're in a group: raid buffs (click yours to cast it on whoever lacks it), your class's own buff, and weapon oils, poisons and imbues, with a countdown when one is about to run out. It replaces the old line on ready checks. Food, scrolls, camp and sleeping bag reminders can be switched on under Buffs > Missing buffs" },
+    }, changed = {
         { "Unit frames", "The druid resource bars are gone: the mana strip on your power bar shows your mana in bear and cat form, and it's turned back on if you used the bars" },
+        { "Leader tools", "When you aren't leading, the leader tools card shows only the markers, and world markers glow like the beacons they leave on the ground, so the two marker rows are easy to tell apart" },
     }, fixed = {
         { "Bags", "Hovering the Disenchant button after Shift-clicking it no longer throws an error" },
         { "Info Panel", "The data bar's text color setting now changes the data bar's texts" },

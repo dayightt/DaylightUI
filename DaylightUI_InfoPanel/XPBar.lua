@@ -237,6 +237,7 @@ function XP.Build(frame)
     for _, e in ipairs({ "QUEST_LOG_UPDATE", "QUEST_TURNED_IN", "PLAYER_ENTERING_WORLD" }) do
         DUI.RegisterEvent(e, XP.CountBanked)
     end
+    ns.XPSource.Build()
 end
 
 -- The segment lines, evenly across the bar, each a pixel wide.
@@ -408,6 +409,39 @@ function XP.Paint(d)
     Style.SetBarColor(XP.rested, r, g, b)
 end
 
+-- The fill's color at t (0 = its start, 1 = its end) as it is painted now:
+-- the XP orbs wear the bar's own colors, whatever the player picked.
+function XP.ColorAt(t)
+    local fill = XP.bar and XP.bar:GetStatusBarTexture()
+    local stops = fill and Style.FillStops(fill)
+    if stops then return Style.StopsAt(stops, t) end
+    local lo, hi = nil, nil
+    if fill then lo, hi = Style.FillColors(fill) end
+    if not lo then
+        local c = XP.COLOR
+        return c[1], c[2], c[3]
+    end
+    return lo[1] + (hi[1] - lo[1]) * t, lo[2] + (hi[2] - lo[2]) * t, lo[3] + (hi[3] - lo[3]) * t
+end
+
+-- Where the fill ends for `value`, in UIParent units: the middle of its edge
+-- (an upright bar's top). nil while the bar has no place on screen.
+function XP.LandAt(value)
+    local bar = XP.bar
+    if not bar then return nil end
+    local cx, cy = bar:GetCenter()
+    local w, h = bar:GetWidth(), bar:GetHeight()
+    local _, max = bar:GetMinMaxValues()
+    if not (type(cx) == "number" and type(cy) == "number" and type(w) == "number" and type(h) == "number")
+            or secret(max) or type(max) ~= "number" or max <= 0 then
+        return nil
+    end
+    local frac = math.max(0, math.min(1, value / max))
+    local k = (bar:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    if XP.vertical then return cx * k, (cy - h / 2 + h * frac) * k end
+    return (cx - w / 2 + w * frac) * k, cy * k
+end
+
 -- The text: the numbers, the percent, or both, then the rested part (nil:
 -- nothing to show). value is the one on screen while it counts.
 function XP.Format(d, value)
@@ -489,6 +523,7 @@ function XP.Update()
     if XP.resting == nil then XP.resting = call(IsResting) == true end   -- seeded: no shimmer at login
     if not (XP.frame and XP.frame:IsShown()) then
         if ns.XPGain then ns.XPGain.last = nil end   -- shown again: no effect for what happened meanwhile
+        ns.XPOrbs.Drop()
         XP.shown = nil
         return
     end
@@ -501,6 +536,7 @@ function XP.Update()
     XP.banked:SetShown(d ~= nil and not d.rep)
     if not d then
         if ns.XPGain then ns.XPGain.last = nil end
+        ns.XPOrbs.Drop()
         XP.shown = nil
         return
     end

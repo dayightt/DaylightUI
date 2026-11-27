@@ -19,6 +19,9 @@ ns.XP_STOPS.count, ns.XP_STOPS.c1, ns.XP_STOPS.c2 = 2, { 0.55, 0.38, 0.12 }, { 0
 ns.DEFAULTS = {
     media = DaylightUI.Media.AreaDefaults(ns.MEDIA_BARS, ns.MEDIA_FONTS),
     xpGain = true,          -- flash the gained XP, show "+N", sweep on level up
+    -- The XP orbs: size (x the base), flight time in seconds, color
+    -- bar | accent | daylight | gradient | class | custom.
+    orbs = { size = 1, flight = 0.8, color = "bar", custom = ink(INK.MONEY) },
     xp = { enabled = true, gameBar = false, showText = false, showPercent = false, textSize = 9, gradient = true, classColor = true, height = 11, detached = false, width = 207,
           matchBars = true,     -- when detached, match the main action bar's width
           color = "accent",     -- accent | class | blue | custom (customGradient); classColor = false is the old blue

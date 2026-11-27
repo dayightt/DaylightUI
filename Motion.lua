@@ -440,6 +440,16 @@ end
 -- The shared tween driver (nil until the first tween). Tests run it.
 function Motion.Driver() return driver end
 
+-- Overshoot and settle: p (0 to 1) eased so it runs a little past 1 and comes
+-- back, ending exactly at 1. s is how far past (1.9 by default, about 10%).
+Motion.BACK = 1.9
+function Motion.Back(p, s)
+    s = s or Motion.BACK
+    if p >= 1 then return 1 end
+    local q = p - 1
+    return 1 + (s + 1) * q * q * q + s * q * q
+end
+
 -- A rock: step(v) is handed v tipping out to amp over FAST, swinging back a
 -- third past level over SLOW, then settling at 0 over SLOW, like water
 -- sloshing back. Asked again for the same key, it starts from where it is.
