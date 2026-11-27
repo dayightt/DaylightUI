@@ -12,14 +12,18 @@ local _, DUI = ...
 
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
-        { "Bar animations", "Flip direction: Flow, Slosh and Molten can run the other way along the bar" },
+        { "Bar animations", "Flip direction: any bar animation can run the other way along the bar" },
         { "Slant angle", "Set how far angled bar ends lean on nameplates, the loot feed, meters, the data bar, the breath bar and boss timer bars. Unit frames' Slant angle now goes up to 100%" },
         { "Spellbook", "Hide passive spells: a switch at the bottom of the spellbook leaves racial traits and other passives out so only spells you cast are listed" },
         { "Proc Alerts", "The Overpower alert lights up when your target dodges in Defensive or Berserker Stance too, so you know when to swap" },
         { "Cast bars", "The target, focus and party cast bars can have their own border, corners and shadow when they're not inside the frame, like your own cast bar" },
     }, changed = {
         { "Bags", "The bags' own \"Compare with what you wear\" switch is gone. The one under Tooltip decides for every item, bags included" },
+        { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },
+        { "Unit frames", "A cast bar or swing timer docked to the personal display keeps its own look and the spot you gave it, and moves with the display as you zoom, instead of squeezing under it" },
     }, fixed = {
+        { "Mailbox", "The mailbox does what the game's does again: hover a letter to see what's in it, Shift-click its items to link them, take one COD item or just the gold, keep a copy of a letter, right-click a letter to report spam, and on the Send page Tab, Enter, name suggestions, dropping items anywhere and right-click to take one back" },
+        { "Unit frames", "The personal display comes back when you mouse over it, like every other part of the UI" },
         { "Proc Alerts", "Proc alerts no longer show as big green boxes for some players" },
         { "Bar animations", "Molten, Cinders and Slosh no longer show green blocks on some players' bars" },
         { "Spellbook", "The spellbook does what the game's own does: Alt-click casts a spell on yourself, Shift-P opens on your pet's spells, search finds spells by what they do, and unlearned spells show the level they come at" },
@@ -28,7 +32,10 @@ DUI.PatchNotes = {
         { "Quests", "Quests started from an item show at the top of the quest tracker again (\"Quest discovered\"), so you can click to read and accept them" },
         { "Quests", "Quest item buttons: Shift-click links the item in chat, the button lights up when you reach the quest's area, and items a finished quest still needs stay" },
         { "Quests", "Quests that ask for gold show how much you have and need, and opening a quest in the quest log turns the map to it" },
+        { "Social", "Whispering a friend you added by character name reaches them again, instead of going nowhere as a Battle.net whisper" },
+        { "Social", "The tabs at the top of the social window no longer run into your BattleTag below them" },
         { "Cast bars", "A target or focus cast bar above or below its frame now leans at the ends like the frame, instead of staying square" },
+        { "Unit frames", "Elites, rares and bosses show their gold or silver badge on the frame's corner even with no portrait or name tab, so you can still tell them apart in a fight" },
     } },
     { version = "2.4.2", date = "2026-11-27", summary = "XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.", new = {
         { "Info Panel", "XP orbs: gaining experience sends a ring of orbs flying into your XP bar" },

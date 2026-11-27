@@ -59,8 +59,6 @@ CB.AT_LABELS = { power = "Inside the frame", above = "Above the frame", below = 
 -- own size instead. The same goes for a frame without a power bar to sit on
 -- (UF.ShowsPower) or whose power bar stands on its own (powerAt "free").
 function CB.At(unit, cfg)
-    -- Standing under the personal display (its page's switch, placed by Personal.Dock).
-    if unit == "player" and ns.Personal.Docks("castbar") then return "personal" end
     local list = CB.AT[unit] or CB.AT.target
     local at = type(cfg) == "table" and cfg.at
     local found = list[1]
@@ -341,11 +339,26 @@ function CB.Clip(h, f, lift)
     clip:SetFrameLevel(math.max(0, f:GetFrameLevel() - 1))
     -- The frame's border, in the clip's own scale (the frame uses the UI's).
     local top = lift * f:GetEffectiveScale() / clip:GetEffectiveScale()
+    -- Your column docked to the personal display moves with it.
+    local dx, dy = 0, 0
+    if h == ns.playerCastbar then
+        h.clipAt = h.clipAt or {}
+        h.clipAt.f, h.clipAt.lift = f, lift
+        dx, dy = ns.Personal.ShiftFor("column", clip)
+    end
     clip:ClearAllPoints()
-    clip:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -CB.CLIP_MARGIN, top)
-    clip:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", CB.CLIP_MARGIN, top)
+    clip:SetPoint("TOPLEFT", f, "BOTTOMLEFT", -CB.CLIP_MARGIN + dx, top + dy)
+    clip:SetPoint("TOPRIGHT", f, "BOTTOMRIGHT", CB.CLIP_MARGIN + dx, top + dy)
     clip:SetHeight(1000)
     return clip
+end
+
+-- Your column under the player frame, docked to the personal display: placed
+-- again as the display moves (Personal.Dock).
+function CB.Refollow(h)
+    local at = h.clipAt
+    if at and at.f then CB.Clip(h, at.f, at.lift) end
+    if h.column then CB.Hang(h) end
 end
 
 -- How far below the frame the bar sits: tucked up by its height times what's
@@ -355,8 +368,10 @@ function CB.Hang(h)
     if not c then return end
     local f, lift, H, T = c.f, c.lift, c.height, c.T
     local drop = H * (1 - h.slide.p)
+    local dx, dy = 0, 0
+    if h == ns.playerCastbar then dx, dy = ns.Personal.ShiftFor("column", h) end
     h:ClearAllPoints()
-    h:SetPoint("TOPLEFT", f, "BOTTOMLEFT", 0, lift + drop)
+    h:SetPoint("TOPLEFT", f, "BOTTOMLEFT", dx, lift + drop + dy)
     local total = c.fH + H - lift - drop
     -- One reused shape table, since this runs every frame of a slide.
     local ref = c.ref or {}
@@ -485,7 +500,7 @@ function CB.Layout(h, cfg, parentCfg)
     if h.inFrame then
         h:SetScale(1)
     elseif not h.attached then
-        local key = (hang and h.under.moverKey) or (at == "personal" and ns.Personal.KEY)
+        local key = (hang and h.under.moverKey)
             or (at == "middle" and frames and frames.player and frames.player.moverKey) or h.moverKey
         h:SetScale(key and DUI.Movers.Scale(key) or DUI.Movers.Scale())
     end
@@ -513,7 +528,6 @@ function CB.Layout(h, cfg, parentCfg)
         local s
         if hang then s = h.under:GetFrameStrata()
         elseif middle then s = pf:GetFrameStrata()
-        elseif at == "personal" and ns.Personal.frame then s = ns.Personal.frame:GetFrameStrata()
         elseif cfg.strata == "FRAME" and ns.frames and ns.frames[h.unit] then s = ns.frames[h.unit]:GetFrameStrata()
         elseif type(cfg.strata) == "string" then s = ns.StrataOf(cfg) end
         if s then h:SetFrameStrata(s) end
@@ -574,18 +588,13 @@ function CB.Layout(h, cfg, parentCfg)
         local height = tall
         local width = cfg.width
         local f = h.near
-        -- Under the personal display: as wide as it and cut the same way.
-        -- Otherwise each end has its own switch; the left one leans like
-        -- the target frame's end, so a bar under it can match.
+        -- Each end has its own switch; the left one leans like the target
+        -- frame's end, so a bar under it can match.
         local right, left = cfg.slant == true, cfg.slantLeft == true
         -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
         local flipRight, flipLeft = cfg.slantUnder, cfg.slantUnderLeft
-        local slope = at == "personal" and ns.Personal.Angle() or ns.UF.AngleOf(cfg.ownAngle, cfg.lean)
-        if at == "personal" then
-            width = ns.Personal.frame:GetWidth()
-            right, left = ns.Personal.Ends()
-            flipRight, flipLeft = false, false
-        elseif f and (at == "above" or at == "below") and cfg.fitFrame == true then
+        local slope = ns.UF.AngleOf(cfg.ownAngle, cfg.lean)
+        if f and (at == "above" or at == "below") and cfg.fitFrame == true then
             width = f:GetWidth() * f:GetEffectiveScale() / h:GetEffectiveScale()
             -- As wide as its frame it wears the frame's ends too, at the
             -- frame's slope, so the two read as one shape.
@@ -670,8 +679,12 @@ function CB.Layout(h, cfg, parentCfg)
         endCut = h.attached.cut or 0
         slant = h.attached.spec and h.attached.spec.slant
     end
-    local clearLeft = (slant == "left" or slant == "both") and not (h.icon and h.icon:IsShown())
-    local leftPad = CB.PAD + contentLead + (clearLeft and endCut or 0)
+    local iconUp = h.icon and h.icon:IsShown()
+    local clearLeft = (slant == "left" or slant == "both") and not iconUp
+    -- With the icon up the bar already starts past it, so the text doesn't
+    -- step over it a second time.
+    local iconLead = iconUp and contentLead or 0
+    local leftPad = CB.PAD + (iconUp and 0 or contentLead) + (clearLeft and endCut or 0)
     local rightPad = CB.PAD + ((slant == "right" or slant == "both") and endCut or 0)
     if h.into then
         -- The frame's portrait ring sits over the outer end; the power bar
@@ -688,12 +701,15 @@ function CB.Layout(h, cfg, parentCfg)
     local sPos, tPos = textOpt(spell, "pos", "spell"), textOpt(time, "pos", "time")
     local sx, sy = (tonumber(spell.x) or 0) + dx, (tonumber(spell.y) or 0) + lift
     local tx, ty = (tonumber(time.x) or 0) + dx, (tonumber(time.y) or 0) + lift
+    -- Centered text sits at the middle of the whole bar, icon included, with
+    -- the same room on both sides: centered past the icon it read as off.
+    local room = math.max(iconLead + leftPad, rightPad)
     h.time:ClearAllPoints()
     h.time:SetJustifyH(tPos == "left" and "LEFT" or tPos == "center" and "CENTER" or "RIGHT")
     if tPos == "left" then
         h.time:SetPoint("LEFT", h.bar, "LEFT", leftPad + tx, ty)
     elseif tPos == "center" then
-        h.time:SetPoint("CENTER", h.bar, "CENTER", (leftPad - rightPad) / 2 + tx, ty)
+        h.time:SetPoint("CENTER", h.bar, "CENTER", -iconLead / 2 + tx, ty)
     else
         h.time:SetPoint("RIGHT", h.bar, "RIGHT", -rightPad + tx, ty)
     end
@@ -706,6 +722,9 @@ function CB.Layout(h, cfg, parentCfg)
     elseif timeUp and sPos == "right" and tPos == "left" then
         h.text:SetPoint("LEFT", h.time, "RIGHT", 4, sy - ty)
         h.text:SetPoint("RIGHT", h.bar, "RIGHT", -rightPad + sx, sy)
+    elseif sPos == "center" then
+        h.text:SetPoint("LEFT", h.bar, "LEFT", room - iconLead + sx, sy)
+        h.text:SetPoint("RIGHT", h.bar, "RIGHT", -room + sx, sy)
     else
         h.text:SetPoint("LEFT", h.bar, "LEFT", leftPad + sx, sy)
         h.text:SetPoint("RIGHT", h.bar, "RIGHT", -rightPad + sx, sy)

@@ -520,6 +520,30 @@ T.test("with the spell icon on, the fill starts past the icon, never under it", 
     T.near(bx, -by, 0.01, "no icon: the fill runs the whole bar, inside the border")
 end)
 
+-- Seen in game: a centered spell name on the target's bar sat well right of
+-- the middle, since the icon's width was counted twice on the left.
+T.test("with the spell icon on, a centered spell name sits in the middle of the whole bar", function()
+    local DUI, ns = stub.Load({ module = true })
+    DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    DUI:Set("UnitFrames", "targetCastbar.spell.pos", "center")
+    DUI:Set("UnitFrames", "targetCastbar.time.pos", "center")
+    stub.RunTimers()
+    local h = ns.targetCastbarFree
+    T.truthy(h.icon:IsShown(), "the icon shows")
+    local _, _, _, bx = h.bar:GetPoint(1)
+    local _, _, _, bx2 = h.bar:GetPoint(2)
+    local _, _, _, lx = h.text:GetPoint(1)
+    local _, _, _, rx = h.text:GetPoint(2)
+    T.near(bx + lx, -(bx2 + rx), 0.01, "as much room on each side, measured from the bar's own ends")
+    local _, _, _, tx = h.time:GetPoint(1)
+    T.near(tx, (-bx2 - bx) / 2, 0.01, "the time too, at the whole bar's middle")
+    -- On the left, the name starts just past the icon, not an icon's width past it.
+    DUI:Set("UnitFrames", "targetCastbar.spell.pos", "left")
+    stub.RunTimers()
+    local _, _, _, lx2 = h.text:GetPoint(1)
+    T.near(lx2, ns.CastBar.PAD, 0.01)
+end)
+
 T.test("a cast bar of its own can flip each angled end on its own", function()
     local DUI, ns = stub.Load({ module = true })
     local Style = DaylightUI.Style
@@ -542,6 +566,7 @@ T.test("a cast bar of its own can flip each angled end on its own", function()
     stub.RunTimers()
     T.eq(Style.GetSlant(h).under, "right", "a flip on an end that isn't angled does nothing")
     DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)
     DUI:Set("UnitFrames", "targetCastbar.slantLeft", true)
     DUI:Set("UnitFrames", "targetCastbar.slantUnderLeft", true)
     stub.RunTimers()
@@ -566,7 +591,6 @@ T.test("a cast bar of its own can switch on its own angle; off, the shared one",
     DUI:Set("UnitFrames", "playerCastbar.ownAngle", true)
     stub.RunTimers()
     T.truthy(Style.GetSlant(h).cut > shared, "steeper with its own angle")
-    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)
     DUI:Set("UnitFrames", "playerCastbar.lean", 0.02)
     stub.RunTimers()
     T.truthy(Style.GetSlant(h).cut < shared, "near 0 it's nearly square, not the shared angle")
@@ -991,37 +1015,13 @@ T.test("above or below its frame the target's cast bar is as wide as the frame, 
     DUI:Set("UnitFrames", "targetCastbar.width", 300)
     stub.RunTimers()
     T.near(h:GetWidth(), 300, 1, "its own width when switched off")
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", true)
     -- A player who had set a width of their own keeps it.
     local uf = { targetCastbar = { width = 260 }, focusCastbar = {} }
     ns.UPGRADE_STEPS[14](uf)
     T.eq(uf.targetCastbar.fitFrame, false); T.eq(uf.focusCastbar.fitFrame, nil)
 end)
 
--- A batch of crafts (50 bandages) gets one bar for the whole batch, counting, and
--- never sliding away between two crafts. GetRemainingRecasts is the crafts after the
--- one under way (the game's own ProfessionsCrafting uses total = it + 1).
-T.test("a batch of crafts is one bar over the whole batch, with its count", function()
-    local h = setup()
-    local left = 2
-    local keptTS = rawget(_G, "C_TradeSkillUI")
-    _G.C_TradeSkillUI = { GetRemainingRecasts = function() return left end }
-    local function craft(n)
-        local now = GetTime()
-        stub.units.player = { cast = { name = "Linen Bandage", tradeSkill = true, notInterruptible = true,
-            from = now * 1000, to = (now + 3) * 1000, spellID = 3275, duration = stub.Duration(3) } }
-        stub.FireEvent("UNIT_SPELLCAST_START", "player", "Cast-" .. n, 3275)
-    end
-    local function finish(n)
-        stub.Advance(3)
-        left = math.max(0, left - 1)
-        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-" .. n, 3275)
-    DUI:Set("UnitFrames", "targetCastbar.fitFrame", true)
-        stub.units.player = {}
-        stub.FireEvent("UNIT_SPELLCAST_STOP", "player", "Cast-" .. n, 3275)
-    end
-    craft(1)
-    T.truthy(h:IsShown())
-    T.near(h.bar.__timer[1]:GetTotalDuration(), 9, 0.01, "three crafts' time")
 -- A player's report: below the target frame, at its width, the bar stayed
 -- square while the frame's ends leaned.
 T.test("above or below its frame at the frame's width, the target's cast bar leans like the frame", function()
@@ -1052,6 +1052,30 @@ T.test("above or below its frame at the frame's width, the target's cast bar lea
     T.eq(Style.GetSlant(ns.focusCastbarFree).side, ns.frames.focus.ends, "the focus's bar leans like its frame")
 end)
 
+-- A batch of crafts (50 bandages) gets one bar for the whole batch, counting, and
+-- never sliding away between two crafts. GetRemainingRecasts is the crafts after the
+-- one under way (the game's own ProfessionsCrafting uses total = it + 1).
+T.test("a batch of crafts is one bar over the whole batch, with its count", function()
+    local h = setup()
+    local left = 2
+    local keptTS = rawget(_G, "C_TradeSkillUI")
+    _G.C_TradeSkillUI = { GetRemainingRecasts = function() return left end }
+    local function craft(n)
+        local now = GetTime()
+        stub.units.player = { cast = { name = "Linen Bandage", tradeSkill = true, notInterruptible = true,
+            from = now * 1000, to = (now + 3) * 1000, spellID = 3275, duration = stub.Duration(3) } }
+        stub.FireEvent("UNIT_SPELLCAST_START", "player", "Cast-" .. n, 3275)
+    end
+    local function finish(n)
+        stub.Advance(3)
+        left = math.max(0, left - 1)
+        stub.FireEvent("UNIT_SPELLCAST_SUCCEEDED", "player", "Cast-" .. n, 3275)
+        stub.units.player = {}
+        stub.FireEvent("UNIT_SPELLCAST_STOP", "player", "Cast-" .. n, 3275)
+    end
+    craft(1)
+    T.truthy(h:IsShown())
+    T.near(h.bar.__timer[1]:GetTotalDuration(), 9, 0.01, "three crafts' time")
     T.eq(h.text.__text, "Linen Bandage 1/3")
     finish(1)
     T.truthy(h:IsShown(), "stays up between two crafts")
@@ -1170,6 +1194,17 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     for _, row in ipairs(ns.swing.rows) do
         T.eq(Style.GetShell(row).opts.borderPx, 2, "every swing bar's own border")
     end
+    -- The target's, focus's and party's bars of their own take one too.
+    DUI:Set("UnitFrames", "targetCastbar.at", "below")
+    DUI:Set("UnitFrames", "targetCastbar.shell.own", true)
+    DUI:Set("UnitFrames", "targetCastbar.shell.borderPx", 1)
+    DUI:Set("UnitFrames", "focusCastbar.at", "free")
+    DUI:Set("UnitFrames", "focusCastbar.shell.own", true)
+    DUI:Set("UnitFrames", "focusCastbar.shell.borderPx", 4)
+    stub.RunTimers()
+    T.eq(Style.GetShell(ns.targetCastbarFree).opts.borderPx, 1, "the target's own border")
+    T.eq(Style.GetShell(ns.focusCastbarFree).opts.borderPx, 4, "the focus's own border")
+    T.eq(ns.DEFAULTS.partyCastbar.shell.own, false, "the party's bars have one too, off by default")
     -- Hung under the frame by default, or under the power bar on its own.
     T.eq(h.under, ns.frames.player)
     DUI:Set("UnitFrames", "player.powerAt", "free")
@@ -1194,17 +1229,6 @@ T.test("the player's cast bar and swing timer take their own border, and can sli
     -- Flipped, the cast bar still hangs from it and leans back in from its
     -- bottom corner: a chevron.
     DUI:Set("UnitFrames", "player.powerSlantUnder", true)
-    -- The target's, focus's and party's bars of their own take one too.
-    DUI:Set("UnitFrames", "targetCastbar.at", "below")
-    DUI:Set("UnitFrames", "targetCastbar.shell.own", true)
-    DUI:Set("UnitFrames", "targetCastbar.shell.borderPx", 1)
-    DUI:Set("UnitFrames", "focusCastbar.at", "free")
-    DUI:Set("UnitFrames", "focusCastbar.shell.own", true)
-    DUI:Set("UnitFrames", "focusCastbar.shell.borderPx", 4)
-    stub.RunTimers()
-    T.eq(Style.GetShell(ns.targetCastbarFree).opts.borderPx, 1, "the target's own border")
-    T.eq(Style.GetShell(ns.focusCastbarFree).opts.borderPx, 4, "the focus's own border")
-    T.eq(ns.DEFAULTS.partyCastbar.shell.own, false, "the party's bars have one too, off by default")
     stub.RunTimers()
     T.eq(Style.GetSlant(pb).under, "right", "the power bar's end leans under")
     T.eq(h.under, pb, "the cast bar still slides out from the power bar")
@@ -1605,10 +1629,10 @@ T.test("bar ends: a cast bar's end menus write its switches, each end on its own
     T.falsy(rows["Your cast bar flip right end"], "no flip switches left")
     -- The target's bar above the frame: \--/ is the left end usual, the right end usual.
     DUI:Set("UnitFrames", "targetCastbar.at", "above")
+    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)   -- at the frame's width it wears the frame's ends
     set("Target cast bar left end", "slash")
     set("Target cast bar right end", "backslash")
     stub.RunTimers()
     local sl = DUI.Style.GetSlant(ns.targetCastbarFree)
     T.eq(sl.side, "both"); T.eq(sl.under, "both", "/--\\")
 end)
-    DUI:Set("UnitFrames", "targetCastbar.fitFrame", false)   -- at the frame's width it wears the frame's ends

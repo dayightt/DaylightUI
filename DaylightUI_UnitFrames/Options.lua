@@ -1333,7 +1333,6 @@ local function swingBarCard()
         local function b(f) return "swing.bars." .. key .. "." .. f end
         local function gone(get)
             return get("swing.enabled") ~= true or get(show) ~= true
-                or (get("personal.enabled") == true and get("personal.swing") == true)
         end
         local function dis(get) return gone(get) or get(b("detach")) ~= true end
         -- Its own size and look rows appear once it's detached. While attached,
@@ -2485,7 +2484,6 @@ local function atChoice(unit, desc)
              desc = desc,
              disabled = function(get)
                  return get(unit .. "Castbar.enabled") ~= true
-                     or (unit == "player" and get("personal.enabled") == true and get("personal.castbar") == true)
              end }
 end
 local function atOf(get, unit) return CB.At(unit, { at = get(unit .. "Castbar.at") }) end
@@ -2600,10 +2598,10 @@ end
 -- Its own angle, on the same bars the flip works on.
 local function castAngle(unit, who, notOwn)
     return angleRows({ own = unit .. "Castbar.ownAngle", lean = unit .. "Castbar.lean", name = CAST_WHO[unit], what = who .. " cast bar's", since = "2.0",
-        note = unit == "player" and "Not while under the frame, between the frames or under the personal display."
+        note = unit == "player" and "Not while under the frame or between the frames."
             or (unit == "target" or unit == "focus") and "Not inside the frame, sliding out under it, or matching the frame above or below it." or "Not inside the frame.",
         disabled = function(get)
-            return notOwn(get) or (unit == "player" and atOf(get, "player") == "personal")
+            return notOwn(get)
                 or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
         end })
 end
@@ -2809,18 +2807,18 @@ local PLAYER_CAST = {
         { type = "toggle", key = "playerCastbar.showIcon", label = "Your cast bar spell icon",
           desc = "The spell's icon at the end of your cast bar. Not while under the frame, where the portrait ring covers that spot, or between the frames.", disabled = notMiddleOwn },
         castEnds("player", off("playerCastbar.enabled"),
-            function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
-            "Under the frame it follows the frame's own ends (Straight there keeps it square), between the frames both ends lean, and under the personal display it takes the display's.")[1],
+            notMiddleOwn,
+            "Under the frame it follows the frame's own ends (Straight there keeps it square), and between the frames both ends lean.")[1],
         castEnds("player", off("playerCastbar.enabled"),
-            function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
-            "Under the frame it follows the frame's own ends (Straight there keeps it square), between the frames both ends lean, and under the personal display it takes the display's.")[2],
+            notMiddleOwn,
+            "Under the frame it follows the frame's own ends (Straight there keeps it square), and between the frames both ends lean.")[2],
         castAngle("player", "your", notMiddleOwn)[1],
         castAngle("player", "your", notMiddleOwn)[2],
         { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
           desc = "Your cast bar fills from the right. Not while under the frame or between the frames.", disabled = notMiddleOwn },
         strataRow("playerCastbar.strata", "Your cast bar layer", "The layer your cast bar draws in.",
-            function(get) return notMiddleOwn(get) or atOf(get, "player") == "personal" end,
-            " Under the frame, between the frames or under the personal display, it draws with the frame instead."),
+            notMiddleOwn,
+            " Under the frame or between the frames, it draws with the frame instead."),
     } },
     castShell("playerCastbar"),
     DaylightUI.Fade.Card("playerCastbar.fade.", nil, off("playerCastbar.enabled"), "Your cast bar", { noFloat = true }),
@@ -3157,7 +3155,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "swing.attach", invert = true, label = "Detach as group",
               desc = "Takes the bars out from under the player frame so you can move them together (/dui unlock); they slide out of their own box. When off, they hang under the player frame, under the cast bar while it hangs there, even with the cast bar detached. With your cast bar between your frame and the target's, they fan out under it instead, each a little wider.",
               disabled = function(get)
-                  return get("swing.enabled") ~= true or (get("personal.enabled") == true and get("personal.swing") == true)
+                  return get("swing.enabled") ~= true
               end },
             { type = "slider", key = "swing.width", label = "Swing timer width", min = 80, max = 500, step = 1,
               desc = "How wide the swing timer bars are. Only when detached as a group. Hung under the player frame, the bars match its width.",
@@ -3312,13 +3310,13 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "personal.comboX", label = "Personal combo points left / right", min = -50, max = 50, step = 1, unit = "px",
               desc = "Nudges the personal display's row of combo points sideways.", disabled = offAny("personal.enabled", "personal.combo") },
             { type = "slider", key = "personal.comboY", label = "Personal combo points up / down", min = -50, max = 50, step = 1, unit = "px",
-              desc = "Nudges the personal display's row of combo points up or down. Docked cast and swing bars stay below it.", disabled = offAny("personal.enabled", "personal.combo") },
+              desc = "Nudges the personal display's row of combo points up or down.", disabled = offAny("personal.enabled", "personal.combo") },
         } },
-        { label = "Docked bars", desc = "Your cast bar and swing timers under the personal display, as wide as it and cut like it.", items = {
-            { type = "toggle", key = "personal.swing", label = "Swing timers on the personal display",
-              desc = "Moves your swing timers under the personal display, as wide as it.", disabled = off("personal.enabled") },
-            { type = "toggle", key = "personal.castbar", label = "Cast bar on the personal display",
-              desc = "Moves your cast bar under the personal display, as wide as it.", disabled = off("personal.enabled") },
+        { label = "Docked bars", desc = "Your cast bar and swing timers move with the personal display as the camera zooms. They keep their own look and the spot you gave them: place them in /dui unlock, where the display holds still.", items = {
+            { type = "toggle", key = "personal.swing", label = "Swing timers follow the personal display",
+              desc = "Your swing timers move with the personal display, keeping their own look and spot. Hung under the player frame or fanned under the cast bar, the cast bar comes along too.", disabled = off("personal.enabled") },
+            { type = "toggle", key = "personal.castbar", label = "Cast bar follows the personal display",
+              desc = "Your cast bar moves with the personal display, keeping its own look and spot. Swing timers hung or fanned under it come along too.", disabled = off("personal.enabled") },
         } },
         shellCard("personal", "personal.enabled"),
         DaylightUI.Options.BarFxCard({ module = "UnitFrames", choices = {

@@ -132,33 +132,137 @@ T.test("a row under the bars clears the combo row and what's docked", function()
     T.truthy(bare > 0, "past the combo row")
     DUI:Set("UnitFrames", "personal.castbar", true)
     stub.RunTimers()
-    T.truthy(PR.auras.buffDrop > bare, "and past the cast bar")
+    T.eq(PR.auras.buffDrop, bare, "a docked cast bar stays where it was put, so the row doesn't move")
 end)
 
-T.test("the cast bar and swing bars stand under it, then go back", function()
-    local DUI, ns, PR = login()
-    local h, cast, swing = PR.frame, ns.playerCastbar, ns.swing
-    T.truthy(swing, "the fake game's warrior has swing bars")
+-- Docked bars follow the display: each keeps its own look and spot and moves
+-- by however far the display has moved since (Personal.Dock).
+local function moveCamera(PR, zoom)
+    stub.cameraZoom = zoom
+    PR.Wake()
+    frames(PR, 400)
+end
+
+local function shiftOf(f, x0, y0, PR, px0, py0)
+    local _, _, _, x, y = f:GetPoint(1)
+    local r = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    T.truthy(math.abs(PR.y - py0) > 5, "the display moved")
+    T.near(x - x0, (PR.x - px0) / r, 0.01, "moved across with the display")
+    T.near(y - y0, (PR.y - py0) / r, 0.01, "moved up or down with the display")
+end
+
+local function detachedSwing(DUI)
     DUI:Set("UnitFrames", "swing.enabled", true)
+    DUI:Set("UnitFrames", "swing.attach", false)
+    stub.RunTimers()
+end
+
+T.test("docked bars keep their own look and spot: switching it on moves nothing", function()
+    local DUI, ns = login()
+    local Style, sw, cb = DUI.Style, ns.swing, ns.playerCastbar
+    detachedSwing(DUI)
+    local w = sw:GetWidth()
+    local p, rel, rp, x, y = sw:GetPoint(1)
+    local sides = {}
+    for i, row in ipairs(sw.rows) do sides[i] = Style.GetSlant(row).side end
+    local cw, cside = cb:GetWidth(), Style.GetSlant(cb).side
+    local at = ns.CastBar.At("player", ns.module.db.playerCastbar)
     DUI:Set("UnitFrames", "personal.swing", true)
     DUI:Set("UnitFrames", "personal.castbar", true)
     stub.RunTimers()
-    T.eq(ns.CastBar.At("player", ns.module.db.playerCastbar), "personal")
-    local p, rel, rp, _, y = cast:GetPoint(1)
-    T.eq(p, "TOP"); T.eq(rel, h); T.eq(rp, "TOP")
-    local _, srel, _, _, sy = swing:GetPoint(1)
-    T.eq(srel, h)
-    T.truthy(sy > y, "swing bars first, so a cast never moves them")
-    T.near(cast:GetWidth(), h:GetWidth(), 1, "as wide as the display")
-    T.near(swing:GetWidth(), h:GetWidth(), 1)
-    T.truthy(DUI.Movers.Get("unitframes.swing").suspended, "no second handle")
-    T.truthy(DUI.Movers.Get("unitframes.playerCastbar").suspended)
-    DUI:Set("UnitFrames", "personal.swing", false)
-    DUI:Set("UnitFrames", "personal.castbar", false)
+    T.truthy(sw.together, "still detached as a group")
+    T.eq(sw:GetWidth(), w, "its own width")
+    local p2, rel2, rp2, x2, y2 = sw:GetPoint(1)
+    T.eq(p2, p); T.eq(rel2, rel); T.eq(rp2, rp)
+    T.near(x2, x, 0.01); T.near(y2, y, 0.01, "no jump when switched on")
+    for i, row in ipairs(sw.rows) do T.eq(Style.GetSlant(row).side, sides[i], "its own ends") end
+    T.eq(ns.CastBar.At("player", ns.module.db.playerCastbar), at, "the cast bar keeps its position setting")
+    T.eq(cb:GetWidth(), cw, "and its width"); T.eq(Style.GetSlant(cb).side, cside, "and its ends")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("docked bars ride along as the camera moves the display, in a fight too", function()
+    local DUI, ns, PR = login()
+    local sw = ns.swing
+    detachedSwing(DUI)
+    DUI:Set("UnitFrames", "personal.swing", true)
     stub.RunTimers()
-    T.eq(ns.CastBar.At("player", ns.module.db.playerCastbar), "below", "back under the player frame")
-    local _, back = cast:GetPoint(1)
-    T.truthy(back ~= h)
+    local _, _, _, x0, y0 = sw:GetPoint(1)
+    local px0, py0 = PR.x, PR.y
+    stub.EnterCombat()
+    moveCamera(PR, 6)
+    shiftOf(sw, x0, y0, PR, px0, py0)
+    stub.LeaveCombat()
+    stub.RunTimers()
+    shiftOf(sw, x0, y0, PR, px0, py0)
+    -- A redraw of its own (any setting) keeps it with the display.
+    DUI:Set("UnitFrames", "swing.height", 18)
+    stub.RunTimers()
+    shiftOf(sw, x0, y0, PR, px0, py0)
+    -- Undocked it goes back to its own spot.
+    DUI:Set("UnitFrames", "personal.swing", false)
+    stub.RunTimers()
+    local _, _, _, x1, y1 = sw:GetPoint(1)
+    T.near(x1, x0, 0.01); T.near(y1, y0, 0.01, "back on its own spot")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("docked bars: unlocked, the display rests where they were placed; locked, it follows again", function()
+    local DUI, ns, PR = login()
+    local sw = ns.swing
+    detachedSwing(DUI)
+    DUI:Set("UnitFrames", "personal.swing", true)
+    stub.RunTimers()
+    local _, _, _, x0, y0 = sw:GetPoint(1)
+    local px0, py0 = PR.x, PR.y
+    moveCamera(PR, 6)
+    T.truthy(DUI.Movers.Unlock())
+    stub.RunTimers()
+    frames(PR, 400)
+    T.near(PR.x, px0, 0.01); T.near(PR.y, py0, 0.01, "the display holds at the bars' resting spot")
+    local _, _, _, x1, y1 = sw:GetPoint(1)
+    T.near(x1, x0, 0.01); T.near(y1, y0, 0.01, "the bars stand on their own spots, where their handles are")
+    DUI.Movers.Lock()
+    stub.RunTimers()
+    frames(PR, 400)
+    shiftOf(sw, x0, y0, PR, px0, py0)
+end)
+
+T.test("docked bars: what hangs under the player frame goes as one column", function()
+    local DUI, ns, PR = login()
+    local cb, sw = ns.playerCastbar, ns.swing
+    DUI:Set("UnitFrames", "swing.enabled", true)
+    stub.RunTimers()
+    T.truthy(cb.column, "the cast bar hangs under the player frame")
+    T.truthy(sw.attached, "the swing bars hang under it too")
+    local _, _, _, cx0, cy0 = cb:GetPoint(1)
+    local _, _, _, sx0, sy0 = sw:GetPoint(1)
+    local _, _, _, kx0, ky0 = cb.clip:GetPoint(1)
+    DUI:Set("UnitFrames", "personal.castbar", true)
+    stub.RunTimers()
+    T.truthy(cb.column, "docked, it still hangs the same way")
+    local px0, py0 = PR.x, PR.y
+    moveCamera(PR, 6)
+    shiftOf(cb, cx0, cy0, PR, px0, py0)
+    shiftOf(cb.clip, kx0, ky0, PR, px0, py0)
+    shiftOf(sw, sx0, sy0, PR, px0, py0)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("docked bars: swing bars fanned under the cast bar take it along", function()
+    local DUI, ns, PR = login()
+    local cb, sw = ns.playerCastbar, ns.swing
+    DUI:Set("UnitFrames", "swing.enabled", true)
+    DUI:Set("UnitFrames", "playerCastbar.at", "middle")
+    stub.RunTimers()
+    T.truthy(sw.fan, "fanned under the cast bar between the frames")
+    local _, _, _, cx0, cy0 = cb:GetPoint(1)
+    DUI:Set("UnitFrames", "personal.swing", true)
+    stub.RunTimers()
+    local px0, py0 = PR.x, PR.y
+    moveCamera(PR, 6)
+    shiftOf(cb, cx0, cy0, PR, px0, py0)
+    T.eq(select(2, sw:GetPoint(1)), cb, "the swing bars stay under it")
 end)
 
 T.test("test mode wakes the display, with its rows", function()
@@ -775,7 +879,7 @@ T.test("numbers: the test sample shows sample values", function()
     T.eq(tostring(stub.Text(PR.frame.powerText)), tostring(PR.SAMPLE.power))
 end)
 
-T.test("angle: its own lean, else the shared one, and docked bars lean with it", function()
+T.test("angle: its own lean, else the shared one; docked bars keep their own", function()
     local DUI, ns, PR = login()
     local h = PR.frame
     T.eq(PR.Angle(), ns.UF.SLANT, "untouched, the Slant angle")
@@ -794,28 +898,32 @@ T.test("angle: its own lean, else the shared one, and docked bars lean with it",
     DUI:Set("UnitFrames", "personal.lean", 0.6)
     DUI:Set("UnitFrames", "personal.lean", 0.1)
     DUI.Style.Slant = slant
-    T.truthy(#cuts >= 2 and cuts[#cuts] < cuts[1], "the docked cast bar leans with it")
+    T.truthy(#cuts >= 2 and cuts[#cuts] == cuts[1], "the docked cast bar keeps its own angle")
     DUI:Set("UnitFrames", "personal.slant", false)
     T.eq(h.cut, 0, "angled ends off: square, whatever the angle")
 end)
 
-T.test("its left end can be angled too, and docked bars are cut the same way", function()
+T.test("its left end can be angled too; docked bars keep their own ends", function()
     local DUI, ns, PR = login()
     local Style, h = DUI.Style, PR.frame
+    stub.RunTimers()
+    local castSide = Style.GetSlant(ns.playerCastbar).side
+    local rowSides = {}
+    for i, row in ipairs(ns.swing.rows) do rowSides[i] = Style.GetSlant(row).side end
     DUI:Set("UnitFrames", "personal.castbar", true)
     DUI:Set("UnitFrames", "personal.swing", true)
     DUI:Set("UnitFrames", "personal.slantLeft", true)
     stub.RunTimers()
     T.eq(Style.GetSlant(h.body).side, "both")
-    T.eq(Style.GetSlant(ns.playerCastbar).side, "both", "the docked cast bar")
-    for _, row in ipairs(ns.swing.rows) do
-        T.eq(Style.GetSlant(row).side, "both", "each docked swing bar")
+    T.eq(Style.GetSlant(ns.playerCastbar).side, castSide, "the docked cast bar")
+    for i, row in ipairs(ns.swing.rows) do
+        T.eq(Style.GetSlant(row).side, rowSides[i], "each docked swing bar")
     end
     DUI:Set("UnitFrames", "personal.slant", false)
     stub.RunTimers()
     T.eq(Style.GetSlant(h.body).side, "left", "the left end alone")
     T.eq(h.cutSide, "left", "the combo row leans that way")
-    T.eq(Style.GetSlant(ns.playerCastbar).side, "left")
+    T.eq(Style.GetSlant(ns.playerCastbar).side, castSide)
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
@@ -1057,7 +1165,7 @@ T.test("a reveal, even sent twice, is ended by one end", function()
     T.eq(PR.frame:GetAlpha(), 0, "faded again")
 end)
 
-T.test("bar ends: the personal display's four shapes; heals lean with it, docked bars lean the usual way", function()
+T.test("bar ends: the personal display's four shapes; heals lean with it, docked bars keep theirs", function()
     local DUI, ns = login("ROGUE")
     local PR = ns.Personal
     local S = DUI.Style
@@ -1067,6 +1175,9 @@ T.test("bar ends: the personal display's four shapes; heals lean with it, docked
         { true, true, true, true, "bottom-out both" },
         { true, false, true, true, "leaning right" },
     }
+    stub.RunTimers()
+    local own = S.GetSlant(ns.playerCastbar)
+    local ownSide, ownUnder = own.side, own.under
     DUI:Set("UnitFrames", "personal.castbar", true)
     for _, c in ipairs(cases) do
         DUI:Set("UnitFrames", "personal.slantLeft", c[1])
@@ -1084,8 +1195,8 @@ T.test("bar ends: the personal display's four shapes; heals lean with it, docked
             local _, _, hu = S.GetFillAngle(body.heals)
             T.eq(hu == true, c[3], c[5] .. ": heals too")
         end
-        -- The cast bar docked under it is cut at the same ends, never flipped.
+        -- The docked cast bar keeps its own ends, whatever the display's.
         local cb = S.GetSlant(ns.playerCastbar)
-        T.eq(cb.side, "both", c[5]); T.isnil(cb.under, c[5] .. ": docked bars lean the usual way")
+        T.eq(cb.side, ownSide, c[5]); T.eq(cb.under, ownUnder, c[5] .. ": docked bars keep their own ends")
     end
 end)

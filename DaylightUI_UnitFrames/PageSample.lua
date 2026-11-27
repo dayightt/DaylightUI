@@ -895,7 +895,7 @@ end
 local function castSpot(kind, c)
     local at = ns.CastBar.At(kind, c)
     if kind == "party" then return "party", at end
-    if at == "free" or at == "personal" or at == "middle" then return "alone", at end
+    if at == "free" or at == "middle" then return "alone", at end
     if at == "power" then return "inside", at end
     return "near", at
 end

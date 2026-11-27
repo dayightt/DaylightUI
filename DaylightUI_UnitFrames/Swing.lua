@@ -888,18 +888,12 @@ function ST.Restack(h)
     ST.UpdateShown(h)
 end
 
--- A detached bar's angled ends and fill (its own height and settings). Under
--- the personal display the bars are cut like the display.
+-- A detached bar's angled ends and fill (its own height and settings).
 local function shapeRow(h, row, rc, height, T, angle)
     local right, left = rc.slant == true, rc.slantLeft == true
     -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
     local flipRight, flipLeft = rc.slantUnder, rc.slantUnderLeft
-    if h.docked and not row.alone then
-        right, left = ns.Personal.Ends()
-        flipRight, flipLeft = false, false
-    else
-        angle = ns.UF.AngleOf(rc.ownAngle, rc.lean)
-    end
+    angle = ns.UF.AngleOf(rc.ownAngle, rc.lean)
     local cut = (right or left) and Pixel.Snap(row, height * angle) or 0
     if cut <= 0 then right, left = false, false end
     local side = right and left and "both" or right and "right" or left and "left" or nil
@@ -965,7 +959,7 @@ function ST.Place(h)
     local cb = h.castbar
     local f = h.attached and cb and cb.under or nil
     local height = h.rowHeight or 12
-    local angle = h.docked and ns.Personal.Angle() or ns.UF.SLANT
+    local angle = ns.UF.SLANT
     for _, row in ipairs(h.rows) do
         if not row.alone then row.leftCut = nil end
         if row.alone then
@@ -1006,8 +1000,9 @@ function ST.Place(h)
             if not row.alone then shapeRow(h, row, h.cfg, height, T, angle) end
         end
         ST.PlaceTimes(h)
-        if h.docked then ns.Personal.Dock() end
     end
+    -- Docked to the personal display, it moves with it (Personal.Dock).
+    if ns.Personal.Docks("swing") or ns.Personal.Docks("castbar") then ns.Personal.Dock() end
     for _, row in ipairs(h.rows) do
         row.label:ClearAllPoints()
         row.label:SetPoint("LEFT", row.bar, "LEFT", ns.CastBar.PAD + (row.iconLead or 0) + (row.leftCut or 0) + (h.fan and row.endCut or 0), 0)
@@ -1158,11 +1153,15 @@ function ST.Hang(h)
     -- From the frame's top down to where this top border's outer edge meets the
     -- piece above (measured like the cast bar's bottom).
     local depth = base - h:GetHeight() * (1 - p)
+    -- Docked to the personal display the column moves with it. Hung from the
+    -- cast bar it's carried already; hung from the frame it moves here.
+    local dx, dy = ns.Personal.ShiftFor("column", h)
     h:ClearAllPoints()
     if p == 1 and not (cbOn and cb.slide.p ~= 1) then
-        h:SetPoint("TOPLEFT", above, "BOTTOMLEFT", 0, tuck)
+        if above == cb then dx, dy = 0, 0 end
+        h:SetPoint("TOPLEFT", above, "BOTTOMLEFT", dx, tuck + dy)
     else
-        h:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -(depth - T))
+        h:SetPoint("TOPLEFT", f, "TOPLEFT", dx, -(depth - T) + dy)
     end
     -- Above what it hangs from, so its straight top border covers the rounded
     -- tip of the angle above (and below the portrait). While it slides out from
@@ -1198,6 +1197,12 @@ function ST.Hang(h)
     ST.PlaceTimes(h)
 end
 
+-- Hung under the player frame and docked to the personal display: placed
+-- again as the display moves (Personal.Dock).
+function ST.Refollow(h)
+    if h and h.attached and h.column then ST.Hang(h) end
+end
+
 -- Sized and placed from the settings: hung under the player frame's column
 -- (see ST.Place), or on its own mover.
 function ST.Layout(h, cfg, castbar)
@@ -1221,14 +1226,13 @@ function ST.Layout(h, cfg, castbar)
     end
     -- Hung under the player frame (under the cast bar while it hangs there) it
     -- takes the frame's size, otherwise its own. Detaching the cast bar leaves
-    -- the swing bars hung. It can also go under the personal display (its
-    -- page's switch, placed by Personal.Dock).
-    h.docked = ns.Personal.Docks("swing")
+    -- the swing bars hung. Docked to the personal display it keeps all of
+    -- this and only moves with the display (Personal.Dock).
     -- With the cast bar between the frames (and shown), they fan out under it.
-    local fan = not h.docked and cfg.attach and castbar ~= nil and castbar.middle == true and castbar.enabled == true
-    local hung = not h.docked and not fan and cfg.attach and castbar ~= nil and castbar.under ~= nil
+    local fan = cfg.attach and castbar ~= nil and castbar.middle == true and castbar.enabled == true
+    local hung = not fan and cfg.attach and castbar ~= nil and castbar.under ~= nil
     local fanKey = fan and ns.frames and ns.frames.player and ns.frames.player.moverKey
-    h:SetScale(DUI.Movers.Scale((h.docked and ns.Personal.KEY) or (hung and castbar.under.moverKey) or fanKey or "unitframes.swing"))
+    h:SetScale(DUI.Movers.Scale((hung and castbar.under.moverKey) or fanKey or "unitframes.swing"))
     -- Its own border, corners and shadow on every bar (swing.shell), else General's.
     local own = ns.UF.OwnShell(cfg)
     for _, row in ipairs(h.rows) do ns.UF.WriteShell(Style.GetShell(row), own) end
@@ -1241,12 +1245,11 @@ function ST.Layout(h, cfg, castbar)
     h.attached = hung
     h.fan = fan or nil
     -- Detached as a group, the bars slide out of their own box.
-    h.together = not hung and not h.docked and not fan
-    -- Hung under a frame, fanned under the cast bar or docked, the bars draw
-    -- with what they hang from. Detached they take their own strata.
+    h.together = not hung and not fan
+    -- Hung under a frame or fanned under the cast bar, the bars draw with what
+    -- they hang from. Detached they take their own strata.
     local strata = ns.StrataOf(cfg)
-    if h.docked and ns.Personal.frame then strata = ns.Personal.frame:GetFrameStrata()
-    elseif fan then strata = castbar:GetFrameStrata()
+    if fan then strata = castbar:GetFrameStrata()
     elseif hung then strata = castbar.under:GetFrameStrata() end
     h:SetFrameStrata(strata)
     if h.boxClip then h.boxClip:SetFrameStrata(strata) end
@@ -1255,7 +1258,7 @@ function ST.Layout(h, cfg, castbar)
         h.inner:SetAllPoints(h)
         if h.boxClip then h.boxClip.cut = false; h.boxClip:SetClipsChildren(false) end
     end
-    if not h.attached and not h.fan then h:SetWidth(2 * Pixel.Snap(h, (h.docked and ns.Personal.frame:GetWidth() or cfg.width) / 2)) end
+    if not h.attached and not h.fan then h:SetWidth(2 * Pixel.Snap(h, cfg.width / 2)) end
     -- The column changes when a cast starts or ends, so re-hang then.
     if castbar and not h.hooked then
         h.hooked = true
@@ -1267,14 +1270,14 @@ function ST.Layout(h, cfg, castbar)
     end
     -- Laid out with no slide under way: straight to where a cast up or none puts them.
     if not h.room:Moving() then h.room:Jump(castbar and castbar.up and 1 or 0) end
-    -- Each bar detached on its own (not while docked) gets its own piece, mover
+    -- Each bar detached on its own gets its own piece, mover
     -- and settings (swing.bars.<hand>).
     local bars = type(cfg.bars) == "table" and cfg.bars or {}
     local grouped = false
     for _, row in ipairs(h.rows) do
         local key = row.def.key
         local own = type(bars[key]) == "table" and bars[key] or nil
-        local alone = own ~= nil and own.detach == true and not h.docked
+        local alone = own ~= nil and own.detach == true
         if row.alone and not alone then
             -- Back in the group: its piece goes away and the row returns.
             row.pop:Jump(0)
@@ -1298,7 +1301,7 @@ function ST.Layout(h, cfg, castbar)
         end
         DUI.Movers.Suspend(mover, not (alone and on))
     end
-    DUI.Movers.Suspend("unitframes.swing", h.attached or h.docked or h.fan or not grouped)
+    DUI.Movers.Suspend("unitframes.swing", h.attached or h.fan or not grouped)
     for _, row in ipairs(h.rows) do
         local rc = row.cfg or cfg
         local rT = row.alone and Pixel.Px(row.pod, borderOf(h)) or T

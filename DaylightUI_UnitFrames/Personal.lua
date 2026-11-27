@@ -191,8 +191,8 @@ function PR.LayoutNumbers(h, cfg, cut, H, showHealth)
         cfg.powerTextSize, Pixel.Px(s, 1))
 end
 
--- Whether your cast bar ("castbar") or swing bars ("swing") stand under the
--- display. The real bars move here, nothing is drawn twice.
+-- Whether your cast bar ("castbar") or swing bars ("swing") follow the display
+-- (see PR.Dock).
 function PR.Docks(kind)
     local cfg = db()
     return cfg ~= nil and cfg.enabled == true and cfg[kind] == true
@@ -255,6 +255,23 @@ function PR.Create()
 
     local list = { h }
     DUI.Movers.Register(h, PR.KEY, "Personal Display", { "TOP", nil, "CENTER", 0, -110 })
+    -- Unlocking holds the display at the docked bars' resting spot; locking
+    -- lets it follow the camera again, the bars with it.
+    DUI.On("UnlockChanged", function()
+        if PR.Docks("castbar") or PR.Docks("swing") then
+            PR.still = 0
+            PR.Wake()
+            PR.Dock()
+        end
+    end)
+    -- A docked bar dropped on its own mover: that spot is its new base.
+    DUI.On("MoverApplied", function(key)
+        local cb, sw = ns.playerCastbar, ns.swing
+        if (cb and key == cb.moverKey and PR.Docks("castbar"))
+            or (key and string.find(key, "^unitframes%.swing") and PR.Docks("swing")) then
+            PR.Dock()
+        end
+    end)
     -- The engine's own alpha, never read back from the frame. Fully faded, the
     -- power poll rests. Coming back, it starts again right away.
     DUI.Fade.Register{ key = PR.FADE, scope = "UnitFrames", path = "personal.fade",
@@ -367,6 +384,12 @@ function PR.Step(dt)
         PR.still, PR.lastZoom = 0, zoom
     end
     local tx, ty = PR.Spot(zoom, cfg)
+    -- Unlocked with bars docked, it rests where they were placed, so each
+    -- shows on its own spot (PR.Dock).
+    local rx, ry = tonumber(cfg.followX), tonumber(cfg.followY)
+    if DUI.Movers.unlocked and rx and ry and (PR.Docks("castbar") or PR.Docks("swing")) then
+        tx, ty = rx, ry
+    end
     if not PR.x or not Motion.On() then
         PR.x, PR.y = tx, ty
     else
@@ -379,6 +402,7 @@ function PR.Step(dt)
         PR.follow:Hide()
     end
     place(PR.x, PR.y)
+    if PR.Docks("castbar") or PR.Docks("swing") then PR.Dock() end
 end
 
 -- Something moved the camera or changed your size, so follow until it settles.
@@ -642,23 +666,119 @@ function PR.Layout(cfg)
     elseif h:IsShown() then PR.UpdateAll() end
 end
 
--- Stacks what's docked under the bars and the combo row, swing bars first so
--- they never move when a cast starts and stay readable at a glance. Their own
--- layouts size them first (Units.lua), and the swing bars ask again when their
--- number changes (ST.Place).
-function PR.Dock()
-    local h = PR.frame
-    if not h then return end
-    local y = h:GetHeight() + (h.comboReach or 0)
-    for _, piece in ipairs({ { "swing", ns.swing }, { "castbar", ns.playerCastbar } }) do
-        local kind, f = piece[1], piece[2]
-        if f and PR.Docks(kind) then
-            f:ClearAllPoints()
-            f:SetPoint("TOP", h, "TOP", 0, -(y + PR.DOCK_GAP))
-            y = y + PR.DOCK_GAP + f:GetHeight()
+-- Docked bars follow the display. Each keeps its own look and the spot it was
+-- given (under the player frame, between the frames, or on its own), and moves
+-- by however far the display has moved since then. personal.followX and
+-- followY hold where the display stood when that spot was given: in unlock mode
+-- the display holds still there, so every bar shows and drags on its own spot,
+-- and once locked they ride along with the camera again.
+--
+-- What hangs off another piece goes with it: the bars hung under the player
+-- frame are one column, and swing bars fanned under the cast bar go with it, so
+-- docking either one carries the whole column or fan.
+
+-- How far the display has moved from its resting spot, in UIParent units.
+function PR.Delta()
+    local cfg = db()
+    if not (cfg and PR.following and PR.x and not DUI.Movers.unlocked) then return 0, 0 end
+    local rx, ry = tonumber(cfg.followX), tonumber(cfg.followY)
+    if not (rx and ry) then return 0, 0 end
+    return PR.x - rx, PR.y - ry
+end
+
+-- What a docked bar's pieces are moved by: "cast" (the cast bar on its own,
+-- above the frame or between the frames), "swing" (the swing bars on their
+-- own), "column" (whatever hangs under the player frame).
+function PR.ShiftOf(part)
+    local cb, sw = ns.playerCastbar, ns.swing
+    local cast, swing = PR.Docks("castbar"), PR.Docks("swing")
+    local on
+    if part == "column" then
+        on = (cast and cb ~= nil and cb.column ~= nil) or (swing and sw ~= nil and sw.attached == true)
+    elseif part == "cast" then
+        on = cast or (swing and sw ~= nil and sw.fan == true)
+    else
+        on = swing
+    end
+    if not on then return 0, 0 end
+    return PR.Delta()
+end
+
+-- dx, dy (UIParent units) in f's own units, for its SetPoint offsets.
+function PR.ShiftFor(part, f)
+    local dx, dy = PR.ShiftOf(part)
+    if dx == 0 and dy == 0 then return 0, 0 end
+    local r = f:GetEffectiveScale() / UIParent:GetEffectiveScale()
+    return dx / r, dy / r
+end
+
+-- Moves a frame placed by someone else (its mover, the layout) by part's
+-- shift. Its own points are read as the base whenever they're not the ones set
+-- here last, so a new layout or a drop on its mover becomes the new base.
+local function carry(f, part)
+    if not f then return end
+    local dx, dy = PR.ShiftFor(part, f)
+    local was = f.carried
+    local n = f:GetNumPoints()
+    local same = was ~= nil and #was == n
+    local now = {}
+    for i = 1, n do
+        local p, rel, rp, x, y = f:GetPoint(i)
+        if isSecret(x) or isSecret(y) then return end
+        now[i] = { p, rel, rp, x or 0, y or 0 }
+        local w = same and was[i]
+        if not (w and w[1] == p and w[2] == rel and w[3] == rp
+                and math.abs(w[4] - now[i][4]) < 0.01 and math.abs(w[5] - now[i][5]) < 0.01) then
+            same = false
         end
     end
-    if PR.auras then PR.auras.buffDrop = y - h:GetHeight() end
+    local base = same and f.carryBase or now
+    if n == 0 then return end
+    f.carryBase = base
+    if not same and dx == 0 and dy == 0 then
+        f.carried = now
+        return
+    end
+    f:ClearAllPoints()
+    local set = {}
+    for i, b in ipairs(base) do
+        set[i] = { b[1], b[2], b[3], b[4] + dx, b[5] + dy }
+        f:SetPoint(b[1], b[2], b[3], b[4] + dx, b[5] + dy)
+    end
+    f.carried = set
+end
+PR.Carry = carry
+
+-- Puts every docked bar where it belongs now. Runs after their layouts, on a
+-- drop, and on each frame the display follows the camera.
+function PR.Dock()
+    local h, cfg = PR.frame, db()
+    if not (h and cfg) then return end
+    local any = PR.Docks("castbar") or PR.Docks("swing")
+    -- The first bar docked takes the display's spot now as its rest, so
+    -- nothing jumps when it's switched on.
+    if any and PR.following and PR.x and not DUI.Movers.unlocked
+        and not (tonumber(cfg.followX) and tonumber(cfg.followY)) then
+        cfg.followX, cfg.followY = PR.x, PR.y
+        DUI.DB.Keep()
+    end
+    local cb, sw = ns.playerCastbar, ns.swing
+    if cb and not cb.inFrame then
+        -- Its clip under the player frame holds the hung swing bars too.
+        if cb.column or (sw and sw.attached) then ns.CastBar.Refollow(cb) end
+        if not cb.column then carry(cb, "cast") end
+    end
+    if sw then
+        if sw.attached then
+            ns.Swing.Refollow(sw)
+        elseif sw.together then
+            carry(sw, "swing")
+        end
+        for _, row in ipairs(sw.rows or {}) do
+            if row.alone and row.pod then carry(row.pod, "swing") end
+        end
+    end
+    if PR.auras then PR.auras.buffDrop = h.comboReach or 0 end
 end
 
 -- Your buffs and debuffs on the display. Their containers are created the
