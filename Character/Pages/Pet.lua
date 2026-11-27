@@ -70,8 +70,8 @@ function PetPage.Read()
         end
     end
     if C_PetInfo and type(C_PetInfo.GetPetFoodTypes) == "function" then
-        local ok, diet = pcall(C_PetInfo.GetPetFoodTypes)
-        if ok and type(diet) == "table" then
+        local diet = C_PetInfo.GetPetFoodTypes()
+        if type(diet) == "table" then
             d.diet = {}
             for _, food in ipairs(diet) do
                 if plain(food, "string") then d.diet[#d.diet + 1] = food end
