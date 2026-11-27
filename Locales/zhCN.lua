@@ -9374,4 +9374,8 @@ L["Where on the button its cost shows."] = "消耗显示在按钮上的位置。
 L["Expired"] = "已过期"
 L["Canceled"] = "已取消"
 L["Won"] = "已拍得"
+
+-- Auction House Sell tab: items a vendor pays more for (machine draft, not yet checked by a native speaker).
+L["Vendor %s"] = "商人 %s"
+L["Vendor pays more"] = "商人收购价更高"
 end)

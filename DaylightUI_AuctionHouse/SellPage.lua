@@ -24,6 +24,11 @@
 -- post the next item is picked, so Post again and again sells the lot; "Sell
 -- all" on a heading does the same inside that heading.
 --
+-- An item a vendor pays more for than the Auction House would after its cut
+-- (P.VendorPays, the Post warning's test) sits under its own heading at the
+-- bottom, grayed, with the vendor's price. That heading has no "Sell all", and
+-- stepping to the next item passes over it.
+--
 --   ns.SellPage.Build(page)   once, by the window
 --   ns.SellPage.Fill()        each time the tab shows
 --   ns.SellPage.Key()         the key binding: Post
@@ -289,6 +294,8 @@ local function makeRow(key)
     }
     r.d = P.Decide(r)
     r.worth = r.d.unit and r.d.unit * r.have or nil
+    -- the Post warning's own test, on the amount and price the form starts at
+    r.vendor = P.VendorPays(r, P.Amount(r), r.d.unit)
     return r
 end
 
@@ -325,7 +332,10 @@ end
 function P.IsPinned(key) return ns.DB.Table("sellPinned")[key] == true end
 function P.IsHidden(key) return ns.DB.Table("sellHidden")[key] == true end
 
--- Pinned items sit in their own heading on top, hidden ones in one at the bottom.
+-- Pinned items sit in their own heading on top, hidden ones in one at the bottom,
+-- and items a vendor pays more for (r.vendor) in one just above that, whose
+-- vendorTotal is what a vendor pays for all of them.
+local VENDOR_RANK = 1e9
 function P.Headings()
     if heads then return heads end
     local rank = classRank()
@@ -334,14 +344,17 @@ function P.Headings()
         local c = r.classID
         local id, name, at = "c:" .. tostring(c or "?"), (c and ns.Items.ClassName(c)) or L["Other"], c and (rank[c] or 100 + c) or 100000
         if P.IsHidden(r.key) then id, name, at = "hidden", L["Hidden"], math.huge
+        elseif r.vendor then id, name, at = "vendor", L["Vendor pays more"], VENDOR_RANK
         elseif P.IsPinned(r.key) then id, name, at = "pinned", L["Pinned"], -1 end
         local h = byId[id]
         if not h then
-            h = { id = id, name = name, rows = {}, total = 0, checking = 0, rank = at, hidden = id == "hidden" or nil }
+            h = { id = id, name = name, rows = {}, total = 0, checking = 0, rank = at, hidden = id == "hidden" or nil,
+                  vendor = id == "vendor" or nil, vendorTotal = 0 }
             byId[id] = h
             list[#list + 1] = h
         end
         h.rows[#h.rows + 1] = r
+        if r.vendor then h.vendorTotal = h.vendorTotal + r.vendor * r.have end
         if r.worth then h.total = h.total + r.worth
         elseif not r.d.fresh and not r.d.failed then h.checking = h.checking + 1 end
     end
@@ -544,7 +557,8 @@ end
 
 -- The next row after `key`: inside the heading being sold, else the whole
 -- list. An item whose search found no price is passed over: it needs a price
--- typed, so it waits for the player's own pick.
+-- typed, so it waits for the player's own pick. So is one a vendor pays more
+-- for (r.vendor).
 local function nextAfter(key)
     local keys = {}
     if P.selling then
@@ -556,7 +570,7 @@ local function nextAfter(key)
     for i, k in ipairs(keys) do if k == key then at = i end end
     for i = (at or 0) + 1, #keys do
         local r = byKey[keys[i]]
-        if r and r.key ~= key and not (r.d.fresh and not r.d.unit) then return r end
+        if r and r.key ~= key and not (r.d.fresh and not r.d.unit) and not r.vendor then return r end
     end
     return nil
 end
@@ -777,12 +791,22 @@ function P.Post()
     P.Paint()
 end
 
+-- What a vendor pays for one, when that's more than `qty` at `unit` each brings
+-- once the Auction House takes its cut; nil otherwise, and with no price. The
+-- Post warning and the bag list both ask it, so they always agree.
+function P.VendorPays(r, qty, unit)
+    if not (r and r.itemID and type(unit) == "number" and type(qty) == "number" and qty >= 1) then return nil end
+    local vendor = ns.Items.VendorSell(r.itemID)
+    if vendor and vendor * qty > floor(unit * qty * (1 - P.CUT)) then return vendor end
+    return nil
+end
+
 -- Why a price is worth a second look before it goes up, or nil: far under what
 -- most others ask (P.Floor), or less than a vendor pays once the Auction House
 -- takes its cut. Asked once per price; a second Post click posts it.
 function P.LowWords(r, qty, unit)
-    local vendor = r.itemID and ns.Items.VendorSell(r.itemID)
-    if vendor and vendor * qty > floor(unit * qty * (1 - P.CUT)) then
+    local vendor = P.VendorPays(r, qty, unit)
+    if vendor then
         return format(L["A vendor pays more for it (%s each). Click Post again to post it anyway."], money(vendor))
     end
     local d = r.d
@@ -1030,17 +1054,23 @@ function P.FillList()
         stack:Text(L["Nothing in your bags can be sold."], { size = Style.SIZE.body, color = Style.INK.LABEL })
     end
     for _, h in ipairs(shown) do
+        -- the vendor heading shows what a vendor pays for its items, and can't be sold all
+        local normal = not h.hidden and not h.vendor
         stack:Section(h.name, {
-            value = not h.hidden and sectionValue(h) or nil,
-            action = not h.hidden and { text = L["Sell all"], onClick = function() P.SellAll(h.id, h.name) end } or nil,
+            value = h.vendor and money(h.vendorTotal) or normal and sectionValue(h) or nil,
+            action = normal and { text = L["Sell all"], onClick = function() P.SellAll(h.id, h.name) end } or nil,
             lit = P.selling ~= nil and P.selling.id == h.id,
         })
         for _, r in ipairs(h.rows) do
+            -- a vendor pays more: grayed, with the vendor's price beside the sub
+            local vendor = r.vendor
             lines[r.key] = stack:Line({
                 id = r.key, row = r, icon = r.icon, text = r.name,
-                color = h.hidden and Style.INK.OFF or { Parts.QualityColor(r.quality) },
+                color = (h.hidden or vendor) and Style.INK.OFF or { Parts.QualityColor(r.quality) },
                 sub = P.SubOf(r), value = r.worth and money(r.worth) or DASH,
-                valueColor = r.worth and Style.INK.MONEY or Style.INK.LABEL,
+                valueColor = (r.worth and not vendor) and Style.INK.MONEY or Style.INK.LABEL,
+                subValue = vendor and format(L["Vendor %s"], money(vendor)) or nil,
+                subValueColor = vendor and Style.INK.WARN or nil,
                 picked = P.picked == r.key, tooltip = lineTip,
                 link = function() return ns.Items.Hyperlink(r.key) end,
                 onClick = function() P.Pick(r.key, true) end,

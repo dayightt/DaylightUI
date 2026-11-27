@@ -5080,4 +5080,8 @@ L["Expired"] = "Expiré"
 L["Canceled"] = "Annulé"
 L["Won"] = "Remporté"
 L["Outbid"] = "Offre dépassée"
+
+-- Auction House Sell tab: items a vendor pays more for (machine draft, not yet checked by a native speaker).
+L["Vendor %s"] = "Marchand %s"
+L["Vendor pays more"] = "Le marchand paie plus"
 end)

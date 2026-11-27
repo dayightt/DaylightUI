@@ -4968,4 +4968,8 @@ L["Expired"] = "Время истекло"
 L["Canceled"] = "Отменено"
 L["Won"] = "Выиграно"
 L["Outbid"] = "Перекуплено"
+
+-- Auction House Sell tab: items a vendor pays more for (machine draft, not yet checked by a native speaker).
+L["Vendor %s"] = "Торговец %s"
+L["Vendor pays more"] = "Торговец платит больше"
 end)
