@@ -225,7 +225,7 @@ ns.DEFAULTS = {
                            debuffTimeSize = 12, buffTimeSize = 9, debuffCountSize = 10, buffCountSize = 10,
                            debuffFilter = "all", debuffTimers = true, buffTimers = true, debuffShortTimers = false, buffShortTimers = false,
                            debuffSwipe = false, buffSwipe = false, debuffTips = true, buffTips = true },
-                 fade = DaylightUI.Fade.Defaults({ mode = "ooc", target = true, delay = 2, mouseover = false }) },
+                 fade = DaylightUI.Fade.Defaults({ mode = "ooc", target = true, delay = 2 }) },
     -- Spot, grow and nudge (Spots.lua) for each row. Both over the frame,
     -- side by side: buffs from the left end, debuffs from the right, as on
     -- every frame.

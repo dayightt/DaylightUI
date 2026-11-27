@@ -440,6 +440,18 @@ T.test("faded away: the power poll rests until it shows again", function()
     T.truthy(h.poll:IsShown(), "and the poll runs again at once")
 end)
 
+T.test("only when something changes: the mouse over it brings it back, like every other area", function()
+    local DUI, _, PR = login()
+    local h = PR.frame
+    DUI:Set("UnitFrames", "personal.fade.mode", "float")
+    for _ = 1, 40 do stub.Advance(0.25); DUI.Fade.Step(); DUI.Fade.Animate(0.25) end
+    T.eq(DUI.Fade.State(PR.FADE), 0, "out of a fight, nothing changing: gone")
+    h.__over = true
+    for _ = 1, 4 do stub.Advance(0.1); DUI.Fade.Step(); DUI.Fade.Animate(0.1) end
+    h.__over = nil
+    T.truthy(DUI.Fade.State(PR.FADE) > 0, "hovering where it sits shows it")
+end)
+
 -- The five second rule sweep (PowerBar.lua). A finished cast that costs mana
 -- runs a light over the mana bar on the player frame and the display. Mana is
 -- secret in a fight, so only the cast and the spell's cost are read.
