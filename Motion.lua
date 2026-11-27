@@ -560,6 +560,65 @@ function Motion.Sweep(tex, over, opts)
     end)
 end
 
+-- A light that runs round a frame's edge for as long as it's on, the way the
+-- game spins a light round a pet spell set to autocast. The client moves it (a
+-- looping Translation group, four legs), so no Lua runs while it goes round.
+-- With motion off it rests at the middle of the top edge.
+--   local run = Motion.EdgeRun(frame, { size = 12, lap = 2.4 })
+--   run.Set(true, { r, g, b })   -- on, in this color (read the accent when calling)
+--   run.Set(false)
+Motion.EDGE_LAP = Motion.SLOW * 6   -- seconds for one round
+function Motion.EdgeRun(frame, opts)
+    opts = opts or {}
+    local run = {}
+    local light = frame:CreateTexture(nil, "OVERLAY", nil, 6)
+    light:SetTexture(DUI.MEDIA .. "glow.png")
+    light:SetBlendMode("ADD")
+    local size = opts.size or 12
+    light:SetSize(size, size)
+    light:Hide()
+    local g = light:CreateAnimationGroup()
+    g:SetLooping("REPEAT")
+    local legs = {}
+    for i = 1, 4 do
+        legs[i] = g:CreateAnimation("Translation")
+        legs[i]:SetOrder(i)
+    end
+    run.light, run.group = light, g
+    function run.Set(on, color)
+        if not on then
+            g:Stop()
+            light:Hide()
+            run.on = nil
+            return
+        end
+        if color then light:SetVertexColor(color[1], color[2], color[3]) end
+        light:SetAlpha(opts.alpha or 1)
+        light:Show()
+        local w, h = frame:GetWidth() or 0, frame:GetHeight() or 0
+        light:ClearAllPoints()
+        if not Motion.On() or w <= 0 or h <= 0 then
+            g:Stop()
+            light:SetPoint("CENTER", frame, "TOP", 0, 0)
+            run.on = true
+            return
+        end
+        if run.on and g:IsPlaying() and run.w == w and run.h == h then return end
+        run.on, run.w, run.h = true, w, h
+        g:Stop()
+        light:SetPoint("CENTER", frame, "TOPLEFT", 0, 0)
+        -- Each leg takes its share of the lap, so the light keeps one speed.
+        local lap, round = opts.lap or Motion.EDGE_LAP, 2 * (w + h)
+        local steps = { { w, 0, w }, { 0, -h, h }, { -w, 0, w }, { 0, h, h } }
+        for i, s in ipairs(steps) do
+            legs[i]:SetOffset(s[1], s[2])
+            legs[i]:SetDuration(lap * s[3] / round)
+        end
+        g:Play()
+    end
+    return run
+end
+
 -- Sliders: something tucked away (p 0) coming out (p 1) and back, eased in and
 -- out, turning around from wherever it is if the goal changes partway.
 -- apply(sl) places it where p says, done(sl) runs on arrival. Each slider has

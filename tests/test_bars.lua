@@ -2834,3 +2834,27 @@ T.test("drag: with a spellbook open a plain drag picks a spell up off locked bar
     _G.PlayerSpellsFrame = nil
     _G.Settings, _G.PickupAction = oldSettings, oldPickup
 end)
+
+T.test("bars: a spell hovered in the spellbook lights the buttons holding it, and only their borders", function()
+    login()
+    local Skin = AB().Skin
+    stub.slots[3] = { texture = "t3", spellID = 772 }
+    stub.slots[62] = { texture = "t62", spellID = 772 }
+    stub.slots[5] = { texture = "t5", spellID = 6673 }
+    AB().Buttons.SlotsChanged()
+    local a, b, other = btn("main", 3), btn("bar2", 2), btn("main", 5)
+    local shown = { a:IsShown(), b:IsShown(), other:IsShown() }
+    DaylightUI.Fire("BookSpellHover", 772)
+    T.eq(Skin.GetParts(a).borderState, "mark", "bar 1's button holding it")
+    T.eq(Skin.GetParts(b).borderState, "mark", "bar 2's too")
+    T.truthy(Skin.GetParts(other).borderState ~= "mark", "another spell stays dark")
+    DaylightUI.Fire("BookSpellHover", nil)
+    T.truthy(Skin.GetParts(a).borderState ~= "mark", "the light goes when the mouse leaves")
+    T.truthy(Skin.GetParts(b).borderState ~= "mark")
+    T.deq({ a:IsShown(), b:IsShown(), other:IsShown() }, shown, "no button shown or hidden")
+    -- In a fight it's colors only too, so nothing is blocked.
+    stub.EnterCombat()
+    T.noerror(function() DaylightUI.Fire("BookSpellHover", 772); DaylightUI.Fire("BookSpellHover", nil) end)
+    stub.LeaveCombat()
+    noBlocked()
+end)

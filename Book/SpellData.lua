@@ -34,12 +34,17 @@ local function rankText(s)
     return (type(s) == "string" and s ~= "") and s or nil
 end
 
+-- autocast: the pet spell can autocast; autoOn: it's set to (the game's second answer).
 local function entry(slot, bank, info)
+    local can, on
+    if bank == SD.PET() and type(C_SpellBook.GetSpellBookItemAutoCast) == "function" then
+        can, on = C_SpellBook.GetSpellBookItemAutoCast(slot, bank)
+    end
     return { slot = slot, bank = bank, spellID = info.spellID, name = info.name or "",
         rank = rankText(info.subName),
         icon = info.iconID, passive = info.isPassive == true,
         future = info.itemType == TYPE("FutureSpell", 2), pet = bank == SD.PET(), lows = {},
-        autocast = bank == SD.PET() and call(C_SpellBook.GetSpellBookItemAutoCast, slot, bank) == true or nil }
+        autocast = can == true or nil, autoOn = (can == true and on == true) or nil }
 end
 
 -- Sort key from the trailing number of the rank text ("Rank 2" in any
@@ -59,6 +64,7 @@ local function readRange(section, bank, first, count, showLow, data)
         if type(info) == "table" then
             if info.itemType ~= TYPE("Flyout", 4) then
                 local e = entry(slot, bank, info)
+                if e.passive then data.anyPassive = true end
                 if call(C_SpellBook.IsSpellBookItemLowRank, slot, bank) then
                     e.low = true
                     lows[#lows + 1] = e
@@ -112,9 +118,9 @@ local function readRange(section, bank, first, count, showLow, data)
 end
 
 -- { sections = { { name, icon, pet?, spells = { { slot, bank, spellID,
--- name, rank, icon, passive, future, pet, low, lows } } } }, anyLow }
+-- name, rank, icon, passive, future, pet, low, lows, autocast, autoOn } } } }, anyLow, anyPassive }
 function SD.Read(showLow)
-    local data = { sections = {}, anyLow = false }
+    local data = { sections = {}, anyLow = false, anyPassive = false }
     if type(C_SpellBook) ~= "table" or type(C_SpellBook.GetNumSpellBookSkillLines) ~= "function" then return data end
     local bank = SD.PLAYER()
     for i = 1, C_SpellBook.GetNumSpellBookSkillLines() or 0 do

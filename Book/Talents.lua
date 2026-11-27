@@ -147,8 +147,14 @@ local function makeTile(parent)
         self.over = true
         Talents.PaintTile(self)
         Talents.Tip(self)
+        -- A learned talent lights its spell on the bars, as the game's tree does.
+        local node = self.node
+        if ns.Spells and node and (node.active or 0) > 0 and not (self.box and self.box.spend) then
+            ns.Spells.Mark(node.spellID)
+        end
     end)
     b:SetScript("OnLeave", function(self)
+        if ns.Spells then ns.Spells.Mark(nil) end
         self.over = nil
         if Talents.waiting == self then Talents.waiting = nil end
         Talents.PaintTile(self)

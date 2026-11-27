@@ -684,3 +684,39 @@ T.test("book talents: a talent whose spell is replaced right now says by what", 
     T.truthy(name and name ~= "" and find(lines, name), "the replacing spell's name")
     BW.overrides[12294] = nil
 end)
+
+-- A drag source left hidden at the end of its own drag blanks every frame on
+-- WorldFrame (nameplates vanish): a talent dragged onto a bar must stay shown
+-- through everything the drop sets off.
+T.test("book talents: dropping a dragged talent on a bar hides no tile (nameplates stay)", function()
+    local ns = load({ tree = learned("Mortal Strike") })
+    local page = openTalents(ns)
+    local ms = tileOf(page, "Mortal Strike")
+    T.isnil(ms:GetScript("OnDragStop"), "no drag stop of its own to hide in")
+    drag(ms)
+    stub.slots[7] = { spellID = 12294 }
+    stub.FireEvent("ACTIONBAR_SLOT_CHANGED", 7)
+    stub.FireEvent("CURSOR_CHANGED")
+    frame(2)
+    T.truthy(ms:IsShown(), "the tile stays")
+    T.eq(tileOf(page, "Mortal Strike"), ms, "the same tile, not torn down and made again")
+    stub.slots[7] = nil
+end)
+
+T.test("book talents: hovering a learned talent tells the bars; one not learned doesn't", function()
+    local ns = load({ tree = learned("Mortal Strike") })
+    local heard = {}
+    DaylightUI.On("BookSpellHover", function(id) heard[#heard + 1] = id or "none" end)
+    local page = openTalents(ns)
+    local ms = tileOf(page, "Mortal Strike")
+    ms:GetScript("OnEnter")(ms)
+    frame(2)
+    T.deq(heard, { 12294 })
+    ms:GetScript("OnLeave")(ms)
+    frame(2)
+    T.deq(heard, { 12294, "none" })
+    local ss = tileOf(page, "Sweeping Strikes")
+    ss:GetScript("OnEnter")(ss)
+    frame(2)
+    T.eq(#heard, 2, "not learned: nothing to light")
+end)

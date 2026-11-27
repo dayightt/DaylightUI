@@ -14,12 +14,14 @@ DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Bar animations", "Flip direction: Flow, Slosh and Molten can run the other way along the bar" },
         { "Slant angle", "Set how far angled bar ends lean on nameplates, the loot feed, meters, the data bar, the breath bar and boss timer bars. Unit frames' Slant angle now goes up to 100%" },
+        { "Spellbook", "Hide passive spells: a switch at the bottom of the spellbook leaves racial traits and other passives out so only spells you cast are listed" },
     }, changed = {
         { "Bags", "The bags' own \"Compare with what you wear\" switch is gone. The one under Tooltip decides for every item, bags included" },
     }, fixed = {
         { "Proc Alerts", "Proc alerts no longer show as big green boxes for some players" },
         { "Bar animations", "Molten, Cinders and Slosh no longer show green blocks on some players' bars" },
         { "Spellbook", "The spellbook does what the game's own does: Alt-click casts a spell on yourself, Shift-P opens on your pet's spells, search finds spells by what they do, and unlearned spells show the level they come at" },
+        { "Spellbook", "Pet spells show when they're set to autocast, hovering a spell lights the buttons on your bars that hold it, and spells that aren't on any bar shimmer now and then" },
         { "Talents", "Drag a learned talent ability straight onto your action bars, and spell and talent tooltips say when an ability isn't on any of your bars" },
     } },
     { version = "2.4.2", date = "2026-11-27", summary = "XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.", new = {

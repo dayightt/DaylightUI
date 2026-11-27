@@ -709,7 +709,7 @@ local function install_book()
     SB.IsSpellBookItemLowRank = function(slot, bank) local it = bookItem(slot, bank); return it and it.low or false end
     SB.IsSpellBookItemLooseFlyoutMember = function(slot, bank) local it = bookItem(slot, bank); return it and it.loose or false end
     SB.GetSpellBookItemCooldownDuration = function(slot, bank) return { slot = slot, bank = bank } end
-    SB.GetSpellBookItemAutoCast = function(slot, bank) local it = bookItem(slot, bank); return it and it.autocast or false, false end
+    SB.GetSpellBookItemAutoCast = function(slot, bank) local it = bookItem(slot, bank); return it and it.autocast or false, (it and it.autocast and it.autoOn) or false end
     SB.GetSpellBookItemLink = function(slot, bank) local it = bookItem(slot, bank); return it and ("|Hspell:" .. tostring(it.spellID) .. "|h[" .. it.name .. "]|h") end
     SB.GetSpellBookItemTradeSkillLink = function() return nil end
     SB.HasPetSpells = function() if BW.book.pet then return #BW.book.pet, "PET" end return nil end

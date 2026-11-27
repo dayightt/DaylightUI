@@ -711,3 +711,130 @@ T.test("book spells: open with P, then Shift-P turns to the pet spells without c
     T.truthy(DaylightUI.Win.IsOpen(ns.Window.frame))
     T.truthy(ns.Spells.jumped and ns.Spells.jumped.pet)
 end)
+
+-- ---------------------------------------------------------------------
+-- The picked mock-ups: autocast light, Hide passives, the sheen and bar marks
+-- ---------------------------------------------------------------------
+
+local function petBook(on)
+    local book = BW.MageBook()
+    book.pet = { { name = "Firebolt", sub = "Rank 1", spellID = 3110, icon = 5, autocast = true, autoOn = on },
+                 { name = "Phase Shift", sub = "Rank 1", spellID = 4511, icon = 6 } }
+    return book
+end
+
+local function cornersShown(b)
+    for _, c in ipairs(b.corners) do if not c:IsShown() then return false end end
+    return true
+end
+
+T.test("book spells: a pet spell set to autocast has a light running round its icon; could-be has dim corners", function()
+    local ns = load({ book = petBook(true) })
+    local page = openBook(ns)
+    local b = cellOf(page, "Firebolt")
+    T.truthy(b.run.light:IsShown(), "on: the light")
+    T.truthy(b.run.group:IsPlaying(), "going round (the client moves it)")
+    T.eq(b.run.group:GetLooping(), "REPEAT")
+    T.falsy(cornersShown(b))
+    -- Right-click turns it off: the game says so with PET_BAR_UPDATE.
+    BW.book.pet[1].autoOn = false
+    stub.FireEvent("PET_BAR_UPDATE")
+    frame(2)
+    b = cellOf(page, "Firebolt")
+    T.falsy(b.run.light:IsShown(), "off: no light")
+    T.truthy(cornersShown(b), "but the corners say it can autocast")
+    local p = cellOf(page, "Phase Shift")
+    T.falsy(p.run.light:IsShown())
+    T.falsy(cornersShown(p), "a spell that can't autocast: nothing")
+    T.falsy(cellOf(page, "Fireball").run.light:IsShown(), "a player spell: nothing")
+end)
+
+T.test("book spells: with motion off the autocast light sits still on the icon", function()
+    local ns = load({ book = petBook(true) })
+    DaylightUI:Set("general", "motion", false)
+    local page = openBook(ns)
+    local b = cellOf(page, "Firebolt")
+    T.truthy(b.run.light:IsShown())
+    T.falsy(b.run.group:IsPlaying())
+end)
+
+T.test("book spells: Hide passives leaves passive spells out; a search still finds them", function()
+    local ns = load()
+    local page = openBook(ns)
+    T.truthy(page.passives:IsShown(), "the switch shows when there are passives")
+    T.truthy(cellOf(page, "Hardiness"), "off by default, as in the game")
+    page.passives.sw:Click()
+    frame(2)
+    T.eq(ns.Setting("hidePassives"), true)
+    T.isnil(cellOf(page, "Hardiness"), "a passive is gone")
+    T.truthy(cellOf(page, "Rend"), "spells you cast stay")
+    page.search:SetText("hardi")
+    T.truthy(cellOf(page, "Hardiness"), "the search ignores it, as the game's does")
+    page.search:SetText("")
+    page.passives.sw:Click()
+    frame(2)
+    T.truthy(cellOf(page, "Hardiness"), "back")
+end)
+
+T.test("book spells: no passives, no Hide passives switch", function()
+    local ns = load({ book = BW.MageBook() })
+    local page = openBook(ns)
+    T.falsy(page.passives:IsShown())
+end)
+
+T.test("book spells: a spell on no bar shimmers; on a bar it stops", function()
+    local ns = load()
+    local page = openBook(ns)
+    local b = cellOf(page, "Rend")
+    T.truthy(b.offBars, "on no bar")
+    T.truthy(b.sheen:IsShown(), "its sheen sweeps")
+    T.falsy(cellOf(page, "Hardiness").offBars, "a passive needs no bar")
+    stub.slots[5] = { spellID = 772 }
+    stub.FireEvent("ACTIONBAR_SLOT_CHANGED", 5)
+    frame(2)
+    T.falsy(cellOf(page, "Rend").offBars, "placed: no more sheen")
+    stub.slots[5] = nil
+end)
+
+T.test("book spells: hovering a spell tells the bars once, and the cast button laid over it causes no flicker", function()
+    local ns = load()
+    local heard = {}
+    DaylightUI.On("BookSpellHover", function(id) heard[#heard + 1] = id or "none" end)
+    local page = openBook(ns)
+    local b = placed(cellOf(page, "Rend"))
+    b:GetScript("OnEnter")(b)
+    -- The cast button takes the mouse: the row leaves and is entered again at once.
+    b:GetScript("OnLeave")(b)
+    ns.Spells.Enter(b)
+    frame(2)
+    T.deq(heard, { 772 }, "one word, no off-and-on")
+    b:GetScript("OnLeave")(b)
+    frame(2)
+    T.deq(heard, { 772, "none" })
+    local p = placed(cellOf(page, "Hardiness"))
+    p:GetScript("OnEnter")(p)
+    frame(2)
+    T.eq(#heard, 2, "a passive lights nothing")
+end)
+
+-- A drag source left hidden at the end of its own drag blanks every frame on
+-- WorldFrame (nameplates vanish) until a reload: nothing the drop sets off may
+-- hide the row or tile the drag came from. The fake game errors on a hide inside
+-- OnDragStop; these check what runs after the drop too.
+T.test("book spells: dropping a dragged spell on a bar hides nothing it came from (nameplates stay)", function()
+    local ns = load()
+    local page = openBook(ns)
+    local b = placed(cellOf(page, "Rend"))
+    b:GetScript("OnEnter")(b)
+    local cast = ns.Cast.button
+    T.noerror(function() cast:GetScript("OnDragStart")(cast) end)
+    T.noerror(function() cast:GetScript("OnDragStop")(cast) end)
+    -- The drop lands on a bar: the slot changes, the cursor clears.
+    stub.slots[5] = { spellID = 772 }
+    stub.FireEvent("ACTIONBAR_SLOT_CHANGED", 5)
+    stub.FireEvent("CURSOR_CHANGED")
+    frame(1)
+    T.truthy(b:IsShown(), "the row stays")
+    T.truthy(cast:IsShown(), "the cast button stays past the drop")
+    stub.slots[5] = nil
+end)

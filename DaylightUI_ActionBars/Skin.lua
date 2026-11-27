@@ -842,6 +842,8 @@ function Skin.PaintBorder(btn, parts)
         color, lit, why = parts.pressLit, true, "pressed"
     elseif parts.hover and L.hoverBorder then
         color, lit, why = parts.hoverLit, true, "hover"
+    elseif parts.bookMark then
+        color, lit, why = Skin.STATE.lit, true, "mark"
     elseif parts.formOn then
         color, lit, why = L.checked == "custom" and L.checkedColor or Skin.STATE.lit, true, "form"
     elseif L.checkedBorder and activeOf[btn] then
@@ -903,6 +905,36 @@ function Skin.ModeColor(mode, own)
 end
 
 function Skin.GetParts(btn) return skinned[btn] end
+
+-- A spell hovered in the spellbook or talents (core Book, "BookSpellHover")
+-- lights every button of ours holding it, as the game's book marks its own bars
+-- (UpdateOnBarHighlightMarksBySpell: the slots C_ActionBar.FindSpellActionButtons
+-- names). Only the border's color changes: no button is shown, hidden or moved,
+-- so a drag from the book onto a bar is never disturbed.
+local marked = {}
+function Skin.MarkSpell(spellID)
+    for btn in pairs(marked) do
+        marked[btn] = nil
+        local parts = skinned[btn]
+        if parts and parts.bookMark then
+            parts.bookMark = nil
+            Skin.PaintBorder(btn, parts)
+        end
+    end
+    if type(spellID) ~= "number" or DUI.IsSecret(spellID) or not ns.Buttons
+        or type(C_ActionBar) ~= "table" or type(C_ActionBar.FindSpellActionButtons) ~= "function" then return end
+    local slots = C_ActionBar.FindSpellActionButtons(spellID)
+    for _, slot in ipairs(type(slots) == "table" and slots or {}) do
+        for _, btn in ipairs(ns.Buttons.On(slot) or {}) do
+            local parts = skinned[btn]
+            if parts then
+                marked[btn], parts.bookMark = true, true
+                Skin.PaintBorder(btn, parts)
+            end
+        end
+    end
+end
+DUI.On("BookSpellHover", function(spellID) Skin.MarkSpell(spellID) end)
 
 -- Plugins (DaylightUI.API's Paint, kind "actionbutton"). Only the buttons of
 -- bars 1-8 are reported; the game's stance and pet buttons it dresses are not.

@@ -31,6 +31,12 @@ Spells.COL_GAP = 10
 Spells.CELL_MIN = 270 -- minimum cell width; resizing wider adds columns
 Spells.ICON = 34
 Spells.BORDER = 2     -- icon border, in screen pixels
+Spells.RUN_SIZE = 18  -- the autocast light
+Spells.CORNER_ARM, Spells.CORNER_PX = 7, 2   -- autocast-off corners: arm length, thickness
+Spells.SWITCH_W, Spells.SWITCH_GAP = 160, 12   -- the footer switches
+Spells.SHEEN_W = 12   -- the band crossing a spell that's on no bar
+Spells.SHEEN_ALPHA = 0.5
+Spells.SHEEN_EVERY = DUI.Motion.SLOW * 3.5   -- rest between sweeps (a sweep is SLOW * 2)
 -- UPDATE_SHAPESHIFT_FORM: some icons follow the form (a druid's Attack), as the game's book redraws them.
 Spells.EVENTS = { "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "UNIT_PET", "PET_BAR_UPDATE", "UPDATE_SHAPESHIFT_FORM" }
 
@@ -114,6 +120,26 @@ local function makeCell(parent)
     b.shine:SetTexture(WHITE)
     b.shine:SetBlendMode("ADD")
     b.shine:Hide()
+    -- A pet spell's autocast: a light round the icon while it's on, dim corners
+    -- while it could be (SpellBookItemMixin:UpdateAutoCast).
+    b.run = DUI.Motion.EdgeRun(b.well, { size = Spells.RUN_SIZE })
+    b.corners = {}
+    local arm, t = Spells.CORNER_ARM, Spells.CORNER_PX
+    for i, at in ipairs({ { "TOPLEFT", -t, t, arm, t }, { "TOPLEFT", -t, t, t, arm },
+                          { "BOTTOMRIGHT", t, -t, arm, t }, { "BOTTOMRIGHT", t, -t, t, arm } }) do
+        local c = b.well:CreateTexture(nil, "OVERLAY", nil, 5)
+        c:SetTexture(WHITE)
+        c:SetSize(at[4], at[5])
+        c:SetPoint(at[1], b.well, at[1], at[2], at[3])
+        c:Hide()
+        b.corners[i] = c
+    end
+    -- A spell on no bar shimmers now and then (the game's ActionBarHighlight).
+    b.sheen = b.well:CreateTexture(nil, "OVERLAY", nil, 4)
+    b.sheen:SetTexture(DUI.MEDIA .. "glow.png")
+    b.sheen:SetBlendMode("ADD")
+    b.sheen:SetHeight(Spells.ICON)
+    b.sheen:Hide()
     b:SetScript("OnEnter", function(self)
         Spells.Enter(self)
         if ns.Cast and not Spells.binding then ns.Cast.Over(self) end
@@ -200,6 +226,67 @@ function Spells.PaintCell(b, cell)
     end
     b.glow:SetShown(b.new and true or false)
     Spells.PaintCooldown(b)
+    Spells.PaintAutocast(b)
+    Spells.PaintBars(b)
+end
+
+-- On: the light runs round the icon in the accent. Could be on: dim corners.
+function Spells.PaintAutocast(b)
+    local cell = b.cell
+    local on = cell ~= nil and cell.pet and cell.autoOn == true
+    local can = cell ~= nil and cell.pet and cell.autocast and not on
+    b.run.Set(on, on and { Style.Accent() } or nil)
+    local c = Style.INK.OFF
+    for _, t in ipairs(b.corners) do
+        t:SetVertexColor(c[1], c[2], c[3], 0.9)
+        t:SetShown(can and true or false)
+    end
+end
+
+-- Whether this row's spell is on no bar, for the sheen (Spells.Sheen).
+function Spells.PaintBars(b)
+    local cell = b.cell
+    b.offBars = cell ~= nil and not (cell.pet or cell.future or cell.passive) and Spells.OffBars(cell.spellID) or nil
+    if not b.offBars then b.sheen:Hide() end
+end
+
+-- One sweep across every shown spell that's on no bar, all together, then a
+-- rest, then again: only while the page can be seen, never with motion off.
+function Spells.Sheen()
+    local page = Spells.page
+    if Spells.sheening or not (page and page:IsVisible()) or not DUI.Motion.On() then return end
+    local any = false
+    local w = Style.INK.VALUE   -- a white sheen, as the picked mock-up
+    for _, row in ipairs(page.stack.used) do
+        for _, c in ipairs(row.cells or {}) do
+            if c:IsShown() and c.offBars then
+                any = true
+                DUI.Motion.Sweep(c.sheen, c.well, { width = Spells.SHEEN_W, dur = DUI.Motion.SLOW * 2,
+                    alpha = Spells.SHEEN_ALPHA, inset = Spells.SHEEN_W / 2, color = w })
+            end
+        end
+    end
+    if not any then return end
+    Spells.sheening = true
+    C_Timer.After(DUI.Motion.SLOW * 2 + Spells.SHEEN_EVERY, function()
+        Spells.sheening = nil
+        Spells.Sheen()
+    end)
+end
+
+-- A slot changed: which spells are on no bar may have too. Read once the next
+-- frame (paging changes many slots at once); only marks change, no row moves.
+function Spells.BarsSoon()
+    local page = Spells.page
+    if Spells.barsPending or not (page and page:IsVisible()) then return end
+    Spells.barsPending = true
+    C_Timer.After(0, function()
+        Spells.barsPending = nil
+        for _, row in ipairs(page.stack.used) do
+            for _, c in ipairs(row.cells or {}) do if c:IsShown() and c.cell then Spells.PaintBars(c) end end
+        end
+        Spells.Sheen()
+    end)
 end
 
 -- The line under a spell's name, as the game's book writes it: the rank, or
@@ -267,6 +354,24 @@ function Spells.Enter(b)
     end
     Spells.hovered = b
     Spells.Tip(b)
+    Spells.Mark(not (cell.pet or cell.future or cell.passive) and cell.spellID or nil)
+end
+
+-- Tells the action bars which spell to light on them while it's hovered here
+-- (the game's book marks its own bars: UpdateOnBarHighlightMarksBySpell); nil
+-- takes the light off. Only colors change on the bars. Sent a frame later:
+-- the cast button laid over a row makes the row leave and enter again at once.
+function Spells.Mark(spellID)
+    Spells.wantMark = spellID
+    if Spells.markPending then return end
+    Spells.markPending = true
+    C_Timer.After(0, function()
+        Spells.markPending = nil
+        local want = Spells.wantMark
+        if Spells.marked == want then return end
+        Spells.marked = want
+        DUI.Fire("BookSpellHover", want)
+    end)
 end
 
 -- The hovered spell's tooltip: the game's own lines, then whether it's on a bar
@@ -297,6 +402,7 @@ end
 
 function Spells.Leave(b)
     if Spells.hovered == b then Spells.hovered = nil end
+    Spells.Mark(nil)
     DUI.Win.Parts.Light(b.hover, false)
     if GameTooltip and GameTooltip:IsOwned(b) then GameTooltip:Hide() end
 end
@@ -468,19 +574,25 @@ local function makeChip(parent)
 end
 
 -- "Hide lower ranks" switch. Clicking the label toggles it too.
-local function makeSwitch(page)
+-- The game's book menu has both: Show all spell ranks and Hide passives.
+-- `key` is the setting; hideLowRanks is on unless set false, hidePassives off unless true.
+local function isOn(key)
+    if key == "hideLowRanks" then return ns.Setting(key) ~= false end
+    return ns.Setting(key) == true
+end
+
+local function makeSwitch(page, key, label)
     local b = CreateFrame("Button", nil, page)
-    b:SetSize(180, 22)
-    b:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Spells.EDGE + 4, 10)
+    b:SetSize(Spells.SWITCH_W, 22)
+    b.key = key
     b.sw = DUI.Widgets.Switch(b)
     b.sw:SetPoint("LEFT", b, "LEFT", 0, 0)
     b.text = Style.Text(b, Style.SIZE.small, "LEFT")
     b.text:SetPoint("LEFT", b.sw, "RIGHT", 8, 0)
-    b.text:SetText(L["Hide lower ranks"])
+    b.text:SetText(label)
     color(b.text, Spells.SOFT)
     b.sw:SetScript("OnClick", function()
-        local on = ns.Setting("hideLowRanks") ~= false
-        DUI:Set("Book", "hideLowRanks", not on)
+        DUI:Set("Book", key, not isOn(key))
         Spells.Fill(Spells.page, true)
     end)
     b:SetScript("OnClick", function() b.sw:Click() end)
@@ -488,7 +600,20 @@ local function makeSwitch(page)
 end
 
 local function paintSwitch(b)
-    b.sw.SetOn(ns.Setting("hideLowRanks") ~= false)
+    b.sw.SetOn(isOn(b.key))
+end
+
+-- Bottom left: the ranks switch, then the passives one beside it (or in its
+-- place when there are no lower ranks).
+local function placeSwitches(page)
+    page.switch:ClearAllPoints()
+    page.switch:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Spells.EDGE + 4, 10)
+    page.passives:ClearAllPoints()
+    if page.switch:IsShown() then
+        page.passives:SetPoint("LEFT", page.switch, "LEFT", Spells.SWITCH_W + Spells.SWITCH_GAP, 0)
+    else
+        page.passives:SetPoint("BOTTOMLEFT", page, "BOTTOMLEFT", Spells.EDGE + 4, 10)
+    end
 end
 
 local layoutChips
@@ -503,7 +628,8 @@ function Spells.Build(page)
     page.search = box
     page.chips = {}
     page.stack = Win.Parts.Stack(page, { top = Spells.TOP, bottom = Spells.FOOT })
-    page.switch = makeSwitch(page)
+    page.switch = makeSwitch(page, "hideLowRanks", L["Hide lower ranks"])
+    page.passives = makeSwitch(page, "hidePassives", L["Hide passives"])
     page.bind = makeBind(page)
     page.clique = makeClique(page)
     DUI.On("ClickCastChanged", function() Spells.BindMode(DUI.ClickBind and DUI.ClickBind.On()) end)
@@ -513,6 +639,7 @@ function Spells.Build(page)
     page.note:Hide()
     page:HookScript("OnHide", function()
         if ns.Cast then ns.Cast.Hide() end
+        Spells.Mark(nil)
         -- Closing the window ends click-cast mode; switching tabs doesn't.
         local f = ns.Window and ns.Window.frame
         if Spells.binding and not (f and Win.IsOpen(f)) then DUI.ClickBind.Set(false) end
@@ -521,6 +648,7 @@ function Spells.Build(page)
         DUI.RegisterEvent(e, function() Spells.Soon() end)
     end
     DUI.RegisterEvent("SPELL_UPDATE_COOLDOWN", function() Spells.Cooldowns() end)
+    DUI.RegisterEvent("ACTIONBAR_SLOT_CHANGED", function() Spells.BarsSoon() end)
     -- The search box follows the page's edge while the window is resized, so
     -- the chips are fitted again then, not only once the drag ends.
     page:HookScript("OnSizeChanged", function() if Spells.data then layoutChips(page) end end)
@@ -635,13 +763,17 @@ function Spells.Render(page)
     s:Begin()
     Spells.sectionAt = {}
     local any = false
+    -- Hide passives, as the game's book: never while searching (IsHidingPassives).
+    local noPassives = not want and ns.Setting("hidePassives") == true
     for _, section in ipairs(data.sections) do
         local cells = {}
         for _, cell in ipairs(section.spells) do
-            local lows = {}
-            for _, low in ipairs(cell.lows) do if matches(low, want) then lows[#lows + 1] = low end end
-            if matches(cell, want) or #lows > 0 then cells[#cells + 1] = cell end
-            for _, low in ipairs(lows) do cells[#cells + 1] = low end
+            if not (noPassives and cell.passive) then
+                local lows = {}
+                for _, low in ipairs(cell.lows) do if matches(low, want) then lows[#lows + 1] = low end end
+                if matches(cell, want) or #lows > 0 then cells[#cells + 1] = cell end
+                for _, low in ipairs(lows) do cells[#cells + 1] = low end
+            end
         end
         if #cells > 0 then
             any = true
@@ -669,6 +801,8 @@ function Spells.Render(page)
     page.note:SetShown(not any)
     page.note:SetText(want and L["No spells match."] or L["No spells yet."])
     Spells.seeding = nil
+    -- A frame later: the page fills before the window opening it shows.
+    C_Timer.After(0, Spells.Sheen)
 end
 
 function Spells.Jump(section)
@@ -790,6 +924,9 @@ function Spells.Fill(page, keep)
     layoutChips(page)
     page.switch:SetShown(Spells.data.anyLow)
     paintSwitch(page.switch)
+    page.passives:SetShown(Spells.data.anyPassive)
+    paintSwitch(page.passives)
+    placeSwitches(page)
     page.bind:SetShown(bindUsable())
     Spells.binding = (bindUsable() and DUI.ClickBind.On()) or nil
     page.bind.SetActive(Spells.binding and true or false)
@@ -858,7 +995,7 @@ function Spells.Freeze(on)
     local page = Spells.page
     if not page then return end
     local M = DUI.Motion
-    local parts = { page.search, page.switch, page.bind, page.clique }
+    local parts = { page.search, page.switch, page.passives, page.bind, page.clique }
     for _, c in ipairs(page.chips) do parts[#parts + 1] = c end
     if page.more then parts[#parts + 1] = page.more end
     for _, c in ipairs(parts) do
@@ -897,6 +1034,7 @@ function Spells.Pieces(page)
         out[#out + 1] = p
     end
     if not rest and page.switch:IsShown() then out[#out + 1] = page.switch end
+    if not rest and page.passives:IsShown() then out[#out + 1] = page.passives end
     if not rest and page.bind:IsShown() then out[#out + 1] = page.bind end
     if not rest and page.clique:IsShown() then out[#out + 1] = page.clique end
     return out
