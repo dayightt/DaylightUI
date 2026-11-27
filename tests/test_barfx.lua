@@ -575,3 +575,41 @@ T.test("Embers takes the picked colors, like Comet", function()
     local _, r2, g2, b2 = sheetColor("bar")
     T.truthy(math.abs(r2 - r) + math.abs(g2 - g) + math.abs(b2 - b) > 0.2, "the bar's own colors light it differently")
 end)
+
+-- Flip runs the animation the other way along the bar: Flow plays its rolling
+-- sheets backwards, through every restart (show, a repaint, a loading screen).
+T.test("Flip direction rolls Flow the other way, and keeps it through every restart", function()
+    local DUI, bar, cfg, read = setup({ style = "flow" })
+    local plays = {}
+    local make = bar.CreateAnimationGroup
+    bar.CreateAnimationGroup = function(self)
+        local g = make(self)
+        local play = g.Play
+        g.Play = function(me, reverse, ...)
+            plays[#plays + 1] = reverse == true
+            return play(me, reverse, ...)
+        end
+        return g
+    end
+    DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+    T.eq(plays[#plays], false, "forward unless flipped")
+    cfg.flip = true
+    DUI.BarFx.Apply(bar)
+    T.eq(plays[#plays], true, "flipped: played backwards")
+    local n = #plays
+    bar:Hide(); bar:Show()
+    T.truthy(#plays > n, "shown again, it starts over")
+    T.eq(plays[#plays], true, "still backwards after a show")
+    stub.FireEvent("LOADING_SCREEN_DISABLED")
+    stub.RunTimers()
+    T.eq(plays[#plays], true, "still backwards after a loading screen")
+    cfg.flip = false
+    DUI.BarFx.Apply(bar)
+    T.eq(plays[#plays], false, "unflipped: forward again")
+end)
+
+T.test("Flip direction is offered only for animations that move along the bar", function()
+    local DUI = stub.Load({})
+    for _, k in ipairs({ "flow", "slosh", "molten", "auto" }) do T.truthy(DUI.BarFx.Rolls(k), k) end
+    for _, k in ipairs({ "none", "tide", "comet", "embers", "daybreak", "cinders", "pixelarc" }) do T.falsy(DUI.BarFx.Rolls(k), k) end
+end)

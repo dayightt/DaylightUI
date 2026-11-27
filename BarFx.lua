@@ -42,7 +42,7 @@ BarFx.KINDS = { "health", "power", "cast", "swing" }
 -- barFx.health, a cast bar's barFx...), one table per bar like this. A key
 -- the table doesn't have reads as here.
 BarFx.DEFAULTS = { style = "none", speed = 1, strength = 1, colors = "bar",
-    colorA = { 0.25, 0.45, 0.85 }, colorB = { 0.95, 0.6, 0.3 }, react = true, reactSize = 1 }
+    colorA = { 0.25, 0.45, 0.85 }, colorB = { 0.95, 0.6, 0.3 }, react = true, reactSize = 1, flip = false }
 
 -- A fresh copy of the defaults, for a module's own defaults.
 function BarFx.Defaults()
@@ -148,7 +148,9 @@ end
 local function playFlow(s)
     local h = s.flow
     stopFlow(h)
-    h.anim:Play()
+    -- Played backwards, the rolling sheets roll the other way along the bar.
+    local back = s.flip == true
+    h.anim:Play(back)
     setSpeedOf(s)
     local n, token = h.waves or 0, h.playing
     for i = 1, n do
@@ -156,7 +158,7 @@ local function playFlow(s)
         local wait = BarFx.FLOW_LOOP * i / (n + 1) / math.max(0.01, s.speed or 1)
         C_Timer.After(wait, function()
             if h.playing ~= token or not h.shown or h.isSweep or i > (h.waves or 0) then return end
-            e.anim:Play()
+            e.anim:Play(back)
             setSpeedOf(s)
             e.live = true
             e.tex:SetAlpha(0)
@@ -332,6 +334,14 @@ local function flowFor(style)
     return style == "flow" or (def ~= nil and def.flow == true)
 end
 
+-- Whether a style moves along the bar, so flipping it means something. The
+-- rest sit on the fill's end or swell in place. By power type is always Flow.
+function BarFx.Rolls(style)
+    if style == "auto" then return true end
+    local def = BarFx.DEFS[style]
+    return flowFor(style) or (def ~= nil and def.rolls == true)
+end
+
 local function hidePieces(s, keep)
     for key, p in pairs(s.pieces or {}) do
         if key ~= keep then BarFx.DEFS[key].show(s, p, false) end
@@ -371,6 +381,8 @@ local function apply(s)
     if not style then stop(s); return end
     s.style = style
     s.speed = BarFx.Get(s, "speed") or 1
+    -- A flip turned on or off starts Flow over below, and the patterns are laid again.
+    s.flip = BarFx.Get(s, "flip") == true
     -- The fill goes to the bottom of its layer, so every style's layers draw over it.
     s.bar:GetStatusBarTexture():SetDrawLayer("ARTWORK", BarFx.FILL_SUB)
     if flowFor(style) then

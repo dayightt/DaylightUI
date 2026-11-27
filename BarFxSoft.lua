@@ -168,8 +168,9 @@ local function layPatterns(s, p, h, thin, left)
         local loop = wide / (pat.speed * h / 30)
         pat.right:GetAnimations():SetDuration(loop)
         pat.left:GetAnimations():SetDuration(loop)
-        -- Toward the end is right on a bar filling right, left on one filling left.
-        local want = (pat.away == left) and pat.right or pat.left
+        -- Toward the end is right on a bar filling right, left on one filling
+        -- left; a flipped bar drifts each pattern the other way.
+        local want = ((pat.away ~= (s.flip == true)) == left) and pat.right or pat.left
         if pat.group ~= want then
             local was = pat.group
             pat.group = want
@@ -294,6 +295,7 @@ local function tilt(s, p, v)
 end
 
 BarFx.Add("slosh", function() return L["Slosh"] end, {
+    rolls = true,
     build = function(s)
         local p = piece(s, "slosh")
         local sub = BarFx.FILL_SUB
@@ -372,6 +374,7 @@ BarFx.Add("slosh", function() return L["Slosh"] end, {
 local MOLTEN_HEAL = { seams = 0.30, bloom = 1.0 }
 
 BarFx.Add("molten", function() return L["Molten"] end, {
+    rolls = true,
     build = function(s)
         local p = piece(s, "molten")
         local sub = BarFx.FILL_SUB

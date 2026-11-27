@@ -452,3 +452,27 @@ T.test("the cut inside a bar is sharp to the pixel at its edges", function()
     end
     T.truthy(seen > 0, "the surface wears the cut")
 end)
+
+-- Flip runs each drifting pattern the other way, on a bar filling either way.
+T.test("Flip direction turns Slosh's and Molten's drift around, on bars filling either way", function()
+    for _, style in ipairs({ "slosh", "molten" }) do
+        for _, leftward in ipairs({ false, true }) do
+            local DUI, bar, cfg, read = setup({ style = style }, 240, 30)
+            if leftward then bar:SetReverseFill(true); DUI.Style.AngleFill(bar, "left", 8) end
+            DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+            local before = {}
+            for i, r in ipairs(patterns(bar)) do
+                local _, a = scrollOf(r)
+                before[i] = (a:GetOffset())
+            end
+            T.truthy(#before >= 2, style)
+            cfg.flip = true
+            DUI.BarFx.Apply(bar)
+            for i, r in ipairs(patterns(bar)) do
+                local g, a = scrollOf(r)
+                T.truthy(g, style .. ": still drifting")
+                T.eq((a:GetOffset()), -before[i], style .. (leftward and " (leftward)" or "") .. ": drifts the other way")
+            end
+        end
+    end
+end)
