@@ -1319,7 +1319,12 @@ end
 function Panel.Chrome(p)
     Panel.Begin(p, p.kind, p.lightPair, p.lightFade)
     p.chrome = true
-    p.wantW, p.wantH, p.padded = nil, nil, nil
+    -- A card fitted before it (refilled without a hide) gives its padding back.
+    if p.fitTried or p.padded then
+        local _, _, l, t = p.tip:GetPadding()
+        p.tip:SetPadding(0, 0, tonumber(l) or 0, tonumber(t) or 0)
+    end
+    p.wantW, p.wantH, p.padded, p.fitTried = nil, nil, nil, nil
     if p.pinned then Panel.Stretch(p, p.tip) end
     Panel.Cut(p)
     Panel.PaintLight(p)
