@@ -928,9 +928,15 @@ local function paintAH(r)
     for _, a in ipairs(c and c.auctions or {}) do
         if type(a.unit) == "number" and a.unit >= 1 and (a.key == nil or a.key == r.key) then
             local qty = a.qty or 1
-            list[#list + 1] = { kind = "line", unit = a.unit, qty = qty, own = math.min(qty, (a.own or 0) + (a.acct or 0)) }
+            list[#list + 1] = { kind = "line", unit = a.unit, qty = qty, own = math.min(qty, (a.own or 0) + (a.acct or 0)),
+                n = #list + 1 }
         end
     end
+    -- by the price shown: the server ranks an item's auctions by their bid
+    table.sort(list, function(x, y)
+        if x.unit ~= y.unit then return x.unit < y.unit end
+        return x.n < y.n
+    end)
     right.ah:SetRows(list)
     right.ahEmpty:SetText(not c and L["Checking..."] or c.err and L["Couldn't check its price."] or L["No one else is selling it."])
     W.EaseShown(right.ahEmpty, #list == 0)
