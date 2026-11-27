@@ -56,14 +56,32 @@ end
 
 local function settings() return ns.module and ns.module.db end
 
--- XPOrbs show with the XP gain effects and motion on, below the level cap, and
--- never next to the XP XPOrbs addon (two sets would fly).
-function XPOrbs.Wanted(d)
+-- Orbs fly with the XP gain effects and motion on, and never next to the XP
+-- Orbs addon (two sets would fly).
+function XPOrbs.On()
     local db = settings()
-    if not d or d.rep or (db and db.xpGain == false) or not M.On() then return false end
+    if (db and db.xpGain == false) or not M.On() then return false end
     local loaded = C_AddOns and C_AddOns.IsAddOnLoaded
-    if loaded and loaded("XPOrbs") then return false end
-    return true
+    return not (loaded and loaded("XPOrbs"))
+end
+
+-- ...for a gain below the level cap (reputation at the cap has none).
+function XPOrbs.Wanted(d)
+    return d ~= nil and not d.rep and XPOrbs.On()
+end
+
+-- The player's settings, for other addons (API.XPOrbs).
+function XPOrbs.Settings()
+    local db = settings()
+    local o = db and db.orbs or {}
+    return { on = XPOrbs.On(), size = o.size or 1, flight = o.flight or 2 * M.SLOW, color = o.color or "bar" }
+end
+
+-- Other addons hear each gain once its source is known (XPGained: amount,
+-- kind, x, y, known) and each gain's last orb landing (XPOrbsLanded: amount).
+local function tell(event, ...)
+    local R = DUI.APIReport
+    if R and R.Event then R.Event(event, ...) end
 end
 
 -- What the bar shows now: the true value less what is still flying, or, while
@@ -299,24 +317,26 @@ end
 -- The last orb of a burst is home.
 function XPOrbs.Done(b)
     local G = ns.XPGain
+    if b.plugin then return end
     if b.level then
         XPOrbs.levelling = nil
         G.LevelSweep()
     elseif not b.cosmetic then
         G.Landed(b.from, b.to, b.max, b.gain)
     end
+    tell("XPOrbsLanded", b.gain)
 end
 
 -- A burst for a gain, from src (XPSource's answer).
 local function burst(g, src)
-    local n = XPOrbs.Count(g.gain, g.max)
+    local n = g.count or XPOrbs.Count(g.gain, g.max)
     local room = XPOrbs.ALIVE - alive()
     if n > room then n = math.max(math.min(3, n), room) end
     if n <= 0 then return end
     local trails = alive() < XPOrbs.NO_TRAILS
     local x, y = src.x, src.y
     local size, flight, K = look()
-    local b = { x = x, y = y, t = 0, n = n, landed = 0, orbs = {}, sparks = {}, step = g.gain / n,
+    local b = { x = x, y = y, t = 0, n = n, landed = 0, orbs = {}, sparks = {}, step = g.gain / n, plugin = g.plugin,
                 from = g.from, to = g.to, max = g.max, gain = g.gain, level = g.level, flight = flight, k = K,
                 ux = 0, uy = 1, w = UIParent:GetWidth() or 0, h = UIParent:GetHeight() or 0 }
     if g.level then b.step = (1 - g.level.frac) / n end
@@ -393,7 +413,18 @@ function XPOrbs.Gain(g)
         if gen ~= XPOrbs.gen then return end
         if not target() then XPOrbs.Drop(); return end
         burst(g, src)
+        tell("XPGained", g.gain, src.kind, src.x, src.y, src.known == true)
     end, g.restedDrop)
+end
+
+-- A burst of another addon's (API: me.ShowXPOrbs): count orbs from (x, y) in
+-- UIParent units into the bar. It only looks: the bar keeps its value and no
+-- event fires. False while the orbs are off or the bar isn't on screen.
+function XPOrbs.Show(x, y, count)
+    if type(x) ~= "number" or type(y) ~= "number" or not XPOrbs.On() or not target() then return false end
+    local n = math.max(1, math.min(XPOrbs.MAX, math.floor(tonumber(count) or 12)))
+    burst({ gain = 0, max = 1, count = n, plugin = true }, { x = x, y = y, known = true })
+    return true
 end
 
 -- Ends every burst at once: the bar shows the true value, nothing is left drawn.

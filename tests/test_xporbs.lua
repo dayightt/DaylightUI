@@ -383,31 +383,35 @@ T.test("xp orbs: eight kills in one pull, eight bursts, the bar ends on the true
     T.isnil(Orbs.layer:GetScript("OnUpdate"), "and nothing runs once they have landed")
 end)
 
--- Quest bursts start at the NPC window's experience text (Npc/Window.lua).
+-- Quest bursts start at the talk window's Complete button (Npc/Window.lua),
+-- where the player clicked.
 
-T.test("xp orbs: a turn-in at the NPC window blooms at its experience text, even once it has closed", function()
+T.test("xp orbs: a turn-in blooms at the talk window's Complete button, even once the window has closed", function()
     local NW = require("npcworld")
     stub.Load({ before = NW.world(), infopanel = true })
     local Src = stub.infopanel.XPSource
-    NW.Quest("COMPLETE", NW.Candles())
+    NW.Quest("COMPLETE", NW.Candles({ choices = {} }))
     stub.RunTimersOnce()           -- the page fills
-    local text = DaylightUI.Npc.Window.xpText
-    T.truthy(text, "the window keeps its experience text")
-    text.__center = { 500, 300 }   -- the fake game lays nothing out
-    text:SetWidth(160)
-    stub.RunTimersOnce()           -- a frame later the spot is noted
+    stub.Advance(1)                -- the rewards have had time to load
+    stub.RunTimers()
+    local N = DaylightUI.Npc.Window
+    local done = N.frame.pages.talk.foot.buttons[1]
+    T.truthy(done.text:GetText():find("^Complete"), done.text:GetText())
+    done.__center = { 640, 120 }   -- the fake game lays nothing out
     local x, y = DaylightUI.Npc.XPSpot()
-    T.truthy(x, "the spot is read while the window shows")
-    T.truthy(x > 500 and x <= 580, "on the text's right part, where the experience is: " .. tostring(x))
-    T.near(y, 300, 0.01)
-    DaylightUI.Npc.XPSpot = function() return nil end   -- the window gone
+    T.near(x, 640, 0.01, "the spot is the Complete button")
+    T.near(y, 120, 0.01)
+    done:GetScript("OnClick")(done, "LeftButton")
+    -- The window goes before the XP arrives.
     NW.Escape()
+    done.__center = nil
     stub.FireEvent("QUEST_TURNED_IN", 60, 450, 80)
     local got = {}
     Src.Resolve(450, function(src) got.src = src end)
     T.eq(got.src and got.src.kind, "quest")
-    T.truthy(got.src.known, "the window's spot, kept after it closed")
-    T.near(got.src.x, x, 0.01)
+    T.truthy(got.src.known, "the button's spot, noted at the click")
+    T.near(got.src.x, 640, 0.01)
+    T.near(got.src.y, 120, 0.01)
 end)
 
 -- Size, flight time and color are the player's (InfoPanel "orbs.*"), and the
@@ -493,4 +497,42 @@ T.test("xp orbs: the stream bows out from the straight line by a share of the di
     -- The mock-up's shape bows about 14% at its widest; fixed bows read as a
     -- beeline across a whole screen (6%).
     T.truthy(worst >= 0.10 * dist, "bows at least 10% of the way: " .. worst .. " of " .. dist)
+end)
+
+-- For addon authors (API 1.17): read the orbs' settings, hear each gain and
+-- each landing, and fly a burst of their own.
+
+T.test("xp orbs api: the version, the settings, and an event per gain and per landing", function()
+    local DUI, XP, Orbs = barLogin()
+    local API = DUI.API
+    T.truthy(API.minor >= 17, "API 1.17")
+    local o = API.XPOrbs()
+    T.eq(o.on, true); T.eq(o.size, 1); T.eq(o.flight, 0.8); T.eq(o.color, "bar")
+    local me = API.For("OrbWatcher")
+    local gained, landed = {}, {}
+    me.On("XPGained", function(amount, kind, x, y, known) gained[#gained + 1] = { amount, kind, x, y, known } end)
+    me.On("XPOrbsLanded", function(amount) landed[#landed + 1] = amount end)
+    kill("Creature-1", 240, 540)
+    T.eq(#gained, 1, "heard once")
+    T.eq(gained[1][1], 240); T.eq(gained[1][2], "kill"); T.near(gained[1][3], 600, 0.01); T.eq(gained[1][5], true)
+    T.eq(#landed, 0, "not landed yet")
+    run(Orbs, 2.5)
+    T.eq(#landed, 1); T.eq(landed[1], 240)
+    DUI:Set("InfoPanel", "xpGain", false)
+    T.eq(API.XPOrbs().on, false, "off with XP gain effects")
+end)
+
+T.test("xp orbs api: a plugin's own burst flies to the bar and changes nothing", function()
+    local DUI, XP, Orbs = barLogin()
+    local me = DUI.API.For("Sparkles")
+    local landed = 0
+    me.On("XPOrbsLanded", function() landed = landed + 1 end)
+    T.eq(me.ShowXPOrbs(300, 500, 12), true)
+    T.eq(#Orbs.bursts, 1); T.eq(#Orbs.bursts[1].orbs, 12)
+    run(Orbs, 2.5)
+    T.eq(#Orbs.bursts, 0, "landed")
+    T.eq(XP.bar:GetValue(), 300, "the bar is untouched")
+    T.eq(landed, 0, "a plugin's burst is no gain")
+    T.eq(me.ShowXPOrbs(300, 500, 99) and #Orbs.bursts[1].orbs, 30, "at most 30")
+    T.eq(me.ShowXPOrbs("x", 500), false, "a spot is two numbers")
 end)

@@ -51,7 +51,7 @@ print(API.major, API.minor)   -- 1, 17
 
 - `minor` goes up when something is added. Old calls keep working.
 - `major` goes up only when something promised here changes or goes away.
-- Register as a plugin with the version you use: `needs = { 1, 17 }` for missing buffs (1.17), `{ 1, 16 }` for Proc Alerts (1.16), `{ 1, 15 }` for the Auction House prices (1.15), `{ 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
+- Register as a plugin with the version you use: `needs = { 1, 17 }` for missing buffs and XP orbs (1.17), `{ 1, 16 }` for Proc Alerts (1.16), `{ 1, 15 }` for the Auction House prices (1.15), `{ 1, 14 }` for the Cooldown Manager's state and watchers (1.14), `{ 1, 13 }` for the loot roll cards (1.13), `{ 1, 12 }` for the rich tooltip pieces (1.12), `{ 1, 11 }` for quest menu rows (1.11), `{ 1, 10 }` for your own setup guide (1.10), `{ 1, 9 }` for glow styles (1.9), `{ 1, 8 }` for frame styles (1.8), `{ 1, 4 }` for Paint on nameplates and
   their cast bars (1.4), `{ 1, 3 }` for Paint, hooks, texts and settings (1.3), `{ 1, 2 }` for the vendor's tiles, the profession window and font rows (1.2),
   `{ 1, 1 }` for the rest. If the player's Daylight UI is too old, or a different major, your plugin
   stays off with one line in chat instead of an error.
@@ -1151,6 +1151,33 @@ me.AddProcAlert("lust", { name = "Bloodlust", design = "crown", anim = "flash" }
 me.On("ProcShown", function(key) print(key, "is up") end)
 -- When your own trigger fires:
 me.ShowProcAlert("lust", { left = 40, dur = 40 })
+```
+
+## XP orbs (1.17)
+
+When the player gains experience, Daylight UI's XP orbs bloom where it came from (the mob, the talk
+window's Complete button, the zone name) and fly into the experience bar, which fills as they land.
+These let you follow them and fly orbs of your own.
+
+| Call | What it does |
+|---|---|
+| `API.XPOrbs()` | The player's orb settings: `{ on, size, flight, color }`. `on` is `false` while XP gain effects or Motion effects are off, or the XP Orbs addon is loaded (Daylight UI stands aside for it). `size` is a scale (1 = normal), `flight` the seconds each orb flies, `color` one of `"bar"` (the experience bar's own colors), `"accent"`, `"daylight"`, `"gradient"` (the class gradient), `"class"`, `"custom"`. `nil` while the info panel is off. |
+| `me.ShowXPOrbs(x, y, count)` | A burst of `count` orbs (12 by default, at most 30) from `x, y` into the experience bar, in the player's size, speed and color. `x, y` are UIParent units from its bottom-left (a cursor spot is `GetCursorPosition()` divided by `UIParent:GetEffectiveScale()`). It only looks: the bar keeps its value and no event fires. `false` while the orbs are off or the bar isn't on screen. |
+
+Events: `XPGained` (amount, kind, x, y, known) once Daylight UI knows what a gain was: `kind` is
+`"kill"`, `"quest"`, `"explore"` or `"other"`, and `x, y` is where its orbs bloom; `known` is
+`false` when that's a default spot (nameplates can't be measured, so a mob's place is where the
+cursor last was over it, and a mob never hovered blooms near the middle of the screen).
+`XPOrbsLanded` (amount) as a gain's last orb lands and the bar shows it. Both fire only while the
+orbs are on, never for a plugin's own burst, and carry plain values, safe in a fight.
+
+```lua
+local me = API.For("MyPlugin")
+me.On("XPGained", function(amount, kind) if kind == "quest" then print("Quest XP:", amount) end end)
+-- A burst from the cursor, when your own reward happens:
+local x, y = GetCursorPosition()
+local s = UIParent:GetEffectiveScale()
+me.ShowXPOrbs(x / s, y / s, 10)
 ```
 
 ## A plugin of your own

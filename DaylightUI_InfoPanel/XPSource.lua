@@ -158,8 +158,10 @@ function XPSource.Sample(unit)
     if not plain(guid) then return false end
     local x, y = cursor()
     if not x then return false end
+    -- An enemy's name is secret in a PvP match or a restricted map: kept out then.
     local name = UnitName(unit)
-    samples[guid] = { x = x, y = y, t = now(), name = plain(name) and name or nil }
+    if secret(name) then name = nil end
+    samples[guid] = { x = x, y = y, t = now(), name = name }
     prune()
     return true
 end
@@ -178,8 +180,9 @@ local function startPoll()
     end
 end
 
--- The NPC window's XP text, read while it shows (it says when: QuestXPShown)
--- and kept a while after, since the window may close before the XP arrives.
+-- The talk window's Complete button, read as the player clicks it (the
+-- window says so: QuestTurnIn) and kept a while after, since the window
+-- closes before the XP arrives.
 local questSpot
 function XPSource.QuestSpot()
     local fn = DUI.Npc and DUI.Npc.XPSpot
@@ -374,7 +377,7 @@ function XPSource.Build()
     end)
     DUI.RegisterEvent("CHAT_MSG_COMBAT_XP_GAIN", function(_, text) onLine(text) end)
     DUI.RegisterEvent("CHAT_MSG_SYSTEM", function(_, text) onSystem(text) end)
-    DUI.On("QuestXPShown", function() XPSource.QuestSpot() end)
+    DUI.On("QuestTurnIn", function() XPSource.QuestSpot() end)
     DUI.RegisterEvent("QUEST_TURNED_IN", function(_, _, xp)
         if not (plain(xp) and type(xp) == "number" and xp > 0) then return end
         local x, y = XPSource.QuestSpot()

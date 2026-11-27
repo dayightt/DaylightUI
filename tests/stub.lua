@@ -1144,7 +1144,12 @@ function Widget:Disable() self:SetEnabled(false) end
 -- "NORMAL" or "PUSHED", as the game's buttons report it.
 function Widget:SetButtonState(s) self.__state = s end
 function Widget:GetButtonState() return self.__state or "NORMAL" end
+-- Only these have GetText in the client (SimpleButton, SimpleEditBox and
+-- SimpleFontString API docs). Addon code asking any other widget fails as in
+-- game; tests may still look.
+local HAS_TEXT = { Button = true, CheckButton = true, EditBox = true, FontString = true }
 function Widget:GetText()
+    if not HAS_TEXT[self.__type] and fromAddon(2) then error("attempt to call a nil value (method 'GetText')", 2) end
     if self.__secretAspect and not isSecret(self.__text) then return stub.Secret(self.__text) end
     return self.__text
 end

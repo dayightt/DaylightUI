@@ -112,18 +112,18 @@ local function firstPress()
     return true
 end
 
--- Where a quest's experience reward shows, in UIParent units, while it does:
--- the right part of the reward line, where the experience follows the money.
--- The XP orbs of a turn-in bloom there.
-Npc.XP_PART = 50
+-- Where the reward page's Complete button is, in UIParent units, while it
+-- shows: the XP orbs of a turn-in bloom where the player clicked.
 function ns.XPSpot()
-    local t = Npc.xpText
-    if not (t and t:IsVisible() and t:GetText() == Npc.xpLine) then return nil end
-    local x, y = t:GetCenter()
-    local w = t:GetWidth()
-    if type(x) ~= "number" or type(y) ~= "number" or type(w) ~= "number" then return nil end
-    local k = (t:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
-    return (x + w / 2 - math.min(w / 2, Npc.XP_PART)) * k, y * k
+    if S.mode ~= "reward" then return nil end
+    local f = cur()
+    local page = f and f.pages and f.pages.talk
+    local b = page and page.foot and page.foot.buttons and page.foot.buttons[1]
+    if not (b and b:IsVisible()) then return nil end
+    local x, y = b:GetCenter()
+    if type(x) ~= "number" or type(y) ~= "number" then return nil end
+    local k = (b:GetEffectiveScale() or 1) / (UIParent:GetEffectiveScale() or 1)
+    return x * k, y * k
 end
 
 function Npc.Goodbye()
@@ -264,6 +264,8 @@ function Npc.Complete()
     if S.sample then return Npc.Close() end
     if not firstPress() then return end
     local only = choiceCount() == 1 and (d.choices and d.choices[1] and d.choices[1].index or 1)
+    -- The XP orbs note where Complete is now: the window closes before the XP comes.
+    DUI.Fire("QuestTurnIn")
     GetQuestReward(S.choice or only or 0)
 end
 
@@ -464,13 +466,7 @@ function Npc.Fill(page)
                 if #d.choices > 0 or #spells > 0 or d.rewardTitle then s:Text(L["You'll also get:"], { size = DUI.Style.SIZE.small, color = Parts.DIM }) end
                 s:Items(tilesFor(fixed, false))
             end
-            local line = s:Money(d.money, d.xp)
-            -- The XP orbs of a turn-in start from this text.
-            if line and (d.xp or 0) > 0 then
-                Npc.xpText, Npc.xpLine = line, line:GetText()
-                -- Laid out by the next frame: the XP orbs note the spot then.
-                C_Timer.After(0, function() DUI.Fire("QuestXPShown") end)
-            end
+            s:Money(d.money, d.xp)
         end
     end
     page.pieces = s:End()

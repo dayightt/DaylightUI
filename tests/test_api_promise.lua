@@ -30,6 +30,8 @@ local PROMISED = {
     "CooldownState", "OpenCooldownEditor",
     -- 1.16
     "ProcAlerts", "ProcState", "TestProcAlert",
+    -- 1.17
+    "XPOrbs",
 }
 local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "RegisterCommand", "RegisterSkin", "AddOptionsGroup", "AttachCraftPane",
     "Paint", "Hook", "Wrap", "Unhook", "AddText", "AddDefaults", "AddDataText", "UpdateDataText", "AddDataPanel",
@@ -48,7 +50,7 @@ local VIEW = { "On", "RegisterMover", "RegisterFade", "RegisterTestPart", "Regis
     -- 1.16
     "WatchProc", "AddProcAlert", "ShowProcAlert", "HideProcAlert",
     -- 1.17
-    "AddBuffReminder", "RemoveBuffReminder" }
+    "AddBuffReminder", "RemoveBuffReminder", "ShowXPOrbs" }
 -- Internal only (DUI.APIReport), never on the public table.
 local INTERNAL = { "Made", "Unit", "Back", "Gone", "Occupant", "Styled", "Wants", "Event", "Row", "ListDone", "ListClear",
     "Painted", "Owned", "Repainter", "Painting", "KindOf", "PaintedFrame", "OwnedOn", "SetInfo", "Info", "DataTexts", "DataPanels", "TooltipLines", "BagGroups", "BuffCategories", "BuffReminders",

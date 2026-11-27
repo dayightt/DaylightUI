@@ -58,7 +58,9 @@ local OWN_EVENTS = { CraftShown = true, CraftHidden = true, CraftProfessionChang
     -- The tooltips' look switched (1.12): "rich" or "simple".
     TooltipStyleChanged = true,
     -- Proc Alerts' (1.16): key, stacks (ProcHidden: key).
-    ProcShown = true, ProcRenewed = true, ProcHidden = true }
+    ProcShown = true, ProcRenewed = true, ProcHidden = true,
+    -- The XP orbs' (1.17): amount, kind, x, y, known (XPOrbsLanded: amount).
+    XPGained = true, XPOrbsLanded = true }
 
 local lists = {} -- event -> array of listeners { fn, owner, event, dead }
 local counts = {} -- event -> listeners still alive
@@ -169,7 +171,7 @@ end
 -- Notifies everyone listening to event: the listeners present when it began
 -- (one added now waits for the next fire, though FrameMade's replay hands it
 -- the frame in progress at once), skipping any removed since.
-local function fire(event, a, b, c, d)
+local function fire(event, a, b, c, d, f)
     local list = lists[event]
     if not list then return end
     local n = #list
@@ -177,7 +179,7 @@ local function fire(event, a, b, c, d)
     firing[event] = (firing[event] or 0) + 1
     for i = 1, n do
         local e = list[i]
-        if not e.dead then DUI.SafeCallAs(e.owner or L["an addon"], e.fn, a, b, c, d) end
+        if not e.dead then DUI.SafeCallAs(e.owner or L["an addon"], e.fn, a, b, c, d, f) end
     end
     local depth = firing[event] - 1
     firing[event] = depth
@@ -276,8 +278,8 @@ function Report.Styled(kind, frame, isPreview)
 end
 
 -- A window's event (OWN_EVENTS only; just a table read when nobody listens).
-function Report.Event(event, a, b, c, d)
-    if OWN_EVENTS[event] and (counts[event] or 0) > 0 then fire(event, a, b, c, d) end
+function Report.Event(event, a, b, c, d, f)
+    if OWN_EVENTS[event] and (counts[event] or 0) > 0 then fire(event, a, b, c, d, f) end
 end
 
 -- Rows of a list refilled repeatedly from a pool (shop tiles, profession list
@@ -698,6 +700,13 @@ end
 local function panelNs()
     local mod = DUI:GetModule("InfoPanel")
     return mod and mod.enabled and mod.ns or nil
+end
+
+-- The XP orbs (1.17): the player's orb settings { on, size, flight, color },
+-- nil while the info panel is off.
+function API.XPOrbs()
+    local ns = panelNs()
+    return ns and ns.XPOrbs and ns.XPOrbs.Settings() or nil
 end
 
 function API.MeterWindows()
@@ -2070,6 +2079,15 @@ function View.WatchCooldown(v, what, handlers)
         if now then DUI.SafeCallAs(v.name, changed, now) end
     end
     return handle
+end
+
+-- A burst of XP orbs of the plugin's own (1.17): count orbs from x, y
+-- (UIParent units) into the experience bar. It only looks: the bar keeps its
+-- value and no event fires. False while the orbs are off.
+function View.ShowXPOrbs(v, x, y, count)
+    local ns = panelNs()
+    if not (ns and ns.XPOrbs) then return false end
+    return ns.XPOrbs.Show(x, y, count)
 end
 
 -- One proc's moments (1.16): shown, renewed (each with key, stacks), hidden
