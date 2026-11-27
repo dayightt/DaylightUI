@@ -17,6 +17,7 @@ DUI.PatchNotes = {
         { "Info Panel", "The data bar's text color setting now changes the data bar's texts" },
         { "Bar animations", "Embers takes the colors you pick, Same color as the bar too, instead of always the same orange" },
         { "Group finder", "Typing /who in chat opens the group finder on its Who tab" },
+        { "Chat", "Clicking a Battle.net friend's name in a whisper line starts a whisper to them again" },
     } },
     { version = "2.4.1", date = "2026-11-26", summary = "Proc alerts redone as living flame, spell costs on your action buttons, icon borders per frame, and lower nameplates on new profiles.", new = {
         { "Nameplates", "Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick" },

@@ -240,8 +240,14 @@ function Links.Sync(box)
     local used = 0
     for i, line in ipairs(box.visibleLines) do
         local text = line:IsShown() and line:GetText()
-        local copy, any
-        if type(text) == "string" and not secret(text) and string.find(text, "|H", 1, true) then
+        local copy, any, hidden
+        if secret(text) then
+            -- A line that reads secret (every Battle.net whisper) can't be searched
+            -- or edited, but a font string still shows it whole: its name stays a
+            -- link the game's own click opens. Without a twin the click reached
+            -- only the box, which never opens a name.
+            copy, any, hidden = text, true, true
+        elseif type(text) == "string" and string.find(text, "|H", 1, true) then
             copy, any = Links.Twin(text)
         end
         if any then
@@ -263,12 +269,14 @@ function Links.Sync(box)
                 t.font, t.size, t.flags = font, size, flags
                 t.src = nil
             end
-            if t.src ~= copy then
+            -- A secret line can't be compared, so it's set again on every redraw and
+            -- never kept for the next comparison.
+            if hidden or t.src ~= copy then
                 t:SetJustifyH(line:GetJustifyH() or "LEFT")
                 if line.GetIndentedWordWrap then t:SetIndentedWordWrap(line:GetIndentedWordWrap() and true or false) end
                 if line.GetSpacing then t:SetSpacing(line:GetSpacing() or 0) end
                 t:SetText(copy)
-                t.src = copy
+                t.src = not hidden and copy or nil
             end
             t:Show()
             used = used + 1

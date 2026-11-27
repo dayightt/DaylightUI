@@ -3210,10 +3210,8 @@ T.test("chat daylight: Daylight UI's own links stay the box's click", function()
                             "questie:12:Bob", "addon:DaylightUI:url:x", "daylightchat:spam:all" }) do
         box:AddMessage("|H" .. link .. "|h[x]|h")
     end
-    -- A secret line (chat lockdown) is left alone too.
-    box:AddMessage(stub.Secret("|Hitem:19019|h[Thunderfury]|h"))
     box:FakeRefresh()
-    for i = 1, 5 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
+    for i = 1, 4 do T.falsy(twinOf(CH, box, i), "line " .. i .. " has no twin") end
     local m = CH.Links.Mirror(box)
     T.falsy(m and m:IsShown(), "nothing for the game to click")
     T.eq(CH.Links.Twin("|Hquestie:12:Bob|h[Q]|h |Hplayer:Bob|h[Bob]|h: |Hitem:1|h[A]|h"),
@@ -6910,5 +6908,23 @@ T.test("chat: Classic windows get the price of each one too", function()
     local want = "You won an auction for Linen Cloth x14 (" .. DaylightUI.Widgets.Money(345) .. " each)"
     T.eq(ChatFrame1.visibleLines[1]:GetText(), want)
     _G.ERR_AUCTION_COMMODITY_WON_S = nil
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- A player's report: a Battle.net friend's name in a whisper line did nothing
+-- when clicked. Every Battle.net whisper line reads secret, so it never got a
+-- twin, and the box itself never opens a name (its click carries taint).
+T.test("chat daylight: a secret line (a Battle.net whisper) still gets its twin, so its name clicks", function()
+    local _, box = daylight()
+    local CH = stub.chatModule
+    local line = stub.Secret("|HBNplayer:Casey:12:0:BN_WHISPER:Casey|h[Casey]|h whispers: hi")
+    box:AddMessage(line)
+    box:FakeRefresh()
+    local t = twinOf(CH, box, 1)
+    T.truthy(t, "the secret line has its twin")
+    T.eq(select(2, t:GetPoint(1)), box.visibleLines[1], "laid over its line")
+    T.eq(t:GetText(), line, "the whole line, its name a link the game clicks")
+    box:FakeRefresh()
+    T.truthy(twinOf(CH, box, 1), "a redraw keeps it")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
