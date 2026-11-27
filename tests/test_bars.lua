@@ -1546,9 +1546,13 @@ T.test("paint: something on the cursor shows the empty slots", function()
     T.eq(Skin.GetParts(btn("main", 5)).back:GetAlpha(), 0)
 end)
 
-T.test("paint: cooldowns go through duration objects; loss of control replaces the normal one", function()
+-- With the times hidden (a fight, a restriction): plain times go to SetCooldown
+-- instead (the test after the next one).
+T.test("paint: secret cooldowns go through duration objects; loss of control replaces the normal one", function()
     login({ slots = { [1] = { texture = "a", cooldown = true }, [2] = { texture = "b", charges = true },
                       [3] = { texture = "c", cooldown = true, loc = true, locReplaces = true } } })
+    stub.secretTimes = true
+    stub.FireEvent("ACTIONBAR_UPDATE_COOLDOWN"); stub.FireEvent("LOSS_OF_CONTROL_UPDATE"); stub.RunTimers()
     local b1, b2, b3 = btn("main", 1), btn("main", 2), btn("main", 3)
     T.deq(b1.cooldown.__duration, { slot = 1, kind = "cooldown" })
     T.isnil(b2.cooldown.__duration); T.deq(b2.chargeCooldown.__duration, { slot = 2, kind = "charges" })
@@ -1557,6 +1561,7 @@ T.test("paint: cooldowns go through duration objects; loss of control replaces t
     stub.slots[1].cooldown = false
     stub.FireEvent("SPELL_UPDATE_COOLDOWN"); stub.RunTimers()
     T.isnil(b1.cooldown.__duration, "cleared when it ends")
+    stub.secretTimes = nil
 end)
 
 T.test("paint: painting in combat never touches a secret", function()
@@ -1598,6 +1603,25 @@ T.test("paint: a cooldown paint skips the asks that can't matter", function()
     stub.FireEvent("LOSS_OF_CONTROL_UPDATE"); stub.RunTimers()
     T.truthy(asked.GetActionLossOfControlCooldownInfo, "a stun: asked again")
     T.deq(btn("main", 1).lossOfControlCooldown.__duration, { slot = 1, kind = "loc" })
+end)
+
+-- A long item cooldown (Salt Shaker, three days) read the same on the bars as in the
+-- bags. The game's own action buttons set it from the plain start and length
+-- (ActionButton_ApplyCooldown: SetCooldown), as the bags do, and the countdown then
+-- reads "3d" in both; only times the client hides in a fight go through the
+-- duration object, which SetCooldown would refuse.
+T.test("paint: a plain cooldown is set the game's way, a secret one by its duration object", function()
+    login({ slots = { [1] = { texture = "salt", item = 15846, cooldown = true, cdStart = 1000, cdDuration = 259200 } } })
+    stub.FireEvent("ACTIONBAR_UPDATE_COOLDOWN"); stub.RunTimers()
+    local cd = btn("main", 1).cooldown
+    T.deq(cd.__cooldown and { cd.__cooldown[1], cd.__cooldown[2] }, { 1000, 259200 }, "start and length, as the game's button")
+    T.isnil(cd.__duration, "and not handed over again as a duration object")
+    cd.__cooldown, cd.__duration = nil, nil
+    stub.EnterCombat()
+    stub.FireEvent("ACTIONBAR_UPDATE_COOLDOWN"); stub.RunTimers()
+    T.isnil(cd.__cooldown, "secret times never reach SetCooldown")
+    T.deq(cd.__duration, { slot = 1, kind = "cooldown" }, "the duration object in a fight")
+    noBlocked()
 end)
 
 -- The ready ping. bumps[icon] counts icon pops.

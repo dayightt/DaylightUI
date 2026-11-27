@@ -222,9 +222,20 @@ function Buttons.SetOutOfRange(btn, out)
     end
 end
 
-local function sweep(cd, on, duration)
+local function plain(v) return type(v) == "number" and not DUI.IsSecret(v) end
+
+-- Sets a sweep the way the game's own action buttons do (ActionButton_ApplyCooldown):
+-- from the plain start and length, like the bags, so a long item cooldown reads the
+-- same on both ("3d"). Times the client hides in a fight can't go to SetCooldown, so
+-- those go through the duration object, asked for only then (each ask is a new table).
+local function sweep(cd, on, start, length, modRate, getDuration, slot)
     if type(cd) ~= "table" then return end
-    if on then cd:SetCooldownFromDurationObject(duration) else cd:Clear() end
+    if not on then cd:Clear(); return end
+    if plain(start) and plain(length) and (type(modRate) == "nil" or plain(modRate)) then
+        cd:SetCooldown(start, length, modRate)
+    elseif getDuration then
+        cd:SetCooldownFromDurationObject(getDuration(slot))
+    end
 end
 
 -- Is any loss of control on you? The count is a plain number, no table. A count
@@ -377,15 +388,17 @@ Buttons.PAINTERS = {
         local loc = Buttons.LossOfControl() and AB.GetActionLossOfControlCooldownInfo
             and AB.GetActionLossOfControlCooldownInfo(slot)
         local locOn = type(loc) == "table" and loc.isActive == true
-        sweep(btn.lossOfControlCooldown, locOn, locOn and AB.GetActionLossOfControlCooldownDuration(slot))
+        sweep(btn.lossOfControlCooldown, locOn, locOn and loc.startTime, locOn and loc.duration, locOn and loc.modRate,
+            AB.GetActionLossOfControlCooldownDuration, slot)
         local info = AB.GetActionCooldown(slot)
         local on = type(info) == "table" and info.isActive == true
             and not (locOn and loc.shouldReplaceNormalCooldown == true)
-        sweep(btn.cooldown, on, on and AB.GetActionCooldownDuration(slot))
+        sweep(btn.cooldown, on, on and info.startTime, on and info.duration, on and info.modRate, AB.GetActionCooldownDuration, slot)
         local charges = not noCharges[slot] and AB.GetActionCharges and AB.GetActionCharges(slot)
         Buttons.NoteCharges(slot, charges)
         local chOn = type(charges) == "table" and charges.isActive == true
-        sweep(btn.chargeCooldown, chOn, chOn and AB.GetActionChargeDuration(slot))
+        sweep(btn.chargeCooldown, chOn, chOn and charges.cooldownStartTime, chOn and charges.cooldownDuration,
+            chOn and charges.chargeModRate, AB.GetActionChargeDuration, slot)
         if ns.Ping then ns.Ping.Note(btn, slot, info, charges) end
     end },
     -- A proc shows the game's own glow on Daylight UI's button. The skin's border follows it.
