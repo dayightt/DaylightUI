@@ -132,9 +132,12 @@ local function kick(s, p, dir, size)
 end
 
 -- sheet: a pixel style's sheet numbers (BarFx.PIXEL), nil for Comet's and Embers'.
-local function build(s, name, sheet)
+-- gray: the sheet's art is drawn in color, so it's shown without it and the
+-- tint alone colors it.
+local function build(s, name, sheet, gray)
     local p = { layers = {}, name = name, pixel = sheet }
     p.sheet = layer(p, s)
+    if gray then p.sheet:SetDesaturated(true) end
     p.flare = layer(p, s)
     p.flare:SetTexture(BarFx.FLARE, "CLAMP", "CLAMP")
     p.flare:SetAlpha(0)
@@ -179,10 +182,10 @@ end
 BarFx.SheetFile, BarFx.Pin, BarFx.Lean, BarFx.Mix, BarFx.LightOf = sheetFile, pin, lean, mix, lightOf
 
 -- tints(hi) returns the sheet's, the line's and the flash's color.
-local function def(name, tints, sheet)
+local function def(name, tints, sheet, gray)
     return {
         layout = layout, show = show, kick = kick,
-        build = function(s) return build(s, name, sheet) end,
+        build = function(s) return build(s, name, sheet, gray) end,
         paint = function(s, p, lo, hi, alpha)
             local fill = s.bar:GetStatusBarTexture()
             for _, t in ipairs(p.layers) do Style.SameMasks(t, fill, true) end
@@ -202,13 +205,12 @@ BarFx.Add("comet", function() return L["Comet"] end, def("comet", function(hi)
 end))
 
 -- A glowing, flickering end with sparks lifting off it and cooling as they
--- rise. The sheet carries the cooling in its own colors.
-BarFx.EMBER = { 1, 0.62, 0.28 }
+-- rise. The sheet is drawn orange, so it's shown without its color: its
+-- brightness still carries the cooling, and the picked colors light it.
 BarFx.EMBER_HOT = { 1, 0.92, 0.66 }
 BarFx.Add("embers", function() return L["Embers"] end, def("embers", function(hi)
-    local warm = mix(hi, BarFx.EMBER, 0.5)
-    return mix(warm, BarFx.EMBER_HOT, 0.6), BarFx.EMBER_HOT, mix(warm, BarFx.EMBER_HOT, 0.4)
-end))
+    return mix(hi, BarFx.EMBER_HOT, 0.25), mix(hi, BarFx.EMBER_HOT, 0.7), mix(hi, BarFx.EMBER_HOT, 0.5)
+end, nil, true))
 
 -- Chunky pixel art at the fill's end (sparks, a stepped flame, a crackling
 -- bolt), kept on whole screen pixels so it stays crisp at any bar height.

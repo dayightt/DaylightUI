@@ -556,3 +556,22 @@ T.test("a texture picked while Flow runs shows on the bar at once", function()
     for _, r in ipairs(lights(bar)) do if r:GetTexture() == glass then found = true end end
     T.truthy(found, "and Flow's layers wear it")
 end)
+
+-- A player's report: Embers stayed the same orange whatever color was picked,
+-- "Same color as the bar" too. Its art is drawn orange, so a tint alone can't
+-- change it: it wears the art without color and the picked color tints it.
+T.test("Embers takes the picked colors, like Comet", function()
+    local function sheetColor(colors)
+        local cfg = { style = "embers", colors = colors, colorA = { 0.1, 0.3, 1 }, colorB = { 0.1, 0.3, 1 } }
+        local DUI, bar, _, read = setup(cfg)
+        DUI.BarFx.Track(bar, "health", nil, "player", nil, read)
+        local sheet = sheetOf(bar)
+        local r, g, b = sheet:GetVertexColor()
+        return sheet, r, g, b
+    end
+    local sheet, r, g, b = sheetColor("custom")
+    T.truthy(sheet:IsDesaturated(), "the art without its own orange")
+    T.truthy(b > r, "a blue pick lights blue: " .. r .. "," .. g .. "," .. b)
+    local _, r2, g2, b2 = sheetColor("bar")
+    T.truthy(math.abs(r2 - r) + math.abs(g2 - g) + math.abs(b2 - b) > 0.2, "the bar's own colors light it differently")
+end)
