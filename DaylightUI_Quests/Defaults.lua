@@ -28,6 +28,7 @@ ns.DEFAULTS = {
     questParty = true,        -- party members on a quest, at the end of its line
     hideDone = false,
     filter = "all",           -- all (tracked) | zone | log (every quest in the log, without adding watches)
+    filterRow = false,        -- the All / This zone filter as words under the header's line instead of buttons on its line when you hover
     sort = "recent",          -- recent (a quest that progresses moves to the top with its zone) | zone | level | levelAll | near | ready
     hereFirst = false,        -- the zones you're in stay at the top, whatever the order
     foldReady = false,        -- a ready quest shows only its title (never for timed ones)

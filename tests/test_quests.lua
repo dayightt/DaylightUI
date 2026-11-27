@@ -2473,6 +2473,82 @@ T.test("quests controls: they show while the mouse is over the list", function()
     T.eq(Tr.controls:IsShown(), true)
 end)
 
+T.test("quests controls: a title too long to sit beside the buttons fades while they show", function()
+    local Tr, ns, settle = tracker({ quests = { STEW } })
+    local h = Tr.frames["section:quests"]
+    function Tr.view:IsMouseOver() return true end
+    function h.label:GetStringWidth() return Tr.Width() - 20 end   -- a long word in a small tracker
+    T.falsy(Tr.TitleFits(h), "it would run under the buttons")
+    Tr.Hovered(); stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1)
+    T.eq(h.label:GetAlpha(), 0, "the title makes way, as the count does")
+    function Tr.view:IsMouseOver() return false end
+    function Tr.controls:IsMouseOver() return false end
+    stub.Advance(Tr.CONTROL_LINGER + 1)
+    Tr.Hovered()
+    for _ = 1, 4 do stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1); Tr.Hovered(); stub.RunOnUpdate(DaylightUI.Motion.Driver(), 1) end
+    T.eq(h.label:GetAlpha(), 1, "and comes back when they go")
+end)
+
+T.test("quests controls: a title that fits stays", function()
+    local Tr, ns, settle = tracker({ quests = { STEW } })
+    local h = Tr.frames["section:quests"]
+    function Tr.view:IsMouseOver() return true end
+    T.truthy(Tr.TitleFits(h))
+    Tr.Hovered(); settle()
+    T.eq(h.label:GetAlpha(), 1)
+end)
+
+T.test("quests tracker: a reused header shows its title, whatever its last use left", function()
+    local Tr, ns = tracker({ quests = { STEW } })
+    local h = Tr.frames["section:quests"]
+    h.labelGoal = 0
+    h.label:SetAlpha(0)
+    ns.Rows.Free(h)
+    local again = ns.Rows.Get("header", UIParent)
+    T.isnil(again.labelGoal)
+    T.eq(again.label:GetAlpha(), 1)
+end)
+
+T.test("quests filter row: off by default, the buttons stay and the header is as tall as ever", function()
+    local Tr, ns = tracker({ quests = { STEW } })
+    local h = Tr.frames["section:quests"]
+    T.isnil(h.block.filter)
+    T.isnil(h.filterWords)
+    function Tr.view:IsMouseOver() return true end
+    Tr.Hovered()
+    T.eq(Tr.controls:IsShown(), true)
+end)
+
+T.test("quests filter row: with the option on, words under the line and no buttons", function()
+    local Tr, ns, settle = tracker({ quests = { STEW } })
+    local before = Tr.frames["section:quests"].block.h
+    DaylightUI:Set("Quests", "filterRow", true); settle()
+    local h = Tr.frames["section:quests"]
+    T.eq(h.block.filter, "all")
+    T.eq(h.block.h, before + ns.Layout.FilterH({ sizes = DaylightUI:Get("Quests", "sizes") }), "one row taller, from the text size")
+    local all, zone = h.filterWords[1], h.filterWords[2]
+    T.truthy(all.tab:IsShown() and not all.link:IsShown(), "the one showing is lit (a tab)")
+    T.truthy(zone.link:IsShown() and not zone.tab:IsShown(), "the other is a link")
+    function Tr.view:IsMouseOver() return true end
+    Tr.Hovered()
+    T.eq(Tr.controls:IsShown(), false, "the hover buttons stay away")
+    zone.link:GetScript("OnClick")(zone.link); settle()
+    T.eq(DaylightUI:Get("Quests", "filter"), "zone")
+    h = Tr.frames["section:quests"]
+    T.eq(h.block.filter, "zone")
+    T.truthy(h.filterWords[2].tab:IsShown(), "This zone is the lit one now")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("quests filter row: the row follows the tracker's text size", function()
+    local Tr, ns, settle = tracker({ quests = { STEW } })
+    DaylightUI:Set("Quests", "filterRow", true); settle()
+    local small = Tr.frames["section:quests"].block.h
+    local sizes = DaylightUI:Get("Quests", "sizes")
+    DaylightUI:Set("Quests", "sizes", { header = sizes.header, title = sizes.title, objective = sizes.objective, zone = sizes.zone + 4 }); settle()
+    T.eq(Tr.frames["section:quests"].block.h, small + 4)
+end)
+
 T.test("quests controls: stay on the pinned header while the list scrolls", function()
     local Tr, ns = tracker({ quests = many(20) })
     DaylightUI:Set("Quests", "maxHeight", 200)
