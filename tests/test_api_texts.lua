@@ -29,6 +29,17 @@ T.test("api texts: a plugin's text is in the pickers after Daylight UI's", funct
     T.eq(T2.MORE_LABELS["Neon:shards"], "Soul shards", "as a second or third part too")
 end)
 
+T.test("api texts: Add piece adds a plugin's text (its key has a colon)", function()
+    local DUI = load(function(DUI)
+        DUI.API.For("Neon").AddText("shards", { label = "Soul shards", on = { "power" }, text = function() return "3" end })
+    end)
+    local P = DUI.OptionsPanel
+    P.Show("UnitFrames.target")
+    P.SetDesign(true)
+    T.eq(P.Strip().Sample().Add("text:Neon:shards"), "Extra text 1")
+    T.eq(DUI:Get("UnitFrames", "target.texts.t1.kind"), "Neon:shards")
+end)
+
 T.test("api texts: set on the player frame, it writes its text on its updates", function()
     local n = 0
     local DUI, ns = load(function(DUI)
