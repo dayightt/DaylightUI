@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", fixed = {
+    { version = "Unreleased", changed = {
+        { "Bags", "The bags' own \"Compare with what you wear\" switch is gone. The one under Tooltip decides for every item, bags included" },
+    }, fixed = {
         { "Proc Alerts", "Proc alerts no longer show as big green boxes for some players" },
         { "Bar animations", "Molten, Cinders and Slosh no longer show green blocks on some players' bars" },
     } },

@@ -594,7 +594,6 @@ function Items.Dress(btn)
     -- Looking at a new item clears its dot.
     -- Reaching for a slot mid-cleanup shows the real items first (Window.SortTouched).
     btn:HookScript("OnEnter", function(self)
-        Items.NoCompare(self)
         Items.Hover(self, true)
         cursorOver(self)
         -- Entered again through the secure use button over it (Items.UseOver):
@@ -633,23 +632,6 @@ function Items.Dress(btn)
     if ns.Stack then ns.Stack.Hook(btn) end
     Items.Place(btn)
     return p
-end
-
--- With compareItems off, a bag item's tooltip stands alone: the game's slot
--- has just shown the worn item beside it (its "always compare" setting), so
--- that goes, and the flag keeps the 0.2 s refresh from bringing it back until
--- the tooltip hides. Holding Shift still compares, as in the game.
-function Items.NoCompare(btn)
-    if ns.Setting("compareItems") ~= false then return end
-    local tip = _G.GameTooltip
-    if type(tip) ~= "table" or tip:GetOwner() ~= btn then return end
-    if type(GameTooltip_SuppressAutomaticCompareItem) == "function" then
-        GameTooltip_SuppressAutomaticCompareItem(tip)
-    end
-    if IsModifiedClick and IsModifiedClick("COMPAREITEMS") then return end
-    if type(GameTooltip_HideShoppingTooltips) == "function" and type(tip.shoppingTooltips) == "table" then
-        GameTooltip_HideShoppingTooltips(tip)
-    end
 end
 
 -- Scales the game's art to this slot's size, keeping the shape and position it
