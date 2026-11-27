@@ -4088,3 +4088,31 @@ T.test("bags: right-click and Alt-click hand the item to the Auction House", fun
     T.eq(menus, 1, "Alt-right-click is the group menu")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Seen in game: Shift-clicking Disenchant keeps it on, and its hint then has
+-- nothing to say. Hovering it again errored in the tooltip.
+T.test("bags: hovering a tool whose hint has nothing to say shows no hint and no error", function()
+    local ns = login()
+    local DE = ns.Disenchant
+    _G.IsPlayerSpell = function(id) return id == DE.SPELL end
+    stub.FireEvent("SPELLS_CHANGED")
+    local f = open(ns)
+    local b = f.disenchantButton
+    T.truthy(b and b:IsShown(), "an enchanter has the button")
+    local said = {}
+    local add = GameTooltip.AddLine
+    GameTooltip.AddLine = function(self, text, ...)
+        said[#said + 1] = tostring(text)
+        return add(self, text, ...)
+    end
+    DE.on = true
+    b:GetScript("OnEnter")(b)
+    GameTooltip.AddLine = add
+    T.truthy(#said > 0, "the tooltip still shows")
+    for _, t in ipairs(said) do
+        T.falsy(t:find("Shift%-click"), "no Shift-click hint while it is already kept on")
+    end
+    DE.on = false
+    b:GetScript("OnEnter")(b)
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

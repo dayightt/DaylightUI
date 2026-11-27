@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", fixed = {
         { "Unit frames", "Druid resource bars show your rage and energy again in caster form, next to your mana in bear or cat form" },
+        { "Bags", "Hovering the Disenchant button after Shift-clicking it no longer throws an error" },
     } },
     { version = "2.4.1", date = "2026-11-26", summary = "Proc alerts redone as living flame, spell costs on your action buttons, icon borders per frame, and lower nameplates on new profiles.", new = {
         { "Nameplates", "Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick" },

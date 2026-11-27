@@ -1266,7 +1266,10 @@ function W.IconButton(parent, icon, tip, onClick, size, desc)
             if mine ~= token or not self:IsMouseOver() then return end
             local words, more
             if type(tip) == "function" then words, more = tip() else words = tip end
-            if more == nil then more = type(desc) == "function" and desc() or desc end
+            if more == nil then
+                -- a description function may have nothing to say: keep that nil, not the function
+                if type(desc) == "function" then more = desc() else more = desc end
+            end
             if words and GameTooltip then
                 GameTooltip:SetOwner(self, "ANCHOR_TOP")
                 DUI.Tips.Clear()

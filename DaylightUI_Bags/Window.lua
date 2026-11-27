@@ -71,10 +71,13 @@ local function tip(owner, title, line, hint)
         GameTooltip:SetOwner(self, "ANCHOR_TOP")
         local Tips = DUI.Tips
         Tips.Clear()
-        Tips.Title(type(title) == "function" and title() or title)
-        local l = type(line) == "function" and line() or line
+        -- A piece given as a function may have nothing to say right now (nil), so
+        -- "f() or f" would hand the function itself on.
+        local function read(v) if type(v) == "function" then return v() end return v end
+        Tips.Title(read(title))
+        local l = read(line)
         if l then Tips.Text(l) end
-        local h = type(hint) == "function" and hint() or hint
+        local h = read(hint)
         if h then Tips.Hint(h) end
         Tips.Flush(GameTooltip)
         GameTooltip:Show()
