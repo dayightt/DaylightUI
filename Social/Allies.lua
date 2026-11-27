@@ -42,10 +42,10 @@ function Allies.Tip(owner, a)
     local who, race = ns.Friends.Identity(a, r, g, b)
     T.Sub(who)
     if race then T.Sub(race) end
-    -- What it was and when, on two lines: a long "what" pushed the time onto a line of its own anyway.
+    -- What it was and when, on two lines, so each has the whole width.
     T.Text(a.what)
     if a.when then T.Text(Data().Ago(a.when), Style.INK.LABEL) end
-    -- The zone on its own line, not beside a label: a long one was cut short.
+    -- The zone on its own line, not beside a label, so a long one has the whole width.
     if a.location and a.online then T.Text(a.location) end
     if a.note then T.Line(L["Note"], a.note) end
     if a.pinned then T.Text(L["Pinned: kept on your list"], Style.INK.LABEL) end
@@ -109,7 +109,7 @@ function Allies.Spec(a)
     add(LEVEL or L["Level"], a.level and tostring(a.level))
     add(L["Race"], a.race)
     if a.online then add(L["Zone"], a.location) end
-    local word = a.faction and (a.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+    local word = ns.Friends.FactionWord(a.faction)
     add(L["Faction"], word)
     -- How you met, whole (it can be long): its own titled block, under the faction.
     add(L["History"], a.what .. (a.when and (" · " .. Data().Ago(a.when)) or ""))
