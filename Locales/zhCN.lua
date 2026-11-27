@@ -9197,7 +9197,7 @@ L["Their spec, or their class until the game knows it, in their class color."] =
 L["There's room for the layout now."] = "现在有空间容纳该布局了。"
 L["This bank can't be used right now."] = "当前无法使用此银行。"
 L["This flare's size. Size of all alerts (General) changes every one."] = "此光效的大小。“所有警报的尺寸”（常规）会更改每一个。"
-L["Title:"] = "标题："
+L["Title:"] = "头衔："
 L["Top color"] = "顶部颜色"
 L["Trade Goods"] = "商品"
 L["Try it"] = "试用"
@@ -9376,4 +9376,9 @@ L["The friendly level's color when Friendly level color is One color."] = "当�
 L["Untyped debuff border color"] = "无类型减益边框颜色"
 L["Where on the button its cost shows."] = "消耗显示在按钮上的位置。"
 
+-- Mailbox: what happened to an auction house letter's item (machine draft, not yet checked by a native speaker;
+-- Canceled, Expired and Outbid follow the game's own words where it has one that fits).
+L["Expired"] = "已过期"
+L["Canceled"] = "已取消"
+L["Won"] = "已拍得"
 end)

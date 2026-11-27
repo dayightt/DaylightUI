@@ -672,6 +672,9 @@ local function makeLine(parent)
     b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
     b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0)
     b.sub:SetWordWrap(false)
+    -- A second value, on the sub's row (spec.subValue).
+    b.subValue = Style.Text(b.block, Parts.LINE_SUB, "RIGHT")
+    b.subValue:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0)
     -- Key hint, same as a Row's.
     b.key = Style.Text(b, Style.SIZE.tiny, "CENTER")
     b.key:SetPoint("CENTER", b, "LEFT", 6 + Parts.KEY / 2, 0)
@@ -715,7 +718,8 @@ local function makeLine(parent)
     return b
 end
 
--- spec: icon (file or id), text, color, sub, subColor, value, valueColor, dim,
+-- spec: icon (file or id), text, color, sub, subColor, value, valueColor, subValue
+-- and subValueColor (right of the sub, with the value moved up to the name), dim,
 -- picked, key (as for a Row), onClick(b), onRightClick(b), tooltip(b), leave(b),
 -- link() for item modifier clicks (Parts.ItemClick), id.
 function Stack:Line(spec)
@@ -732,15 +736,34 @@ function Stack:Line(spec)
     b.edge:ClearAllPoints()
     b.edge:SetPoint("LEFT", b, "LEFT", spec.key ~= nil and 6 + Parts.KEY + 8 or 4, 0)
     local pair = spec.sub ~= nil and spec.sub ~= ""
+    -- With a sub value the value moves up to the name's row and each text ends at the
+    -- value on its own row, so the name doesn't give up the sub value's width too.
+    local stacked = pair and spec.subValue ~= nil and spec.subValue ~= ""
     b.block:ClearAllPoints()
     b.block:SetPoint("LEFT", b.edge, "RIGHT", 10, 0)
-    b.block:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    b.value:ClearAllPoints()
+    if stacked then
+        b.block:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+        b.value:SetPoint("TOPRIGHT", b.block, "TOPRIGHT", 0, 0)
+    else
+        b.value:SetPoint("RIGHT", b, "RIGHT", -8, 0)
+        b.block:SetPoint("RIGHT", b.value, "LEFT", -10, 0)
+    end
     b.block:SetHeight(pair and (Parts.TEXT + Parts.LINE_GAP + Parts.LINE_SUB) or Parts.TEXT)
+    b.name:ClearAllPoints()
+    b.name:SetPoint("TOPLEFT", b.block, "TOPLEFT", 0, 0)
+    if stacked then b.name:SetPoint("TOPRIGHT", b.value, "TOPLEFT", -10, 0)
+    else b.name:SetPoint("TOPRIGHT", b.block, "TOPRIGHT", 0, 0) end
+    b.subValue:SetText(stacked and spec.subValue or "")
+    b.subValue:SetShown(stacked)
+    local svc = spec.subValueColor or Style.INK.LABEL
+    b.subValue:SetTextColor(svc[1], svc[2], svc[3])
     -- A list can narrow the sub (Craft's skill-up chance); a reused frame starts
     -- from the block's full width again.
     b.sub:ClearAllPoints()
     b.sub:SetPoint("BOTTOMLEFT", b.block, "BOTTOMLEFT", 0, 0)
-    b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0)
+    if stacked then b.sub:SetPoint("BOTTOMRIGHT", b.subValue, "BOTTOMLEFT", -10, 0)
+    else b.sub:SetPoint("BOTTOMRIGHT", b.block, "BOTTOMRIGHT", 0, 0) end
     local c = spec.color or (dim and Parts.LATER) or Style.INK.VALUE
     b.name:SetText(spec.text or "")
     b.name:SetTextColor(c[1], c[2], c[3])

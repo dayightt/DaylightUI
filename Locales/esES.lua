@@ -9384,4 +9384,10 @@ L["minimap buttons"] = "botones del minimapa"
 L["party and raid frames"] = "marcos de grupo y de banda"
 L["that layout can't be deleted here"] = "esa disposición no se puede borrar aquí"
 L["whole UI"] = "toda la interfaz"
+
+-- Mailbox: what happened to an auction house letter's item (machine draft, not yet checked by a native speaker;
+-- Canceled, Expired and Outbid follow the game's own words where it has one that fits).
+L["Expired"] = "Caducado"
+L["Canceled"] = "Cancelado"
+L["Won"] = "Ganado"
 end)

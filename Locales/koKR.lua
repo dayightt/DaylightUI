@@ -4960,4 +4960,12 @@ L["The data bar has no border on the global style: on a strip this thin the acce
 L["The color of every chat panel's border. The border still lights up in your accent color while you drag a corner to size the chat."] = "모든 채팅 패널의 테두리 색상입니다. 모서리를 끌어 채팅 크기를 바꾸는 동안에는 여전히 강조색으로 빛납니다."
 L["Every chat panel: the main one, the second one and a chat window pulled out on its own. On the global style the Classic chat keeps a thin line."] = "모든 채팅 패널: 기본 패널, 두 번째 패널, 따로 떼어 낸 채팅 창. 전체 스타일에서 클래식 채팅은 얇은 선을 유지합니다."
 L["Gives the second chat panel its own background opacity, set in the row below. When off, it's as see-through as the main chat panel. Shown while the chat's Use Daylight UI global style is off."] = "두 번째 채팅 패널에 아래 줄에서 정하는 자체 배경 불투명도를 줍니다. 끄면 기본 채팅 패널만큼 투명합니다. 채팅의 'Daylight UI 전체 스타일 사용'이 꺼져 있을 때 표시됩니다."
+
+-- Mailbox: what happened to an auction house letter's item (machine draft, not yet checked by a native speaker;
+-- Canceled, Expired and Outbid follow the game's own words where it has one that fits).
+L["Sold"] = "판매됨"
+L["Expired"] = "만료됨"
+L["Canceled"] = "취소됨"
+L["Won"] = "낙찰됨"
+L["Outbid"] = "상회 입찰"
 end)

@@ -315,6 +315,12 @@ end
 -- ---------------------------------------------------------------------
 
 local function install()
+    -- The client's subjects for the house's letters (GlobalStrings).
+    _G.AUCTION_SOLD_MAIL_SUBJECT = _G.AUCTION_SOLD_MAIL_SUBJECT or "Auction successful: %s"
+    _G.AUCTION_EXPIRED_MAIL_SUBJECT = _G.AUCTION_EXPIRED_MAIL_SUBJECT or "Auction expired: %s"
+    _G.AUCTION_REMOVED_MAIL_SUBJECT = _G.AUCTION_REMOVED_MAIL_SUBJECT or "Auction canceled: %s"
+    _G.AUCTION_WON_MAIL_SUBJECT = _G.AUCTION_WON_MAIL_SUBJECT or "Auction won: %s"
+    _G.AUCTION_OUTBID_MAIL_SUBJECT = _G.AUCTION_OUTBID_MAIL_SUBJECT or "Outbid on %s"
     _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); stub.PlacePanel(f); f:Show() end
     _G.HideUIPanel = function(f) record("HideUIPanel", f:GetName()); f:Hide() end
     _G.GetMoney = function() return S().money end
