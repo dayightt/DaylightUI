@@ -2140,34 +2140,54 @@ T.test("quests clicks: a hovered quest wears the list row wash, eased in and out
     T.falsy(a.hi:IsShown(), "gone with the mouse")
 end)
 
-T.test("quests clicks: the hover wash is flush at the sides, half the gap above and measured from the text below", function()
-    local Tr, ns = tracker({ quests = { STEW } })
-    local q = Tr.frames["quest:1"]
-    local _, rel1, p1, x1, y1 = q.hi:GetPoint(1)
-    local _, rel2, p2, x2, y2 = q.hi:GetPoint(2)
-    T.eq(rel1, q); T.eq(rel2, q)
-    T.eq(q.hi:GetParent(), q, "on its own row, so it fades and clips with it")
-    T.eq(p1, "TOPLEFT")
-    T.eq(x1, 0, "flush with the row at the left")
-    T.eq(x2, 0, "and at the right")
-    T.eq(y1, math.ceil(q.block.gap / 2), "half the gap above the title")
-    -- Below, it follows the last line's real text, so a counted objective and a wrapped description
-    -- get the same air under them (the block's height is an estimate ending with the gap).
-    T.eq(p2, "TOPRIGHT", "the bottom is measured from the row's top, to the text's end")
-    local last = q.block.lines[#q.block.lines]
-    local sh = q.lines[last.key].label:GetStringHeight()
-    local textEnd = last.y + ((type(sh) == "number" and sh > 0) and sh or (last.h or 0))
-    T.eq(-y2, textEnd + ns.Rows.HI_PAD_BOTTOM, "past the last line's text")
-    -- Compact: the room above follows the smaller gap; below is the same.
+T.test("quests clicks: the hover wash is flush at the sides and ends above the next title, with the same air under any last line", function()
+    -- Text measured as the client does (7 px a letter, wrapped to the width it is given), so a
+    -- wrapped description really is taller than a counted objective.
+    stub.measure = function(fs, unbounded)
+        local text = (fs.__text or ""):gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")
+        local w, set = #text * 7, fs:GetWidth() or 0
+        if unbounded then return w, 14 end
+        local lines = set > 0 and math.max(1, math.ceil(w / set)) or 1
+        return (set > 0 and math.min(w, set) or w), lines * 14
+    end
+    local WRAPPED = QW.quest(2, "Bandanas", { objs = { { text = string.rep("Bring the bandanas to the foreman ", 6) } } })
+    local THIRD = QW.quest(3, "Third", { objs = { { text = "1/1 Thing", have = 1, need = 1 } } })
+    local Tr = tracker({ quests = { STEW, WRAPPED, THIRD } })
+    -- Where a row's parts are, counted down from the top of the list.
+    local function topOf(f) local _, _, _, _, y = f:GetPoint(1); return -y end
+    local function washTop(f) local _, _, _, _, y = f.hi:GetPoint(1); return topOf(f) - y end
+    local function washBottom(f)
+        local _, _, p, _, y = f.hi:GetPoint(2)
+        return topOf(f) + (p == "TOPRIGHT" and -y or f:GetHeight() - y)
+    end
+    local function textEnd(f)
+        local label = f.lines[f.block.lines[#f.block.lines].key].label
+        local _, _, _, _, y = label:GetPoint(1)
+        return topOf(f) - y + label:GetStringHeight()
+    end
+    local function check(note)
+        local rows = { Tr.frames["quest:1"], Tr.frames["quest:2"], Tr.frames["quest:3"] }
+        for i, f in ipairs(rows) do
+            local _, rel1, _, x1 = f.hi:GetPoint(1)
+            local _, rel2, _, x2 = f.hi:GetPoint(2)
+            T.eq(rel1, f, note); T.eq(rel2, f, note)
+            T.eq(x1, 0, note .. ": flush at the left"); T.eq(x2, 0, note .. ": and at the right")
+            T.eq(f.hi:GetParent(), f, note .. ": on its own row, so it fades and clips with it")
+            T.truthy(washBottom(f) > textEnd(f), note .. ": the wash reaches past the last line")
+            if rows[i + 1] then
+                T.truthy(washBottom(f) < topOf(rows[i + 1]), note .. ": and ends above the next quest's title")
+            end
+        end
+        local air1 = washBottom(rows[1]) - textEnd(rows[1])
+        T.eq(washBottom(rows[2]) - textEnd(rows[2]), air1, note .. ": a wrapped description gets the same air as a counted objective")
+        T.eq(washBottom(rows[3]) - textEnd(rows[3]), air1, note .. ": and so does the last quest")
+        return washTop(rows[2]), topOf(rows[2])
+    end
+    local topNormal, rowNormal = check("normal")
     DaylightUI:Set("Quests", "compact", true); stub.RunTimers()
-    q = Tr.frames["quest:1"]
-    local _, _, _, _, ty = q.hi:GetPoint(1)
-    local _, _, _, _, by = q.hi:GetPoint(2)
-    T.eq(ty, math.ceil(q.block.gap / 2), "half the compact gap above")
-    T.truthy(ty < y1, "less than with the normal gap")
-    local last2 = q.block.lines[#q.block.lines]
-    local sh2 = q.lines[last2.key].label:GetStringHeight()
-    T.eq(-by, last2.y + ((type(sh2) == "number" and sh2 > 0) and sh2 or (last2.h or 0)) + ns.Rows.HI_PAD_BOTTOM, "the same below with the compact gap")
+    local topCompact, rowCompact = check("compact")
+    T.truthy(rowCompact - topCompact < rowNormal - topNormal, "a compact list leaves less room above the title")
+    stub.measure = nil
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 

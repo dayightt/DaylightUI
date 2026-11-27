@@ -18,7 +18,7 @@ Rows.ZONE_CHEVRON = 10
 Rows.LIFT = 1          -- how far a hovered quest title moves toward white
 Rows.GLOW = DUI.MEDIA .. "glow.png"
 Rows.HI_PAD = 2        -- a dragged zone's card past its quests' top and bottom
-Rows.HI_PAD_BOTTOM = 5 -- the hover wash below a quest's last line of text (its height already holds the letters' tails)
+Rows.HI_PAD_BOTTOM = 5 -- the hover wash below a quest's last line of text (its height already holds the letters' tails); less where the gap is smaller
 Rows.GLOW_SIZE = 30    -- glow behind a hovered icon
 Rows.GLOW_ALPHA = 0.85
 Rows.glowParent = nil  -- the tracker's holder, outside the list (which clips)
@@ -44,7 +44,8 @@ function Rows.PlaceWash(f, b)
     -- Above, half the gap to the quest before it.
     f.hi:SetPoint("TOPLEFT", f, "TOPLEFT", 0, math.ceil(gap / 2))
     if bottom then
-        f.hi:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 0, -(bottom + Rows.HI_PAD_BOTTOM))
+        -- Never into the next quest's title: a compact list's gap is smaller than the pad.
+        f.hi:SetPoint("BOTTOMRIGHT", f, "TOPRIGHT", 0, -(bottom + math.min(Rows.HI_PAD_BOTTOM, math.max(0, gap - 1))))
     else
         f.hi:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", 0, gap - Rows.HI_PAD_BOTTOM)
     end
