@@ -1,3 +1,33 @@
+# DaylightUI 2.4.1
+
+Proc alerts redone as living flame, spell costs on your action buttons, icon borders per frame, and lower nameplates on new profiles.
+
+## New
+- Nameplates: Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick
+- Proc Alerts: Proc alerts move like real flame now: each flare whips out in a spray of sparks, flickers, sheds embers and burns away. Every animation was redone, Strike is a new one, and each alert can turn its embers off
+- Action bars: Spell costs on your buttons: each spell's mana, rage or energy cost, turning red when you're short. Turn it on in the setup guide or under Action Bars > Text
+- Unit frames: Icon borders: set the border round each frame's buff and debuff icons on its own, its thickness, dispel type colors or one color, plain, accent, class or your own color on buffs, and the dispel glow (each frame's Auras tab)
+- Quests: The quest tracker can show its All / This zone filter as words under the title (Quests > Filter under the title, thanks Ángel)
+
+## Changed
+- Nameplates: New profiles put nameplates lower, right over heads instead of floating high above them. Your own profiles keep their height (Nameplates > Plates up / down, which now goes lower too)
+
+## Fixed
+- Mailbox: Auction house letters in the inbox show the item and whether it sold, expired or was won, and the days left no longer get cut off (thanks Jensry)
+- Group finder: Groups of up to ten (like Upper Blackrock Spire) show every member's name and class again when you hover or click them; bigger raids show how many of each class are in
+- Damage numbers: Picking Game default for damage numbers puts back how they fly, even when another addon had changed it
+- Quests: With a controller, Show on map in the quest log can be reached with the D-pad
+- Proc Alerts: Missile Barrage no longer lights up for Clearcasting when the Clearcasting alert is turned off
+- Bags: Clean up toward the end turns on with one click, stays on when you move your bags, and really packs your items into the last slots
+- Gold: Gold, bags and item counts leave out your characters on another ruleset, like an RP PvP character on a PvE one (log in on each character once so it's sorted)
+- Unit frames: With a portrait on, the health and power bars no longer run under it, so a nearly empty bar looks nearly empty and centered health text sits in the middle
+- Action bars: A spell cast through a macro lights up its button when it procs
+- Proc Alerts: Fingers of Frost lights up again whenever it procs, in a fight too
+- Unit frames: With a controller, joining a group or zoning no longer throws a 'secret boolean' error from the party and raid frames
+- Bags: No more error at login with Pawn and an addon like Caerdon Wardrobe on, and the upgrade search works with them
+- Unit frames: Add piece on a frame's texts can add other addons' texts too (thanks illepic)
+- Translations: Every missing Spanish text translated (thanks Ángel), and the newest settings in Simplified Chinese (thanks Levis)
+
 # DaylightUI 2.4.0
 
 Seven new bar animations, choose which part of a unit frame draws on top, bar ends that lean either way, and new speech bubbles.
@@ -17,6 +47,7 @@ Seven new bar animations, choose which part of a unit frame draws on top, bar en
 - Proc Alerts: Every alert animation looks different and keeps moving, instead of Impact and Flash going still
 - Cooldown Manager: Buffs set to show only when missing stay hidden when another player's copy is on you
 - Cooldown Manager: Placed proc buffs show again, and the game's own icons no longer block clicks
+- Cooldown Manager: Bars in the /cdm layout editor look exactly like they do on screen, and a group's own gradient colors now show on its bars
 - Loot rolls: Loot roll cards no longer pile on top of each other when three or more items drop
 - Bags: Class reagents sort into Reagents, and no blue squares or gaps stay behind after selling
 - Chat: Whispers from the group finder or friends list type right away, and controller hints show once

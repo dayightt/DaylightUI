@@ -9,7 +9,7 @@
 ## Notes-deDE: Namensplaketten im DaylightUI-Stil: eigene Leisten, Zauber mit Hervorhebung für Unterbrechbares, deine Schwächungszauber, Kontrolleffekte und Questmarkierungen.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.4.0
+## Version: 2.4.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

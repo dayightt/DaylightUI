@@ -9,7 +9,7 @@
 ## Notes-deDE: Die eigenen Fenster des Spiels im DaylightUI-Stil.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.4.0
+## Version: 2.4.1
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 
