@@ -163,6 +163,19 @@ end
 
 function LW.Close() asGame(function() HideUIPanel(frame()) end) end
 
+-- /who typed in chat: the answer comes a frame later, and the game's ShowWhoPanel
+-- (FriendsFrame.lua) puts its window on the Who tab and shows it.
+function LW.ChatWho()
+    C_Timer.After(0, function()
+        stub.FireEvent("WHO_LIST_UPDATE")
+        asGame(function()
+            local p = frame()
+            p.selectedTab = 3
+            if p:IsShown() then LW.SetTab(3) else ShowUIPanel(p); LW.SetTab(3) end
+        end)
+    end)
+end
+
 -- The player types a note into the game's box (a hardware event, in the game's code).
 function LW.Type(text) asGame(function() frame().ListingFrame.ActivityView.Comment.EditBox:SetText(text) end) end
 function LW.Note() return frame().ListingFrame.ActivityView.Comment.EditBox:GetText() end

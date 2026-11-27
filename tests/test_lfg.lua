@@ -1408,3 +1408,26 @@ T.test("lfg: a full ten-player group with a long note still names everyone on th
     for i = 1, 10 do T.truthy(group:find("Raider" .. i, 1, true), "card names Raider" .. i .. ": " .. group) end
     T.truthy(lines.Note, "the note too")
 end)
+
+-- A player's report: /who in chat opened Daylight UI's window on another tab.
+T.test("lfg: /who typed in chat opens the Who page, closed or open on another page", function()
+    local ns = load()
+    LW.ChatWho()
+    frame(20)
+    local f = ns.Window.frame
+    T.truthy(DaylightUI.Win.IsOpen(f), "the window opens")
+    T.eq(f.tab, "who", "on Who, like the game's ShowWhoPanel")
+    tab(ns, "find")
+    T.eq(f.tab, "find")
+    LW.ChatWho()
+    frame(20)
+    T.eq(f.tab, "who", "already open on Find: it turns to Who")
+    tab(ns, "list")
+    LW.Close()
+    frame(20)
+    stub.Advance(5)
+    LW.Toggle()
+    frame(20)
+    T.eq(f.tab, "list", "the key still opens on the last page")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

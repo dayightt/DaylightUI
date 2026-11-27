@@ -177,6 +177,27 @@ function Lfg.SwapInit()
         apply = apply })
 end
 
+-- /who typed in chat: the answer comes in, then the game's ShowWhoPanel puts its
+-- window on the Who tab (3) and shows it. This window opens on its own last page,
+-- so right after an answer it takes the game's Who tab instead: when it opens
+-- (Lfg.Changed), or a frame later when it was open already (which of the game's
+-- two steps runs first isn't known).
+Lfg.WHO_TAB = 3
+Lfg.WHO_WAIT = 1   -- s after an answer that the game's window opening counts as its
+function Lfg.WhoAsked()
+    local g = Lfg.Game()
+    return g ~= nil and g.selectedTab == Lfg.WHO_TAB and Lfg.whoAt ~= nil and GetTime() - Lfg.whoAt <= Lfg.WHO_WAIT
+end
+function Lfg.FollowWho()
+    local g, f = Lfg.Game(), Lfg.frame
+    if not (f and g and g:IsShown() and Lfg.WhoAsked()) then return end
+    if Win.IsOpen(f) and Lfg.page ~= "who" then Lfg.ShowTab("who") end
+end
+DUI.RegisterEvent("WHO_LIST_UPDATE", function()
+    Lfg.whoAt = GetTime()
+    C_Timer.After(0, function() DUI.SafeCall(Lfg.FollowWho) end)
+end)
+
 -- Follower callback: the game's frame shown or hidden.
 function Lfg.Changed(_, shown)
     local f = Lfg.frame
@@ -184,7 +205,7 @@ function Lfg.Changed(_, shown)
         if Win.IsOpen(f) then shut(f) end
         return
     end
-    Lfg.Open(Lfg.showSearch and "find" or nil)
+    Lfg.Open(Lfg.showSearch and "find" or Lfg.WhoAsked() and "who" or nil)
     Lfg.showSearch = nil
 end
 
