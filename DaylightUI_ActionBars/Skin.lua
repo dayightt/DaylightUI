@@ -479,6 +479,10 @@ local function specialOf(btn)
     if tex and tex:IsShown() then return tex end
 end
 function Skin.SetPet(btn) petButtons[btn] = true end
+-- A game button with no action slot that can still stand for nothing (the totem
+-- pick list's "no totem"): test(btn) is true while it's empty.
+local emptyTests = setmetatable({}, { __mode = "k" })
+function Skin.SetEmptyTest(btn, test) emptyTests[btn] = test end
 
 -- Which bar a button is on (Bars.DEFS key), for its look; none means the shared one.
 local barOf = setmetatable({}, { __mode = "k" })
@@ -498,6 +502,8 @@ end
 -- a = the button's slot when the caller already has it.
 local function hasAction(btn, a)
     if specialOf(btn) then return true end
+    local test = emptyTests[btn]
+    if test then return not test(btn) end
     if petButtons[btn] and btn.GetID then
         return call(GetPetActionInfo, btn:GetID()) ~= nil
     end
@@ -581,7 +587,9 @@ function Skin.UpdateEmpty(btn, snap)
     -- A controller's crosses keep their shape, since those buttons are always there.
     -- The game hides an empty pet slot itself and shows it only while a pet action is
     -- dragged, so one that shows is a drop target and keeps its see-through backing.
+    -- An empty totem slot is where a totem is picked, so it shows the same way.
     local hidden = empty and Skin.hideEmpty and not padButtons[btn] and not petButtons[btn]
+        and barOf[btn] ~= "totem"
     local back = hidden and 0 or empty and Skin.EMPTY_ALPHA or 1
     local key = (hidden or parts.L.keybind == false) and 0 or 1
     local hl = hidden and 0 or 1
@@ -638,7 +646,10 @@ local function setTint(btn, parts, a, r, g, b, shadeOn)
             if r then icon:SetVertexColor(r, g, b)
             elseif parts.tintR then icon:SetVertexColor(1, 1, 1) end
         end
-        if not specialOf(btn) then icon:SetAlpha(a) end    -- the game keeps that one at 0
+        -- The game keeps a special one at 0. A button standing for nothing shows no picture.
+        local test = emptyTests[btn]
+        if test and test(btn) then icon:SetAlpha(0)
+        elseif not specialOf(btn) then icon:SetAlpha(a) end
     end
     parts.shade:SetAlpha(shadeOn and a or 0)
     parts.tintA, parts.tintR, parts.tintG, parts.tintB = a, r, g, b
