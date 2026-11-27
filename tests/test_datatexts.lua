@@ -1791,3 +1791,21 @@ T.test("bar ends: the data bar's ends each on their own; the tab leans the same 
     barOn(DUI, "databar.angledRight", false)
     T.eq(S.GetSlant(bar().body).side, "left", "the right end straight on its own")
 end)
+
+-- Seen in game: White picked for the data bar, its numbers stayed in the accent.
+T.test("data bar: its own number color reaches every text on both sides and the clock", function()
+    local DUI = login()
+    local S, Hex = DUI.Style, DUI.Win.Parts.Hex
+    barOn(DUI)
+    barOn(DUI, "databar.numberColor", "white")
+    local white = Hex(S.INK.VALUE)
+    local left, right = bar().left.slots[3].text:GetText(), bar().right.slots[1].text:GetText()
+    T.truthy(left:find(white, 1, true), "left side white: " .. left)
+    T.truthy(right:find(white, 1, true), "right side white: " .. right)
+    T.eq(bar().center.slots[1].ink, "white", "the clock too")
+    barOn(DUI, "databar.numberCustom", { 0.9, 0.3, 0.6 })
+    barOn(DUI, "databar.numberColor", "custom")
+    T.truthy(bar().right.slots[1].text:GetText():find(Hex({ 0.9, 0.3, 0.6 }), 1, true), "one color: the picked one")
+    T.eq(DUI:Get("InfoPanel", "data.numberColor"), "accent", "the panel's strip keeps its own")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

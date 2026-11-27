@@ -195,7 +195,8 @@ end
 -- Converts one side's settings to the panel strip's format. Empty slots are
 -- skipped so the rest share the space.
 local function sideSlots(c, prefix)
-    local t = { enabled = true, labels = c.labels == true, icons = c.icons == true, textSize = c.textSize, count = 0 }
+    local t = { enabled = true, labels = c.labels == true, icons = c.icons == true, textSize = c.textSize, count = 0,
+        numberColor = c.numberColor, numberCustom = c.numberCustom }
     for i = 1, Bar.SIDE do
         local key = c[prefix .. i]
         if DT.TEXTS[key] then
@@ -280,7 +281,8 @@ function Bar.Apply(db)
     Bar.tab:SetShown(middle)
     Bar.left.Apply(sideSlots(c, "left"))
     Bar.right.Apply(sideSlots(c, "right"))
-    Bar.center.Apply({ enabled = middle, labels = false, icons = c.icons == true, textSize = c.textSize + Bar.CLOCK_UP, count = 1, slot1 = c.center })
+    Bar.center.Apply({ enabled = middle, labels = false, icons = c.icons == true, textSize = c.textSize + Bar.CLOCK_UP, count = 1, slot1 = c.center,
+        numberColor = c.numberColor, numberCustom = c.numberCustom })
     Bar.Zones()
     if was == false then
         if Bar.slid == 0 then Bar.Slid(c.height + px) end
