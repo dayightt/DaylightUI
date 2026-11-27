@@ -470,6 +470,7 @@ function ns.Refresh(mod, path, hold)
         ns.PlacePetAuras(db)
         ns.Combo.Layout(ns.combo, db.combo)
         ns.Happiness.Layout(ns.happiness, db.pet)
+        ns.PetXP.Layout(ns.petXp, db.pet)
         ns.DruidBars.Layout(db.player.druidBars)
         Blizzard.Apply(db)
         DUI.Movers.ApplyAll()
@@ -1067,6 +1068,14 @@ function ns.Build(mod)
             DUI.Movers.Register(holder, ns.Combo.KEY, "Combo Points", ns.Combo.HOME)
         end
         ns.happiness = ns.Happiness.Create(ns.frames.pet)
+        ns.petXp = ns.PetXP.Create(ns.frames.pet)
+        -- The independent experience bar has its own fade (the strip fades with the pet frame).
+        local xpFading = {}
+        DUI.Fade.Register{ key = "UnitFrames.petxp", scope = "UnitFrames", path = "pet.xp.fade", page = "UnitFrames.pet",
+            frames = function()
+                xpFading[1] = ns.petXp.free and ns.petXp:IsShown() and ns.petXp or nil
+                return xpFading
+            end, float = false }
         ns.RefitOnTab(ns.frames.target, function() return ns.auras end)
         registerEvents()
         ns.ClickCast.Start()

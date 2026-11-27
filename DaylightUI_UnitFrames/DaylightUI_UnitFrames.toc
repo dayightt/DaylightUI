@@ -28,6 +28,7 @@ Texts.lua
 Looks.lua
 Combo.lua
 Happiness.lua
+PetXP.lua
 Blizzard.lua
 GroupParts.lua
 GroupPrivate.lua

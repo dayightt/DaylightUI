@@ -38,6 +38,8 @@ local function barAndFont(id, key)
 end
 for _, u in ipairs({ "player", "target", "focus", "party" }) do UF.MEDIA.cast[u] = barAndFont("uf.cast." .. u, u .. "Castbar") end
 UF.MEDIA.swing = barAndFont("uf.swing", "swing")
+-- The pet's experience bar (PetXP.lua), a strip in its frame or a bar of its own.
+UF.MEDIA.petxp = barAndFont("uf.petxp", "pet.xp")
 -- The target's threat % tag. With "general" it uses the health font.
 UF.MEDIA.target.fonts.threat = "uf.target.font.threat"
 Media.RegisterSlot(UF.MEDIA.target.fonts.threat, "UnitFrames", "target.media.threatFont", "font", UF.MEDIA.target.fonts.health)
@@ -730,7 +732,8 @@ function UF.OnEnter(self)
     if type(unit) ~= "string" or not UnitExists(unit) then return end
     GameTooltip_SetDefaultAnchor(GameTooltip, self)
     GameTooltip:SetUnit(unit)
-    if ns.Happiness then ns.Happiness.AddTip(self) end
+    local after = ns.Happiness and ns.Happiness.AddTip(self)
+    if ns.PetXP then ns.PetXP.AddTip(self, after) end
     GameTooltip:Show()
 end
 
@@ -778,6 +781,8 @@ function UF.Build(f, spec)
             UF.WatchPower(f)
         end
     end
+    -- The pet's experience strip, under its power bar (PetXP.lua).
+    if spec.unit == "pet" then ns.PetXP.Build(f) end
     if spec.slant then
         -- Register the shell first, then everything inside the border.
         Style.Slant(f, nil, 0)
@@ -787,12 +792,18 @@ function UF.Build(f, spec)
             inner[#inner + 1] = Style.BarBack(f.power)
             inner[#inner + 1] = f.separator
         end
+        if f.xp then
+            inner[#inner + 1] = f.xp:GetStatusBarTexture()
+            inner[#inner + 1] = Style.BarBack(f.xp)
+            inner[#inner + 1] = f.xpSep
+        end
         for _, tex in ipairs(inner) do Style.Clip(f, tex, "inner") end
         -- The target mirrors the player: its bars fill from the inner end
         -- (set again in Layout, which can reverse it).
         f.growLeft = spec.slant == "left"
         f.health:SetReverseFill(f.growLeft)
         if f.power then f.power:SetReverseFill(f.growLeft) end
+        if f.xp then f.xp:SetReverseFill(f.growLeft) end
     end
     local overlay = CreateFrame("Frame", nil, f)
     overlay:SetAllPoints(f)
@@ -1566,6 +1577,9 @@ function UF.OuterHeight(f, cfg, T)
     if f.power and UF.ShowsPower(cfg) and (ns.PowerBar.Pick(f, cfg) or "inside") == "inside" then
         inner = inner + Pixel.Snap(f, cfg.powerHeight) + Pixel.Px(f, Style.SEPARATOR_PX)
     end
+    -- The pet's experience strip takes a line and its height too.
+    local xp = ns.PetXP.Reserve(f, cfg)
+    if xp > 0 then inner = inner + xp + Pixel.Px(f, Style.SEPARATOR_PX) end
     return math.max(h, inner + 2 * T)
 end
 
@@ -1644,9 +1658,15 @@ function UF.Layout(f, cfg, text, keepSize)
     -- A tile sized by its header can't grow, so a tall power bar stops where
     -- it would leave less than UF.MIN_HEALTH of health.
     local sep = Pixel.Px(f, Style.SEPARATOR_PX)
+    -- The pet's experience strip goes under the power bar, and takes what the power bar's full
+    -- height and the least health leave (PetXP.Reserve).
+    local powerWant = inside and (Pixel.Snap(f, cfg.powerHeight) + sep) or 0
+    local xpH = ns.PetXP.Reserve(f, cfg, f:GetHeight() - 2 * T - sep - powerWant - Pixel.Snap(f, UF.MIN_HEALTH))
+    local xpStack = xpH > 0 and (xpH + sep) or 0
+    f.xpH = xpH
     local powerH = 0
     if inside then
-        local room = f:GetHeight() - 2 * T - sep - Pixel.Snap(f, UF.MIN_HEALTH)
+        local room = f:GetHeight() - 2 * T - sep - xpStack - Pixel.Snap(f, UF.MIN_HEALTH)
         powerH = math.max(Pixel.Px(f, 1), math.min(Pixel.Snap(f, cfg.powerHeight), Pixel.Snap(f, room)))
     end
     -- A portrait on the frame sits over the outer end, and a bar running on
@@ -1670,8 +1690,9 @@ function UF.Layout(f, cfg, text, keepSize)
         if not ring then return 0 end
         return math.max(0, math.min(UF.RingEdge(f, ring, y0), UF.RingEdge(f, ring, y1)) - outerIn)
     end
-    f.healthRing = clear(T + (inside and (powerH + sep) or 0), f:GetHeight() - T)
-    f.powerRing = inside and clear(T, T + powerH) or 0
+    f.healthRing = clear(T + xpStack + (inside and (powerH + sep) or 0), f:GetHeight() - T)
+    f.powerRing = inside and clear(T + xpStack, T + xpStack + powerH) or 0
+    f.xpRing = xpH > 0 and clear(T, T + xpH) or 0
     local function sides(more)
         if ring and ring.outerRight then return insetL, insetR + more end
         return insetL + more, insetR
@@ -1681,22 +1702,36 @@ function UF.Layout(f, cfg, text, keepSize)
     if inside then
         local pL, pR = sides(f.powerRing)
         f.power:ClearAllPoints()
-        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", pL, T)
-        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -pR, T)
+        f.power:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", pL, T + xpStack)
+        f.power:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -pR, T + xpStack)
         f.power:SetHeight(powerH)
         f.separator:ClearAllPoints()
-        f.separator:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T + powerH)
-        f.separator:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T + powerH)
+        f.separator:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T + xpStack + powerH)
+        f.separator:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T + xpStack + powerH)
         f.separator:SetHeight(sep)
         f.health:SetPoint("BOTTOMRIGHT", f.separator, "TOPRIGHT", insetR - hR, 0)
+    elseif xpH > 0 then
+        f.health:SetPoint("BOTTOMRIGHT", f.xpSep, "TOPRIGHT", insetR - hR, 0)
     else
         f.health:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -hR, T)
+    end
+    if xpH > 0 then
+        local xL, xR = sides(f.xpRing)
+        f.xp:ClearAllPoints()
+        f.xp:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", xL, T)
+        f.xp:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -xR, T)
+        f.xp:SetHeight(xpH)
+        f.xpSep:ClearAllPoints()
+        f.xpSep:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", insetL, T + xpH)
+        f.xpSep:SetPoint("BOTTOMRIGHT", f, "BOTTOMRIGHT", -insetR, T + xpH)
+        f.xpSep:SetHeight(sep)
     end
     -- Under the ring the empty part runs on to the border, as it did before
     -- the bars stepped clear of it.
     UF.BackToBorder(f.health, ring, f.healthRing)
     local ownPower = type(f.insidePower) == "table" and f.insidePower.power or f.power
     if ownPower then UF.BackToBorder(ownPower, ring, inside and f.powerRing or 0) end
+    if xpH > 0 then UF.BackToBorder(f.xp, ring, f.xpRing) end
     -- With a backdrop the health is a strip along the foot, over the power,
     -- and the art takes the rest (UF.LayoutBackdrop).
     if f.backdropOn then
@@ -1827,6 +1862,7 @@ function UF.Layout(f, cfg, text, keepSize)
         -- inner end, or the outer one when reversed.
         local H = f:GetHeight()
         local ph = (showPower and where == "inside") and (f.power:GetHeight() + Pixel.Px(f, Style.SEPARATOR_PX)) or 0
+        ph = ph + xpStack
         local toward = f.growLeft and "left" or "right"
         local angled = (toward == f.spec.slant) and innerOn or (toward ~= f.spec.slant and outerOn)
         f.healthCut = angled and fullCut * (H - 2 * T - ph) / H or 0
@@ -1836,7 +1872,9 @@ function UF.Layout(f, cfg, text, keepSize)
         local fillUnder = UF.EdgeUnder(under, fillSide)
         Style.AngleFill(f.health, fillSide, f.healthCut, fillUnder)
         if f.power and where == "inside" then Style.AngleFill(f.power, fillSide, fullCut * f.power:GetHeight() / H, fillUnder) end
+        if xpH > 0 then Style.AngleFill(f.xp, fillSide, fullCut * xpH / H, fillUnder) end
     end
+    if f.xp then ns.PetXP.PaintInside(f, cfg) end
 
     f.predictHeals, f.predictAbsorbs = cfg.predictHeals ~= false, cfg.predictAbsorbs ~= false
     if freePower and f.freePower then
@@ -2628,6 +2666,7 @@ function UF.LayoutBackdrop(f, cfg, side, cut)
     b:SetPoint("TOPRIGHT", f, "TOPRIGHT", -T, -T)
     b:SetPoint("BOTTOM", f.health, "TOP", 0, 0)
     local ph = (f.separator and f.separator:IsShown()) and (f.power:GetHeight() + Pixel.Px(f, Style.SEPARATOR_PX)) or 0
+    if (f.xpH or 0) > 0 then ph = ph + f.xpH + Pixel.Px(f, Style.SEPARATOR_PX) end
     local bh = math.max(1, f:GetHeight() - 2 * T - f.health:GetHeight() - ph)
     local bw = math.max(1, f:GetWidth() - 2 * T)
     local outerRight = f.spec.slant == "left"

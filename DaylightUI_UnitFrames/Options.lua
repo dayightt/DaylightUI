@@ -1721,7 +1721,7 @@ end
 -- Tabs on a frame page: Basics first (position, size and shape, when it
 -- shows), then its bars, text, auras and the rest. A card's tab is decided by
 -- its title, and cards are sorted by tab while keeping their order within one.
-local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Auras", "Extras", "Layers" }
+local TAB_ORDER = { "Basics", "Bars", "Portrait", "Name", "Text", "Cast bar", "Experience", "Auras", "Extras", "Layers" }
 local TAB_OF = { Layers = "Layers", Portrait = "Portrait", ["Raid size"] = "Basics", ["Quick looks"] = "Basics", Layout = "Basics", Frame = "Basics", Position = "Basics",
     [DaylightUI.Fade.CARD_LABEL] = "Basics", ["Health and power"] = "Bars", ["Health bar"] = "Bars",
     ["Border and shadow"] = "Bars", ["Bar animation"] = "Bars", Text = "Text", Name = "Name", ["Name tab"] = "Name", Debuffs = "Auras", Buffs = "Auras",
@@ -2455,6 +2455,63 @@ local function framePage(id, label, desc, opts)
             groups[#groups + 1] = card
         end
     end
+    if opts.petXp then
+        -- A hunter pet's experience bar: in the pet frame like the power bar, or a bar of its own.
+        -- Its cards share a tab; the look rows work in both places, the rest only on its own.
+        local function xpOff(get) return shown(get) or get(k("xpBar")) ~= true end
+        local function xpInFrameOff(get) return xpOff(get) or get(k("xpBarMode")) == "free" end
+        local function xpFreeOff(get) return xpOff(get) or get(k("xpBarMode")) ~= "free" end
+        local function xpCard(card) card.tab = "Experience"; groups[#groups + 1] = card; return card end
+        xpCard({ label = "Experience bar", items = {
+            { type = "toggle", key = k("xpBar"), label = "Show experience bar",
+              desc = "A bar for your hunter pet's experience while it can still level. Also on the Pet tab of the character window.",
+              disabled = shown },
+            { type = "dropdown", key = k("xpBarMode"), label = "Experience bar place",
+              values = { frame = "In the pet frame", free = "Independent" }, order = { "frame", "free" },
+              desc = "In the pet frame, a strip under the power bar, with the numbers on the frame's tooltip. Independent, a bar you place by unlocking, like the other bars, with the numbers on it.",
+              disabled = xpOff },
+            { type = "toggle", key = k("xp.showPercent"), label = "Show experience percent",
+              desc = "How far through the level the pet is, e.g. 24%, after the numbers. Only on the independent bar.",
+              disabled = xpFreeOff },
+            { type = "slider", key = k("xp.textSize"), label = "Experience text size", min = 6, max = 40, step = 1,
+              desc = "Size of the numbers on the experience bar.", disabled = xpFreeOff },
+            fontRow(k("xp.media.font"), "Experience text font", "The pet experience bar's numbers", xpFreeOff),
+        } })
+        local look = DaylightUI.Options.Join({
+            { type = "toggle", key = k("xp.gradient"), label = "Experience bar gradient",
+              desc = "The bar shades from dark to bright instead of one flat color.", disabled = xpOff },
+            { type = "dropdown", key = k("xp.color"), label = "Experience bar color",
+              values = { accent = "Accent color", class = "Class gradient", blue = "Blue", custom = "Custom gradient" },
+              order = { "accent", "class", "blue", "custom" },
+              desc = "Accent color follows the accent on General > Appearance. Class gradient uses your class's two colors (set on the Gradients page). Custom gradient runs through two to five colors you pick.",
+              disabled = xpOff },
+        }, DaylightUI.Options.StopsRows(k("xp.customGradient"), { what = "experience bar", bar = "the experience bar",
+            since = "2.4.1", disabled = xpOff, shown = function(get) return get(k("xp.color")) == "custom" end }),
+            barRows(k("xp.media.bar"), "the pet's experience bar", "Experience bar", xpOff))
+        xpCard({ label = "Experience bar look", items = look })
+        local border = shellCard(k("xp"), k("xpBar"), true)
+        border.label = "Experience bar border and shadow"
+        border.desc = "The independent bar's own outline, corners and shadow. When off, it follows General > Appearance."
+        for _, it in ipairs(border.items) do
+            if it.key ~= k("xp.shell.own") then it.disabled = function(get) return xpFreeOff(get) or get(k("xp.shell.own")) ~= true end
+            else it.disabled = xpFreeOff end
+        end
+        xpCard(border)
+        xpCard({ label = "Experience bar size", items = {
+            { type = "slider", key = k("xpBarHeight"), label = "Experience strip height", min = 1, max = 12, step = 1, unit = "px",
+              desc = "How tall the strip in the pet frame is, like the power bar's height.", disabled = xpInFrameOff },
+            { type = "slider", key = k("xpBarFreeHeight"), label = "Experience bar thickness", min = 4, max = 40, step = 1, unit = "px",
+              desc = "How thick the pet's experience bar is when it is independent.", disabled = xpFreeOff },
+            { type = "slider", key = k("xpBarWidth"), label = "Experience bar length", min = 40, max = 600, step = 1, unit = "px",
+              desc = "How long the bar is when it is independent.", disabled = xpFreeOff },
+            { type = "dropdown", key = k("xpBarOrientation"), label = "Experience bar direction",
+              values = { horizontal = "Horizontal", vertical = "Vertical" }, order = { "horizontal", "vertical" },
+              desc = "Fills left to right, or upright from the bottom, when the bar is independent.", disabled = xpFreeOff },
+        } })
+        local fade = DaylightUI.Fade.Card(k("xp.fade."), nil, xpFreeOff, "Experience bar", { noFloat = true })
+        fade.label = "Experience bar fade"
+        xpCard(fade)
+    end
     groups[#groups + 1] = barFxCard(id, (opts.power or opts.powerToggle) and powerOff or nil, shown, opts.pets)
     if ns.Layers.PARTS[id] then
         groups[#groups + 1] = { label = "Layers", items = ns.Layers.Rows(id, shown),
@@ -2962,7 +3019,7 @@ ns.OPTIONS = { pages = {
         { healthText = true, textPos = true, flip = true, power = true, powerToggle = true, powerPos = true, place = true,
           strataWhat = "The layer the party targets draw in.",
           showLabel = "Show party targets", showDesc = "A small frame beside each party member showing who they're targeting." }),
-    framePage("pet", "Pet", "Your pet or minion.", { happiness = true, power = true, powerToggle = true, powerPos = true, healthText = true, textPos = true,
+    framePage("pet", "Pet", "Your pet or minion.", { happiness = true, petXp = true, power = true, powerToggle = true, powerPos = true, healthText = true, textPos = true,
         tab = true, small = true, portrait = true, auras = PET_AURA_GROUPS }),
 
     { id = "colors", label = "Look", desc = "The frames' shape, class icons, and the bars' and names' colors on every unit frame.", groups = {

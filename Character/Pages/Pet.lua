@@ -14,6 +14,11 @@ local Style = DUI.Style
 local PetPage = {}
 ns.PetPage = PetPage
 
+-- The pet frame's own XP bar (UnitFrames' pet.xpBar): the same setting as in its options, with
+-- a switch over the model's corner.
+PetPage.XP_BAR_KEY = "pet.xpBar"
+PetPage.SWITCH_W, PetPage.SWITCH_H = 260, 20
+
 PetPage.HEAD = 44            -- the name and level lines over the model
 PetPage.NAME_SIZE, PetPage.SUB_SIZE, PetPage.FOOT_SIZE = Style.SIZE.head, Style.SIZE.small, Style.SIZE.small
 PetPage.GAP = 20             -- the model's room to the stats pane
@@ -97,6 +102,7 @@ function PetPage.Rects(width, height)
     local modelY = -T - PetPage.HEAD
     R.xp = { x = E, y = -(bodyH - PetPage.XP_GAP - PetPage.XP_H), w = w, h = PetPage.XP_H }
     R.model = { x = E, y = modelY, w = w, h = -R.xp.y - PetPage.XP_GAP - (-modelY) }
+    R.xpSwitch = { x = E, y = R.xp.y + PetPage.SWITCH_H + 6, w = PetPage.SWITCH_W, h = PetPage.SWITCH_H }
     R.footer = { x = E, y = -bodyH, w = width - 2 * E, h = FOOT }
     return R
 end
@@ -113,6 +119,7 @@ function PetPage.Place(page)
     put(page, page.head, R.head)
     put(page, page.model, R.model)
     put(page, page.xp, R.xp)
+    put(page, page.xpSwitch, R.xpSwitch)
     put(page, page.stats, R.stats)
     page.stats.content:SetWidth(ns.CharacterPage.STATS_W - 2 * ns.CharacterPage.STATS_PAD)
     put(page, page.foot, R.footer)
@@ -175,6 +182,17 @@ function PetPage.Build(page)
     if ns.PetModel.scene then ns.PetModel.scene:SetFrameLevel(base) end
     page.xp = DUI.Widgets.Bar(page, PetPage.XP_H)
     page.xp:Hide()
+    page.xpSwitch = ns.List.Toggle(page, L["Show experience bar"], function(t)
+        DUI:Set("UnitFrames", PetPage.XP_BAR_KEY, not t.on)
+    end)
+    page.xpSwitch:SetFrameLevel(base + 5)
+    -- The switch on the left and its words after it, on one line.
+    local sw = page.xpSwitch
+    sw.switch:ClearAllPoints()
+    sw.switch:SetPoint("LEFT", sw, "LEFT", 0, 0)
+    sw.text:ClearAllPoints()
+    sw.text:SetPoint("LEFT", sw.switch, "RIGHT", 8, 0)
+    sw.text:SetPoint("RIGHT", sw, "RIGHT", 0, 0)
     page.stats = ns.CharacterPage.BuildStats(page, ns.Stats.PET_GROUPS)
     page.foot = PetPage.BuildFooter(page)
 end
@@ -223,6 +241,10 @@ function PetPage.Refresh(page)
         Style.SetBarValue(page.xp, d.xp)
     end
     PetPage.PaintFooter(page, d)
+    -- Only a hunter's pet levels, and only with the unit frames on to hold the bar.
+    local on = DUI:Get("UnitFrames", PetPage.XP_BAR_KEY)
+    page.xpSwitch:SetShown(d.hunter == true and on ~= nil)
+    ns.List.SetToggle(page.xpSwitch, on == true, true, "petxp")
     ns.PetModel.Paint()
     ns.CharacterPage.RefreshStats(page)
 end

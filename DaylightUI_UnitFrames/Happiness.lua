@@ -330,6 +330,7 @@ function Happiness.AddTip(f)
     if not h.test then mood, damage, loyalty = Happiness.Read() end
     if not mood then return end
     addTipLines(mood, damage, loyalty)
+    return true
 end
 
 function Happiness.Draw(h, mood)

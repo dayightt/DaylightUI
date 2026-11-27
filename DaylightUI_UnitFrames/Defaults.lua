@@ -74,6 +74,11 @@ ns.DEFAULTS = {
             showLevel = false, levelPos = "ring", levelX = 0, levelY = 0, showLeader = false, leaderSize = 1, showPvP = false, pvpSize = 1,
             predictHeals = true, predictAbsorbs = true, fade = DaylightUI.Fade.Defaults({ fullHealth = false }), happiness = true, happinessBar = false,
             happinessLook = "square", happinessSide = "right", happinessSpot = "outleft", happinessSize = 16, happinessX = 0, happinessY = 0,
+            xpBar = false, xpBarMode = "frame", xpBarHeight = 4, xpBarWidth = 160, xpBarFreeHeight = 12, xpBarOrientation = "horizontal",
+            -- Its look: gradient and color on the strip and the independent bar, the text, border and fade on the independent bar.
+            xp = { gradient = true, color = "accent", customGradient = DaylightUI.Style.DefaultStops(), showPercent = false, textSize = 10,
+                   shell = { own = false, borderPx = 2, cornerPx = 4, shadowPx = 2 }, media = { bar = "general", barBack = "general", font = "general" },
+                   fade = DaylightUI.Fade.Defaults() },
             -- The name on the bar, or with nameOnBar off, in a small tab above the frame like the others.
             nameOnBar = true, tabHeight = 14 },
     focus = { enabled = true, texts = textSlots(), namePos = "bar", nameX = 0, nameY = 0, nameColor = "global", nameCustom = { 1, 1, 1 }, percentColor = "white", percentCustom = { 1, 1, 1 }, nameLimitLen = 0, tabHeight = 16, portraitScale = 1, portraitAt = "frame", portraitIconsStay = false, markerSize = 13, powerTextPos = "inner", powerTextX = 0, powerTextY = 0, width = 153, height = 34, showPower = true, powerHeight = 7, powerAt = "inside", powerWidth = 153, powerSlant = true, powerSlantBoth = false, powerSlantUnder = false, powerSlantUnderLeft = false, powerOwnAngle = false, powerLean = 0.21, showName = true, nameOnBar = false, showPercent = true,

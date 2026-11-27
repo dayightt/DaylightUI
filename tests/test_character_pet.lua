@@ -299,3 +299,26 @@ T.test("pet page: a loyalty the game already puts in brackets isn't bracketed ag
     T.truthy(sub:find("(Loyalty Level 6) Best Friend", 1, true), sub)
     T.falsy(sub:find("((", 1, true), "one bracket, not two: " .. sub)
 end)
+
+T.test("pet page: the XP bar switch is the pet frame's own setting, for a hunter's pet", function()
+    local world = CW.world({ class = "HUNTER", pet = HUNTER_PET })
+    stub.Load({ character = true, module = true, before = world })
+    local ns, DUI = stub.character, DaylightUI
+    local sw = openPet(ns).xpSwitch
+    T.eq(sw:IsShown(), true)
+    T.eq(sw.on, false, "off until asked for")
+    sw:Click()
+    T.eq(DUI:Get("UnitFrames", "pet.xpBar"), true, "the unit frames' own setting")
+    sw.want = nil   -- the hold after a click has run out
+    DUI:Set("UnitFrames", "pet.xpBar", false)
+    ns.Window.Refresh(true)
+    T.eq(sw.on, false, "follows a change made in the options")
+end)
+
+T.test("pet page: no XP bar switch for a demon, or without the unit frames", function()
+    local ns = load({ class = "HUNTER", pet = HUNTER_PET })
+    T.eq(openPet(ns).xpSwitch:IsShown(), false, "the unit frames aren't loaded")
+    local world = CW.world({ class = "WARLOCK", pet = DEMON })
+    stub.Load({ character = true, module = true, before = world })
+    T.eq(openPet(stub.character).xpSwitch:IsShown(), false, "a demon has no XP")
+end)
