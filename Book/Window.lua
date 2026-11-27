@@ -220,6 +220,27 @@ function Book.OnTabSet(_, _, tabID)
     if page ~= Book.frame.current then Book.Show(page) end
 end
 
+-- Shift-P (the game's pet book key) turns the game's book to its Pet category,
+-- and the game's book reopens on whatever category it last showed. Daylight UI's
+-- list holds every category at once, so it jumps to the pet spells whenever the
+-- game's book turns to them. Only read: the game's own frame keeps its state.
+function Book.PetCategory()
+    local g = Book.Game()
+    local sb = g and g.SpellBookFrame
+    local cats = type(PlayerSpellsUtil) == "table" and PlayerSpellsUtil.SpellBookCategories
+    if type(sb) ~= "table" or type(sb.IsCategoryActive) ~= "function" or type(cats) ~= "table" or not cats.Pet then
+        return false
+    end
+    return sb:IsCategoryActive(cats.Pet) == true
+end
+
+function Book.FollowCategory()
+    local pet = Book.PetCategory()
+    local was = Book.onPet
+    Book.onPet = pet
+    if pet and not was and ns.Spells then ns.Spells.JumpPet() end
+end
+
 -- The game's book keeps its own panel layout (its width and area). Daylight UI
 -- never writes them: an attribute keeps the taint of whoever wrote it, and the
 -- game's next opening or closing of the book then ran tainted (blocked action
@@ -431,6 +452,8 @@ function Book.Build(mod)
     local reg = _G.EventRegistry
     if type(reg) == "table" and type(reg.RegisterCallback) == "function" then
         reg:RegisterCallback("PlayerSpellsFrame.TabSet", Book.OnTabSet, Book)
+        reg:RegisterCallback("PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged", Book.FollowCategory, Book)
+        reg:RegisterCallback("PlayerSpellsFrame.CloseFrame", function() Book.onPet = nil end, Book)
     end
     DUI.RegisterEvent("PLAYER_REGEN_DISABLED", function() Book.FightStarts() end)
     DUI.RegisterEvent("PLAYER_REGEN_ENABLED", function() Book.FightEnds() end)

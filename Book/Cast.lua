@@ -11,17 +11,46 @@ ns.Cast = Cast
 
 Cast.NAME = "DaylightUIBookCast"
 
+-- The secure attribute prefix ("alt-", "alt-ctrl-") for one of the game's
+-- modified clicks as the player set it (Settings > Modified clicks), or nil.
+-- The secure templates put held keys in this order (SecureButton_GetModifierPrefix).
+local KEY_ORDER = { "ALT", "CTRL", "SHIFT" }
+function Cast.Prefix(action)
+    local keys = type(GetModifiedClick) == "function" and GetModifiedClick(action)
+    if type(keys) ~= "string" then return nil end
+    local held = {}
+    for key in string.gmatch(keys, "%a+") do held[key] = true end
+    local prefix = ""
+    for _, key in ipairs(KEY_ORDER) do
+        if held[key] then prefix = prefix .. string.lower(key) .. "-" end
+    end
+    return prefix ~= "" and prefix or nil
+end
+
+-- The game's book casts on you on the self-cast click, but its link and pick-up
+-- clicks come first, so a self-cast sharing their keys never casts.
+function Cast.SelfPrefix()
+    local prefix = Cast.Prefix("SELFCAST")
+    if not prefix or prefix == Cast.Prefix("CHATLINK") or prefix == Cast.Prefix("PICKUPACTION") then return nil end
+    return prefix
+end
+
 -- Player spells cast by id, so lower ranks work too. Pet spells go through
--- /cast, and right click toggles autocast.
+-- /cast, and right click toggles autocast. "type1" alone is an unmodified
+-- left click only, so a Shift-click links (Spells.Modified) without casting.
 function Cast.Attributes(cell)
     if cell.future or cell.passive then return nil end
+    local me = Cast.SelfPrefix()
     if cell.pet then
         local a = { type1 = "macro", macrotext1 = "/cast " .. cell.name }
         if cell.autocast then a.type2, a.macrotext2 = "macro", "/petautocasttoggle " .. cell.name end
+        if me then a[me .. "type1"], a[me .. "macrotext1"] = "macro", "/cast [@player] " .. cell.name end
         return a
     end
     if type(cell.spellID) ~= "number" then return nil end
-    return { type1 = "spell", spell = cell.spellID }
+    local a = { type1 = "spell", spell = cell.spellID }
+    if me then a[me .. "type1"], a[me .. "unit1"] = "spell", "player" end
+    return a
 end
 
 -- Called from the row's OnEnter. Does nothing in combat or for rows that

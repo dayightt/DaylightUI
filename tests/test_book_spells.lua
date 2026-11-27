@@ -439,9 +439,9 @@ T.test("book spells: Click-cast on, a click on a spell binds that click; again r
     local b = placed(cellOf(page, "Rend"))
     b:GetScript("OnEnter")(b)
     T.falsy(ns.Cast.button and ns.Cast.button:IsShown(), "no cast button while binding")
-    _G.IsShiftKeyDown = function() return true end
+    stub.shift = true
     b:GetScript("OnClick")(b, "RightButton")
-    _G.IsShiftKeyDown = nil
+    stub.shift = nil
     local list = DaylightUI.DB.Character().clickCast[DaylightUI.DB.SpecGroup()]
     T.eq(#list, 1)
     T.eq(list[1].spell, 772)
@@ -449,9 +449,9 @@ T.test("book spells: Click-cast on, a click on a spell binds that click; again r
     T.eq(list[1].button, "RightButton")
     local bb = cellOf(page, "Rend")
     T.truthy(bb.rank:GetText() ~= nil and bb.rank:GetText():find("Right") ~= nil, "the click shows on the row")
-    _G.IsShiftKeyDown = function() return true end
+    stub.shift = true
     bb:GetScript("OnClick")(bb, "RightButton")
-    _G.IsShiftKeyDown = nil
+    stub.shift = nil
     T.eq(#list, 0)
     -- A passive binds nothing.
     local p = cellOf(page, "Hardiness")
@@ -514,4 +514,200 @@ T.test("book spells: Clique loaded but broken, the link stays hidden and nothing
     local page = openBook(ns)
     T.falsy(page.clique:IsShown())
     T.noerror(function() ns.Spells.OpenClique() end)
+end)
+
+-- ---------------------------------------------------------------------
+-- The game's own spell-row behaviors (SpellBookItemMixin)
+-- ---------------------------------------------------------------------
+
+-- The game's modified clicks (Settings > Modified clicks): each action's keys,
+-- true only while exactly those are held, as the client answers IsModifiedClick.
+local function modClicks(map)
+    for k, v in pairs(map) do stub.modifiedClicks[k] = v end
+    local old = _G.IsModifiedClick
+    _G.IsModifiedClick = function(k)
+        local m = stub.modifiedClicks[k]
+        if not m or m == "NONE" then return false end
+        local held = { ALT = stub.alt == true, CTRL = stub.ctrl == true, SHIFT = stub.shift == true }
+        local want = {}
+        for tok in m:gmatch("%a+") do want[tok] = true end
+        for key, down in pairs(held) do if down ~= (want[key] == true) then return false end end
+        return true
+    end
+    return function() _G.IsModifiedClick = old end
+end
+
+-- A tooltip that keeps its lines and counts the game's spell fills.
+local function fakeTip()
+    local tip = CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    _G.GameTooltip = tip
+    tip.__fills, tip.__lines = 0, {}
+    function tip:SetOwner(o) self.__owner, self.__lines = o, {} end
+    function tip:GetOwner() return self.__owner end
+    function tip:IsOwned(o) return self.__owner == o end
+    function tip:SetSpellBookItem(slot) self.__fills = self.__fills + 1; self.__slot = slot end
+    function tip:AddLine(t, r, g, b) self.__lines[#self.__lines + 1] = { text = t, r = r, g = g, b = b } end
+    function tip:AddDoubleLine(l, rt) self.__lines[#self.__lines + 1] = { text = l, right = rt } end
+    return tip
+end
+
+local function tipHas(text)
+    for _, l in ipairs(GameTooltip.__lines or {}) do
+        if tostring(l.text):find(text, 1, true) then return true end
+    end
+    return false
+end
+
+T.test("book spells: the self-cast click (Alt by default) casts on you; the link's Shift casts nothing", function()
+    local ns = load()
+    local restore = modClicks({ SELFCAST = "ALT", CHATLINK = "SHIFT", PICKUPACTION = "SHIFT" })
+    local cast = {}
+    stub.CastSpell = function(spell, unit) cast[#cast + 1] = { spell = spell, unit = unit } end
+    local page = openBook(ns)
+    local b = placed(cellOf(page, "Rend"))
+    b:GetScript("OnEnter")(b)
+    stub.SecureClick(ns.Cast.button, "LeftButton")
+    T.eq(#cast, 1)
+    T.eq(cast[1].spell, 772)
+    T.isnil(cast[1].unit, "a plain click casts on the target")
+    stub.alt = true
+    stub.SecureClick(ns.Cast.button, "LeftButton")
+    stub.alt = nil
+    T.eq(#cast, 2, "Alt-click casts")
+    T.eq(cast[2] and cast[2].spell, 772)
+    T.eq(cast[2] and cast[2].unit, "player", "on you")
+    stub.shift = true
+    stub.SecureClick(ns.Cast.button, "LeftButton")
+    stub.shift = nil
+    T.eq(#cast, 2, "Shift links, never casts")
+    -- Self-cast moved onto the link's key: the link wins, as in the game's book.
+    stub.modifiedClicks.SELFCAST = "SHIFT"
+    b:GetScript("OnEnter")(b)
+    stub.shift = true
+    stub.SecureClick(ns.Cast.button, "LeftButton")
+    stub.shift = nil
+    T.eq(#cast, 2)
+    stub.CastSpell = nil
+    restore()
+end)
+
+T.test("book spells: a pet spell's self-cast click casts it on you too", function()
+    local book = BW.MageBook()
+    book.pet = { { name = "Firebolt", sub = "Rank 1", spellID = 3110, icon = 5 } }
+    local ns = load({ book = book })
+    stub.modifiedClicks.SELFCAST, stub.modifiedClicks.CHATLINK = "ALT", "SHIFT"
+    local d = ns.SpellData.Read(false)
+    local a = ns.Cast.Attributes(d.sections[#d.sections].spells[1])
+    T.eq(a["alt-type1"], "macro")
+    T.eq(a["alt-macrotext1"], "/cast [@player] Firebolt")
+end)
+
+T.test("book spells: the pick-up modified click picks the spell up, like dragging", function()
+    local ns = load()
+    local restore = modClicks({ CHATLINK = "SHIFT", PICKUPACTION = "CTRL" })
+    local page = openBook(ns)
+    local b = cellOf(page, "Rend")
+    stub.ctrl = true
+    b:GetScript("OnClick")(b, "LeftButton")
+    stub.ctrl = nil
+    T.eq(#BW.Calls("PickupSpellBookItem"), 1)
+    T.eq(BW.Calls("PickupSpellBookItem")[1] and BW.Calls("PickupSpellBookItem")[1][1], b.cell.slot)
+    T.eq(#BW.Calls("InsertLink"), 0, "no link")
+    restore()
+end)
+
+T.test("book spells: a hovered spell's tooltip is drawn again when cooldowns change, only while hovered", function()
+    local ns = load()
+    fakeTip()
+    local page = openBook(ns)
+    local b = placed(cellOf(page, "Rend"))
+    b:GetScript("OnEnter")(b)
+    T.eq(GameTooltip.__fills, 1)
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    T.eq(GameTooltip.__fills, 2, "redrawn with the new cooldown")
+    b:GetScript("OnLeave")(b)
+    stub.FireEvent("SPELL_UPDATE_COOLDOWN")
+    T.eq(GameTooltip.__fills, 2, "left alone once the mouse left")
+end)
+
+T.test("book spells: a form change redraws the icons (Attack follows the druid's form)", function()
+    local ns = load()
+    local page = openBook(ns)
+    BW.book.lines[1].items[1].icon = 99
+    stub.FireEvent("UPDATE_SHAPESHIFT_FORM")
+    frame(2)
+    T.eq(cellOf(page, "Attack").icon:GetTexture(), 99)
+end)
+
+T.test("book spells: search finds a spell by its description too", function()
+    local book = BW.WarriorBook()
+    book.lines[2].items[2].desc = "Wounds the target, causing them to bleed over 9 sec."
+    local ns = load({ book = book })
+    local page = openBook(ns)
+    page.search:SetText("bleed")
+    T.deq(names(page), { "Rend Rank 1" })
+end)
+
+T.test("book spells: an unlearned spell says when it comes; a passive with no rank says Passive", function()
+    local book = BW.WarriorBook()
+    table.insert(book.lines[2].items, { name = "Overpower", spellID = 7384, icon = 23, future = true, level = 99 })
+    table.insert(book.lines[2].items, { name = "Thunder Clap", spellID = 6343, icon = 24, future = true, level = 1 })
+    table.insert(book.lines[2].items, { name = "Parry", spellID = 3127, icon = 25, passive = true })
+    local ns = load({ book = book })
+    stub.units.player = stub.units.player or { name = "Me" }
+    stub.units.player.level = 10
+    local page = openBook(ns)
+    T.truthy(tostring(cellOf(page, "Overpower").rank:GetText()):find("99", 1, true), "available at level 99")
+    T.eq(cellOf(page, "Thunder Clap").rank:GetText(), SPELLBOOK_TRAINABLE or "Trainable", "level reached: trainable")
+    T.eq(cellOf(page, "Parry").rank:GetText(), SPELL_PASSIVE or "Passive")
+    T.eq(cellOf(page, "Rend").rank:GetText(), "Rank 1", "a learned spell keeps its rank")
+end)
+
+T.test("book spells: the tooltip says when a spell isn't on any action bar", function()
+    local ns = load()
+    fakeTip()
+    local page = openBook(ns)
+    local want = TALENT_BUTTON_TOOLTIP_NOT_ON_ACTION_BAR or "This ability is not on your action bars."
+    local b = placed(cellOf(page, "Rend"))
+    b:GetScript("OnEnter")(b)
+    T.truthy(tipHas(want), "missing from every bar")
+    stub.slots[5] = { spellID = 772 }
+    b:GetScript("OnEnter")(b)
+    T.falsy(tipHas(want), "on a bar: no line")
+    stub.slots[5] = nil
+    local p = placed(cellOf(page, "Hardiness"))
+    p:GetScript("OnEnter")(p)
+    T.falsy(tipHas(want), "a passive needs no bar")
+end)
+
+T.test("book spells: Shift-P opens the book on your pet's spells, as the game's key does", function()
+    local book = BW.MageBook()
+    book.pet = { { name = "Firebolt", sub = "Rank 1", spellID = 3110, icon = 5 } }
+    local ns = load({ book = book })
+    BW.LoadBook()
+    BW.Key("SHIFT-P")
+    frame(30)
+    T.truthy(DaylightUI.Win.IsOpen(ns.Window.frame))
+    T.truthy(ns.Spells.jumped and ns.Spells.jumped.pet, "jumped to the pet section")
+    -- P closes; P again opens where the game's book is: still on the pet spells.
+    BW.Key("P")
+    frame(30)
+    T.falsy(DaylightUI.Win.IsOpen(ns.Window.frame))
+    ns.Spells.jumped = nil
+    BW.Key("P")
+    frame(30)
+    T.truthy(ns.Spells.jumped and ns.Spells.jumped.pet, "the game's book reopens on its pet category too")
+end)
+
+T.test("book spells: open with P, then Shift-P turns to the pet spells without closing", function()
+    local book = BW.MageBook()
+    book.pet = { { name = "Firebolt", sub = "Rank 1", spellID = 3110, icon = 5 } }
+    local ns = load({ book = book })
+    BW.Open(BW.SPELLBOOK)
+    frame(30)
+    T.isnil(ns.Spells.jumped, "P alone stays at the top")
+    BW.Key("SHIFT-P")
+    frame(30)
+    T.truthy(DaylightUI.Win.IsOpen(ns.Window.frame))
+    T.truthy(ns.Spells.jumped and ns.Spells.jumped.pet)
 end)

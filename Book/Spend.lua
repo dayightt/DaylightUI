@@ -107,6 +107,8 @@ function Spend.Apply(staged)
         if Spend.token == token then Spend.committing, Spend.sent, Spend.token = nil, nil, nil end
         return false
     end
+    -- The game's talent window sounds its commit as it sends (commitSound).
+    if DUI.Sound then DUI.Sound.Kit("UI_CLASS_TALENT_APPLY_CHANGES", "confirms") end
     if Spend.token ~= token then return true end   -- already answered
     C_Timer.After(Spend.COMMIT_WAIT, function()
         if Spend.token == token then Spend.Finished(false) end
@@ -120,7 +122,8 @@ function Spend.Finished(ok)
     if not Spend.committing then return end
     local sent = Spend.sent
     Spend.committing, Spend.sent, Spend.token = nil, nil, nil
-    if ok and DUI.Sound then DUI.Sound.Play("apply") end
+    -- With the game's sounds picked, the game's own "applied" sound.
+    if ok and DUI.Sound then DUI.Sound.Play("apply", "UI_CLASS_TALENT_APPLY_COMPLETE") end
     if ns.Talents then ns.Talents.Applied(ok and sent or nil) end
 end
 

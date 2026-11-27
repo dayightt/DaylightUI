@@ -2590,7 +2590,8 @@ function stub.SecureClick(b, button, down)
             end
         end
         -- Type "spell": a test world that cares what a cast does sets stub.CastSpell.
-        if acts and attr("type") == "spell" and stub.CastSpell then stub.CastSpell(attr("spell")) end
+        -- SECURE_ACTIONS.spell casts on the click's modified "unit" (nil = the target).
+        if acts and attr("type") == "spell" and stub.CastSpell then stub.CastSpell(attr("spell"), attr("unit")) end
         -- OnActionButtonClick: a spell that just put the hand up for an item gets
         -- the button's target-bag and target-slot item (UseContainerItem).
         local canTarget = (type(SpellCanTargetItem) == "function" and SpellCanTargetItem())
@@ -3924,6 +3925,15 @@ function stub.ActionSlots(slots)
         end,
         GetActionLossOfControlCooldownDuration = function(slot) return duration(slot, "loc") end,
         EnableActionRangeCheck = function(slot, on) stub.rangeChecks[slot] = on end,
+        -- Every action slot holding this spell, in any bar set (empty when none).
+        FindSpellActionButtons = function(spellID)
+            local out = {}
+            for slot, s in pairs(stub.slots) do
+                if s.spellID == spellID and not s.macro and not s.item then out[#out + 1] = slot end
+            end
+            table.sort(out)
+            return out
+        end,
     }
     -- One loss of control on you per slot it locks (plain, no secret flag in the docs).
     _G.C_LossOfControl = _G.C_LossOfControl or {}

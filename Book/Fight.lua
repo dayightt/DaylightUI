@@ -285,8 +285,7 @@ local function layList(f)
     local cast = ns.Cast
     for i, r in ipairs(rows) do
         local b = castButton(i)
-        local attrs = cast.Attributes(r.row.cell) or {}
-        for _, key in ipairs(Win.CAST_KEYS) do b:SetAttribute(key, attrs[key]) end
+        Win.SetCast(b, cast.Attributes(r.row.cell))
         b.row = r.row
         b:SetWidth(r.w)
         b:SetAttribute("x", r.x)
@@ -296,7 +295,7 @@ local function layList(f)
     for i = #rows + 1, #Fight.casts do
         local b = Fight.casts[i]
         b.row = nil
-        for _, key in ipairs(Win.CAST_KEYS) do b:SetAttribute(key, nil) end
+        Win.SetCast(b, nil)
         b:Hide()
     end
     local max = math.max(0, (s.height or 0) - view)

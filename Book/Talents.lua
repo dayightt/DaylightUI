@@ -92,7 +92,12 @@ local function tex(parent, layer, sub)
 end
 
 local function rgb(t, c, a) t:SetVertexColor(c[1], c[2], c[3], a or 1) end
-local function sound(name) if DUI.Sound then DUI.Sound.Play(name) end end
+-- With the game's sounds picked, the class tree plays the game's talent sounds
+-- (ClassTalentButtonSpendMixin). Trees with rules of their own (Legacy) keep theirs.
+Talents.KITS = { spend = "UI_CLASS_TALENT_NODE_SPEND", refund = "UI_CLASS_TALENT_NODE_REFUND" }
+local function sound(name, box)
+    if DUI.Sound then DUI.Sound.Play(name, not (box and box.spend) and Talents.KITS[name] or nil) end
+end
 
 -- ---------------------------------------------------------------------
 -- Tiles
@@ -150,7 +155,40 @@ local function makeTile(parent)
         if GameTooltip and GameTooltip:IsOwned(self) then GameTooltip:Hide() end
     end)
     b:SetScript("OnClick", function(self, button) Talents.Click(self, button) end)
+    b:RegisterForDrag("LeftButton")
+    b:SetScript("OnDragStart", function(self) Talents.Drag(self) end)
     return b
+end
+
+-- A talent's ability drags onto a bar, as the game's talent buttons allow
+-- (TalentButtonBaseMixin:OnDragStart). A passive has nothing to place, and the
+-- game refuses a pickup from addon code in a fight.
+function Talents.Drag(b)
+    local id = b.node and b.node.spellID
+    if type(id) ~= "number" or DUI.IsSecret(id) or InCombatLockdown() then return end
+    if type(C_Spell.IsSpellPassive) == "function" and C_Spell.IsSpellPassive(id) then return end
+    if type(C_Spell.PickupSpell) == "function" then C_Spell.PickupSpell(id) end
+end
+
+-- The spell that replaces this talent's right now, by name, or nil
+-- (TalentDisplayMixin:AddTooltipInfo).
+function Talents.ReplacedBy(node)
+    local id = node.spellID
+    if type(id) ~= "number" or DUI.IsSecret(id) or type(C_Spell.GetOverrideSpell) ~= "function" then return nil end
+    local over = C_Spell.GetOverrideSpell(id)
+    if type(over) ~= "number" or DUI.IsSecret(over) or over == id then return nil end
+    local name = C_Spell.GetSpellName(over)
+    if type(name) ~= "string" or DUI.IsSecret(name) or name == "" or name == node.name then return nil end
+    return name
+end
+
+-- A learned ability missing from every bar, on the tree in use with nothing
+-- waiting to be applied (ClassTalentButtonBaseMixin:UpdateActionBarStatus).
+function Talents.OffBars(node, box)
+    if (box and (box.readOnly or box.spend)) or not ns.Spells or (node.active or 0) < 1 then return false end
+    local Spend = ns.Spend
+    if Spend.Locked() or Spend.HasChanges() then return false end
+    return ns.Spells.OffBars(node.spellID)
 end
 
 -- "max" | "part" | "avail" | "locked"
@@ -336,6 +374,8 @@ function Talents.Tip(b)
     Tips.Clear()
     Tips.Title(node.name)
     Tips.Text(rankLine(node), Style.INK.LABEL)
+    local by = Talents.ReplacedBy(node)
+    if by then Tips.Text(string.format(TALENT_BUTTON_TOOLTIP_REPLACED_BY_FORMAT or L["Replaced by %s"], by), Style.INK.LABEL) end
     if rankText(TD, Tips, node, node.rank) then
         Talents.waiting = b
         TD.LoadSpell(node)
@@ -352,6 +392,10 @@ function Talents.Tip(b)
         Tips.Gap()
         local token = (box and box.token) or classToken()
         for _, line in ipairs(missing) do Tips.Text(waitLine(line, token)) end
+    end
+    if Talents.OffBars(node, box) then
+        Tips.Gap()
+        ns.Spells.BarLine(Tips, node.spellID)
     end
     -- Read-only trees (inspect) get no click hints.
     if not (box and box.readOnly) then
@@ -391,14 +435,14 @@ function Talents.Click(b, button)
     local Spend = (box and box.spend) or ns.Spend
     local soon = (box and box.changed) or Talents.Soon
     if button == "RightButton" then
-        if Spend.Refund(node) then sound("refund") ; soon()
+        if Spend.Refund(node) then sound("refund", box) ; soon()
         elseif node.rank > 0 then Talents.Shake(b) end
         return
     end
     local took = Spend.Buy(node, (box and box.data) or Talents.data, b)
     if took == "asked" then return end   -- choice node opened its menu (Legacy trees)
     if took then
-        sound("spend")
+        sound("spend", box)
         soon()
     else
         Talents.Shake(b)

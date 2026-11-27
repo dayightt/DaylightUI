@@ -89,10 +89,30 @@ local function bookFrame()
         self.inspectUnit = unit
         if unit then self:SetTab(self.talentTabID) end
     end
+    -- The book page (SpellBookFrameMixin): one category shown at a time
+    -- (PlayerSpellsUtil.SpellBookCategories). Turning to one, or the page showing,
+    -- redraws its spells and says so (OnPagedSpellsUpdate's DisplayedSpellsChanged).
+    local sb = { category = 1 }
+    f.SpellBookFrame = sb
+    local function displayed()
+        if f:IsShown() and f.tab == BW.SPELLBOOK then
+            EventRegistry:TriggerEvent("PlayerSpellsFrame.SpellBookFrame.DisplayedSpellsChanged")
+        end
+    end
+    function sb:IsCategoryActive(c) return self.category == c end
+    -- SpellBookPetCategoryMixin:IsAvailable: a pet with a book.
+    function sb:TrySetCategory(c)
+        if c == 3 and not (BW.book.pet and _G.PetHasSpellbook()) then return false end
+        local changed = self.category ~= c
+        self.category = c
+        if changed then displayed() end
+        return true
+    end
     f:SetScript("OnShow", function()
         S().opened = (S().opened or 0) + 1
         f:RegisterEvent("PLAYER_LEAVING_WORLD")
         EventRegistry:TriggerEvent("PlayerSpellsFrame.OpenFrame")
+        displayed()
     end)
     f:SetScript("OnHide", function()
         f.inspectUnit = nil   -- ClearInspectUnit
@@ -146,9 +166,11 @@ local function install()
     end
     _G.GetUIPanel = function() return nil end
     _G.PlayerSpellsUtil = {
+        SpellBookCategories = { Class = 1, General = 2, Pet = 3, Transmog = 4 },
         -- PlayerSpellsUtil.TogglePlayerSpellsFrame(tab): open on that tab, or
         -- close if it's already open on it.
         TogglePlayerSpellsFrame = function(tab) BW.Toggle(tab) end,
+        ToggleSpellBookFrame = function(category) BW.ToggleSpellBook(category) end,
         -- Called from addon code these run with its taint: the book fills its spell
         -- slots under it, and their secret cooldowns are refused in the next fight.
         OpenToSpellBookTab = function()
@@ -167,7 +189,7 @@ local function install()
     stub.bindings.TOGGLEGAMEMENU = { "ESCAPE" }
     stub.commands = {
         TOGGLESPELLBOOK = function() BW.Toggle(BW.SPELLBOOK) end,
-        TOGGLEPETBOOK = function() BW.Toggle(BW.SPELLBOOK) end,
+        TOGGLEPETBOOK = function() BW.ToggleSpellBook(3) end,
         TOGGLETALENTS = function() BW.Toggle(BW.TALENTS) end,
         TOGGLEGAMEMENU = function()
             local f = _G.PlayerSpellsFrame
@@ -219,6 +241,23 @@ function BW.Toggle(tab)
     else
         BW.Open(tab)
     end
+end
+
+-- PlayerSpellsUtil.ToggleSpellBookFrame(category) (Shift-P: the Pet category):
+-- closes the book only when it already shows that category; else turns to it and
+-- shows the book, or does nothing when the category can't be had (no pet).
+function BW.ToggleSpellBook(category)
+    local f = bookFrame()
+    local showing = f:IsShown() and f.tab == BW.SPELLBOOK
+        and (not category or f.SpellBookFrame:IsCategoryActive(category))
+    if showing then return asGame(HideUIPanel, f) end
+    asGame(function()
+        f:SetTab(BW.SPELLBOOK)
+        if not category or f.SpellBookFrame:TrySetCategory(category) then
+            SetUIPanelAttribute(f, "area", "centerOrLeft")
+            ShowUIPanel(f)
+        end
+    end)
 end
 
 function BW.Escape() stub.PressKey("ESCAPE") end
@@ -665,6 +704,8 @@ local function install_book()
             itemType = it.flyout and 4 or (it.future and 2 or (bank == BW.PET and 3 or 1)),
             name = it.name, subName = it.sub or "", iconID = it.icon or 0, isPassive = it.passive or false, isOffSpec = false }
     end
+    -- The level an unlearned (future) spell comes at: it.level.
+    SB.GetSpellBookItemLevelLearned = function(slot, bank) local it = bookItem(slot, bank); return it and it.level or 0 end
     SB.IsSpellBookItemLowRank = function(slot, bank) local it = bookItem(slot, bank); return it and it.low or false end
     SB.IsSpellBookItemLooseFlyoutMember = function(slot, bank) local it = bookItem(slot, bank); return it and it.loose or false end
     SB.GetSpellBookItemCooldownDuration = function(slot, bank) return { slot = slot, bank = bank } end
@@ -708,7 +749,29 @@ local function install_book()
         if stub.combat then error("ADDON_ACTION_BLOCKED: PickupSpell", 2) end
         record("PickupSpell", id)
     end
+    -- A book item's description (it.desc), else stub.spells' (the stub's own).
+    C_Spell.GetSpellDescription = function(id)
+        local x = spellItem(id)
+        if x and x.desc then return x.desc end
+        local s = stub.spells and stub.spells[id]
+        return s and s.desc or ""
+    end
+    -- Passive: a book item marked so, or a talent's spell that isn't in BW.ACTIVE
+    -- (most of the Warrior's talents are passive; Mortal Strike and Sweeping
+    -- Strikes are abilities).
+    C_Spell.IsSpellPassive = function(id)
+        local x = spellItem(id)
+        if x then return x.passive == true end
+        for _, node in ipairs(BW.tree and BW.tree.nodes or {}) do
+            if node.spell == id then return not BW.ACTIVE[id] end
+        end
+        return false
+    end
+    -- What a spell is replaced by right now (BW.overrides[id]), else itself.
+    C_Spell.GetOverrideSpell = function(id) return BW.overrides[id] or id end
 end
+BW.ACTIVE = { [12294] = true, [12292] = true }
+BW.overrides = {}
 
 -- spec.dual: a second talent set. true means it was switched to before and has its
 -- own tree (spec.tree2, blank by default); "new" means bought but never used, with
@@ -717,6 +780,7 @@ function BW.world(spec)
     spec = spec or {}
     return function()
         BW.state = { calls = {}, panel = {} }
+        BW.overrides = {}
         stub.secure = true
         _G.PlayerSpellsFrame = nil
         registry()

@@ -26,7 +26,6 @@
 local _, DUI = ...
 local Win = DUI.Win
 
-Win.CAST_KEYS = { "type1", "spell", "macrotext1", "type2", "macrotext2" }
 Win.CAST_DROP_HIDE = 1   -- seconds after a drop before the button hides
 Win.CAST_STRATA = { "BACKGROUND", "LOW", "MEDIUM", "HIGH", "DIALOG", "FULLSCREEN", "FULLSCREEN_DIALOG", "TOOLTIP" }
 
@@ -53,6 +52,14 @@ local function rectOf(frame)
     if type(left) ~= "number" or type(bottom) ~= "number" or type(w) ~= "number" or type(h) ~= "number" then return nil end
     local k = frame:GetEffectiveScale() / UIParent:GetEffectiveScale()
     return left * k, bottom * k, (left + w) * k, (bottom + h) * k
+end
+
+-- Puts these attributes on a secure cast button and clears any it had before
+-- that this set leaves out (a self-cast key, say), so nothing stale casts.
+function Win.SetCast(b, attrs)
+    for key in pairs(b.castAttrs or {}) do b:SetAttribute(key, nil) end
+    b.castAttrs = attrs
+    for key, value in pairs(attrs or {}) do b:SetAttribute(key, value) end
 end
 
 -- Hide every caster over this scroll frame's rows. Called when the list
@@ -137,7 +144,7 @@ function Win.Caster(spec)
             sf.casters = sf.casters or {}
             sf.casters[c] = true
         end
-        for _, key in ipairs(Win.CAST_KEYS) do b:SetAttribute(key, attrs[key]) end
+        Win.SetCast(b, attrs)
         b.row = row
         b:SetFrameStrata(above(spec.above and spec.above()))
         b:ClearAllPoints()

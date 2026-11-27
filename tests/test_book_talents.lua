@@ -600,3 +600,87 @@ T.test("book talents: a read-only box draws a tree and its clicks buy nothing", 
     b:GetScript("OnEnter")(b)
     T.noerror(function() T2.Tip(b) end)
 end)
+
+-- ---------------------------------------------------------------------
+-- The game's own talent-button behaviors (TalentButtonBase/Spend)
+-- ---------------------------------------------------------------------
+
+local function drag(b)
+    local fn = b:GetScript("OnDragStart")
+    T.truthy(fn, "the tile takes a drag")
+    if fn then fn(b) end
+end
+
+T.test("book talents: a talent's ability drags onto a bar; a passive or a fight picks up nothing", function()
+    local ns = load()
+    local page = openTalents(ns)
+    drag(tileOf(page, "Mortal Strike"))
+    T.eq(#BW.Calls("PickupSpell"), 1)
+    T.eq(BW.Calls("PickupSpell")[1] and BW.Calls("PickupSpell")[1][1], 12294)
+    drag(tileOf(page, "Cruelty"))
+    T.eq(#BW.Calls("PickupSpell"), 1, "a passive stays put")
+    stub.EnterCombat()
+    T.noerror(function() drag(tileOf(page, "Mortal Strike")) end)
+    stub.LeaveCombat()
+    T.eq(#BW.Calls("PickupSpell"), 1, "nothing in a fight (the game refuses it)")
+end)
+
+T.test("book talents: with the game's sounds picked, points and Apply play the game's talent sounds", function()
+    local ns = load({ tree = { left = 3 } })
+    local page = openTalents(ns)
+    DaylightUI:Set("general", "soundKinds.clicks", "game")
+    DaylightUI:Set("general", "soundKinds.confirms", "game")
+    local oldKit, oldPlay = _G.SOUNDKIT, _G.PlaySound
+    _G.SOUNDKIT = { UI_CLASS_TALENT_NODE_SPEND = 101, UI_CLASS_TALENT_NODE_REFUND = 102,
+        UI_CLASS_TALENT_APPLY_CHANGES = 103, UI_CLASS_TALENT_APPLY_COMPLETE = 104, IG_MAINMENU_OPTION = 1 }
+    local kits = {}
+    _G.PlaySound = function(k) kits[#kits + 1] = k end
+    tileOf(page, "Booming Voice"):Click("LeftButton")
+    frame(2)
+    stub.Advance(0.2)
+    T.eq(kits[#kits], 101, "a point: the game's spend")
+    tileOf(page, "Booming Voice"):Click("RightButton")
+    frame(2)
+    stub.Advance(0.2)
+    T.eq(kits[#kits], 102, "taken back: the game's refund")
+    tileOf(page, "Booming Voice"):Click("LeftButton")
+    frame(2)
+    stub.Advance(0.2)
+    local n = #kits
+    page.actions.buttons[1]:Click()
+    T.eq(kits[n + 1], 103, "Apply sends: the game's apply")
+    stub.Advance(BW.COMMIT_DELAY)
+    frame(2)
+    T.eq(kits[#kits], 104, "the server's yes: the game's done")
+    _G.SOUNDKIT, _G.PlaySound = oldKit, oldPlay
+end)
+
+local function learned(name)
+    local nodes = BW.WarriorNodes()
+    for _, node in ipairs(nodes) do if node.name == name then node.rank = 1 end end
+    return { nodes = nodes }
+end
+
+T.test("book talents: a learned ability's tooltip says when it isn't on any action bar", function()
+    local ns = load({ before = fakeTip, tree = learned("Mortal Strike") })
+    local page = openTalents(ns)
+    local want = TALENT_BUTTON_TOOLTIP_NOT_ON_ACTION_BAR or "This ability is not on your action bars."
+    T.truthy(find(hover(tileOf(page, "Mortal Strike")), want), "learned, on no bar")
+    stub.slots[7] = { spellID = 12294 }
+    T.falsy(find(hover(tileOf(page, "Mortal Strike")), want), "on a bar: no line")
+    stub.slots[7] = nil
+    T.falsy(find(hover(tileOf(page, "Sweeping Strikes")), want), "not learned: no line")
+    T.falsy(find(hover(tileOf(page, "Cruelty")), want), "a passive: no line")
+end)
+
+T.test("book talents: a talent whose spell is replaced right now says by what", function()
+    local ns = load({ before = fakeTip })
+    local page = openTalents(ns)
+    BW.overrides[12294] = 21553
+    stub.spells = stub.spells or {}
+    stub.spells[21553] = { name = "Shattering Strike" }
+    local name = C_Spell.GetSpellName(21553)
+    local lines = hover(tileOf(page, "Mortal Strike"))
+    T.truthy(name and name ~= "" and find(lines, name), "the replacing spell's name")
+    BW.overrides[12294] = nil
+end)

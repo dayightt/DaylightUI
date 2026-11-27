@@ -31,7 +31,8 @@ Spells.COL_GAP = 10
 Spells.CELL_MIN = 270 -- minimum cell width; resizing wider adds columns
 Spells.ICON = 34
 Spells.BORDER = 2     -- icon border, in screen pixels
-Spells.EVENTS = { "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "UNIT_PET", "PET_BAR_UPDATE" }
+-- UPDATE_SHAPESHIFT_FORM: some icons follow the form (a druid's Attack), as the game's book redraws them.
+Spells.EVENTS = { "SPELLS_CHANGED", "LEARNED_SPELL_IN_SKILL_LINE", "UNIT_PET", "PET_BAR_UPDATE", "UPDATE_SHAPESHIFT_FORM" }
 
 -- Warm text tones for name, rank and unavailable spells.
 Spells.NAME = { 0.93, 0.89, 0.82 }
@@ -178,7 +179,7 @@ function Spells.PaintCell(b, cell)
     b.icon:SetAlpha(1)
     b.name:SetText(cell.name)
     color(b.name, off and Spells.QUIET or Spells.NAME)
-    b.rank:SetText(cell.rank or "")
+    b.rank:SetText(Spells.SubLine(cell))
     color(b.rank, off and Spells.QUIET or Spells.SOFT)
     -- In click-cast mode the rank line shows the bound clicks instead, and
     -- spells that can't be bound are dimmed.
@@ -201,6 +202,56 @@ function Spells.PaintCell(b, cell)
     Spells.PaintCooldown(b)
 end
 
+-- The line under a spell's name, as the game's book writes it: the rank, or
+-- "Passive" for a passive with none; an unlearned spell says when it comes
+-- (SpellBookItemMixin:UpdateVisuals).
+function Spells.SubLine(cell)
+    if cell.future then
+        local level = cell.slot and type(C_SpellBook.GetSpellBookItemLevelLearned) == "function"
+            and C_SpellBook.GetSpellBookItemLevelLearned(cell.slot, cell.bank)
+        local mine = UnitLevel("player")
+        local when
+        if type(level) == "number" and type(mine) == "number" and level > mine then
+            when = string.format(SPELLBOOK_AVAILABLE_AT or L["Available at level %d"], level)
+        else
+            when = SPELLBOOK_TRAINABLE or L["Trainable"]
+        end
+        return cell.rank and (cell.rank .. "  " .. when) or when
+    end
+    if cell.rank then return cell.rank end
+    if cell.passive then return SPELL_PASSIVE or L["Passive"] end
+    return ""
+end
+
+-- True when the spell sits on no action bar, so the tooltip can say so as the
+-- game's book and talents do. The game's own check walks its own bar buttons,
+-- which Daylight UI's bars stand in for, so this reads the action slots (the
+-- controller's own with its UI on) and the stance bar, which holds no slots.
+function Spells.OffBars(spellID)
+    if type(spellID) ~= "number" or DUI.IsSecret(spellID) or type(C_ActionBar) ~= "table"
+        or type(C_ActionBar.FindSpellActionButtons) ~= "function" then return false end
+    if C_Spell.IsSpellPassive and C_Spell.IsSpellPassive(spellID) then return false end
+    if C_Spell.IsAutoAttackSpell and C_Spell.IsAutoAttackSpell(spellID) then return false end
+    if C_Spell.IsRangedAutoAttackSpell and C_Spell.IsRangedAutoAttackSpell(spellID) then return false end
+    local sets = Enum and Enum.ActionBarSet
+    local set = sets and ((DUI.Pad and DUI.Pad.On() and sets.Gamepad) or sets.Mkb) or nil
+    local slots = C_ActionBar.FindSpellActionButtons(spellID, set)
+    if type(slots) == "table" and #slots > 0 then return false end
+    if type(GetNumShapeshiftForms) == "function" and type(GetShapeshiftFormInfo) == "function" then
+        for i = 1, GetNumShapeshiftForms() or 0 do
+            if select(4, GetShapeshiftFormInfo(i)) == spellID then return false end
+        end
+    end
+    return true
+end
+
+-- The tooltip line for a spell that's on no bar, in the accent like any hint.
+function Spells.BarLine(Tips, spellID)
+    if not Spells.OffBars(spellID) then return false end
+    Tips.Text(TALENT_BUTTON_TOOLTIP_NOT_ON_ACTION_BAR or L["This ability is not on your action bars."], { Style.Accent() })
+    return true
+end
+
 -- ---------------------------------------------------------------------
 -- Hover, drag, clicks
 -- ---------------------------------------------------------------------
@@ -214,8 +265,16 @@ function Spells.Enter(b)
         b.glow:Hide()
         Spells.MarkSeen(cell)
     end
+    Spells.hovered = b
+    Spells.Tip(b)
+end
+
+-- The hovered spell's tooltip: the game's own lines, then whether it's on a bar
+-- and what a fight allows. Drawn again when cooldowns change (Spells.Cooldowns).
+function Spells.Tip(b)
+    local cell = b.cell
     local tip = GameTooltip
-    if not tip then return end
+    if not (cell and tip) then return end
     if Spells.binding then return Spells.BindTip(b) end
     tip:SetOwner(b, "ANCHOR_RIGHT")
     if cell.slot and type(tip.SetSpellBookItem) == "function" then
@@ -223,18 +282,21 @@ function Spells.Enter(b)
     elseif cell.spellID and type(tip.SetSpellByID) == "function" then
         tip:SetSpellByID(cell.spellID)
     end
+    local Tips = DUI.Tips   -- appended under the spell's own lines
+    Tips.Clear()
+    local any = not (cell.pet or cell.future) and Spells.BarLine(Tips, cell.spellID)
     if InCombatLockdown() and not cell.passive then
-        local Tips = DUI.Tips   -- appended under the spell's own lines
-        Tips.Clear()
         -- When frozen, Fight.lua's buttons still cast; only dragging is blocked.
         Tips.Text(Spells.frozen and L["Dragging spells to your bars works out of combat."]
             or L["Clicking and dragging work out of combat."], Tips.WARN)
-        Tips.Flush(tip)
+        any = true
     end
+    if any then Tips.Flush(tip) end
     tip:Show()
 end
 
 function Spells.Leave(b)
+    if Spells.hovered == b then Spells.hovered = nil end
     DUI.Win.Parts.Light(b.hover, false)
     if GameTooltip and GameTooltip:IsOwned(b) then GameTooltip:Hide() end
 end
@@ -252,10 +314,15 @@ end
 function Spells.Drag(b) Spells.Pickup(b.cell) end
 
 -- Shift-click links the spell in chat, or inserts its name into the macro
--- being edited, like SpellBookItemMixin:OnModifiedIconClick.
+-- being edited, like SpellBookItemMixin:OnModifiedIconClick; the pick-up click
+-- (PICKUPACTION, when the player gave it keys of its own) picks it up.
 function Spells.Modified(b, button)
     local cell = b.cell
-    if not cell or button ~= "LeftButton" or not IsModifiedClick("CHATLINK") then return end
+    if not cell or button ~= "LeftButton" or type(IsModifiedClick) ~= "function" then return end
+    if not IsModifiedClick("CHATLINK") then
+        if IsModifiedClick("PICKUPACTION") then Spells.Pickup(cell) end
+        return
+    end
     local insert = ChatFrameUtil and ChatFrameUtil.InsertLink or ChatEdit_InsertLink
     if type(insert) ~= "function" then return end
     local macro = _G.MacroFrameText
@@ -480,6 +547,9 @@ function Spells.Cooldowns()
     for _, b in ipairs(page.stack.used) do
         if b.cells then for _, c in ipairs(b.cells) do if c:IsShown() and c.cell then Spells.PaintCooldown(c) end end end
     end
+    -- The hovered spell's tooltip shows its cooldown: draw it again, as the game's book does.
+    local over = Spells.hovered
+    if over and over.cell and GameTooltip and GameTooltip:IsShown() and GameTooltip:IsOwned(over) then Spells.Tip(over) end
 end
 
 -- ---------------------------------------------------------------------
@@ -534,10 +604,27 @@ local function head(s, section, folded)
     return b
 end
 
+-- A spell's description, lowered for search and kept per spell (the game's book
+-- searches descriptions too). Emptied when the book refills.
+Spells.descs = {}
+local function description(cell)
+    local id = cell.spellID
+    if type(id) ~= "number" or type(C_Spell.GetSpellDescription) ~= "function" then return nil end
+    local d = Spells.descs[id]
+    if d == nil then
+        d = C_Spell.GetSpellDescription(id)
+        d = (type(d) == "string" and not DUI.IsSecret(d)) and string.lower(d) or false
+        Spells.descs[id] = d
+    end
+    return d or nil
+end
+
 local function matches(cell, want)
     if not want then return true end
     if string.find(string.lower(cell.name), want, 1, true) then return true end
-    return cell.rank ~= nil and string.find(string.lower(cell.rank), want, 1, true) ~= nil
+    if cell.rank ~= nil and string.find(string.lower(cell.rank), want, 1, true) then return true end
+    local d = description(cell)
+    return d ~= nil and string.find(d, want, 1, true) ~= nil
 end
 
 -- Build the list from Spells.data and the current search.
@@ -590,6 +677,25 @@ function Spells.Jump(section)
     if Spells.IsFolded(section) then Spells.Fold(section, false) end
     local y = Spells.sectionAt and Spells.sectionAt[section]
     if y and Spells.page then Spells.page.stack:ScrollTo(y) end
+end
+
+-- Jump to the pet spells (the game's pet book key, Book.FollowCategory): now if
+-- they're listed, else once the page next fills.
+function Spells.JumpPet()
+    Spells.wantPet = true
+    Spells.TryJumpPet()
+end
+
+function Spells.TryJumpPet()
+    local page = Spells.page
+    -- IsShown, not IsVisible: the page fills before the window opening it shows.
+    if not (Spells.wantPet and page and page:IsShown()) or Spells.frozen then return end
+    for _, section in ipairs(Spells.data and Spells.data.sections or {}) do
+        if section.pet and Spells.sectionAt and Spells.sectionAt[section] then
+            Spells.wantPet = nil
+            return Spells.Jump(section)
+        end
+    end
 end
 
 -- Sections whose chips didn't fit go into the More menu, so a long language or a
@@ -679,6 +785,7 @@ function Spells.Fill(page, keep)
     if Spells.frozen then Spells.dirty = true; return end   -- combat cast buttons sit on these rows
     Spells.dirty = nil
     local at = keep and page.stack:Scrolled() or 0
+    Spells.descs = {}
     Spells.data = ns.SpellData.Read(ns.Setting("hideLowRanks") == false)
     layoutChips(page)
     page.switch:SetShown(Spells.data.anyLow)
@@ -693,6 +800,7 @@ function Spells.Fill(page, keep)
     if t ~= "" then Spells.filter = string.lower(t) end
     Spells.Render(page)
     page.stack:ScrollTo(at)
+    Spells.TryJumpPet()
 end
 
 function Spells.Search(text)
