@@ -2426,6 +2426,27 @@ T.test("bags: Pawn's upgrade arrows show on gear and answer the upgrade search",
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Caerdon Wardrobe, BetterBags and BaudBag list Pawn as an optional dependency
+-- and sort before DaylightUI_Bags, so the client loads Pawn first. The hook then
+-- runs while the bags' own files are still loading.
+T.test("bags: Pawn loaded before the bags still hooks up, with no error at load", function()
+    local registered
+    _G.PawnRegisterThirdPartyBag = function(name, o) registered = { name = name, o = o } end
+    _G.PawnShouldItemLinkHaveUpgradeArrow = function(link) return link == "|Hitem:6|h" end
+    stub.Load({ bags = true, before = function()
+        setup()
+        categoryWorld()
+        stub.loadedAddOns.Pawn = true
+    end })
+    stub.RunTimers()
+    local ns = stub.bags
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+    T.eq(registered and registered.name, "Daylight UI", "Pawn knows these bags")
+    T.eq(type(ns.Search.KEYWORDS.upgrade), "function", "the upgrade search word is there")
+    T.truthy(ns.Plugins.IsUpgrade("|Hitem:6|h"), "and asks Pawn")
+    _G.PawnRegisterThirdPartyBag, _G.PawnShouldItemLinkHaveUpgradeArrow = nil, nil
+end)
+
 T.test("bags: Can I Mog It marks show on gear, told the bag and slot", function()
     local ns, f = catLogin()
     local asked = {}

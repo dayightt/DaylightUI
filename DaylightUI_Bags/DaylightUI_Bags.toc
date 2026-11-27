@@ -16,8 +16,8 @@
 Defaults.lua
 Saved.lua
 Items.lua
-Plugins.lua
 Search.lua
+Plugins.lua
 ItemTree.lua
 Categories.lua
 Junk.lua
