@@ -92,7 +92,8 @@ ns.DEFAULTS = {
     -- insideText*: its text while inside the frame (size 0 fits the power bar,
     -- X/Y nudge both texts).
     targetCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 240, height = 22, showIcon = true, slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false,
-                      insideTextSize = 0, insideTextX = 0, insideTextY = 0 },
+                      insideTextSize = 0, insideTextX = 0, insideTextY = 0,
+                      shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 } },   -- its own border, as a bar of its own
     -- Every cast bar's colors, fill and interrupts.
     casts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
               interrupted = { 0.52, 0.17, 0.15 }, flash = true,
@@ -111,14 +112,16 @@ ns.DEFAULTS = {
               -- of { name, icon, color }, matched by name (every rank).
               spellColors = {} },
     -- The focus cast bar: inside its frame over the power bar, or its own.
-    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false },
+    focusCastbar = { enabled = true, at = "power", x = 0, y = 0, fitFrame = true, width = 200, height = 20, showIcon = true, slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false, ownAngle = false, lean = 0.21, reverseFill = false,
+                     shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 } },
     -- Each party member's cast bar (PartyCasts.lua): inside the frame over the
     -- power bar ("power"), hung under it and sliding out ("slide"), or its own
     -- bar beside the frame ("free", with spot right|left|below|above and x/y).
     -- insideTextSize: its text inside the frame (0 fits the power bar).
     partyCastbar = { enabled = true, at = "power", spot = "right", x = 0, y = 0, width = 140, height = 10, showIcon = true,
                      slant = false, slantLeft = false, slantUnder = false, slantUnderLeft = false,
-                     insideTextSize = 0, reverseFill = false },
+                     insideTextSize = 0, reverseFill = false,
+                     shell = { own = false, borderPx = 8, cornerPx = 6, shadowPx = 4 } },
     -- The target's and focus's own cast bar colors.
     targetCasts = { cast = { 0.78, 0.62, 0.30 }, channel = { 0.78, 0.62, 0.30 }, locked = { 0.42, 0.42, 0.45 },
                     interrupted = { 0.52, 0.17, 0.15 }, classColor = false, customGradient = DaylightUI.Style.DefaultStops() },

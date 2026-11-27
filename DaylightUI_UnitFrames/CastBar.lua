@@ -580,15 +580,22 @@ function CB.Layout(h, cfg, parentCfg)
         local right, left = cfg.slant == true, cfg.slantLeft == true
         -- A flipped end leans under: its bottom corner sticks out. Each end flips on its own.
         local flipRight, flipLeft = cfg.slantUnder, cfg.slantUnderLeft
+        local slope = at == "personal" and ns.Personal.Angle() or ns.UF.AngleOf(cfg.ownAngle, cfg.lean)
         if at == "personal" then
             width = ns.Personal.frame:GetWidth()
             right, left = ns.Personal.Ends()
             flipRight, flipLeft = false, false
         elseif f and (at == "above" or at == "below") and cfg.fitFrame == true then
             width = f:GetWidth() * f:GetEffectiveScale() / h:GetEffectiveScale()
+            -- As wide as its frame it wears the frame's ends too, at the
+            -- frame's slope, so the two read as one shape.
+            local fH = f:GetHeight()
+            right, left = ns.UF.HasEnd(f.ends, "right"), ns.UF.HasEnd(f.ends, "left")
+            flipRight, flipLeft = ns.UF.FlipAt(f, "right") == "right", ns.UF.FlipAt(f, "left") == "left"
+            if type(fH) == "number" and fH > 0 then slope = (f.endCut or f.cut or 0) / fH end
         end
         h:SetSize(2 * Pixel.Snap(h, width / 2), height)
-        cut = (right or left) and Pixel.Snap(h, tall * (at == "personal" and ns.Personal.Angle() or ns.UF.AngleOf(cfg.ownAngle, cfg.lean))) or 0
+        cut = (right or left) and Pixel.Snap(h, tall * slope) or 0
         side = right and left and "both" or right and "right" or left and "left" or nil
         local under = ns.UF.UnderOf(right, left, flipRight, flipLeft)
         Style.Slant(h, side, cut, nil, under)

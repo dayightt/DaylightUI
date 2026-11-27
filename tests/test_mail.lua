@@ -433,7 +433,7 @@ T.test("inbox: deleting a letter that still holds something asks twice; Reply op
     frame(10)
     T.eq(ns.Window.frame.current, "send")
     T.eq(ns.Send.page.to:GetText(), "Brannoc Ironhide")
-    T.eq(ns.Send.page.subject:GetText(), "RE: Ore money", "the game's reply prefix")
+    T.eq(ns.Send.page.subject:GetText(), "Re: Ore money")
     ns.Window.ShowTab("inbox")
     frame(10)
     local heard = {}
@@ -598,7 +598,7 @@ T.test("send: a full name, gold and an item: postage and gold leave, the name is
     _G.PlaySoundFile = nil
     T.eq(n, 1, "the chime, once it went")
     local sent = MW.Sent()[1]
-    T.eq(sent.to, "Shooty McGoovy"); T.eq(sent.money, 500); T.eq(sent.subject, "Linen Cloth (20)", "the first item and its count when no subject, as the game's")
+    T.eq(sent.to, "Shooty McGoovy"); T.eq(sent.money, 500); T.eq(sent.subject, "Linen Cloth", "the first item's name when no subject")
     T.eq(GetMoney(), 10000 - 30 - 500)
     T.eq(ns.Send.Recent()[1], "Shooty McGoovy")
     T.eq(stub.Text(page.said), "Sent to Shooty McGoovy.")
@@ -769,18 +769,17 @@ T.test("send: cash on delivery needs an item and a price, then sends as COD", fu
     page.to:SetText("Ysella Brightwind")
     page.gold:SetText("6")
     page.cod:GetScript("OnClick")(page.cod)
-    T.falsy(ns.Send.state.cod, "no item yet: no cash on delivery, as the game's")
+    sendPress(ns, "Send")
+    T.eq(#MW.Calls("SendMail"), 0, "no item yet")
     MW.Cursor({ name = "Runecloth", itemID = 14047, count = 20 })
     ns.Send.Attach()
-    frame(2)
-    page.cod:GetScript("OnClick")(page.cod)
     sendPress(ns, "Send")
     settle()
     T.eq(MW.Sent()[1].cod, 60000)
     T.eq(MW.Sent()[1].money, 0)
 end)
 
-T.test("send: a right-click on an attached item takes it back; your other characters are chips", function()
+T.test("send: a click on an attached item takes it back; your other characters are chips", function()
     local ns = load({ letters = {} })
     local chars = DaylightUI.DB.Root().characters
     local key = DaylightUI.DB.CharKey()
@@ -799,7 +798,7 @@ T.test("send: a right-click on an attached item takes it back; your other charac
     local tile
     for _, b in ipairs(tilesOf(page)) do if not b.spec.empty then tile = b end end
     T.truthy(tile, "the item shows")
-    tile.spec.onClick(tile, "RightButton")
+    tile.spec.onClick(tile)
     frame(2)
     T.eq(#ns.Send.Items(), 0)
 end)

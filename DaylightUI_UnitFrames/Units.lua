@@ -440,7 +440,7 @@ function ns.Refresh(mod, path, hold)
                                       insideTextSize = tc.insideTextSize, insideTextX = tc.insideTextX, insideTextY = tc.insideTextY }, db.target)
         CB.Layout(ns.targetCastbarFree, { enabled = tc.enabled and tAt ~= "power", at = tAt, x = tc.x, y = tc.y, drop = (tSlides or tAt == "below") and tPips or 0,
                                           width = tc.width, fitFrame = tc.fitFrame, height = tc.height, showIcon = tc.showIcon, slant = tSlides or tc.slant, slantLeft = tc.slantLeft, slantUnder = not tSlides and tc.slantUnder, slantUnderLeft = not tSlides and tc.slantUnderLeft, ownAngle = tc.ownAngle, lean = tc.lean,
-                                          spell = tc.spell, time = tc.time, reverseFill = tc.reverseFill, strata = tc.strata })
+                                          spell = tc.spell, time = tc.time, reverseFill = tc.reverseFill, strata = tc.strata, shell = tc.shell })
         DUI.Movers.Suspend("unitframes.targetCastbar", tAt ~= "free")
         local fc = db.focusCastbar
         local fAt = CB.At("focus", fc)
@@ -448,7 +448,7 @@ function ns.Refresh(mod, path, hold)
         local fSlides = fAt == "slide"
         CB.Layout(ns.focusCastbarFree, { enabled = fc.enabled and fAt ~= "power", at = fAt, x = fc.x, y = fc.y,
                                          width = fc.width, fitFrame = fc.fitFrame, height = fc.height, showIcon = fc.showIcon, slant = fSlides or fc.slant, slantLeft = fc.slantLeft, slantUnder = not fSlides and fc.slantUnder, slantUnderLeft = not fSlides and fc.slantUnderLeft, ownAngle = fc.ownAngle, lean = fc.lean,
-                                         spell = fc.spell, time = fc.time, reverseFill = fc.reverseFill, strata = fc.strata })
+                                         spell = fc.spell, time = fc.time, reverseFill = fc.reverseFill, strata = fc.strata, shell = fc.shell })
         DUI.Movers.Suspend("unitframes.focusCastbar", fAt ~= "free")
         -- The display first, since your cast bar and swing bars may stand under it.
         ns.Personal.Layout(db.personal)
