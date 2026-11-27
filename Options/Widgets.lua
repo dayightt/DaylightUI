@@ -5090,3 +5090,145 @@ function W.CloseIcons()
         if not f.spec then f.lists = nil end
     end)
 end
+
+-- ---------------------------------------------------------------------
+-- The icon ring: choices as icons springing out round the cursor (the missing
+-- buffs picker). Up to eight on the inner ring, more on wider rings. Each
+-- cell: 38 px, 34 px art, the current pick ringed in the accent, a badge in
+-- its corner (a rank, how many you carry). A click picks and closes; the
+-- wheel over a cell calls onWheel (a rank up or down) and shows its new
+-- badge; a click beside it or Escape closes it.
+--   spec.items = { { key, icon, badge, picked } }, spec.onPick(key),
+--   spec.onWheel(key, delta) -> new badge, spec.tip(cell, key) its tooltip.
+-- ---------------------------------------------------------------------
+
+W.ICON_RING = { cell = 38, art = 34, radius = 62, step = 44, dot = 10 }
+
+local ring
+function W.CloseIconRing()
+    if not ring or not ring:IsShown() then return end
+    ring:Hide()
+    ring.spec = nil
+    if GameTooltip and GameTooltip:IsOwned(ring) then GameTooltip:Hide() end
+end
+
+function W.IconRingOpen() return ring and ring:IsShown() and ring or nil end
+
+-- A cell's ring (its radius) and how far round it is (0-1), spread evenly
+-- over the cells that ring holds.
+local function ringSpot(i, total)
+    local R = W.ICON_RING
+    local n, left, ringNo = i, total, 1
+    while true do
+        local radius = R.radius + (ringNo - 1) * R.step
+        local fits = math.max(1, math.floor(2 * math.pi * radius / R.step))
+        if n <= fits then return radius, (n - 1) / math.min(fits, left) end
+        n, left = n - fits, left - fits
+        ringNo = ringNo + 1
+    end
+end
+
+local function buildRing()
+    ring = CreateFrame("Button", nil, UIParent)
+    ring:SetAllPoints(UIParent)
+    ring:SetFrameStrata("FULLSCREEN_DIALOG")
+    ring:RegisterForClicks("AnyUp")
+    ring:SetScript("OnClick", W.CloseIconRing)
+    DUI.Win.Keys(ring, function(key)
+        if key ~= "ESCAPE" then return false end
+        W.CloseIconRing()
+        return true
+    end)
+    ring.center = CreateFrame("Frame", nil, ring)
+    ring.center:SetSize(1, 1)
+    ring.dot = ring.center:CreateTexture(nil, "ARTWORK")
+    ring.dot:SetTexture(DUI.MEDIA .. "shape-circle.png")
+    ring.dot:SetSize(W.ICON_RING.dot, W.ICON_RING.dot)
+    ring.dot:SetPoint("CENTER")
+    ring.pool, ring.cells = {}, {}
+    ring:Hide()
+end
+
+local function ringCell(i)
+    local c = ring.pool[i]
+    if c then return c end
+    local R = W.ICON_RING
+    c = CreateFrame("Button", nil, ring.center)
+    c:SetSize(R.cell, R.cell)
+    c:RegisterForClicks("LeftButtonUp")
+    c.shell = Style.Shell(c, { borderPx = 1, noBevel = true })
+    c.art = c:CreateTexture(nil, "ARTWORK")
+    c.art:SetSize(R.art, R.art)
+    c.art:SetPoint("CENTER")
+    Style.CropIcon(c.art)
+    c.ring = W.Round(c, "OVERLAY", 0, true)
+    c.ring:SetAllPoints(c)
+    c.badge = Style.Text(c, SIZE.tiny, "RIGHT")
+    c.badge:SetPoint("BOTTOMRIGHT", c, "BOTTOMRIGHT", -2, 2)
+    Style.InkText(c.badge, "VALUE")
+    c:EnableMouseWheel(true)
+    c:SetScript("OnClick", function(self)
+        local spec = ring.spec
+        W.CloseIconRing()
+        if DUI.Sound then DUI.Sound.Play("click") end
+        if spec and spec.onPick then spec.onPick(self.key) end
+    end)
+    c:SetScript("OnMouseWheel", function(self, delta)
+        local spec = ring.spec
+        if not (spec and spec.onWheel) then return end
+        local badge = spec.onWheel(self.key, delta)
+        if badge ~= nil then self.badge:SetText(tostring(badge)) end
+        if DUI.Motion then DUI.Motion.Bump(self.art, 1.1) end
+    end)
+    c:SetScript("OnEnter", function(self)
+        Style.PaintAccent(self.ring, 1)
+        self.ring:Show()
+        local spec = ring.spec
+        if spec and spec.tip then spec.tip(self, self.key) end
+    end)
+    c:SetScript("OnLeave", function(self)
+        self.ring:SetShown(self.picked == true)
+        if GameTooltip then GameTooltip:Hide() end
+    end)
+    ring.pool[i] = c
+    return c
+end
+
+-- Opens the ring at the cursor; returns it.
+function W.IconRing(spec)
+    if not ring then buildRing() end
+    W.CloseIconRing()
+    ring.spec = spec
+    local x, y = GetCursorPosition()
+    local s = UIParent:GetEffectiveScale() or 1
+    ring.center:ClearAllPoints()
+    ring.center:SetPoint("CENTER", UIParent, "BOTTOMLEFT", (x or 0) / s, (y or 0) / s)
+    local dot = Style.INK.LABEL
+    ring.dot:SetVertexColor(dot[1], dot[2], dot[3], 1)
+    local items = spec.items or {}
+    ring.cells = {}
+    for i, it in ipairs(items) do
+        local c = ringCell(i)
+        c.key, c.picked = it.key, it.picked == true
+        c.art:SetTexture(it.icon or 134400)
+        c.badge:SetText(it.badge ~= nil and tostring(it.badge) or "")
+        Style.PaintAccent(c.ring, 1)
+        c.ring:SetShown(c.picked)
+        local radius, at = ringSpot(i, #items)
+        local angle = math.pi / 2 - at * 2 * math.pi
+        local tx, ty = radius * math.cos(angle), radius * math.sin(angle)
+        c:ClearAllPoints()
+        c:SetPoint("CENTER", ring.center, "CENTER", 0, 0)
+        c:Show()
+        -- Springs out from the cursor, a little past its spot, and settles.
+        DUI.Motion.Spring(c, DUI.Motion.NORMAL, function(v)
+            c:ClearAllPoints()
+            c:SetPoint("CENTER", ring.center, "CENTER", tx * v, ty * v)
+        end)
+        c:SetAlpha(1)
+        ring.cells[i] = c
+    end
+    for i = #items + 1, #ring.pool do ring.pool[i]:Hide() end
+    ring:Show()
+    return ring
+end

@@ -285,10 +285,18 @@ local function paintTile(t)
         t.shapeMask:SetTexture(shapeFile(shaped), "CLAMPTOBLACKADDITIVE", "CLAMPTOBLACKADDITIVE")
         t.shapeMask:ClearAllPoints()
         t.shapeMask:SetAllPoints(t.icon)
-        if not t.masked then t.icon:AddMaskTexture(t.shapeMask); t.masked = true end
+        if not t.masked then
+            t.icon:AddMaskTexture(t.shapeMask)
+            t.dim:AddMaskTexture(t.shapeMask)
+            t.masked = true
+        end
     else
         t.shapeOuter:Hide()
-        if t.masked then t.icon:RemoveMaskTexture(t.shapeMask); t.masked = nil end
+        if t.masked then
+            t.icon:RemoveMaskTexture(t.shapeMask)
+            t.dim:RemoveMaskTexture(t.shapeMask)
+            t.masked = nil
+        end
     end
     t.icon:ClearAllPoints()
     t.icon:SetPoint("TOPLEFT", t, "TOPLEFT", T, -T)
@@ -708,6 +716,7 @@ function Row.Set(list, sample)
     end
     if not sample then DUI.AfterCombat(Row.PlaceButtons, "buffs:reminderButtons") end
     if sample then Row.ClearButtons() end
+    if BL.ReminderPicker then BL.ReminderPicker.Validate(Row.active) end
 end
 
 -- A look setting changed: lay every icon out again.

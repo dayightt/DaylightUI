@@ -361,11 +361,11 @@ local function pickItem(items, bonus, low, choices)
     return found
 end
 
-local function statEntry(out, stat, id, ends, key, choices)
+local function statEntry(out, stat, id, ends, key, choices, auto)
     local h = H()
     local e = { key = key, kind = "item", section = "items", short = stat.label, item = id, tipItem = id,
                 macro = "/use [@player,nocombat] item:" .. id, icon = h.itemIcon(id), expireAt = ends,
-                count = h.itemCount(id), statKey = stat.key, choices = choices }
+                count = h.itemCount(id), statKey = stat.key, choices = choices, autoItem = auto }
     if C_Item and C_Item.GetItemCooldown then
         local start, dur = h.call(C_Item.GetItemCooldown, id)
         if type(start) == "number" and type(dur) == "number" and dur > 1.5 then e.cooldown = { start, dur } end
@@ -401,11 +401,12 @@ local function scrolls(state, out, mine)
                     local bonus, hEnds = toBeat(state, stat.health, stat.health.items, nil, warn, stronger)
                     if bonus then id, ends = pickItem(stat.health.items, bonus, low, choices), hEnds end
                 end
-                local pin = separate and type(pinned) == "table" and pinned["stat:" .. stat.key] or (not separate and pinned)
-                if id and choices and type(pin) == "number" and choices[pin] then id = pin end
+                local auto = id
+                local pin = separate and type(pinned) == "table" and pinned["stat:" .. stat.key] or nil
+                if id and separate and choices and type(pin) == "number" and choices[pin] then id = pin end
                 if id then
                     if separate then
-                        statEntry(out, stat, id, ends, "stat:" .. stat.key, choices)
+                        statEntry(out, stat, id, ends, "stat:" .. stat.key, choices, auto)
                     elseif not one then
                         one = { stat = stat, id = id, ends = ends }
                         if not shared then break end
@@ -417,7 +418,7 @@ local function scrolls(state, out, mine)
     if one then
         local id = one.id
         if shared and type(pinned) == "number" and shared[pinned] then id = pinned end
-        statEntry(out, one.stat, id, one.ends, "scrollsAndElixirs", shared)
+        statEntry(out, one.stat, id, one.ends, "scrollsAndElixirs", shared, one.id)
     end
 end
 

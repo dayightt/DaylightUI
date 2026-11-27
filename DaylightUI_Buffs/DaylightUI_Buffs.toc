@@ -33,6 +33,7 @@ ReminderRow.lua
 Reminder.lua
 ReminderSelf.lua
 ReminderItems.lua
+ReminderPicker.lua
 EdgeEditor.lua
 Commands.lua
 Options.lua

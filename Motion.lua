@@ -437,6 +437,17 @@ function Motion.Tween(key, from, to, dur, step, done)
     driver:SetScript("OnUpdate", tick)
 end
 
+-- A tween from 0 to 1 that runs a little past its end and settles back
+-- (step gets the value, up to about 1.1): something springing into place.
+function Motion.Spring(key, dur, step, done)
+    Motion.Tween(key, 0, 1, dur or Motion.NORMAL, function(e)
+        -- Tween eases out; take its plain progress back and apply a back-out curve.
+        local p = 1 - (1 - math.min(1, math.max(0, e))) ^ (1 / 3)
+        local s, q = 1.70158, p - 1
+        step(1 + (s + 1) * q * q * q + s * q * q)
+    end, done)
+end
+
 -- The shared tween driver (nil until the first tween). Tests run it.
 function Motion.Driver() return driver end
 
