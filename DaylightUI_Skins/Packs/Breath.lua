@@ -18,6 +18,13 @@ local Breath = {
     TEXT = Style.SIZE.small,
 }
 ns.Breath = Breath
+
+-- The player's Slant angle for the breath bar and the boss timer bars, as a
+-- share of the bar's height.
+function ns.BarSlant()
+    local v = tonumber(DUI:Get("Skins", "barSlant"))
+    return (v and v > 0) and v or Breath.SLANT
+end
 Breath.holders = setmetatable({}, { __mode = "k" }) -- the game's timer frame -> the new bar
 
 local function paint(h)
@@ -65,7 +72,7 @@ local function layout(h)
     local function get(k) return DUI:Get("Skins", k) end
     local ends, under = Style.EndsOf(get("breathSlantLeft") == true, get("breathUnderLeft"),
         get("breathSlant") ~= false, get("breathUnder"))
-    local cut = ends and Pixel.Snap(h, height * Breath.SLANT) or 0
+    local cut = ends and Pixel.Snap(h, height * ns.BarSlant()) or 0
     Style.Slant(h, ends, cut, nil, under)
     local edge = (ends == "both" or ends == "right") and "right" or nil
     Style.AngleFill(h.bar, edge, cut * (height - 2 * T) / height, (under == "right" or under == "both") and edge ~= nil)
@@ -120,7 +127,7 @@ Engine.Register({ key = "breath", pack = "system", apply = function(Kit)
     end)
     DUI.On("SettingChanged", function(scope, path)
         if scope ~= "Skins" or not (path == "breathSlant" or path == "breathSlantLeft"
-            or path == "breathUnder" or path == "breathUnderLeft") then return end
+            or path == "breathUnder" or path == "breathUnderLeft" or path == "barSlant") then return end
         for _, h in pairs(Breath.holders) do layout(h) end
     end)
 end })

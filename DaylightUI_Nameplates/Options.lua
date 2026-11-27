@@ -117,6 +117,9 @@ ns.OPTIONS = { pages = {
               desc = "Text size of the names on enemy plates." },
             DaylightUI.Options.FontRow("media.nameFont", "Name font", "Names on the nameplates, and the guild line under them"),
             { type = "toggle", key = "slant", label = "Health bar angled end", desc = "Cuts the end of the bar at an angle. When off, the end is straight." },
+            { type = "slider", key = "slantAngle", label = "Slant angle", min = 0.05, max = 1, step = 0.01, unit = "%",
+              desc = "How far the health bar's angled end leans, as a share of the bar's height. The cast and power bars under it follow. 60% is the usual look.",
+              disabled = function(get) return get("slant") == false end },
         } },
         { label = "Clicking and stacking", items = {
             { type = "slider", key = "clickPad", label = "Click area", min = 0, max = 20, step = 1, unit = "px",

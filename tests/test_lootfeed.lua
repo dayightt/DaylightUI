@@ -773,3 +773,18 @@ T.test("bar ends: each loot feed end leans either way on its own; the menus show
     T.eq(Style.GetSlant(live(F)[1]).side, "right")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("loot feed: the Slant angle leans the ribbons' ends, on ribbons already showing", function()
+    local F = login()
+    loot("You receive loot: " .. FANG .. ".")
+    local r = live(F)[1]
+    local Pixel = DaylightUI.Pixel
+    T.near(DaylightUI.Style.GetSlant(r).cut, Pixel.Snap(r, F.ROW_H * 0.4), 1e-6, "40% by default, as ever")
+    DaylightUI:Set("QoL", "lootFeedAngle", 1)
+    T.near(DaylightUI.Style.GetSlant(live(F)[1]).cut, Pixel.Snap(r, F.ROW_H), 1e-6, "100% on the ribbon already up")
+    loot("You receive loot: " .. FANG .. ".")
+    for _, row in ipairs(live(F)) do
+        T.near(DaylightUI.Style.GetSlant(row).cut, Pixel.Snap(row, F.ROW_H), 1e-6, "and on the next one")
+    end
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

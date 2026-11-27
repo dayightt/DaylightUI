@@ -2239,3 +2239,28 @@ T.test("bar ends: meter and threat rows take both ends, each leaning either way 
     M.Draw()
     T.isnil(S.GetSlant(M.rows[1].bar).side, "straight again on the left")
 end)
+
+T.test("bar ends: the meter's and threat meter's Bar slant angle lean both ends, each window its own", function()
+    local DUI = login()
+    local S = DUI.Style
+    local M = stub.infopanel.Meter
+    stub.meter.sources = { { name = "A", classFilename = "MAGE", totalAmount = 10 } }
+    DUI:Set("InfoPanel", "meter.angledLeft", true)
+    stub.RunTimers()
+    M.Draw()
+    local bar = M.rows[1].bar
+    local before = S.GetSlant(bar).cut
+    T.truthy(before > 0, "angled at 45% of its height by default")
+    DUI:Set("InfoPanel", "meter.slant", 0.9)
+    stub.RunTimers()
+    M.Draw()
+    T.near(S.GetSlant(M.rows[1].bar).cut, math.floor(before / 0.45 * 0.9 + 0.5), 1.01, "twice the angle: twice the cut")
+    local TM = stub.infopanel.ThreatMeter
+    DUI:Set("InfoPanel", "threat.angledLeft", true)
+    stub.RunTimers()
+    local tBefore = S.GetSlant(TM.rows[1].bar).cut
+    DUI:Set("InfoPanel", "threat.slant", 0.9)
+    stub.RunTimers()
+    T.truthy(S.GetSlant(TM.rows[1].bar).cut > tBefore, "the threat meter's own setting")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

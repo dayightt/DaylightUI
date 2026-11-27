@@ -421,6 +421,9 @@ function MO.Page()
         -- Each end of the bars on its own: the right end is where the filled part ends.
         win(endRows[1]),
         win(endRows[2]),
+        win({ type = "slider", key = "win.slant", label = "Bar slant angle", kinds = BARS, min = 0.05, max = 1, step = 0.01, unit = "%",
+              disabled = function(get) return get("win.angled") == false and get("win.angledLeft") ~= true end,
+              desc = "How far the bars' angled ends lean, as a share of their height. 45% is the usual look." }),
         win({ type = "toggle", key = "win.gradient", label = "Bar gradient", kinds = BARS,
               desc = "The bars shade from dark to bright instead of one flat color. The color pairs are on General > Gradients." }),
         win({ type = "toggle", key = "win.classText", label = "Class-colored names and numbers", kinds = METER,

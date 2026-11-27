@@ -9,6 +9,9 @@ ns.DEFAULTS = {
     breathSlant = true, -- angled right end on the breath bar; off = straight (Packs/Breath.lua)
     -- Its left end angled too, and either end flipped (bottom corner out), each on its own.
     breathSlantLeft = false, breathUnder = false, breathUnderLeft = false,
+    -- How far the breath bar's and the boss timer bars' angled ends lean: the
+    -- cut's width as a share of the bar's height (Skins.BarSlant).
+    barSlant = 0.6,
     mapReveal = false, -- dim the world map's unexplored areas (MapReveal.lua)
     mapLogBeside = true, -- when maximized, open the quest list beside the map instead of shrinking it
     mapRevealDim = 0.6, -- brightness of the unexplored areas

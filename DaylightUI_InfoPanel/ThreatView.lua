@@ -125,7 +125,7 @@ function View.Layout(v, cfg, inset, W, n, gap)
                 Style.SetTextSize(row.name, size)
                 Style.SetTextSize(row.amount, size)
                 ns.Rows.Track(row, cfg.trackAlpha)
-                View.ROW.angled = cfg.angled ~= false
+                View.ROW.angled, View.ROW.slant = cfg.angled ~= false, cfg.slant
                 View.ROW.angledLeft, View.ROW.flipLeft, View.ROW.flipRight = cfg.angledLeft == true, cfg.flipLeft == true, cfg.flipRight == true
                 ns.Rows.Layout(row, View.ROW)
                 row.painted, row.mine, row.iconFile, row.levelInk, row.isTank = nil, nil, false, nil, nil

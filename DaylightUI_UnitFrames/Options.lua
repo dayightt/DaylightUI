@@ -2958,8 +2958,8 @@ ns.OPTIONS = { pages = {
     { id = "colors", label = "Look", desc = "The frames' shape, class icons, and the bars' and names' colors on every unit frame.", groups = {
         { label = "Frame shape", items = {
             styleRow("look.style", false),
-            { type = "slider", key = "look.slant", label = "Slant angle", min = 0.05, max = 0.4, step = 0.01, unit = "%",
-              desc = "How far the frames' angled ends lean, on every unit frame and cast bar. 21% is the usual look." },
+            { type = "slider", key = "look.slant", label = "Slant angle", min = 0.05, max = 1, step = 0.01, unit = "%",
+              desc = "How far the frames' angled ends lean, as a share of each bar's height, on every unit frame and cast bar. 21% is the usual look, 100% is 45 degrees." },
         } },
         { label = "Health and names", items = DaylightUI.Options.Join({
             { type = "dropdown", key = "colors.health", label = "Health bar color",

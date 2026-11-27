@@ -20,7 +20,7 @@ local Feed = {
     ROW_H = 30,
     GAP = 4,
     ICON = 20,
-    SLANT = 0.4,      -- the angled ends' cut, as a share of the height
+    SLANT = 0.4,      -- the angled ends' cut, as a share of the height (the lootFeedAngle default)
     PAD = 8,          -- space between the cut and the contents
     MAX_W = 300,      -- a long name is cut short past this
     MAX = 6,          -- ribbons at once; the oldest makes room (setting lootFeedMax)
@@ -296,7 +296,8 @@ local function cutOf(row, end_)
     elseif not (angledAt("left") or angledAt("right")) then
         return 0
     end
-    return Pixel.Snap(row, Feed.ROW_H * Feed.SLANT)
+    local k = tonumber(db("lootFeedAngle"))
+    return Pixel.Snap(row, Feed.ROW_H * ((k and k > 0) and k or Feed.SLANT))
 end
 
 local function slant(row)

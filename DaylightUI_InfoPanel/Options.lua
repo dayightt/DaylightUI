@@ -427,6 +427,8 @@ ns.OPTIONS = { pages = {
                 left = { on = "databar.angled", flip = "databar.flipLeft" }, right = { on = "databar.angledRight", flip = "databar.flipRight" } })[1],
             DaylightUI.Options.EndRows({ name = "Data bar", disabled = noBar, note = "The tab in the middle leans the same way.",
                 left = { on = "databar.angled", flip = "databar.flipLeft" }, right = { on = "databar.angledRight", flip = "databar.flipRight" } })[2],
+            { type = "slider", key = "databar.cut", label = "Data bar slant angle", min = 2, max = 40, step = 1, unit = "px", disabled = noBar,
+              desc = "How far the bar's angled ends and its middle tab reach in. Never more than the bar is tall (45 degrees). 12 is the usual look." },
         } },
         { label = "Borders and background", desc = "The data bar has no border on the global style: on a strip this thin the accent line is enough.", items = barLook },
         DaylightUI.Fade.Card("databar.fade.", nil, noBar, "Data bar"),

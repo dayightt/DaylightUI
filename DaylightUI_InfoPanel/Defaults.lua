@@ -58,6 +58,7 @@ ns.DEFAULTS = {
               rowGap = 1, angled = true,   -- angled: the fill's leading edge cut at an angle
               -- angledLeft: the bars' left end cut too; flipLeft/flipRight: that end leans the other way.
               angledLeft = false, flipLeft = false, flipRight = false,
+              slant = 0.45, -- how far the bars' angled ends lean, as a share of their height
               -- header is "always" or "hover" (only on mouseover).
               header = "always", headerTotal = false,
               numbers = "short",   -- short (12.3K) | full (12,345), used everywhere amounts show
@@ -94,7 +95,7 @@ ns.DEFAULTS = {
     -- header: mob name and your percent on top ("always" | "off").
     threat = { enabled = true, auto = "group", at = "left", belowRows = 3, width = 170, rowHeight = 16, rows = 6, textSize = 10,
                barColor = "class", gradient = true, barCustom = { 0.72, 0.70, 0.66 }, barGradient = DaylightUI.Style.DefaultStops(), nameColor = { 1, 1, 1 }, nameColorBy = "custom",
-               pullLine = true, pullColor = ink(INK.BAD), frameStyle = DaylightUI.Style.LookDefaults(), trackAlpha = 0.35, header = "always", angled = true,
+               pullLine = true, pullColor = ink(INK.BAD), frameStyle = DaylightUI.Style.LookDefaults(), trackAlpha = 0.35, header = "always", angled = true, slant = 0.45,
                fade = DaylightUI.Fade.Defaults() },
     -- meterSide: which side of the map the meters slide out on. "auto" picks
     -- the side facing the middle of the screen.
@@ -131,6 +132,7 @@ ns.DEFAULTS = {
                 -- (a core step split the old one switch, DB.SplitBarEnds); flipLeft and
                 -- flipRight lean that end the other way, its bottom corner out.
                 angledRight = true, flipLeft = false, flipRight = false,
+                cut = 12, -- how far the angled ends (and the middle tab's) reach in, px
                 left1 = "location", left2 = "coords", left3 = "xp", left4 = "durability",
                 center = "time", numberColor = "accent", numberCustom = ink(INK.VALUE),
                 right1 = "bags", right2 = "social", right3 = "gold", right4 = "system",

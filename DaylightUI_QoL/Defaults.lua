@@ -137,6 +137,7 @@ ns.DEFAULTS = {
     -- against the lean it has (parallel ends, leaning with the side the feed
     -- lines up on). A core step split the old lootFeedSlant / lootFeedSlantSide.
     lootFeedLeft = true, lootFeedRight = true, lootFeedFlipLeft = false, lootFeedFlipRight = false,
+    lootFeedAngle = 0.4, -- how far the angled ends lean: the cut's width as a share of the height
     lootFeedBorderColor = "normal", -- normal | quality | accent | custom
     lootFeedBorderCustom = { DaylightUI.Style.ACCENT[1], DaylightUI.Style.ACCENT[2], DaylightUI.Style.ACCENT[3] },
     lootFeedShine = true,   -- the light that runs across a new line

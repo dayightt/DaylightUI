@@ -155,7 +155,7 @@ local function castOf(p) return p.cast end
 local function castBox(p) return { w = p.cast:GetWidth(), h = p.cast:GetHeight(), padX = 0, padY = 0 } end
 Sample.PARTS = {
     { label = "Health bar", at = at("hp"),
-      keys = { "width", "height", "slant", "scale", "media.health", "healthColor", "healthCustom",
+      keys = { "width", "height", "slant", "slantAngle", "scale", "media.health", "healthColor", "healthCustom",
                "bossBar", "bossColor", "rareBar", "rareColor", "questBar", "questColor", "casterBar", "casterColor",
                "predictHeals", "predictAbsorbs", "dotTint", "execute", "executePct", "executeStyle",
                "threat", "threatBar", "threatBorder", "threatGlow", "threatPulse", "threatFill",

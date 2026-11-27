@@ -19,7 +19,14 @@ Bar.LOOK = { "InfoPanel", "databar.frameStyle" }
 Bar.HOME = { "BOTTOM", nil, "BOTTOM", 0, 0 }
 Bar.SIDE = 4           -- texts on each side of the center slot
 Bar.TAB_W = 128        -- center tab width and angled cut
-Bar.TAB_CUT = 12
+Bar.TAB_CUT = 12       -- the databar.cut default
+-- How far the bar's and its tab's angled ends reach in, in px: the player's
+-- Slant angle, never more than half the bar's height past 45 degrees.
+function Bar.Cut(c)
+    local v = tonumber(c and c.cut)
+    if not (v and v > 0) then v = Bar.TAB_CUT end
+    return math.min(v, math.max(1, (tonumber(c and c.height) or v)))
+end
 Bar.TAB_ALPHA = 0.14   -- accent tint on the tab
 Bar.INSET = 22         -- text inset from the angled ends and the tab
 Bar.CORNER = 460       -- width a screen corner needs for chat or a meter window
@@ -186,7 +193,7 @@ function Bar.Zones()
     Bar.frame:SetWidth(W)
     Bar.leftArea:SetWidth(side)
     Bar.rightArea:SetWidth(side)
-    Bar.centerArea:SetWidth(math.max(1, tabW - 2 * Bar.TAB_CUT))
+    Bar.centerArea:SetWidth(math.max(1, tabW - 2 * Bar.Cut(c)))
     Bar.left.Layout()
     Bar.center.Layout()
     Bar.right.Layout()
@@ -244,8 +251,9 @@ function Bar.Apply(db)
     -- Each end on its own, flipped or not; the tab in the middle keeps both ends
     -- angled and leans each the way that end does.
     local ends, under = Style.EndsOf(c.angled == true, c.flipLeft, c.angledRight ~= false, c.flipRight)
-    Style.Slant(body, ends, ends and Bar.TAB_CUT or 0, nil, under)
-    Style.Slant(Bar.tab, "both", Bar.TAB_CUT, nil, select(2, Style.EndsOf(true, c.flipLeft, true, c.flipRight)))
+    local cut = Bar.Cut(c)
+    Style.Slant(body, ends, ends and cut or 0, nil, under)
+    Style.Slant(Bar.tab, "both", cut, nil, select(2, Style.EndsOf(true, c.flipLeft, true, c.flipRight)))
     Bar.tab.fill:SetColorTexture(1, 1, 1, 1)
     Style.PaintAccent(Bar.tab.fill, Bar.TAB_ALPHA)
     f:SetHeight(c.height)

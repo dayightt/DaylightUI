@@ -37,7 +37,12 @@ Plate.BORDER = function(px, h)
     end
     return t
 end
-Plate.SLANT = 0.6 -- angled end cut, as a fraction of bar height
+Plate.SLANT = 0.6 -- angled end cut, as a fraction of bar height (the slantAngle default)
+-- The health bar's angled end, as a share of its height: the player's Slant angle.
+function Plate.Slant(c)
+    local v = tonumber(c and c.slantAngle)
+    return (v and v > 0) and v or Plate.SLANT
+end
 Plate.NAME_GAP = 2 -- gap between the bar and the name
 Plate.HOVER = 0.15 -- mouseover brighten
 Plate.MARKER = 16
@@ -898,7 +903,7 @@ function Plate.Layout(p)
             return math.min(Plate.BORDER(px, h), maxBorder)
         end
     end
-    local cut = (friendly or c.slant == false) and 0 or Pixel.Snap(hp, h * Plate.SLANT)
+    local cut = (friendly or c.slant == false) and 0 or Pixel.Snap(hp, h * Plate.Slant(c))
     ns.Body.Layout(p.body, 0, cut)
     local T = p.body.T
     -- Fill inside the border, its moving edge leaning with the cut (its one mask).

@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Bar animations", "Flip direction: Flow, Slosh and Molten can run the other way along the bar" },
+        { "Slant angle", "Set how far angled bar ends lean on nameplates, the loot feed, meters, the data bar, the breath bar and boss timer bars. Unit frames' Slant angle now goes up to 100%" },
     }, changed = {
         { "Bags", "The bags' own \"Compare with what you wear\" switch is gone. The one under Tooltip decides for every item, bags included" },
     }, fixed = {

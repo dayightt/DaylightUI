@@ -5142,3 +5142,24 @@ T.test("bar ends: the breath bar's ends each on their own, its fill leans with t
     T.eq(Style.GetSlant(h).side, "left", "the left end alone")
     T.falsy(Style.GetFillAngle(h.bar), "the fill square toward a straight end")
 end)
+
+T.test("skins: the Slant angle leans the breath bar's end, live, at any angle up to 45 degrees", function()
+    local t
+    local S = login(function()
+        local c = CreateFrame("Frame", "MirrorTimerContainer", UIParent)
+        t = CreateFrame("Frame", nil, c)
+        t.StatusBar = CreateFrame("StatusBar", nil, t)
+        t.Text = t:CreateFontString()
+        t.Setup = function() end
+        c.mirrorTimers = { t }
+    end)
+    local Style, Pixel = DaylightUI.Style, DaylightUI.Pixel
+    local h = S.Breath.holders[t]
+    local H = h:GetHeight()
+    T.near(Style.GetSlant(h).cut, Pixel.Snap(h, H * 0.6), 1e-6, "60% by default, as ever")
+    DaylightUI:Set("Skins", "barSlant", 1)
+    T.near(Style.GetSlant(h).cut, Pixel.Snap(h, H), 1e-6, "100%: as wide as the bar is tall")
+    DaylightUI:Set("Skins", "barSlant", 0.1)
+    T.near(Style.GetSlant(h).cut, Pixel.Snap(h, H * 0.1), 1e-6, "10%: nearly square")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

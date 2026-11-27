@@ -23,7 +23,6 @@ Engine.AddonSwitch({ key = "dbm", addon = ADDON, label = "Deadly Boss Mods",
     desc = "Its timer bars in your font, bar texture and border. Sizes, colors and spots stay DBM's." })
 
 local DBMSkin = {
-    SLANT = 0.6, -- angled cut as a fraction of the height, same as the breath bar
 }
 ns.DBMSkin = DBMSkin
 DBMSkin.holders = setmetatable({}, { __mode = "k" }) -- bar frame -> the border frame behind it
@@ -55,7 +54,7 @@ local function layout(h)
     local inner = bar:GetHeight()
     if not plain(inner) or inner <= 0 then return end
     local height = inner + 2 * T
-    local cut = right == bar and Pixel.Snap(h, height * DBMSkin.SLANT) or 0
+    local cut = right == bar and Pixel.Snap(h, height * ns.BarSlant()) or 0
     Style.Slant(h, cut > 0 and "right" or nil, cut)
     Style.AngleFill(bar, cut > 0 and "right" or nil, cut * inner / height)
 end
@@ -117,7 +116,11 @@ Engine.Register({ key = "dbm", pack = "addons", addon = ADDON, switch = "dbm", l
     end
     -- A border setting changed: resize each border. Fonts, shells and the bar
     -- texture update on their own.
-    DUI.On("StyleChanged", Engine.Safe(def, function()
+    local function relayout()
         for _, h in pairs(DBMSkin.holders) do layout(h) end
+    end
+    DUI.On("StyleChanged", Engine.Safe(def, relayout))
+    DUI.On("SettingChanged", Engine.Safe(def, function(scope, path)
+        if scope == "Skins" and path == "barSlant" then relayout() end
     end))
 end })

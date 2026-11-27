@@ -1068,3 +1068,27 @@ T.test("bar ends: on every page a bar's two end menus sit together in one card, 
     end
     T.truthy(found > 10, "end menus found: " .. found)
 end)
+
+T.test("slant angle: every bar with angled ends has its own slider, up to 45 degrees", function()
+    local pages = {
+        { "UnitFrames.colors", "look.slant", 1, "%", {} },
+        { "Nameplates.plates", "slantAngle", 1, "%", { nameplates = true } },
+        { "Skins.skins", "barSlant", 1, "%", { skins = true } },
+        { "QoL.loot", "lootFeedAngle", 1, "%", { qol = true } },
+        { "InfoPanel.databar", "databar.cut", 40, "px", { infopanel = true } },
+    }
+    for _, p in ipairs(pages) do
+        local load = p[5]
+        load.module = true
+        stub.Load(load)
+        DaylightUI.OptionsPanel.Show(p[1])
+        local pf = DaylightUI.OptionsPanel.PageFrame()
+        local row = rowFor(pf, p[2])
+        T.truthy(row, p[2] .. " has a slider on " .. p[1])
+        if row then
+            T.eq(row.item.type, "slider", p[2])
+            T.eq(row.item.max, p[3], p[2] .. " reaches " .. p[3])
+            T.eq(row.item.unit, p[4], p[2])
+        end
+    end
+end)

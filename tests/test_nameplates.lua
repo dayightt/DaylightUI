@@ -5175,3 +5175,21 @@ T.test("nameplates: a mob's channel with no display name still shows its bar", f
     T.truthy(p.cast:IsShown(), "the channel shows")
     T.eq(stub.Text(p.cast.text), "Mind Flay", "named by the spell when the display name is missing")
 end)
+
+T.test("nameplates: the Slant angle sets how far the health bar's end leans, live, and the cast bar follows", function()
+    login()
+    local DUI = DaylightUI
+    local p = added("nameplate1")
+    local Pixel = DaylightUI.Pixel
+    local hh = p.hp:GetHeight()
+    T.near(p.hpCut, Pixel.Snap(p.hp, hh * 0.6), 1e-6, "60% by default, as ever")
+    DUI:Set("Nameplates", "slantAngle", 1)
+    stub.RunTimers()
+    T.near(p.hpCut, Pixel.Snap(p.hp, hh), 1e-6, "100%: the cut as wide as the bar is tall, on a plate already up")
+    local g = p.cast.body.geo
+    T.near(g.cutBottom - g.cutTop, p.hpCut * p.cast:GetHeight() / hh, 1e-6, "the cast bar carries the new angle on down")
+    DUI:Set("Nameplates", "slant", false)
+    stub.RunTimers()
+    T.eq(p.hpCut, 0, "the angled end switched off still wins")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

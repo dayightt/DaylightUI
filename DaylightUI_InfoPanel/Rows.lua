@@ -15,7 +15,7 @@ ns.Rows = Rows
 Rows.BORDER = 1               -- the bar's inset in its row, physical px
 Rows.GAP = 3                  -- between the rank, the icon and the bar
 Rows.RANK_DIGITS = "40"       -- the rank column is as wide as this
-Rows.CUT = 0.45               -- the fill's angled edge, as a share of the bar's height
+Rows.CUT = 0.45               -- the fill's angled edge, as a share of the bar's height (the slant default)
 
 
 -- Daylight UI's own class icons, used when the unit frames are off.
@@ -103,7 +103,8 @@ function Rows.Layout(row, cfg)
     -- with the track's end at the same angle (cfg.angled), the left one the
     -- fill's and track's start (cfg.angledLeft); either can lean the other
     -- way (cfg.flipRight, cfg.flipLeft: its bottom corner out).
-    local full = math.max(1, math.floor((h - 2 * T) * Rows.CUT + 0.5))
+    local k = tonumber(cfg.slant)
+    local full = math.max(1, math.floor((h - 2 * T) * ((k and k > 0) and k or Rows.CUT) + 0.5))
     local cut = cfg.angled ~= false and full or nil
     local flipRight = cut ~= nil and cfg.flipRight == true
     Style.AngleFill(row.bar, cut and "right", cut, flipRight)

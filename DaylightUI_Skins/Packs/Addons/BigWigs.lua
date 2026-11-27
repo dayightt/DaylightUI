@@ -26,7 +26,6 @@ Engine.AddonSwitch({ key = "bigwigs", addon = ADDON, label = LABEL,
     desc = "Their timer bars in your font, bar texture and border, on BigWigs' Default bar style. Sizes, colors and spots stay BigWigs'." })
 
 local BigWigsSkin = {
-    SLANT = 0.6, -- angled cut as a fraction of the height, same as the breath bar
     TEXT_X = 2, -- LibCandyBar's text inset
 }
 ns.BigWigsSkin = BigWigsSkin
@@ -88,7 +87,7 @@ local function layout(bar, h)
         fill:SetPoint("TOPLEFT", bar, "TOPLEFT", T, -T)
         fill:SetPoint("BOTTOMRIGHT", bar, "BOTTOMRIGHT", -T, T)
     end
-    local cut = (not right and outer > 0) and Pixel.Snap(h, outer * BigWigsSkin.SLANT) or 0
+    local cut = (not right and outer > 0) and Pixel.Snap(h, outer * ns.BarSlant()) or 0
     Style.Slant(h, cut > 0 and "right" or nil, cut)
     Style.AngleFill(fill, cut > 0 and "right" or nil, outer > 0 and cut * inner / outer or 0)
     -- Keep the time clear of the angled end.
@@ -151,9 +150,13 @@ Engine.Register({ key = "bigwigs", pack = "addons", addon = "BigWigs_Plugins", s
     hooksecurefunc(style, "BarStopped", Engine.Safe(def, BigWigsSkin.Undress))
     -- A border setting changed: resize each border. Fonts, shells and bar
     -- textures update on their own.
-    DUI.On("StyleChanged", Engine.Safe(def, function()
+    local function relayout()
         for bar, h in pairs(BigWigsSkin.holders) do
             if h:IsShown() then layout(bar, h) end
         end
+    end
+    DUI.On("StyleChanged", Engine.Safe(def, relayout))
+    DUI.On("SettingChanged", Engine.Safe(def, function(scope, path)
+        if scope == "Skins" and path == "barSlant" then relayout() end
     end))
 end })

@@ -119,6 +119,8 @@ ns.OPTIONS = { pages = {
             DaylightUI.Options.EndRows({ name = "Breath bar", note = "The fatigue and feign death bars too.",
                 disabled = function(get) return get("packs.system") == false end,
                 left = { on = "breathSlantLeft", flip = "breathUnderLeft" }, right = { on = "breathSlant", flip = "breathUnder" } })[2],
+            { type = "slider", key = "barSlant", label = "Slant angle", min = 0.05, max = 1, step = 0.01, unit = "%",
+              desc = "How far the angled ends lean on the breath bar and on BigWigs and Deadly Boss Mods timer bars, as a share of the bar's height. 60% is the usual look." },
             { type = "toggle", key = "ccAlert", label = "Crowd control alert", reload = true,
               desc = "The alert in the middle of the screen when you're stunned, feared or silenced, as a light line in Daylight UI style. When off, the game's own alert shows instead.",
               disabled = function(get) return get("packs.system") == false end },

@@ -1809,3 +1809,17 @@ T.test("data bar: its own number color reaches every text on both sides and the 
     T.eq(DUI:Get("InfoPanel", "data.numberColor"), "accent", "the panel's strip keeps its own")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+T.test("data bar: its Slant angle sets how far the ends and the middle tab reach in, never past 45 degrees", function()
+    local DUI = login()
+    barOn(DUI)
+    local S = DUI.Style
+    T.eq(S.GetSlant(bar().body).cut, 12, "12 px by default, as ever")
+    T.eq(S.GetSlant(bar().tab).cut, 12)
+    barOn(DUI, "databar.cut", 20)
+    T.eq(S.GetSlant(bar().body).cut, 20, "the ends")
+    T.eq(S.GetSlant(bar().tab).cut, 20, "and the middle tab with them")
+    barOn(DUI, "databar.cut", 40)
+    T.eq(S.GetSlant(bar().body).cut, DUI:Get("InfoPanel", "databar.height"), "never longer than the bar is tall")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
