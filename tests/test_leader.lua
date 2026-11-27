@@ -747,3 +747,53 @@ T.test("leader card: Ready and Role are our own icons, not words, so no language
     -- The strip fits inside the button's fill (24 high, a 3 px band round it).
     T.truthy(ns.Leader.ICON_SIZE <= ns.Leader.BUTTON_H - 6, "icons stay inside the button")
 end)
+
+T.test("leader card: someone not leading sees only the markers, lead passed mid-fight brings the rest after it", function()
+    local DUI, ns = member("TANK")
+    local L = ns.Leader
+    DUI:Set("general", "motion", false)
+    L.Open()
+    T.falsy(L.readyButtons[1].button:IsVisible(), "no ready check for a member")
+    T.falsy(L.pullButtons[1].button:IsVisible(), "no pull timer either")
+    T.truthy(_G.DaylightUILeaderTarget1:IsVisible(), "the markers stay")
+    local memberH = L.card:GetHeight()
+    -- Slim: the chevron still has a spot above the first marker row.
+    DUI:Set("UnitFrames", "leader.slim", true)
+    stub.RunTimers()
+    local top = select(5, L.slimButton:GetPoint(1))
+    local marks = L.markerSections[1]
+    T.truthy(-top + L.SLIM_BUTTON - L.SLIM_INSET <= marks.y + 0.5,
+        "the chevron sits above the markers: " .. (-top) .. " vs " .. marks.y)
+    DUI:Set("UnitFrames", "leader.slim", false)
+    stub.RunTimers()
+
+    -- Lead passes to you in a fight: the card can't change shape until it ends.
+    stub.EnterCombat()
+    stub.units.player.leader = true
+    stub.FireEvent("PARTY_LEADER_CHANGED")
+    stub.RunTimers()
+    T.falsy(L.readyButtons[1].button:IsVisible(), "nothing moves in the fight")
+    stub.LeaveCombat()
+    stub.RunTimers()
+    T.truthy(L.readyButtons[1].button:IsVisible(), "the leader's rows come after it")
+    T.truthy(L.pullButtons[1].button:IsVisible())
+    T.truthy(L.card:GetHeight() > memberH + 40, "the card grows for them")
+    T.eq(#stub.errors, 0, table.concat(stub.errors, "\n"))
+end)
+
+T.test("leader card: world markers look like the beacons on the ground, target markers don't", function()
+    local _, ns = login("leader")
+    ns.Leader.Open()
+    for k = 1, 8 do
+        local w = _G["DaylightUILeaderWorld" .. k]
+        T.truthy(type(w.beacon) == "table" and w.beacon.pool and w.beacon.beam, "world marker " .. k .. " has a beacon")
+        T.truthy(w.beacon.pool:IsVisible() and w.beacon.beam:IsVisible())
+        local r, g, b = w.beacon.pool:GetVertexColor()
+        T.falsy(r == 1 and g == 1 and b == 1, "tinted in the marker's own color")
+        T.falsy(_G["DaylightUILeaderTarget" .. k].beacon, "target marker " .. k .. " stays plain")
+    end
+    -- Skull is the first world button and the last icon.
+    local r, g, b = _G.DaylightUILeaderWorld1.beacon.pool:GetVertexColor()
+    local want = ns.Leader.BEACON[8]
+    T.near(r, want[1], 0.01); T.near(g, want[2], 0.01); T.near(b, want[3], 0.01)
+end)

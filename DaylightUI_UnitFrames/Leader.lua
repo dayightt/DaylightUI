@@ -61,6 +61,27 @@ Leader.WORLD_ORDER = { 8, 4, 1, 7, 2, 3, 6, 5 }
 Leader.WORLD_ICON = { 6, 4, 3, 7, 1, 2, 5, 8 }
 Leader.ICON = DUI.MEDIA .. "marker-%d.png"
 Leader.CLEAR_ICON = DUI.MEDIA .. "marker-clear.png"
+-- World markers wear a small beacon, like the light they leave on the ground: a
+-- glow pool at the button's foot and a faint column rising from it, in the
+-- marker's color (by target icon number). It tells the two rows apart without
+-- titles, so the slim card reads too.
+Leader.BEACON = {
+    { 1, 0.86, 0.3 },    -- star
+    { 1, 0.6, 0.25 },    -- circle
+    { 0.8, 0.5, 0.95 },  -- diamond
+    { 0.4, 0.85, 0.35 }, -- triangle
+    { 0.8, 0.85, 0.95 }, -- moon
+    { 0.3, 0.65, 1 },    -- square
+    { 1, 0.35, 0.3 },    -- cross
+    { 0.95, 0.93, 0.9 }, -- skull
+}
+Leader.POOL = DUI.MEDIA .. "glow.png"
+Leader.BEAM = DUI.MEDIA .. "waypoint-beam.png"
+Leader.POOL_H = 9            -- the glow pool's height
+Leader.POOL_ALPHA = 0.85     -- at rest; hover lights it fully
+Leader.BEAM_W = 14
+Leader.BEAM_ALPHA = 0.5
+Leader.LIFT = 3              -- the icon shrinks this much and stands on the pool
 -- Our own flat icons for Ready (the tick, in the accent) and Role (the three
 -- role badges the group frames use), so no language can break them.
 Leader.READY_ICON = DUI.MEDIA .. "ui-check.png"
@@ -476,6 +497,34 @@ local function markButton(sec, name, icon, x)
     return b
 end
 
+-- The beacon under a world marker's icon (Leader.BEACON).
+local function beacon(b, icon)
+    local c = Leader.BEACON[icon]
+    local T = DUI.Pixel.Px(b, Leader.BORDER)
+    local room = Leader.MARK - 2 * T
+    local beam = b:CreateTexture(nil, "ARTWORK", nil, -2)
+    beam:SetTexture(Leader.BEAM)
+    beam:SetBlendMode("ADD")
+    beam:SetVertexColor(c[1], c[2], c[3])
+    beam:SetAlpha(Leader.BEAM_ALPHA)
+    beam:SetSize(Leader.BEAM_W, room)
+    beam:SetPoint("BOTTOM", b, "BOTTOM", 0, T)
+    local pool = b:CreateTexture(nil, "ARTWORK", nil, -1)
+    pool:SetTexture(Leader.POOL)
+    pool:SetBlendMode("ADD")
+    pool:SetVertexColor(c[1], c[2], c[3])
+    pool:SetAlpha(Leader.POOL_ALPHA)
+    pool:SetSize(room + 2 * T, Leader.POOL_H)
+    pool:SetPoint("BOTTOM", b, "BOTTOM", 0, T)
+    -- The icon stands on the pool.
+    b.icon:ClearAllPoints()
+    b.icon:SetSize(room - Leader.LIFT, room - Leader.LIFT)
+    b.icon:SetPoint("TOP", b, "TOP", 0, -T)
+    b:HookScript("OnEnter", function() Motion.Fade(pool, Leader.POOL_ALPHA, 1, Motion.FAST) end)
+    b:HookScript("OnLeave", function() Motion.Fade(pool, 1, Leader.POOL_ALPHA, Motion.FAST) end)
+    b.beacon = { pool = pool, beam = beam }
+end
+
 local function markerName(i)
     return _G["RAID_TARGET_" .. i] or tostring(i)
 end
@@ -585,6 +634,9 @@ local function build()
     -- Slim, the chevron sits at the end of this row, so the row leaves it room.
     ready.slimSpots, ready.slimH = rowSpots(Leader.readyButtons,
         ready:GetWidth() - (Leader.SLIM_BUTTON - Leader.SLIM_INSET) - Leader.GAP)
+    -- Ready check, role check and the pull are the leader's: someone else's
+    -- card leaves them off (layoutCard).
+    ready.lead = true
     Leader.readySection = ready
     slimButton = W.IconButton(inner, "ui-chevron.png", function()
         return Leader.Slim() and L["Full leader tools"] or L["Slim leader tools"]
@@ -609,6 +661,7 @@ local function build()
     end
     Leader.pullButtons[#Leader.pullButtons + 1] = { text = CANCEL or L["Cancel"], click = function() Leader.Countdown(0) end }
     buttonRow(pull, Leader.pullButtons)
+    pull.lead = true
 
     local target = newSection(L["Target markers"])
     markerRow(target, "DaylightUILeaderTarget", Leader.TARGET_ORDER, function(n) return n end,
@@ -634,6 +687,7 @@ local function build()
             b:SetAttribute("marker", n)
             b:SetAttribute("action1", "set")
             b:SetAttribute("action2", "clear")
+            beacon(b, Leader.WORLD_ICON[n])
             b.tipTitle = markerName(Leader.WORLD_ICON[n])
             b.tipHints = { L["Click: place it on the ground"], L["Right-click: take it away"] }
         end,
@@ -644,6 +698,7 @@ local function build()
             c.tipHints = { L["Click: take every world marker away"] }
         end)
 
+    Leader.markerSections = { target, world }
     Leader.tab, Leader.card, Leader.driver = tab, card, driver
     -- Its handle shows while the tools are on and the group frames are up.
     DUI.Movers.Register(tab, Leader.MOVER, "Leader Tools", Leader.HOME, {
@@ -659,19 +714,31 @@ function Leader.Slim()
     return db ~= nil and db.leader ~= nil and db.leader.slim == true
 end
 
+-- Whether the game's group calls are yours: leader, a raid's assist, or practice.
+function Leader.Leading()
+    return Leader.Rank() ~= nil or Leader.Practicing()
+end
+
 -- Lays the rows down the card at slimP and sizes it. Out of combat only.
 local function layoutCard()
     local p = slimP
     local gap = Leader.SECTION_GAP + (Leader.SLIM_GAP - Leader.SECTION_GAP) * p
     local y = Leader.PAD
+    local leading = Leader.Leading()
+    -- Without the ready row the chevron keeps the first title's spot, slim too.
+    local chevronRow = leading and 1 or 0
     wipe(shown)
     for _, sec in ipairs(sections) do
-        y = y + sec.head * (1 - p)
-        if sec.list then placeRow(sec, p) end
-        if sec.title then sec.title:SetAlpha(1 - p) end
-        sec.y = y
-        y = y + sec:GetHeight() + gap
-        shown[#shown + 1] = sec
+        local on = leading or not sec.lead
+        sec:SetShown(on)
+        if on then
+            y = y + sec.head * ((#shown == 0 and chevronRow == 0) and 1 or (1 - p))
+            if sec.list then placeRow(sec, p) end
+            if sec.title then sec.title:SetAlpha(1 - p) end
+            sec.y = y
+            y = y + sec:GetHeight() + gap
+            shown[#shown + 1] = sec
+        end
     end
     local h = y - gap + Leader.PAD
     inner:SetHeight(h)
@@ -681,8 +748,9 @@ local function layoutCard()
     local fullTop = Leader.PAD + Style.SIZE.small / 2 - Leader.SLIM_BUTTON / 2
     local slimTop = Leader.PAD + Leader.BUTTON_H / 2 - Leader.SLIM_BUTTON / 2
     slimButton:ClearAllPoints()
+    local q = p * chevronRow
     slimButton:SetPoint("TOPRIGHT", inner, "TOPRIGHT", -Leader.PAD + Leader.SLIM_INSET,
-        -(fullTop + (slimTop - fullTop) * p))
+        -(fullTop + (slimTop - fullTop) * q))
     slimButton.icon:SetRotation(math.pi * (1 - p))
     if Leader.open and not (driver and driver:GetScript("OnUpdate")) then
         for _, sec in ipairs(shown) do setRise(sec, 1) end
@@ -865,7 +933,7 @@ end, L["/dui leader - open or close the leader tools; /dui leader test (or test 
 function Leader.Refresh()
     if not card then return end
     -- A party member who opened it manually only gets the markers.
-    local blocked = DUI.Restricted() or not (Leader.Rank() ~= nil or Leader.Practicing())
+    local blocked = DUI.Restricted() or not Leader.Leading()
     for _, it in ipairs(Leader.readyButtons) do it.button.SetOff(blocked) end
     for _, it in ipairs(Leader.pullButtons) do it.button.SetOff(blocked) end
     -- UnitInBattleground returns the player's slot number, or nil.
