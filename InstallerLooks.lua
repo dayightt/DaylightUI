@@ -118,7 +118,7 @@ Looks.KINDS = {
         box = function(parent) return Looks.Costs(parent) end,
         apply = function(k, set) set("ActionBars", "look.costs", k == "on") end,
     },
-    -- New in 2.5. Off writes the XP gain effects switch, which the orbs ride on.
+    -- New in 2.4.2. Off writes the XP gain effects switch, which the orbs ride on.
     xpOrbs = {
         title = "XP orbs",
         desc = "When you gain XP, a ring of orbs bursts out and streams into your experience bar, filling it as they land.",

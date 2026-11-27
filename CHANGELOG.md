@@ -1,3 +1,24 @@
+# DaylightUI 2.4.2
+
+XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.
+
+## New
+- Info Panel: XP orbs: gaining experience sends a ring of orbs flying into your XP bar
+- Buffs: Missing buffs show as icons above you: raid buffs, class buffs, poisons, food, scrolls and more. Click one to cast it. Set them up under Buffs > Missing buffs
+
+## Changed
+- Unit frames: The druid resource bars are gone. In bear and cat form, a mana strip on your power bar shows your mana instead
+- Leader tools: When you aren't the leader, the card shows only the markers. World markers glow so they're easy to tell apart
+
+## Fixed
+- Bags: Hovering Disenchant after Shift-clicking it no longer throws an error
+- Info Panel: The data bar's text color setting works again
+- Bar animations: Embers uses your chosen colors instead of always orange
+- Group finder: Typing /who opens the Who tab
+- Chat: Clicking a Battle.net friend's name in a whisper works again
+- Character: The Skills, Currency, Statistics and PvP tabs now do everything the game's own window does (skill details, currency links and caps, live stats, season countdown)
+- Character: Right-drag your character to move it in view, gear you've enchanted glows, and Ctrl-click a set item to try it on
+
 # DaylightUI 2.4.1
 
 Proc alerts redone as living flame, spell costs on your action buttons, icon borders per frame, and lower nameplates on new profiles.

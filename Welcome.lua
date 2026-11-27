@@ -3,7 +3,7 @@
 -- sunrise banner with what's new; then one slide per new look (portraits,
 -- tooltips, Proc Alerts) where both are drawn side by side and the player
 -- picks one, and a slide showing the new bar animations moving, with where to
--- pick them. 2.5 adds its own page on the banner: XP orbs and missing buffs,
+-- pick them. 2.4.2 adds its own page on the banner: XP orbs and missing buffs,
 -- each playing in a card with a switch. A player who saw it before gets only
 -- the slides added since.
 -- Nothing is written until Finish; closing it early asks again next login.
@@ -55,7 +55,7 @@ Welcome.CHOICES = { "portraitLook", "tooltipStyle", "plateClassIcon", "procAlert
 -- saw an earlier one gets only these, without the news.
 Welcome.SINCE = { procAlerts = 3, barFx = 4, news25 = 5 }
 
--- The 2.5 page: a card per new thing (InstallerLooks.KINDS, on or off), each
+-- The 2.4.2 page: a card per new thing (InstallerLooks.KINDS, on or off), each
 -- playing its preview over a few words, a switch in its corner. A thing whose
 -- module is off is left out; the page shows while one is left.
 Welcome.NEWS25 = {
@@ -489,7 +489,7 @@ local function buildNews(parent, width)
     return page
 end
 
--- The 2.5 page, on the banner like the news: the "Version 2.5" plaque, the
+-- The 2.4.2 page, on the banner like the news: the "Version 2.4.2" plaque, the
 -- title between its lines, then a card per new thing side by side, each
 -- playing its preview over a few words and where to fine-tune it, with a
 -- switch in its corner (a click anywhere on the card flips it too). A switch
@@ -554,12 +554,12 @@ local function buildNews25(parent, width)
     local M = DUI.Motion
     local page = CreateFrame("Frame", nil, parent)
     page:SetWidth(width)
-    page.chrome = buildChrome(page, "2.5")
+    page.chrome = buildChrome(page, "2.4.2")
 
     local y = Welcome.TITLE_TOP
     page.greet = W.Font(page, W.TITLE, Welcome.TITLE_SIZE, C.value, "CENTER")
     page.greet:SetPoint("TOP", page, "TOP", 0, -y)
-    page.greet:SetText(string.format(L["New in Daylight UI %s"], DUI.GradientText("2.5")))
+    page.greet:SetText(string.format(L["New in Daylight UI %s"], DUI.GradientText("2.4.2")))
     page.ruleL = rule(page, Welcome.RULE_W, true)
     page.ruleL:SetPoint("RIGHT", page.greet, "LEFT", -Welcome.RULE_GAP, 0)
     page.ruleR = rule(page, Welcome.RULE_W, false)
@@ -766,7 +766,7 @@ function Welcome.Go(i)
         local steps = {}
         for n, s in ipairs(run.slides) do
             local k = Welcome.SHOWS[s] or Looks.KINDS[s] or {}
-            local label = s == "news" and L["What's new"] or s == "news25" and L["New in 2.5"] or L[k.rail or k.title]
+            local label = s == "news" and L["What's new"] or s == "news25" and L["New in 2.4.2"] or L[k.rail or k.title]
             steps[n] = { id = n, label = label }
         end
         UI.SetRail(steps, i, run.visited, Welcome.Go)
@@ -826,7 +826,7 @@ function Welcome.Show(after)
     local list = slides(after)
     if #list == 0 then return true end
     run = { slides = list, picks = {}, pages = {}, visited = {} }
-    -- The 2.5 page's switches start as the settings are.
+    -- The 2.4.2 page's switches start as the settings are.
     for _, kind in ipairs(list) do
         if kind == "news25" then
             for _, item in ipairs(news25()) do run.picks[item.kind] = DUI.InstallerLooks.Current(item.kind) end
@@ -864,4 +864,4 @@ DUI.RegisterCommand("welcome", function() Welcome.Show() end,
     function() return L["/dui welcome - what's new in Daylight UI 2.0 and since, and the new looks to pick from"] end)
 -- Only the slides this version's welcome added.
 DUI.RegisterCommand("whatsnew", function() Welcome.Show(Welcome.VERSION - 1) end,
-    function() return L["/dui whatsnew - what's new in Daylight UI 2.5: XP orbs and missing buffs"] end)
+    function() return L["/dui whatsnew - what's new in Daylight UI 2.4.2: XP orbs and missing buffs"] end)

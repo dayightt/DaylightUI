@@ -535,7 +535,7 @@ T.test("guide: the spell costs question starts off and picks through the draft",
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
--- The 2.5 page: an account that saw the bar animations (welcome = 4) gets one
+-- The 2.4.2 page: an account that saw the bar animations (welcome = 4) gets one
 -- page on the banner, a card each for XP orbs and missing buffs, each playing
 -- its preview with a switch. The switches start as the settings are and are
 -- written only at Done.
@@ -576,12 +576,12 @@ local function frames(seconds)
     end
 end
 
-T.test("welcome 2.5: one page with XP orbs and missing buffs, each switched from the window, written at Done", function()
+T.test("welcome 2.4.2: one page with XP orbs and missing buffs, each switched from the window, written at Done", function()
     local DUI = saw24()
     T.truthy(DUI.Welcome.Due(), "due after the update")
     stub.RunTimers()
     T.truthy(DUI.Welcome.Running(), "shown at login")
-    T.eq(DUI.Welcome.Slide(), "news25", "only the 2.5 page")
+    T.eq(DUI.Welcome.Slide(), "news25", "only the 2.4.2 page")
     local page = DUI.Welcome.Page()
     T.eq(#page.cards, 2, "a card each")
     local orbs, buffs = cardOf(page, "xpOrbs"), cardOf(page, "buffReminder")
@@ -608,7 +608,7 @@ T.test("welcome 2.5: one page with XP orbs and missing buffs, each switched from
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("welcome 2.5: a switch starts off when the player had turned it off, and on writes it back", function()
+T.test("welcome 2.4.2: a switch starts off when the player had turned it off, and on writes it back", function()
     local DUI = saw24({ mods = { InfoPanel = { xpGain = false }, Buffs = { settings = { reminder = { enabled = false } } } } })
     stub.RunTimers()
     local page = DUI.Welcome.Page()
@@ -622,7 +622,7 @@ T.test("welcome 2.5: a switch starts off when the player had turned it off, and 
     T.eq(DUI:Get("InfoPanel", "xpGain"), false, "the X writes nothing")
     T.truthy(DUI.Welcome.Due(), "asks again next login")
     SlashCmdList.DAYLIGHTUI("whatsnew")
-    T.eq(DUI.Welcome.Slide(), "news25", "/dui whatsnew opens the 2.5 page")
+    T.eq(DUI.Welcome.Slide(), "news25", "/dui whatsnew opens the 2.4.2 page")
     page = DUI.Welcome.Page()
     T.falsy(cardOf(page, "xpOrbs").switch.on, "a new run starts from the settings again")
     press(cardOf(page, "xpOrbs").switch)
@@ -632,7 +632,7 @@ T.test("welcome 2.5: a switch starts off when the player had turned it off, and 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("welcome 2.5: with Buffs switched off, the XP orbs card stands alone in the middle", function()
+T.test("welcome 2.4.2: with Buffs switched off, the XP orbs card stands alone in the middle", function()
     local DUI = saw24({ buffs = false })
     stub.RunTimers()
     T.eq(DUI.Welcome.Slide(), "news25")
@@ -645,7 +645,7 @@ T.test("welcome 2.5: with Buffs switched off, the XP orbs card stands alone in t
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("welcome 2.5: with neither module, nothing is due", function()
+T.test("welcome 2.4.2: with neither module, nothing is due", function()
     local DUI = saw24({ buffs = false, infopanel = false })
     stub.RunTimers()
     T.falsy(DUI.Welcome.Running())
@@ -653,7 +653,7 @@ T.test("welcome 2.5: with neither module, nothing is due", function()
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("welcome 2.5: the XP orbs card plays orbs into its own bar, never the real one, and stops when hidden", function()
+T.test("welcome 2.4.2: the XP orbs card plays orbs into its own bar, never the real one, and stops when hidden", function()
     local DUI = saw24()
     stub.RunTimers()
     local O = stub.infopanel.XPOrbs
@@ -685,7 +685,7 @@ T.test("welcome 2.5: the XP orbs card plays orbs into its own bar, never the rea
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
-T.test("welcome 2.5: the missing buffs card shows the real sample icons, rising in, nothing clickable", function()
+T.test("welcome 2.4.2: the missing buffs card shows the real sample icons, rising in, nothing clickable", function()
     local DUI = saw24()
     stub.RunTimers()
     local box = cardOf(DUI.Welcome.Page(), "buffReminder").preview

@@ -3,7 +3,7 @@
 ## Notes: Auction House: search, buy, sell and cancel in one window, with prices on every item tooltip.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.4.1
+## Version: 2.4.2
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 ## SavedVariables: DaylightUIAuctionDB

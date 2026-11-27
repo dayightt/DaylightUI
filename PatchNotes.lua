@@ -11,23 +11,21 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", new = {
-        { "Info Panel", "XP orbs: when you gain experience, a ring of orbs bursts out and streams into your XP bar, filling it as they land. Set their size, speed and color under Info Panel > Experience bar" },
-        { "Buffs", "Missing buffs now show as a row of icons above you: raid buffs (click yours to cast it on whoever lacks it), your class's own buffs, poisons and imbues, and if you turn them on, food, scrolls and elixirs, the sleeping bag, the Arcane Censer and weapon oils. Choose where each kind shows, add your own spells, and change the icons' size, shape, border, names and glow under Buffs > Missing buffs" },
+    { version = "Unreleased" },
+    { version = "2.4.2", date = "2026-11-27", summary = "XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.", new = {
+        { "Info Panel", "XP orbs: gaining experience sends a ring of orbs flying into your XP bar" },
+        { "Buffs", "Missing buffs show as icons above you: raid buffs, class buffs, poisons, food, scrolls and more. Click one to cast it. Set them up under Buffs > Missing buffs" },
     }, changed = {
-        { "Unit frames", "The druid resource bars are gone: the mana strip on your power bar shows your mana in bear and cat form, and it's turned back on if you used the bars" },
-        { "Leader tools", "When you aren't leading, the leader tools card shows only the markers, and world markers glow like the beacons they leave on the ground, so the two marker rows are easy to tell apart" },
+        { "Unit frames", "The druid resource bars are gone. In bear and cat form, a mana strip on your power bar shows your mana instead" },
+        { "Leader tools", "When you aren't the leader, the card shows only the markers. World markers glow so they're easy to tell apart" },
     }, fixed = {
-        { "Bags", "Hovering the Disenchant button after Shift-clicking it no longer throws an error" },
-        { "Info Panel", "The data bar's text color setting now changes the data bar's texts" },
-        { "Bar animations", "Embers takes the colors you pick, Same color as the bar too, instead of always the same orange" },
-        { "Group finder", "Typing /who in chat opens the group finder on its Who tab" },
-        { "Chat", "Clicking a Battle.net friend's name in a whisper line starts a whisper to them again" },
-        { "Character", "Click a skill on the Skills tab to see what it does; a weapon skill shows your hit, crit and glancing chances against mobs of your level and raid bosses, and Defense counts the bonus from your gear" },
-        { "Character", "On the Currency tab, Shift-click a currency to link it in chat or put it in your bag, mark one Unused, and see the most you can hold. Your bag only takes as many as it has room for, and Transfer only shows for currencies that can move, saying why when it can't" },
-        { "Character", "Statistics update as you play and show every category, cut-off names show in full when you hover them, and the switches on the Reputation and Currency tabs say what they do" },
-        { "Character", "The PvP tab's season countdown counts down while it's open, and the next reward says where it's sold" },
-        { "Character", "Right-drag your character to move it in view, enchanting gear you wear makes it glow, and Ctrl-click an item in an equipment set to try on that exact item" },
+        { "Bags", "Hovering Disenchant after Shift-clicking it no longer throws an error" },
+        { "Info Panel", "The data bar's text color setting works again" },
+        { "Bar animations", "Embers uses your chosen colors instead of always orange" },
+        { "Group finder", "Typing /who opens the Who tab" },
+        { "Chat", "Clicking a Battle.net friend's name in a whisper works again" },
+        { "Character", "The Skills, Currency, Statistics and PvP tabs now do everything the game's own window does (skill details, currency links and caps, live stats, season countdown)" },
+        { "Character", "Right-drag your character to move it in view, gear you've enchanted glows, and Ctrl-click a set item to try it on" },
     } },
     { version = "2.4.1", date = "2026-11-26", summary = "Proc alerts redone as living flame, spell costs on your action buttons, icon borders per frame, and lower nameplates on new profiles.", new = {
         { "Nameplates", "Levels on friendly nameplates are no longer gray when they're far below you: they show in the player's class color or the NPC's reaction color, or white, your accent or a color you pick" },
