@@ -719,6 +719,97 @@ T.test("sell: under what a vendor pays asks first", function()
     quiet()
 end)
 
+T.test("sell: while Post asks again the second button is Cancel, and Cancel keeps the item", function()
+    local A = load({ auctions = {
+        { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7 },
+        { itemID = POTION, name = "Minor Healing Potion", count = 10, buyout = 10 * 12, classID = 0, vendorSell = 50 },
+    } })
+    local page = open(A)
+    local box = page.right.box
+    lineOf(page, "Minor Healing Potion"):Click()
+    AHW.Settle()
+    typeIn(page.right.form.price, "40c")
+    T.eq(box.skip.text:GetText(), "Skip", "nothing asked yet")
+    box.post:Click()
+    T.truthy(said(page):find("A vendor pays more", 1, true), said(page))
+    T.eq(box.post.text:GetText(), "Post anyway")
+    T.eq(box.skip.text:GetText(), "Cancel", "the question can be backed out of")
+    box.skip:Click()
+    T.eq(AHW.Calls("PostCommodity"), 0, "nothing posted")
+    T.eq(A.SellPage.picked, "118", "the same item stays picked")
+    T.eq(page.right.form.price:GetText(), "40c", "with the price typed")
+    T.eq(said(page), "", "the warning is gone")
+    T.eq(box.post.text:GetText(), "Post 6")
+    T.falsy(A.SellPage.Asking())
+    T.eq(box.skip.text:GetText(), "Skip", "back to Skip")
+    -- a new price over what a vendor pays posts on the first click
+    typeIn(page.right.form.price, "60c")
+    box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 1)
+    AHW.Settle()
+    quiet()
+end)
+
+T.test("sell: Skip, then Cancel on the question, then Skip again moves on", function()
+    local A = load({ auctions = {
+        { itemID = LINEN, name = "Linen Cloth", count = 1, buyout = 1, classID = 7 },
+        { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7 },
+        { itemID = WOOL, name = "Wool Cloth", count = 45, buyout = 45 * 32, classID = 7 },
+    } })
+    local page = open(A)
+    local box = page.right.box
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    T.eq(box.skip.text:GetText(), "Skip")
+    box.post:Click()
+    T.truthy(said(page):find("far under what most others ask", 1, true), said(page))
+    T.eq(box.skip.text:GetText(), "Cancel")
+    box.skip:Click()
+    T.eq(A.SellPage.picked, "2589", "Cancel stays on the item")
+    T.eq(box.skip.text:GetText(), "Skip")
+    box.skip:Click()
+    T.truthy(A.SellPage.picked ~= "2589", "Skip moves on")
+    T.eq(AHW.Calls("PostCommodity"), 0)
+    quiet()
+end)
+
+T.test("sell: Cancel also backs out of the far-under question and the game's warning", function()
+    local A = load({ auctions = {
+        { itemID = LINEN, name = "Linen Cloth", count = 1, buyout = 1, classID = 7 },
+        { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7 },
+        { itemID = WOOL, name = "Wool Cloth", count = 45, buyout = 45 * 32, classID = 7 },
+    }, postWarning = { [WOOL] = true } })
+    local page = open(A)
+    local box = page.right.box
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    box.post:Click()
+    T.truthy(said(page):find("far under what most others ask", 1, true), said(page))
+    T.eq(box.skip.text:GetText(), "Cancel")
+    box.skip:Click()
+    T.eq(A.SellPage.picked, "2589")
+    T.eq(said(page), "")
+    T.eq(box.skip.text:GetText(), "Skip")
+    T.eq(AHW.Calls("PostCommodity"), 0)
+
+    lineOf(page, "Wool Cloth"):Click()
+    AHW.Settle()
+    box.post:Click()
+    AHW.Settle()
+    T.eq(box.post.text:GetText(), "The game asks: click again")
+    T.eq(box.skip.text:GetText(), "Cancel")
+    box.skip:Click()
+    T.isnil(A.Post.Warned(), "the game's warning is dropped")
+    T.eq(A.SellPage.picked, "2592")
+    T.eq(said(page), "")
+    T.eq(box.skip.text:GetText(), "Skip")
+    box.post:Click()
+    AHW.Settle()
+    T.eq(AHW.Calls("ConfirmPostCommodity"), 0, "Post after Cancel starts over: the game asks again")
+    T.eq(box.post.text:GetText(), "The game asks: click again")
+    quiet()
+end)
+
 T.test("sell: Post rests while the Auction House answers something else", function()
     local A = load()
     local page = open(A)

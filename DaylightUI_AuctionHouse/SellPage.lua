@@ -1,7 +1,8 @@
 -- The Sell tab, laid out like Auctionator's: what can be sold from your bags
 -- on the left, under the game's item classes, and on the right the picked
 -- item's sale form (how many, the price each, how long), the deposit and what
--- it brings, Post and Skip, a line saying why the price is what it is, and
+-- it brings, Post and Skip (Cancel while Post waits for a second click), a
+-- line saying why the price is what it is, and
 -- under it what's up on the Auction House right now and its cheapest price
 -- each day for two weeks.
 --
@@ -572,6 +573,26 @@ function P.Skip()
     P.Paint()
 end
 
+-- Post waiting for a second click on what the form shows now: the page's own
+-- question (P.LowWords) or the game's price warning.
+function P.Asking(r)
+    r = r or (P.picked and byKey[P.picked])
+    if not r then return false end
+    if P.Warned(r) then return true end
+    local qty, unit = P.Numbers(r)
+    return unit ~= nil and asked == r.key .. ":" .. qty .. ":" .. unit
+end
+
+-- Drops the question Post is waiting on and the line saying it. The item stays
+-- picked with what was typed, so the price can change or another be picked.
+function P.Cancel()
+    if busy then return end
+    asked = nil
+    ns.Post.Forget()
+    P.Say(nil)
+    P.Paint()
+end
+
 function P.SellAll(id, name)
     local keys = {}
     for i, r in ipairs(P.Order(id)) do keys[i] = r.key end
@@ -854,7 +875,7 @@ function P.WhyOf(r)
     return why
 end
 
--- The card: deposit, what it brings, Post and Skip.
+-- The card: deposit, what it brings, Post and Skip (or Cancel).
 function P.PaintBox()
     if not page then return end
     local r = P.picked and byKey[P.picked]
@@ -881,6 +902,7 @@ function P.PaintBox()
     -- off while a click would be refused: no price yet, or the Auction House busy answering
     box.post.SetOff(busy or not c or (not old and (not unit or qty < 1)) or not ns.AH.CanAct())
     Parts.Tone(box.post, (warned or lowAsk) and "no" or "main")
+    box.skip.text:SetText((warned or lowAsk) and L["Cancel"] or L["Skip"])
     box.skip.SetOff(busy)
     local key = GetBindingKey and GetBindingKey("DAYLIGHTUI_AH_ACT")
     box.key:SetText(key and format(L["or press %s"], pop(key)) or "")
@@ -1231,7 +1253,9 @@ local function buildBox(right)
     box.skip = W.Button(box, L["Skip"], 30)
     box.skip:SetPoint("TOPLEFT", box.post, "TOPRIGHT", 6, 0)
     box.skip:SetPoint("RIGHT", box, "RIGHT", -12, 0)
-    box.skip:SetScript("OnClick", function() P.Skip() end)
+    box.skip:SetScript("OnClick", function()
+        if P.Asking() then P.Cancel() else P.Skip() end
+    end)
     box.key = Style.Text(box, Style.SIZE.small, "CENTER")
     Style.InkText(box.key, "LABEL")
     box.key:SetPoint("TOP", box, "TOP", 0, -114)
