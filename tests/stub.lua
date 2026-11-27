@@ -1170,6 +1170,12 @@ end
 -- adds no line break and only fires OnEnterPressed, as in game.
 function Widget:SetMultiLine(on) self.__multiLine = on and true or false end
 function Widget:IsMultiLine() return self.__multiLine == true end
+-- An edit box's room around its text: left, right, top, bottom, 0 until set.
+function Widget:SetTextInsets(l, r, t, b) self.__insets = { l or 0, r or 0, t or 0, b or 0 } end
+function Widget:GetTextInsets()
+    local i = self.__insets or { 0, 0, 0, 0 }
+    return i[1], i[2], i[3], i[4]
+end
 function Widget:SetJustifyH(j) self.__justifyH = j end
 function Widget:GetJustifyH() return self.__justifyH or "CENTER" end
 -- The room between a wrapped text's lines (FontString:SetSpacing; the docs

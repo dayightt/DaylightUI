@@ -571,7 +571,7 @@ T.test("bags: the search hint stops at its box", function()
         local at, to = hint:GetPoint(i)
         if at == "RIGHT" then right = to end
     end
-    T.eq(right, ns.window.search, "held to the box's right end, so a narrow bag cuts it short")
+    T.eq(right, ns.window.search.help, "held to the ? inside the box's right end, so a narrow bag cuts it short")
 end)
 
 T.test("bags: new items get no glow frame, flash or pulse from the game", function()
@@ -1069,6 +1069,62 @@ T.test("bags: typing searches; the X clears it; sort is the game's sort", functi
     type_("potion")
     f:Hide()
     T.eq(f.search:GetText(), "", "a search clears when the bag closes")
+end)
+
+T.test("bags: the search's help waits behind its ?, shown after a second's rest there", function()
+    local ns = login()
+    local f = open(ns)
+    local box, help = f.search, f.search.help
+    local tip = GameTooltip
+    local owner
+    local realSetOwner, realIsOwned = tip.SetOwner, tip.IsOwned
+    tip.SetOwner = function(_, o) owner = o end
+    tip.IsOwned = function(_, o) return owner == o end
+    local guides, realGuide = 0, ns.Search.Tip
+    ns.Search.Tip = function(t) guides = guides + 1; return realGuide(t) end
+    local waits, realAfter = {}, C_Timer.After
+    C_Timer.After = function(s, fn) waits[#waits + 1] = s; return realAfter(s, fn) end
+    tip:Hide()
+
+    stub.MouseEnter(box); stub.RunTimers()
+    T.eq(guides, 0, "hovering the box shows no help")
+    T.falsy(tip:IsShown())
+    stub.MouseLeave(box)
+
+    -- A W.IconButton inside the box, at the X's spot on the edge.
+    T.truthy(help.SetIcon, "a W.IconButton")
+    T.eq(help.icon:GetTexture(), DaylightUI.MEDIA .. "ui-micro-help.png")
+    T.eq(help:GetParent(), box)
+    T.eq(select(2, help:GetPoint(1)), box, "at the box's right edge")
+    T.eq(select(2, box.clear:GetPoint(1)), help, "the X just left of it")
+    local _, right = box:GetTextInsets()
+    T.truthy(right >= help:GetWidth() + box.clear:GetWidth(), "typed text stops short of both")
+    T.falsy(help:IsMouseClickEnabled(), "a click goes through to the box, which keeps its focus")
+
+    -- Left before the wait is up: nothing.
+    stub.MouseEnter(help)
+    T.eq(guides, 0, "not at once")
+    stub.MouseLeave(help)
+    stub.RunTimers()
+    T.eq(guides, 0, "left early: no help")
+
+    -- A full rest shows the guide on the ?, and leaving hides it.
+    for i = #waits, 1, -1 do waits[i] = nil end
+    stub.MouseEnter(help)
+    local waited = false
+    for _, s in ipairs(waits) do if s == ns.Window.HELP_WAIT then waited = true end end
+    T.truthy(waited, "waits HELP_WAIT")
+    T.eq(ns.Window.HELP_WAIT, 1, "about a second")
+    stub.RunTimers()
+    T.eq(guides, 1, "the search help")
+    T.eq(owner, help, "on the ?")
+    T.truthy(tip:IsShown())
+    stub.MouseLeave(help)
+    T.falsy(tip:IsShown(), "gone on leave")
+
+    C_Timer.After, ns.Search.Tip = realAfter, realGuide
+    tip.SetOwner, tip.IsOwned = realSetOwner, realIsOwned
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 T.test("bags: a bigger bag gets more slots; never in combat", function()

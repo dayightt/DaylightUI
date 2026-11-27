@@ -123,6 +123,47 @@ function Window.NextView(view)
     return Window.VIEWS[1]
 end
 
+-- The search's "?", inside the box at its right edge, the X (there while
+-- something is typed) just left of it. Resting the mouse on it for HELP_WAIT
+-- shows the search syntax. Clicks go through it to the box, so it never takes
+-- the box's focus.
+Window.HELP_WAIT = 1      -- seconds
+Window.HELP_ICON = 10     -- the "?"
+Window.HELP_DISC = 14     -- the soft circle behind it
+Window.HELP_GAP = 2       -- between the "?" and the X
+local function helpButton(eb)
+    local W = DUI.Widgets
+    local s = eb.clear:GetHeight()
+    local b = W.IconButton(eb, "ui-micro-help.png", nil, nil, s)
+    b.icon:SetSize(Window.HELP_ICON, Window.HELP_ICON)
+    b.disc = b:CreateTexture(nil, "BACKGROUND")
+    b.disc:SetTexture(DUI.MEDIA .. "shape-circle.png")
+    b.disc:SetSize(Window.HELP_DISC, Window.HELP_DISC)
+    b.disc:SetPoint("CENTER", b, "CENTER", 0, 0)
+    W.Tint(b.disc, Style.INK.LABEL, 0.15)
+    b:SetMouseClickEnabled(false)
+    b:SetPoint(eb.clear:GetPoint(1))   -- the X's spot at the edge
+    eb.clear:ClearAllPoints()
+    eb.clear:SetPoint("RIGHT", b, "LEFT", -Window.HELP_GAP, 0)
+    eb.hint:SetPoint("RIGHT", b, "LEFT", -Window.HELP_GAP, 0)
+    local l, r, t, bottom = eb:GetTextInsets()
+    eb:SetTextInsets(l, r + s + Window.HELP_GAP, t, bottom)
+    local token = 0
+    b:HookScript("OnEnter", function(self)
+        token = token + 1
+        local mine = token
+        C_Timer.After(Window.HELP_WAIT, function()
+            if mine ~= token or not (self:IsVisible() and self:IsMouseOver()) then return end
+            GameTooltip:Hide()
+            GameTooltip:SetOwner(self, "ANCHOR_TOP")
+            ns.Search.Tip(GameTooltip)
+            GameTooltip:Show()
+        end)
+    end)
+    b:HookScript("OnLeave", function() token = token + 1 end)
+    return b
+end
+
 local function searchBox(f)
     -- Each window has its own search.
     local eb = DUI.Widgets.Input(f, { height = Window.ROW, size = Window.TEXT_SIZE, search = true,
@@ -145,14 +186,7 @@ local function searchBox(f)
         -- A click on a filter takes the focus first; that click decides instead.
         if not Window.OverFilters(f) then Window.SyncFilters(f) end
     end)
-    -- Hovering the box shows the search syntax.
-    eb:HookScript("OnEnter", function(self)
-        GameTooltip:Hide()
-        GameTooltip:SetOwner(self, "ANCHOR_TOP")
-        ns.Search.Tip(GameTooltip)
-        GameTooltip:Show()
-    end)
-    eb:HookScript("OnLeave", function() GameTooltip:Hide() end)
+    eb.help = helpButton(eb)
     return eb
 end
 
