@@ -2169,6 +2169,23 @@ end
 -- One mask per owner, kind ("clip": a clip's own line; "stop": a strip's far
 -- side), line and end, found without building a key string since this runs
 -- for every clip at every layout.
+-- A spare mask is one a fill wears only while it has room (a bar style's cut,
+-- Style.SpareMask): a texture takes at most three, so the shape of the bar
+-- itself always wins and the spare is taken off to make room for it.
+local spareMask = setmetatable({}, { __mode = "k" })  -- mask -> true
+local skipSpare = setmetatable({}, { __mode = "k" })  -- layer -> true: never copies a spare
+local function roomFor(tex)
+    local n = tex:GetNumMaskTextures()
+    if n < 3 then return end
+    for i = n, 1, -1 do
+        local m = tex:GetMaskTexture(i)
+        if m and spareMask[m] then
+            tex:RemoveMaskTexture(m)
+            return
+        end
+    end
+end
+
 local function maskFor(owner, kind, line, end_)
     local set = masksOf[owner]
     if not set then
@@ -2280,6 +2297,7 @@ function Style.LayoutSlant(frame)
                 end
                 if clip.stopped[end_] ~= stop then
                     if clip.stopped[end_] then clip.tex:RemoveMaskTexture(clip.stopped[end_]) end
+                    roomFor(clip.tex)
                     clip.tex:AddMaskTexture(stop)
                     clip.stopped[end_] = stop
                 end
@@ -2305,6 +2323,7 @@ function Style.LayoutSlant(frame)
                 end
                 if clip.masked[end_] ~= mask then
                     if clip.masked[end_] then clip.tex:RemoveMaskTexture(clip.masked[end_]) end
+                    roomFor(clip.tex)
                     clip.tex:AddMaskTexture(mask)
                     clip.masked[end_] = mask
                 end
@@ -2354,6 +2373,7 @@ local function angleEdge(owner, tex, anchor, m, side, cut, under)
     m:SetWidth(4 * cut)
     m.side, m.cut, m.under = side, cut, under == true
     if not m.added then
+        roomFor(tex)
         tex:AddMaskTexture(m)
         m.added = true
     end
@@ -2379,6 +2399,7 @@ local function shareEdge(tex, m)
             tex:RemoveMaskTexture(inside)
             insideOn[tex] = nil
         end
+        roomFor(tex)
         tex:AddMaskTexture(want)
     end
     overMask[tex] = want
@@ -2478,6 +2499,38 @@ function Style.ResyncMasks(fill)
     for tex in pairs(set) do Style.SameMasks(tex, fill) end
 end
 
+-- Puts m on a fill as a spare mask (nil takes the fill's spare off): worn
+-- only while the fill has room, taken off whenever the bar's own shape needs
+-- the room, and copied to the layers over the fill (Style.SameMasks). Returns
+-- whether the fill wears it now.
+local spareOf = setmetatable({}, { __mode = "k" }) -- fill -> its spare mask
+function Style.SpareMask(fill, m)
+    local had = spareOf[fill]
+    if had and had ~= m then
+        for i = fill:GetNumMaskTextures(), 1, -1 do
+            if fill:GetMaskTexture(i) == had then fill:RemoveMaskTexture(had) end
+        end
+    end
+    spareOf[fill] = m
+    local on = false
+    if m then
+        spareMask[m] = true
+        local n = fill:GetNumMaskTextures()
+        for i = 1, n do
+            if fill:GetMaskTexture(i) == m then on = true end
+        end
+        if not on and n < 3 then
+            fill:AddMaskTexture(m)
+            on = true
+        end
+    end
+    Style.ResyncMasks(fill)
+    return on
+end
+
+-- A layer over a fill that never copies its spare mask (Style.SameMasks).
+function Style.SkipSpare(tex) skipSpare[tex] = true end
+
 -- Gives tex exactly the masks a bar's fill wears now, whatever made them (its
 -- angled end, the bar's clipped ends, a slant added later), so a layer laid
 -- over the fill is cut the same way. inside (true) is for a layer that isn't
@@ -2488,10 +2541,30 @@ function Style.SameMasks(tex, fill, inside)
     sameOf[fill] = sameOf[fill] or {}
     if inside == nil then inside = sameOf[fill][tex] == "inside" end
     sameOf[fill][tex] = inside and "inside" or true
-    local want, n = {}, 0
+    local want, n, spare = {}, 0, nil
     for i = 1, fill:GetNumMaskTextures() do
         local m = fill:GetMaskTexture(i)
-        if m then want[m] = true; n = n + 1 end
+        if m and spareMask[m] then spare = m end
+        if m and not (spareMask[m] and skipSpare[tex]) then want[m] = true; n = n + 1 end
+    end
+    -- Kept inside the bar matters more than a spare cut.
+    if inside and n >= 3 and spare and want[spare] then
+        want[spare] = nil
+        n = n - 1
+    end
+    -- A bar angled at both ends already gives its fill three masks: a clip at
+    -- each end and the angled moving edge. The clip at the end the fill runs
+    -- toward is the same line as that edge once the bar is full, so a layer
+    -- kept inside the bar gives it up for the bar's rectangle; without it, a
+    -- light pinned to an empty bar's end showed as a line in game.
+    local edge = fillMask[fill:GetParent()]
+    local clip = clipOf[fill] and clipOf[fill].clip
+    if inside and n >= 3 and edge and edge.added and clip and clip.masked then
+        local far = clip.masked[edge.side]
+        if far and want[far] then
+            want[far] = nil
+            n = n - 1
+        end
     end
     insideOn[tex] = nil
     if inside and n < 3 then
@@ -2559,6 +2632,7 @@ function Style.AngleTrail(bar, side, cut, under)
     m:SetPoint("BOTTOM" .. p, fill, "BOTTOM" .. p, 0, 0)
     m:SetWidth(4 * cut)
     if not m.added then
+        roomFor(fill)
         fill:AddMaskTexture(m)
         m.added = true
     end
@@ -2616,44 +2690,60 @@ end
 local gradGrain = setmetatable({}, { __mode = "k" }) -- bar -> the picked bar texture laid over its gradient
 
 -- The client draws a MOD texture at full strength whatever its own alpha or
--- its parents': a bar that faded out with its frame left its gradient pieces,
--- or a picked bar texture's shading, tinting the world where it was. So those
--- layers follow their bar's alpha by hand (Style.FollowMods, after each fade
--- step and screen dim). The pieces' colors ease toward white, which multiplies
--- to nothing. The shading can't be eased that way, so it goes once the bar is
--- mostly faded.
+-- its parents': a bar that faded out with its frame left a picked bar
+-- texture's shading tinting the world where it was. So such a layer follows
+-- its bar's alpha by hand (Style.FollowMods, after each fade step and screen
+-- dim): it can't be eased, so it goes once the bar is mostly faded.
 Style.MOD_SHADING_MIN = 0.5
 local barStops = setmetatable({}, { __mode = "k" })  -- bar -> { pieces, halves, stops, on, vertical, ends }
 local modBars = setmetatable({}, { __mode = "k" })   -- bar -> the alpha its MOD layers were last given, false before
 local modShading = setmetatable({}, { __mode = "k" }) -- bar -> { [texture] = wanted }
 
--- The bar's alpha on screen, or nil while the client keeps it secret (it
--- then returns nothing).
-local function modStrength(bar)
-    local a = bar:GetEffectiveAlpha()
-    if type(a) ~= "number" or isSecret(a) then return nil end
-    return a
+local alphaCaps = setmetatable({}, { __mode = "k" }) -- frame -> the most its secret alpha can be
+
+-- A frame whose alpha comes from a secret (SetAlphaFromBoolean on a range answer)
+-- hides every alpha under it. Its painter knows the most it can be (its fade), and
+-- says so here; nil once its alpha is plain again.
+function Style.AlphaCap(frame, cap)
+    if type(frame) ~= "table" then return end
+    alphaCaps[frame] = (type(cap) == "number" and not isSecret(cap)) and cap or nil
 end
 
-local function lift(v, k) return 1 - k * (1 - v) end
+-- The bar's alpha on screen, or nil while the client keeps it secret (it
+-- then returns nothing).
+-- When the client keeps it secret, it's worked out up the parents: each plain alpha,
+-- a frame's cap in place of a secret one, and 1 where nothing is known, so it never
+-- reads lower than it is. nil only when no frame on the way says anything.
+local function modStrength(bar)
+    local a = bar:GetEffectiveAlpha()
+    if type(a) == "number" and not isSecret(a) then return a end
+    local k, known, r = 1, false, bar
+    while type(r) == "table" do
+        local cap = alphaCaps[r]
+        if cap then
+            k, known = k * cap, true
+        else
+            local own = r:GetAlpha()
+            if type(own) == "number" and not isSecret(own) then k = k * own end
+        end
+        if r.IsIgnoringParentAlpha and r:IsIgnoringParentAlpha() == true then break end
+        r = r:GetParent()
+    end
+    return known and k or nil
+end
 
-local function paintPieces(e, k)
+local function paintPieces(e)
     local ends = e.ends
     if not ends then return end
     local orientation = e.vertical and "VERTICAL" or "HORIZONTAL"
     for i, t in ipairs(e.pieces) do
         local c = ends[i]
-        if c then
-            Style.Gradient(t, orientation, lift(c[1], k), lift(c[2], k), lift(c[3], k), 1,
-                lift(c[4], k), lift(c[5], k), lift(c[6], k), 1)
-        end
+        if c then Style.Gradient(t, orientation, c[1], c[2], c[3], 1, c[4], c[5], c[6], 1) end
     end
 end
 
 local function applyMods(bar, k)
     modBars[bar] = k
-    local e = barStops[bar]
-    if e then paintPieces(e, k) end
     local list = modShading[bar]
     if list then
         for t, on in pairs(list) do t:SetShown(on and k >= Style.MOD_SHADING_MIN) end
@@ -2673,6 +2763,13 @@ function Style.ShowModShading(t, bar, on)
     t:SetShown(on == true and (modStrength(bar) or 1) >= Style.MOD_SHADING_MIN)
 end
 
+-- Takes a layer off its bar's MOD list once it's drawn in a normal blend: it
+-- fades with its bar by itself, and the list would keep hiding it.
+function Style.DropModShading(t, bar)
+    local list = modShading[bar]
+    if list then list[t] = nil end
+end
+
 -- Brings every shown bar's MOD layers to its alpha now. Only a bar whose alpha
 -- changed is repainted.
 function Style.FollowMods()
@@ -2688,6 +2785,18 @@ end
 -- over the sweep and multiplied in (MOD) so its shading shows in the sweep's
 -- colors, the way a single-color bar shows it in that color. Daylight UI's own fill
 -- uses the image alone. The layer carries the fill's angled edge and clip.
+-- The client ignores masks on a MOD texture, so a multiplied layer showed past
+-- the bar's angled ends, over the world behind it. Daylight UI's own textures
+-- each have a shade copy (black, alpha = how dark): in a normal blend it
+-- darkens exactly as multiplying by the gray would, and it keeps its masks.
+-- Another addon's texture has no such copy and is still multiplied.
+local SHADES = { silk = true, glass = true, tube = true, slant = true, brushed = true, grain = true }
+function Style.ShadeOf(file)
+    if type(file) ~= "string" or file:sub(1, #DUI.MEDIA) ~= DUI.MEDIA then return end
+    local key = file:sub(#DUI.MEDIA + 1):match("^bar%-(%a+)%.tga$")
+    if key and SHADES[key] then return DUI.MEDIA .. "bar-" .. key .. "-shade.tga" end
+end
+
 local function paintGrain(bar)
     local shared = gradFills[bar] and Style.SharedBar(slotOf[bar])
     local t = gradGrain[bar]
@@ -2699,13 +2808,19 @@ local function paintGrain(bar)
         local ok, what = pcall(bar.GetObjectType, bar)
         if not (ok and what == "StatusBar") then return end
         t = bar:CreateTexture(nil, "ARTWORK", nil, 7)
-        t:SetBlendMode("MOD")
         Style.FollowFill(bar, t)
         Style.ClipLike(t, bar:GetStatusBarTexture())
         gradGrain[bar] = t
     end
-    t:SetTexture(shared)
-    Style.ShowModShading(t, bar, true)
+    local shade = Style.ShadeOf(shared)
+    t:SetTexture(shade or shared)
+    t:SetBlendMode(shade and "BLEND" or "MOD")
+    if shade then
+        Style.DropModShading(t, bar)
+        t:Show()
+    else
+        Style.ShowModShading(t, bar, true)
+    end
 end
 
 local function paintFill(obj, kind)
@@ -2907,9 +3022,10 @@ function Style.PaintAccentBar(bar, paintBack)
 end
 
 -- A bar filled with three or more colors. A texture's own gradient has only
--- two ends, so the fill is painted white and pieces laid over it, each a
--- quarter of the fill with its own two-color gradient, multiply the colors in
--- (MOD), which keeps the bar texture's shading. A quarter can be pinned to the
+-- two ends, so pieces are laid over the fill, each a quarter of it in the
+-- fill's own texture (so its shading stays) with its own two-color gradient.
+-- They draw in a normal blend: the client ignores masks on a MOD texture, and
+-- multiplied pieces ran past the bar's angled ends. A quarter can be pinned to the
 -- fill without knowing its width (the fill's width comes from health, which is
 -- secret): each piece hangs from the fill's corners, its middle, or the
 -- middle of an invisible half. Three and five colors land exactly on the
@@ -2961,8 +3077,7 @@ local function buildStops(bar, vertical)
         fillOver[bar] = fillOver[bar] or {}
         for i = 1, Style.STOP_PIECES do
             local t = bar:CreateTexture(nil, "ARTWORK", nil, stopsLayer() + 1)
-            t:SetTexture(WHITE)
-            t:SetBlendMode("MOD")
+            t:SetTexture(fill:GetTexture() or WHITE)
             t:Hide()
             e.pieces[i] = t
             -- AngleFill moves the fill's angled edge onto it from now on.
@@ -3004,7 +3119,9 @@ function Style.LayBarStops(bar)
     if on then
         local fill = bar:GetStatusBarTexture()
         fill:SetDrawLayer("ARTWORK", stopsLayer())
+        local file = fill:GetTexture() or WHITE
         for _, t in ipairs(e.pieces) do
+            t:SetTexture(file)
             t:SetDrawLayer("ARTWORK", stopsLayer() + 1)
             Style.SameMasks(t, fill)
         end
@@ -3084,10 +3201,8 @@ function Style.PaintBarStops(bar, stops, paintBack, orientation, mirror)
         c[4], c[5], c[6] = Style.StopsAt(stops, b)
         t:SetVertexColor(1, 1, 1, 1)
     end
-    -- Painted at the bar's alpha now (see Style.FollowMods).
-    local k = modStrength(bar) or 1
-    modBars[bar] = k
-    paintPieces(e, k)
+    -- In a normal blend they fade with their bar by themselves.
+    paintPieces(e)
     e.on, e.stops, e.list = true, stops, list
     Style.NoteFill(tex, first, last, list)
     Style.LayBarStops(bar)

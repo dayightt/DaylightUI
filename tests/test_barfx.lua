@@ -659,3 +659,37 @@ T.test("Flip direction turns every animation around", function()
         check(false, "forward again")
     end
 end)
+
+T.test("an empty rage bar angled at both ends shows nothing of its end light", function()
+    -- The player's own power bar, angled at both ends and flipped, wearing
+    -- Embers: its fill already takes the clip at each end and its angled edge,
+    -- three masks, with no room left for the bar's rectangle. Seen in game: a
+    -- line stood at the end of an empty rage bar.
+    local DUI, ns = stub.Load({ module = true })
+    for k, v in pairs({ powerAt = "free", powerSlantBoth = true, powerSlantUnder = true, powerSlantUnderLeft = true,
+                        ["barFx.power.style"] = "embers" }) do
+        DUI:Set("UnitFrames", "player." .. k, v)
+    end
+    stub.RunTimers()
+    local f = ns.frames.player
+    local bar = f.power
+    T.eq(bar, f.freePower.set.power, "the bar on its own")
+    stub.units.player = { isPlayer = true, name = "Tester", class = "WARRIOR",
+        powerType = 1, powerToken = "RAGE", power = 0, maxPower = 100 }
+    ns.UF.UpdatePower(f, true)
+    T.eq(DUI.Style.GetSlant(f.freePower).side, "both", "angled at both ends")
+    T.eq(DUI.BarFx.StyleOf(bar), "embers")
+    local found = 0
+    for _, r in ipairs(lights(bar)) do
+        found = found + 1
+        local inside
+        for i = 1, r:GetNumMaskTextures() do
+            local m = r:GetMaskTexture(i)
+            local _, rel = m:GetPoint(1)
+            if rel == bar then inside = true end
+        end
+        T.truthy(inside, "each light is cut to the bar's rectangle, even with both ends angled")
+        T.truthy(r:GetNumMaskTextures() <= 3, "and never takes a fourth mask")
+    end
+    T.truthy(found > 0, "Embers' lights are there")
+end)

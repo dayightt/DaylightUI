@@ -13,11 +13,14 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Nameplates", "Debuff cooldown swipe: your debuffs on enemy plates can darken like a clock as they run out (Auras page)" },
+        { "Unit frames", "Each frame can lean its angled ends at its own angle, or keep following the shared Slant angle. A cast bar under its frame can have its own angle too" },
     }, changed = {
         { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },
     }, fixed = {
         { "Unit frames", "Elites, rares and bosses show their gold or silver badge on the frame's corner even with no portrait or name tab, so you can still tell them apart in a fight" },
         { "Cooldown Manager", "A Beast Mastery hunter's Frenzy shows when your pet gets it: before, it never lit up" },
+        { "Bar animations", "An empty rage or power bar angled at both ends no longer shows a bright line at its end with Embers, Comet or the other glowing styles" },
+        { "Bar textures", "Glass, Silk and the other Daylight UI textures on a gradient bar no longer leave a dark box past its angled end" },
     } },
     { version = "2.4.3", date = "2026-11-27", summary = "Bar animations that run either way, angled ends you can set on every bar, and a mailbox and spellbook that do everything the game's own do.", new = {
         { "Bar animations", "Flip direction: any bar animation can run the other way along the bar" },
