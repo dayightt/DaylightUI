@@ -172,6 +172,27 @@ function K.Walk(DUI, keys)
     local np = DUI:GetModule("Nameplates")
     local npSample = np and np.ns and np.ns.Sample
     for _, part in ipairs(npSample and npSample.PARTS or {}) do add(part.label, "page sample") end
+    -- The tooltip design preview (Rich/Design.lua) and looks sample (Rich/Sample.lua).
+    local tip = DUI:GetModule("Tooltip")
+    local richDesign = tip and tip.ns and tip.ns.RichDesign
+    for _, v in ipairs(richDesign and richDesign.VIEWS or {}) do add(v.label, "tooltip design") end
+    for _, h in ipairs(richDesign and richDesign.HINTS or {}) do add(h[1], "tooltip design"); add(h[2], "tooltip design") end
+    if richDesign and richDesign.KEYS_HINT then
+        add(richDesign.KEYS_HINT[1], "tooltip design"); add(richDesign.KEYS_HINT[2], "tooltip design")
+    end
+    local richLayout = tip and tip.ns and tip.ns.RichLayout
+    for _, list in pairs(richLayout and richLayout.PIECES or {}) do
+        for _, piece in ipairs(list) do add(piece.label, "tooltip layout") end
+    end
+    local richSample = tip and tip.ns and tip.ns.RichSample
+    for _, look in ipairs(richSample and richSample.LOOKS or {}) do
+        add(look.name, "tooltip sample"); add(look.line, "tooltip sample")
+    end
+    if richSample and richSample.ITEM then
+        add(richSample.ITEM.name, "tooltip sample")
+        for _, s in ipairs(richSample.ITEM.stats or {}) do add(s[2], "tooltip sample") end
+        if richSample.ITEM.equip then add(richSample.ITEM.equip[2], "tooltip sample") end
+    end
     local P = DUI.InstallerPages
     for _, m in ipairs(P.MODULES) do add(m.label, "guide modules"); add(m.pitch, "guide modules") end
     for _, c in ipairs(P.CLASHES) do add(c.what, "guide clashes") end
