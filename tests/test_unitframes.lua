@@ -1610,6 +1610,9 @@ T.test("unit frames: player and pet can fade only at full health", function()
         local f, pet = ns.frames.player, ns.frames.pet
         settle()
         T.eq(alpha(f), 0, "full health (secret): faded")
+        -- Its alpha comes from the client's curve and can't be read: drawn as one
+        -- picture, so a power bar's multiplied colors fade with it.
+        T.truthy(f.fadeWhy and f.fadeWhy.full, "drawn as one picture while the health curve sets its alpha")
         setHealth("player", 6)
         settle(0)
         T.eq(alpha(f), 1, "a hit brings it back")
@@ -1638,6 +1641,7 @@ T.test("unit frames: player and pet can fade only at full health", function()
         setHealth("player", 6)
         settle()
         T.eq(alpha(f), 0, "switched off: fades whatever the health")
+        T.falsy(f.fadeWhy and f.fadeWhy.full, "and no longer drawn as one picture for it")
     end)
     _G.C_CurveUtil, _G.UnitHealthPercent = saved.curves, saved.pct
     if not ok then error(err, 0) end
@@ -2539,4 +2543,53 @@ T.test("a tile that can't grow keeps some health under a power bar taller than i
     local px = DaylightUI.Pixel.Px(f, DaylightUI.Style.BorderPx(f))
     T.truthy(f:GetHeight() - 2 * px - f.power:GetHeight() >= ns.UF.MIN_HEALTH, "health still shows")
     T.truthy(f.power:GetHeight() < 30, "the power bar stops inside the tile")
+end)
+
+T.test("frame angle: each frame follows the Slant angle until given its own", function()
+    local DUI, ns = stub.Load({ module = true, before = function()
+        stub.units.player = { name = "Daylight", isPlayer = true, class = "WARRIOR", health = 50, maxHealth = 50 }
+        stub.units.target = { name = "Wolf", class = "WARRIOR", health = 40, maxHealth = 40, level = 10 }
+    end })
+    stub.RunTimers()
+    local Pixel = DUI.Pixel
+    local function set(key, v) DUI:Set("UnitFrames", key, v); stub.RunTimers() end
+    local pf, tf = ns.frames.player, ns.frames.target
+    local function cutOf(f, unit, k) return Pixel.Snap(f, DUI:Get("UnitFrames", unit .. ".height") * k) end
+    -- Untouched, every frame leans at the shared angle, and follows it.
+    set("look.slant", 0.3)
+    T.eq(pf.cut, cutOf(pf, "player", 0.3), "player follows the Slant angle")
+    T.eq(tf.cut, cutOf(tf, "target", 0.3), "target follows the Slant angle")
+    -- The player's own angle changes the player alone, its name tab too.
+    set("player.lean", 0.6)
+    T.eq(pf.cut, cutOf(pf, "player", 0.3), "a lean without its switch is ignored")
+    set("player.ownAngle", true)
+    T.eq(pf.cut, cutOf(pf, "player", 0.6), "player at its own angle")
+    T.eq(pf.slope, 0.6)
+    T.eq(tf.cut, cutOf(tf, "target", 0.3), "the target still follows the Slant angle")
+    local sl = DUI.Style.GetSlant(pf.tab)
+    if sl and sl.cut > 0 then
+        T.eq(sl.cut, Pixel.Snap(pf, pf.tabHeight * 0.6), "the name tab leans with its frame")
+    end
+    -- The shared angle moving later leaves the player's own alone.
+    set("look.slant", 0.4)
+    T.eq(pf.cut, cutOf(pf, "player", 0.6), "own angle kept")
+    T.eq(tf.cut, cutOf(tf, "target", 0.4), "the target follows the new Slant angle")
+    -- Back to following.
+    set("player.ownAngle", false)
+    T.eq(pf.cut, cutOf(pf, "player", 0.4), "follows again")
+    -- Every frame with angled ends has the pair, and raid sizes copy it.
+    for _, k in ipairs(ns.END_FRAMES) do
+        T.eq(ns.DEFAULTS[k].ownAngle, false, k)
+        T.eq(ns.DEFAULTS[k].lean, 0.21, k)
+    end
+    T.eq(ns.DEFAULTS.raid20.ownAngle, false, "raid 20 copies it")
+    T.eq(ns.DEFAULTS.arena.ownAngle, false, "the PvP frames copy it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("frame angle: raid tiles at their own angle nest by it", function()
+    local _, ns = stub.Load({ module = true })
+    local cfg = { height = 40, slant = true, slantOuter = true, slantUnderOuter = true, ownAngle = true, lean = 0.5 }
+    local spec = { unit = "raid1", slant = "right", group = true }
+    T.eq(ns.Group.NestCut(cfg, spec), DaylightUI.Pixel.Snap(UIParent, 40 * 0.5))
 end)

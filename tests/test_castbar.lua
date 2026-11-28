@@ -1636,3 +1636,37 @@ T.test("bar ends: a cast bar's end menus write its switches, each end on its own
     local sl = DUI.Style.GetSlant(ns.targetCastbarFree)
     T.eq(sl.side, "both"); T.eq(sl.under, "both", "/--\\")
 end)
+
+-- A cast bar under its frame leans like the frame until it's given its own angle.
+T.test("under its frame a cast bar can lean at its own angle", function()
+    local DUI, ns = stub.Load({ module = true })
+    local Style = DaylightUI.Style
+    stub.RunTimers()
+    local function set(k, v) DUI:Set("UnitFrames", k, v); stub.RunTimers() end
+    local function hungSlope(h) return Style.GetSlant(h).cut / h.column.ref.height end
+    local h, pf = ns.playerCastbar, ns.frames.player
+    T.truthy(h.column, "yours hangs under the frame by default")
+    local frameK = pf.endCut / pf:GetHeight()
+    T.near(hungSlope(h), frameK, 0.001, "it follows the frame's angle")
+    set("playerCastbar.lean", 0.8)
+    T.near(hungSlope(h), frameK, 0.001, "a lean without its switch is ignored")
+    set("playerCastbar.ownAngle", true)
+    T.near(hungSlope(h), 0.8, 0.001, "its own angle under the frame")
+    -- The target's, sliding out under its frame.
+    set("targetCastbar.at", "slide")
+    set("targetCastbar.ownAngle", true)
+    set("targetCastbar.lean", 0.7)
+    local t = ns.targetCastbarFree
+    T.truthy(t.column, "the target's slides out under its frame")
+    T.near(hungSlope(t), 0.7, 0.001, "the target's own angle under the frame")
+    -- Below the frame, matching it.
+    set("targetCastbar.at", "below")
+    set("targetCastbar.fitFrame", true)
+    set("targetCastbar.lean", 0.5)
+    T.isnil(t.column)
+    T.eq(Style.GetSlant(t).cut, DaylightUI.Pixel.Snap(t, t:GetHeight() * 0.5), "matching the frame, at its own angle")
+    set("targetCastbar.ownAngle", false)
+    local tf = ns.frames.target
+    T.eq(Style.GetSlant(t).cut, DaylightUI.Pixel.Snap(t, t:GetHeight() * tf.endCut / tf:GetHeight()), "following, the frame's angle")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

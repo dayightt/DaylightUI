@@ -26,6 +26,22 @@ local function off(key) return function(get) return get(key) ~= true end end
 -- the portrait sits on the frame (UF.FrameEnds): the ring covers it.
 -- prefix is the settings table ("player", "raid", "partyPet"), name labels
 -- the rows ("Frame", "Pet bar"), note ends both descriptions.
+-- A frame's own angle: a switch and its slider, read by UF.AngleOf. o.own and
+-- o.lean are the keys, o.name labels both ("Swing timer"), o.what names the
+-- bar in the text ("the swing timer's"), o.note ends both descriptions, and
+-- o.disabled / o.hidden gray out or hide both. Use as angleRows(o)[1], [2].
+local function angleRows(o)
+    local dis = o.disabled or function() return false end
+    local note = o.note and (" " .. o.note) or ""
+    return {
+        { type = "toggle", key = o.own, invert = true, label = o.name .. " follows Slant angle", since = o.since,
+          desc = "On, " .. o.what .. " angled ends lean at the Slant angle on Unit Frames > Look. Off, they get their own angle, set below." .. note,
+          disabled = dis, hidden = o.hidden },
+        { type = "slider", key = o.lean, label = o.name .. " angle", since = o.since, min = 0.01, max = 1, step = 0.01, unit = "%",
+          desc = "How far " .. o.what .. " angled ends lean: how far the cut reaches in, as a share of the bar's height. Near 0 is almost square, 100 is 45 degrees. Needs Follows Slant angle off." .. note,
+          disabled = function(get) return dis(get) or get(o.own) ~= true end, hidden = o.hidden },
+    }
+end
 local INNER_END = { target = "left", targettarget = "left", arena = "left" }
 local function frameEndRows(prefix, id, name, disabled, portrait, note)
     local k = function(s) return prefix .. "." .. s end
@@ -41,26 +57,17 @@ local function frameEndRows(prefix, id, name, disabled, portrait, note)
             return get(k("portrait")) ~= "none" and get(k("portraitAt")) ~= "free"
         end
     end
-    return DaylightUI.Options.EndRows({ name = name, left = ends.left, right = ends.right,
+    local rows = DaylightUI.Options.EndRows({ name = name, left = ends.left, right = ends.right,
         disabled = disabled, note = note })
+    -- Its angle, its own or the shared one, grayed out while both ends are straight.
+    local angle = angleRows({ own = k("ownAngle"), lean = k("lean"), name = name, what = "the " .. name:lower() .. "'s",
+        since = "2.4.4", note = note, disabled = function(get)
+            return (disabled and disabled(get)) or (get(k("slant")) == false and get(k("slantOuter")) ~= true)
+        end })
+    rows[#rows + 1], rows[#rows + 2] = angle[1], angle[2]
+    return rows
 end
 
--- A frame's own angle: a switch and its slider, read by UF.AngleOf. o.own and
--- o.lean are the keys, o.name labels both ("Swing timer"), o.what names the
--- bar in the text ("the swing timer's"), o.note ends both descriptions, and
--- o.disabled / o.hidden gray out or hide both. Use as angleRows(o)[1], [2].
-local function angleRows(o)
-    local dis = o.disabled or function() return false end
-    local note = o.note and (" " .. o.note) or ""
-    return {
-        { type = "toggle", key = o.own, label = o.name .. " own angle", since = o.since,
-          desc = "Gives " .. o.what .. " angled ends their own angle, set below. When off, they follow the Slant angle on Unit Frames > Look." .. note,
-          disabled = dis, hidden = o.hidden },
-        { type = "slider", key = o.lean, label = o.name .. " angle", since = o.since, min = 0.01, max = 1, step = 0.01, unit = "%",
-          desc = "How far " .. o.what .. " angled ends lean: how far the cut reaches in, as a share of the bar's height. Near 0 is almost square, 100 is 45 degrees. Needs its own angle on." .. note,
-          disabled = function(get) return dis(get) or get(o.own) ~= true end, hidden = o.hidden },
-    }
-end
 local function offAny(...)
     local keys = { ... }
     return function(get)
@@ -1634,6 +1641,8 @@ local function petCard()
         barRows(p("media.health"), "the pets' health bars", "Pet health bar", petOff)[2],
         frameEndRows("partyPet", "partyPet", "Pet bar", petOff)[1],
         frameEndRows("partyPet", "partyPet", "Pet bar", petOff)[2],
+        frameEndRows("partyPet", "partyPet", "Pet bar", petOff)[3],
+        frameEndRows("partyPet", "partyPet", "Pet bar", petOff)[4],
         { type = "dropdown", key = p("color"), label = "Pet bar color", values = ns.PartyPets.COLORS, order = ns.PartyPets.COLOR_ORDER,
           desc = "Its owner's class tells at a glance whose pet it is.", disabled = petOff },
         { type = "toggle", key = p("showPower"), label = "Pet power bar",
@@ -1789,7 +1798,7 @@ end
 -- Frame card (bar textures and colors, power, heals and absorbs) becomes its
 -- "Health and power" card.
 local BASIC_FIELDS = { enabled = true, style = true, width = true, height = true, spacing = true,
-    tabHeight = true, slant = true, slantOuter = true, fillVertical = true,
+    tabHeight = true, slant = true, slantOuter = true, ownAngle = true, lean = true, fillVertical = true,
     showInParty = true, direction = true, growLeft = true, growUp = true, growCenter = true, sortBy = true, groups = true, groupSpacing = true, perLine = true, hideSelf = true,
     strata = true }
 -- The portrait's own rows get a card (and tab) of their own.
@@ -2595,14 +2604,26 @@ local function castEnds(unit, rightDis, leftDis, note)
         left = { on = k("slantLeft"), flip = k("slantUnderLeft"), disabled = leftDis },
         right = { on = k("slant"), flip = k("slantUnder"), disabled = rightDis } })
 end
--- Its own angle, on the same bars the flip works on.
-local function castAngle(unit, who, notOwn)
+-- Its own angle. Under its frame (hung, sliding out, or matching the frame
+-- above or below it) it wears the frame's ends, and leans at the frame's angle
+-- unless it has its own; elsewhere it needs an angled end of its own.
+local function underFrame(unit)
+    return function(get)
+        local at = atOf(get, unit)
+        if unit == "player" then return at == "below" end
+        return at == "slide" or ((at == "above" or at == "below") and get(unit .. "Castbar.fitFrame") ~= false)
+    end
+end
+local function castAngle(unit, who)
+    local under = underFrame(unit)
+    local none = unit == "player" and "middle" or "power"
     return angleRows({ own = unit .. "Castbar.ownAngle", lean = unit .. "Castbar.lean", name = CAST_WHO[unit], what = who .. " cast bar's", since = "2.0",
-        note = unit == "player" and "Not while under the frame or between the frames."
-            or (unit == "target" or unit == "focus") and "Not inside the frame, sliding out under it, or matching the frame above or below it." or "Not inside the frame.",
+        note = unit == "player" and "Under the frame, while it follows, it leans like the frame. Not between the frames."
+            or "Under the frame or matching it, while it follows, it leans like the frame. Not inside the frame.",
         disabled = function(get)
-            return notOwn(get)
-                or (get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true)
+            if get(unit .. "Castbar.enabled") ~= true or atOf(get, unit) == none then return true end
+            if under(get) then return false end
+            return get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true
         end })
 end
 
@@ -2653,6 +2674,8 @@ local function raidPage(size)
           desc = "Your own tile sits with the raid's. When off, only the rest of the raid shows.", disabled = off("raid.enabled") },
         frameEndRows("raid", "raid", "Tile", off("raid.enabled"))[1],
         frameEndRows("raid", "raid", "Tile", off("raid.enabled"))[2],
+        frameEndRows("raid", "raid", "Tile", off("raid.enabled"))[3],
+        frameEndRows("raid", "raid", "Tile", off("raid.enabled"))[4],
         { type = "toggle", key = "raid.fillVertical", label = "Fill upward",
           desc = "The health bar fills bottom to top instead of across.", disabled = off("raid.enabled") },
         { type = "toggle", key = "raid.showPower", label = "Power bar",
@@ -2812,8 +2835,8 @@ local PLAYER_CAST = {
         castEnds("player", off("playerCastbar.enabled"),
             notMiddleOwn,
             "Under the frame it follows the frame's own ends (Straight there keeps it square), and between the frames both ends lean.")[2],
-        castAngle("player", "your", notMiddleOwn)[1],
-        castAngle("player", "your", notMiddleOwn)[2],
+        castAngle("player", "your")[1],
+        castAngle("player", "your")[2],
         { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
           desc = "Your cast bar fills from the right. Not while under the frame or between the frames.", disabled = notMiddleOwn },
         strataRow("playerCastbar.strata", "Your cast bar layer", "The layer your cast bar draws in.",
@@ -2846,8 +2869,8 @@ local TARGET_CAST = {
           disabled = notOwnBar("target") },
         castEnds("target", notOwnWidth("target"), notOwnWidth("target"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[1],
         castEnds("target", notOwnWidth("target"), notOwnWidth("target"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[2],
-        castAngle("target", "your target's", notOwnWidth("target"))[1],
-        castAngle("target", "your target's", notOwnWidth("target"))[2],
+        castAngle("target", "your target's")[1],
+        castAngle("target", "your target's")[2],
         { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
           desc = "Your target's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
@@ -2879,8 +2902,8 @@ local FOCUS_CAST = {
           disabled = notOwnBar("focus") },
         castEnds("focus", notOwnWidth("focus"), notOwnWidth("focus"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[1],
         castEnds("focus", notOwnWidth("focus"), notOwnWidth("focus"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[2],
-        castAngle("focus", "your focus's", notOwnWidth("focus"))[1],
-        castAngle("focus", "your focus's", notOwnWidth("focus"))[2],
+        castAngle("focus", "your focus's")[1],
+        castAngle("focus", "your focus's")[2],
         { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",
           desc = "Your focus's cast bar fills from the right. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
@@ -2968,7 +2991,7 @@ ns.OPTIONS = { pages = {
         { label = "Frame shape", items = {
             styleRow("look.style", false),
             { type = "slider", key = "look.slant", label = "Slant angle", min = 0.05, max = 1, step = 0.01, unit = "%",
-              desc = "How far the frames' angled ends lean, as a share of each bar's height, on every unit frame and cast bar. 21% is the usual look, 100% is 45 degrees." },
+              desc = "How far the frames' angled ends lean, as a share of each bar's height, on every unit frame and bar that follows it (each can have its own angle on its page). 21% is the usual look, 100% is 45 degrees." },
         } },
         { label = "Health and names", items = DaylightUI.Options.Join({
             { type = "dropdown", key = "colors.health", label = "Health bar color",

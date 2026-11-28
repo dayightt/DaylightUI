@@ -92,6 +92,12 @@ function UF.AngleOf(own, v)
     return UF.SLANT
 end
 
+-- A unit frame's angle (cut per height), from its own settings table.
+function UF.FrameSlope(cfg)
+    if type(cfg) ~= "table" then return UF.SLANT end
+    return UF.AngleOf(cfg.ownAngle, cfg.lean)
+end
+
 -- Which angled ends lean under (bottom corner out), for Style.Slant's under:
 -- right and left say which ends are angled, flipRight and flipLeft which flip.
 function UF.UnderOf(right, left, flipRight, flipLeft)
@@ -136,11 +142,12 @@ end
 -- end f has angled is cut at f's slope over total; an end f flips is continued
 -- from f's bottom corner instead (ref.drop), so the piece leans back in and the
 -- two make a chevron. f carries ends, under and endCut (its cut over fH, its
--- height). Returns the ends and the cut, or nil and 0.
-function UF.HangEnds(f, total, ref, fH)
+-- height). slope, when given, is the piece's own angle (cut per height) in
+-- place of f's. Returns the ends and the cut, or nil and 0.
+function UF.HangEnds(f, total, ref, fH, slope)
     fH = fH or f:GetHeight()
     local ends = f.ends
-    local k = (ends and type(fH) == "number" and fH > 0) and (f.endCut or f.cut or 0) / fH or 0
+    local k = (ends and type(fH) == "number" and fH > 0) and (slope or (f.endCut or f.cut or 0) / fH) or 0
     ref.frame, ref.height = f, total
     local drop = ref.drop or {}
     ref.drop = drop
@@ -1050,7 +1057,7 @@ function UF.LayoutThreatTag(f, cfg, side)
     local h = tonumber(cfg.threatTagHeight) or 0
     if h <= 0 then h = tonumber(cfg.tabHeight) or UF.TAB_HEIGHT end
     if cfg.threatTagSlant == false then side = nil end
-    local cut = side and Pixel.Snap(f, h * UF.SLANT) or 0
+    local cut = side and Pixel.Snap(f, h * UF.FrameSlope(cfg)) or 0
     local w = Pixel.Snap(f, (tonumber(cfg.threatTagWidth) or UF.THREAT_TAG_W) + cut)
     local nx, ny = tonumber(cfg.threatTagX) or 0, tonumber(cfg.threatTagY) or 0
     tag:ClearAllPoints()
@@ -1193,7 +1200,8 @@ end
 function UF.SetTileName(f, cfg, text)
     -- Clear of each angled end: the inner one (cut) and the outer one, set on its own.
     local ends, _, innerOn, outerOn = UF.FrameEnds(f, cfg)
-    local full = ends and Pixel.Snap(f, cfg.height * UF.SLANT) or 0
+    local slope = UF.FrameSlope(cfg)
+    local full = ends and Pixel.Snap(f, cfg.height * slope) or 0
     local cut, outerCut = innerOn and full or 0, outerOn and full or 0
     local inner = f.spec.slant
     local cutL = inner == "left" and cut or (inner == "right" and outerCut) or 0
@@ -1215,6 +1223,7 @@ function UF.SetTileName(f, cfg, text)
         -- A style with a name row has that row above the frame instead.
         tag = (f.spec.group and not f.nameRow and cfg.nameTag ~= false and UF.TAG_SPOTS[pos]) == true,
         cut = cut > 0 and f.spec.slant or nil,
+        slope = slope,
         flip = innerOn and cfg.slantUnder == true,
     }
     if f.tileName.tag then
@@ -1340,7 +1349,7 @@ local function placeNameTag(f, t)
         tag:SetPoint(L.point, f.health or f, L.relPoint, L.x, L.y)
     end
     -- Angled like the tile, at the same end, leaning the same way.
-    Style.Slant(tag, t.cut, t.cut and Pixel.Snap(f, h * UF.SLANT) or 0, nil,
+    Style.Slant(tag, t.cut, t.cut and Pixel.Snap(f, h * (t.slope or UF.SLANT)) or 0, nil,
         (t.cut and t.flip) and t.cut or nil)
     Style.LayoutShell(Style.GetShell(tag))
     fs:SetPoint("CENTER", tag, "CENTER", 0, 0)
@@ -1600,7 +1609,10 @@ function UF.Layout(f, cfg, text, keepSize)
     -- are the whole shape.
     local ends, under, innerOn, outerOn = UF.FrameEnds(f, cfg)
     local side = innerOn and f.spec.slant or nil
-    local fullCut = ends and Pixel.Snap(f, cfg.height * UF.SLANT) or 0
+    -- Its own angle, or the shared Slant angle. Pieces placed off the frame
+    -- later (the middle cast bar, the swing bars under it) read f.slope.
+    f.slope = UF.FrameSlope(cfg)
+    local fullCut = ends and Pixel.Snap(f, cfg.height * f.slope) or 0
     local cut = side and fullCut or 0
     f.cut = cut
     f.outerCut = outerOn and fullCut or 0
@@ -1935,7 +1947,7 @@ function UF.Layout(f, cfg, text, keepSize)
         if f.tabSlant == "on" then tabSide = f.spec.slant elseif f.tabSlant == "off" then tabSide = nil end
         -- On a flipped end it leans the same way.
         if f.spec.slant then
-            Style.Slant(f.tab, tabSide, tabSide and Pixel.Snap(f, f.tabHeight * UF.SLANT) or 0, nil, UF.FlipAt(f, tabSide))
+            Style.Slant(f.tab, tabSide, tabSide and Pixel.Snap(f, f.tabHeight * f.slope) or 0, nil, UF.FlipAt(f, tabSide))
         end
         Style.LayoutShell(Style.GetShell(f.tab))
         UF.SizeTab(f)
@@ -1949,10 +1961,13 @@ function UF.Layout(f, cfg, text, keepSize)
         -- ring shows elite status instead.
         local outerRight = f.spec.slant == "left"
         f.crest:ClearAllPoints()
-        -- A backdrop has no tab: the badge sits on the frame's own outer corner,
-        -- out of the tab's clip so none of it is cut off.
-        local on = f.backdropOn and f or f.tab
-        f.crest:SetParent(f.backdropOn and f.overlay or f.tabClip)
+        -- With no tab showing (a backdrop, or the name on the bar) the badge sits
+        -- on the frame's own outer corner, out of the tab's clip so none of it is
+        -- cut off. It is the elite's one sign there in a fight, when aggro takes
+        -- the border.
+        local onFrame = f.backdropOn or not f.tab:IsShown()
+        local on = onFrame and f or f.tab
+        f.crest:SetParent(onFrame and f.overlay or f.tabClip)
         f.crest:SetPoint("CENTER", on, "TOP" .. (outerRight and "RIGHT" or "LEFT"), 0, 0)
         f.crest:SetFrameLevel(f.tab:GetFrameLevel() + 4)
         f.crest:SetSize(UF.CREST_SIZE, UF.CREST_SIZE)
@@ -3803,7 +3818,10 @@ function UF.LayoutStatus(f, cfg)
         -- Past the level badge, which sticks out of the outer bottom corner.
         local badge = (f.showLevel ~= false and not f.levelSpot) and icons.level:GetWidth() / 2 or 0
         local gap = out * (badge + UF.BARE_ICON_GAP)
-        icons.leader:SetPoint("TOP" .. inner, f, "TOP" .. outer, gap + ln.x, ln.y)
+        -- The crown is level with the elite badge on the outer top corner.
+        local crest = (f.crest and f.showClassification) and UF.CREST_SIZE / 2 or 0
+        local top = out * (math.max(badge, crest) + UF.BARE_ICON_GAP)
+        icons.leader:SetPoint("TOP" .. inner, f, "TOP" .. outer, top + ln.x, ln.y)
         icons.rest:SetPoint(inner, f, outer, gap, 0)
         icons.pvp:SetPoint("BOTTOM" .. inner, f, "BOTTOM" .. outer, gap, 0)
         icons.level:SetPoint("CENTER", f, "BOTTOM" .. outer, 0, 0)
@@ -4542,9 +4560,9 @@ function UF.ApplyCrest(f, c)
             UF.PaintElite(f)
         end
         local tabShown = f.tab:IsShown() or f.backdropOn == true
-        f.crest:SetShown(f.crestShown and not onRing and tabShown)
-        -- With no ring and no tab the badge has nowhere to sit, so the frame's
-        -- own border takes its color.
+        f.crest:SetShown(f.crestShown and not onRing)
+        -- With no ring and no tab the frame's own border takes the badge's color
+        -- too, until aggro paints it.
         local edge = (f.crestShown and not onRing and not tabShown) and UF.CREST_COLORS[kind] or nil
         if edge ~= f.eliteEdge then
             f.eliteEdge = edge
@@ -4737,6 +4755,7 @@ end
 -- that fade with them (f.fadeOf: a free power bar, a portrait on its own). A
 -- party or raid tile on "player" fades by its group's settings.
 local fullPaths = {}   -- unit -> { "<unit>.fade.fullHealth", "<unit>.fade", "<unit>.fade.fullMana" }
+local secretAlpha   -- below, with paintAlpha
 local function setFaded(f, m)
     local owner = f.fadeOf or f
     local u = owner.unitToken
@@ -4756,6 +4775,7 @@ local function setFaded(f, m)
                 if pcall(f.SetAlpha, f, a) then
                     f.paintHow, f.paintA, f.paintB = "full", m, hi
                     f.paintUnit, f.paintMana, f.paintHealth = u, mana, health
+                    secretAlpha(f, hi, true)
                     return
                 end
             end
@@ -4763,6 +4783,7 @@ local function setFaded(f, m)
     end
     f:SetAlpha(m)
     f.paintHow, f.paintA = "plain", m
+    secretAlpha(f, nil, false)
 end
 
 -- Your party or raid, the units the game range-checks. Not you, and not your
@@ -4892,6 +4913,16 @@ function paintRange(f)
     end
 end
 
+-- A frame whose alpha comes from a secret hides every alpha under it, and the
+-- client draws a bar's multiplied (MOD) colors at full strength whatever the
+-- alpha. cap: the most the alpha can be, so Style.FollowMods can still fade them.
+-- whole: drawn as one picture, for an alpha that may be anywhere up to the cap
+-- (the health curve), which keeps those colors inside the frame's own picture.
+function secretAlpha(f, cap, whole)
+    Style.AlphaCap(f, cap)
+    if not f.fadeOf then DUI.Fade.Whole(f, "full", whole == true) end
+end
+
 function paintAlpha(f)
     local m = UF.CombatAlpha(f)
     -- A piece reads its frame's range answer.
@@ -4906,6 +4937,7 @@ function paintAlpha(f)
     if r == "unchecked" then
         f:SetAlpha(m)
         f.paintHow, f.paintA = "plain", m
+        secretAlpha(f, nil, false)
         return
     end
     local inRange, dim = o.rangeIn, o.rangeAlpha
@@ -4913,15 +4945,18 @@ function paintAlpha(f)
         if f.SetAlphaFromBoolean then
             f:SetAlphaFromBoolean(inRange, m, m * dim)
             f.paintHow, f.paintA, f.paintB, f.paintC = "bool", inRange, m, m * dim
+            secretAlpha(f, m, false)   -- the range dims it below m at most
         else
             f:SetAlpha(m)
             f.paintHow, f.paintA = "plain", m
+            secretAlpha(f, nil, false)
         end
         return
     end
     local a = m * (inRange == true and 1 or dim)
     f:SetAlpha(a)
     f.paintHow, f.paintA = "plain", a
+    secretAlpha(f, nil, false)
 end
 
 function UF.UpdateRange(f)

@@ -178,7 +178,7 @@ function Group.NestCut(cfg, spec, region)
     if type(cfg) ~= "table" or type(spec) ~= "table" or not spec.slant then return 0 end
     local side, under = UF.FrameEnds({ spec = spec }, cfg)
     if side ~= "both" or (under ~= "left" and under ~= "right") then return 0 end
-    return Pixel.Snap(region or UIParent, (tonumber(cfg.height) or 0) * UF.SLANT)
+    return Pixel.Snap(region or UIParent, (tonumber(cfg.height) or 0) * UF.FrameSlope(cfg))
 end
 
 function Group:Nest(cfg) return Group.NestCut(cfg, self.opts.spec, self.holder) end

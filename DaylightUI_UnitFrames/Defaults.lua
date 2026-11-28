@@ -377,12 +377,15 @@ end
 -- Each end of a frame is set on its own (Options.EndRows): slant angles the
 -- inner end (the one the bars fill toward), slantOuter the outer one, and
 -- slantUnder / slantUnderOuter flip that end so its bottom corner sticks out.
+-- ownAngle gives the frame its own angle, lean (the cut as a share of its
+-- height); off, it follows the shared Slant angle (UF.FrameSlope).
 -- Frames copied from these (raid sizes, arena, focus target, party targets)
 -- take them along.
 ns.END_FRAMES = { "player", "target", "targettarget", "pet", "focus", "party", "partyPet", "raid" }
 for _, k in ipairs(ns.END_FRAMES) do
     local d = ns.DEFAULTS[k]
     d.slantOuter, d.slantUnder, d.slantUnderOuter = false, false, false
+    d.ownAngle, d.lean = false, 0.21
 end
 
 -- The name tab's own look and placement (Daylight style; UF.TabLook, UF.PlaceTab).

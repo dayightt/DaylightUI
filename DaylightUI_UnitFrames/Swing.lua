@@ -959,7 +959,8 @@ function ST.Place(h)
     local cb = h.castbar
     local f = h.attached and cb and cb.under or nil
     local height = h.rowHeight or 12
-    local angle = ns.UF.SLANT
+    -- Hung under a frame, they lean at that frame's angle.
+    local angle = (type(f) == "table" and f.slope) or ns.UF.SLANT
     for _, row in ipairs(h.rows) do
         if not row.alone then row.leftCut = nil end
         if row.alone then
@@ -1182,7 +1183,9 @@ function ST.Hang(h)
             local ref = row.slantRef or {}
             row.slantRef = ref
             -- It continues each of the frame's angled ends (a flipped one as a chevron).
-            local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH)
+            -- Under a cast bar hung from the same frame, they lean with it.
+            local hung = cb and cb.column
+            local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH, hung and hung.f == f and hung.slope or nil)
             Style.Slant(row, ends, cut, ref)
             -- How far in each end is at this bar's bottom: a chevron end's line
             -- starts lower, so it's in by less.

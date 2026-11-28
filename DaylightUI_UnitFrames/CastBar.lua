@@ -377,7 +377,7 @@ function CB.Hang(h)
     local ref = c.ref or {}
     c.ref = ref
     -- It continues each of the frame's angled ends (a flipped one as a chevron).
-    local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH)
+    local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH, c.slope)
     if not c.slant then ends, cut = nil, 0 end
     Style.Slant(h, ends, cut, ref)
     -- The fill's moving edge carries the angle of the end it runs toward.
@@ -423,6 +423,14 @@ function CB.Depth(h)
     return c.fH - c.lift + c.height * h.slide.p
 end
 
+-- A cast bar's own angle (cut per height) when its switch is on, else nil:
+-- under or matching its frame it then leans with the frame.
+function CB.OwnSlope(cfg)
+    local v = tonumber(cfg and cfg.lean)
+    if cfg and cfg.ownAngle == true and v and v > 0 then return v end
+    return nil
+end
+
 -- Between the player frame and the target's ("middle"): from the player frame's
 -- right end to the target frame's left end, tops level with them. Both ends are
 -- angled at the frames' own angle but lean under (wider at the bottom), so each
@@ -435,7 +443,9 @@ function CB.Middle(h, cfg, T, tall)
     local tf = ns.frames.target
     local db = ns.module and ns.module.db
     local height = tall
-    local cut = cfg.slant ~= false and Pixel.Snap(h, tall * ns.UF.SLANT) or 0
+    -- Both ends lean at the player frame's angle (its own, or the shared one).
+    local slope = type(pf) == "table" and pf.slope or ns.UF.SLANT
+    local cut = cfg.slant ~= false and Pixel.Snap(h, tall * slope) or 0
     -- Measured where the edges are parallel: the frame's end is its top corner
     -- and this bar's is its bottom one, so the box comes in by this bar's cut.
     local dx = CB.AT_GAP - cut
@@ -563,14 +573,17 @@ function CB.Layout(h, cfg, parentCfg)
         -- Drawn just above the frame (and below its portrait), so its straight
         -- border covers the rounded tip of the frame's angle where they meet.
         h:SetFrameLevel(f:GetFrameLevel() + 4)
-        h.column = { f = f, base = base, lift = lift, fH = fH, height = height, T = T, side = side, slant = cfg.slant ~= false }
+        -- It wears the frame's ends at the frame's angle, or at its own one.
+        local own = CB.OwnSlope(cfg)
+        h.column = { f = f, base = base, lift = lift, fH = fH, height = height, T = T, side = side, slant = cfg.slant ~= false, slope = own }
+        local k = own or (f.endCut or f.cut or 0) / fH
         local total = fH + height - lift
         -- How far in the end it runs toward is at its bottom, for its text: under
         -- a flipped end (a chevron) the line starts at the frame's bottom.
         local over = ns.UF.FlipAt(f, side) and (total - fH) or total
-        cut = (cfg.slant == false or not ns.UF.HasEnd(f.ends, side)) and 0 or (f.endCut or f.cut or 0) * over / fH
+        cut = (cfg.slant == false or not ns.UF.HasEnd(f.ends, side)) and 0 or k * over
         -- Its other end can be angled on its own too.
-        h.hangPad = cfg.slant ~= false and (f.endCut or 0) * total / fH or 0
+        h.hangPad = (cfg.slant ~= false and f.endCut) and (own or f.endCut / fH) * total or 0
         CB.Hang(h)
     elseif middle then
         h.column = nil
@@ -601,7 +614,8 @@ function CB.Layout(h, cfg, parentCfg)
             local fH = f:GetHeight()
             right, left = ns.UF.HasEnd(f.ends, "right"), ns.UF.HasEnd(f.ends, "left")
             flipRight, flipLeft = ns.UF.FlipAt(f, "right") == "right", ns.UF.FlipAt(f, "left") == "left"
-            if type(fH) == "number" and fH > 0 then slope = (f.endCut or f.cut or 0) / fH end
+            -- Its own angle, when it has one, still wins.
+            if not CB.OwnSlope(cfg) and type(fH) == "number" and fH > 0 then slope = (f.endCut or f.cut or 0) / fH end
         end
         h:SetSize(2 * Pixel.Snap(h, width / 2), height)
         cut = (right or left) and Pixel.Snap(h, tall * slope) or 0
