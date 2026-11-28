@@ -236,6 +236,17 @@ function Header.Blind(h, to, snap)
     DUI.Motion.Tween(h.inner, from, to, DUI.Motion.NORMAL, step, done)
 end
 
+-- One of its buttons has its menu open. The menu sits outside the window, so
+-- the mouse on it still counts as over the meter.
+function Header.MenuOpen(h)
+    local owner = DUI.Widgets.menuOwner
+    if owner == nil then return false end
+    for _, b in pairs(h.buttons) do
+        if b == owner then return true end
+    end
+    return false
+end
+
 -- The mouse came or went: the buttons cross-fade with the clock (and a
 -- "hover" header comes and goes whole). FAST.
 function Header.Hover(h, on)

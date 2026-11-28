@@ -851,6 +851,47 @@ T.test("meter header: the buttons open the fights, the modes, the report, reset,
     T.eq(DUI.OptionsPanel.Current(), "InfoPanel.meter")
 end)
 
+-- A header menu sits outside the window: going onto it mustn't count as
+-- leaving, or the header (and the menu with it) goes before a pick.
+T.test("meter header: stays while one of its menus is open, and goes once it closes", function()
+    local DUI = login()
+    local h = header()
+    DUI:Set("InfoPanel", "meter.header", "hover"); stub.RunTimers()
+    hover(true)
+    h.buttons.mode:GetScript("OnClick")(h.buttons.mode)
+    hover(false)
+    T.truthy(h:IsShown(), "a hover header stays while its menu is open")
+    T.eq(DUI.Widgets.menuOwner, h.buttons.mode, "and the menu with it")
+    local rows = PW.menuRows()
+    rows[3]:GetScript("OnClick")(rows[3])
+    T.isnil(DUI.Widgets.menuOwner)
+    hover(false)
+    T.falsy(h:IsShown(), "gone once the menu closed with the mouse away")
+
+    DUI:Set("InfoPanel", "meter.header", "always"); stub.RunTimers()
+    hover(true)
+    h.buttons.new:GetScript("OnClick")(h.buttons.new)
+    hover(false)
+    T.truthy(h.tools:IsShown(), "the buttons stay out while a button's menu is open")
+    T.eq(DUI.Widgets.menuOwner, h.buttons.new)
+    DUI.Widgets.CloseMenu()
+    hover(false)
+    T.falsy(h.tools:IsShown())
+
+    local M, B = stub.infopanel.Meter, stub.infopanel.Breakdown
+    stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 1000, sourceGUID = "Player-2" } }
+    stub.meter.spells = { { spellID = 1, totalAmount = 1000 } }
+    M.Draw()
+    M.rows[1].IsMouseOver = function() return true end
+    hover(true)
+    T.truthy(B.Frame():IsShown(), "the row under the mouse breaks down")
+    h.buttons.mode:GetScript("OnClick")(h.buttons.mode)
+    hover(true)
+    T.falsy(B.Frame():IsShown(), "no breakdown behind a menu opened down over the rows")
+    T.isnil(M.hovered)
+    DUI.Widgets.CloseMenu()
+end)
+
 T.test("meter header: the group's total shows when switched on, secret in a fight too", function()
     local DUI = login()
     local M, h = stub.infopanel.Meter, header()
