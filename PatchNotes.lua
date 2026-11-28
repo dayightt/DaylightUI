@@ -14,8 +14,6 @@ DUI.PatchNotes = {
     { version = "Unreleased", changed = {
         { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },
     }, fixed = {
-        { "Group finder", "On an account without an authenticator, the note box on List yourself is grayed out and says why, like the game's: before, you could type a note nobody else ever saw" },
-        { "Spellbook", "Hiding passives or lower ranks, or folding a section, slides the spells smoothly into their new places instead of jumping" },
         { "Unit frames", "Elites, rares and bosses show their gold or silver badge on the frame's corner even with no portrait or name tab, so you can still tell them apart in a fight" },
     } },
     { version = "2.4.3", date = "2026-11-27", summary = "Bar animations that run either way, angled ends you can set on every bar, and a mailbox and spellbook that do everything the game's own do.", new = {
@@ -38,8 +36,9 @@ DUI.PatchNotes = {
         { "Cooldown Manager", "A recast glow turns off once its debuff is gone" },
         { "Auction House", "The Sell tab lists other sellers' auctions by the price you see" },
         { "Professions", "Clicking the tab you're already on no longer closes the profession window" },
+        { "Group finder", "On an account without an authenticator, the note box on List yourself is grayed out and says why, like the game's: before, you could type a note nobody else ever saw" },
         { "Cast bars", "A target or focus cast bar above or below its frame leans at the ends like the frame" },
-        { "Little touches", "The minimap's quest areas fade with the map, the quest tracker's hover highlight sits evenly round the text (thanks Naerian), quests asking for gold show what you have, and the window swap link reads right" },
+        { "Little touches", "Spells glide into place when you hide passives or fold a section, the minimap's quest areas fade with the map, the quest tracker's hover highlight sits evenly round the text (thanks Naerian), quests asking for gold show what you have, and the window swap link reads right" },
     } },
     { version = "2.4.2", date = "2026-11-27", summary = "XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.", new = {
         { "Info Panel", "XP orbs: gaining experience sends a ring of orbs flying into your XP bar" },

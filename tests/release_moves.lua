@@ -8,9 +8,7 @@
 -- "*|<piece>" for one piece in every case -> why.
 -- Emptied at each release, when tests/release_snapshot.lua writes the new snapshot.
 return {
-    values = {
-        ["UnitFrames.personal.fade.mouseover"] = "The personal display was the only area that ignored the mouse; it now comes back on mouseover like every other area.",
-    },
+    values = {},
     frames = {},
     plates = {},
 }

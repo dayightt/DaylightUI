@@ -24,8 +24,9 @@ Bar animations that run either way, angled ends you can set on every bar, and a 
 - Cooldown Manager: A recast glow turns off once its debuff is gone
 - Auction House: The Sell tab lists other sellers' auctions by the price you see
 - Professions: Clicking the tab you're already on no longer closes the profession window
+- Group finder: On an account without an authenticator, the note box on List yourself is grayed out and says why, like the game's: before, you could type a note nobody else ever saw
 - Cast bars: A target or focus cast bar above or below its frame leans at the ends like the frame
-- Little touches: The minimap's quest areas fade with the map, the quest tracker's hover highlight sits evenly round the text (thanks Naerian), quests asking for gold show what you have, and the window swap link reads right
+- Little touches: Spells glide into place when you hide passives or fold a section, the minimap's quest areas fade with the map, the quest tracker's hover highlight sits evenly round the text (thanks Naerian), quests asking for gold show what you have, and the window swap link reads right
 
 # DaylightUI 2.4.2
 
