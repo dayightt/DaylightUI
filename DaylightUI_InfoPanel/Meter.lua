@@ -1014,7 +1014,7 @@ function Meter.New(m, opts)
         ns.MeterHeader.Hover(header, true)
         makeRoom(true)
         area:SetScript("OnUpdate", function(self)
-            if not self:IsMouseOver() then
+            if not self:IsMouseOver() and not ns.MeterHeader.MenuOpen(header) then
                 ns.MeterHeader.Hover(header, false)
                 makeRoom(false)
                 m.hovered = nil
