@@ -1014,7 +1014,8 @@ function Meter.New(m, opts)
         ns.MeterHeader.Hover(header, true)
         makeRoom(true)
         area:SetScript("OnUpdate", function(self)
-            if not self:IsMouseOver() and not ns.MeterHeader.MenuOpen(header) then
+            local menuOpen = ns.MeterHeader.MenuOpen(header)
+            if not self:IsMouseOver() and not menuOpen then
                 ns.MeterHeader.Hover(header, false)
                 makeRoom(false)
                 m.hovered = nil
@@ -1022,7 +1023,8 @@ function Meter.New(m, opts)
                 self:SetScript("OnUpdate", nil)
                 return
             end
-            local bar = hoveredBar()
+            -- A menu opened down over the rows: no breakdown behind it.
+            local bar = not menuOpen and hoveredBar() or nil
             if bar ~= m.hovered then
                 m.hovered = bar
                 -- A threat row has no spells to break down.

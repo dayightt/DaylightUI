@@ -877,6 +877,19 @@ T.test("meter header: stays while one of its menus is open, and goes once it clo
     DUI.Widgets.CloseMenu()
     hover(false)
     T.falsy(h.tools:IsShown())
+
+    local M, B = stub.infopanel.Meter, stub.infopanel.Breakdown
+    stub.meter.sources = { { name = "Sigzil", classFilename = "MAGE", totalAmount = 1000, sourceGUID = "Player-2" } }
+    stub.meter.spells = { { spellID = 1, totalAmount = 1000 } }
+    M.Draw()
+    M.rows[1].IsMouseOver = function() return true end
+    hover(true)
+    T.truthy(B.Frame():IsShown(), "the row under the mouse breaks down")
+    h.buttons.mode:GetScript("OnClick")(h.buttons.mode)
+    hover(true)
+    T.falsy(B.Frame():IsShown(), "no breakdown behind a menu opened down over the rows")
+    T.isnil(M.hovered)
+    DUI.Widgets.CloseMenu()
 end)
 
 T.test("meter header: the group's total shows when switched on, secret in a fight too", function()
