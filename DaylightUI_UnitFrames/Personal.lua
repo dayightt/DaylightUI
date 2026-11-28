@@ -254,7 +254,9 @@ function PR.Create()
     PR.follow = follow
 
     local list = { h }
-    DUI.Movers.Register(h, PR.KEY, "Personal Display", { "TOP", nil, "CENTER", 0, -110 })
+    -- Switched off, it has no unlock handle either.
+    DUI.Movers.Register(h, PR.KEY, "Personal Display", { "TOP", nil, "CENTER", 0, -110 },
+        { active = function() local cfg = db(); return cfg ~= nil and cfg.enabled == true end })
     -- Unlocking holds the display at the docked bars' resting spot; locking
     -- lets it follow the camera again, the bars with it.
     DUI.On("UnlockChanged", function()

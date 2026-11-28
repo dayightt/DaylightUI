@@ -33,7 +33,7 @@ DUI.PatchNotes = {
         { "Spellbook", "The spellbook and talents do what the game's do: Alt-click self-cast, Shift-P for pet spells, autocast marks, search by what a spell does, drag talents onto your bars" },
         { "Quests", "Quests started from an item show at the top of the tracker again, and quest item buttons link, light up and stay like the game's" },
         { "Social", "Whispering a friend added by character name reaches them again, and the social tabs no longer run into your BattleTag" },
-        { "Unit frames", "The personal display comes back when you mouse over it, like every other part of the UI" },
+        { "Unit frames", "The personal display comes back when you mouse over it, like every other part of the UI, and no longer shows a handle in unlock mode while it's turned off" },
         { "Proc Alerts", "Proc alerts and the Molten, Cinders and Slosh bar animations no longer show as green boxes for some players" },
         { "Action bars", "Long item cooldowns (like the Salt Shaker) show the same time on your bars as in your bags" },
         { "Cooldown Manager", "A recast glow turns off once its debuff is gone" },
