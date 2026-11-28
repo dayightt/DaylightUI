@@ -72,16 +72,36 @@ T.test("pet page: a hunter's pet shows its name, level, family, loyalty, XP and 
     T.truthy(page.foot.moodText:GetText():find("Happy", 1, true))
     T.truthy(page.foot.moodText:GetText():find("125%", 1, true))
     T.truthy(page.foot.xpText:GetText():find("1,200", 1, true), page.foot.xpText:GetText())
+    -- After the mood, the loyalty and the diet are texts of their own, with the same gap between
+    -- each part, and the XP follows the last of them.
+    local foot = page.foot
+    T.truthy(foot.loyaltyText:GetText():find("Gaining loyalty", 1, true), "loyalty rising")
+    T.truthy(foot.dietText:GetText():find("Diet: Meat, Fish", 1, true), foot.dietText:GetText())
+    local _, rel1, p1, x1 = foot.loyaltyText:GetPoint(1)
+    T.eq(rel1, foot.mood); T.eq(p1, "RIGHT"); T.eq(x1, ns.PetPage.FOOT_GAP, "a fixed gap after the mood")
+    local _, rel2, p2, x2 = foot.dietText:GetPoint(1)
+    T.eq(rel2, foot.loyaltyText); T.eq(p2, "RIGHT"); T.eq(x2, ns.PetPage.FOOT_GAP, "the same gap after the loyalty")
+    -- The XP comes right after the diet, with the same gap, not pinned to the right edge.
+    local _, rel3, p3, x3 = foot.xpText:GetPoint(1)
+    T.eq(rel3, foot.dietText); T.eq(p3, "RIGHT"); T.eq(x3, ns.PetPage.FOOT_GAP, "the XP follows the diet")
+    T.eq(foot.xpText:GetJustifyH(), "LEFT")
+    -- On a footer too narrow for all of it, the diet is the part that gets the short width.
+    local full = foot.dietText:GetWidth()
+    foot:SetWidth(foot.mood:GetWidth() + foot.loyaltyText:GetWidth() + foot.xpText:GetStringWidth() + 3 * ns.PetPage.FOOT_GAP + 10)
+    ns.PetPage.PaintFooter(page, ns.PetPage.Read())
+    T.truthy(foot.dietText:GetWidth() <= 10, "the diet is cut, not the XP: " .. foot.dietText:GetWidth())
+    T.truthy(foot.dietText:GetWidth() < full)
 end)
 
-T.test("pet page: an unhappy pet's face and color", function()
+T.test("pet page: an unhappy pet's face and color, and a loyalty it is losing", function()
     local pet = {}
     for k, v in pairs(HUNTER_PET) do pet[k] = v end
-    pet.mood, pet.damage = 1, 75
+    pet.mood, pet.damage, pet.rate = 1, 75, -1
     local ns = load({ class = "HUNTER", pet = pet })
     local page = openPet(ns)
     T.eq(page.foot.face.__atlas, "UI-PetMad")
     T.truthy(page.foot.moodText:GetText():find("Unhappy", 1, true))
+    T.truthy(page.foot.loyaltyText:GetText():find("Losing loyalty", 1, true))
 end)
 
 T.test("pet page: a pet at the top level shows no XP bar", function()
@@ -103,6 +123,8 @@ T.test("pet page: a warlock's demon has no mood, loyalty or XP", function()
     T.falsy(page.sub:GetText():find("(", 1, true), "no loyalty")
     T.eq(page.xp:IsShown(), false)
     T.eq(page.foot.mood:IsShown(), false)
+    T.eq(page.foot.loyaltyText:GetText(), "", "no loyalty for a demon")
+    T.eq(page.foot.dietText:GetText(), "", "and no diet")
 end)
 
 T.test("pet page: the game's pet rows, read for the pet; zero spell power left out", function()
