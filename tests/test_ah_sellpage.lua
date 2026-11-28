@@ -793,3 +793,118 @@ T.test("sell: hovering the picked item's name shows its tooltip", function()
     T.falsy(tip:IsShown(), "gone when the mouse leaves")
     quiet()
 end)
+
+-- Vendor prices: Wool Cloth 40c against 31c on the Auction House, Minor Healing
+-- Potion 50c against 11c (both marked); Linen Cloth 1c against 9c (not marked);
+-- the pattern 1g with no Auction House price at all.
+local function vendorLoad()
+    return load({
+        auctions = {
+            { itemID = LINEN, name = "Linen Cloth", count = 200, buyout = 200 * 10, classID = 7, vendorSell = 1 },
+            { itemID = WOOL, name = "Wool Cloth", count = 45, buyout = 45 * 32, classID = 7, vendorSell = 40 },
+            { itemID = POTION, name = "Minor Healing Potion", count = 10, buyout = 10 * 12, classID = 0, vendorSell = 50 },
+            { itemID = SWORD, name = "Ridge Cleaver", count = 1, buyout = 2 * G + 500, classID = 2, quality = 2 },
+        },
+        items = {
+            [PATTERN] = { name = "Pattern: Red Linen Robe", classID = 9, vendorSell = G },
+            [COPPER] = { name = "Copper Bar", classID = 7 },
+        },
+    })
+end
+
+local function hasLine(page, name)
+    for _, b in ipairs(page.left.stack.used) do
+        if b.lineSpec and b:IsShown() and plain(b.lineSpec.text) == name then return true end
+    end
+    return false
+end
+
+T.test("sell: an item a vendor pays more for is grayed in the list, with the vendor's price", function()
+    local A = vendorLoad()
+    local page = open(A)
+    local P = A.SellPage
+    local potion = lineOf(page, "Minor Healing Potion")
+    T.eq(P.Row("118").vendor, 50)
+    T.eq(potion.lineSpec.color, DaylightUI.Style.INK.OFF, "grayed")
+    T.eq(plain(potion.lineSpec.subValue), "Vendor 50c", "says why")
+    T.eq(plain(lineOf(page, "Wool Cloth").lineSpec.subValue), "Vendor 40c")
+    local linen = lineOf(page, "Linen Cloth")
+    T.isnil(P.Row("2589").vendor, "a vendor pays less: not marked")
+    T.isnil(linen.lineSpec.subValue)
+    T.truthy(linen.lineSpec.color ~= DaylightUI.Style.INK.OFF, "in its quality's color")
+    T.truthy(hasLine(page, "Minor Healing Potion"), "still listed, to pick by hand")
+    -- the list and the Post warning use one test
+    potion:Click()
+    AHW.Settle()
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 0)
+    T.truthy(said(page):find("A vendor pays more for it", 1, true), said(page))
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    page.right.box.post:Click()
+    T.eq(AHW.Calls("PostCommodity"), 1, "an unmarked item posts in one click")
+    quiet()
+end)
+
+T.test("sell: an item with no Auction House price isn't marked, whatever a vendor pays", function()
+    local A = vendorLoad()
+    local page = open(A)
+    local r = A.SellPage.Row("2598")
+    T.isnil(r.d.unit, "no price known")
+    T.isnil(r.vendor)
+    T.isnil(A.SellPage.VendorPays(r, 1, nil))
+    T.isnil(lineOf(page, "Pattern: Red Linen Robe").lineSpec.subValue)
+    quiet()
+end)
+
+local function headings(page)
+    local out = {}
+    for _, sec in ipairs(sections(page)) do out[#out + 1] = sec.text:GetText() end
+    return out
+end
+
+T.test("sell: items a vendor pays more for sit under their own heading at the bottom, with no Sell all", function()
+    local A = vendorLoad()
+    local page = open(A)
+    local P = A.SellPage
+    T.deq(headings(page), { "WEAPON", "TRADE GOODS", "RECIPE", "VENDOR PAYS MORE" },
+        "out of Consumable and Trade Goods, into the last heading")
+    local vendor = sections(page)[4]
+    T.falsy(vendor.action and vendor.action:IsShown(), "no Sell all")
+    T.eq(plain(vendor.value:GetText()), "8s 60c", "what a vendor pays for all of them: 6 x 50c + 14 x 40c")
+    local keys = {}
+    for _, r in ipairs(P.Order("vendor")) do keys[#keys + 1] = r.key end
+    T.deq(keys, { "2592", "118" }, "Wool Cloth and the potion, most valuable first")
+    T.truthy(sections(page)[2].action:IsShown(), "the other headings keep theirs")
+    T.eq(plain(sections(page)[2].value:GetText()), "1s 80c", "Trade Goods counts Linen Cloth only")
+    quiet()
+end)
+
+T.test("sell: Sell all and the next pick never meet items a vendor pays more for", function()
+    local A = vendorLoad()
+    local page = open(A)
+    local P = A.SellPage
+    sections(page)[2].action:Click()   -- Trade Goods: Linen Cloth only now
+    T.deq(P.selling.keys, { "2589" })
+    T.eq(P.picked, "2589")
+    AHW.Settle()
+    page.right.box.post:Click()
+    AHW.Settle()
+    T.eq(AHW.Calls("PostCommodity"), 1)
+    T.truthy(said(page):find("That was the last of Trade Goods.", 1, true), said(page))
+    T.falsy(said(page):find("A vendor pays more", 1, true), "never stopped on one")
+    T.isnil(P.selling)
+    quiet()
+end)
+
+T.test("sell: Skip doesn't step into the vendor heading", function()
+    local A = vendorLoad()
+    local page = open(A)
+    local P = A.SellPage
+    lineOf(page, "Linen Cloth"):Click()
+    AHW.Settle()
+    page.right.box.skip:Click()   -- next: the pattern (no price) and then only vendor items
+    T.eq(P.picked, "2589", "stays put")
+    T.eq(AHW.Calls("PostCommodity"), 0)
+    quiet()
+end)

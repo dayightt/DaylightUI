@@ -9383,4 +9383,8 @@ L["whole UI"] = "toda la interfaz"
 L["Expired"] = "Caducado"
 L["Canceled"] = "Cancelado"
 L["Won"] = "Ganado"
+
+-- Auction House Sell tab: items a vendor pays more for (machine draft, not yet checked by a native speaker).
+L["Vendor %s"] = "Comerciante %s"
+L["Vendor pays more"] = "El comerciante paga más"
 end)

@@ -4967,4 +4967,8 @@ L["Expired"] = "만료됨"
 L["Canceled"] = "취소됨"
 L["Won"] = "낙찰됨"
 L["Outbid"] = "상회 입찰"
+
+-- Auction House Sell tab: items a vendor pays more for (machine draft, not yet checked by a native speaker).
+L["Vendor %s"] = "상인 %s"
+L["Vendor pays more"] = "상인이 더 많이 줌"
 end)
