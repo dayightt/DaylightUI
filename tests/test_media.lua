@@ -104,12 +104,27 @@ T.test("media: our six extra bar fills, listed after ours and worn like a shared
     DUI:Set("general", "barTexture", "glass")
     stub.RunTimers()
     T.eq(fill.__texture, DUI.MEDIA .. "bar-glass.tga", "the fill wears it")
+    Style.Clip(holder, fill, "inner")
+    Style.Slant(holder, "right", 6)
     Style.SetBarGradient(bar, true)
+    -- The client ignores masks on a MOD texture, so a multiplied shading layer
+    -- darkened the corner past an angled end and the world behind it (seen in
+    -- game with glass and silk). Daylight UI's own textures come with a shade
+    -- copy drawn in a normal blend: dark where the texture is dark, clear where
+    -- it's white, which looks the same and keeps the angled cut.
     local grain
     for _, r in ipairs({ bar:GetRegions() }) do
-        if r ~= fill and r.__blend == "MOD" then grain = r end
+        if r ~= fill and (r.__texture or ""):find("bar%-glass") then grain = r end
     end
-    T.eq(grain and grain.__texture, DUI.MEDIA .. "bar-glass.tga", "over the Daylight gradient too")
+    T.eq(grain and grain.__texture, DUI.MEDIA .. "bar-glass-shade.tga", "over the Daylight gradient too, as its shade")
+    T.eq(grain and grain.__blend, "BLEND", "never multiplied: the client wouldn't cut it")
+    T.truthy(grain and grain:IsShown())
+    T.eq(#(grain and grain.__masks or {}), #(fill.__masks or {}), "cut like the fill")
+    for _, key in ipairs({ "silk", "glass", "tube", "slant", "brushed", "grain" }) do
+        local f = io.open("Media/bar-" .. key .. "-shade.tga", "rb")
+        T.truthy(f, key .. " has its shade copy")
+        if f then f:close() end
+    end
     T.eq(O.BarRow("windowBar", "Window bar", "the bars").shownAs("general"), "Glass", "by its own name")
     _G.LibStub = nil
     local plain = stub.Load()

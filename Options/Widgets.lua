@@ -2004,7 +2004,6 @@ function W.PaintBarTexture(bar)
     local fg, bg = Style.SharedBar(W.BAR_SLOT), Style.SharedBack(W.BACK_SLOT)
     if fg and not bar.grain then
         bar.grain = capped(bar, bar:GetStatusBarTexture(), "ARTWORK", 1)
-        bar.grain:SetBlendMode("MOD")
         capSize(bar)
     end
     if bg and not bar.trackGrain then
@@ -2012,8 +2011,19 @@ function W.PaintBarTexture(bar)
         capSize(bar)
     end
     if bar.grain then
-        if fg then bar.grain:SetTexture(fg) end
-        Style.ShowModShading(bar.grain, bar, fg ~= nil)
+        -- Daylight UI's own textures lay their shade copy in a normal blend,
+        -- which keeps the round caps (the client ignores masks on MOD).
+        local shade = Style.ShadeOf(fg)
+        if fg then
+            bar.grain:SetTexture(shade or fg)
+            bar.grain:SetBlendMode(shade and "BLEND" or "MOD")
+        end
+        if shade then
+            Style.DropModShading(bar.grain, bar)
+            bar.grain:Show()
+        else
+            Style.ShowModShading(bar.grain, bar, fg ~= nil)
+        end
     end
     if bar.trackGrain then
         if bg then
