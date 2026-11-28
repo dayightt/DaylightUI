@@ -355,7 +355,8 @@ function Book.Apply()
     local talents = f.pages.talents
     if talents and talents:IsVisible() then ns.Talents.Fill(talents) end   -- repaint accent rings and glows
     local spells = f.pages.spells
-    if spells and spells:IsVisible() then ns.Spells.Fill(spells, true)
+    -- Eased: a list switch (on the page or the options page) glides the spells to their new places.
+    if spells and spells:IsVisible() then ns.Spells.Fill(spells, true, true)
     elseif ns.Spells then ns.Spells.dirty = true end   -- refill on next use, including combat cast buttons
     local training = f.pages.training
     if training and training:IsVisible() then ns.Training.Refresh() end   -- repaint accent and gold

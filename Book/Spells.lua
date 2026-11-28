@@ -593,7 +593,7 @@ local function makeSwitch(page, key, label)
     color(b.text, Spells.SOFT)
     b.sw:SetScript("OnClick", function()
         DUI:Set("Book", key, not isOn(key))
-        Spells.Fill(Spells.page, true)
+        Spells.Fill(Spells.page, true, true)
     end)
     b:SetScript("OnClick", function() b.sw:Click() end)
     return b
@@ -697,7 +697,7 @@ function Spells.Fold(section, folded)
     if Spells.frozen then return end
     Spells.Folds()[section.name] = folded or nil
     if DUI.Sound then DUI.Sound.Play("toggle") end
-    if Spells.page then Spells.Fill(Spells.page, true) end
+    if Spells.page then Spells.Fill(Spells.page, true, true) end
 end
 
 -- Section header styled like the window kit's. Click to fold; shows "+"
@@ -723,7 +723,7 @@ local function makeHead(parent)
 end
 
 local function head(s, section, folded)
-    local b = s:Piece("head", makeHead, 22, 12)
+    local b = s:Piece("head", makeHead, 22, 12, "head:" .. tostring(section.name))
     b.section = section
     b.text:SetText(DUI.Style.Upper(section.name or ""))
     b.state:SetText(folded and "+" or "")
@@ -755,8 +755,73 @@ local function matches(cell, want)
     return d ~= nil and string.find(d, want, 1, true) ~= nil
 end
 
--- Build the list from Spells.data and the current search.
-function Spells.Render(page)
+-- A spell's key across refills: its book slot (the cell tables are new each read).
+local function spellKey(cell)
+    return tostring(cell.bank) .. ":" .. tostring(cell.slot or cell.spellID or cell.name)
+end
+
+-- Where every shown spell sits now (mid-glide too), x from the left and y from
+-- the list's top, so Spells.Glide can ease each from there after a refill.
+function Spells.Spots(page)
+    local out = {}
+    for _, p in ipairs(page.stack.used) do
+        if p.cells and type(p.stackY) == "number" then
+            for k = 1, p.n or 2 do
+                local b = p.cells[k]
+                if b and b:IsShown() and b.cell then
+                    out[spellKey(b.cell)] = { x = b.spotX or (k - 1) * (p.cw + Spells.COL_GAP), y = b.spotY or p.stackY }
+                end
+            end
+        end
+    end
+    return out
+end
+
+-- After a refill the shown spells glide from their old spots to the new ones and
+-- spells coming back fade in, so a switch or a fold never jumps the list.
+-- Without `before` every spell goes straight to its spot (a search, an event refill).
+function Spells.Glide(page, before)
+    local M = DUI.Motion
+    local on = before ~= nil and M.On()
+    for _, p in ipairs(page.stack.used) do
+        if p.cells and type(p.stackY) == "number" then
+            for k = 1, p.n or 2 do
+                local b = p.cells[k]
+                if b and b:IsShown() and b.cell then
+                    local x, y = (k - 1) * (p.cw + Spells.COL_GAP), p.stackY
+                    local was = on and before[spellKey(b.cell)]
+                    local fx, fy = x, y
+                    if was then fx, fy = was.x, was.y end
+                    -- v runs from 1 (the old spot) to 0 (the new one).
+                    local function at(v)
+                        local cx, cy = x + (fx - x) * v, y + (fy - y) * v
+                        b.spotX, b.spotY = cx, cy
+                        b:ClearAllPoints()
+                        b:SetPoint("TOPLEFT", p, "TOPLEFT", cx, y - cy)
+                    end
+                    b.glideKey = b.glideKey or {}
+                    if on and not was then
+                        M.Tween(b.glideKey, 0, 0, 0, at)
+                        M.Fade(b, 0, 1, M.NORMAL)
+                    elseif on and (fx ~= x or fy ~= y) then
+                        -- The cast button was laid where the row started: lay it again where it stops.
+                        M.Tween(b.glideKey, 1, 0, M.NORMAL, at, function()
+                            if b:IsMouseOver() and ns.Cast and not Spells.binding then ns.Cast.Over(b) end
+                        end)
+                    else
+                        M.Tween(b.glideKey, 0, 0, 0, at)
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Build the list from Spells.data and the current search. `ease` glides the
+-- spells and headings from where they were (Spells.Glide).
+function Spells.Render(page, ease)
+    local before = ease and Spells.Spots(page) or nil
+    local heads = ease and page.stack:Spots() or nil
     local data = Spells.data
     local s = page.stack
     local want = Spells.filter
@@ -798,6 +863,8 @@ function Spells.Render(page)
         end
     end
     page.pieces = s:End()
+    s:Ease(heads)
+    Spells.Glide(page, before)
     page.note:SetShown(not any)
     page.note:SetText(want and L["No spells match."] or L["No spells yet."])
     Spells.seeding = nil
@@ -913,7 +980,8 @@ function layoutChips(page)
 end
 
 -- keep preserves the scroll position (spell events, the ranks switch).
-function Spells.Fill(page, keep)
+-- `keep` holds the scroll spot; `ease` glides the list into its new shape.
+function Spells.Fill(page, keep, ease)
     page = page or Spells.page
     if not page then return end
     if Spells.frozen then Spells.dirty = true; return end   -- combat cast buttons sit on these rows
@@ -935,7 +1003,7 @@ function Spells.Fill(page, keep)
     Spells.filter = nil
     local t = page.search:GetText() or ""
     if t ~= "" then Spells.filter = string.lower(t) end
-    Spells.Render(page)
+    Spells.Render(page, ease)
     page.stack:ScrollTo(at)
     Spells.TryJumpPet()
 end

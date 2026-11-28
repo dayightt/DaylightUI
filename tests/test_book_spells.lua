@@ -776,6 +776,69 @@ T.test("book spells: Hide passives leaves passive spells out; a search still fin
     T.truthy(cellOf(page, "Hardiness"), "back")
 end)
 
+-- Where each shown spell sits in the list right now: x from the left, y from the top.
+local function spots(page)
+    local out = {}
+    for _, b in ipairs(cells(page)) do
+        local _, _, _, x, y = b:GetPoint(1)
+        out[b.cell.name .. (b.cell.rank or "")] = { x = x, y = b:GetParent().stackY - y }
+    end
+    return out
+end
+
+local function same(a, b) return math.abs(a.x - b.x) < 0.01 and math.abs(a.y - b.y) < 0.01 end
+
+T.test("book spells: Hide passives glides the other spells to their new places", function()
+    local ns = load()
+    local page = openBook(ns)
+    local before = spots(page)
+    page.passives.sw:Click()
+    frame(1)
+    local mid = spots(page)
+    frame(30)
+    local after = spots(page)
+    local moved, between = 0, 0
+    for k, p in pairs(after) do
+        if before[k] and not same(before[k], p) then
+            moved = moved + 1
+            if not same(mid[k], p) and not same(mid[k], before[k]) then between = between + 1 end
+        end
+    end
+    T.truthy(moved > 0, "hiding passives moves some spells")
+    T.eq(between, moved, "every moved spell is on its way, not jumped")
+    -- Shown again: the passives fade in, the rest glide back.
+    page.passives.sw:Click()
+    frame(1)
+    local h = cellOf(page, "Hardiness")
+    local fade = h and h.__duiMotion and h.__duiMotion.fade
+    T.truthy(fade and fade:IsPlaying(), "a passive coming back fades in")
+    frame(30)
+    for k, p in pairs(spots(page)) do T.truthy(same(p, before[k]), k .. " back where it was") end
+end)
+
+T.test("book spells: a search mid-glide puts every spell straight in its place", function()
+    local ns = load()
+    local page = openBook(ns)
+    page.passives.sw:Click()
+    frame(1)
+    page.search:SetText("r")
+    local now = spots(page)
+    frame(30)
+    for k, p in pairs(spots(page)) do T.truthy(same(p, now[k]), k .. " didn't keep gliding") end
+    page.search:SetText("")
+end)
+
+T.test("book spells: with motion off Hide passives moves the spells at once", function()
+    local ns = load()
+    DaylightUI:Set("general", "motion", false)
+    local page = openBook(ns)
+    page.passives.sw:Click()
+    frame(1)
+    local now = spots(page)
+    frame(30)
+    for k, p in pairs(spots(page)) do T.truthy(same(p, now[k]), k .. " snapped") end
+end)
+
 T.test("book spells: no passives, no Hide passives switch", function()
     local ns = load({ book = BW.MageBook() })
     local page = openBook(ns)
