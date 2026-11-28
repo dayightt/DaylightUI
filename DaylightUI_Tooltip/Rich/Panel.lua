@@ -1315,11 +1315,21 @@ function Panel.FadeBody(p)
     M.AlphaTo(p.body, 1, M.FAST)
 end
 
+-- The padding a fitted card gave the tooltip goes back: right and bottom to
+-- 0, left and top as the game set them.
+local function unpad(p)
+    if not (p.fitTried or p.padded) then return end
+    local tip = p.tip
+    local _, _, l, t = tip:GetPadding()
+    tip:SetPadding(0, 0, tonumber(l) or 0, tonumber(t) or 0)
+end
+
 -- Only the frame (a secret line): no pieces, sized by the game.
 function Panel.Chrome(p)
     Panel.Begin(p, p.kind, p.lightPair, p.lightFade)
     p.chrome = true
-    p.wantW, p.wantH, p.padded = nil, nil, nil
+    unpad(p)
+    p.wantW, p.wantH, p.padded, p.fitTried = nil, nil, nil, nil
     if p.pinned then Panel.Stretch(p, p.tip) end
     Panel.Cut(p)
     Panel.PaintLight(p)
@@ -1470,11 +1480,7 @@ function Panel.Release(p)
     if not p then return end
     Panel.Unmute(p)
     -- p.padded stays: a show in the same frame puts it back (Panel.KeepSize).
-    if p.fitTried or p.padded then
-        local tip = p.tip
-        local _, _, l, t = tip:GetPadding()
-        tip:SetPadding(0, 0, tonumber(l) or 0, tonumber(t) or 0)
-    end
+    unpad(p)
     p.wantW, p.wantH, p.fitTried = nil, nil, nil
     -- Lent to the tooltip's fading ghost: it hides the card as it hands it back.
     if not ns.TipGhost.Holds(p) then p:Hide() end

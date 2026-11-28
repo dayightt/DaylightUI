@@ -229,6 +229,25 @@ T.test("rich tooltip: a secret line leaves the frame around the game's own lines
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- Seen in game in a fight: a creature's card, then a fishing pool (its lines
+-- secret) without the tooltip hiding between. The pool kept the card's padding
+-- and drew its name over an empty box the card's size.
+T.test("rich tooltip: a secret line right after a fitted card gives the padding back", function()
+    local _, Panel = login("rich")
+    fill(Enum.TooltipDataType.Spell, { "Ice", "Cold." })
+    local p = Panel.Get(GameTooltip)
+    local r, b = GameTooltip:GetPadding()
+    T.truthy(r ~= 0 or b ~= 0, "the card padded it")
+    fill(4, { "Firefin Snapper School" }, function(t)
+        GameTooltipTextLeft1:SetText(stub.Secret("Firefin Snapper School"))
+    end)
+    update()
+    T.truthy(p.chrome, "the frame only")
+    r, b = GameTooltip:GetPadding()
+    T.eq(r, 0); T.eq(b, 0, "the card's padding is gone: the game sizes it")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("rich tooltip: hidden, the lines and padding go back; Simple puts the skinned look back", function()
     local Tip, Panel = login("rich")
     fill(Enum.TooltipDataType.Spell, { "Ice", "Cold." })
