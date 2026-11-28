@@ -146,6 +146,16 @@ function M.world()
     -- The totem pick list (a plain frame on the bar, MultiCastActionBarFrame.xml).
     local flyout = CreateFrame("Frame", "MultiCastFlyoutFrame", mc)
     flyout:Hide()
+    -- MultiCastFlyoutFrame_ToggleFlyout (MultiCastActionBarFrame.lua): the same
+    -- parent closes the list; any other refills its buttons, then calls Show(),
+    -- which runs no OnShow on a list already open. A test fills the buttons
+    -- through flyout.fill(type, parent).
+    function _G.MultiCastFlyoutFrame_ToggleFlyout(self, kind, parent)
+        if self:IsShown() and self.parent == parent then self:Hide(); return end
+        if self.fill then self.fill(kind, parent) end
+        self.parent = parent
+        self:Show()
+    end
     -- Three totem sets of 4 (NUM_MULTI_CAST_PAGES), each over the same 4 slots.
     for i = 1, 12 do
         local b = CreateFrame("Button", "MultiCastActionButton" .. i, mc)

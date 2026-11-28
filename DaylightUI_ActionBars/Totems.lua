@@ -460,6 +460,99 @@ function Totems.LayoutCurrent(layout)
     return not wantsWrite(totemEntry(layout))
 end
 
+-- The game frames each totem slot in its element's color (overlayTex on the
+-- action button and the slot button under it, and the slot's background).
+-- The skin's shell is the button's look, as on the action bars.
+Totems.ELEMENT_ART = { "overlayTex", "background" }
+
+function Totems.HideElementArt(b)
+    if type(b) ~= "table" then return end
+    for _, key in ipairs(Totems.ELEMENT_ART) do
+        local r = b[key]
+        if type(r) == "table" and r.SetAlpha then r:SetAlpha(0) end
+    end
+end
+
+-- The totem pick list's buttons wear the totem bar's skin. The game makes them
+-- as the list opens (MultiCastFlyoutButton1, 2...), so this runs after each
+-- of the game's refills. Its strip behind them (top, middle) goes, as the
+-- bar's own art does.
+local flyoutSkinned = setmetatable({}, { __mode = "k" })
+
+-- The list's "no totem" choice has no spell. The game draws it with a piece of
+-- the totem bar's art sheet, which reads as clutter in the skin, so it shows as
+-- an empty slot. Seen in game (2.4.0): texture 310727; every spell has its icon.
+Totems.BAR_ART = 310727
+function Totems.IsNoTotem(b)
+    local icon = type(b) == "table" and b.icon
+    if type(icon) ~= "table" or not icon.GetTexture then return false end
+    local tex = icon:GetTexture()
+    return tex == Totems.BAR_ART or tex == tostring(Totems.BAR_ART)
+end
+function Totems.SkinFlyout()
+    local flyout = _G.MultiCastFlyoutFrame
+    if type(flyout) ~= "table" then return end
+    for _, key in ipairs({ "top", "middle" }) do
+        local r = flyout[key]
+        if type(r) == "table" and r.SetAlpha then r:SetAlpha(0) end
+    end
+    local i = 1
+    local b = _G.MultiCastFlyoutButton1
+    while type(b) == "table" do
+        if not flyoutSkinned[b] then
+            flyoutSkinned[b] = true
+            ns.Skin.SetBar(b, "totem")
+            ns.Skin.SetEmptyTest(b, Totems.IsNoTotem)
+            ns.Skin.Apply(b)
+        end
+        -- The game sets each button's picture as the list opens.
+        ns.Skin.UpdateEmpty(b, true)
+        i = i + 1
+        b = _G["MultiCastFlyoutButton" .. i]
+    end
+end
+
+-- The pick list's open and close arrows are tabs like the info panel's fold
+-- tab (InfoPanel Panel.lua): a small shelled box lying flat with the chevron
+-- (the art points down) in the label ink, lit to the accent under the mouse. The
+-- list opens upward: open points up, close down. The game's arrows are pieces
+-- of the bar's art sheet (normalTexture and the highlight).
+Totems.ARROW = 12
+Totems.TAB = { 34, 14 }
+Totems.ARROWS = { Open = math.pi, Close = 0 }
+
+function Totems.SkinArrows()
+    local W, Style = DUI.Widgets, DUI.Style
+    if not (W and W.Icon and Style) then return end
+    for which, turn in pairs(Totems.ARROWS) do
+        local b = _G["MultiCastFlyoutFrame" .. which .. "Button"]
+        if type(b) == "table" and b.CreateTexture then
+            local art = { b.normalTexture, b.GetNormalTexture and b:GetNormalTexture(),
+                b.GetHighlightTexture and b:GetHighlightTexture() }
+            for _, r in pairs(art) do
+                if type(r) == "table" and r.SetAlpha then r:SetAlpha(0) end
+            end
+            if not Totems.chevrons then Totems.chevrons = {} end
+            local chev = Totems.chevrons[which]
+            if not chev then
+                -- The tab sits behind the button, which keeps the clicks.
+                local tab = CreateFrame("Frame", nil, b)
+                tab:SetSize(Totems.TAB[1], Totems.TAB[2])
+                tab:SetPoint("CENTER", b, "CENTER", 0, 0)
+                tab:SetFrameLevel(math.max(0, b:GetFrameLevel() - 1))
+                Style.Shell(tab)
+                chev = W.Icon(b, "ui-chevron.png", Totems.ARROW, Style.INK.LABEL, "OVERLAY")
+                chev:SetPoint("CENTER", b, "CENTER", 0, 0)
+                chev:SetRotation(turn)
+                chev.tab = tab
+                Totems.chevrons[which] = chev
+                b:HookScript("OnEnter", function() chev:SetVertexColor(Style.Accent()) end)
+                b:HookScript("OnLeave", function() W.Tint(chev, Style.INK.LABEL) end)
+            end
+        end
+    end
+end
+
 function Totems.Apply()
     local tf = TotemFrame
     local player = _G[Totems.PLAYER]
@@ -506,14 +599,26 @@ function Totems.Apply()
         for i = 1, 12 do
             local b = _G["MultiCastActionButton" .. i]
             if b then ns.Skin.SetBar(b, "totem"); ns.Skin.Apply(b) end
+            Totems.HideElementArt(b)
         end
+        for i = 1, 4 do Totems.HideElementArt(_G["MultiCastSlotButton" .. i]) end
         for _, name in ipairs(Totems.MULTICAST) do
             if _G[name] then ns.Skin.SetBar(_G[name], "totem"); ns.Skin.Apply(_G[name]) end
         end
         -- The totem pick list opens over whatever sits beside the bar, such as a
         -- Cooldown Manager icon's glow. It's a plain frame, so this is safe.
         local flyout = _G.MultiCastFlyoutFrame
-        if type(flyout) == "table" and flyout.SetFrameStrata then flyout:SetFrameStrata("DIALOG") end
+        if type(flyout) == "table" and flyout.SetFrameStrata then
+            flyout:SetFrameStrata("DIALOG")
+            Totems.SkinFlyout()
+            Totems.SkinArrows()
+            -- The game refills the list after each toggle, and calls Show() on
+            -- a list already open, so OnShow misses a switch between slots.
+            if not Totems.flyoutHooked and type(MultiCastFlyoutFrame_ToggleFlyout) == "function" then
+                Totems.flyoutHooked = true
+                hooksecurefunc("MultiCastFlyoutFrame_ToggleFlyout", Totems.SkinFlyout)
+            end
+        end
     end
 end
 
@@ -535,7 +640,7 @@ function Totems.Hold(mc, holder)
     st:SetScale(mc:GetScale())
     st:SetSize(mc:GetWidth(), mc:GetHeight())
     st:ClearAllPoints()
-    st:SetPoint("CENTER", holder, "CENTER", 0, 0)
+    st:SetPoint("CENTER", holder, "CENTER", Totems.standX or 0, Totems.standY or 0)
     for _, child in ipairs({ mc:GetChildren() }) do
         local n = child:GetNumPoints()
         local pts = {}
@@ -550,6 +655,41 @@ function Totems.Hold(mc, holder)
             for _, q in ipairs(pts) do child:SetPoint(q[1], q[2], q[3], q[4], q[5]) end
         end
     end
+end
+
+-- The edges of the totem bar's shown buttons (left, right, bottom, top), in the
+-- bar's own scale. The game's bar runs past its last button, so its size isn't
+-- theirs. nil until the game has placed them.
+function Totems.Span()
+    local l, r, b, t
+    local function add(f)
+        if type(f) ~= "table" or not f.GetLeft or not f:IsShown() then return end
+        local fl, fr, fb, ft = f:GetLeft(), f:GetRight(), f:GetBottom(), f:GetTop()
+        if not (fl and fr and fb and ft) then return end
+        l, r = math.min(l or fl, fl), math.max(r or fr, fr)
+        b, t = math.min(b or fb, fb), math.max(t or ft, ft)
+    end
+    for _, name in ipairs(Totems.MULTICAST) do add(_G[name]) end
+    for i = 1, 4 do add(_G["MultiCastActionButton" .. i]) end
+    if l then return l, r, b, t end
+end
+
+-- Centers the shown buttons in the holder by moving the stand-in they hang on.
+-- Returns their width and height in the bar's scale, or nil until they're placed.
+local function fitStand()
+    local st = Totems.stand
+    local l, r, b, t = Totems.Span()
+    if not (st and l) then return nil end
+    local sl, sr, sb, stop = st:GetLeft(), st:GetRight(), st:GetBottom(), st:GetTop()
+    if not (sl and sr and sb and stop) then return nil end
+    -- The buttons sit off the stand-in's center by a fixed amount, so the
+    -- stand-in sits off the holder's center by the opposite.
+    Totems.standX = ((sl + sr) - (l + r)) / 2
+    Totems.standY = ((sb + stop) - (b + t)) / 2
+    local _, holder = st:GetPoint(1)
+    st:ClearAllPoints()
+    st:SetPoint("CENTER", holder, "CENTER", Totems.standX, Totems.standY)
+    return r - l, t - b
 end
 
 -- The totem kind: the game's totem bar itself goes in Daylight UI's holder, centered and
@@ -592,9 +732,17 @@ Totems.KIND = {
         local s = cfg.size / 100
         Totems.Plain(mc, "SetScale")(mc, s)
         Totems.LayoutBar(mc, cfg)
-        if not InCombatLockdown() then Totems.Hold(mc, holder) end
-        local w, h = mc:GetWidth() * s, mc:GetHeight() * s
-        if cfg.vertical then w, h = h, w end
+        local w, h
+        if not InCombatLockdown() then
+            Totems.Hold(mc, holder)
+            w, h = fitStand()
+        end
+        if w then
+            w, h = w * s, h * s
+        else
+            w, h = mc:GetWidth() * s, mc:GetHeight() * s
+            if cfg.vertical then w, h = h, w end
+        end
         holder:SetSize(math.max(w, 1), math.max(h, 1))
     end,
     -- A handle only while the game shows the bar: a shaman with totems on it (the

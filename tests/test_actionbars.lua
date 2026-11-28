@@ -234,6 +234,169 @@ T.test("action bars: the totem bar is moved without running the game's Edit Mode
     T.near(mc:GetScale(), 0.8, nil, "at the bar's size")
 end)
 
+-- The game's bar runs past its last button. Measured in game (2.4.0): bar 1801.7 to
+-- 2031.7, buttons 1804.7 (summon) to 2006.7 (recall), all 30 wide.
+T.test("action bars: the totem bar's backdrop fits its buttons, not the game's wider bar", function()
+    loginShaman()
+    local Tot = stub.actionbars.Totems
+    local holder = stub.actionbars.Bars.holders.totem
+    local recall = MultiCastRecallSpellButton or CreateFrame("Button", "MultiCastRecallSpellButton", MultiCastActionBarFrame)
+    -- The fake game doesn't place frames, so each edge is the real one, moved with the stand-in.
+    local function at(f, left, w, bottom, h)
+        function f:GetLeft() return left + (Tot.standX or 0) end
+        function f:GetRight() return left + w + (Tot.standX or 0) end
+        function f:GetBottom() return bottom + (Tot.standY or 0) end
+        function f:GetTop() return bottom + h + (Tot.standY or 0) end
+    end
+    stub.RunTimers()
+    at(Tot.stand, 1801.67, 230, 100, 36)
+    at(MultiCastSummonSpellButton, 1804.67, 30, 103, 30)
+    for i = 1, 4 do at(_G["MultiCastActionButton" .. i], 1842.67 + (i - 1) * 32, 30, 103, 30) end
+    at(recall, 1976.67, 30, 103, 30)
+    for i = 5, 12 do _G["MultiCastActionButton" .. i]:Hide() end
+    DaylightUI:Set("ActionBars", "bars.totem.size", 100)
+    stub.RunTimers()
+    T.near(holder:GetWidth(), 202, 0.01, "from the summon button's left to the recall button's right")
+    T.near(holder:GetHeight(), 30, 0.01, "as tall as the buttons")
+    T.near(Tot.standX, 11, 0.01, "the buttons sit in the middle of the holder")
+    -- Laid out again, it stays put.
+    DaylightUI:Set("ActionBars", "bars.totem.size", 100.0001)
+    DaylightUI:Set("ActionBars", "bars.totem.size", 100)
+    stub.RunTimers()
+    T.near(Tot.standX, 11, 0.01)
+    T.near(holder:GetWidth(), 202, 0.01)
+end)
+
+-- Seen in game (2.4.0): overlayTex on MultiCastActionButton1 and MultiCastSlotButton1,
+-- and the slot's background, all texture 310727.
+T.test("action bars: the totem buttons wear the skin, without the game's element frame", function()
+    local slot
+    stub.Load({ actionbars = true, before = function()
+        world()
+        stub.units.player = { name = "Tester", class = "SHAMAN" }
+        local b = MultiCastActionButton1
+        b.overlayTex = b:CreateTexture(nil, "OVERLAY")
+        slot = CreateFrame("Button", "MultiCastSlotButton1", MultiCastActionBarFrame)
+        slot.background = slot:CreateTexture(nil, "BACKGROUND")
+        slot.overlayTex = slot:CreateTexture(nil, "OVERLAY")
+    end })
+    stub.RunTimers()
+    T.eq(MultiCastActionButton1.overlayTex:GetAlpha(), 0, "the button's element frame")
+    T.eq(slot.overlayTex:GetAlpha(), 0, "the slot's element frame")
+    T.eq(slot.background:GetAlpha(), 0, "the slot's backing")
+    T.eq(MultiCastActionButton1.icon:GetAlpha(), 1, "the icon stays")
+end)
+
+-- Seen in game (2.4.0): MultiCastFlyoutButton1..6 (made as the list first opens,
+-- each with an icon) and the list's strip, top and middle.
+T.test("action bars: the totem pick list's buttons wear the totem bar's skin", function()
+    loginShaman()
+    stub.RunTimers()
+    local flyout = MultiCastFlyoutFrame
+    flyout.top = flyout:CreateTexture(nil, "BACKGROUND")
+    flyout.middle = flyout:CreateTexture(nil, "BACKGROUND")
+    local b = CreateFrame("Button", "MultiCastFlyoutButton1", flyout)
+    b:SetSize(23, 23)
+    b.icon = b:CreateTexture(nil, "BACKGROUND")
+    -- Button 1 is "no totem", a piece of the bar's art sheet; button 2 a spell.
+    b.icon:SetTexture(310727)
+    local spell = CreateFrame("Button", "MultiCastFlyoutButton2", flyout)
+    spell:SetSize(23, 23)
+    spell.icon = spell:CreateTexture(nil, "BACKGROUND")
+    spell.icon:SetTexture(136114)
+    MultiCastFlyoutFrame_ToggleFlyout(flyout, "slot", {})
+    local Skin = stub.actionbars.Skin
+    T.truthy(Skin.GetParts(b), "skinned as the list opens")
+    T.eq(flyout.top:GetAlpha(), 0); T.eq(flyout.middle:GetAlpha(), 0, "the game's strip goes")
+    T.eq(b.icon:GetAlpha(), 0, "no totem: no art sheet piece")
+    T.near(Skin.GetParts(b).back:GetAlpha(), Skin.EMPTY_ALPHA, nil, "it shows as an empty slot")
+    T.eq(spell.icon:GetAlpha(), 1, "a spell keeps its icon")
+    T.near(Skin.GetParts(spell).back:GetAlpha(), 1, nil)
+    flyout:Hide()
+end)
+
+-- The game refills the list and calls Show() on it while it's open when the
+-- player opens another slot's list, so OnShow doesn't run. A slot with more
+-- totems than the last brings new buttons, which wear the skin too.
+T.test("action bars: switching to a bigger slot's open pick list skins its new buttons", function()
+    loginShaman()
+    stub.RunTimers()
+    local flyout = MultiCastFlyoutFrame
+    local function button(i)
+        local b = _G["MultiCastFlyoutButton" .. i]
+        if not b then
+            b = CreateFrame("Button", "MultiCastFlyoutButton" .. i, flyout)
+            b:SetSize(23, 23)
+            b.icon = b:CreateTexture(nil, "BACKGROUND")
+            b.icon:SetTexture(136114)
+        end
+        return b
+    end
+    local fire, earth = {}, {}
+    local count = { [fire] = 2, [earth] = 5 }
+    flyout.fill = function(_, parent) for i = 1, count[parent] do button(i) end end
+    MultiCastFlyoutFrame_ToggleFlyout(flyout, "slot", fire)
+    T.truthy(flyout:IsShown(), "the first slot's list is open")
+    MultiCastFlyoutFrame_ToggleFlyout(flyout, "slot", earth)
+    local Skin = stub.actionbars.Skin
+    for i = 1, 5 do
+        T.truthy(Skin.GetParts(_G["MultiCastFlyoutButton" .. i]), "button " .. i .. " wears the skin")
+    end
+    flyout.fill = nil
+    flyout:Hide()
+end)
+
+-- Seen in game (2.4.1): MultiCastFlyoutFrameOpenButton and ...CloseButton, each a
+-- normalTexture and a highlight from the bar's art sheet (310727).
+T.test("action bars: the totem pick list's arrows wear Daylight UI's chevron", function()
+    local arrows = {}
+    stub.Load({ actionbars = true, before = function()
+        world()
+        stub.units.player = { name = "Tester", class = "SHAMAN" }
+        for _, which in ipairs({ "Open", "Close" }) do
+            local b = CreateFrame("Button", "MultiCastFlyoutFrame" .. which .. "Button", MultiCastFlyoutFrame)
+            b.normalTexture = b:CreateTexture(nil, "ARTWORK")
+            b:SetNormalTexture(b.normalTexture)
+            b.hl = b:CreateTexture(nil, "HIGHLIGHT")
+            function b:GetHighlightTexture() return self.hl end
+            arrows[which] = b
+        end
+    end })
+    stub.RunTimers()
+    local Tot, Style = stub.actionbars.Totems, DaylightUI.Style
+    for which, b in pairs(arrows) do
+        T.eq(b.normalTexture:GetAlpha(), 0, which .. ": the game's arrow goes")
+        T.eq(b.hl:GetAlpha(), 0, which .. ": and its glow")
+        local chev = Tot.chevrons[which]
+        T.truthy(chev, which .. ": a chevron")
+        T.truthy(tostring(chev:GetTexture()):find("ui%-chevron%.png$"), which .. ": Daylight UI's art")
+        local label = Style.INK.LABEL
+        T.truthy(Style.GetShell(chev.tab), which .. ": on a shelled tab, like the info panel's fold tab")
+        local r = chev:GetVertexColor()
+        T.near(r, label[1], nil, which .. ": in the label ink")
+        b:GetScript("OnEnter")(b)
+        local ar = Style.Accent()
+        T.near((chev:GetVertexColor()), ar, nil, which .. ": the accent under the mouse")
+        b:GetScript("OnLeave")(b)
+        T.near((chev:GetVertexColor()), label[1], nil)
+    end
+end)
+
+T.test("action bars: an empty totem slot keeps its see-through backing with Hide empty slots on", function()
+    loginShaman()
+    stub.RunTimers()
+    local Skin = stub.actionbars.Skin
+    T.truthy(Skin.hideEmpty, "Hide empty slots on")
+    local b = MultiCastActionButton4
+    -- The game's totem buttons are action buttons on slots 133 and up.
+    b.action = 136
+    local has = _G.HasAction
+    _G.HasAction = function(a) return a ~= 136 end
+    Skin.UpdateEmpty(b, true)
+    _G.HasAction = has
+    T.near(Skin.GetParts(b).back:GetAlpha(), Skin.EMPTY_ALPHA, nil, "where a totem is picked")
+end)
+
 T.test("action bars: only a shaman is asked to rewrite the layout for the totem bar", function()
     login()
     Enum.EditModeSystem.TotemActionBar = 21
