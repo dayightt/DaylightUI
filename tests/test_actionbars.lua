@@ -304,7 +304,7 @@ T.test("action bars: the totem pick list's buttons wear the totem bar's skin", f
     spell:SetSize(23, 23)
     spell.icon = spell:CreateTexture(nil, "BACKGROUND")
     spell.icon:SetTexture(136114)
-    flyout:Show()
+    MultiCastFlyoutFrame_ToggleFlyout(flyout, "slot", {})
     local Skin = stub.actionbars.Skin
     T.truthy(Skin.GetParts(b), "skinned as the list opens")
     T.eq(flyout.top:GetAlpha(), 0); T.eq(flyout.middle:GetAlpha(), 0, "the game's strip goes")
@@ -312,6 +312,37 @@ T.test("action bars: the totem pick list's buttons wear the totem bar's skin", f
     T.near(Skin.GetParts(b).back:GetAlpha(), Skin.EMPTY_ALPHA, nil, "it shows as an empty slot")
     T.eq(spell.icon:GetAlpha(), 1, "a spell keeps its icon")
     T.near(Skin.GetParts(spell).back:GetAlpha(), 1, nil)
+    flyout:Hide()
+end)
+
+-- The game refills the list and calls Show() on it while it's open when the
+-- player opens another slot's list, so OnShow doesn't run. A slot with more
+-- totems than the last brings new buttons, which wear the skin too.
+T.test("action bars: switching to a bigger slot's open pick list skins its new buttons", function()
+    loginShaman()
+    stub.RunTimers()
+    local flyout = MultiCastFlyoutFrame
+    local function button(i)
+        local b = _G["MultiCastFlyoutButton" .. i]
+        if not b then
+            b = CreateFrame("Button", "MultiCastFlyoutButton" .. i, flyout)
+            b:SetSize(23, 23)
+            b.icon = b:CreateTexture(nil, "BACKGROUND")
+            b.icon:SetTexture(136114)
+        end
+        return b
+    end
+    local fire, earth = {}, {}
+    local count = { [fire] = 2, [earth] = 5 }
+    flyout.fill = function(_, parent) for i = 1, count[parent] do button(i) end end
+    MultiCastFlyoutFrame_ToggleFlyout(flyout, "slot", fire)
+    T.truthy(flyout:IsShown(), "the first slot's list is open")
+    MultiCastFlyoutFrame_ToggleFlyout(flyout, "slot", earth)
+    local Skin = stub.actionbars.Skin
+    for i = 1, 5 do
+        T.truthy(Skin.GetParts(_G["MultiCastFlyoutButton" .. i]), "button " .. i .. " wears the skin")
+    end
+    flyout.fill = nil
     flyout:Hide()
 end)
 

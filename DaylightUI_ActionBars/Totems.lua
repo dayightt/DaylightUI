@@ -474,8 +474,9 @@ function Totems.HideElementArt(b)
 end
 
 -- The totem pick list's buttons wear the totem bar's skin. The game makes them
--- as the list first opens (MultiCastFlyoutButton1, 2...), so this runs as it
--- shows. Its strip behind them (top, middle) goes, as the bar's own art does.
+-- as the list opens (MultiCastFlyoutButton1, 2...), so this runs after each
+-- of the game's refills. Its strip behind them (top, middle) goes, as the
+-- bar's own art does.
 local flyoutSkinned = setmetatable({}, { __mode = "k" })
 
 -- The list's "no totem" choice has no spell. The game draws it with a piece of
@@ -611,9 +612,11 @@ function Totems.Apply()
             flyout:SetFrameStrata("DIALOG")
             Totems.SkinFlyout()
             Totems.SkinArrows()
-            if not Totems.flyoutHooked then
+            -- The game refills the list after each toggle, and calls Show() on
+            -- a list already open, so OnShow misses a switch between slots.
+            if not Totems.flyoutHooked and type(MultiCastFlyoutFrame_ToggleFlyout) == "function" then
                 Totems.flyoutHooked = true
-                flyout:HookScript("OnShow", Totems.SkinFlyout)
+                hooksecurefunc("MultiCastFlyoutFrame_ToggleFlyout", Totems.SkinFlyout)
             end
         end
     end
