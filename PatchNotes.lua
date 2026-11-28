@@ -15,6 +15,7 @@ DUI.PatchNotes = {
         { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },
     }, fixed = {
         { "Unit frames", "Elites, rares and bosses show their gold or silver badge on the frame's corner even with no portrait or name tab, so you can still tell them apart in a fight" },
+        { "Cooldown Manager", "A Beast Mastery hunter's Frenzy shows when your pet gets it: before, it never lit up" },
     } },
     { version = "2.4.3", date = "2026-11-27", summary = "Bar animations that run either way, angled ends you can set on every bar, and a mailbox and spellbook that do everything the game's own do.", new = {
         { "Bar animations", "Flip direction: any bar animation can run the other way along the bar" },

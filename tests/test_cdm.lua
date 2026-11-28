@@ -4035,3 +4035,39 @@ T.test("cdm buff up: Cooldown and buff stays bright while its buff is up, fades 
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 end
+
+-- Frenzy is a Beast Mastery talent: after a crit the pet gets its own Frenzy buff
+-- (19615). The game's tracked buff watches the hunter, so it never lit. Offered
+-- as a buff piece and watched on the pet by the pet buff's id.
+T.test("cdm custom: Frenzy is offered and watched on your pet by the pet's buff", function()
+    loadWorld({ actionbars = true })
+    plainAuras()
+    stub.SetUnits({ player = { class = "HUNTER" }, pet = { name = "Fang" } })
+    local AB = stub.actionbars
+    local C = AB.CdmCustom
+    stub.knownSpells = { [19621] = true }
+    C.Forget()
+    local listed = {}
+    for _, e in ipairs(C.Tray()) do listed[e.id] = e end
+    T.truthy(listed.s19621, "Frenzy is in the tray")
+    T.eq(C.KeyOfSpell(19621), "s19621", "the game's Frenzy row is this piece")
+    T.truthy(C.Ranks("s19621")[19615], "watched by the pet buff's id")
+    T.eq(C.Track("s19621"), "aura", "a talent's buff has no cooldown")
+    T.truthy(C.OnPet("s19621"), "on the pet")
+    local h = CreateFrame("Frame", nil, UIParent)
+    h.size = 30
+    AB.CdmAuras.Setup(h, "s19621")
+    AB.CdmAuras.Track(h)
+    local seen = {}
+    for _, k in ipairs(h.containers) do seen[k.unit .. " " .. k.c.__groups.a.filter] = true end
+    T.truthy(seen["pet HELPFUL"], "your pet is watched")
+    h.wantsUp = true
+    stub.auras.pet = { HELPFUL = { { spellId = 19615, duration = 8, expirationTime = GetTime() + 8,
+        sourceUnit = "pet", isFromPlayerOrPlayerPet = true } } }
+    stub.FireEvent("UNIT_AURA", "pet", { isFullUpdate = true }); stub.RunTimers()
+    T.eq(h.up, true, "up while the pet has Frenzy")
+    stub.auras.pet = {}
+    stub.FireEvent("UNIT_AURA", "pet", { isFullUpdate = true }); stub.RunTimers()
+    T.eq(h.up, false, "gone when it fades")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

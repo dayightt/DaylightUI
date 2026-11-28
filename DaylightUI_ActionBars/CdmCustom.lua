@@ -183,6 +183,7 @@ Custom.AURA_IDS = {
     [13795] = { 13797, 14298, 14299, 14300, 14301 },
     [13813] = { 13812, 14314, 14315 },
     [13809] = { 13810 },
+    [19621] = { 19615 },
 }
 -- Traps, by rank 1 id. Laying one down puts nothing up yet, so a cast never says
 -- the debuff is up; only the client's button does, once a mob walks in.
@@ -193,9 +194,13 @@ Custom.TRAPS = { [1499] = true, [13795] = true, [13813] = true, [13809] = true }
 Custom.BUFF_ON_YOU = { [5171] = true }
 -- Spells whose buff lands on your pet (the game's data targets the pet): Bestial
 -- Wrath, Mend Pet, Intimidation, Eyes of the Beast, Health Funnel, and a pet's own
--- Dash and Dive. Watched on your pet as well as on you.
+-- Dash and Dive, and the Frenzy talent's pet buff. Watched on your pet as well as on you.
 Custom.ON_PET = { [19574] = true, [136] = true, [19577] = true, [1002] = true, [755] = true,
-                  [23099] = true, [23145] = true }
+                  [23099] = true, [23145] = true, [19621] = true }
+-- Talents whose buff has a spell id of its own, by class. The generated spell list
+-- holds spells from the spellbook only, so a talent's buff is named here: Frenzy's
+-- attack speed buff lands on the pet after its crits.
+Custom.TALENT_BUFFS = { HUNTER = { { 19621, aura = true, passive = true } } }
 -- Spells that summon a helper for a while instead of putting up an aura, by rank 1
 -- id: Summon Hawk's hawk stays 18 s, two at most (the game's data). Timed from your
 -- own casts, the newest hawk's time shown with how many are out.
@@ -361,6 +366,7 @@ local function build()
     end
     if type(class) == "string" then
         for _, f in ipairs(S[class] or {}) do add(f, false) end
+        for _, f in ipairs(Custom.TALENT_BUFFS[class] or {}) do add(f, false) end
     end
     -- After the class's own spells: anyone can put a stone or oil on a weapon.
     for _, key in ipairs(Custom.WEAPON_ORDER) do
