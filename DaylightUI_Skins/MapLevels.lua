@@ -103,14 +103,30 @@ function Levels.Color(low, high, level)
     return DUI.Style.INK.LABEL
 end
 
+-- " (20-30)" in the color of how hard it is for you.
+function Levels.Span(range, level)
+    local low, high = range[1], range[2]
+    local span = low == high and tostring(high) or (low .. "-" .. high)
+    local hex = DUI.Win.Parts.Hex(Levels.Color(low, high, level or UnitLevel("player") or 1))
+    return hex .. " (" .. span .. ")|r"
+end
+
 -- "Wetlands" -> "Wetlands (20-30)", or nil for a name with no range.
 function Levels.Text(name, level)
     local range = type(name) == "string" and names()[name]
     if not range then return nil end
-    local low, high = range[1], range[2]
-    local span = low == high and tostring(high) or (low .. "-" .. high)
-    local hex = DUI.Win.Parts.Hex(Levels.Color(low, high, level or UnitLevel("player") or 1))
-    return name .. hex .. " (" .. span .. ")|r"
+    return name .. Levels.Span(range, level)
+end
+
+-- A dungeon's or raid's range after its line on the entrance's tooltip: the
+-- levels the group finder suggests for the activity of that name (the same ones
+-- Lfg shows), or, for what it doesn't list (the raids), the game's dungeon list.
+-- "" for an entrance neither knows. raid: the entrance is a raid, which may be listed under a
+-- shorter name.
+function Levels.InstanceText(name, level, raid)
+    local Data = DUI.Lfg and DUI.Lfg.Data
+    local range = Data and Data.LevelsByName(name, raid)
+    return range and Levels.Span(range, level) or ""
 end
 
 local stale -- a level up or a switch: write the name shown again

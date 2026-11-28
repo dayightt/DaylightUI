@@ -1,4 +1,5 @@
 local stub = require("stub")
+local LW = require("lfgworld")
 
 -- The game's NPC windows, as far as the skins touch them.
 local function window(name)
@@ -2896,6 +2897,7 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
             T.near(x, 530, 0.01); T.near(y, -119, 0.01)
             local r, g = b.icon:GetVertexColor()
             T.eq(r, 1, "the raid icon wears its own colors")
+            T.eq(b.pin.lines[1][3], "raid", "the line keeps its kind, for the level range")
         end
         if b.pin.kind == "flight" then
             local r = b.icon:GetVertexColor()
@@ -2962,6 +2964,64 @@ T.test("skins: world map pins show entrances, your flight masters and boats, mer
     DaylightUI:Set("Skins", "mapTravel", false)
     stub.RunTimers()
     T.eq(P.frame:IsShown(), false)
+end)
+
+-- A dungeon's or raid's levels after its line on the entrance's tooltip
+-- (MapLevels.InstanceText): the group finder's suggested levels for the activity
+-- of that name, colored for your level.
+T.test("skins: an entrance's tooltip line gets the group finder's level range", function()
+    local unitLevel = _G.UnitLevel
+    login(function() LW.world({ level = 15 })() end)
+    local Levels = stub.skins.MapLevels
+    local function plain(t) return (t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    -- Raids aren't in the group finder on Forever: the game's older dungeon list has them
+    -- (name, type, subtype, min, max, recommended, recommended range). It is read once.
+    LW.DUNGEONS = {
+        [47] = { "Blackwing Lair", 2, 2, 60, 60, 60, 60, 60 },
+        [3] = { "Ragefire Chasm", 1, 1, 8, 20, 13, 13, 18 },
+        [45] = { "Onyxia", 2, 2, 60, 60, 60, 60, 60 },
+        [46] = { "Wailing", 1, 1, 15, 25, 20, 15, 25 },
+    }
+    local scans = 0
+    local ask = _G.GetLFGDungeonInfo
+    _G.GetLFGDungeonInfo = function(...) scans = scans + 1; return ask(...) end
+    T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "read from the group finder")
+    T.eq(plain(Levels.InstanceText("Molten Core", 60)), " (60)", "a raid for one level")
+    T.eq(Levels.InstanceText("Ruins of Lordaeron", 15), "", "no matching activity: left as it was")
+    T.eq(Levels.InstanceText(nil, 15), "")
+    T.truthy(Levels.InstanceText("Ragefire Chasm", 15):find("|c%x%x%x%x%x%x%x%x"), "colored")
+    -- The game's own color for a level (not in the stub): red below the range, yellow inside it.
+    local get = _G.GetQuestDifficultyColor
+    _G.GetQuestDifficultyColor = function() return QuestDifficultyColors.impossible end
+    T.truthy(Levels.InstanceText("Ragefire Chasm", 5) ~= Levels.InstanceText("Ragefire Chasm", 15), "by how hard it is for you")
+    _G.GetQuestDifficultyColor = get
+    -- Whatever the game suggests, not a list of ours.
+    LW.ACTIVITIES[798].minLevelSuggestion, LW.ACTIVITIES[798].maxLevelSuggestion = 14, 20
+    stub.lfg.Data.Forget()
+    T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (14-20)", "follows the group finder")
+    LW.ACTIVITIES[798].minLevelSuggestion, LW.ACTIVITIES[798].maxLevelSuggestion = 13, 18
+    stub.lfg.Data.Forget()
+    -- The older dungeon list does not change while you play: a group finder update
+    -- (Data.Forget) does not scan its 3000 ids again.
+    T.truthy(scans > 0, "the list was read")
+    local before = scans
+    stub.lfg.Data.Forget()
+    Levels.InstanceText("Ruins of Lordaeron", 15); Levels.InstanceText("Blackwing Lair", 60, true)
+    T.eq(scans, before, "kept across a group finder update")
+    T.eq(plain(Levels.InstanceText("Blackwing Lair", 60)), " (60)", "a raid from the game's dungeon list")
+    T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "the group finder first")
+    T.eq(plain(Levels.InstanceText("Onyxia's Lair", 60, true)), " (60)", "a raid: the list's short name is inside the zone's")
+    T.eq(Levels.InstanceText("Onyxia's Lair", 60), "", "a dungeon never takes a name that is only inside another")
+    T.eq(Levels.InstanceText("The Wailing Caverns", 20), "", "so a dungeon the group finder lacks isn't matched by a part of its name")
+    _G.GetLFGDungeonInfo = ask
+    LW.DUNGEONS = {}
+    stub.lfg.Data.Forget()
+    -- No switch of its own: the zone levels one leaves it alone.
+    DaylightUI:Set("Skins", "mapLevels", false)
+    T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "the zone levels switch leaves it alone")
+    DaylightUI:Set("Skins", "mapLevels", true)
+    _G.UnitLevel = unitLevel   -- the group finder's fake game is gone
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
 -- The zone under the mouse on a continent map gets its level range after its

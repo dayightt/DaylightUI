@@ -257,7 +257,16 @@ local function setEntry(t, created)
     return true
 end
 
+-- The game's older dungeon list, by id: { name, type, subtype, minimum, maximum, recommended,
+-- recommended minimum, recommended maximum }, as GetLFGDungeonInfo returns them. An id with
+-- no instance returns nothing, like the game's.
+LW.DUNGEONS = {}
+
 local function install()
+    _G.GetLFGDungeonInfo = function(id)
+        local d = LW.DUNGEONS[id]
+        if d then return unpack(d, 1, 8) end
+    end
     _G.ShowUIPanel = function(f) record("ShowUIPanel", f:GetName()); f:Show() end
     _G.HideUIPanel = function(f) record("HideUIPanel", f:GetName()); f:Hide() end
     _G.GetRealZoneText = function() return "Barrens" end
@@ -430,6 +439,7 @@ end
 function LW.world(spec)
     spec = spec or {}
     return function()
+        LW.DUNGEONS = {}
         LW.state = { calls = {}, results = spec.results or LW.Sample(), level = (spec.level == nil) and 14 or (spec.level or nil),
             roles = spec.roles or { tank = false, healer = false, dps = true }, cvars = {}, lag = spec.lag == true,
             secured = spec.secured ~= false }

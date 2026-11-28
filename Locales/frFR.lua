@@ -379,7 +379,7 @@ L["A spell's icon pops and lights up once when it comes off a real cooldown (nev
 L["A spell's icon turns gray while it's on cooldown. The global cooldown doesn't count."] = "L'icône d'un sort devient grise pendant son temps de recharge. Le temps de recharge global ne compte pas."
 L["A square minimap in the panel. Scroll to zoom."] = "Une minicarte carrée dans le panneau. Faites défiler pour zoomer."
 L["A symbol on the world map at each boat dock and zeppelin tower. Hover it to see where it goes."] = "Un symbole sur la carte du monde à chaque quai de bateau et tour de zeppelin. Survolez-le pour voir sa destination."
-L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name."] = "Un symbole sur la carte du monde à chaque entrée de donjon et de raid. Survolez-le pour voir le nom."
+L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name and the levels."] = "Un symbole sur la carte du monde à chaque entrée de donjon et de raid. Survolez-le pour voir le nom et les niveaux."
 L["A thin bar under the name."] = "Une fine barre sous le nom."
 L["A thin line across the bars where your threat would pull it: 110% of the tank's in melee, 130% at range. Not shown on a boss, whose numbers the game keeps hidden."] = "Une fine ligne en travers des barres là où votre menace vous ferait prendre l'aggro : 110% de celle du tank en mêlée, 130% à distance. Non affichée sur un boss, dont le jeu masque les chiffres."
 L["A thin line in your accent color along the top of the chat."] = "Une fine ligne de votre couleur d'accent le long du haut de la discussion."

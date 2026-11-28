@@ -412,7 +412,7 @@ L["A spell's icon pops and lights up once when it comes off a real cooldown (nev
 L["A spell's icon turns gray while it's on cooldown. The global cooldown doesn't count."] = "재사용 대기 중인 주문 아이콘을 회색으로 표시합니다. 전역 재사용 대기시간은 제외합니다."
 L["A square minimap in the panel. Scroll to zoom."] = "패널 안의 사각형 미니맵. 스크롤로 확대 및 축소합니다."
 L["A symbol on the world map at each boat dock and zeppelin tower. Hover it to see where it goes."] = "세계 지도의 배 선착장과 비행선 탑마다 기호를 표시합니다. 마우스를 올리면 행선지가 나옵니다."
-L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name."] = "세계 지도의 던전과 공격대 입구마다 기호를 표시합니다. 마우스를 올리면 이름이 나옵니다."
+L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name and the levels."] = "세계 지도의 던전과 공격대 입구마다 기호를 표시합니다. 마우스를 올리면 이름과 레벨이 나옵니다."
 L["A thin bar under the name."] = "이름 아래 얇은 막대."
 L["A thin line across the bars where your threat would pull it: 110% of the tank's in melee, 130% at range. Not shown on a boss, whose numbers the game keeps hidden."] = "위협이 몹을 끌어올 지점에 얇은 선을 긋습니다: 근접에서는 방어 전담의 110% 수준, 원거리에서는 130% 수준. 게임이 수치를 숨기는 우두머리에게는 표시되지 않습니다."
 L["A thin mana strip along the bottom of the power bar while a form hides your mana."] = "변신으로 마나가 가려진 동안 상태 막대 아래쪽에 얇은 마나 띠."

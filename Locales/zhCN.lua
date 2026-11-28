@@ -314,7 +314,7 @@ L["A spell's icon pops and lights up once when it comes off a real cooldown (nev
 L["A spell's icon turns gray while it's on cooldown. The global cooldown doesn't count."] = "法术冷却中时图标变灰。公共冷却不算。"
 L["A square minimap in the panel. Scroll to zoom."] = "面板中的方形微缩地图。滚动鼠标滚轮缩放。"
 L["A symbol on the world map at each boat dock and zeppelin tower. Hover it to see where it goes."] = "在世界地图上每个码头和飞艇塔处显示一个标志。悬停可查看目的地。"
-L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name."] = "在世界地图上每个地下城和团队副本入口处显示一个标志。悬停可查看名称。"
+L["A symbol on the world map at each dungeon and raid entrance. Hover it for the name and the levels."] = "在世界地图上每个地下城和团队副本入口处显示一个标志。悬停可查看名称和等级。"
 L["A thin bar under the name."] = "名字下方的一条细条。"
 L["A thin line across the bars where your threat would pull it: 110% of the tank's in melee, 130% at range. Not shown on a boss, whose numbers the game keeps hidden."] = "在条上用细线标出你的仇恨值会引起仇恨的位置：近战为坦克的110%，远程为130%。首领不显示，因为游戏隐藏了其数值。"
 L["A thin mana strip along the bottom of the power bar while a form hides your mana."] = "当形态隐藏了你的法力值时，在能量条底部显示一条细法力条。"

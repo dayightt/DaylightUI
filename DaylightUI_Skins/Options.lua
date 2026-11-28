@@ -139,7 +139,7 @@ ns.OPTIONS = { pages = {
             { type = "toggle", key = "mapLevels", label = "Zone levels",
               desc = "Hover a zone on the world map to see its level range after its name, colored by how hard it is for you: green is easy, yellow is right for you, red is too high." },
             { type = "toggle", key = "mapDungeons", label = "Dungeon and raid entrances",
-              desc = "A symbol on the world map at each dungeon and raid entrance. Hover it for the name." },
+              desc = "A symbol on the world map at each dungeon and raid entrance. Hover it for the name and the levels." },
             { type = "toggle", key = "mapFlights", label = "Flight masters",
               desc = "A bird on the world map at each flight master you can use: blue for Alliance, red for Horde, gold for both." },
             { type = "toggle", key = "mapTravel", label = "Boats and zeppelins",
