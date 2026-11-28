@@ -2626,6 +2626,25 @@ local function castAngle(unit, who)
             return get(unit .. "Castbar.slant") ~= true and get(unit .. "Castbar.slantLeft") ~= true
         end })
 end
+-- A cast bar's end menu: off while it's off or has no ends of its own there
+-- (inside the frame, between the frames). Under its frame the menus count
+-- once it has its own angle; following, it wears the frame's ends. right:
+-- the player's right end, which also works between the frames and keeps a
+-- bar under the frame square on Straight.
+local function endsOff(unit, right)
+    local under = underFrame(unit)
+    return function(get)
+        if get(unit .. "Castbar.enabled") ~= true then return true end
+        local at = atOf(get, unit)
+        if unit == "player" then
+            if right then return false end
+            if at == "middle" then return true end
+        elseif at == "power" then
+            return true
+        end
+        return under(get) and get(unit .. "Castbar.ownAngle") ~= true
+    end
+end
 
 -- A raid page: Raid 10, 20 or 40 (Raid.lua's setups by raid size).
 local RAID_PAGE_DESC = {
@@ -2830,11 +2849,11 @@ local PLAYER_CAST = {
         { type = "toggle", key = "playerCastbar.showIcon", label = "Your cast bar spell icon",
           desc = "The spell's icon at the end of your cast bar. Not while under the frame, where the portrait ring covers that spot, or between the frames.", disabled = notMiddleOwn },
         castEnds("player", off("playerCastbar.enabled"),
-            notMiddleOwn,
-            "Under the frame it follows the frame's own ends (Straight there keeps it square), and between the frames both ends lean.")[1],
+            endsOff("player"),
+            "Under the frame, while it follows the Slant angle, it wears the frame's ends (Straight on the right keeps it square); with its own angle it takes these. Between the frames both ends lean.")[1],
         castEnds("player", off("playerCastbar.enabled"),
-            notMiddleOwn,
-            "Under the frame it follows the frame's own ends (Straight there keeps it square), and between the frames both ends lean.")[2],
+            endsOff("player"),
+            "Under the frame, while it follows the Slant angle, it wears the frame's ends (Straight on the right keeps it square); with its own angle it takes these. Between the frames both ends lean.")[2],
         castAngle("player", "your")[1],
         castAngle("player", "your")[2],
         { type = "toggle", key = "playerCastbar.reverseFill", label = "Your cast bar fills right to left",
@@ -2867,8 +2886,8 @@ local TARGET_CAST = {
         { type = "toggle", key = "targetCastbar.showIcon", label = "Target cast bar spell icon",
           desc = "The spell's icon at the end of your target's cast bar. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("target") },
-        castEnds("target", notOwnWidth("target"), notOwnWidth("target"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[1],
-        castEnds("target", notOwnWidth("target"), notOwnWidth("target"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[2],
+        castEnds("target", endsOff("target"), endsOff("target"), "Not inside the frame. Sliding out under it or matching it above or below, it wears the frame's ends while it follows the Slant angle, and these once it has its own angle.")[1],
+        castEnds("target", endsOff("target"), endsOff("target"), "Not inside the frame. Sliding out under it or matching it above or below, it wears the frame's ends while it follows the Slant angle, and these once it has its own angle.")[2],
         castAngle("target", "your target's")[1],
         castAngle("target", "your target's")[2],
         { type = "toggle", key = "targetCastbar.reverseFill", label = "Target cast bar fills right to left",
@@ -2900,8 +2919,8 @@ local FOCUS_CAST = {
         { type = "toggle", key = "focusCastbar.showIcon", label = "Focus cast bar spell icon",
           desc = "The spell's icon at the end of your focus's cast bar. Not inside the frame or sliding out under it.",
           disabled = notOwnBar("focus") },
-        castEnds("focus", notOwnWidth("focus"), notOwnWidth("focus"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[1],
-        castEnds("focus", notOwnWidth("focus"), notOwnWidth("focus"), "Not inside the frame, sliding out under it, or matching the frame above or below it: there it follows the frame's own ends.")[2],
+        castEnds("focus", endsOff("focus"), endsOff("focus"), "Not inside the frame. Sliding out under it or matching it above or below, it wears the frame's ends while it follows the Slant angle, and these once it has its own angle.")[1],
+        castEnds("focus", endsOff("focus"), endsOff("focus"), "Not inside the frame. Sliding out under it or matching it above or below, it wears the frame's ends while it follows the Slant angle, and these once it has its own angle.")[2],
         castAngle("focus", "your focus's")[1],
         castAngle("focus", "your focus's")[2],
         { type = "toggle", key = "focusCastbar.reverseFill", label = "Focus cast bar fills right to left",

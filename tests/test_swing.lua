@@ -1011,3 +1011,22 @@ T.test("swing: an Opacity & fade card of its own, and the bars fade by it", func
     T.near(r.off.pod:GetAlpha(), 0.25, 0.001, "the bar on its own too")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
+
+-- Under a cast bar given its own angle, the swing bars take its shape, each a
+-- box of its own; following, they carry the frame's line on.
+T.test("swing: under a cast bar of its own shape, the bars take that shape", function()
+    local _, ns = login()
+    local Style = DaylightUI.Style
+    local function set(k, v) DaylightUI:Set("UnitFrames", k, v); stub.RunTimers() end
+    local r = rows(ns.swing)
+    T.truthy(Style.GetSlant(r.main).ref, "following: on the frame's own line")
+    set("playerCastbar.slantLeft", true)
+    set("playerCastbar.slantUnderLeft", true)
+    set("playerCastbar.lean", 0.6)
+    set("playerCastbar.ownAngle", true)
+    local sl = Style.GetSlant(r.main)
+    T.eq(sl.side, "both", "the cast bar's two ends")
+    T.eq(sl.under, "left", "its flipped left end")
+    T.eq(sl.cut, DaylightUI.Pixel.Snap(r.main, r.main:GetHeight() * 0.6), "at its angle, over the bar's own height")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)

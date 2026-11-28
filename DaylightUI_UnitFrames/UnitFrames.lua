@@ -142,12 +142,11 @@ end
 -- end f has angled is cut at f's slope over total; an end f flips is continued
 -- from f's bottom corner instead (ref.drop), so the piece leans back in and the
 -- two make a chevron. f carries ends, under and endCut (its cut over fH, its
--- height). slope, when given, is the piece's own angle (cut per height) in
--- place of f's. Returns the ends and the cut, or nil and 0.
-function UF.HangEnds(f, total, ref, fH, slope)
+-- height). Returns the ends and the cut, or nil and 0.
+function UF.HangEnds(f, total, ref, fH)
     fH = fH or f:GetHeight()
     local ends = f.ends
-    local k = (ends and type(fH) == "number" and fH > 0) and (slope or (f.endCut or f.cut or 0) / fH) or 0
+    local k = (ends and type(fH) == "number" and fH > 0) and (f.endCut or f.cut or 0) / fH or 0
     ref.frame, ref.height = f, total
     local drop = ref.drop or {}
     ref.drop = drop

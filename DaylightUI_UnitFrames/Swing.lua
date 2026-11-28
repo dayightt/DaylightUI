@@ -1182,19 +1182,30 @@ function ST.Hang(h)
             -- One reused shape table per bar, since this runs every frame of a slide.
             local ref = row.slantRef or {}
             row.slantRef = ref
-            -- It continues each of the frame's angled ends (a flipped one as a chevron).
-            -- Under a cast bar hung from the same frame, they lean with it.
+            -- Under a cast bar of its own shape hung from the same frame, each
+            -- bar takes that shape as a box of its own.
             local hung = cb and cb.column
-            local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH, hung and hung.f == f and hung.slope or nil)
-            Style.Slant(row, ends, cut, ref)
-            -- How far in each end is at this bar's bottom: a chevron end's line
-            -- starts lower, so it's in by less.
-            row.leftCut = ns.UF.HasEnd(ends, "left") and cut * (total - (ref.drop.left or 0)) / total or nil
-            local side = ns.UF.HasEnd(ends, "right") and "right" or nil
-            Style.AngleFill(row.bar, side, cut * (height - 2 * T) / total)
-            -- Each bar further down cuts further in, so its time stays clear of
-            -- its own angled end, like the cast bar's.
-            row.endCut = side and cut * (total - (ref.drop.right or 0)) / total or 0
+            local own = hung and hung.f == f and hung.own or nil
+            if own then
+                local cut = own.ends and Pixel.Snap(row, height * own.k) or 0
+                Style.Slant(row, own.ends, cut, nil, own.under)
+                row.leftCut = ns.UF.HasEnd(own.ends, "left") and cut or nil
+                local side = ns.UF.HasEnd(own.ends, "right") and "right" or nil
+                Style.AngleFill(row.bar, side, cut * (height - 2 * T) / height, ns.UF.EdgeUnder(own.under, side))
+                row.endCut = side and cut or 0
+            else
+                -- It continues each of the frame's angled ends (a flipped one as a chevron).
+                local ends, cut = ns.UF.HangEnds(f, total, ref, c.fH)
+                Style.Slant(row, ends, cut, ref)
+                -- How far in each end is at this bar's bottom: a chevron end's line
+                -- starts lower, so it's in by less.
+                row.leftCut = ns.UF.HasEnd(ends, "left") and cut * (total - (ref.drop.left or 0)) / total or nil
+                local side = ns.UF.HasEnd(ends, "right") and "right" or nil
+                Style.AngleFill(row.bar, side, cut * (height - 2 * T) / total)
+                -- Each bar further down cuts further in, so its time stays clear of
+                -- its own angled end, like the cast bar's.
+                row.endCut = side and cut * (total - (ref.drop.right or 0)) / total or 0
+            end
         end
     end
     ST.PlaceTimes(h)

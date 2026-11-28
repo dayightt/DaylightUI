@@ -1650,15 +1650,20 @@ T.test("under its frame a cast bar can lean at its own angle", function()
     T.near(hungSlope(h), frameK, 0.001, "it follows the frame's angle")
     set("playerCastbar.lean", 0.8)
     T.near(hungSlope(h), frameK, 0.001, "a lean without its switch is ignored")
+    -- Its own angle makes it a box of its own, cut over its own height.
+    local function ownCut(b) return DaylightUI.Pixel.Snap(b, b.column.height * b.column.own.k) end
     set("playerCastbar.ownAngle", true)
-    T.near(hungSlope(h), 0.8, 0.001, "its own angle under the frame")
-    -- The target's, sliding out under its frame.
+    T.eq(h.column.own.k, 0.8)
+    T.eq(Style.GetSlant(h).cut, ownCut(h), "its own angle under the frame")
+    -- The target's, sliding out under its frame, with an angled end of its own.
     set("targetCastbar.at", "slide")
+    set("targetCastbar.slantLeft", true)
     set("targetCastbar.ownAngle", true)
     set("targetCastbar.lean", 0.7)
     local t = ns.targetCastbarFree
     T.truthy(t.column, "the target's slides out under its frame")
-    T.near(hungSlope(t), 0.7, 0.001, "the target's own angle under the frame")
+    T.eq(t.column.own.k, 0.7)
+    T.eq(Style.GetSlant(t).cut, ownCut(t), "the target's own angle under the frame")
     -- Below the frame, matching it.
     set("targetCastbar.at", "below")
     set("targetCastbar.fitFrame", true)
@@ -1668,5 +1673,37 @@ T.test("under its frame a cast bar can lean at its own angle", function()
     set("targetCastbar.ownAngle", false)
     local tf = ns.frames.target
     T.eq(Style.GetSlant(t).cut, DaylightUI.Pixel.Snap(t, t:GetHeight() * tf.endCut / tf:GetHeight()), "following, the frame's angle")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- With its own angle on, a cast bar under its frame takes its own end menus
+-- too; following, it keeps the frame's ends.
+T.test("under its frame a cast bar with its own angle takes its own ends", function()
+    local DUI, ns = stub.Load({ module = true })
+    local Style = DaylightUI.Style
+    stub.RunTimers()
+    local function set(k, v) DUI:Set("UnitFrames", k, v); stub.RunTimers() end
+    local h = ns.playerCastbar
+    T.truthy(h.column, "yours hangs under the frame")
+    local before = Style.GetSlant(h).side
+    set("playerCastbar.slantLeft", true)
+    T.eq(Style.GetSlant(h).side, before, "following, its own end menus change nothing")
+    set("playerCastbar.ownAngle", true)
+    T.eq(Style.GetSlant(h).side, "both", "its own: both ends angled")
+    set("playerCastbar.slantUnderLeft", true)
+    T.eq(Style.GetSlant(h).under, "left", "its own left end flips")
+    set("playerCastbar.slant", false)
+    set("playerCastbar.slantLeft", false)
+    local sl = Style.GetSlant(h)
+    T.truthy(not sl or not sl.side or sl.cut == 0, "both straight: square")
+    -- The target's, matching its frame below it, and sliding out under it.
+    set("targetCastbar.at", "below")
+    set("targetCastbar.fitFrame", true)
+    set("targetCastbar.ownAngle", true)
+    set("targetCastbar.slant", true)
+    set("targetCastbar.slantLeft", true)
+    T.eq(Style.GetSlant(ns.targetCastbarFree).side, "both", "matching the frame, its own ends")
+    set("targetCastbar.at", "slide")
+    T.eq(Style.GetSlant(ns.targetCastbarFree).side, "both", "sliding out, its own ends")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
