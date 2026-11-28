@@ -175,18 +175,95 @@ local function nameIn(slot)
     return C_Spell.GetSpellName(sid)
 end
 
+-- The slash commands that cast or use something by name, in the client's language
+-- and in English (both work in a macro).
+local castCommands
+local function commands()
+    if castCommands then return castCommands end
+    castCommands = { ["/cast"] = true, ["/use"] = true, ["/castsequence"] = true, ["/castrandom"] = true,
+                     ["/userandom"] = true }
+    for _, cmd in ipairs({ "CAST", "USE", "CASTSEQUENCE", "CASTRANDOM", "USERANDOM" }) do
+        for i = 1, 9 do
+            local s = _G["SLASH_" .. cmd .. i]
+            if type(s) ~= "string" then break end
+            castCommands[string.lower(s)] = true
+        end
+    end
+    return castCommands
+end
+
+local function trim(s) return (string.gsub(string.gsub(s, "^%s+", ""), "%s+$", "")) end
+
+-- One name as a macro writes it: conditions, "!" and a "(Rank 2)" dropped. A bag or
+-- gear slot number isn't a name.
+local function addName(list, s)
+    s = trim((string.gsub(trim(s), "^!", "")))
+    s = trim((string.gsub(s, "%s*%([^%)]*%)$", "")))
+    if s ~= "" and not string.find(s, "^[%d%s]+$") then list[#list + 1] = s end
+end
+
+-- Every spell and item name a macro's text casts or uses, in order. Only the
+-- player's own text is read; a macro that can't be found gives none.
+function Keys.MacroNames(slot)
+    local list = {}
+    local byName, info = _G.GetMacroIndexByName, _G.GetMacroInfo
+    if type(byName) ~= "function" or type(info) ~= "function" then return list end
+    local title = GetActionText(slot)
+    if type(title) ~= "string" or not isPlain(title) then return list end
+    local index = byName(title)
+    if type(index) ~= "number" or not isPlain(index) or index <= 0 then return list end
+    local _, _, body = info(index)
+    if type(body) ~= "string" or not isPlain(body) then return list end
+    local cmds = commands()
+    for line in string.gmatch(body, "[^\r\n]+") do
+        local cmd, rest = string.match(trim(line), "^(%S+)%s*(.*)$")
+        cmd = cmd and string.lower(cmd)
+        if cmd == "#showtooltip" or cmd == "#show" or (cmd and cmds[cmd]) then
+            -- A sequence or random pick lists its names with commas.
+            local several = string.sub(cmd, 1, 1) == "/" and cmd ~= "/cast" and cmd ~= "/use"
+            -- Conditions go first, as their commas aren't a list's.
+            for part in string.gmatch((string.gsub(rest, "%b[]", "")), "[^;]+") do
+                if several then
+                    -- "reset=6/target Rend, Sunder Armor": the reset rule goes first.
+                    part = string.gsub(part, "reset=%S+", "")
+                    for one in string.gmatch(part, "[^,]+") do addName(list, one) end
+                else
+                    addName(list, part)
+                end
+            end
+        end
+    end
+    return list
+end
+
+-- Each macro's other names, after every icon's own (macros = { { slot, key text } }).
+-- A macro's names are kept in lower case, since a macro's /cast ignores case.
+local function addMacros(out, macros)
+    for _, m in ipairs(macros) do
+        for _, name in ipairs(Keys.MacroNames(m[1])) do
+            local low = string.lower(name)
+            if not out[name] and not out[low] then out[low] = m[2] end
+        end
+    end
+end
+
 -- Returns the map, and true when a secret cut it short (then it isn't cached).
+-- What a button's icon shows comes first, so a key casting a spell outright wins
+-- over a macro that only casts it on another line or with a modifier held.
 local function buildCastKeys()
-    local out = {}
+    local out, macros = {}, {}
     for _, btn in ipairs(buttons()) do
         local key = btn.commandName and GetBindingKey(btn.commandName)
         local slot = type(key) == "string" and ns.Buttons.SlotOf(btn)
         if slot then
             local name = nameIn(slot)
             if name == false or not isPlain(name) then return out, true end
-            if type(name) == "string" and not out[name] then out[name] = GetBindingText(key, true) end
+            local text = GetBindingText(key, true)
+            if type(name) == "string" and not out[name] then out[name] = text end
+            if GetActionInfo(slot) == "macro" then macros[#macros + 1] = { slot, text } end
         end
     end
+    addMacros(out, macros)
     return out, false
 end
 
@@ -231,15 +308,18 @@ end
 
 -- The controller's bars by name, lowest page first.
 local function buildPadKeys()
-    local out = {}
+    local out, macros = {}, {}
     if type(C_GamepadUI) ~= "table" then return out, false end
     local first = C_GamepadUI.GetFirstGamepadActionStorageSlotIndex()
     if type(first) ~= "number" then return out, false end
     for offset = 0, Keys.PAD_PAGES * Keys.PAD_PAGE_SLOTS - 1 do
-        local name = nameIn(first + offset)
+        local slot = first + offset
+        local name = nameIn(slot)
         if name == false or not isPlain(name) then return out, true end
         if type(name) == "string" and not out[name] then out[name] = Keys.PadKey(offset) end
+        if GetActionInfo(slot) == "macro" then macros[#macros + 1] = { slot, Keys.PadKey(offset) } end
     end
+    addMacros(out, macros)
     return out, false
 end
 
@@ -252,13 +332,14 @@ function Keys.CastKey(name)
         if DUI.Pad.On() then map, partial = buildPadKeys() else map, partial = buildCastKeys() end
         if not partial then castKeys = map end
     end
-    return map[name]
+    return map[name] or map[string.lower(name)]
 end
 
 -- The text follows the bindings. The flyout keys follow the bindings and whatever is
 -- in each slot (a drag, a page change).
 Keys.EVENTS = { "UPDATE_BINDINGS", "PLAYER_ENTERING_WORLD", "ACTIONBAR_SLOT_CHANGED", "UPDATE_BONUS_ACTIONBAR",
-                "ACTIONBAR_PAGE_CHANGED", "UPDATE_SHAPESHIFT_FORM", "UPDATE_VEHICLE_ACTIONBAR", "UPDATE_OVERRIDE_ACTIONBAR" }
+                "ACTIONBAR_PAGE_CHANGED", "UPDATE_SHAPESHIFT_FORM", "UPDATE_VEHICLE_ACTIONBAR", "UPDATE_OVERRIDE_ACTIONBAR",
+                "UPDATE_MACROS" }
 
 -- Rebuild the flyout keys once on the next frame, however many events came. A bar
 -- swap sends up to 120 ACTIONBAR_SLOT_CHANGED.

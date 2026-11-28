@@ -2838,6 +2838,44 @@ T.test("keys: a rebound controller button shows its new key", function()
     _G.C_GamepadUI, _G.GamepadMode, _G.InputUtil = nil, nil, nil
 end)
 
+-- A macro's key goes on every spell or item it casts, not only the one its icon
+-- shows: a mod or target condition, a cast sequence, a second line. The fake game
+-- has no macro text calls, so this test lends the game's (GetMacroIndexByName,
+-- GetMacroInfo: name, icon, body, as Blizzard_MacroUI reads it).
+T.test("keys: a macro's key shows on every spell and item it casts", function()
+    local names = { [10] = "Shield Block", [11] = "Rend", [12] = "Heroic Strike" }
+    local bodies = {
+        [5] = "#showtooltip\n/cast [mod:shift] Shield Wall; [@focus,exists] !Taunt; Shield Block(Rank 2)\n"
+            .. "/use 13\n/castsequence [combat,nomod] reset=6/target Rend, Sunder Armor\n/use Major Healing Potion",
+        [6] = "/cast Hamstring",
+    }
+    local macroNames = { Mod = 5, Ham = 6 }
+    local oldIndex, oldInfo = _G.GetMacroIndexByName, _G.GetMacroInfo
+    _G.GetMacroIndexByName = function(n) return macroNames[n] or 0 end
+    _G.GetMacroInfo = function(i) if bodies[i] then return "m" .. i, "icon", bodies[i] end end
+    login({ bindings = { ACTIONBUTTON1 = { "1" }, ACTIONBUTTON4 = { "4" }, ACTIONBUTTON6 = { "6" } },
+        slots = { [1] = { texture = "m", macro = 5, text = "Mod" }, [4] = { texture = "r", spellID = 11 },
+                  [6] = { texture = "h", macro = 6, text = "Ham" } } })
+    C_Spell.GetSpellName = function(id) return names[id] end
+    stub.macroSpells[5] = 10
+    local Keys = AB().Keys
+    Keys.OnEvent("UPDATE_BINDINGS")
+    T.eq(Keys.CastKey("Shield Block"), "1", "the spell its icon shows")
+    T.eq(Keys.CastKey("Shield Wall"), "1", "behind a modifier")
+    T.eq(Keys.CastKey("Taunt"), "1", "behind a target condition, ! dropped")
+    T.eq(Keys.CastKey("Sunder Armor"), "1", "in a cast sequence")
+    T.eq(Keys.CastKey("sunder armor"), "1", "any case, as /cast reads it")
+    T.eq(Keys.CastKey("Major Healing Potion"), "1", "an item it uses")
+    T.eq(Keys.CastKey("Rend"), "4", "a button casting it plainly wins over a macro's other line")
+    T.eq(Keys.CastKey("Hamstring"), "6", "a macro whose icon shows nothing yet")
+    T.eq(Keys.CastKey("13"), nil, "a slot number is no name")
+    bodies[6] = "/cast Pummel"
+    stub.FireEvent("UPDATE_MACROS")
+    T.eq(Keys.CastKey("Pummel"), "6", "an edited macro follows")
+    T.eq(Keys.CastKey("Hamstring"), nil)
+    _G.GetMacroIndexByName, _G.GetMacroInfo = oldIndex, oldInfo
+end)
+
 T.test("drag: with a spellbook open a plain drag picks a spell up off locked bars", function()
     login()
     -- The fake game lends PickupAction only to the game's own code.

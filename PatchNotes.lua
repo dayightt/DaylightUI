@@ -16,6 +16,7 @@ DUI.PatchNotes = {
         { "Unit frames", "Each frame can lean its angled ends at its own angle, or keep following the shared Slant angle. A cast bar under its frame can have its own angle and end shapes too" },
     }, changed = {
         { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },
+        { "Cooldown Manager", "Keybinds find spells inside your macros: a spell behind a modifier, in a cast sequence or on a second line shows the macro's key" },
     }, fixed = {
         { "Unit frames", "Elites, rares and bosses show their gold or silver badge on the frame's corner even with no portrait or name tab, so you can still tell them apart in a fight" },
         { "Cooldown Manager", "A Beast Mastery hunter's Frenzy shows when your pet gets it: before, it never lit up" },
