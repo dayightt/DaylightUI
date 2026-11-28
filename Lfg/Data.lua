@@ -113,7 +113,7 @@ end
 -- re-reads them, and so does LFG_LIST_AVAILABILITY_UPDATE (Data.Forget).
 local cats, catsFor
 local byName   -- activity name -> the game's info table, for every available activity
-local legacy   -- instance name -> { low, high } from the older dungeon list
+local legacy   -- instance name -> { low, high } from the older dungeon list; read once, it does not change while you play
 local function catsStamp()
     local e = Data.Entry()
     return Data.Level() .. "|" .. tostring(filterOff()) .. "|" .. table.concat(e and e.activityIDs or {}, ",")
@@ -121,7 +121,7 @@ end
 
 function Data.Forget()
     Data.activities = {}
-    byName, legacy = nil, nil
+    byName = nil   -- the older dungeon list (legacy) is kept
     cats, catsFor = nil, nil
 end
 

@@ -2974,6 +2974,17 @@ T.test("skins: an entrance's tooltip line gets the group finder's level range", 
     login(function() LW.world({ level = 15 })() end)
     local Levels = stub.skins.MapLevels
     local function plain(t) return (t:gsub("|c%x%x%x%x%x%x%x%x", ""):gsub("|r", "")) end
+    -- Raids aren't in the group finder on Forever: the game's older dungeon list has them
+    -- (name, type, subtype, min, max, recommended, recommended range). It is read once.
+    LW.DUNGEONS = {
+        [47] = { "Blackwing Lair", 2, 2, 60, 60, 60, 60, 60 },
+        [3] = { "Ragefire Chasm", 1, 1, 8, 20, 13, 13, 18 },
+        [45] = { "Onyxia", 2, 2, 60, 60, 60, 60, 60 },
+        [46] = { "Wailing", 1, 1, 15, 25, 20, 15, 25 },
+    }
+    local scans = 0
+    local ask = _G.GetLFGDungeonInfo
+    _G.GetLFGDungeonInfo = function(...) scans = scans + 1; return ask(...) end
     T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "read from the group finder")
     T.eq(plain(Levels.InstanceText("Molten Core", 60)), " (60)", "a raid for one level")
     T.eq(Levels.InstanceText("Ruins of Lordaeron", 15), "", "no matching activity: left as it was")
@@ -2990,21 +3001,19 @@ T.test("skins: an entrance's tooltip line gets the group finder's level range", 
     T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (14-20)", "follows the group finder")
     LW.ACTIVITIES[798].minLevelSuggestion, LW.ACTIVITIES[798].maxLevelSuggestion = 13, 18
     stub.lfg.Data.Forget()
-    -- Raids aren't in the group finder on Forever: the game's older dungeon list has them
-    -- (name, type, subtype, min, max, recommended, recommended range).
-    T.eq(Levels.InstanceText("Blackwing Lair", 60), "", "not in either list")
-    LW.DUNGEONS = {
-        [47] = { "Blackwing Lair", 2, 2, 60, 60, 60, 60, 60 },
-        [3] = { "Ragefire Chasm", 1, 1, 8, 20, 13, 13, 18 },
-        [45] = { "Onyxia", 2, 2, 60, 60, 60, 60, 60 },
-        [46] = { "Wailing", 1, 1, 15, 25, 20, 15, 25 },
-    }
+    -- The older dungeon list does not change while you play: a group finder update
+    -- (Data.Forget) does not scan its 3000 ids again.
+    T.truthy(scans > 0, "the list was read")
+    local before = scans
     stub.lfg.Data.Forget()
+    Levels.InstanceText("Ruins of Lordaeron", 15); Levels.InstanceText("Blackwing Lair", 60, true)
+    T.eq(scans, before, "kept across a group finder update")
     T.eq(plain(Levels.InstanceText("Blackwing Lair", 60)), " (60)", "a raid from the game's dungeon list")
     T.eq(plain(Levels.InstanceText("Ragefire Chasm", 15)), " (13-18)", "the group finder first")
     T.eq(plain(Levels.InstanceText("Onyxia's Lair", 60, true)), " (60)", "a raid: the list's short name is inside the zone's")
     T.eq(Levels.InstanceText("Onyxia's Lair", 60), "", "a dungeon never takes a name that is only inside another")
     T.eq(Levels.InstanceText("The Wailing Caverns", 20), "", "so a dungeon the group finder lacks isn't matched by a part of its name")
+    _G.GetLFGDungeonInfo = ask
     LW.DUNGEONS = {}
     stub.lfg.Data.Forget()
     -- No switch of its own: the zone levels one leaves it alone.
