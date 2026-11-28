@@ -142,9 +142,8 @@ function PetPage.MoodTip(owner)
     if d.damage and PET_DAMAGE_PERCENTAGE then Tips.Sub(string.format(PET_DAMAGE_PERCENTAGE, d.damage)) end
     if d.loyaltyRate and d.loyaltyRate < 0 and LOSING_LOYALTY then Tips.Text(LOSING_LOYALTY, Tips.BAD)
     elseif d.loyaltyRate and d.loyaltyRate > 0 and GAINING_LOYALTY then Tips.Text(GAINING_LOYALTY, Tips.GOOD) end
-    local ok, diet = pcall(C_PetInfo.GetPetFoodTypes)
-    if ok and type(diet) == "table" and PET_DIET_TEMPLATE then
-        local list = #diet > 0 and table.concat(diet, PET_FOOD_DELIMIT or ", ") or (NONE or L["None"])
+    if d.diet and PET_DIET_TEMPLATE then
+        local list = #d.diet > 0 and table.concat(d.diet, PET_FOOD_DELIMIT or ", ") or (NONE or L["None"])
         Tips.Sub(string.format(PET_DIET_TEMPLATE, list))
     end
     Tips.Flush(GameTooltip)
@@ -169,14 +168,14 @@ function PetPage.BuildFooter(page)
     foot.moodText = Style.Text(foot.mood, PetPage.FOOT_SIZE, "LEFT")
     foot.moodText:SetPoint("LEFT", foot.face, "RIGHT", 6, 0)
     -- The loyalty and the diet are texts of their own, with the same gap between each part
-    -- (spaces would change width with the font). The XP is at the right end, and a long
-    -- diet is cut short before it reaches the XP.
+    -- (spaces would change width with the font). The XP comes right after the last of them,
+    -- and a long diet is given a width that ends before the footer does, so it is the part
+    -- that is cut short.
     foot.loyaltyText = Style.Text(foot, PetPage.FOOT_SIZE, "LEFT")
     foot.loyaltyText:SetWordWrap(false)
     foot.dietText = Style.Text(foot, PetPage.FOOT_SIZE, "LEFT")
     foot.dietText:SetWordWrap(false)
-    foot.xpText = Style.Text(foot, PetPage.FOOT_SIZE, "RIGHT")
-    foot.xpText:SetPoint("RIGHT", foot, "RIGHT", 0, 0)
+    foot.xpText = Style.Text(foot, PetPage.FOOT_SIZE, "LEFT")
     foot.xpText:SetTextColor(CP.DIM[1], CP.DIM[2], CP.DIM[3])
     return foot
 end
@@ -244,13 +243,31 @@ function PetPage.PaintFooter(page, d)
         after = foot.loyaltyText
     end
     place(foot.dietText, diet, lab)
-    if diet then foot.dietText:SetPoint("RIGHT", foot.xpText, "LEFT", -PetPage.FOOT_GAP, 0) end
+    -- The XP text first, to know the room it needs; then the diet takes what is left.
     if d.xp then
         foot.xpText:SetText(string.format(L["Experience %s / %s"],
             ns.Colors.Wrap(ns.List.Number(d.xp), Style.Pop()), ns.List.Number(d.xpNeed)))
     else
         foot.xpText:SetText("")
     end
+    if diet then
+        foot.dietText:SetWidth(0)
+        local width = math.ceil(foot.dietText:GetStringWidth() or 0)
+        local room = foot:GetWidth() or 0
+        if room > 0 then
+            -- What is before the diet: the mood and the loyalty, each with its gap.
+            local used = 0
+            if mood then used = used + foot.mood:GetWidth() + PetPage.FOOT_GAP end
+            if loyalty then used = used + foot.loyaltyText:GetWidth() + PetPage.FOOT_GAP end
+            if d.xp then room = room - math.ceil(foot.xpText:GetStringWidth() or 0) - PetPage.FOOT_GAP end
+            width = math.max(0, math.min(width, room - used))
+        end
+        foot.dietText:SetWidth(width)
+        after = foot.dietText
+    end
+    foot.xpText:ClearAllPoints()
+    if after then foot.xpText:SetPoint("LEFT", after, "RIGHT", PetPage.FOOT_GAP, 0)
+    else foot.xpText:SetPoint("LEFT", foot, "LEFT", 0, 0) end
 end
 
 function PetPage.Refresh(page)
