@@ -6,7 +6,7 @@
 -- over the one below (outline, band, inner line, then the bar, each opaque so only
 -- its ring shows). The angled end is one texture leaned with SetVertexOffset and
 -- the rounded corners are quarter discs. Only the bar fill keeps a mask, for its
--- angled moving edge (Style.AngleFill).
+-- angled moving edge (Style.AngleFill), and one more when its left end is angled.
 
 local _, ns = ...
 local DUI = DaylightUI
@@ -32,14 +32,39 @@ local function texture(parent, layer, sublevel, file, key)
     return t
 end
 
+-- Moves a texture's corners along x so its sides follow an angle. Vertex 1 is
+-- the upper left, 2 the lower left, 3 the upper right, 4 the lower right; nil
+-- or 0 puts a corner back. Only a change goes to the client.
+local shapeOf = setmetatable({}, { __mode = "k" })
+local function vertex(tex, i, dx)
+    dx = dx or 0
+    local s = shapeOf[tex]
+    if not s then
+        s = { 0, 0, 0, 0 }
+        shapeOf[tex] = s
+    end
+    if s[i] == dx then return end
+    s[i] = dx
+    DUI.SafeCall(tex.SetVertexOffset, tex, i, dx, 0)
+end
+
+function Body.Shape(tex, ul, ll, ur, lr)
+    if not tex.SetVertexOffset then return end
+    vertex(tex, 1, ul); vertex(tex, 2, ll); vertex(tex, 3, ur); vertex(tex, 4, lr)
+end
+
 -- Leans a texture's lower right corner by dx along x so its right side follows
 -- an angle; 0 resets it.
-local leanOf = setmetatable({}, { __mode = "k" })
 function Body.Lean(tex, dx)
-    dx = dx or 0
-    if leanOf[tex] == dx or not tex.SetVertexOffset then return end
-    leanOf[tex] = dx
-    DUI.SafeCall(tex.SetVertexOffset, tex, 4, dx, 0)
+    if tex.SetVertexOffset then vertex(tex, 4, dx) end
+end
+
+-- How far in from its own edge of the frame an end's line is, y down from the
+-- top and d in from the edge (square to the line). side: "r" or "l" of the
+-- layout's geometry.
+local function inAt(g, side, y, d)
+    local e = g[side]
+    return e.top + e.lean * y / g.H + d * e.slope
 end
 
 -- frame: what the border goes around (its size is set before each Layout).
@@ -85,55 +110,73 @@ local function hideLayer(L)
 end
 
 -- One ring's filled shape, d in from the frame's edge: rounded corners of radius r
--- (always on the left, on the right only for a square end), and the angled end
--- along the frame's line moved d in (perpendicular to the line).
+-- at a square end, and an angled end along the frame's line moved d in
+-- (perpendicular to the line).
 local function placeLayer(b, L, d)
     local s, g = b.holder, b.geo
     local r = math.max(0, g.R - d)
-    local rr = g.angled and 0 or r
-    local x0 = d + r
-    for _, key in ipairs({ "TOPLEFT", "BOTTOMLEFT" }) do
-        local c = L[key]
+    local rl = g.l.angled and 0 or r
+    local rr = g.r.angled and 0 or r
+    for _, key in ipairs(CORNERS) do
+        local c, cr = L[key], key:find("LEFT") and rl or rr
         c:ClearAllPoints()
-        c:SetSize(r, r)
-        c:SetPoint(key, s, key, d, key == "TOPLEFT" and -d or d)
-        c:SetShown(r > 0)
+        c:SetSize(cr, cr)
+        c:SetPoint(key, s, key, key:find("LEFT") and d or -d, key:find("TOP") and -d or d)
+        c:SetShown(cr > 0)
     end
     L.left:ClearAllPoints()
-    L.left:SetPoint("TOPLEFT", s, "TOPLEFT", d, -(d + r))
-    L.left:SetPoint("BOTTOMRIGHT", s, "BOTTOMLEFT", d + r, d + r)
-    L.left:SetShown(r > 0 and g.H - 2 * (d + r) > 0)
+    L.left:SetPoint("TOPLEFT", s, "TOPLEFT", d, -(d + rl))
+    L.left:SetPoint("BOTTOMRIGHT", s, "BOTTOMLEFT", d + rl, d + rl)
+    L.left:SetShown(rl > 0 and g.H - 2 * (d + rl) > 0)
+    L.right:ClearAllPoints()
+    L.right:SetPoint("TOPRIGHT", s, "TOPRIGHT", -d, -(d + rr))
+    L.right:SetPoint("BOTTOMLEFT", s, "BOTTOMRIGHT", -(d + rr), d + rr)
+    L.right:SetShown(rr > 0 and g.H - 2 * (d + rr) > 0)
+    -- The middle reaches each end: along the line at an angled end (its lower
+    -- corner moved along it), else to where the corner curve starts.
+    local lTop = g.l.angled and inAt(g, "l", d, d) or d + rl
+    local rTop = g.r.angled and inAt(g, "r", d, d) or d + rr
     L.mid:ClearAllPoints()
-    L.mid:SetPoint("TOPLEFT", s, "TOPLEFT", x0, -d)
-    if g.angled then
-        local xTop = g.W - g.cutTop - g.lean * d / g.H - d * g.slope
-        local xBot = g.W - g.cutTop - g.lean * (g.H - d) / g.H - d * g.slope
-        L.mid:SetPoint("BOTTOMRIGHT", s, "BOTTOMLEFT", xTop, d)
-        Body.Lean(L.mid, xBot - xTop)
-        L.right:Hide()
-        L.TOPRIGHT:Hide()
-        L.BOTTOMRIGHT:Hide()
-    else
-        L.mid:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -(d + rr), d)
-        Body.Lean(L.mid, 0)
-        for _, key in ipairs({ "TOPRIGHT", "BOTTOMRIGHT" }) do
-            local c = L[key]
-            c:ClearAllPoints()
-            c:SetSize(rr, rr)
-            c:SetPoint(key, s, key, -d, key == "TOPRIGHT" and -d or d)
-            c:SetShown(rr > 0)
-        end
-        L.right:ClearAllPoints()
-        L.right:SetPoint("TOPRIGHT", s, "TOPRIGHT", -d, -(d + rr))
-        L.right:SetPoint("BOTTOMLEFT", s, "BOTTOMRIGHT", -(d + rr), d + rr)
-        L.right:SetShown(rr > 0 and g.H - 2 * (d + rr) > 0)
-    end
+    L.mid:SetPoint("TOPLEFT", s, "TOPLEFT", lTop, -d)
+    L.mid:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -rTop, d)
+    local ll = g.l.angled and (inAt(g, "l", g.H - d, d) - lTop) or 0
+    local lr = g.r.angled and (rTop - inAt(g, "r", g.H - d, d)) or 0
+    Body.Shape(L.mid, 0, ll, 0, lr)
     L.mid:Show()
+end
+
+-- One side strip of the shadow. At an angled end it leans with the cut, placed by
+-- where the line crosses the strip's bottom and sheared out to where it crosses
+-- its top.
+local function placeSideShadow(b, side, S, E)
+    local s, g, sh, o = b.holder, b.geo, b.shadow, b.opts
+    local T, e = g.T, g[side]
+    local top = (o.joined == true or e.angled) and -T or -E
+    local bottom = e.angled and T or E
+    local inX, lean = 0, 0
+    if e.angled then
+        local yb, yt = g.H - bottom, -top
+        inX = e.top + e.lean * yb / g.H
+        lean = e.lean * (yb - yt) / g.H
+    end
+    if side == "r" then
+        local t = sh.RIGHT
+        t:ClearAllPoints()
+        t:SetPoint("TOPLEFT", s, "TOPRIGHT", -inX, top)
+        t:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", S - inX, bottom)
+        Body.Shape(t, lean, 0, lean, 0)
+    else
+        local t = sh.LEFT
+        t:ClearAllPoints()
+        t:SetPoint("TOPRIGHT", s, "TOPLEFT", inX, top)
+        t:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT", inX - S, bottom)
+        Body.Shape(t, -lean, 0, -lean, 0)
+    end
 end
 
 -- The soft shadow around the frame, like a shell's: corner pieces centered on the
 -- curve, fading edges. At an angled end the side strip leans with the cut and the
--- bottom corner moves in to where the cut ends.
+-- corners move in to where the cut puts them.
 local function placeShadow(b)
     local s, g, sh, o = b.holder, b.geo, b.shadow, b.opts
     local gen = general()
@@ -145,51 +188,29 @@ local function placeShadow(b)
     local joined = o.joined == true
     for _, key in ipairs(CORNERS) do
         local c = sh[key]
-        local own = round and not (g.angled and (key == "TOPRIGHT" or key == "BOTTOMRIGHT"))
+        local e = key:find("RIGHT") and g.r or g.l
+        local own = round and not e.angled
         local Ek = own and E or T
+        local cut = e.angled and (key:find("TOP") and e.top or e.bottom) or 0
         c:SetTexture(own and ART.ShadowRound(E, S) or ART.SHADOW, "CLAMP", "CLAMP")
         c:SetTexCoord(unpack(ART.CORNER_COORDS[key]))
         c:ClearAllPoints()
         c:SetSize(Ek + S, Ek + S)
         local an = ART.SHADOW_ANCHOR[key]
-        c:SetPoint(an[1], s, key, an[2] * Ek, an[3] * Ek)
+        c:SetPoint(an[1], s, key, an[2] * (Ek + cut), an[3] * Ek)
         c:SetVertexColor(0, 0, 0, a)
         c:SetShown(not (joined and (key == "TOPLEFT" or key == "TOPRIGHT")))
     end
-    local ER = g.angled and T or E
+    local l, r = g.l, g.r
     sh.TOP:ClearAllPoints()
-    sh.TOP:SetPoint("BOTTOMLEFT", s, "TOPLEFT", E, 0)
-    sh.TOP:SetPoint("TOPRIGHT", s, "TOPRIGHT", -ER, S)
+    sh.TOP:SetPoint("BOTTOMLEFT", s, "TOPLEFT", l.angled and (l.top + T) or E, 0)
+    sh.TOP:SetPoint("TOPRIGHT", s, "TOPRIGHT", -(r.angled and (r.top + T) or E), S)
     sh.TOP:SetShown(not joined)
     sh.BOTTOM:ClearAllPoints()
-    sh.BOTTOM:SetPoint("TOPLEFT", s, "BOTTOMLEFT", E, 0)
-    sh.BOTTOM:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", g.angled and -(g.cutBottom + T) or -E, -S)
-    sh.LEFT:ClearAllPoints()
-    local top = joined and -T or -E
-    sh.LEFT:SetPoint("TOPRIGHT", s, "TOPLEFT", 0, top)
-    sh.LEFT:SetPoint("BOTTOMLEFT", s, "BOTTOMLEFT", -S, E)
-    -- Right side: square, or leaning with the cut from where the line crosses the
-    -- strip's bottom to where it crosses its top.
-    local rTop = (joined or g.angled) and -T or -E
-    local rBottom = g.angled and T or E
-    local inX, lean = 0, 0
-    if g.angled then
-        local yb, yt = g.H - rBottom, -rTop
-        inX = g.cutTop + g.lean * yb / g.H
-        lean = g.lean * (yb - yt) / g.H
-        local c, an = sh.BOTTOMRIGHT, ART.SHADOW_ANCHOR.BOTTOMRIGHT
-        c:ClearAllPoints()
-        c:SetSize(T + S, T + S)
-        c:SetPoint(an[1], s, "BOTTOMRIGHT", an[2] * (T + g.cutBottom), an[3] * T)
-    end
-    sh.RIGHT:ClearAllPoints()
-    sh.RIGHT:SetPoint("TOPLEFT", s, "TOPRIGHT", -inX, rTop)
-    sh.RIGHT:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", S - inX, rBottom)
-    if sh.RIGHT.SetVertexOffset then
-        -- Vertex 1 is upper left, 3 upper right: shear the top out along the cut.
-        DUI.SafeCall(sh.RIGHT.SetVertexOffset, sh.RIGHT, 1, lean, 0)
-        DUI.SafeCall(sh.RIGHT.SetVertexOffset, sh.RIGHT, 3, lean, 0)
-    end
+    sh.BOTTOM:SetPoint("TOPLEFT", s, "BOTTOMLEFT", l.angled and (l.bottom + T) or E, 0)
+    sh.BOTTOM:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -(r.angled and (r.bottom + T) or E), -S)
+    placeSideShadow(b, "l", S, E)
+    placeSideShadow(b, "r", S, E)
     local full, none = Style.ShadowColors(nil, a)
     -- VERTICAL: first color at the bottom; HORIZONTAL: first color at the left.
     sh.TOP:SetGradient("VERTICAL", full, none)
@@ -274,8 +295,8 @@ end
 -- would show through each other, so the frame uses a real shell instead
 -- (Style.Shell, cut by masks), exactly as elsewhere. Built the first time it's
 -- needed; at full opacity (the default) it stays hidden and costs nothing.
-local function shellLayout(b, px, cutTop, cutBottom, clear)
-    local frame, o = b.frame, b.opts
+local function shellLayout(b, px, clear)
+    local frame, o, g = b.frame, b.opts, b.geo
     local opts = b.shellOpts or {}
     b.shellOpts = opts
     opts.borderPx, opts.flat, opts.noBevel, opts.noBorder = px, o.flat, true, o.noBorder
@@ -286,17 +307,26 @@ local function shellLayout(b, px, cutTop, cutBottom, clear)
     -- Built after the frame's own bars (and maybe after the frame was raised), so put
     -- it under them where the rings sit.
     if first then b.shell:SetFrameLevel(b.holder:GetFrameLevel()) end
-    if cutTop ~= 0 or cutBottom ~= 0 then
-        Style.Slant(frame, "right", cutBottom, o.joined and o.ref or nil)
-    else
+    local l, r = g.l, g.r
+    local side = (l.angled and r.angled and "both") or (r.angled and "right") or (l.angled and "left") or nil
+    if not side then
         Style.Slant(frame, nil, 0)
+    elseif o.joined and o.ref then
+        -- A bar hung under another carries its line on (ref.cut over ref.height, an
+        -- end under a flipped one starting at that frame's bottom: ref.drop).
+        Style.Slant(frame, side, o.ref.cut or math.max(r.bottom, l.bottom), o.ref)
+    else
+        -- An end leans under when its bottom corner sticks out.
+        local lu, ru = l.angled and l.lean < 0, r.angled and r.lean < 0
+        local under = (lu and ru and "both") or (ru and "right") or (lu and "left") or nil
+        Style.Slant(frame, side, math.max(math.abs(r.lean), math.abs(l.lean)), nil, under)
     end
     b.shell:SetShown(not b.off)
 end
 
 -- Lays the border around its frame. cutTop, cutBottom: how far in from the frame's
--- right edge its right end is at the top and bottom (0, 0 = a square end, rounded
--- like the left).
+-- right edge its right end is at the top and bottom; leftTop, leftBottom the same
+-- for the left end from the left edge (0, 0 = a square end, rounded).
 local layouts = 0
 function Body.TakeLayoutCount()
     local n = layouts
@@ -304,11 +334,18 @@ function Body.TakeLayoutCount()
     return n
 end
 
-function Body.Layout(b, cutTop, cutBottom)
+local function endGeo(e, top, bottom, H)
+    e.top, e.bottom = top, bottom
+    e.lean = bottom - top
+    e.angled = top ~= 0 or bottom ~= 0
+    e.slope = math.sqrt(H * H + e.lean * e.lean) / H
+    return e
+end
+
+function Body.Layout(b, cutTop, cutBottom, leftTop, leftBottom)
     layouts = layouts + 1
     local frame, s, o = b.frame, b.holder, b.opts
     local gen = general()
-    cutTop, cutBottom = cutTop or 0, cutBottom or 0
     local own = o.borderPx
     local px = type(own) == "function" and own(gen.borderPx) or own or gen.borderPx
     local T = Pixel.Px(s, px)
@@ -320,13 +357,13 @@ function Body.Layout(b, cutTop, cutBottom)
     -- capped at 3.4x the border like a shell's.
     local R = math.min(Pixel.Px(s, gen.cornerPx), math.min(W, H) / 2)
     if T > 0 then R = math.min(R, T * 3.4) end
-    local lean = cutBottom - cutTop
-    local g = b.geo or {}
+    local g = b.geo or { l = {}, r = {} }
     b.geo = g
     g.W, g.H, g.T, g.R, g.one = W, H, T, R, one
-    g.cutTop, g.cutBottom, g.lean = cutTop, cutBottom, lean
-    g.angled = cutTop ~= 0 or cutBottom ~= 0
-    g.slope = math.sqrt(H * H + lean * lean) / H
+    local r = endGeo(g.r, cutTop or 0, cutBottom or 0, H)
+    local l = endGeo(g.l, leftTop or 0, leftBottom or 0, H)
+    -- The right end's numbers by their older names (the cast bar's kick pieces).
+    g.cutTop, g.cutBottom, g.lean, g.angled, g.slope = r.top, r.bottom, r.lean, r.angled, r.slope
     g.heavy = gen.heavyBorder ~= false and not o.flat and px >= Style.HEAVY_MIN_PX
     b.T, b.radius, b.heavy = T, R, g.heavy
     -- See-through (Missing health opacity below the default): the rings are stacked
@@ -336,7 +373,7 @@ function Body.Layout(b, cutTop, cutBottom)
     b.shellMode = not o.noBorder and ((gen.borderAlpha or 1) < 1 or clear ~= nil)
     b.bg:SetAlpha(clear or 1)
     if b.shellMode then
-        shellLayout(b, px, cutTop, cutBottom, clear)
+        shellLayout(b, px, clear)
         s:Hide()
         return
     end
@@ -351,33 +388,28 @@ function Body.Layout(b, cutTop, cutBottom)
         hideLayer(L.band)
         hideLayer(L.line)
     end
-    -- The band's lit top line, from the end of the corner curve to a pixel short of
-    -- the cut (where the band's own line meets its lower edge).
+    -- The band's lit top line, from the end of each corner curve to a pixel short
+    -- of an angled end's cut (where the band's own line meets its lower edge).
     local lit = b.lit
     local litOn = g.heavy and T > 0 and not o.noBorder and not o.joined
     if litOn then
+        local function stop(e) return e.angled and (e.top + one * e.slope + e.lean * 2 * one / H) or R end
         lit:ClearAllPoints()
-        lit:SetPoint("TOPLEFT", s, "TOPLEFT", R, -one)
-        local right = R
-        if g.angled then right = cutTop + one * g.slope + lean * 2 * one / H end
-        lit:SetPoint("TOPRIGHT", s, "TOPRIGHT", -right, -one)
+        lit:SetPoint("TOPLEFT", s, "TOPLEFT", stop(l), -one)
+        lit:SetPoint("TOPRIGHT", s, "TOPRIGHT", -stop(r), -one)
         lit:SetHeight(one)
     end
     lit:SetShown(litOn)
-    -- Contents background: square (the corner caps round it off), leaned along the
-    -- angle like the rings.
+    -- Contents background: square (the corner caps round it off), leaned along an
+    -- angled end like the rings.
     local bg = b.bg
+    local bl = l.angled and inAt(g, "l", T, T) or T
+    local br = r.angled and inAt(g, "r", T, T) or T
     bg:ClearAllPoints()
-    bg:SetPoint("TOPLEFT", s, "TOPLEFT", T, -T)
-    if g.angled then
-        local xTop = W - cutTop - lean * T / H - T * g.slope
-        local xBot = W - cutTop - lean * (H - T) / H - T * g.slope
-        bg:SetPoint("BOTTOMRIGHT", s, "BOTTOMLEFT", xTop, T)
-        Body.Lean(bg, xBot - xTop)
-    else
-        bg:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -T, T)
-        Body.Lean(bg, 0)
-    end
+    bg:SetPoint("TOPLEFT", s, "TOPLEFT", bl, -T)
+    bg:SetPoint("BOTTOMRIGHT", s, "BOTTOMRIGHT", -br, T)
+    Body.Shape(bg, 0, l.angled and (inAt(g, "l", H - T, T) - bl) or 0,
+        0, r.angled and (br - inAt(g, "r", H - T, T)) or 0)
     bg:SetShown(H - 2 * T > 0)
     -- Corner caps where the curve is rounder than the border is thick.
     local F = math.max(0, R - T)
@@ -386,7 +418,7 @@ function Body.Layout(b, cutTop, cutBottom)
         f:ClearAllPoints()
         f:SetSize(F, F)
         f:SetPoint(key, s, key, sign[1] * T, sign[2] * T)
-        local sharp = g.angled and (key == "TOPRIGHT" or key == "BOTTOMRIGHT")
+        local sharp = (key:find("RIGHT") and r or l).angled
         f:SetShown(F > 0 and T > 0 and not o.noBorder and not sharp)
     end
     placeShadow(b)
@@ -394,33 +426,65 @@ function Body.Layout(b, cutTop, cutBottom)
 end
 
 -- How far in from the frame's right edge the contents' right end is at their top
--- (one border depth in, perpendicular to the angle), and how far the angle leans
--- over the contents' height.
+-- (one border depth in, perpendicular to the angle).
 function Body.InnerRight(b)
     local g = b.geo
-    return g.cutTop + g.lean * g.T / g.H + g.T * g.slope
+    return inAt(g, "r", g.T, g.T)
 end
 
-function Body.InnerCut(b)
+-- How far an end's line leans over the contents' height ("r" or "l", right if
+-- left out), and whether it leans under (its bottom corner out).
+function Body.InnerCut(b, side)
     local g = b.geo
-    return math.max(0, g.lean * (g.H - 2 * g.T) / g.H)
+    local c = g[side or "r"].lean * (g.H - 2 * g.T) / g.H
+    return math.abs(c), c < 0
 end
 
--- Fits a bar inside the border: its right end where the contents' angle starts at
--- the top, the fill's moving edge leaning with the cut (one mask, which also cuts
--- the end so a full bar ends on the angle), and its background and any static
--- full-width overlays leaned to match without masks.
-function Body.FitBar(b, bar, overlays)
-    local T = b.geo.T
-    local cut = Body.InnerCut(b)
+-- A bar's left end cut at an angle: a mask on its fill (and on clips, textures
+-- laid over the fill) through the core's Style.Slant on the bar itself. A square
+-- left end (the usual) adds nothing.
+local leftCut = setmetatable({}, { __mode = "k" })
+function Body.ClipLeft(bar, cut, under, clips)
+    if cut > 0 then
+        Style.Clip(bar, bar:GetStatusBarTexture(), "outer", nil, "left")
+        for _, tex in ipairs(clips or {}) do Style.Clip(bar, tex, "outer", nil, "left") end
+        local was = leftCut[bar]
+        if not (was and was.cut == cut and was.under == under) then
+            leftCut[bar] = { cut = cut, under = under }
+            Style.Slant(bar, "left", cut, nil, under and "left" or nil)
+        end
+    elseif leftCut[bar] then
+        leftCut[bar] = nil
+        Style.Slant(bar, nil, 0)
+    end
+end
+
+-- Fits a bar inside the border, reaching each end's outer corner: the fill's
+-- moving edge leans with the right end (one mask, which also cuts that end so a
+-- full bar ends on the angle), an angled left end gets a mask of its own
+-- (Body.ClipLeft, also on clips), and its background and any static full-width
+-- overlays are leaned to match without masks. Returns each end's cut and whether
+-- it leans under: right, then left.
+function Body.FitBar(b, bar, overlays, clips)
+    local g = b.geo
+    local T = g.T
+    local rCut, rUnder = Body.InnerCut(b, "r")
+    local lCut, lUnder = Body.InnerCut(b, "l")
+    -- A flipped end's outer corner is its bottom one, a cut further out.
+    local rIn = Body.InnerRight(b) - (rUnder and rCut or 0)
+    local lIn = inAt(g, "l", T, T) - (lUnder and lCut or 0)
     bar:ClearAllPoints()
-    bar:SetPoint("TOPLEFT", b.frame, "TOPLEFT", T, -T)
-    bar:SetPoint("BOTTOMRIGHT", b.frame, "BOTTOMRIGHT", -Body.InnerRight(b), T)
-    Style.AngleFill(bar, cut > 0 and "right" or nil, cut)
+    bar:SetPoint("TOPLEFT", b.frame, "TOPLEFT", lIn, -T)
+    bar:SetPoint("BOTTOMRIGHT", b.frame, "BOTTOMRIGHT", -rIn, T)
+    Style.AngleFill(bar, rCut > 0 and "right" or nil, rCut, rUnder)
+    Body.ClipLeft(bar, lCut, lUnder, clips)
+    -- The corner each angled end pulls in: the lower one, or the upper one when flipped.
+    local ul, ll = lUnder and lCut or 0, lUnder and 0 or lCut
+    local ur, lr = rUnder and -rCut or 0, rUnder and 0 or -rCut
     local back = Style.BarBack(bar)
-    if back then Body.Lean(back, -cut) end
-    for _, tex in ipairs(overlays or {}) do Body.Lean(tex, -cut) end
-    return cut
+    if back then Body.Shape(back, ul, ll, ur, lr) end
+    for _, tex in ipairs(overlays or {}) do Body.Shape(tex, ul, ll, ur, lr) end
+    return rCut, rUnder, lCut, lUnder
 end
 
 function Body.SetShown(b, on)

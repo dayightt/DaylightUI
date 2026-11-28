@@ -128,12 +128,18 @@ local function layout(row, p)
     local o = opts()
     local hp = p.hp
     local w = hp:GetWidth()
-    local cut = p.hpCut or 0
-    -- The angled end takes the bar's bottom corner, so above the bar use the full width.
-    local full = o.above and w or (w - cut)
+    -- An angled end takes one of the bar's corners: the bottom one when it leans the
+    -- usual way, the top one when flipped. Center on the straight part of the edge
+    -- the row sits by.
+    local e = p.ends or {}
+    local cut = e.cut or 0
+    local corner = o.above and "flip" or "usual"
+    local inL = e.left == corner and cut or 0
+    local inR = e.right == corner and cut or 0
+    local full = w - inL - inR
     local span = math.max(Combo.MAX * 4, full * o.width)
     local pw = math.max(2, (span - (Combo.MAX - 1) * o.gap) / Combo.MAX)
-    local x = (full - span) / 2
+    local x = inL + (full - span) / 2
     row:ClearAllPoints()
     if o.above then
         row:SetPoint("BOTTOMLEFT", hp, "TOPLEFT", x, Combo.GAP)
@@ -146,24 +152,32 @@ local function layout(row, p)
     -- moves the row and keeps its five shells, slants and masks (rebuilding them
     -- cost thousands of calls per switch).
     local scale = row:GetEffectiveScale()
+    -- Angled pips lean like the bar's ends: the right end the bar's way (the usual
+    -- one when the bar's is straight), the left end only when the bar's is angled.
+    local shape = o.slant and ((e.right == "flip" and "f" or "u") .. (e.left == "flip" and "f" or e.left and "u" or "-")) or "-"
     if row.pipW == pw and row.pipH == o.height and row.pipGap == o.gap and row.pipBorder == o.border
-        and row.pipSlant == o.slant and row.pipScale == scale and row.pipGen == Combo.gen then
+        and row.pipSlant == shape and row.pipScale == scale and row.pipGen == Combo.gen then
         return
     end
     row.pipW, row.pipH, row.pipGap, row.pipBorder, row.pipSlant, row.pipScale, row.pipGen =
-        pw, o.height, o.gap, o.border, o.slant, scale, Combo.gen
+        pw, o.height, o.gap, o.border, shape, scale, Combo.gen
     local pipCut = o.slant and Pixel.Snap(row, o.height * 0.5) or 0
+    local rT, rB = 0, pipCut
+    if e.right == "flip" then rT, rB = pipCut, 0 end
+    local lT, lB = 0, 0
+    if e.left == "usual" then lB = pipCut elseif e.left == "flip" then lT = pipCut end
     for i, pip in ipairs(row.pips) do
         pip:ClearAllPoints()
         pip:SetPoint("TOPLEFT", row, "TOPLEFT", (i - 1) * (pw + o.gap), 0)
         pip:SetSize(pw, o.height)
         pip.body.opts.borderPx, pip.body.opts.noBorder = o.border, o.border == 0
         -- Angled like the bar's own end.
-        ns.Body.Layout(pip.body, 0, pipCut)
+        ns.Body.Layout(pip.body, rT, rB, lT, lB)
         ns.Body.FitBar(pip.body, pip.bar)
         -- The whole-row overlay on the last pip gets the same fill shape.
-        local fillCut = ns.Body.InnerCut(pip.body)
-        Style.AngleFill(pip.full, fillCut > 0 and "right" or nil, fillCut)
+        local fillCut, under = ns.Body.InnerCut(pip.body)
+        Style.AngleFill(pip.full, fillCut > 0 and "right" or nil, fillCut, under)
+        ns.Body.ClipLeft(pip.full, ns.Body.InnerCut(pip.body, "l"))
     end
 end
 Combo.LayoutRow = layout

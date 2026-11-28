@@ -199,8 +199,8 @@ function Cast.Forget(p)
     if type(p) == "table" and p.cast then casting[p.cast] = nil end
 end
 
--- cut: the health bar's angled end, continued down through this bar.
-function Cast.Layout(p, cut)
+-- The health bar's angled ends (p.ends) carry on down through this bar.
+function Cast.Layout(p)
     local c, cfg, hp = p.cast, ns.cfg, p.hp
     p.castStale = nil
     -- Match the health bar's width (Width times the target/others multiplier, if
@@ -216,14 +216,11 @@ function Cast.Layout(p, cut)
     c:SetPoint("TOPLEFT", hp, "TOPLEFT", tonumber(cfg.castX) or 0, -(hh + gap) + (tonumber(cfg.castY) or 0))
     c:SetSize(w, h)
     c:SetFrameLevel(hp:GetFrameLevel() + 4)
-    local total = hh + gap + h
-    local line = (cut or 0) > 0 and cut * total / hh or 0
-    -- Where the line is at this bar's top and bottom, measured in from its right edge
-    -- (and for a see-through border's shell, where it starts and over what).
+    -- Where each end's line is at this bar's top and bottom, measured in from its
+    -- edge (and for a see-through border's shell, where it starts and over what).
     local ref = c.body.opts.ref or {}
     c.body.opts.ref = ref
-    ref.frame, ref.height = hp, total
-    ns.Body.Layout(c.body, line > 0 and line * (hh + gap) / total or 0, line)
+    ns.Body.Layout(c.body, ns.Plate.Hang(p, hh + gap, hh + gap + h, ref))
     local T = c.body.T
     c.iconBox:ClearAllPoints()
     if cfg.castIconPos == "outright" then
@@ -305,7 +302,7 @@ end
 -- now if the bar shows, else on its next show; otherwise every rogue target switch
 -- re-laid out two hidden cast bars.
 function Cast.Relayout(p)
-    if p.cast:IsShown() then Cast.Layout(p, p.hpCut) else p.castStale = true end
+    if p.cast:IsShown() then Cast.Layout(p) else p.castStale = true end
 end
 
 -- Reads the unit's cast (or channel) and shows it, or hides the bar.
@@ -331,7 +328,7 @@ function Cast.Update(p)
         duration = UnitCastingDuration and UnitCastingDuration(u)
     end
     if not duration then return Cast.Stop(p) end
-    if p.castStale then Cast.Layout(p, p.hpCut) end
+    if p.castStale then Cast.Layout(p) end
     c.token = (c.token or 0) + 1
     c.duration, c.channel = duration, channel
     c.spellID, c.notInterruptible, c.interrupted = spellID, ni, nil
@@ -410,7 +407,7 @@ function Cast.ShowSample(p, s)
         Cast.Stop(p, true)
         return
     end
-    if p.castStale then Cast.Layout(p, p.hpCut) end
+    if p.castStale then Cast.Layout(p) end
     Cast.Unkick(p)
     c.duration = nil
     c.bar:SetMinMaxValues(0, 1)

@@ -43,6 +43,47 @@ function Plate.Slant(c)
     local v = tonumber(c and c.slantAngle)
     return (v and v > 0) and v or Plate.SLANT
 end
+
+-- How each end of an enemy plate's health bar is cut: nil (straight), "usual"
+-- (its top corner out) or "flip" (its bottom corner out). Left end first.
+-- Friendly plates stay square.
+function Plate.EndsOf(c, friendly)
+    if friendly or not c then return nil, nil end
+    local left = c.slantLeft == true and (c.slantUnderLeft == true and "flip" or "usual") or nil
+    local right = c.slant ~= false and (c.slantUnder == true and "flip" or "usual") or nil
+    return left, right
+end
+
+-- An end's cut in from its edge at the bar's top and bottom.
+local function endCuts(mode, cut)
+    if mode == "usual" then return 0, cut end
+    if mode == "flip" then return cut, 0 end
+    return 0, 0
+end
+
+-- A bar hung under the health bar (power, cast) carries each angled end on: its
+-- line at the same slope from the health bar's top corner, or from its bottom
+-- corner under a flipped end, so the two lean back in like a chevron (the unit
+-- frames' UF.HangEnds way). top, bottom: the bar's top and bottom, down from the
+-- health bar's top. ref: the bar's own table for a see-through border's shell.
+-- Returns the right end's cuts at the bar's top and bottom, then the left's.
+function Plate.Hang(p, top, bottom, ref)
+    local e, hh = p.ends, p.hp:GetHeight()
+    local k = (e and type(hh) == "number" and hh > 0) and (e.cut or 0) / hh or 0
+    ref.frame, ref.height, ref.cut = p.hp, bottom, k * bottom
+    local drop = ref.drop or {}
+    ref.drop = drop
+    drop.left = (e and e.left == "flip") and hh or nil
+    drop.right = (e and e.right == "flip") and hh or nil
+    local function along(mode)
+        if not mode or k <= 0 then return 0, 0 end
+        local d = mode == "flip" and hh or 0
+        return k * (top - d), k * (bottom - d)
+    end
+    local rT, rB = along(e and e.right)
+    local lT, lB = along(e and e.left)
+    return rT, rB, lT, lB
+end
 Plate.NAME_GAP = 2 -- gap between the bar and the name
 Plate.HOVER = 0.15 -- mouseover brighten
 Plate.MARKER = 16
@@ -659,12 +700,15 @@ end
 -- radius (outline only): the border's corner curve. A square end's corners become
 -- curved pieces around it (an angled end's stay sharp like the border's);
 -- ring.round records which.
-function Plate.LayoutRing(ring, frame, depth, topCut, bottomCut, radius)
+function Plate.LayoutRing(ring, frame, depth, topCut, bottomCut, radius, leftTop, leftBottom)
     topCut, bottomCut = topCut or 0, bottomCut or 0
+    leftTop, leftBottom = leftTop or 0, leftBottom or 0
     local e = ring.pieces
     local angled = topCut ~= 0 or bottomCut ~= 0
+    local leftAngled = leftTop ~= 0 or leftBottom ~= 0
     local function curve(key)
-        if not radius or radius <= 0 or (angled and key:find("RIGHT")) then return 0 end
+        if not radius or radius <= 0 then return 0 end
+        if (angled and key:find("RIGHT")) or (leftAngled and key:find("LEFT")) then return 0 end
         return radius
     end
     ring.round = ring.round or {}
@@ -676,28 +720,35 @@ function Plate.LayoutRing(ring, frame, depth, topCut, bottomCut, radius)
         if radius then Style.RingCorner(t, key, r, Plate.LINE) end
         ring.round[key] = r > 0
     end
-    corner("TOPLEFT", -1, 1)
+    corner("TOPLEFT", -1, 1, leftTop)
     corner("TOPRIGHT", 1, 1, -topCut)
-    corner("BOTTOMLEFT", -1, -1)
+    corner("BOTTOMLEFT", -1, -1, leftBottom)
     corner("BOTTOMRIGHT", 1, -1, -bottomCut)
     -- Sides start a little inside the corner curves. A curve's ends fade (its edge is
     -- soft, the line's isn't), which showed as a step where they met. A quarter of the
     -- way in, the curve is still within a fifth of a pixel of the straight line (at
     -- the default rounding), so the overlap doesn't show.
     local rl, rr = curve("TOPLEFT") * 0.75, curve("TOPRIGHT") * 0.75
-    ring.edges = { frame = frame, left = rl, topEnd = topCut + rr, bottomEnd = bottomCut + rr }
+    ring.edges = { frame = frame, topStart = leftTop + rl, bottomStart = leftBottom + rl,
+                   topEnd = topCut + rr, bottomEnd = bottomCut + rr }
     e.TOP:ClearAllPoints()
-    e.TOP:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", rl, 0)
+    e.TOP:SetPoint("BOTTOMLEFT", frame, "TOPLEFT", leftTop + rl, 0)
     e.TOP:SetPoint("BOTTOMRIGHT", frame, "TOPRIGHT", -topCut - rr, 0)
     e.TOP:SetHeight(depth)
     e.BOTTOM:ClearAllPoints()
-    e.BOTTOM:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", rl, 0)
+    e.BOTTOM:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", leftBottom + rl, 0)
     e.BOTTOM:SetPoint("TOPRIGHT", frame, "BOTTOMRIGHT", -bottomCut - rr, 0)
     e.BOTTOM:SetHeight(depth)
     e.LEFT:ClearAllPoints()
-    e.LEFT:SetPoint("TOPRIGHT", frame, "TOPLEFT", 0, -rl)
-    e.LEFT:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", 0, rl)
+    e.LEFT:SetPoint("TOPRIGHT", frame, "TOPLEFT", leftTop, -rl)
+    e.LEFT:SetPoint("BOTTOMRIGHT", frame, "BOTTOMLEFT", leftTop, rl)
     e.LEFT:SetWidth(depth)
+    -- The left side leans the same way: its lower corners moved along the cut.
+    local leftLean = leftBottom - leftTop
+    if e.LEFT.SetVertexOffset then
+        DUI.SafeCall(e.LEFT.SetVertexOffset, e.LEFT, 2, leftLean, 0)
+        DUI.SafeCall(e.LEFT.SetVertexOffset, e.LEFT, 4, leftLean, 0)
+    end
     e.RIGHT:ClearAllPoints()
     e.RIGHT:SetPoint("TOPLEFT", frame, "TOPRIGHT", -topCut, -rr)
     e.RIGHT:SetPoint("BOTTOMLEFT", frame, "BOTTOMRIGHT", -topCut, rr)
@@ -714,11 +765,14 @@ function Plate.LayoutRing(ring, frame, depth, topCut, bottomCut, radius)
     if ring.wipeDir and Plate.WipeStep then Plate.WipeStep(ring, ring.wipeP or 0) end
 end
 
-function Plate.LayoutMarks(p, cut)
-    p.cut = cut
-    Plate.LayoutRing(p.glow, p.hp, Plate.GLOW_REACH, 0, cut)
-    Plate.LayoutRing(p.outline, p.hp, Pixel.Px(p.hp, Plate.OUTLINE_PX), 0, cut, p.body.radius)
-    Plate.LayoutRing(p.threatGlow, p.hp, Plate.GLOW_REACH, 0, cut)
+-- The target and threat marks round the health bar, following both its ends
+-- (p.ends, set by Plate.Layout).
+function Plate.LayoutMarks(p)
+    local e = p.ends or {}
+    local rT, rB, lT, lB = e.rT or 0, e.rB or 0, e.lT or 0, e.lB or 0
+    Plate.LayoutRing(p.glow, p.hp, Plate.GLOW_REACH, rT, rB, nil, lT, lB)
+    Plate.LayoutRing(p.outline, p.hp, Pixel.Px(p.hp, Plate.OUTLINE_PX), rT, rB, p.body.radius, lT, lB)
+    Plate.LayoutRing(p.threatGlow, p.hp, Plate.GLOW_REACH, rT, rB, nil, lT, lB)
 end
 
 -- A plate's scale: the UI scale times the Scale setting, times its size group's
@@ -903,14 +957,29 @@ function Plate.Layout(p)
             return math.min(Plate.BORDER(px, h), maxBorder)
         end
     end
-    local cut = (friendly or c.slant == false) and 0 or Pixel.Snap(hp, h * Plate.Slant(c))
-    ns.Body.Layout(p.body, 0, cut)
+    local leftEnd, rightEnd = Plate.EndsOf(c, friendly)
+    local cut = (leftEnd or rightEnd) and Pixel.Snap(hp, h * Plate.Slant(c)) or 0
+    local ends = p.ends or {}
+    p.ends = ends
+    ends.left, ends.right, ends.cut = leftEnd, rightEnd, cut
+    local rT, rB = endCuts(rightEnd, cut)
+    local lT, lB = endCuts(leftEnd, cut)
+    ends.rT, ends.rB, ends.lT, ends.lB = rT, rB, lT, lB
+    ns.Body.Layout(p.body, rT, rB, lT, lB)
     local T = p.body.T
-    -- Fill inside the border, its moving edge leaning with the cut (its one mask).
-    -- The background and mouseover light are leaned without a mask.
-    local fillCut = ns.Body.FitBar(p.body, p.health, { p.hover })
+    -- Fill inside the border, its moving edge leaning with the right end (its one
+    -- mask) and an angled left end cut by one more, on the layers over it too. The
+    -- background and mouseover light are leaned without a mask.
+    local clips = p.leftClips
+    if not clips then
+        clips = { p.dotVeil.bar:GetStatusBarTexture() }
+        for _, tex in pairs(p.classLayers or {}) do clips[#clips + 1] = tex end
+        p.leftClips = clips
+    end
+    local fillCut, fillUnder, leftCut, leftUnder = ns.Body.FitBar(p.body, p.health, { p.hover }, clips)
+    ends.leftCut, ends.leftUnder = leftCut, leftUnder
     Plate.BackAlpha(p.health)
-    Plate.LayoutMarks(p, cut)
+    Plate.LayoutMarks(p)
     -- Heals, then a shield, starting where the health fill (or the previous bar)
     -- ends, their moving edges leaning like the fill's. Each is as wide as the whole
     -- health bar so an amount draws at the same scale as health; the heal
@@ -923,7 +992,7 @@ function Plate.Layout(p)
         s:SetPoint("TOPLEFT", anchor, "TOPRIGHT", 0, 0)
         s:SetPoint("BOTTOMLEFT", anchor, "BOTTOMRIGHT", 0, 0)
         s:SetWidth(full)
-        Style.AngleFill(s, fillCut > 0 and "right" or nil, fillCut)
+        Style.AngleFill(s, fillCut > 0 and "right" or nil, fillCut, fillUnder)
         anchor = s:GetStatusBarTexture()
     end
     -- Your DoTs' veil from the fill's moving edge back, and the skull's size (placed
@@ -983,8 +1052,8 @@ function Plate.Layout(p)
     Plate.PlaceStack(p)
     p.hpCut = cut
     -- Power bar first, since the cast bar drops below it.
-    if p.powerOn then ns.Power.Layout(p, cut) end
-    ns.Cast.Layout(p, cut)
+    if p.powerOn then ns.Power.Layout(p) end
+    ns.Cast.Layout(p)
     ns.Auras.Layout(p)
     local ms = c.markerSize or Plate.MARKER
     p.marker:SetSize(ms, ms)
@@ -1314,9 +1383,15 @@ function Plate.LayoutExecute(p, show)
     local x = Pixel.Snap(bar, bar:GetWidth() * pct)
     -- Its right edge leans like the fill's moving edge: top corner at the %,
     -- bottom pulled back. Leaned the other way it read a slant's width past it.
-    local side, cut = Style.GetFillAngle(bar)
+    -- Flipped, the top corner is the one pulled back. Its left end is cut like the
+    -- fill's (Body.FitBar), so the band never pokes past an angled left end.
+    local side, cut, under = Style.GetFillAngle(bar)
     local lean = side == "right" and cut or side == "left" and -cut or 0
     lean = math.min(lean, x)
+    local ends = p.ends or {}
+    local lc = math.min(ends.leftCut or 0, x)
+    local ul, ll = ends.leftUnder and lc or 0, ends.leftUnder and 0 or lc
+    local ur, lr = under and -lean or 0, under and 0 or -lean
     local file, tiled = Plate.ExecuteFile(c)
     local fade = c.executeTexture == "fade"
     for _, t in ipairs({ e.band, e.lit }) do
@@ -1325,7 +1400,7 @@ function Plate.LayoutExecute(p, show)
         t:SetPoint("BOTTOMLEFT", bar, "BOTTOMLEFT", 0, 0)
         t:SetWidth(math.max(x, 1))
         Plate.SetExecuteTexture(t, file, tiled)
-        if t.SetVertexOffset then DUI.SafeCall(t.SetVertexOffset, t, 4, -lean, 0) end
+        ns.Body.Shape(t, ul, ll, ur, lr)
     end
     local l = e.line
     local px = tonumber(c.executeLineSize) or 2
@@ -1379,7 +1454,8 @@ function Plate.LayoutExecute(p, show)
     local _, hi = Plate.ExecuteColors(c)
     if c.executeGlow == true then
         e.glow = e.glow or Plate.Ring(e.hot, p.hp, Plate.GLOW, "ADD", "BACKGROUND")
-        Plate.LayoutRing(e.glow, p.hp, Plate.GLOW_REACH, 0, p.cut or 0)
+        local ends = p.ends or {}
+        Plate.LayoutRing(e.glow, p.hp, Plate.GLOW_REACH, ends.rT, ends.rB, nil, ends.lT, ends.lB)
         for _, t in pairs(e.glow.pieces) do t:SetVertexColor(hi[1], hi[2], hi[3], Plate.EXECUTE_GLOW) end
         e.glow:Show()
         lights[#lights + 1] = e.glow
@@ -2297,7 +2373,10 @@ function Plate.SpotBox(p, into)
     local box, hp = into or {}, p.hp
     local T = p.body and p.body.T or 0
     box.w, box.h = hp:GetWidth(), hp:GetHeight()
-    box.padX, box.padY, box.cutR = T + 3, T, p.hpCut or 0
+    local ends = p.ends or {}
+    box.padX, box.padY = T + 3, T
+    box.cutR = ends.right and ends.cut or 0
+    box.cutL = ends.left and ends.cut or 0
     box.above, box.below, box.outL, box.outR = 0, 0, 0, 0
     return box
 end
@@ -3235,6 +3314,14 @@ end
 -- An animated light on your target's outline in the picked style (on = its key),
 -- the main buttons' glow laid round the bar's angled end. They take the threat color when the border shows threat,
 -- else the accent's two ends, or the outline color with the accent off.
+-- The health bar's corners for W.GlowAround: how far in each sits (p.ends).
+function Plate.GlowCuts(p)
+    local e, t = p.ends or {}, p.glowCuts or {}
+    p.glowCuts = t
+    t.tl, t.tr, t.br, t.bl = e.lT or 0, e.rT or 0, e.rB or 0, e.lB or 0
+    return t
+end
+
 function Plate.ShowCircle(p, on, c, threat)
     local W = DUI.Widgets
     if not W or not W.GlowAround then return end
@@ -3244,7 +3331,7 @@ function Plate.ShowCircle(p, on, c, threat)
     elseif not c.targetAccent then lo = c.targetOutline end
     local depth = Pixel.Px(p.hp, Plate.OUTLINE_PX)
     W.GlowAround(p.outline, true, {
-        style = on, frame = p.hp, inset = -depth, thick = depth, cut = p.cut or 0, scale = Plate.CIRCLE_SCALE,
+        style = on, frame = p.hp, inset = -depth, thick = depth, cuts = Plate.GlowCuts(p), scale = Plate.CIRCLE_SCALE,
         lo = lo, parent = p.outline, layer = "OVERLAY", sub = 4,
     })
 end
@@ -3265,11 +3352,11 @@ local function wipeStep(ring, p)
     if not g then return end
     local w = g.frame:GetWidth()
     e.TOP:ClearAllPoints()
-    e.TOP:SetPoint("BOTTOMLEFT", g.frame, "TOPLEFT", g.left, 0)
-    e.TOP:SetWidth(math.max(0.001, (w - g.left - g.topEnd) * p))
+    e.TOP:SetPoint("BOTTOMLEFT", g.frame, "TOPLEFT", g.topStart, 0)
+    e.TOP:SetWidth(math.max(0.001, (w - g.topStart - g.topEnd) * p))
     e.BOTTOM:ClearAllPoints()
-    e.BOTTOM:SetPoint("TOPLEFT", g.frame, "BOTTOMLEFT", g.left, 0)
-    e.BOTTOM:SetWidth(math.max(0.001, (w - g.left - g.bottomEnd) * p))
+    e.BOTTOM:SetPoint("TOPLEFT", g.frame, "BOTTOMLEFT", g.bottomStart, 0)
+    e.BOTTOM:SetWidth(math.max(0.001, (w - g.bottomStart - g.bottomEnd) * p))
     if not ring.soft then
         -- A gradient edge keeps its colors in place: cropped, not squeezed.
         e.TOP:SetTexCoord(0, p, 0, 1); e.BOTTOM:SetTexCoord(0, p, 0, 1)
@@ -3289,10 +3376,10 @@ local function wipeDone(ring)
     if not g then return end
     if not ring.soft then e.TOP:SetTexCoord(0, 1, 0, 1); e.BOTTOM:SetTexCoord(0, 1, 0, 1) end
     e.TOP:ClearAllPoints()
-    e.TOP:SetPoint("BOTTOMLEFT", g.frame, "TOPLEFT", g.left, 0)
+    e.TOP:SetPoint("BOTTOMLEFT", g.frame, "TOPLEFT", g.topStart, 0)
     e.TOP:SetPoint("BOTTOMRIGHT", g.frame, "TOPRIGHT", -g.topEnd, 0)
     e.BOTTOM:ClearAllPoints()
-    e.BOTTOM:SetPoint("TOPLEFT", g.frame, "BOTTOMLEFT", g.left, 0)
+    e.BOTTOM:SetPoint("TOPLEFT", g.frame, "BOTTOMLEFT", g.bottomStart, 0)
     e.BOTTOM:SetPoint("TOPRIGHT", g.frame, "BOTTOMRIGHT", -g.bottomEnd, 0)
 end
 

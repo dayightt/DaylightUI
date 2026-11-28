@@ -98,8 +98,8 @@ function Power.Wanted(p)
     return kind == nil or kind == Power.MANA
 end
 
--- Placed under the health bar (cut continues its angled end).
-function Power.Layout(p, cut)
+-- Placed under the health bar, carrying its angled ends on (Plate.Hang).
+function Power.Layout(p)
     local f, hp = p.power, p.hp
     local c = ns.Plate.Cfg(p)
     local o = opts(c)
@@ -112,13 +112,10 @@ function Power.Layout(p, cut)
         f.bodyH = h
         f.body.opts.borderPx = borderPx(f, h)
     end
-    -- Continue the health bar's edge at this bar's top and bottom, like Cast.Layout.
-    local total = hh + o.gap + h
-    local line = (cut or 0) > 0 and cut * total / hh or 0
+    -- Continue the health bar's edges at this bar's top and bottom, like Cast.Layout.
     local ref = f.body.opts.ref or {}
     f.body.opts.ref = ref
-    ref.frame, ref.height = hp, total
-    ns.Body.Layout(f.body, line > 0 and line * (hh + o.gap) / total or 0, line)
+    ns.Body.Layout(f.body, ns.Plate.Hang(p, hh + o.gap, hh + o.gap + h, ref))
     ns.Body.FitBar(f.body, f.bar)
     ns.Plate.BackAlpha(f.bar)
     local ts = c.powerTextSize or 0
@@ -197,7 +194,7 @@ function Power.Refresh(p, instant)
     local was = p.powerOn == true
     p.powerOn = on or nil
     local f = p.power
-    if on and (not was or f.laidGen ~= ns.Plate.gen) then Power.Layout(p, p.hpCut) end
+    if on and (not was or f.laidGen ~= ns.Plate.gen) then Power.Layout(p) end
     if not p.isSample then listen(p, on and p.unit ~= nil) end
     if on ~= was then
         -- Fades in or out quickly; combat info never waits on it (the value is set now).

@@ -213,7 +213,10 @@ ns.DEFAULTS = {
     castColor = { 0.78, 0.62, 0.30 },
     castFill = "pair", -- "plain" (castColor), "daylight" (logo gradient), "pair" (Gradients page), "customGradient"
     castGradient = DaylightUI.Style.DefaultStops(), -- the colors for "customGradient"
-    slant = true, -- angled bar end
+    -- The health bar's two ends, each straight or angled (Options.EndRows):
+    -- slant angles the right end, slantLeft the left one, and slantUnder /
+    -- slantUnderLeft flip that end so its bottom corner sticks out.
+    slant = true, slantUnder = false, slantLeft = false, slantUnderLeft = false,
     slantAngle = 0.6, -- how far it leans: the cut's width as a share of the bar's height
     clickPad = 4, -- extra click area around the name and bar
     stacking = "stack", -- "stack" (plates spread apart), "overlap", or "game" (the game's setting)

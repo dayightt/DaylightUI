@@ -13,6 +13,7 @@ local _, DUI = ...
 DUI.PatchNotes = {
     { version = "Unreleased", new = {
         { "Nameplates", "Debuff cooldown swipe: your debuffs on enemy plates can darken like a clock as they run out (Auras page)" },
+        { "Nameplates", "Both ends of the health bar can be angled either way, or straight, like the other bars (General page)" },
         { "Unit frames", "Each frame can lean its angled ends at its own angle, or keep following the shared Slant angle. A cast bar under its frame can have its own angle and end shapes too" },
     }, changed = {
         { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },

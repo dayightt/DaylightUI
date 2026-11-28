@@ -678,7 +678,7 @@ T.test("nameplates: the outline light runs round your target's outline when pick
     local ring = p.outline
     T.truthy(ring.glowDriver and ring.glowDriver:IsShown(), "the lights run on the target")
     T.eq(ring.glowFrame, p.hp, "round the health bar")
-    T.near(ring.glowCut, p.cut, 1e-6, "following its angled end")
+    T.near(ring.glowCut, p.ends.rB, 1e-6, "following its angled end")
     -- Walk a light round: it stays on the outline, leaning in along the angled end.
     local dot = ring.glowDots[1]
     local W = DaylightUI.Widgets
@@ -5224,4 +5224,137 @@ T.test("nameplates: the Slant angle sets how far the health bar's end leans, liv
     stub.RunTimers()
     T.eq(p.hpCut, 0, "the angled end switched off still wins")
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+-- Each end of the health bar is set on its own (Options.EndRows): straight, its
+-- top corner out (the usual way) or flipped. Pixel units throughout.
+local function maskCount(tex) return #(tex.__masks or {}) end
+
+T.test("nameplates: the health bar's left end angles too, either way, live, and everything round the bar follows", function()
+    login()
+    local DUI = DaylightUI
+    local Cast = stub.nameplates.Cast
+    local p = added("nameplate1")
+    local fill = p.health:GetStatusBarTexture()
+    local hh, cut = p.hp:GetHeight(), p.hpCut
+    T.truthy(cut > 0, "the right end angled, as shipped")
+    T.falsy(p.body.geo.l.angled, "the left end straight, as shipped")
+    T.eq(maskCount(fill), 1, "the fill wears only its moving edge's mask")
+    -- The left end the usual way (\): its top corner out, the bottom one pulled in.
+    DUI:Set("Nameplates", "slantLeft", true)
+    stub.RunTimers()
+    local l = p.body.geo.l
+    T.truthy(l.angled, "on a plate already up")
+    T.eq(l.top, 0); T.near(l.bottom, cut, 1e-6, "pulled in at the bottom by the same cut")
+    T.eq(maskCount(fill), 2, "the fill gets one mask for its left end")
+    T.truthy(DUI.Style.GetSlant(p.health) and DUI.Style.GetSlant(p.health).side == "left", "cut at the left")
+    for _, tex in pairs(p.classLayers) do T.eq(maskCount(tex), 2, "the hidden-class layers over the fill too") end
+    local veil = p.dotVeil.bar:GetStatusBarTexture()
+    T.truthy(maskCount(veil) <= 3, "the DoT veil keeps within the client's three masks")
+    -- The outline leans with it.
+    local L = p.outline.pieces.LEFT
+    T.eq(select(4, L:GetPoint(1)), 0, "the outline's left side from the top corner")
+    T.near(L.__vertexOffsets[2][1], cut, 1e-6, "and leaning in to the bottom one")
+    T.near(p.outline.edges.bottomStart, cut, 1e-6, "its bottom edge starting past the cut")
+    -- The cast bar carries the line on down.
+    local cg = p.cast.body.geo
+    T.near(cg.l.top, cut * (hh + Cast.GAP) / hh, 1e-6, "the cast bar's left end on the same line")
+    T.near(cg.l.bottom - cg.l.top, cut * p.cast:GetHeight() / hh, 1e-6, "at the same angle")
+    -- Flipped (/): the bottom corner out.
+    DUI:Set("Nameplates", "slantUnderLeft", true)
+    stub.RunTimers()
+    T.near(l.top, cut, 1e-6); T.eq(l.bottom, 0, "flipped: the top corner pulled in")
+    T.truthy(DUI.Style.GetSlant(p.health).under == "left", "the fill's mask leans the other way")
+    -- A bar under a flipped end leans back in from its bottom corner (a chevron).
+    T.near(cg.l.top, cut * Cast.GAP / hh, 1e-6, "the cast bar's line starts at the health bar's bottom corner")
+    T.truthy(cg.l.bottom > cg.l.top, "and leans back in")
+    -- Back to straight: the extra mask goes.
+    DUI:Set("Nameplates", "slantLeft", false)
+    DUI:Set("Nameplates", "slantUnderLeft", false)
+    stub.RunTimers()
+    T.falsy(p.body.geo.l.angled)
+    T.eq(maskCount(fill), 1, "back to one mask")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: the right end flipped leans the other way, the fill and the bars under it too", function()
+    login()
+    local DUI = DaylightUI
+    local Cast = stub.nameplates.Cast
+    local p = added("nameplate1")
+    local hh, cut = p.hp:GetHeight(), p.hpCut
+    DUI:Set("Nameplates", "slantUnder", true)
+    stub.RunTimers()
+    local r = p.body.geo.r
+    T.near(r.top, cut, 1e-6); T.eq(r.bottom, 0, "the bottom corner out")
+    local side, fillCut, under = DUI.Style.GetFillAngle(p.health)
+    T.eq(side, "right"); T.truthy(fillCut > 0); T.truthy(under, "the fill's moving edge leans under")
+    -- The bar reaches the bottom corner, so a full bar ends on the angle.
+    local _, _, _, x = p.health:GetPoint(2)
+    local g, Tb = p.body.geo, p.body.T
+    T.near(-x, r.top + r.lean * (g.H - Tb) / g.H + Tb * r.slope, 1e-6, "the bar's right edge at the outer (bottom) corner")
+    local cg = p.cast.body.geo
+    T.near(cg.r.top, cut * Cast.GAP / hh, 1e-6, "the cast bar leans back in from the bottom corner")
+    T.near(p.outline.edges.topEnd, cut, 1e-6, "the outline's top edge stops at the pulled-in corner")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: both ends angled on your target while its outline sweeps on, with its light and combo row", function()
+    local ns = login(function() stub.units.player.class = "ROGUE" end)
+    local DUI = DaylightUI
+    DUI:Set("Nameplates", "targetLight", "circle")
+    DUI:Set("Nameplates", "comboSlant", true)
+    local p = added("nameplate1")
+    stub.comboPoints = 3
+    stub.units.target = stub.units.nameplate1
+    stub.FireEvent("PLAYER_TARGET_CHANGED")
+    -- Changed mid-sweep: the sweep keeps going from the new left end.
+    DUI:Set("Nameplates", "slantLeft", true)
+    DUI:Set("Nameplates", "slantUnder", true)
+    stub.RunTimers()
+    local cut = p.hpCut
+    local ring = p.outline
+    T.near(ring.glowCutBL, cut, 1e-6, "the light walks in along the left end")
+    T.near(ring.glowCutTR, cut, 1e-6, "and the flipped right end")
+    T.eq(ring.glowCut, 0, "whose bottom corner sticks out")
+    local _, _, _, tx = ring.pieces.TOP:GetPoint(1)
+    T.eq(tx, ring.edges.topStart, "the sweep's top edge starts at the left end")
+    -- Combo row under the bar: centered on the bottom edge's straight part. The
+    -- usual left end pulls the bottom corner in, the flipped right one doesn't.
+    local row = ns.Combo.row
+    T.truthy(row:IsShown())
+    local _, _, _, x = row:GetPoint(1)
+    local w = p.hp:GetWidth()
+    local span = row:GetWidth()
+    T.near(x, cut + (w - cut - span) / 2, 1e-6, "clear of the left end's cut")
+    local pip = row.pips[1].body.geo
+    T.truthy(pip.l.angled and pip.r.angled, "angled pips lean like both ends")
+    T.truthy(pip.r.lean < 0, "the right one flipped like the bar's")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
+T.test("nameplates: friendly plates stay square whatever the ends", function()
+    login()
+    DaylightUI:Set("Nameplates", "slantLeft", true)
+    DaylightUI:Set("Nameplates", "friendly.enabled", true)
+    stub.RunTimers()
+    local p = added("nameplate2")
+    T.falsy(p.body.geo.l.angled); T.falsy(p.body.geo.r.angled)
+    T.eq(#(p.health:GetStatusBarTexture().__masks or {}), 0, "no masks")
+end)
+
+T.test("nameplates: the General page has a menu for each end of the health bar", function()
+    login()
+    local found = {}
+    for _, pg in ipairs(stub.nameplates.OPTIONS.pages) do
+        for _, grp in ipairs(pg.groups or {}) do
+            for _, it in ipairs(grp.items or {}) do
+                if it.ends then found[it.ends.side] = it end
+            end
+        end
+    end
+    T.eq(found.left and found.left.ends.on, "slantLeft"); T.eq(found.left.ends.flip, "slantUnderLeft")
+    T.eq(found.right and found.right.ends.on, "slant"); T.eq(found.right.ends.flip, "slantUnder")
+    local S = DaylightUI.Style
+    T.eq(S.EndGlyph("right", true, false), "slash", "the shipped right end reads / as before")
 end)

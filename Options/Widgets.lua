@@ -564,17 +564,25 @@ local function glowSide(b, d)
     return 4, d
 end
 
+-- How far in each corner sits (an angled end): top left, top right, bottom
+-- right, bottom left.
+local function glowCuts(b)
+    return b.glowCutTL or 0, b.glowCutTR or 0, b.glowCut or 0, b.glowCutBL or 0
+end
+
 -- The middle of the band at a distance round it.
 local function glowPoint(b, d)
-    local i, T, w, h, cut, L = b.glowInset, b.glowThick, b.glowW, b.glowH, b.glowCut, b.glowLen
+    local i, T, w, h, L = b.glowInset, b.glowThick, b.glowW, b.glowH, b.glowLen
+    local tl, tr, br, bl = glowCuts(b)
     local side, along = glowSide(b, d % b.glowAround)
-    if side == 1 then return i + along, -(i + T / 2) end
+    if side == 1 then return i + tl + along, -(i + T / 2) end
     if side == 2 then
         local s = along / L[2]
-        return i + w - cut * s - T / 2, -(i + h * s)
+        return i + w - (tr + (br - tr) * s) - T / 2, -(i + h * s)
     end
-    if side == 3 then return i + w - cut - along, -(i + h - T / 2) end
-    return i + T / 2, -(i + h - along)
+    if side == 3 then return i + w - br - along, -(i + h - T / 2) end
+    local s = along / L[4]
+    return i + bl + (tl - bl) * s + T / 2, -(i + h - h * s)
 end
 
 -- Textures come from two pools made as needed and reused every frame: soft dots
@@ -618,18 +626,25 @@ end
 local function glowPiece(b, side, p0, p1, a0, a1, c0, c1)
     if p1 - p0 < 0.5 or (a0 <= 0.01 and a1 <= 0.01) then return end
     local tex = glowTex(b, b.glowStrips)
-    local i, T, w, h, cut = b.glowInset, b.glowThick, b.glowW, b.glowH, b.glowCut
+    local i, T, w, h = b.glowInset, b.glowThick, b.glowW, b.glowH
+    local tl, tr, br, bl = glowCuts(b)
     local len, x, y, lean = p1 - p0, 0, 0, 0
     local horiz = side == 1 or side == 3
-    if side == 1 then x, y = i + p0, -i
+    if side == 1 then x, y = i + tl + p0, -i
     elseif side == 2 then
         -- The right side may lean with an angled end: walk it as a share of its height.
         local L = b.glowLen[2]
         local f0, f1 = p0 / L, p1 / L
-        x, y = i + w - T - cut * f0, -(i + h * f0)
-        len, lean = h * (f1 - f0), cut * (f1 - f0)
-    elseif side == 3 then x, y = i + w - cut - p1, -(i + h - T)
-    else x, y = i, -(i + h - p1) end
+        x, y = i + w - T - (tr + (br - tr) * f0), -(i + h * f0)
+        len, lean = h * (f1 - f0), (br - tr) * (f1 - f0)
+    elseif side == 3 then x, y = i + w - br - p1, -(i + h - T)
+    else
+        -- The left side too, walked from the bottom up: the piece's top is at p1.
+        local L = b.glowLen[4]
+        local f0, f1 = p0 / L, p1 / L
+        x, y = i + bl + (tl - bl) * f1, -(i + h - h * f1)
+        len, lean = h * (f1 - f0), (tl - bl) * (f1 - f0)
+    end
     tex:ClearAllPoints()
     tex:SetPoint("TOPLEFT", b.glowFrame or b, "TOPLEFT", x, y)
     if horiz then tex:SetSize(len, T) else tex:SetSize(T, len) end
@@ -812,12 +827,14 @@ local function glowPlace(b)
         b.glowThick = math.max(b.glowMinThick or 1, short * sc.thick)
         b.glowSize = short * sc.size
     end
-    local i, T, cut = b.glowInset, b.glowThick, b.glowCut or 0
+    local i, T = b.glowInset, b.glowThick
+    local tl, tr, br, bl = glowCuts(b)
     w, h = w - 2 * i, h - 2 * i
-    if w <= T + cut or h <= T then return end
-    b.glowW, b.glowH, b.glowCut = w, h, cut
+    if w <= T + math.max(tl + tr, br + bl) or h <= T then return end
+    b.glowW, b.glowH = w, h
     local L = b.glowLen
-    L[1], L[2], L[3], L[4] = w, math.sqrt(h * h + cut * cut), w - cut, h
+    L[1], L[2], L[3] = w - tl - tr, math.sqrt(h * h + (br - tr) ^ 2), w - br - bl
+    L[4] = math.sqrt(h * h + (tl - bl) ^ 2)
     b.glowAround = L[1] + L[2] + L[3] + L[4]
     local lo, hi, size = b.glowColors[1], b.glowColors[2], b.glowSize or W.GLOW.size
     local added = ADDED[b.glowStyle]
@@ -897,6 +914,7 @@ end
 --   style   one of W.GLOW_STYLES (circle when left out)
 --   frame   what they run round; inset  in from its edges (negative = outside it)
 --   thick   how wide a strip is; cut  how far in the lower right corner sits
+--           (or cuts = { tl, tr, br, bl }, each corner in from its side)
 --   size    a light's size; scale  { size, thick } as shares of the frame's
 --           short side instead, following it as it resizes (thick is then the least)
 --   lo, hi  the two colors (default: the accent's ends)
@@ -923,7 +941,11 @@ function W.GlowAround(host, on, shape)
     host.glowFrame = shape.frame or host.glowFrame
     host.glowInset = shape.inset or host.glowInset
     host.glowThick = shape.thick or host.glowThick
-    host.glowCut = shape.cut or 0
+    -- cut: how far in the bottom right corner sits; cuts = { tl, tr, br, bl } sets
+    -- every corner (both ends angled, either way).
+    local cuts = type(shape.cuts) == "table" and shape.cuts or nil
+    host.glowCut = (cuts and cuts.br) or shape.cut or 0
+    host.glowCutTL, host.glowCutTR, host.glowCutBL = cuts and cuts.tl or 0, cuts and cuts.tr or 0, cuts and cuts.bl or 0
     host.glowSize = shape.size
     -- scale = { size, thick }: a light's size and a strip's width as shares of
     -- the frame's short side, read every frame.

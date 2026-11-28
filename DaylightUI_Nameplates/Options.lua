@@ -14,6 +14,11 @@ local function noThreatColors(get)
     return get("threat") ~= true and not (get("threatPct") == true and get("threatPctColor") == "threat")
 end
 local function execOff(get) return get("execute") == "off" end
+-- The health bar's two end menus (Options.EndRows), each end straight or leaning
+-- either way; the cast and power bars under it carry the lines on.
+local healthEnds = DaylightUI.Options.EndRows({ name = "Health bar", since = "2.4.4",
+    note = "The cast and power bars under it follow. Friendly plates stay square.",
+    left = { on = "slantLeft", flip = "slantUnderLeft" }, right = { on = "slant", flip = "slantUnder" } })
 -- Styles with no lit band: just the line, or the spell icon.
 local function noBand(get) local s = get("executeStyle"); return s == "line" or s == "icon" end
 
@@ -116,10 +121,11 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "nameSize", label = "Name size", min = 8, max = 22, step = 1,
               desc = "Text size of the names on enemy plates." },
             DaylightUI.Options.FontRow("media.nameFont", "Name font", "Names on the nameplates, and the guild line under them"),
-            { type = "toggle", key = "slant", label = "Health bar angled end", desc = "Cuts the end of the bar at an angle. When off, the end is straight." },
+            healthEnds[1],
+            healthEnds[2],
             { type = "slider", key = "slantAngle", label = "Slant angle", min = 0.05, max = 1, step = 0.01, unit = "%",
-              desc = "How far the health bar's angled end leans, as a share of the bar's height. The cast and power bars under it follow. 60% is the usual look.",
-              disabled = function(get) return get("slant") == false end },
+              desc = "How far the health bar's angled ends lean, as a share of the bar's height. The cast and power bars under it follow. 60% is the usual look.",
+              disabled = function(get) return get("slant") == false and get("slantLeft") ~= true end },
         } },
         { label = "Clicking and stacking", items = {
             { type = "slider", key = "clickPad", label = "Click area", min = 0, max = 20, step = 1, unit = "px",
