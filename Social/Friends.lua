@@ -112,6 +112,26 @@ function Friends.Who(c)
     return ((c.level and string.format(L["Level %s"], c.level) .. " ") or "") .. (c.race and (c.race .. " ") or "") .. Rows().ClassWord(c.class)
 end
 
+-- A faction as the game words it ("Horde", "Alliance"), or nil.
+function Friends.FactionWord(faction)
+    if faction == "Horde" then return FACTION_HORDE or L["Horde"] end
+    if faction == "Alliance" then return FACTION_ALLIANCE or L["Alliance"] end
+end
+
+-- A character's tooltip lines under its name: "Level 46 Hunter" with only the number in the
+-- class color (r, g, b), and "Tauren (Horde)" with the faction in parentheses. Either is nil
+-- when it has nothing to say. The Friends and recent allies tooltips both use it.
+function Friends.Identity(c, r, g, b)
+    local who = Rows().ClassWord(c.class)
+    if c.level then who = string.format(L["Level %s"], Win.Parts.Hex({ r, g, b }) .. c.level .. "|r") .. " " .. who end
+    local faction = Friends.FactionWord(c.faction)
+    local race
+    if c.race or faction then
+        race = (c.race or "") .. ((c.race and faction) and " " or "") .. (faction and ("(" .. faction .. ")") or "")
+    end
+    return who, race
+end
+
 -- The card's lines for a friend's other game accounts: each character in its class
 -- color with what it is, and where, or the other game they're in.
 function Friends.Others(f)
@@ -138,8 +158,13 @@ function Friends.Tip(owner, f)
     local function show(c)
         if c.char then
             local r, g, b = Style.ClassTextColor(c.class)
-            T.Person(c.char, c.zone, { r, g, b })
-            T.Text(Friends.Who(c), Style.INK.LABEL)
+            -- The zone on its own line, so a long name or zone has the whole width.
+            T.Person(c.char, nil, { r, g, b })
+            -- Level (its number in the class color) and class, then the race with its faction, then where.
+            local who, race = Friends.Identity(c, r, g, b)
+            T.Sub(who)
+            if race then T.Sub(race) end
+            if c.zone then T.Text(c.zone) end
         elseif c.game and f.status ~= "off" then
             T.Text(string.format(L["Playing %s"], c.game))
         end
@@ -150,7 +175,6 @@ function Friends.Tip(owner, f)
         T.Gap()
         show(o)
     end
-    if f.faction and ns.Setting("friendFactions") == true then T.Line(L["Faction"], f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"])) end
     if f.ruleset then T.Line(L["Server"], f.ruleset) end
     if f.note then T.Line(L["Note"], f.note) end
     if f.broadcast then T.Text("\"" .. f.broadcast .. "\"") end
@@ -232,7 +256,7 @@ function Friends.Spec(f)
         add(LEVEL or L["Level"], f.level and tostring(f.level))
         add(L["Race"], f.race)
         add(L["Zone"], f.zone)
-        local word = f.faction and (f.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+        local word = Friends.FactionWord(f.faction)
         add(L["Faction"], word)
         add(L["Server"], f.ruleset)
     end

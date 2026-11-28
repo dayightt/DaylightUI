@@ -565,7 +565,7 @@ T.test("social: a friend playing on two game accounts shows both characters", fu
     Tips.Person = function(name, where, ...) people[#people + 1] = name .. " / " .. tostring(where); return was(name, where, ...) end
     ns.Friends.Tip(ns.Window.frame, bo)
     Tips.Person = was
-    T.deq(people, { "Lyra / Riverglades", "Tarn / Stranglethorn Vale" })
+    T.deq(people, { "Lyra / nil", "Tarn / nil" })
 
     local spec = ns.Friends.Spec(bo)
     local also
@@ -766,6 +766,41 @@ T.test("social: recent allies under Pinned (and legacy friends) and Recent, the 
     T.eq(names(rows(page.stack, "ally")), "Odessa Reed")
     stub.Key(function() page.chips.all:Click() end)
     frame(2)
+    clean()
+end)
+
+T.test("social: Friends.Identity gives the level and class, and the race with its faction in parentheses", function()
+    local ns = load()
+    local who, race = ns.Friends.Identity({ class = "MAGE", level = 15, race = "Tauren", faction = "Horde" }, 1, 0, 0)
+    T.truthy(who:find("|cffff0000" .. "15|r", 1, true), "only the level number in the class color: " .. who)
+    T.truthy(who:find("Mage", 1, true), who)
+    T.eq(race, "Tauren (" .. (FACTION_HORDE or "Horde") .. ")")
+    local _, onlyFaction = ns.Friends.Identity({ class = "MAGE", faction = "Alliance" }, 1, 0, 0)
+    T.eq(onlyFaction, "(" .. (FACTION_ALLIANCE or "Alliance") .. ")", "no race known")
+    local noLevel, none = ns.Friends.Identity({ class = "MAGE" }, 1, 0, 0)
+    T.eq(noLevel, "Mage"); T.isnil(none, "nothing to say about the race")
+    clean()
+end)
+
+T.test("social: a recent ally's tooltip has the level in the class color and the zone on its own line", function()
+    local ns = load()
+    open(ns)
+    _G.GameTooltip = _G.GameTooltip or CreateFrame("GameTooltip", "GameTooltip", UIParent)
+    local Tips, texts, was = DaylightUI.Tips, {}, DaylightUI.Tips.Text
+    Tips.Text = function(t, ...) texts[#texts + 1] = t; return was(t, ...) end
+    local subs, wasSub = {}, Tips.Sub
+    Tips.Sub = function(t, ...) subs[#subs + 1] = t; return wasSub(t, ...) end
+    local lines, wasLine = {}, Tips.Line
+    Tips.Line = function(l, v, ...) lines[l] = v; return wasLine(l, v, ...) end
+    ns.Allies.Tip(ns.Window.frame, { name = "Elia Hania", class = "MAGE", level = 15, what = "Whispered", online = true,
+        location = "The Deadmines, a very long place name" })
+    Tips.Text, Tips.Sub, Tips.Line = was, wasSub, wasLine
+    T.truthy(subs[1]:find("|cff", 1, true) and subs[1]:find("15", 1, true), "the level in the class color")
+    T.isnil(lines["Zone"], "no label and value to be cut")
+    local found
+    for _, t in ipairs(texts) do if t == "The Deadmines, a very long place name" then found = true end end
+    T.truthy(found, "the zone alone on a line")
+    T.truthy(#texts >= 2 and texts[1] == "Whispered", "what it was, alone on its line")
     clean()
 end)
 

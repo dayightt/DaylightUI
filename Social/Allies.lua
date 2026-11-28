@@ -38,9 +38,15 @@ function Allies.Tip(owner, a)
     T.Clear()
     local r, g, b = Style.ClassTextColor(a.class)
     T.Title(a.name, r, g, b)
-    T.Sub(((a.level and string.format(L["Level %s"], a.level) .. " ") or "") .. Rows().ClassWord(a.class))
-    T.Text(a.what .. (a.when and (" · " .. Data().Ago(a.when)) or ""))
-    if a.location and a.online then T.Line(L["Zone"], a.location) end
+    -- Level (its number in the class color) and class, as the Friends tooltip has them.
+    local who, race = ns.Friends.Identity(a, r, g, b)
+    T.Sub(who)
+    if race then T.Sub(race) end
+    -- What it was and when, on two lines, so each has the whole width.
+    T.Text(a.what)
+    if a.when then T.Text(Data().Ago(a.when), Style.INK.LABEL) end
+    -- The zone on its own line, not beside a label, so a long one has the whole width.
+    if a.location and a.online then T.Text(a.location) end
     if a.note then T.Line(L["Note"], a.note) end
     if a.pinned then T.Text(L["Pinned: kept on your list"], Style.INK.LABEL) end
     T.Gap()
@@ -103,7 +109,7 @@ function Allies.Spec(a)
     add(LEVEL or L["Level"], a.level and tostring(a.level))
     add(L["Race"], a.race)
     if a.online then add(L["Zone"], a.location) end
-    local word = a.faction and (a.faction == "Horde" and (FACTION_HORDE or L["Horde"]) or (FACTION_ALLIANCE or L["Alliance"]))
+    local word = ns.Friends.FactionWord(a.faction)
     add(L["Faction"], word)
     -- How you met, whole (it can be long): its own titled block, under the faction.
     add(L["History"], a.what .. (a.when and (" · " .. Data().Ago(a.when)) or ""))
