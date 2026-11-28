@@ -14,6 +14,8 @@ DUI.PatchNotes = {
     { version = "Unreleased", changed = {
         { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },
     }, fixed = {
+        { "Group finder", "On an account without an authenticator, the note box on List yourself is grayed out and says why, like the game's: before, you could type a note nobody else ever saw" },
+        { "Spellbook", "Hiding passives or lower ranks, or folding a section, slides the spells smoothly into their new places instead of jumping" },
         { "Unit frames", "Elites, rares and bosses show their gold or silver badge on the frame's corner even with no portrait or name tab, so you can still tell them apart in a fight" },
     } },
     { version = "2.4.3", date = "2026-11-27", summary = "Bar animations that run either way, angled ends you can set on every bar, and a mailbox and spellbook that do everything the game's own do.", new = {

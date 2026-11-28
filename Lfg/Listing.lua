@@ -102,6 +102,7 @@ function Listing.Refusal()
         return LFG_LIST_TOO_MANY_ACTIVITIES_SELECTED or string.format(L["Pick %d activities at most."], Data().MAX_ACTIVITIES)
     end
     local cat = Data().Category(Listing.cat)
+    if cat and cat.auto and #ids > 0 and Listing.NoteLocked() then return Listing.LockedWords() end
     if cat and cat.auto and #ids > 0 and Listing.NoteText() == "" then
         return string.format(L["Write a note to list for %s."], cat.name)
     end
@@ -290,6 +291,7 @@ function Listing.LendNote(page)
         sf.EditBox:HookScript("OnEditFocusLost", function() Listing.Glow(false) end)
     end
     Listing.lent = true
+    Listing.PaintNoteLock()
     Listing.NoteChanged()
     return true
 end
@@ -333,6 +335,34 @@ function Listing.NoteChanged()
     local n = #Listing.NoteText()
     page.noteCount:SetText(string.format(L["%d / %d"], n, Listing.MAX_NOTE))
     Listing.PaintFooter()
+end
+
+-- The client takes a note only from an account with an authenticator. The game's page
+-- grays its box out and says so (LFGListingActivityView_OnShow), but that runs only when
+-- its own page shows, so the box lent here stayed open: a player could type a note that
+-- nobody else ever saw.
+function Listing.NoteLocked()
+    return Data().Ask("IsPlayerAuthenticatedForLFG", Listing.cat) == false
+end
+
+function Listing.LockedWords()
+    return LFG_AUTHENTICATOR_DESCRIPTION_BOX or L["Add an authenticator to your account to write a note."]
+end
+
+function Listing.PaintNoteLock()
+    local sf = _G.LFGListingComment
+    local box = type(sf) == "table" and sf.EditBox
+    if not (Listing.lent and type(box) == "table") then return end
+    local locked = Listing.NoteLocked()
+    if locked and box:HasFocus() then box:ClearFocus() end
+    box:SetEnabled(not locked)
+    local hint = box.Instructions
+    if type(hint) == "table" then
+        local c = Data().Category(Listing.cat)
+        local words = locked and Listing.LockedWords()
+            or (c and c.auto and DESCRIPTION_OF_YOUR_GROUP_MANDATORY) or DESCRIPTION_OF_YOUR_GROUP
+        if words then hint:SetText(words) end
+    end
 end
 
 -- Size the game's edit box to the drawn box. It doesn't follow its anchors, so this
@@ -539,8 +569,10 @@ function Listing.PaintFooter()
     if not page then return end
     local listed = Data().Entry() ~= nil
     local why = Listing.Refusal()
-    page.why:SetText(why or "")
-    page.why:SetShown(why ~= nil and Data().CanEdit())
+    -- No authenticator: the note can't be written, but a listing without one still posts.
+    local say = why or (Listing.NoteLocked() and Listing.LockedWords()) or nil
+    page.why:SetText(say or "")
+    page.why:SetShown(say ~= nil and Data().CanEdit())
     local can = Data().CanEdit()
     local list = { { text = listed and (LFG_LIST_UPDATE or L["Update"]) or L["List me"], primary = true,
         off = why ~= nil or not Listing.Changed(), onClick = Listing.Post } }
@@ -594,6 +626,7 @@ function Listing.Render(page)
     page.pieces = s:End()
     page.note:SetText(note or "")
     page.note:SetShown(note ~= nil)
+    Listing.PaintNoteLock()
     Listing.PaintFooter()
     Listing.NoteChanged()
 end

@@ -462,6 +462,8 @@ T.test("pseudo sweep: the group finder window", function()
         for _, k in ipairs({ "fullName", "fullGuildName", "raceStr", "classStr", "area" }) do allow(w[k]) end
     end
     for i = 1, 4 do allow(_G["GROUP_FINDER_GENERAL_PLAYSTYLE" .. i]) end   -- the game's playstyle words
+    -- The note box's hint is the game's own words, set as its page sets them.
+    for _, k in ipairs({ "DESCRIPTION_OF_YOUR_GROUP", "DESCRIPTION_OF_YOUR_GROUP_MANDATORY", "LFG_AUTHENTICATOR_DESCRIPTION_BOX" }) do allow(_G[k]) end
     -- A member's level and class (the game's class word).
     for _, r in ipairs(LW.Sample()) do
         for _, m in ipairs(r.members) do

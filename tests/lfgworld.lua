@@ -6,7 +6,11 @@
 --     on the first open (ADDON_LOADED "Blizzard_GroupFinder_VanillaStyle").
 --   * The note box LFGListingComment.EditBox is the game's secure one. Addon code
 --     may not SetText it (SetSecurityDisableSetText); the player types in it, and
---     CreateListing reads it.
+--     CreateListing reads it. The game's page grays it out and says why
+--     (LFG_AUTHENTICATOR_DESCRIPTION_BOX) for an account without an authenticator
+--     (IsPlayerAuthenticatedForLFG false, LFGListingActivityView_OnShow); the player
+--     can't type in a grayed box. That the client then drops a note from such an
+--     account is a guess (world{ secured = false }).
 --   * The game's listing page hears LFG_LIST_ACTIVE_ENTRY_UPDATE(created). A new
 --     listing switches the game to its browse tab and searches the listing's
 --     activities (LFGParentFrame_SearchActiveEntry).
@@ -114,6 +118,8 @@ local function frame()
         if (stub.inSecure or 0) == 0 then error("SetText: this edit box's text can't be set by addon code", 2) end
         return set(self, t)
     end
+    comment.EditBox.Instructions = comment.EditBox:CreateFontString(nil, "ARTWORK")
+    comment.EditBox.Instructions:SetText(DESCRIPTION_OF_YOUR_GROUP)
     listing.ActivityView.Comment = comment
     p.ListingFrame, p.BrowseFrame, p.WhoFrame = listing, browse, who
     -- The game's listing page (LFGListingMixin:OnEvent): a new listing searches
@@ -177,7 +183,11 @@ function LW.ChatWho()
 end
 
 -- The player types a note into the game's box (a hardware event, in the game's code).
-function LW.Type(text) asGame(function() frame().ListingFrame.ActivityView.Comment.EditBox:SetText(text) end) end
+function LW.Type(text)
+    local box = frame().ListingFrame.ActivityView.Comment.EditBox
+    if not box:IsEnabled() then return end   -- a grayed box takes no typing
+    asGame(function() box:SetText(text) end)
+end
 function LW.Note() return frame().ListingFrame.ActivityView.Comment.EditBox:GetText() end
 
 -- In a group of n (you lead it, or not).
@@ -226,7 +236,7 @@ end
 
 local function setEntry(t, created)
     local style = (t.generalPlaystyle and t.generalPlaystyle ~= 0) and t.generalPlaystyle or (S().entry and S().entry.generalPlaystyle)
-    S().entry = { activityIDs = { unpack(t.activityIDs) }, comment = LW.Note(), newPlayerFriendly = t.newPlayerFriendly == true, generalPlaystyle = style }
+    S().entry = { activityIDs = { unpack(t.activityIDs) }, comment = S().secured and LW.Note() or "", newPlayerFriendly = t.newPlayerFriendly == true, generalPlaystyle = style }
     local me = { id = 99, activityIDs = S().entry.activityIDs, age = 0, comment = S().entry.comment, hasSelf = true, generalPlaystyle = style,
         members = { { name = "Sunwalker", classFilename = "SHAMAN", level = 14, assignedRole = "DAMAGER", lfgRoles = S().roles } } }
     for i, r in ipairs(S().results) do if r.id == 99 then table.remove(S().results, i); break end end
@@ -299,6 +309,9 @@ local function install()
     _G.GROUP_FINDER_PLAYSTYLE_REQUIRED = "Select Playstyle (required)"
     _G.GROUP_FINDER_GENERAL_PLAYSTYLE1, _G.GROUP_FINDER_GENERAL_PLAYSTYLE2 = "Learning", "Relaxed"
     _G.GROUP_FINDER_GENERAL_PLAYSTYLE3, _G.GROUP_FINDER_GENERAL_PLAYSTYLE4 = "Competitive", "Carry Offered"
+    _G.DESCRIPTION_OF_YOUR_GROUP = "Write a description of your group."
+    _G.DESCRIPTION_OF_YOUR_GROUP_MANDATORY = "Write a description of your group (required)."
+    _G.LFG_AUTHENTICATOR_DESCRIPTION_BOX = "Attach an Authenticator to your account to write a description."
     _G.CreateAtlasMarkup = function(atlas, w, h) return "|A:" .. atlas .. ":" .. (h or 0) .. ":" .. (w or 0) .. "|a" end
     _G.ChatFrameUtil = { SendTell = function(name) record("SendTell", name) end }
     _G.C_PartyInfo = _G.C_PartyInfo or {}
@@ -328,7 +341,7 @@ local function install()
         GetActivityGroupInfo = function(gid) local g = LW.GROUPS[gid]; if g then return g[1], g[2] end end,
         GetAvailableActivities = function(cat) return filtered(cat) end,
         GetActivityInfoTable = function(id) local a = LW.ACTIVITIES[id]; if not a then return nil end; local t = {}; for k, v in pairs(a) do t[k] = v end; return t end,
-        IsPlayerAuthenticatedForLFG = function() return true end,
+        IsPlayerAuthenticatedForLFG = function() return S().secured end,
         -- What your spec does (the dungeon finder grays the rest). The listing
         -- page never asks it, so a warrior in Arms can still list as a tank.
         GetAvailableRoles = function() return false, false, true end,
@@ -412,12 +425,14 @@ end
 
 -- spec: results (default LW.Sample()), level (14), roles, enabled (the module's
 -- switch, default true here since the tests are about Daylight UI's window), lag (a
--- search right after you list leaves your listing out).
+-- search right after you list leaves your listing out), secured (false: an account
+-- without an authenticator).
 function LW.world(spec)
     spec = spec or {}
     return function()
         LW.state = { calls = {}, results = spec.results or LW.Sample(), level = (spec.level == nil) and 14 or (spec.level or nil),
-            roles = spec.roles or { tank = false, healer = false, dps = true }, cvars = {}, lag = spec.lag == true }
+            roles = spec.roles or { tank = false, healer = false, dps = true }, cvars = {}, lag = spec.lag == true,
+            secured = spec.secured ~= false }
         _G.LFGParentFrame, _G.LFGListingFrame, _G.LFGBrowseFrame, _G.LFGWhoListFrame, _G.LFGListingComment = nil, nil, nil, nil, nil
         install()
         DaylightUIDB = { profileData = { ["DPS/Tank"] = { modules = { GroupFinder = { enabled = spec.enabled ~= false } } } } }

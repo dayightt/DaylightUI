@@ -718,6 +718,44 @@ T.test("lfg: tick an activity, write a note, List me: listed, and Find a group s
     T.isnil(blocked(), tostring(blocked()))
 end)
 
+-- A player listed for "Lava run BRD" and nobody saw the note: the game's page grays
+-- the note box out for an account without an authenticator, and ours left it open.
+T.test("lfg: no authenticator: the note box is grayed out with the game's words, as on the game's page", function()
+    local ns = load({ secured = false })
+    open(ns)
+    tab(ns, "list")
+    local L = ns.Listing
+    local box = LFGListingComment.EditBox
+    T.falsy(box:IsEnabled(), "grayed out, like the game's own page")
+    LW.Type("Lava run BRD")
+    T.eq(LW.Note() or "", "", "nothing typed into a note that would never be posted")
+    T.eq(box.Instructions:GetText(), LFG_AUTHENTICATOR_DESCRIPTION_BOX, "the game's words in the box")
+    T.eq(L.page.why:GetText(), LFG_AUTHENTICATOR_DESCRIPTION_BOX, "and in full above the footer")
+    T.truthy(L.page.why:IsShown())
+    local acts = rows(L.page.stack, "act")
+    acts[1]:GetScript("OnClick")(acts[1], "LeftButton")
+    L.page.styleChips[2]:GetScript("OnClick")(L.page.styleChips[2])
+    frame(2)
+    T.falsy(L.page.foot.buttons[1].spec.off, "listing without a note still works")
+    -- A category that needs a note can't be listed at all.
+    L.PickCat(120)
+    frame(2)
+    T.eq(L.page.why:GetText(), LFG_AUTHENTICATOR_DESCRIPTION_BOX)
+    -- Given back, the game's page decides for itself again.
+    ns.Window.Close()
+    frame(20)
+    T.eq(LFGListingComment:GetParent(), LFGListingFrame.ActivityView, "given back")
+end)
+
+T.test("lfg: with an authenticator the note box stays open and keeps the game's hint", function()
+    local ns = load()
+    open(ns)
+    tab(ns, "list")
+    T.truthy(LFGListingComment.EditBox:IsEnabled())
+    T.eq(LFGListingComment.EditBox.Instructions:GetText(), DESCRIPTION_OF_YOUR_GROUP)
+    T.falsy(ns.Listing.page.why:IsShown(), "nothing to warn about")
+end)
+
 T.test("lfg: List yourself sorts activities by level or A to Z, and keeps the pick", function()
     local ns = load()
     open(ns)
