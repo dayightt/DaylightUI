@@ -613,6 +613,9 @@ ns.OPTIONS = { pages = {
             { type = "slider", key = "maxDebuffs", label = "Max debuffs shown", min = 1, max = 10, step = 1,
               desc = "The most of your debuffs one plate shows.",
               disabled = off("debuffs") },
+            { type = "toggle", key = "debuffSwipe", label = "Debuff cooldown swipe", since = "2.4.4",
+              desc = "Each icon darkens like a clock as its time runs out.",
+              disabled = off("debuffs") },
         }, spotItems("Debuff row", { spot = "debuffSpot", grow = "debuffGrow", x = "debuffX", y = "debuffY" }, true,
             off("debuffs"))) },
         { label = "Crowd control", items = with({

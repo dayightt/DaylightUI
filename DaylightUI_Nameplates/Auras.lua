@@ -130,10 +130,13 @@ local function initSquare(btn, what)
     b.shade = btn:CreateTexture(nil, "ARTWORK", nil, 2)
     b.shade:SetTexture(DUI.MEDIA .. "inner-shadow.png")
     b.shade:SetVertexColor(0, 0, 0, 1)
-    -- The time is a number: no clock sweep, no countdown numbers.
+    -- The time is a number, so no countdown numbers; the clock sweep is a setting
+    -- for debuffs (swipeOf, set in fitNow).
+    b.what = what
     local ok, cd = pcall(CreateFrame, "Cooldown", nil, btn, "CooldownFrameTemplate")
     if ok and cd then
         pcall(cd.SetDrawSwipe, cd, false)
+        b.swipe = false
         pcall(cd.SetDrawEdge, cd, false)
         pcall(cd.SetDrawBling, cd, false)
         pcall(cd.SetHideCountdownNumbers, cd, true)
@@ -149,6 +152,28 @@ local function initSquare(btn, what)
     btn:SetApplicationCount(b.count)
     buttons[btn] = b
     return b
+end
+
+-- Whether what's icons show the clock sweep.
+local function swipeOf(what)
+    return what == "debuffs" and ns.cfg.debuffSwipe == true
+end
+
+-- The sweep shades the icon clockwise as the time runs out, the same look as the
+-- unit frames' aura sweep. The client drives it from the aura's duration.
+Auras.SWIPE_ALPHA = 0.6
+Auras.SAMPLE_SWIPE_SPAN = 3600
+local function styleSwipe(cd, on)
+    cd:SetDrawSwipe(on)
+    if not on then return end
+    cd:SetSwipeTexture("Interface\\Buttons\\WHITE8X8")
+    cd:SetSwipeColor(0, 0, 0, Auras.SWIPE_ALPHA)
+    cd:SetReverse(true)
+end
+
+-- Whether a button still has to be fitted to its size, border or sweep.
+local function stale(b, size, T)
+    return b.size ~= size or b.T ~= T or (b.cd ~= nil and b.swipe ~= swipeOf(b.what))
 end
 
 local function sizeOf(what)
@@ -180,6 +205,11 @@ local function fitNow(btn, size, p)
     if b.cd then
         b.cd:ClearAllPoints()
         b.cd:SetAllPoints(b.icon)
+        local on = swipeOf(b.what)
+        if b.swipe ~= on then
+            styleSwipe(b.cd, on)
+            b.swipe = on
+        end
     end
     font(b.time, timeSize(size))
     b.time:ClearAllPoints()
@@ -204,7 +234,7 @@ local function refit(p)
         local T = Pixel.Px(p, Auras.BORDER_PX)
         for _, btn in ipairs(c.buttons or {}) do
             local b = buttons[btn]
-            if b and (b.size ~= size or b.T ~= T) then fit(btn, size, p) end
+            if b and stale(b, size, T) then fit(btn, size, p) end
         end
     end
 end
@@ -215,7 +245,7 @@ local function needsFit(p)
         local T = Pixel.Px(p, Auras.BORDER_PX)
         for _, btn in ipairs(c.buttons or {}) do
             local b = buttons[btn]
-            if b and (b.size ~= size or b.T ~= T) then return true end
+            if b and stale(b, size, T) then return true end
         end
     end
     return false
@@ -377,6 +407,15 @@ local function newSample(row, what)
     b.shade = btn:CreateTexture(nil, "ARTWORK", nil, 2)
     b.shade:SetTexture(DUI.MEDIA .. "inner-shadow.png")
     b.shade:SetVertexColor(0, 0, 0, 1)
+    -- A debuff's clock, frozen part way through (ShowSample).
+    if what == "debuffs" then
+        b.clock = CreateFrame("Cooldown", nil, btn, "CooldownFrameTemplate")
+        b.clock:SetDrawEdge(false)
+        b.clock:SetDrawBling(false)
+        b.clock:SetHideCountdownNumbers(true)
+        b.clock:EnableMouse(false)
+        b.clock:SetAllPoints(b.icon)
+    end
     b.time = text(btn, "CENTER")
     local c = Auras.TIME_COLOR
     b.time:SetTextColor(c[1], c[2], c[3])
@@ -398,7 +437,7 @@ local function sampleRow(p, what)
     return row
 end
 
--- Shows list (icons: { icon, time, dispel, count }) in the what row, laid out the
+-- Shows list (icons: { icon, time, left, dispel, count }; left = the share of time left, for the sweep) in the what row, laid out the
 -- way the client lays out its own (flow and spacing). An empty list hides it.
 -- Returns the row.
 function Auras.ShowSample(p, what, list)
@@ -437,6 +476,18 @@ function Auras.ShowSample(p, what, list)
         b.icon:SetTexture(aura.icon)
         b.time:SetText(aura.time or "")
         b.count:SetText(aura.count and tostring(aura.count) or "")
+        if b.clock then
+            -- A long span started that far back, so the preview's sweep barely moves.
+            local on = swipeOf(what)
+            styleSwipe(b.clock, on)
+            if on then
+                local span, left = Auras.SAMPLE_SWIPE_SPAN, aura.left or 0.6
+                b.clock:SetCooldown(GetTime() - (1 - left) * span, span)
+                b.clock:Show()
+            else
+                b.clock:Hide()
+            end
+        end
         btn:Show()
     end
     for i = n + 1, #row.icons do row.icons[i]:Hide() end

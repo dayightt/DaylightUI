@@ -112,6 +112,18 @@ T.test("nameplate sample: it follows the settings at once", function()
     T.isnil(labels(c.Parts())["Spell icon"], "no spell icon")
 end)
 
+T.test("nameplate sample: the debuff cooldown swipe shows on the preview", function()
+    local DUI, ns = load()
+    local s = sample(ns, "auras")
+    local function clock() return { s.p.sampleAuras.debuffs.icons[1]:GetChildren() } end
+    T.falsy(clock()[1]:IsShown(), "off by default")
+    DUI:Set("Nameplates", "debuffSwipe", true)
+    s.Refresh(600, 200)
+    local cd = clock()[1]
+    T.truthy(cd:IsShown() and cd:GetDrawSwipe(), "on: each icon wears its sweep")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplate sample: the friendly page shows a friendly player", function()
     local DUI, ns = load()
     DUI:Set("Nameplates", "friendly.enabled", true)

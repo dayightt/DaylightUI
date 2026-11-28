@@ -114,6 +114,7 @@ ns.DEFAULTS = {
     debuffs = true,         -- your debuffs above the bar
     debuffSize = 24,
     maxDebuffs = 6,
+    debuffSwipe = false,    -- ...each icon darkens like a clock as its time runs out
     comboPoints = true, -- combo points under your target's plate (rogues, cat druids)
     comboPosition = "below", -- ...under the health bar, or "above" it (the name moves up)
     comboHeight = 5,        -- ...pip height

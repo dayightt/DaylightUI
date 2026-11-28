@@ -11,7 +11,9 @@
 local _, DUI = ...
 
 DUI.PatchNotes = {
-    { version = "Unreleased", changed = {
+    { version = "Unreleased", new = {
+        { "Nameplates", "Debuff cooldown swipe: your debuffs on enemy plates can darken like a clock as they run out (Auras page)" },
+    }, changed = {
         { "Bar animations", "Slosh colors only the water: above the waves you now see the bar's own background" },
     }, fixed = {
         { "Unit frames", "Elites, rares and bosses show their gold or silver badge on the frame's corner even with no portrait or name tab, so you can still tell them apart in a fight" },

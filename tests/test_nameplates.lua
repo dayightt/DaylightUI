@@ -3323,6 +3323,38 @@ T.test("nameplates: a plate put up in a battleground touches no locked aura butt
     T.eq(#stub.errors, 0, tostring(stub.errors[1]))
 end)
 
+-- The client's duration cooldown on one of a plate's debuff icons.
+local function debuffClock(p)
+    local btn = p.auras.debuffs.__groups.mine.button
+    for _, child in ipairs({ btn:GetChildren() }) do
+        if child:GetObjectType() == "Cooldown" then return child end
+    end
+end
+
+T.test("nameplates: the debuff cooldown swipe switch reaches every plate, and waits out a battleground", function()
+    login()
+    stub.units.nameplate3 = { name = "Kobold", hostile = true, reaction = 2, health = 10, maxHealth = 10 }
+    local p = added("nameplate1")
+    local cd = debuffClock(p)
+    T.truthy(cd, "the icon has its clock")
+    T.falsy(cd:GetDrawSwipe(), "off by default")
+    DaylightUI:Set("Nameplates", "debuffSwipe", true)
+    stub.RunTimers()
+    T.truthy(cd:GetDrawSwipe(), "on for a plate already up")
+    T.truthy(cd.__cdReverse, "darkens as the time runs out, like the unit frames'")
+    T.truthy(debuffClock(added("nameplate3")):GetDrawSwipe(), "and a plate put up afterwards")
+    -- Under the client's restrictions the icons are locked: the change waits.
+    stub.SetRestriction("PvPMatch", true)
+    DaylightUI:Set("Nameplates", "debuffSwipe", false)
+    stub.RunTimers()
+    T.eq(stub.lockErrors, 0, lockSites())
+    T.truthy(cd:GetDrawSwipe(), "waits for the match to end")
+    stub.SetRestriction("PvPMatch", false)
+    stub.RunTimers()
+    T.falsy(cd:GetDrawSwipe(), "then goes off")
+    T.eq(#stub.errors, 0, tostring(stub.errors[1]))
+end)
+
 T.test("nameplates: a unit leaving after the game took its frame back is fine", function()
     login()
     added("nameplate1")
