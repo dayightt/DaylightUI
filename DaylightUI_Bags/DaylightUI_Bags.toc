@@ -9,7 +9,7 @@
 ## Notes-deDE: Alle Taschen in einem Fenster, samt Berufstasche und Schlüsselbund: Suche, Sortieren, Taschenplätze, freie Plätze und Geld im DaylightUI-Look.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.4.2
+## Version: 2.4.3
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 

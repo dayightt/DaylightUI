@@ -1,3 +1,32 @@
+# DaylightUI 2.4.3
+
+Bar animations that run either way, angled ends you can set on every bar, and a mailbox and spellbook that do everything the game's own do.
+
+## New
+- Bar animations: Flip direction: any bar animation can run the other way along the bar
+- Slant angle: Set how far angled ends lean on nameplates, the loot feed, meters, the data bar, the breath bar and boss timers. Unit frames' now goes up to 100%
+- Spellbook: Hide passive spells: a switch at the bottom of the spellbook lists only the spells you cast
+- Proc Alerts: The Overpower alert lights up after a dodge in Defensive or Berserker Stance too, so you know when to swap
+- Cast bars: Target, focus and party cast bars outside their frame can have their own border, corners and shadow
+
+## Changed
+- Bags: The bags' own "Compare with what you wear" switch is gone: the one under Tooltip decides for every item
+- Unit frames: A cast bar or swing timer docked to the personal display keeps its own look and spot, and moves with the display as you zoom
+
+## Fixed
+- Mailbox: The mailbox does what the game's does again: letter previews, Shift-click links, COD, keeping a copy, reporting spam, and the Send page's keys and name suggestions
+- Spellbook: The spellbook and talents do what the game's do: Alt-click self-cast, Shift-P for pet spells, autocast marks, search by what a spell does, drag talents onto your bars
+- Quests: Quests started from an item show at the top of the tracker again, and quest item buttons link, light up and stay like the game's
+- Social: Whispering a friend added by character name reaches them again, and the social tabs no longer run into your BattleTag
+- Unit frames: The personal display comes back when you mouse over it, like every other part of the UI
+- Proc Alerts: Proc alerts and the Molten, Cinders and Slosh bar animations no longer show as green boxes for some players
+- Action bars: Long item cooldowns (like the Salt Shaker) show the same time on your bars as in your bags
+- Cooldown Manager: A recast glow turns off once its debuff is gone
+- Auction House: The Sell tab lists other sellers' auctions by the price you see
+- Professions: Clicking the tab you're already on no longer closes the profession window
+- Cast bars: A target or focus cast bar above or below its frame leans at the ends like the frame
+- Little touches: The minimap's quest areas fade with the map, the quest tracker's hover highlight sits evenly round the text (thanks Naerian), quests asking for gold show what you have, and the window swap link reads right
+
 # DaylightUI 2.4.2
 
 XP orbs that stream into your XP bar, missing buffs shown as icons above you, and a character window that does everything the game's own window does.

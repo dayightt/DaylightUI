@@ -9,7 +9,7 @@
 ## Notes-deDE: Deine Quests im DaylightUI-Look, mit Gegenstandstasten und sanfter Bewegung.
 ## Author: Daylight
 ## Category: DaylightUI
-## Version: 2.4.2
+## Version: 2.4.3
 ## IconTexture: Interface\AddOns\DaylightUI\Media\logo-64.png
 ## Dependencies: DaylightUI
 ## OptionalDeps: !KalielsTracker, EllesmereUIQuestTracker, QuestieDB, GatherMate2
